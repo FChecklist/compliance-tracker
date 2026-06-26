@@ -6,7 +6,7 @@ import { z } from "zod";
 export const complianceEndpoints = {
   list: async (filters: z.infer<typeof ComplianceFiltersSchema>) => {
     const client = getApiClient();
-    return client.get("compliance", { searchParams: filters as Record<string, string> }).json<PaginatedResponse<unknown>>();
+    return client.get("compliance", { searchParams: filters as unknown as Record<string, string> }).json<PaginatedResponse<unknown>>();
   },
   get: async (id: string) => {
     return getApiClient().get(`compliance/${id}`).json<ApiResponse<unknown>>();
