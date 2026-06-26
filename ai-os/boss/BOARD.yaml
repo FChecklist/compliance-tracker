@@ -1,0 +1,9 @@
+# Work Board - Single Source of Truth for All Task Assignments
+# BOSS reads and writes this. All agents update it at every lifecycle stage.
+version: "1.0.0"
+last_updated: "2026-06-26T00:00:00Z"
+last_updated_by: "SENTINEL"
+summary:
+  total_tasks: 0
+  by_status: { proposed: 0, pending: 0, assigned: 0, in_progress: 0, blocked: 0, in_review: 0, completed: 0, cancelled: 0 }
+tasks: []
