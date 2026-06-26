@@ -1,0 +1,39 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@compliancetrack/db": [
+        "../../packages/db/src"
+      ],
+      "@compliancetrack/types": [
+        "../../packages/types/src"
+      ],
+      "@compliancetrack/api-client": [
+        "../../packages/api-client/src"
+      ],
+      "@compliancetrack/ui": [
+        "../../packages/ui/src"
+      ],
+      "@compliancetrack/config": [
+        "../../packages/config/src"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
