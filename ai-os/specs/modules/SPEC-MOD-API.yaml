@@ -1,0 +1,61 @@
+﻿id: SPEC-MOD-API
+module: MOD-API
+boss: VEDABOSS
+status: DRAFT
+priority: MEDIUM
+created: "2026-06-26"
+
+business:
+  objective: "Provide a secure external REST API for integrating compliance data with third-party tools and dashboards"
+  stakeholders: [developers, integrators, enterprise customers]
+
+requirements:
+  functional:
+    - "API key management: create, rotate, revoke keys per org"
+    - "GET /api/v1/controls: list all controls with status"
+    - "GET /api/v1/compliance/score: org compliance score"
+    - "POST /api/v1/webhooks: register webhook for status changes"
+    - "OpenAPI 3.0 documentation"
+  technical:
+    - "API keys hashed in DB (never stored plain)"
+    - "Rate limiting: 1000 req/hour per API key"
+    - "Webhook delivery with retry (3 attempts)"
+  non_functional:
+    performance: "API p95 <300ms"
+    security: "API keys hashed, scoped to org, never logged"
+
+security:
+  requirements:
+    - "API keys stored as bcrypt hash, never in plain text"
+    - "All API requests logged with key_id (not key value)"
+    - "Webhook payloads signed with HMAC-SHA256"
+  fraud_scenarios:
+    - "API key theft: keys are rotatable and revocable instantly"
+
+acceptance_criteria:
+  - given: "A valid API key"
+    when: "GET /api/v1/compliance/score is called"
+    then: "Returns org compliance score as JSON"
+  - given: "A revoked API key"
+    when: "Any API call is made"
+    then: "Returns 401 Unauthorized"
+
+tests:
+  unit:
+    - "API key hash verification"
+    - "Rate limiter logic"
+  integration:
+    - "Valid key returns correct data scoped to org"
+    - "Webhook delivery and retry logic"
+  e2e:
+    - "Create key, call API, revoke key, verify 401"
+
+sentinel_validation_rules:
+  - rule: "API keys must never appear in logs or response bodies"
+    severity: critical
+
+success_metrics:
+  - metric: "API uptime"
+    target: ">99.9%"
+
+rollback_strategy: "Revoke all keys; regenerate; notify API users via email"
