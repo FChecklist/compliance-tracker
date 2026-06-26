@@ -1,22 +1,23 @@
 {
   "name": "compliance-tracker",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "test": "turbo run test",
-    "type-check": "turbo run type-check",
-    "db:generate": "turbo run db:generate",
-    "db:migrate": "turbo run db:migrate"
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:push": "supabase db push",
+    "db:generate": "turbo run db:generate"
   },
   "devDependencies": {
-    "turbo": "^2.3.0",
-    "typescript": "^5.7.0"
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "@playwright/test": "^1.44.0",
+    "prettier": "^3.3.0"
   },
-  "packageManager": "npm@10.9.0",
-  "engines": {
-    "node": ">=20.0.0"
-  }
+  "packageManager": "pnpm@9.0.0",
+  "engines": { "node": ">=20.0.0", "pnpm": ">=9.0.0" }
 }
