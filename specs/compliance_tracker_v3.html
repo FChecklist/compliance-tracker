@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComplianceTrack — One Portal. One Truth.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --cream:#FFFDF9;--cloud:#F0F4F8;--cloud2:#E8EEF5;
+  --navy:#1C2B3A;--navy2:#2D3F52;--navy3:#3D5269;
+  --saffron:#F5820A;--saffron-l:#FEF3E2;--saffron-m:#FAC88A;
+  --teal:#0E7C6E;--teal-l:#E6F4F2;--teal-m:#7ECDC5;
+  --red:#C0392B;--red-l:#FDECEB;--red-m:#E8A39D;
+  --amber:#E67E22;--amber-l:#FEF9EC;
+  --blue:#2563EB;--blue-l:#EFF6FF;
+  --purple:#7C3AED;--purple-l:#F5F3FF;
+  --green:#16A34A;--green-l:#F0FDF4;
+  --slate:#4A5568;--muted:#718096;--border:#E2E8F0;--border2:#CBD5E1;
+  --serif:'DM Serif Display',Georgia,serif;
+  --sans:'Inter',system-ui,sans-serif;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;--r-xl:20px;--r-2xl:28px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.07);
+  --shadow:0 4px 16px rgba(0,0,0,.08);
+  --shadow-lg:0 16px 48px rgba(0,0,0,.12);
+}
+body{font-family:var(--sans);background:var(--cloud);color:var(--navy);font-size:14px;line-height:1.5;min-height:100vh}
+/* TOAST */
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--navy);color:#fff;padding:10px 22px;border-radius:100px;font-size:12px;font-weight:600;opacity:0;transition:all .3s;z-index:9999;white-space:nowrap;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* AUTH OVERLAY */
+.auth-screen{position:fixed;inset:0;background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 60%,#1a3a4a 100%);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.auth-screen.hidden{display:none}
+.auth-card{background:var(--cream);border-radius:var(--r-2xl);width:440px;max-width:100%;overflow:hidden;box-shadow:var(--shadow-lg)}
+.auth-top{background:var(--navy);padding:36px 32px 28px;text-align:center;position:relative;overflow:hidden}
+.auth-top::before{content:'';position:absolute;top:-60px;right:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(245,130,10,.2) 0%,transparent 70%)}
+.auth-logo{width:56px;height:56px;background:var(--saffron);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 24px rgba(245,130,10,.4)}
+.auth-logo svg{width:28px;height:28px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.auth-title{font-family:var(--serif);font-size:24px;color:#fff;margin-bottom:6px}
+.auth-sub{font-size:12px;color:rgba(255,255,255,.5);font-weight:500}
+.auth-body{padding:28px 32px 32px}
+.auth-err{display:none;background:var(--red-l);border:1px solid var(--red-m);border-radius:var(--r-md);padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:16px;font-weight:500}
+.auth-err.show{display:block}
+.auth-success{display:none;background:var(--teal-l);border:1px solid var(--teal-m);border-radius:var(--r-md);padding:10px 14px;font-size:12px;color:var(--teal);margin-bottom:16px;font-weight:500}
+.auth-success.show{display:block}
+.af{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.af label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.af input,.af select{padding:11px 14px;border:1.5px solid var(--border2);border-radius:var(--r-md);font-size:14px;font-family:var(--sans);color:var(--navy);background:#fff;outline:none;transition:all .15s;width:100%}
+.af input:focus,.af select:focus{border-color:var(--saffron);box-shadow:0 0 0 3px rgba(245,130,10,.1)}
+/* PASSCODE */
+.passcode-dots{display:flex;justify-content:center;gap:16px;margin:20px 0}
+.pc-dot{width:52px;height:52px;border-radius:var(--r-md);border:2px solid var(--border2);background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--navy);transition:all .15s}
+.pc-dot.filled{background:var(--navy);border-color:var(--navy);color:#fff}
+.pc-dot.active{border-color:var(--saffron);box-shadow:0 0 0 3px rgba(245,130,10,.15)}
+.pc-numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.pc-btn{height:52px;border-radius:var(--r-md);border:1.5px solid var(--border);background:#fff;font-size:18px;font-weight:700;color:var(--navy);cursor:pointer;transition:all .12s;font-family:var(--sans)}
+.pc-btn:hover{background:var(--cloud);border-color:var(--border2)}
+.pc-btn:active{background:var(--navy);color:#fff;transform:scale(.96)}
+.pc-btn.del{font-size:14px;color:var(--red)}
+.pc-btn.del:hover{background:var(--red-l);border-color:var(--red-m)}
+.auth-btn{width:100%;padding:13px;border:none;border-radius:var(--r-md);background:var(--saffron);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .15s;box-shadow:0 4px 16px rgba(245,130,10,.3)}
+.auth-btn:hover{background:#e0730a;transform:translateY(-1px)}
+.auth-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.auth-link{text-align:center;margin-top:16px;font-size:13px;color:var(--muted)}
+.auth-link a{color:var(--saffron);font-weight:600;cursor:pointer;text-decoration:none}
+.auth-link a:hover{text-decoration:underline}
+.auth-tabs{display:flex;gap:0;margin-bottom:24px;background:var(--cloud);border-radius:var(--r-md);padding:4px}
+.auth-tab{flex:1;padding:8px;border:none;background:transparent;border-radius:var(--r-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);color:var(--muted);transition:all .15s}
+.auth-tab.active{background:#fff;color:var(--navy);box-shadow:var(--shadow-sm)}
+/* ACCESS REQUEST */
+.access-req-card{background:#fff;border-radius:var(--r-xl);padding:28px;text-align:center;box-shadow:var(--shadow);max-width:400px;margin:0 auto}
+.access-req-icon{width:64px;height:64px;background:var(--amber-l);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px}
+.access-req-title{font-family:var(--serif);font-size:22px;color:var(--navy);margin-bottom:8px}
+.access-req-body{font-size:14px;color:var(--slate);line-height:1.7;margin-bottom:20px}
+/* NAV */
+.nav{background:var(--navy);height:60px;display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:60;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;flex-shrink:0}
+.nav-logomark{width:34px;height:34px;background:var(--saffron);border-radius:9px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(245,130,10,.4)}
+.nav-logomark svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-wordmark{font-family:var(--sans);font-weight:800;font-size:16px;color:#fff;letter-spacing:-.01em}
+.nav-wordmark span{color:var(--saffron)}
+.nav-edition{font-size:10px;font-weight:700;background:rgba(255,255,255,.1);color:rgba(255,255,255,.6);padding:2px 8px;border-radius:100px;letter-spacing:.05em;text-transform:uppercase;margin-left:4px;border:1px solid rgba(255,255,255,.12)}
+.nav-sep{width:1px;height:28px;background:rgba(255,255,255,.12)}
+.nav-org{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--r-md);cursor:pointer;font-size:12px;font-weight:600;color:rgba(255,255,255,.75);transition:all .15s;border:1px solid rgba(255,255,255,.1)}
+.nav-org:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-org-dot{width:6px;height:6px;border-radius:50%;background:var(--saffron)}
+.nav-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.nav-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--r-md);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s;border:none;white-space:nowrap}
+.nav-btn-ghost{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.75)}
+.nav-btn-ghost:hover{background:rgba(255,255,255,.12);color:#fff}
+.nav-btn-saffron{background:var(--saffron);color:#fff;box-shadow:0 3px 10px rgba(245,130,10,.3)}
+.nav-btn-saffron:hover{background:#e0730a}
+.nav-av{width:34px;height:34px;border-radius:50%;background:var(--saffron);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;cursor:pointer;position:relative;flex-shrink:0;border:2px solid rgba(255,255,255,.2)}
+.nav-av-tip{display:none;position:absolute;top:calc(100%+10px);right:0;background:var(--navy);border:1px solid rgba(255,255,255,.1);border-radius:var(--r-lg);padding:14px 18px;min-width:220px;box-shadow:var(--shadow-lg);z-index:300}
+.nav-av:hover .nav-av-tip{display:block}
+.nav-av-name{color:#fff;font-weight:700;font-size:13px;margin-bottom:3px}
+.nav-av-email{color:rgba(255,255,255,.5);font-size:11px;margin-bottom:3px}
+.nav-av-role{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.nav-av-login{color:rgba(255,255,255,.4);font-size:10px;margin-bottom:12px}
+.nav-av-signout{color:#FCA5A5;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);font-size:12px}
+/* HEALTH RIBBON — SIGNATURE ELEMENT */
+.health-ribbon{background:var(--cream);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;overflow-x:auto;flex-wrap:nowrap}
+.hr-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.hr-items{display:flex;gap:8px;flex:1;align-items:center}
+.hr-item{display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:100px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;transition:all .15s;flex-shrink:0}
+.hr-item.over{background:var(--red-l);color:var(--red);border:1px solid var(--red-m)}
+.hr-item.warn30{background:var(--saffron-l);color:var(--saffron);border:1px solid var(--saffron-m)}
+.hr-item.warn60{background:#FEF9EC;color:var(--amber);border:1px solid #F5CBA7}
+.hr-item.safe{background:var(--teal-l);color:var(--teal);border:1px solid var(--teal-m)}
+.hr-item.done{background:var(--green-l);color:var(--green);border:1px solid #86EFAC}
+.hr-item.active{box-shadow:0 3px 10px rgba(0,0,0,.12);transform:translateY(-1px)}
+.hr-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+.hr-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.hr-org-name{font-size:12px;font-weight:700;color:var(--navy);margin-left:auto;white-space:nowrap;flex-shrink:0}
+/* MAIN LAYOUT */
+.app-layout{display:flex;height:calc(100vh - 60px - 48px)}
+.sidebar{width:220px;background:var(--cream);border-right:1px solid var(--border);flex-shrink:0;overflow-y:auto;padding:16px 0}
+.sidebar-section{margin-bottom:8px}
+.sidebar-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:8px 20px 6px}
+.sidebar-item{display:flex;align-items:center;gap:9px;padding:9px 20px;font-size:13px;font-weight:500;color:var(--slate);cursor:pointer;transition:all .12s;border-left:3px solid transparent}
+.sidebar-item:hover{background:var(--cloud);color:var(--navy)}
+.sidebar-item.active{background:var(--saffron-l);color:var(--saffron);font-weight:700;border-left-color:var(--saffron)}
+.sidebar-item svg{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sidebar-badge{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:100px;min-width:18px;text-align:center}
+.sidebar-badge.amber{background:var(--saffron)}
+.sidebar-badge.teal{background:var(--teal)}
+.main{flex:1;overflow-y:auto;padding:24px}
+/* PAGE HEADER */
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.page-title{font-family:var(--serif);font-size:26px;color:var(--navy);letter-spacing:-.01em}
+.page-sub{font-size:13px;color:var(--muted);margin-top:3px}
+/* FILTER TOOLBAR */
+.filter-bar{background:var(--cream);border:1px solid var(--border);border-radius:var(--r-xl);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:var(--shadow-sm)}
+.search-wrap{position:relative;display:flex;align-items:center}
+.search-wrap svg{position:absolute;left:10px;width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2;pointer-events:none}
+.fsrch{padding:8px 12px 8px 32px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:13px;font-family:var(--sans);color:var(--navy);background:var(--cloud);outline:none;min-width:200px;transition:all .15s}
+.fsrch:focus{border-color:var(--saffron);background:#fff;box-shadow:0 0 0 3px rgba(245,130,10,.1)}
+.fsl{padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r-md);font-size:12px;font-family:var(--sans);color:var(--slate);background:var(--cloud);cursor:pointer;outline:none;font-weight:500;transition:border-color .15s}
+.fsl:focus{border-color:var(--saffron)}
+.fsep{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.ftb{display:inline-flex;align-items:center;gap:5px;padding:7px 11px;border:1.5px solid var(--border);border-radius:var(--r-md);background:var(--cream);cursor:pointer;font-size:11px;color:var(--slate);font-family:var(--sans);font-weight:600;transition:all .15s;white-space:nowrap}
+.ftb:hover{background:var(--saffron-l);border-color:var(--saffron);color:var(--saffron)}
+.ftb svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+.ftb.clr:hover{background:var(--red-l);border-color:var(--red);color:var(--red)}
+/* TABLE */
+.table-card{background:var(--cream);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shadow-sm)}
+.ct{width:100%;border-collapse:collapse}
+.ct th{background:var(--cloud);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:11px 14px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;transition:color .12s}
+.ct th:hover{color:var(--saffron)}
+.ct td{padding:13px 14px;border-bottom:1px solid var(--border);vertical-align:top;font-size:13px}
+.ct tr:last-child td{border-bottom:none}
+.ct tbody tr{transition:background .1s;cursor:pointer}
+.ct tbody tr:hover td{background:#FAFBFF}
+.ct tr.r-ov td{background:rgba(192,57,43,.03)}
+.ct tr.r-30 td{background:rgba(245,130,10,.03)}
+.ct tr.r-ntbd td{opacity:.55}
+.ct tr.r-draft td{background:rgba(99,102,241,.03)}
+/* PILLS */
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:10px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.pdot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.65}
+.p-ov{background:var(--red-l);color:var(--red)}
+.p-30{background:var(--saffron-l);color:var(--saffron)}
+.p-60{background:var(--amber-l);color:var(--amber)}
+.p-90{background:var(--blue-l);color:var(--blue)}
+.p-ok{background:var(--teal-l);color:var(--teal)}
+.p-na{background:var(--cloud);color:var(--muted)}
+.p-draft{background:var(--purple-l);color:var(--purple)}
+/* STATUS BADGE */
+.sbw{position:relative;display:inline-flex}
+.sbadge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:100px;font-size:10px;font-weight:700;white-space:nowrap;cursor:pointer}
+.sbadge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex-shrink:0}
+.s-c{background:var(--green-l);color:var(--green)}
+.s-p{background:var(--amber-l);color:var(--amber)}
+.s-n{background:var(--cloud);color:var(--muted)}
+.s-d{background:var(--purple-l);color:var(--purple)}
+.sbw select{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;border:none}
+/* CHIPS */
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.02em}
+.ch-brand{background:var(--blue-l);color:var(--blue)}
+.ch-gray{background:var(--cloud);color:var(--slate)}
+.ch-red{background:var(--red-l);color:var(--red)}
+.ch-teal{background:var(--teal-l);color:var(--teal)}
+.ch-amber{background:var(--amber-l);color:var(--amber)}
+.ch-purple{background:var(--purple-l);color:var(--purple)}
+.ch-draft{background:var(--purple-l);color:var(--purple);border:1px dashed var(--purple)}
+.ch-pub{background:var(--green-l);color:var(--green)}
+/* OWNER CHIP */
+.ow-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;background:var(--blue-l);color:var(--blue);margin:1px;border:1px solid #BFDBFE}
+/* ROW ACTIONS */
+.ra{display:flex;gap:3px}
+.rab{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--r-md);border:1.5px solid var(--border);background:transparent;cursor:pointer;color:var(--muted);font-size:13px;transition:all .12s}
+.rab:hover{border-color:var(--saffron);color:var(--saffron);background:var(--saffron-l)}
+.rab.danger:hover{border-color:var(--red);color:var(--red);background:var(--red-l)}
+.rab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* MODAL */
+.mo{display:none;position:fixed;inset:0;background:rgba(28,43,58,.55);backdrop-filter:blur(6px);z-index:200;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto}
+.mo.open{display:flex}
+.mbox{background:var(--cream);border-radius:var(--r-2xl);width:760px;max-width:100%;box-shadow:var(--shadow-lg);margin:auto}
+.mhd{padding:22px 28px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.mhl{display:flex;align-items:center;gap:12px}
+.mhi{width:40px;height:40px;border-radius:var(--r-md);background:var(--saffron-l);display:flex;align-items:center;justify-content:center}
+.mhi svg{width:20px;height:20px;stroke:var(--saffron);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mhd h3{font-family:var(--serif);font-size:18px;color:var(--navy)}
+.mhd p{font-size:11px;color:var(--muted);margin-top:2px}
+.mcl{width:32px;height:32px;border-radius:var(--r-md);background:var(--cloud);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:14px;transition:all .12s}
+.mcl:hover{background:var(--red-l);border-color:var(--red-m);color:var(--red)}
+.mbdy{padding:24px 28px;display:flex;flex-direction:column;gap:16px;max-height:70vh;overflow-y:auto}
+.mft{padding:16px 28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#FAFBFC;border-radius:0 0 var(--r-2xl) var(--r-2xl)}
+.mft-left{font-size:11px;color:var(--muted)}
+.mft-right{display:flex;gap:10px}
+.fsec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--teal);padding:0 0 8px;border-bottom:2px solid var(--teal-l);margin-top:4px}
+.fr{display:grid;gap:14px}.fr2{grid-template-columns:1fr 1fr}.fr3{grid-template-columns:1fr 1fr 1fr}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fg label{font-size:11px;font-weight:700;color:var(--slate);letter-spacing:.01em}
+.fg input,.fg select,.fg textarea{padding:10px 12px;border:1.5px solid var(--border2);border-radius:var(--r-md);font-size:13px;font-family:var(--sans);color:var(--navy);background:#fff;outline:none;width:100%;transition:all .15s}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--saffron);background:#fff;box-shadow:0 0 0 3px rgba(245,130,10,.08)}
+.fg textarea{resize:vertical;min-height:70px}
+.fnote{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5}
+.cr{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--slate);font-weight:500}
+.cr input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--saffron)}
+.bc{padding:10px 20px;border:1.5px solid var(--border2);border-radius:var(--r-md);background:transparent;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);color:var(--slate);transition:all .15s}
+.bc:hover{border-color:var(--red);color:var(--red);background:var(--red-l)}
+.bp{padding:10px 24px;border:none;border-radius:var(--r-md);background:var(--saffron);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .15s;box-shadow:0 4px 12px rgba(245,130,10,.25)}
+.bp:hover{background:#e0730a;transform:translateY(-1px)}
+.bp.teal{background:var(--teal);box-shadow:0 4px 12px rgba(14,124,110,.25)}
+.bp.teal:hover{background:#0a6b5e}
+.bp.navy{background:var(--navy);box-shadow:none}
+.bp.navy:hover{background:var(--navy2)}
+/* UPLOAD */
+.upz{border:2px dashed var(--border2);border-radius:var(--r-lg);padding:20px;text-align:center;cursor:pointer;transition:all .15s;background:#FAFBFC}
+.upz:hover,.upz.dv{border-color:var(--saffron);background:var(--saffron-l)}
+.upz-icon{font-size:28px;margin-bottom:6px;opacity:.4}
+.upz p{font-size:11px;color:var(--muted);font-weight:500}
+.udoc{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--red-l);border:1px solid var(--red-m);border-radius:var(--r-md);font-size:12px;font-weight:600;color:var(--red);margin-top:8px}
+/* DETAIL PANEL */
+.dp{position:fixed;top:0;right:-560px;width:540px;height:100vh;background:var(--cream);border-left:1px solid var(--border2);box-shadow:-12px 0 48px rgba(0,0,0,.1);z-index:150;transition:right .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden}
+.dp.open{right:0}
+.dp-hd{padding:20px 22px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;flex-shrink:0;background:linear-gradient(135deg,var(--navy),var(--navy2))}
+.dp-tb{flex:1;min-width:0}
+.dp-tt{font-family:var(--serif);font-size:17px;color:#fff;line-height:1.3}
+.dp-meta{font-size:10px;color:rgba(255,255,255,.4);margin-top:5px;line-height:1.6}
+.dp-cl{background:rgba(255,255,255,.1);border:none;width:30px;height:30px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.7);font-size:14px;transition:all .12s;flex-shrink:0}
+.dp-cl:hover{background:rgba(192,57,43,.4);color:#fff}
+.dp-tabs{display:flex;gap:0;background:var(--cloud);border-bottom:1px solid var(--border);flex-shrink:0}
+.dp-tab{flex:1;padding:10px 8px;border:none;background:transparent;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);color:var(--muted);transition:all .15s;border-bottom:2px solid transparent}
+.dp-tab.active{color:var(--saffron);border-bottom-color:var(--saffron);background:#fff}
+.dp-bd{flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px}
+.dp-panel{display:none}
+.dp-panel.active{display:flex;flex-direction:column;gap:14px}
+.dp-sec{display:flex;flex-direction:column;gap:8px}
+.dp-sl{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding-bottom:6px;border-bottom:2px solid var(--border)}
+.dp-rw{display:flex;gap:8px;align-items:flex-start;padding:4px 0}
+.dp-k{font-size:11px;color:var(--muted);font-weight:600;min-width:100px;flex-shrink:0;padding-top:1px}
+.dp-v{font-size:13px;font-weight:600;color:var(--navy);flex:1;line-height:1.5}
+.dp-v-old{display:block;font-size:11px;color:var(--muted);font-weight:400;text-decoration:line-through;margin-top:3px}
+/* COMMENT AREA */
+.comment-list{display:flex;flex-direction:column;gap:0}
+.comment-item{padding:12px 0;border-bottom:1px solid var(--border)}
+.comment-item:last-child{border-bottom:none}
+.comment-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.comment-av{width:28px;height:28px;border-radius:50%;background:var(--saffron);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0}
+.comment-name{font-size:12px;font-weight:700;color:var(--navy);flex:1}
+.comment-ts{font-size:10px;color:var(--muted)}
+.comment-body{font-size:13px;color:var(--slate);line-height:1.6;padding-left:36px}
+.comment-box{background:var(--cloud);border:1.5px solid var(--border);border-radius:var(--r-lg);padding:10px 12px;margin-top:8px}
+.comment-box textarea{width:100%;border:none;outline:none;font-family:var(--sans);font-size:13px;color:var(--navy);background:transparent;resize:none;min-height:60px;line-height:1.6}
+.comment-box-foot{display:flex;justify-content:flex-end;margin-top:6px}
+.comment-submit{padding:6px 16px;border:none;border-radius:var(--r-md);background:var(--saffron);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .12s}
+.comment-submit:hover{background:#e0730a}
+/* HISTORY / AUDIT */
+.hist-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.hist-item:last-child{border-bottom:none}
+.hist-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.hist-dot.g{background:var(--teal)}.hist-dot.b{background:var(--blue)}.hist-dot.o{background:var(--saffron)}.hist-dot.r{background:var(--red)}.hist-dot.p{background:var(--purple)}
+.hist-txt{font-size:12px;font-weight:600;color:var(--navy);line-height:1.5}
+.hist-ts{font-size:10px;color:var(--muted);margin-top:3px;font-weight:500}
+.hist-old{display:inline-block;font-size:10px;color:var(--muted);text-decoration:line-through;margin-right:4px}
+.hist-new{display:inline-block;font-size:11px;color:var(--teal);font-weight:700}
+/* DP FOOTER */
+.dp-ft{padding:12px 22px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;background:#FAFBFC}
+/* LOG PANEL */
+.lp{position:fixed;top:0;left:-500px;width:480px;height:100vh;background:var(--cream);border-right:1px solid var(--border2);z-index:150;transition:left .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+.lp.open{left:0}
+.lp-hd{padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--navy)}
+.lp-hd h3{font-family:var(--serif);font-size:16px;color:#fff;display:flex;align-items:center;gap:8px}
+.lp-cl{background:rgba(255,255,255,.1);border:none;width:30px;height:30px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.7);font-size:14px}
+.lp-bd{flex:1;overflow-y:auto;padding:14px 20px}
+/* FAB */
+.fab-a{position:fixed;bottom:84px;right:24px;display:flex;flex-direction:column;align-items:flex-end;gap:10px;z-index:50}
+.fab-m{display:none;flex-direction:column;gap:8px;align-items:flex-end}
+.fab-m.open{display:flex}
+.fab-i{display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:var(--cream);border-radius:100px;font-size:13px;font-weight:700;color:var(--navy);cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.12);white-space:nowrap;transition:all .15s;font-family:var(--sans);border:none}
+.fab-i:hover{background:var(--saffron);color:#fff;transform:translateX(-4px)}
+.fab-b{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--saffron),#e0730a);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 24px rgba(245,130,10,.45);border:none;transition:all .2s;color:#fff;font-size:24px}
+.fab-b:hover{transform:scale(1.07)}
+.fab-b.os{transform:rotate(45deg)}
+/* SAVE BAR */
+.sbar{background:var(--navy);border-top:1px solid rgba(255,255,255,.08);padding:10px 24px;display:flex;align-items:center;gap:8px;position:sticky;bottom:0;left:0;right:0;z-index:45;height:48px}
+.sh{font-size:11px;color:rgba(255,255,255,.35);margin-right:auto;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--r-md);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .15s;border:none;white-space:nowrap}
+.sb-csv{background:rgba(37,99,235,.25);color:#93C5FD;border:1px solid rgba(37,99,235,.3)}.sb-csv:hover{background:var(--blue);color:#fff}
+.sb-xls{background:rgba(14,124,110,.25);color:#7ECDC5;border:1px solid rgba(14,124,110,.3)}.sb-xls:hover{background:var(--teal);color:#fff}
+.sb-pdf{background:rgba(192,57,43,.25);color:#FCA5A5;border:1px solid rgba(192,57,43,.3)}.sb-pdf:hover{background:var(--red);color:#fff}
+.sb-shr{background:rgba(124,58,237,.25);color:#C4B5FD;border:1px solid rgba(124,58,237,.3)}.sb-shr:hover{background:var(--purple);color:#fff}
+.sb-wa{background:rgba(22,163,74,.25);color:#86EFAC;border:1px solid rgba(22,163,74,.3)}.sb-wa:hover{background:var(--green);color:#fff}
+.sb-em{background:rgba(245,130,10,.25);color:#FAC88A;border:1px solid rgba(245,130,10,.3)}.sb-em:hover{background:var(--saffron);color:#fff}
+.sb-pr{background:rgba(255,255,255,.08);color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.1)}.sb-pr:hover{background:rgba(255,255,255,.14);color:#fff}
+/* SHARE POPUP */
+.sp-o{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);z-index:300;align-items:center;justify-content:center;padding:20px}
+.sp-o.open{display:flex}
+.sp-b{background:var(--cream);border-radius:var(--r-2xl);width:460px;max-width:100%;box-shadow:var(--shadow-lg);overflow:hidden}
+.sp-h{background:linear-gradient(135deg,var(--saffron),#e0730a);padding:20px 24px;display:flex;justify-content:space-between;align-items:center}
+.sp-h h3{color:#fff;font-family:var(--serif);font-size:18px}
+.sp-h p{color:rgba(255,255,255,.65);font-size:11px;margin-top:3px}
+.sp-cls{background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px}
+.sp-bd{padding:20px 24px}
+.sp-url{display:flex;gap:8px;align-items:center;background:var(--cloud);border:1.5px solid var(--border);border-radius:var(--r-md);padding:10px 12px;margin-bottom:16px}
+.sp-ut{flex:1;font-size:11px;color:var(--slate);font-weight:600;word-break:break-all}
+.sp-cp{padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-md);font-size:11px;font-weight:700;cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s}
+.sp-cp.copied{background:var(--teal)}
+.sp-bs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sp-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border:none;border-radius:var(--r-lg);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);transition:all .15s}
+.sp-btn:hover{transform:translateY(-2px)}
+.sp-wa{background:#25D366;color:#fff}
+.sp-em{background:var(--saffron-l);color:var(--saffron);border:1.5px solid var(--saffron-m)}.sp-em:hover{background:var(--saffron);color:#fff}
+/* USERS PANEL */
+.user-list{display:flex;flex-direction:column;gap:10px}
+.user-row{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);transition:all .12s}
+.user-row:hover{box-shadow:var(--shadow-sm)}
+.user-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
+.user-info{flex:1;min-width:0}
+.user-name{font-size:14px;font-weight:700;color:var(--navy)}
+.user-email{font-size:11px;color:var(--muted);margin-top:1px}
+.user-login{font-size:10px;color:var(--muted);margin-top:2px}
+.role-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0}
+.rb-master{background:var(--saffron-l);color:var(--saffron);border:1px solid var(--saffron-m)}
+.rb-admin{background:var(--red-l);color:var(--red);border:1px solid var(--red-m)}
+.rb-edit{background:var(--blue-l);color:var(--blue);border:1px solid #BFDBFE}
+.rb-view{background:var(--teal-l);color:var(--teal);border:1px solid var(--teal-m)}
+/* ACCESS REQUEST ITEMS */
+.access-req-item{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--amber-l);border:1px solid #F5CBA7;border-radius:var(--r-lg)}
+.access-req-info{flex:1}
+.access-req-name{font-size:14px;font-weight:700;color:var(--navy)}
+.access-req-email{font-size:11px;color:var(--muted);margin-top:1px}
+.access-req-ts{font-size:10px;color:var(--muted);margin-top:2px}
+.access-req-actions{display:flex;gap:6px}
+/* ORG TYPE GRID */
+.otg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.ot{border:2px solid var(--border);border-radius:var(--r-lg);padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;background:var(--cloud)}
+.ot:hover{border-color:var(--saffron);background:var(--saffron-l)}
+.ot.sel{border-color:var(--saffron);background:var(--saffron-l)}
+.ot-ico{font-size:20px;margin-bottom:5px}
+.ot span{font-size:9px;font-weight:700;color:var(--slate);text-transform:uppercase;letter-spacing:.04em;display:block}
+.ot.sel span{color:var(--saffron)}
+/* EMPTY STATE */
+.empty{text-align:center;padding:72px 20px}
+.empty-ico{font-size:52px;opacity:.15;display:block;margin-bottom:16px}
+.empty h3{font-size:18px;font-weight:700;color:var(--slate);margin-bottom:8px;font-family:var(--serif)}
+.empty p{font-size:13px;color:var(--muted);line-height:1.7;max-width:340px;margin:0 auto}
+/* DIGEST PREVIEW */
+.digest-section{background:var(--cream);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;box-shadow:var(--shadow-sm)}
+.digest-hdr{background:var(--navy);padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
+.digest-hdr h4{font-family:var(--serif);font-size:16px;color:#fff}
+.digest-hdr p{font-size:11px;color:rgba(255,255,255,.5);margin-top:3px}
+.digest-body{padding:16px 20px}
+.digest-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.digest-row:last-child{border-bottom:none}
+.digest-dept{font-size:11px;font-weight:700;color:var(--muted);min-width:80px;text-transform:uppercase;letter-spacing:.05em}
+.digest-name{font-size:13px;font-weight:600;color:var(--navy);flex:1}
+.digest-due{font-size:12px;font-weight:700;white-space:nowrap}
+.digest-due.over{color:var(--red)}.digest-due.warn{color:var(--saffron)}.digest-due.ok{color:var(--teal)}
+/* DEPT TAG */
+.dept-tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;background:var(--purple-l);color:var(--purple)}
+/* RESPONSIVE */
+@media(max-width:1024px){.sidebar{display:none}.app-layout{height:calc(100vh - 60px - 48px)}}
+@media(max-width:640px){.page{padding:12px}.ct th:nth-child(n+6),.ct td:nth-child(n+6){display:none}.otg{grid-template-columns:repeat(3,1fr)}.health-ribbon{padding:10px 16px}.fr2,.fr3{grid-template-columns:1fr}.dp{width:100%;right:-100%}}
+@media print{.nav,.fab-a,.sbar,.lp,.dp,.sp-o{display:none!important}}
+
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- AUTH SCREEN -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card" id="authCard">
+    <div class="auth-top">
+      <div class="auth-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/><path d="M12 12l9-5M12 12v10M12 12L3 7"/></svg>
+      </div>
+      <div class="auth-title">ComplianceTrack</div>
+      <div class="auth-sub" id="authSubtitle">One Portal. One Truth.</div>
+    </div>
+    <div class="auth-body">
+      <div class="auth-err" id="authErr"></div>
+      <div class="auth-success" id="authSucc"></div>
+      <div id="authFormArea"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE POPUP -->
+<div class="sp-o" id="spOv" onclick="closeShare()">
+  <div class="sp-b" onclick="event.stopPropagation()">
+    <div class="sp-h">
+      <div><h3>Share Register</h3><p>Send a view-only snapshot to your team</p></div>
+      <button class="sp-cls" onclick="closeShare()">&#10005;</button>
+    </div>
+    <div class="sp-bd">
+      <div class="sp-url"><span class="sp-ut" id="spUrl"></span><button class="sp-cp" id="spCp" onclick="copyLink()">Copy</button></div>
+      <div class="sp-bs">
+        <button class="sp-btn sp-wa" onclick="doWA()">&#128602; WhatsApp</button>
+        <button class="sp-btn sp-em" onclick="doEmail()">&#128140; Email</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT COMPLIANCE MODAL -->
+<div class="mo" id="compMo">
+  <div class="mbox">
+    <div class="mhd">
+      <div class="mhl">
+        <div class="mhi"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/></svg></div>
+        <div><h3 id="moTitle">Add Compliance</h3><p id="moSub">Fill in the details below</p></div>
+      </div>
+      <button class="mcl" onclick="closeCompModal()">&#10005;</button>
+    </div>
+    <div class="mbdy" id="moBody"></div>
+    <div class="mft">
+      <div class="mft-left" id="moFooterNote"></div>
+      <div class="mft-right">
+        <button class="bc" onclick="closeCompModal()">Cancel</button>
+        <button class="bp" id="moSaveDraft" onclick="saveCompliance('draft')" style="background:var(--purple);box-shadow:none">Save as Draft</button>
+        <button class="bp" id="moPublish" onclick="saveCompliance('publish')">&#10003; Publish</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REASSIGN MODAL -->
+<div class="mo" id="reassMo">
+  <div class="mbox" style="max-width:520px">
+    <div class="mhd">
+      <div class="mhl"><div class="mhi"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><div><h3>Reassign Owners</h3><p>Transfer compliance ownership</p></div></div>
+      <button class="mcl" onclick="closeReassign()">&#10005;</button>
+    </div>
+    <div class="mbdy" id="reassBody"></div>
+    <div class="mft"><div class="mft-left"></div><div class="mft-right"><button class="bc" onclick="closeReassign()">Cancel</button><button class="bp" onclick="saveReassign()">Save Reassignment</button></div></div>
+  </div>
+</div>
+
+<!-- ORG SETTINGS MODAL -->
+<div class="mo" id="orgMo">
+  <div class="mbox" style="max-width:620px">
+    <div class="mhd">
+      <div class="mhl"><div class="mhi"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><div><h3>Organisation Settings</h3><p>Configure your workspace</p></div></div>
+      <button class="mcl" onclick="closeOrgModal()">&#10005;</button>
+    </div>
+    <div class="mbdy" id="orgBody"></div>
+    <div class="mft"><div class="mft-left"></div><div class="mft-right"><button class="bc" onclick="closeOrgModal()">Cancel</button><button class="bp" onclick="saveOrg()">Save Settings</button></div></div>
+  </div>
+</div>
+
+<!-- INVITE USER MODAL -->
+<div class="mo" id="inviteMo">
+  <div class="mbox" style="max-width:520px">
+    <div class="mhd">
+      <div class="mhl"><div class="mhi"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg></div><div><h3 id="inviteTitle">Invite Team Member</h3><p>Grant access to your compliance register</p></div></div>
+      <button class="mcl" onclick="closeInvite()">&#10005;</button>
+    </div>
+    <div class="mbdy" id="inviteBody"></div>
+    <div class="mft"><div class="mft-left"></div><div class="mft-right"><button class="bc" onclick="closeInvite()">Cancel</button><button class="bp" onclick="saveInvite()">Grant Access</button></div></div>
+  </div>
+</div>
+
+<!-- AUDIT LOG PANEL -->
+<div class="lp" id="logPanel">
+  <div class="lp-hd"><h3>&#128203; Audit Log</h3><button class="lp-cl" onclick="closeLog()">&#10005;</button></div>
+  <div class="lp-bd" id="logBd"></div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="dp" id="detPanel">
+  <div class="dp-hd">
+    <div class="dp-tb"><div class="dp-tt" id="dpTt"></div><div class="dp-meta" id="dpMeta"></div></div>
+    <button class="dp-cl" onclick="closeDet()">&#10005;</button>
+  </div>
+  <div class="dp-tabs">
+    <button class="dp-tab active" onclick="switchDpTab('details',this)">Details</button>
+    <button class="dp-tab" onclick="switchDpTab('comments',this)">Comments</button>
+    <button class="dp-tab" onclick="switchDpTab('history',this)">History</button>
+    <button class="dp-tab" onclick="switchDpTab('documents',this)">Documents</button>
+  </div>
+  <div class="dp-bd">
+    <div class="dp-panel active" id="dpDetails"></div>
+    <div class="dp-panel" id="dpComments"></div>
+    <div class="dp-panel" id="dpHistory"></div>
+    <div class="dp-panel" id="dpDocuments"></div>
+  </div>
+  <div class="dp-ft" id="dpFt"></div>
+</div>
+
+<!-- NAV -->
+<nav class="nav" id="mainNav" style="display:none">
+  <div class="nav-logo" onclick="location.reload()">
+    <div class="nav-logomark"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v10l9 5 9-5V7L12 2z"/><path d="M12 12l9-5M12 12v10M12 12L3 7"/></svg></div>
+    <span class="nav-wordmark">Compliance<span>Track</span><span class="nav-edition" id="navEd">beta</span></span>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-org" onclick="openOrgModal()">
+    <div class="nav-org-dot"></div>
+    <span id="navOrg">My Organisation</span>
+    <span style="font-size:10px;opacity:.5;margin-left:2px">&#9660;</span>
+  </div>
+  <div class="nav-right">
+    <button class="nav-btn nav-btn-ghost" onclick="openLog()">&#128203; Audit Log</button>
+    <button class="nav-btn nav-btn-ghost" onclick="switchView('users')" id="navUsersBtn">&#128101; Users</button>
+    <div class="nav-av" id="navAv">
+      <span id="navIni">?</span>
+      <div class="nav-av-tip">
+        <div class="nav-av-name" id="navAvName"></div>
+        <div class="nav-av-email" id="navAvEmail"></div>
+        <div class="nav-av-role" id="navAvRole"></div>
+        <div class="nav-av-login" id="navAvLogin"></div>
+        <div class="nav-av-signout" onclick="logout()">&#128682; Sign out</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN APP (hidden until auth) -->
+<div id="appShell" style="display:none">
+
+  <!-- HEALTH RIBBON -->
+  <div class="health-ribbon" id="healthRibbon">
+    <span class="hr-label">Compliance Health</span>
+    <div class="hr-items" id="hrItems"></div>
+    <div class="hr-sep"></div>
+    <span class="hr-org-name" id="hrOrgName"></span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;height:calc(100vh - 60px - 48px - 48px)">
+    <div class="app-layout">
+      <!-- SIDEBAR -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-label">Compliance</div>
+          <div class="sidebar-item active" onclick="switchView('all',this)" id="sv-all">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            All Compliances <span class="sidebar-badge" id="sbAll">0</span>
+          </div>
+          <div class="sidebar-item" onclick="switchView('overdue',this)" id="sv-ov">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Overdue <span class="sidebar-badge" id="sbOv">0</span>
+          </div>
+          <div class="sidebar-item" onclick="switchView('upcoming',this)" id="sv-up">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Upcoming <span class="sidebar-badge amber" id="sbUp">0</span>
+          </div>
+          <div class="sidebar-item" onclick="switchView('completed',this)" id="sv-done">
+            <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/></svg>
+            Completed <span class="sidebar-badge teal" id="sbDone">0</span>
+          </div>
+          <div class="sidebar-item" onclick="switchView('drafts',this)" id="sv-draft">
+            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Drafts <span class="sidebar-badge" id="sbDraft" style="background:var(--purple)">0</span>
+          </div>
+          <div class="sidebar-item" onclick="switchView('audit',this)" id="sv-audit">
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            Audit Points
+          </div>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-label">Departments</div>
+          <div id="deptSidebar"></div>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-label">Tools</div>
+          <div class="sidebar-item" onclick="switchView('digest',this)" id="sv-digest">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Daily Digest
+          </div>
+          <div class="sidebar-item" onclick="openLog()" id="sv-log">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Audit Trail
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="main" id="mainContent">
+        <!-- Views injected here -->
+      </main>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <div class="fab-a">
+    <div class="fab-m" id="fabM">
+      <button class="fab-i" onclick="openAdd()">&#10133; Add Compliance</button>
+      <button class="fab-i" onclick="openAdd('audit')">&#128203; Add Audit Point</button>
+      <button class="fab-i" onclick="libMsg()">&#128214; Load from Library</button>
+    </div>
+    <button class="fab-b" id="fabB" onclick="toggleFab()">&#43;</button>
+  </div>
+
+  <!-- SAVE BAR -->
+  <div class="sbar" id="saveBar">
+    <span class="sh" id="sh">One Portal. One Truth. &nbsp;&middot;&nbsp; Every change is timestamped and auditable.</span>
+    <button class="sbn sb-csv" onclick="expCSV()">&#8659; CSV</button>
+    <button class="sbn sb-xls" onclick="expXLS()">&#8659; Excel</button>
+    <button class="sbn sb-pdf" onclick="expPDF()">&#8659; PDF</button>
+    <button class="sbn sb-shr" onclick="openShare()">&#128279; Share</button>
+    <button class="sbn sb-wa" onclick="doWA()">&#128602;</button>
+    <button class="sbn sb-em" onclick="doEmail()">&#128140;</button>
+    <button class="sbn sb-pr" onclick="window.print()">&#128438; Print</button>
+  </div>
+
+</div>
+
+<script>
+
+// ── SUPABASE ──
+var SU='https://jusqumifsmtcaujqyjuy.supabase.co';
+var SK='sb_publishable_M1pw97zGjdS8P_7Q2yTiAg_RHZm0gHq';
+async function dbq(path,method,body){
+  var opts={method:method||'GET',headers:{'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':method==='POST'?'return=representation':''}};
+  if(body) opts.body=JSON.stringify(body);
+  var r=await fetch(SU+'/rest/v1/'+path,opts);
+  if(!r.ok) throw new Error(await r.text());
+  var t=await r.text(); return t?JSON.parse(t):null;
+}
+
+// ── STATE ──
+var STATE={
+  user:null, org:{}, comps:[], actLog:[], users:[], accessReqs:[],
+  curView:'all', curDet:null, editId:null, reassId:null,
+  urgFilter:'', sk:'dueDate', sa:true, fabOpen:false,
+  deptFilter:'', curDpTab:'details', isAuditMode:false
+};
+
+// ── UTILS ──
+function fmtDT(d){
+  var dt=d?new Date(d):new Date();
+  return dt.toLocaleString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+}
+function fmtD(d){
+  if(!d)return '--';
+  var p=d.split('-');
+  var mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return parseInt(p[2])+' '+mn[parseInt(p[1])-1]+' '+p[0];
+}
+function todayISO(){return new Date().toISOString().split('T')[0];}
+function genId(pfx){return (pfx||'COMP')+'-'+new Date().getFullYear()+'-'+String(Math.floor(Math.random()*9000)+1000);}
+function toast(msg,type){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=type==='ok'?'var(--teal)':type==='err'?'var(--red)':'var(--navy)';
+  t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},3200);
+}
+function getUser(){return STATE.user||{email:'Guest',name:'Guest',role:'view'};}
+function canEdit(){var r=getUser().role;return r==='master'||r==='admin'||r==='dept_admin'||r==='region_admin'||r==='edit';}
+function canAdmin(){var r=getUser().role;return r==='master'||r==='admin';}
+function canManageUsers(){var r=getUser().role;return r==='master'||r==='admin'||r==='dept_admin'||r==='region_admin';}
+function isAdmin(){return canAdmin();}
+
+// ── URGENCY ──
+function urgDays(d,s){
+  if(s==='completed'||s==='ntbd'||s==='draft'||!d)return null;
+  var now=new Date();now.setHours(0,0,0,0);
+  var due=new Date(d);due.setHours(0,0,0,0);
+  return Math.ceil((due-now)/86400000);
+}
+function urgBkt(d){
+  if(d===null)return'na';
+  if(d<0)return'ov';
+  if(d<=30)return'30';
+  if(d<=60)return'60';
+  if(d<=90)return'90';
+  return'ok';
+}
+function urgPill(c){
+  if(c.status==='draft')return'<span class="pill p-draft"><span class="pdot"></span>Draft</span>';
+  var d=urgDays(c.dueDate,c.status);var b=urgBkt(d);
+  if(c.status==='completed')return'<span class="pill p-ok"><span class="pdot"></span>Done</span>';
+  if(c.status==='ntbd')return'<span class="pill p-na">N/A</span>';
+  if(b==='na')return'<span class="pill p-na">No date</span>';
+  var lbl=b==='ov'?Math.abs(d)+'d overdue':d+'d left';
+  return'<span class="pill p-'+b+'"><span class="pdot"></span>'+lbl+'</span>';
+}
+function rowCls(c){
+  if(c.status==='draft')return'r-draft';
+  if(c.status==='ntbd')return'r-ntbd';
+  var b=urgBkt(urgDays(c.dueDate,c.status));
+  if(b==='ov')return'r-ov';
+  if(b==='30')return'r-30';
+  return'';
+}
+
+// ── STATUS HTML ──
+function statusHTML(c){
+  if(!canEdit())return'<span class="sbadge '+(c.status==='completed'?'s-c':c.status==='ntbd'?'s-n':c.status==='draft'?'s-d':'s-p')+'">'+(c.status==='completed'?'Completed':c.status==='ntbd'?'Not To Be Done':c.status==='draft'?'Draft':'Pending')+'</span>';
+  return'<div class="sbw"><span class="sbadge '+(c.status==='completed'?'s-c':c.status==='ntbd'?'s-n':c.status==='draft'?'s-d':'s-p')+'">'+(c.status==='completed'?'Completed':c.status==='ntbd'?'Not To Be Done':c.status==='draft'?'Draft':'Pending')+'</span>'+(c.published?'<select onchange="qStatus(\''+c.id+'\',this.value)"><option value="pending"'+(c.status==='pending'?' selected':'')+'>Pending</option><option value="completed"'+(c.status==='completed'?' selected':'')+'>Completed</option><option value="ntbd"'+(c.status==='ntbd'?' selected':'')+'>Not To Be Done</option></select>':'')+'</div>';
+}
+
+// ── SUMMARY COUNTS ──
+function getCounts(){
+  var ov=0,d30=0,d60=0,d90=0,done=0,active=0,draft=0;
+  STATE.comps.forEach(function(c){
+    if(c.status==='draft'){draft++;return;}
+    if(c.status==='completed'){done++;return;}
+    if(c.status==='ntbd')return;
+    active++;
+    var b=urgBkt(urgDays(c.dueDate,c.status));
+    if(b==='ov')ov++;
+    else if(b==='30')d30++;
+    else if(b==='60')d60++;
+    else if(b==='90')d90++;
+  });
+  return{ov:ov,d30:d30,d60:d60,d90:d90,done:done,active:active,draft:draft};
+}
+
+// ── HEALTH RIBBON ──
+function renderRibbon(){
+  var c=getCounts();
+  var items=[
+    {cls:'over',lbl:'Overdue',num:c.ov,filter:'overdue'},
+    {cls:'warn30',lbl:'Due \u226430d',num:c.d30,filter:'30'},
+    {cls:'warn60',lbl:'Due \u226460d',num:c.d60,filter:'60'},
+    {cls:'safe',lbl:'Due \u226490d',num:c.d90,filter:'90'},
+    {cls:'done',lbl:'Completed',num:c.done,filter:'done'},
+    {cls:'safe',lbl:'Active',num:c.active,filter:''}
+  ];
+  var html='';
+  items.forEach(function(it){
+    html+='<div class="hr-item '+it.cls+(STATE.urgFilter===it.filter?' active':'')+'" onclick="setUrgFilter(\''+it.filter+'\')"><div class="hr-dot"></div><strong>'+it.num+'</strong> '+it.lbl+'</div>';
+  });
+  if(c.draft>0) html+='<div class="hr-item" style="background:var(--purple-l);color:var(--purple);border:1px solid #DDD6FE" onclick="switchView(\'drafts\')"><div class="hr-dot"></div><strong>'+c.draft+'</strong> Drafts</div>';
+  document.getElementById('hrItems').innerHTML=html;
+  document.getElementById('hrOrgName').textContent=STATE.org.name||'My Organisation';
+  document.getElementById('sn-all').textContent=c.active;
+  // sidebar badges
+  document.getElementById('sbAll').textContent=STATE.comps.length;
+  document.getElementById('sbOv').textContent=c.ov;
+  document.getElementById('sbUp').textContent=c.d30+c.d60+c.d90;
+  document.getElementById('sbDone').textContent=c.done;
+  document.getElementById('sbDraft').textContent=c.draft;
+  // dept sidebar
+  var depts=new Set();
+  STATE.comps.forEach(function(c){if(c.department)depts.add(c.department);});
+  var dhtml='';
+  Array.from(depts).sort().forEach(function(d){
+    dhtml+='<div class="sidebar-item'+(STATE.deptFilter===d?' active':'')+'" onclick="setDeptFilter(\''+d+'\')" style="font-size:12px"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>'+d+'</div>';
+  });
+  document.getElementById('deptSidebar').innerHTML=dhtml||'<div style="padding:6px 20px;font-size:11px;color:var(--muted)">No departments yet</div>';
+}
+
+function setUrgFilter(f){STATE.urgFilter=STATE.urgFilter===f?'':f;renderAll();}
+function setDeptFilter(d){STATE.deptFilter=STATE.deptFilter===d?'':d;renderAll();}
+
+// ── RENDER TABLE ──
+function getFilteredComps(){
+  var list=STATE.comps.slice();
+  // view filter
+  if(STATE.curView==='overdue') list=list.filter(function(c){return urgBkt(urgDays(c.dueDate,c.status))==='ov'&&c.status!=='completed'&&c.status!=='ntbd'&&c.status!=='draft';});
+  else if(STATE.curView==='upcoming') list=list.filter(function(c){var b=urgBkt(urgDays(c.dueDate,c.status));return(b==='30'||b==='60'||b==='90')&&c.status!=='completed'&&c.status!=='ntbd'&&c.status!=='draft';});
+  else if(STATE.curView==='completed') list=list.filter(function(c){return c.status==='completed';});
+  else if(STATE.curView==='drafts') list=list.filter(function(c){return c.status==='draft';});
+  else if(STATE.curView==='audit') list=list.filter(function(c){return c.isAuditPoint;});
+  else list=list.filter(function(c){return!c.isAuditPoint;});
+  // urgency filter
+  if(STATE.urgFilter==='done') list=list.filter(function(c){return c.status==='completed';});
+  else if(STATE.urgFilter==='overdue') list=list.filter(function(c){return urgBkt(urgDays(c.dueDate,c.status))==='ov';});
+  else if(STATE.urgFilter==='30'||STATE.urgFilter==='60'||STATE.urgFilter==='90') list=list.filter(function(c){return urgBkt(urgDays(c.dueDate,c.status))===STATE.urgFilter;});
+  // dept filter
+  if(STATE.deptFilter) list=list.filter(function(c){return c.department===STATE.deptFilter;});
+  // text filters
+  var q=(document.getElementById('fSrch')?document.getElementById('fSrch').value||'':'').toLowerCase();
+  var fst=document.getElementById('fSt')?document.getElementById('fSt').value:'';
+  var fty=document.getElementById('fTy')?document.getElementById('fTy').value:'';
+  var fsc=document.getElementById('fSc')?document.getElementById('fSc').value:'';
+  var fcat=document.getElementById('fCat')?document.getElementById('fCat').value:'';
+  var fdept=document.getElementById('fDept')?document.getElementById('fDept').value:'';
+  var fow=document.getElementById('fOw')?document.getElementById('fOw').value:'';
+  if(q)list=list.filter(function(c){return(c.name||'').toLowerCase().indexOf(q)>=0||(c.description||'').toLowerCase().indexOf(q)>=0;});
+  if(fst)list=list.filter(function(c){return c.status===fst;});
+  if(fty)list=list.filter(function(c){return c.type===fty;});
+  if(fsc)list=list.filter(function(c){return c.scope===fsc;});
+  if(fcat)list=list.filter(function(c){return c.category===fcat;});
+  if(fdept)list=list.filter(function(c){return c.department===fdept;});
+  if(fow)list=list.filter(function(c){return(c.owners||[]).some(function(o){return o.toLowerCase().indexOf(fow.toLowerCase())>=0;});});
+  // sort
+  list.sort(function(a,b){
+    if(STATE.sk==='dueDate'){var ad=urgDays(a.dueDate,a.status);var bd=urgDays(b.dueDate,b.status);ad=ad===null?99999:ad;bd=bd===null?99999:bd;return STATE.sa?ad-bd:bd-ad;}
+    var av=a[STATE.sk]||'';var bv=b[STATE.sk]||'';return STATE.sa?av.localeCompare(bv):bv.localeCompare(av);
+  });
+  return list;
+}
+
+function renderTable(){
+  var list=getFilteredComps();
+  var tb=document.getElementById('ctBody');
+  if(!tb)return;
+  if(!list.length){
+    tb.innerHTML='<tr><td colspan="12"><div class="empty"><span class="empty-ico">&#128203;</span><h3>Nothing here</h3><p>No compliances match your filters. <button onclick="clearF()" style="background:none;border:none;color:var(--saffron);cursor:pointer;font-weight:700;font-size:13px">Clear filters</button></p></div></td></tr>';
+    return;
+  }
+  var rows='';
+  list.forEach(function(c){
+    var draftBadge=!c.published?'<span class="chip ch-draft" style="margin-left:4px;font-size:9px">DRAFT</span>':'';
+    var pubBadge=c.published?'<span class="chip ch-pub" style="margin-left:4px;font-size:9px">LIVE</span>':'';
+    var ows=(c.owners||[]).map(function(o){return'<span class="ow-chip">'+o+'</span>';}).join('')||'<span style="color:var(--muted);font-size:11px">Unassigned</span>';
+    var desc=c.description?'<div style="font-size:11px;color:var(--muted);margin-top:2px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+c.description+'</div>':'';
+    var fy=c.fyPeriod?'<div style="font-size:10px;color:var(--muted);font-weight:500">FY: '+c.fyPeriod+'</div>':'';
+    var dept=c.department?'<div class="dept-tag" style="margin-top:3px">'+c.department+'</div>':'';
+    var pen=c.hasPenalty?'<span class="chip ch-red">&#9888; '+(c.penaltyAmt||'Yes')+'</span>':'<span style="color:var(--muted);font-size:11px">No</span>';
+    var sig=c.requiresSignature?'<span class="chip ch-teal">'+(c.signatureType||'Reqd')+'</span>':'<span style="color:var(--muted);font-size:11px">No</span>';
+    var portal=c.portalUrl?'<a href="'+c.portalUrl+'" target="_blank" onclick="event.stopPropagation()" style="color:var(--blue);text-decoration:none;font-weight:600;font-size:11px;display:flex;align-items:center;gap:3px">&#8599; '+(c.portalName||'Portal')+'</a>':'<span style="color:var(--muted);font-size:11px">--</span>';
+    var auditTag=c.isAuditPoint?'<span class="chip ch-purple" style="margin-left:4px;font-size:9px">AUDIT</span>':'';
+    var editBtn=canEdit()&&!c.published?'<button class="rab" onclick="openEdit(\''+c.id+'\')" title="Edit"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>':'';
+    var editPubBtn=canEdit()&&c.published?'<button class="rab" onclick="openEdit(\''+c.id+'\')" title="Edit"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>':'';
+    rows+='<tr class="'+rowCls(c)+'" onclick="openDet(\''+c.id+'\')"><td><strong style="font-weight:700;color:var(--navy)">'+c.name+'</strong>'+draftBadge+pubBadge+auditTag+desc+dept+'</td><td style="white-space:nowrap;font-weight:600">'+fmtD(c.dueDate)+fy+'</td><td onclick="event.stopPropagation()">'+urgPill(c)+'</td><td onclick="event.stopPropagation()">'+statusHTML(c)+'</td><td><span class="chip ch-brand">'+(c.type||'--')+'</span></td><td><span class="chip ch-gray">'+(c.scope||'--')+'</span></td><td style="font-size:11px;color:var(--slate);max-width:130px">'+(c.category||'--')+'</td><td>'+ows+'</td><td>'+pen+'</td><td>'+sig+'</td><td>'+portal+'</td><td onclick="event.stopPropagation()"><div class="ra">'+(editBtn||editPubBtn)+'<button class="rab" onclick="openReassign(\''+c.id+'\')" title="Reassign"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></button></div></td></tr>';
+  });
+  tb.innerHTML=rows;
+  // rebuild owner filter
+  var owners=new Set();
+  STATE.comps.forEach(function(c){(c.owners||[]).forEach(function(o){owners.add(o);});});
+  var foe=document.getElementById('fOw');
+  if(foe){var cv=foe.value;foe.innerHTML='<option value="">All Owners</option>'+Array.from(owners).sort().map(function(o){return'<option value="'+o+'"'+(o===cv?' selected':'')+'>'+o+'</option>';}).join('');}
+  // dept filter rebuild
+  var depts=new Set();
+  STATE.comps.forEach(function(c){if(c.department)depts.add(c.department);});
+  var fde=document.getElementById('fDept');
+  if(fde){var dv=fde.value;fde.innerHTML='<option value="">All Depts</option>'+Array.from(depts).sort().map(function(d){return'<option value="'+d+'"'+(d===dv?' selected':'')+'>'+d+'</option>';}).join('');}
+}
+
+function renderAll(){renderRibbon();renderMainContent();}
+
+function renderMainContent(){
+  var mc=document.getElementById('mainContent');
+  if(!mc)return;
+  if(STATE.curView==='users'){renderUsersView(mc);return;}
+  if(STATE.curView==='digest'){renderDigestView(mc);return;}
+  renderComplianceView(mc);
+}
+
+function renderComplianceView(mc){
+  var isAudit=STATE.curView==='audit';
+  var title=isAudit?'Audit Points':STATE.curView==='overdue'?'Overdue Compliances':STATE.curView==='upcoming'?'Upcoming Compliances':STATE.curView==='completed'?'Completed Compliances':STATE.curView==='drafts'?'Drafts':'All Compliances';
+  var depts=new Set();STATE.comps.forEach(function(c){if(c.department)depts.add(c.department);});
+  mc.innerHTML='<div class="page-hdr"><div><div class="page-title">'+title+'</div><div class="page-sub">'+STATE.org.name+(STATE.deptFilter?' &middot; Dept: '+STATE.deptFilter:'')+'</div></div>'+(canEdit()?'<button class="bp" onclick="openAdd('+(isAudit?'\'audit\'':'')+')">+ Add '+(isAudit?'Audit Point':'Compliance')+'</button>':'')+'</div>'
+  +'<div class="filter-bar"><div class="search-wrap"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="fsrch" type="text" id="fSrch" placeholder="Search by name or description\u2026" oninput="renderTable()"></div><div class="fsep"></div><select class="fsl" id="fSt" onchange="renderTable()"><option value="">All Status</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="ntbd">Not To Be Done</option><option value="draft">Draft</option></select><select class="fsl" id="fTy" onchange="renderTable()"><option value="">All Frequency</option><option>One Time</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option><option>Half Yearly</option><option>Yearly</option></select><select class="fsl" id="fSc" onchange="renderTable()"><option value="">All Scopes</option><option>Local</option><option>Regional</option><option>National</option><option>International</option></select><select class="fsl" id="fCat" onchange="renderTable()"><option value="">All Categories</option><option>Legal Mandatory</option><option>Legal Non-Mandatory</option><option>Company Mandatory</option><option>Company Non-Mandatory</option></select><select class="fsl" id="fDept" onchange="renderTable()"><option value="">All Depts</option>'+Array.from(depts).sort().map(function(d){return'<option>'+d+'</option>';}).join('')+'</select><select class="fsl" id="fOw" onchange="renderTable()"><option value="">All Owners</option></select><button class="ftb clr" onclick="clearF()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Clear</button></div>'
+  +'<div class="table-card"><table class="ct"><thead><tr><th onclick="sortT(\'name\')">Compliance</th><th onclick="sortT(\'dueDate\')">Due Date</th><th>Urgency</th><th>Status</th><th onclick="sortT(\'type\')">Frequency</th><th>Scope</th><th>Category</th><th>Owner(s)</th><th>Penalty</th><th>Sig.</th><th>Portal</th><th style="width:80px">Actions</th></tr></thead><tbody id="ctBody"></tbody></table></div>';
+  renderTable();
+}
+
+function renderUsersView(mc){
+  var pending=STATE.accessReqs.filter(function(r){return!r.approved&&!r.rejected;});
+  mc.innerHTML='<div class="page-hdr"><div><div class="page-title">Team & Access</div><div class="page-sub">Manage who can access this compliance register</div></div>'+(canManageUsers()?'<button class="bp" onclick="openInvite()">+ Invite Member</button>':'')+'</div>'
+  +(pending.length?'<div style="margin-bottom:20px"><div class="fsec" style="margin-bottom:12px">Pending Access Requests ('+pending.length+')</div><div style="display:flex;flex-direction:column;gap:8px">'+pending.map(function(r){return'<div class="access-req-item"><div class="access-req-info"><div class="access-req-name">'+r.name+'</div><div class="access-req-email">'+r.email+'</div><div class="access-req-ts">Requested: '+fmtDT(r.requestedAt)+'</div></div>'+(canManageUsers()?'<div class="access-req-actions"><button class="bp" style="padding:7px 14px;font-size:12px" onclick="approveReq(\''+r.id+'\')">&#10003; Approve</button><button class="bc" style="padding:7px 14px;font-size:12px" onclick="rejectReq(\''+r.id+'\')">&#10005; Reject</button></div>':'')+'</div>';}).join('')+'</div></div>':'')
+  +'<div class="user-list">'+STATE.users.map(function(u){var rc=u.role==='master'?'rb-master':u.role==='admin'?'rb-admin':u.role==='edit'?'rb-edit':'rb-view';var rl=u.role==='master'?'Master Admin':u.role==='admin'?'Admin':u.role==='dept_admin'?'Dept Admin':u.role==='region_admin'?'Region Admin':u.role==='edit'?'Editor':'Viewer';var bg=['var(--saffron)','var(--teal)','var(--blue)','var(--purple)','#E67E22','#16A34A'][Math.abs(u.name.charCodeAt(0))%6];return'<div class="user-row"><div class="user-av" style="background:'+bg+'">'+u.name.substring(0,2).toUpperCase()+'</div><div class="user-info"><div class="user-name">'+u.name+'</div><div class="user-email">'+u.email+'</div><div class="user-login">Last login: '+(u.lastLogin?fmtDT(u.lastLogin):'Never')+'</div></div><span class="role-badge '+rc+'">'+rl+'</span>'+(canManageUsers()&&u.email!==getUser().email?'<button class="rab" onclick="changeRole(\''+u.id+'\')" title="Change role" style="flex-shrink:0"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg></button>':'')+'</div>';}).join('')+'</div>';
+}
+
+function renderDigestView(mc){
+  var today=new Date();
+  var upcoming=STATE.comps.filter(function(c){var d=urgDays(c.dueDate,c.status);return d!==null&&d>=0&&d<=30&&c.status!=='completed'&&c.status!=='ntbd'&&c.status!=='draft';}).sort(function(a,b){return urgDays(a.dueDate,a.status)-urgDays(b.dueDate,b.status);});
+  var overdue=STATE.comps.filter(function(c){return urgBkt(urgDays(c.dueDate,c.status))==='ov'&&c.status!=='completed'&&c.status!=='ntbd'&&c.status!=='draft';});
+  mc.innerHTML='<div class="page-hdr"><div><div class="page-title">Daily Digest Preview</div><div class="page-sub">This is what your team receives every morning by email</div></div><button class="bp teal" onclick="sendDigest()">&#128140; Send Today\'s Digest</button></div>'
+  +'<div class="digest-section"><div class="digest-hdr"><div><h4>ComplianceTrack Daily Digest</h4><p>'+STATE.org.name+' &middot; '+today.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</p></div></div><div class="digest-body">'
+  +(overdue.length?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">&#9888; Overdue ('+overdue.length+')</div>'+overdue.map(function(c){return'<div class="digest-row"><span class="digest-dept">'+(c.department||'General')+'</span><span class="digest-name">'+c.name+'</span><span class="digest-due over">'+Math.abs(urgDays(c.dueDate,c.status))+'d overdue</span></div>';}).join('')+'</div>':'')
+  +(upcoming.length?'<div><div style="font-size:11px;font-weight:700;color:var(--saffron);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">&#128197; Due in 30 days ('+upcoming.length+')</div>'+upcoming.map(function(c){var d=urgDays(c.dueDate,c.status);return'<div class="digest-row"><span class="digest-dept">'+(c.department||'General')+'</span><span class="digest-name">'+c.name+'</span><span class="digest-due '+(d<=7?'over':d<=15?'warn':'ok')+'">'+d+'d left</span></div>';}).join('')+'</div>':'')
+  +(!overdue.length&&!upcoming.length?'<div class="empty"><span class="empty-ico">&#127881;</span><h3>All clear today!</h3><p>No overdue or upcoming compliances in the next 30 days.</p></div>':'')
+  +'</div></div>';
+}
+
+// ── QUICK STATUS ──
+function qStatus(id,val){
+  var c=STATE.comps.find(function(x){return x.id===id;});if(!c)return;
+  if(!c.published&&val!=='draft'){toast('Cannot change status of an unpublished compliance.','err');return;}
+  var oldVal=c.status;
+  addHistory(c,'status',oldVal,val);
+  c.status=val;c.lastModifiedBy=getUser().name;c.lastModifiedAt=new Date().toISOString();
+  addAct('o','"'+c.name+'" status: '+oldVal+' \u2192 '+val,getUser().name);
+  if(val==='completed')toast('Marked Completed! Open detail to upload proof.','ok');
+  renderAll();saveL();
+}
+
+// ── ADD/EDIT COMPLIANCE ──
+function openAdd(mode){
+  closeFab();
+  STATE.editId=null;
+  STATE.isAuditMode=mode==='audit';
+  document.getElementById('moTitle').textContent=STATE.isAuditMode?'Add Audit Point':'Add Compliance';
+  document.getElementById('moSub').textContent='Fill in the details below';
+  document.getElementById('moFooterNote').textContent='Publishing makes this compliance permanent and visible to all team members.';
+  buildForm(null);
+  document.getElementById('compMo').classList.add('open');
+}
+function openEdit(id){
+  closeFab();
+  var c=STATE.comps.find(function(x){return x.id===id;});if(!c)return;
+  STATE.editId=id;
+  STATE.isAuditMode=c.isAuditPoint||false;
+  document.getElementById('moTitle').textContent='Edit '+(c.published?'(Tracking Changes)':'Draft');
+  document.getElementById('moSub').textContent=c.name;
+  document.getElementById('moFooterNote').textContent=c.published?'Published compliance — all changes are tracked and shown with strikethrough history.':'Draft — publish when ready to make it live and permanent.';
+  buildForm(c);
+  document.getElementById('compMo').classList.add('open');
+}
+function closeCompModal(){document.getElementById('compMo').classList.remove('open');STATE.editId=null;}
+
+function buildForm(c){
+  var types=['One Time','Daily','Weekly','Biweekly','Monthly','Bi-Monthly','Quarterly','Half Yearly','Yearly','Bi-Yearly'];
+  var scopes=['Local','Regional','National','International'];
+  var cats=['Legal Mandatory','Legal Non-Mandatory','Company Mandatory','Company Non-Mandatory'];
+  var sigs=['CA','CS','CMA','Advocate','Auditor','Director','Other'];
+  var depts=['Finance','IT','HR','Legal','Operations','Export-Import','Management','Other'];
+  var regions=['North','South','East','West','Central','All India','International'];
+  document.getElementById('moBody').innerHTML=
+    '<div class="fsec">Basic Information</div>'
+    +'<div class="fr fr2"><div class="fg"><label>'+(STATE.isAuditMode?'Audit Point Name':'Compliance Name')+' *</label><input type="text" id="cf_nm" value="'+(c?c.name||'':'')+'" placeholder="'+(STATE.isAuditMode?'e.g. Verify PF contribution accuracy':'e.g. GST Monthly Return GSTR-3B')+'"></div><div class="fg"><label>Reference / Act</label><input type="text" id="cf_rf" value="'+(c?c.ref||'':'')+'" placeholder="e.g. CGST Act Section 39"></div></div>'
+    +'<div class="fg"><label>Description</label><textarea id="cf_ds" rows="2" placeholder="Brief description">'+(c?c.description||'':'')+'</textarea></div>'
+    +'<div class="fsec">Classification & Scope</div>'
+    +'<div class="fr fr3"><div class="fg"><label>Department</label><select id="cf_dept">'+depts.map(function(d){return'<option'+(c&&c.department===d?' selected':'')+'>'+d+'</option>';}).join('')+'</select></div><div class="fg"><label>Region</label><select id="cf_region">'+regions.map(function(r){return'<option'+(c&&c.region===r?' selected':'')+'>'+r+'</option>';}).join('')+'</select></div><div class="fg"><label>Scope</label><select id="cf_sc">'+scopes.map(function(s){return'<option'+(c&&c.scope===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="fr fr2"><div class="fg"><label>Category</label><select id="cf_ca">'+cats.map(function(s){return'<option'+(c&&c.category===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div><div class="fg"><label>Status</label><select id="cf_st"><option value="pending"'+(!c||c.status==='pending'?' selected':'')+'>Pending</option><option value="completed"'+(c&&c.status==='completed'?' selected':'')+'>Completed</option><option value="ntbd"'+(c&&c.status==='ntbd'?' selected':'')+'>Not To Be Done</option></select></div></div>'
+    +'<div class="fsec">Dates & Frequency</div>'
+    +'<div class="fr fr3"><div class="fg"><label>Due Date *</label><input type="date" id="cf_du" value="'+(c?c.dueDate||'':'')+'"></div><div class="fg"><label>Frequency</label><select id="cf_ty">'+types.map(function(t){return'<option'+(c&&c.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div><div class="fg"><label>FY Period</label><input type="text" id="cf_fy" value="'+(c?c.fyPeriod||'':'')+'" placeholder="e.g. FY 2025-26 Q2"></div></div>'
+    +'<div class="fsec">Ownership</div>'
+    +'<div class="fg"><label>Compliance Owners (comma-separated)</label><input type="text" id="cf_ow" value="'+(c?(c.owners||[]).join(', '):'')+'" placeholder="e.g. Rajesh Kumar, Priya Sharma"><div class="fnote">Each owner is personally accountable and receives the daily digest for this item.</div></div>'
+    +'<div class="fsec">Requirements & Portal</div>'
+    +'<div class="fr fr2"><div class="fg"><div class="cr" style="margin-bottom:10px"><input type="checkbox" id="cf_pe"'+(c&&c.hasPenalty?' checked':'')+' onchange="tgPen()"><label for="cf_pe">Has Financial Penalty</label></div><input type="text" id="cf_pa" value="'+(c?c.penaltyAmt||'':'')+'" placeholder="e.g. Rs 200/day" '+(c&&c.hasPenalty?'':'style="display:none"')+'></div><div class="fg"><div class="cr" style="margin-bottom:10px"><input type="checkbox" id="cf_si"'+(c&&c.requiresSignature?' checked':'')+' onchange="tgSig()"><label for="cf_si">Requires Statutory Signature</label></div><select id="cf_sg" '+(c&&c.requiresSignature?'':'style="display:none"')+'>'+sigs.map(function(s){return'<option'+(c&&c.signatureType===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div></div>'
+    +'<div class="fr fr2"><div class="fg"><label>Portal Name</label><input type="text" id="cf_pn" value="'+(c?c.portalName||'':'')+'" placeholder="e.g. MCA21, GST Portal"></div><div class="fg"><label>Portal URL</label><input type="url" id="cf_pu" value="'+(c?c.portalUrl||'':'')+'" placeholder="https://..."></div></div>'
+    +(STATE.isAuditMode?'<div class="fsec">Audit Details</div><div class="fr fr2"><div class="fg"><label>Audit Finding</label><select id="cf_af"><option value="open"'+(c&&c.auditFinding==='open'?' selected':'')+'>Open</option><option value="closed"'+(c&&c.auditFinding==='closed'?' selected':'')+'>Closed</option><option value="partial"'+(c&&c.auditFinding==='partial'?' selected':'')+'>Partially Closed</option><option value="observation"'+(c&&c.auditFinding==='observation'?' selected':'')+'>Observation</option></select></div><div class="fg"><label>Auditor Name</label><input type="text" id="cf_an" value="'+(c?c.auditorName||'':'')+'" placeholder="Name of auditor"></div></div>':'')
+    +'<div class="fsec">Document</div><div class="fg"><label>Upload Document (PDF only)</label><div class="upz" id="upz" ondragover="event.preventDefault();this.classList.add(\'dv\')" ondragleave="this.classList.remove(\'dv\')" ondrop="doDrop(event)" onclick="document.getElementById(\'docIn\').click()"><div class="upz-icon">&#128196;</div><p>Drag &amp; drop a PDF, or click to browse</p></div><input type="file" id="docIn" accept="application/pdf" style="display:none" onchange="doSel(event)"><div id="docPrev">'+(c&&c.docPreName?'<div class="udoc">&#128196; '+c.docPreName+'</div>':'')+'</div></div>';
+}
+function tgPen(){document.getElementById('cf_pa').style.display=document.getElementById('cf_pe').checked?'':'none';}
+function tgSig(){document.getElementById('cf_sg').style.display=document.getElementById('cf_si').checked?'':'none';}
+var docPre=null;
+function doDrop(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)attDoc(f);}
+function doSel(e){var f=e.target.files[0];if(f)attDoc(f);}
+function attDoc(file){if(file.type!=='application/pdf'){toast('Only PDF files accepted','err');return;}docPre={name:file.name,size:file.size};document.getElementById('docPrev').innerHTML='<div class="udoc">&#128196; '+file.name+' ('+(file.size/1024).toFixed(1)+' KB)</div>';toast('PDF attached','ok');}
+
+function saveCompliance(action){
+  var name=(document.getElementById('cf_nm')||{value:''}).value.trim();
+  if(!name){toast('Please enter a name','err');return;}
+  var isDraft=action==='draft';
+  var existing=STATE.editId?STATE.comps.find(function(x){return x.id===STATE.editId;}):null;
+  var wasPublished=existing&&existing.published;
+  // Build object tracking all changes
+  var obj={
+    id:STATE.editId||genId(STATE.isAuditMode?'AUDIT':'COMP'),
+    name:name,
+    ref:document.getElementById('cf_rf').value.trim(),
+    description:document.getElementById('cf_ds').value.trim(),
+    department:document.getElementById('cf_dept').value,
+    region:document.getElementById('cf_region').value,
+    dueDate:document.getElementById('cf_du').value,
+    type:document.getElementById('cf_ty').value,
+    fyPeriod:document.getElementById('cf_fy').value.trim(),
+    scope:document.getElementById('cf_sc').value,
+    category:document.getElementById('cf_ca').value,
+    status:isDraft?'draft':document.getElementById('cf_st').value,
+    owners:document.getElementById('cf_ow').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+    hasPenalty:document.getElementById('cf_pe').checked,
+    penaltyAmt:(document.getElementById('cf_pa')||{value:''}).value.trim(),
+    requiresSignature:document.getElementById('cf_si').checked,
+    signatureType:(document.getElementById('cf_sg')||{value:''}).value,
+    portalName:document.getElementById('cf_pn').value.trim(),
+    portalUrl:document.getElementById('cf_pu').value.trim(),
+    docPreName:docPre?docPre.name:(existing?existing.docPreName||'':''),
+    isAuditPoint:STATE.isAuditMode,
+    auditFinding:STATE.isAuditMode&&document.getElementById('cf_af')?(document.getElementById('cf_af').value):'',
+    auditorName:STATE.isAuditMode&&document.getElementById('cf_an')?(document.getElementById('cf_an').value.trim()):'',
+    published:isDraft?false:true,
+    publishedAt:wasPublished?existing.publishedAt:(isDraft?null:new Date().toISOString()),
+    publishedBy:wasPublished?existing.publishedBy:(isDraft?null:getUser().name),
+    logs:existing?existing.logs||[]:[],
+    comments:existing?existing.comments||[]:[],
+    history:existing?existing.history||[]:[],
+    createdBy:existing?existing.createdBy||getUser().name:getUser().name,
+    createdAt:existing?existing.createdAt||new Date().toISOString():new Date().toISOString(),
+    lastModifiedBy:getUser().name,
+    lastModifiedAt:new Date().toISOString()
+  };
+  // Track field changes if editing published compliance
+  if(STATE.editId&&existing&&wasPublished){
+    var tracked=['name','description','dueDate','department','region','scope','category','status','type','fyPeriod','owners','hasPenalty','penaltyAmt','requiresSignature','signatureType','portalName','portalUrl'];
+    tracked.forEach(function(f){
+      var oldV=existing[f];var newV=obj[f];
+      var oldStr=Array.isArray(oldV)?oldV.join(','):String(oldV||'');
+      var newStr=Array.isArray(newV)?newV.join(','):String(newV||'');
+      if(oldStr!==newStr) addHistory(obj,f,oldStr,newStr);
+    });
+  }
+  if(STATE.editId){
+    var idx=STATE.comps.findIndex(function(x){return x.id===STATE.editId;});
+    if(idx>=0)STATE.comps[idx]=obj;
+    addAct(isDraft?'p':'b','"'+name+'" '+(isDraft?'saved as draft':'updated'),getUser().name);
+    toast(isDraft?'Saved as draft':'Changes saved and tracked','ok');
+  } else {
+    STATE.comps.unshift(obj);
+    addAct(isDraft?'p':'g','New '+(STATE.isAuditMode?'audit point':'compliance')+': "'+name+'" '+(isDraft?'(draft)':'published'),getUser().name);
+    toast(isDraft?'Draft saved':'Compliance published!','ok');
+  }
+  docPre=null;closeCompModal();renderAll();saveL();
+}
+
+function addHistory(c,field,oldVal,newVal){
+  if(!c.history)c.history=[];
+  c.history.push({field:field,oldVal:oldVal,newVal:newVal,by:getUser().name,ts:new Date().toISOString()});
+}
+
+// ── REASSIGN ──
+function openReassign(id){
+  STATE.reassId=id;
+  var c=STATE.comps.find(function(x){return x.id===id;});if(!c)return;
+  document.getElementById('reassBody').innerHTML='<p style="font-size:13px;color:var(--slate);margin-bottom:14px;font-weight:500">Compliance: <strong>'+c.name+'</strong></p><div class="fg"><label>Current Owners</label><div id="cotags" style="display:flex;flex-wrap:wrap;gap:4px;min-height:36px;padding:8px;background:var(--cloud);border-radius:var(--r-md);margin-bottom:10px">'+(c.owners||[]).map(function(o){return'<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:100px;background:var(--blue-l);color:var(--blue);font-size:12px;font-weight:700;border:1px solid #BFDBFE">'+o+'<button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:13px;padding:0 0 0 3px;line-height:1">x</button></span>';}).join('')+'</div></div><div class="fg"><label>Add Owner</label><input type="text" id="newOwInp" placeholder="Name, press Enter to add" onkeydown="if(event.key===\'Enter\'){addOw();event.preventDefault()}"></div><div class="fg" style="margin-top:8px"><label>Transfer Mode</label><select id="xferMode"><option value="add">Add to existing owners</option><option value="replace">Replace all owners</option></select></div>';
+  document.getElementById('reassMo').classList.add('open');
+}
+function closeReassign(){document.getElementById('reassMo').classList.remove('open');STATE.reassId=null;}
+function addOw(){var inp=document.getElementById('newOwInp');var nm=inp.value.trim();if(!nm)return;var ex=Array.from(document.getElementById('cotags').querySelectorAll('span')).map(function(el){return el.childNodes[0].textContent.trim();});if(ex.indexOf(nm)>=0){toast('Already in list','err');return;}var s=document.createElement('span');s.style.cssText='display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:100px;background:var(--blue-l);color:var(--blue);font-size:12px;font-weight:700;border:1px solid #BFDBFE';s.innerHTML=nm+'<button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:13px;padding:0 0 0 3px;line-height:1">x</button>';document.getElementById('cotags').appendChild(s);inp.value='';}
+function saveReassign(){
+  if(!STATE.reassId)return;
+  var mode=document.getElementById('xferMode').value;
+  var tags=Array.from(document.getElementById('cotags').querySelectorAll('span')).map(function(el){return el.childNodes[0].textContent.trim();}).filter(Boolean);
+  var c=STATE.comps.find(function(x){return x.id===STATE.reassId;});if(!c)return;
+  var old=c.owners?c.owners.slice():[];
+  addHistory(c,'owners',old.join(','),mode==='replace'?tags.join(','):[...new Set(old.concat(tags))].join(','));
+  c.owners=mode==='replace'?tags:[...new Set(old.concat(tags))];
+  c.lastModifiedBy=getUser().name;c.lastModifiedAt=new Date().toISOString();
+  addAct('b','"'+c.name+'" owners updated',getUser().name);
+  closeReassign();renderAll();saveL();toast('Owners updated','ok');
+}
+
+// ── DETAIL PANEL ──
+function openDet(id){
+  var c=STATE.comps.find(function(x){return x.id===id;});if(!c)return;
+  STATE.curDet=id;
+  document.getElementById('dpTt').textContent=c.name;
+  document.getElementById('dpMeta').innerHTML=c.id+' &middot; Created '+fmtDT(c.createdAt)+' by '+c.createdBy+(c.published?'<br>Published '+fmtDT(c.publishedAt)+' by '+c.publishedBy:'<br><span style="color:var(--amber-l);font-weight:600">DRAFT &mdash; not yet published</span>');
+  switchDpTab('details',null,true);
+  document.getElementById('detPanel').classList.add('open');
+}
+function switchDpTab(tab,btn,force){
+  if(!force&&STATE.curDpTab===tab)return;
+  STATE.curDpTab=tab;
+  document.querySelectorAll('.dp-tab').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  else document.querySelectorAll('.dp-tab').forEach(function(b,i){if(['details','comments','history','documents'][i]===tab)b.classList.add('active');});
+  document.querySelectorAll('.dp-panel').forEach(function(p){p.classList.remove('active');});
+  document.getElementById('dp'+tab.charAt(0).toUpperCase()+tab.slice(1)).classList.add('active');
+  var c=STATE.comps.find(function(x){return x.id===STATE.curDet;});if(!c)return;
+  if(tab==='details')renderDpDetails(c);
+  else if(tab==='comments')renderDpComments(c);
+  else if(tab==='history')renderDpHistory(c);
+  else if(tab==='documents')renderDpDocuments(c);
+  var d=urgDays(c.dueDate,c.status);var b=urgBkt(d);
+  var ul=c.status==='completed'?'Completed':c.status==='ntbd'?'N/A':c.status==='draft'?'Draft (unpublished)':b==='ov'?Math.abs(d)+' days overdue':b==='na'?'No date':d+' days remaining';
+  document.getElementById('dpFt').innerHTML=(canEdit()?'<button class="bp" style="padding:8px 16px;font-size:12px" onclick="openEdit(\''+c.id+'\')">&#9998; Edit</button><button class="bp" style="padding:8px 16px;font-size:12px;background:var(--blue)" onclick="openReassign(\''+c.id+'\')">&#128101; Reassign</button>':'')+(c.status!=='completed'&&canEdit()?'<button class="bp teal" style="padding:8px 16px;font-size:12px" onclick="qStatus(\''+c.id+'\',\'completed\')">&#10003; Mark Complete</button>':'');
+}
+function renderDpDetails(c){
+  var d=urgDays(c.dueDate,c.status);var b=urgBkt(d);
+  var ul=c.status==='completed'?'Completed':c.status==='ntbd'?'N/A':c.status==='draft'?'Draft':b==='ov'?Math.abs(d)+' days overdue':b==='na'?'No date':d+' days remaining';
+  // For each field, show current value + strikethrough previous if changed
+  function fieldRow(label,fieldKey,displayVal){
+    var hist=(c.history||[]).filter(function(h){return h.field===fieldKey;}).reverse();
+    var prevHtml='';
+    if(hist.length>0){
+      var prev=hist[0];
+      prevHtml='<span class="dp-v-old">'+prev.oldVal+' &nbsp; &middot; &nbsp; changed '+fmtDT(prev.ts)+' by '+prev.by+'</span>';
+    }
+    return'<div class="dp-rw"><span class="dp-k">'+label+'</span><span class="dp-v">'+(displayVal||'--')+prevHtml+'</span></div>';
+  }
+  document.getElementById('dpDetails').innerHTML='<div class="dp-sec"><div class="dp-sl">Compliance Details</div>'
+    +fieldRow('Name','name',c.name)
+    +(c.description?fieldRow('Description','description',c.description):'')
+    +(c.ref?'<div class="dp-rw"><span class="dp-k">Reference</span><span class="dp-v">'+c.ref+'</span></div>':'')
+    +fieldRow('Due Date','dueDate',fmtD(c.dueDate))
+    +'<div class="dp-rw"><span class="dp-k">Urgency</span><span class="dp-v">'+ul+'</span></div>'
+    +fieldRow('Department','department',c.department)
+    +fieldRow('Region','region',c.region)
+    +fieldRow('FY Period','fyPeriod',c.fyPeriod)
+    +fieldRow('Frequency','type',c.type)
+    +fieldRow('Scope','scope',c.scope)
+    +fieldRow('Category','category',c.category)
+    +fieldRow('Status','status',c.status==='completed'?'Completed':c.status==='ntbd'?'Not To Be Done':c.status==='draft'?'Draft':'Pending')
+    +fieldRow('Owners','owners',(c.owners||[]).join(', ')||'Unassigned')
+    +'<div class="dp-rw"><span class="dp-k">Last Modified</span><span class="dp-v">'+(c.lastModifiedAt?fmtDT(c.lastModifiedAt)+' by '+c.lastModifiedBy:'--')+'</span></div>'
+    +'</div><div class="dp-sec"><div class="dp-sl">Requirements</div>'
+    +'<div class="dp-rw"><span class="dp-k">Penalty</span><span class="dp-v">'+(c.hasPenalty?'Yes'+(c.penaltyAmt?' &mdash; '+c.penaltyAmt:''):'None')+'</span></div>'
+    +'<div class="dp-rw"><span class="dp-k">Signature</span><span class="dp-v">'+(c.requiresSignature?'Required ('+c.signatureType+')':'Not required')+'</span></div>'
+    +'<div class="dp-rw"><span class="dp-k">Portal</span><span class="dp-v">'+(c.portalName?'<a href="'+c.portalUrl+'" target="_blank" style="color:var(--blue);font-weight:700">'+c.portalName+' &#8599;</a>':'--')+'</span></div>'
+    +'</div>'+(c.isAuditPoint?'<div class="dp-sec"><div class="dp-sl">Audit Details</div><div class="dp-rw"><span class="dp-k">Finding</span><span class="dp-v">'+c.auditFinding+'</span></div><div class="dp-rw"><span class="dp-k">Auditor</span><span class="dp-v">'+(c.auditorName||'--')+'</span></div></div>':'');
+}
+function renderDpComments(c){
+  var html=(c.comments||[]).slice().reverse().map(function(cm){var av=cm.by?cm.by.substring(0,2).toUpperCase():'??';return'<div class="comment-item"><div class="comment-hdr"><div class="comment-av">'+av+'</div><span class="comment-name">'+cm.by+'</span><span class="comment-ts">'+fmtDT(cm.ts)+'</span></div><div class="comment-body">'+cm.text+'</div></div>';}).join('')||'<p style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">No comments yet. Be the first to add an update.</p>';
+  document.getElementById('dpComments').innerHTML='<div class="comment-list">'+html+'</div><div class="comment-box"><textarea id="dpComInp" placeholder="Add a comment, update, or note\u2026"></textarea><div class="comment-box-foot"><button class="comment-submit" onclick="addComment()">Post Comment</button></div></div>';
+}
+function renderDpHistory(c){
+  var hist=(c.history||[]).slice().reverse();
+  if(!hist.length){document.getElementById('dpHistory').innerHTML='<p style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">No changes tracked yet. History starts from the first edit after publishing.</p>';return;}
+  var html=hist.map(function(h){return'<div class="hist-item"><div class="hist-dot b"></div><div><div class="hist-txt">Field <strong>'+h.field+'</strong> changed: <span class="hist-old">'+h.oldVal+'</span> <span class="hist-new">&rarr; '+h.newVal+'</span></div><div class="hist-ts">'+fmtDT(h.ts)+' by '+h.by+'</div></div></div>';}).join('');
+  document.getElementById('dpHistory').innerHTML='<div style="display:flex;flex-direction:column;gap:0">'+html+'</div>';
+}
+function renderDpDocuments(c){
+  document.getElementById('dpDocuments').innerHTML='<div class="dp-sec"><div class="dp-sl">Compliance Document</div>'+(c.docPreName?'<div class="udoc">&#128196; '+c.docPreName+'</div>':'<p style="font-size:12px;color:var(--muted)">No document uploaded yet.</p>')+'</div><div class="dp-sec"><div class="dp-sl">Completion Proof</div>'+(c.docPostName?'<div class="udoc">&#128196; '+c.docPostName+'</div>':'<p style="font-size:12px;color:var(--muted)">No proof uploaded yet.</p>')+'<div class="upz" style="margin-top:10px;padding:14px" ondragover="event.preventDefault();this.classList.add(\'dv\')" ondragleave="this.classList.remove(\'dv\')" ondrop="detDrop(event)" onclick="document.getElementById(\'docInPost\').click()"><div class="upz-icon" style="font-size:20px">&#128196;</div><p>Drop completion proof PDF here</p></div><input type="file" id="docInPost" accept="application/pdf" style="display:none" onchange="detSel(event)"></div>';
+}
+function detDrop(e){e.preventDefault();var f=e.dataTransfer.files[0];if(f)attPost(f);}
+function detSel(e){var f=e.target.files[0];if(f)attPost(f);}
+function attPost(file){if(file.type!=='application/pdf'){toast('Only PDF','err');return;}var c=STATE.comps.find(function(x){return x.id===STATE.curDet;});if(!c)return;c.docPostName=file.name;c.lastModifiedBy=getUser().name;c.lastModifiedAt=new Date().toISOString();addHistory(c,'docPostName','',file.name);addAct('g','"'+c.name+'" proof uploaded',getUser().name);saveL();renderDpDocuments(c);toast('Proof attached!','ok');}
+function addComment(){
+  var inp=document.getElementById('dpComInp');var txt=inp.value.trim();if(!txt){toast('Type a comment first','err');return;}
+  var c=STATE.comps.find(function(x){return x.id===STATE.curDet;});if(!c)return;
+  if(!c.comments)c.comments=[];
+  var cm={id:genId('CMT'),text:txt,by:getUser().name,ts:new Date().toISOString()};
+  c.comments.push(cm);
+  inp.value='';
+  addAct('b','Comment on "'+c.name+'"',getUser().name);
+  saveL();renderDpComments(c);toast('Comment posted','ok');
+}
+function closeDet(){document.getElementById('detPanel').classList.remove('open');STATE.curDet=null;}
+
+// ── LOG ──
+function addAct(dot,txt,by){STATE.actLog.unshift({dot:dot,txt:txt,meta:(by||'Guest')+' &middot; '+fmtDT(),ts:new Date().toISOString()});}
+function openLog(){var bd=document.getElementById('logBd');bd.innerHTML=STATE.actLog.length?STATE.actLog.map(function(a){return'<div class="hist-item"><div class="hist-dot '+a.dot+'"></div><div><div class="hist-txt">'+a.txt+'</div><div class="hist-ts">'+a.meta+'</div></div></div>';}).join(''):'<p style="font-size:12px;color:var(--muted);font-style:italic;padding:10px 0">No activity yet.</p>';document.getElementById('logPanel').classList.add('open');}
+function closeLog(){document.getElementById('logPanel').classList.remove('open');}
+
+// ── ORG SETTINGS ──
+var ORGT=[{v:'ca',l:'CA Firm',e:'CA'},{v:'company',l:'Company',e:'Business'},{v:'school',l:'School',e:'Educational'},{v:'hospital',l:'Hospital',e:'Healthcare'},{v:'shop',l:'Shop',e:'Shop'},{v:'ngo',l:'NGO',e:'NGO'},{v:'govt',l:'Government',e:'Government'},{v:'mnc',l:'MNC',e:'MNC'},{v:'industry',l:'Industry',e:'Industry'},{v:'shipping',l:'Shipping',e:'Shipping'},{v:'exim',l:'Export Import',e:'Export Import'},{v:'iso',l:'ISO',e:'ISO'},{v:'audit',l:'Audit Firm',e:'Audit'},{v:'rwa',l:'RWA',e:'RWA'},{v:'other',l:'Other',e:''}];
+var ORG_ICONS=['&#128188;','&#127963;','&#127979;','&#127973;','&#128722;','&#10084;','&#128081;','&#127758;','&#127981;','&#128674;','&#8651;','&#128196;','&#128203;','&#127968;','&#127970;'];
+function openOrgModal(){
+  var o=STATE.org;var ct=o.type||'company';
+  var months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('orgBody').innerHTML='<div class="fg"><label>Organisation Name *</label><input type="text" id="og_nm" value="'+(o.name||'')+'" placeholder="e.g. Sharma & Associates CA Firm"></div><div class="fg"><label>Organisation Type</label><div class="otg" id="otg">'+ORGT.map(function(t,i){return'<div class="ot'+(t.v===ct?' sel':'')+'" onclick="selOT(\''+t.v+'\')" data-type="'+t.v+'"><div class="ot-ico">'+ORG_ICONS[i]+'</div><span>'+t.l+'</span></div>';}).join('')+'</div><input type="hidden" id="og_ty" value="'+ct+'"></div><div class="fr fr2"><div class="fg"><label>Financial Year Start</label><select id="og_fm">'+months.map(function(m,i){return'<option value="'+(i+1)+'"'+((o.fyMonth||4)===(i+1)?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div><div class="fg"><label>Country</label><input type="text" id="og_co" value="'+(o.country||'India')+'"></div></div><div class="fr fr2"><div class="fg"><label>City</label><input type="text" id="og_ci" value="'+(o.city||'')+'" placeholder="e.g. Mumbai"></div><div class="fg"><label>SBU / Division</label><input type="text" id="og_sb" value="'+(o.sbu||'')+'" placeholder="e.g. West Region"></div></div>';
+  document.getElementById('orgMo').classList.add('open');
+}
+function selOT(v){document.getElementById('og_ty').value=v;document.querySelectorAll('.ot').forEach(function(el){el.classList.toggle('sel',el.dataset.type===v);});}
+function closeOrgModal(){document.getElementById('orgMo').classList.remove('open');}
+function saveOrg(){
+  STATE.org={name:document.getElementById('og_nm').value.trim()||'My Organisation',type:document.getElementById('og_ty').value,fyMonth:parseInt(document.getElementById('og_fm').value),city:document.getElementById('og_ci').value.trim(),country:document.getElementById('og_co').value.trim()||'India',sbu:document.getElementById('og_sb').value.trim()};
+  updateOrgUI();closeOrgModal();saveL();addAct('b','Organisation settings updated',getUser().name);toast('Settings saved','ok');
+}
+function updateOrgUI(){
+  var o=STATE.org;var ot=ORGT.find(function(t){return t.v===o.type;})||ORGT[1];
+  var nm=o.name||'My Organisation';
+  document.getElementById('navOrg').textContent=nm;
+  document.getElementById('hrOrgName').textContent=nm;
+  document.getElementById('navEd').textContent=ot.e?'CT - '+ot.e:'beta';
+  document.title=nm+' \u2014 ComplianceTrack';
+}
+
+// ── USER MANAGEMENT ──
+function openInvite(){
+  document.getElementById('inviteBody').innerHTML='<div class="fg"><label>Full Name</label><input type="text" id="inv_nm" placeholder="e.g. Priya Sharma"></div><div class="fg"><label>Email Address</label><input type="email" id="inv_em" placeholder="priya@company.com"></div><div class="fg"><label>Role</label><select id="inv_rl"><option value="view">View Only &mdash; can see everything, add comments</option><option value="edit">Editor &mdash; can add and update compliances</option><option value="admin">Admin &mdash; can manage users and settings</option><option value="dept_admin">Department Admin &mdash; admin for a specific department</option><option value="region_admin">Region Admin &mdash; admin for a specific region</option></select></div><div class="fg" id="inv_scope_group" style="display:none"><label>Department / Region (for scoped admins)</label><input type="text" id="inv_scope" placeholder="e.g. Finance, West Region"></div><div class="fnote" style="margin-top:4px">The person will receive a link and must create their account. Admin approval is needed before they can access.</div>';
+  document.getElementById('inv_rl').addEventListener('change',function(){document.getElementById('inv_scope_group').style.display=this.value==='dept_admin'||this.value==='region_admin'?'':'none';});
+  document.getElementById('inviteMo').classList.add('open');
+}
+function closeInvite(){document.getElementById('inviteMo').classList.remove('open');}
+function saveInvite(){
+  var nm=document.getElementById('inv_nm').value.trim();
+  var em=document.getElementById('inv_em').value.trim().toLowerCase();
+  var rl=document.getElementById('inv_rl').value;
+  if(!nm||!em){toast('Name and email are required','err');return;}
+  if(STATE.users.find(function(u){return u.email===em;})){toast('This person already has access','err');return;}
+  var u={id:genId('USR'),name:nm,email:em,role:rl,scope:document.getElementById('inv_scope')?document.getElementById('inv_scope').value.trim():'',addedBy:getUser().name,addedAt:new Date().toISOString(),lastLogin:null,passcode:null};
+  STATE.users.push(u);
+  addAct('b',nm+' ('+rl+') invited',getUser().name);
+  closeInvite();renderUsersView(document.getElementById('mainContent'));saveL();toast(nm+' has been given '+rl+' access','ok');
+}
+function changeRole(uid){
+  var u=STATE.users.find(function(x){return x.id===uid;});if(!u)return;
+  var roles=['view','edit','admin','dept_admin','region_admin','master'];
+  var newRole=prompt('Change role for '+u.name+'.\nCurrent: '+u.role+'\nEnter new role: view / edit / admin / dept_admin / region_admin');
+  if(!newRole||roles.indexOf(newRole)<0){toast('Invalid role','err');return;}
+  u.role=newRole;addAct('b',u.name+' role changed to '+newRole,getUser().name);
+  renderUsersView(document.getElementById('mainContent'));saveL();toast('Role updated','ok');
+}
+function approveReq(id){
+  var req=STATE.accessReqs.find(function(r){return r.id===id;});if(!req)return;
+  req.approved=true;req.approvedBy=getUser().name;req.approvedAt=new Date().toISOString();
+  STATE.users.push({id:genId('USR'),name:req.name,email:req.email,role:'view',addedBy:getUser().name,addedAt:new Date().toISOString(),lastLogin:null,passcode:null});
+  addAct('g',req.name+' access request approved',getUser().name);
+  renderUsersView(document.getElementById('mainContent'));saveL();toast(req.name+' now has View access','ok');
+}
+function rejectReq(id){
+  var req=STATE.accessReqs.find(function(r){return r.id===id;});if(!req)return;
+  req.rejected=true;addAct('r',req.email+' access request rejected',getUser().name);
+  renderUsersView(document.getElementById('mainContent'));saveL();toast('Request rejected','err');
+}
+
+// ── DIGEST ──
+function sendDigest(){toast('Daily digest sent to all '+STATE.users.length+' team members (simulated in demo)','ok');addAct('b','Daily digest sent',getUser().name);}
+
+// ── VIEW SWITCHING ──
+function switchView(view,el){
+  STATE.curView=view;STATE.urgFilter='';STATE.deptFilter='';
+  document.querySelectorAll('.sidebar-item').forEach(function(i){i.classList.remove('active');});
+  if(el)el.classList.add('active');
+  renderAll();
+}
+
+// ── FILTERS ──
+function clearF(){var ids=['fSrch','fSt','fTy','fSc','fCat','fDept','fOw'];ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});STATE.urgFilter='';STATE.deptFilter='';renderAll();}
+function sortT(key){if(STATE.sk===key)STATE.sa=!STATE.sa;else{STATE.sk=key;STATE.sa=true;}renderTable();}
+
+// ── EXPORT ──
+function expCSV(){
+  var hdr=['ID','Name','Dept','Region','Status','Due Date','FY Period','Frequency','Scope','Category','Owners','Penalty','Sig','Portal','Published','Created By','Created At','Modified By','Modified At'];
+  var rows=STATE.comps.map(function(c){return[c.id,c.name,c.department,c.region,c.status,c.dueDate,c.fyPeriod,c.type,c.scope,c.category,(c.owners||[]).join('; '),c.hasPenalty?'Yes'+( c.penaltyAmt?' - '+c.penaltyAmt:''):'No',c.requiresSignature?'Yes - '+c.signatureType:'No',c.portalName||'',c.published?'Yes':'Draft',c.createdBy,c.createdAt?fmtDT(c.createdAt):'',c.lastModifiedBy,c.lastModifiedAt?fmtDT(c.lastModifiedAt):''].map(function(v){return'"'+(v||'').toString().replace(/"/g,'""')+'"';}).join(',');});
+  var csv=[hdr.join(',')].concat(rows).join('\n');
+  var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='ComplianceTrack_'+(STATE.org.name||'org').replace(/\s+/g,'_')+'_'+todayISO()+'.csv';a.click();addAct('b','CSV exported',getUser().name);toast('CSV exported','ok');
+}
+function expXLS(){
+  try{
+    var data=STATE.comps.map(function(c){return{'ID':c.id,'Name':c.name,'Department':c.department,'Region':c.region,'Status':c.status,'Due Date':c.dueDate,'FY Period':c.fyPeriod,'Frequency':c.type,'Scope':c.scope,'Category':c.category,'Owners':(c.owners||[]).join('; '),'Penalty':c.hasPenalty?'Yes'+(c.penaltyAmt?' - '+c.penaltyAmt:''):'No','Signature Required':c.requiresSignature?'Yes - '+c.signatureType:'No','Portal':c.portalName||'','Published':c.published?'Yes':'Draft','Created By':c.createdBy,'Modified By':c.lastModifiedBy};});
+    var ws=XLSX.utils.json_to_sheet(data);var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Compliances');
+    XLSX.writeFile(wb,'ComplianceTrack_'+(STATE.org.name||'org').replace(/\s+/g,'_')+'_'+todayISO()+'.xlsx');
+    addAct('g','Excel exported',getUser().name);toast('Excel exported','ok');
+  }catch(e){toast('Excel export error','err');console.error(e);}
+}
+function expPDF(){toast('Opening print dialog to save as PDF…');setTimeout(function(){window.print();},400);}
+function openShare(){var url=window.location.href.split('?')[0]+'?org='+encodeURIComponent(STATE.org.name||'MyOrg');document.getElementById('spUrl').textContent=url;document.getElementById('spOv').classList.add('open');}
+function closeShare(){document.getElementById('spOv').classList.remove('open');}
+function copyLink(){var url=document.getElementById('spUrl').textContent;var btn=document.getElementById('spCp');if(navigator.clipboard){navigator.clipboard.writeText(url).then(function(){btn.textContent='Copied!';btn.classList.add('copied');setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied');},2500);});}else{toast('Link: '+url);}}
+function doWA(){var nm=STATE.org.name||'My Organisation';window.open('https://wa.me/?text='+encodeURIComponent('Compliance Register for '+nm+'\n'+window.location.href),'_blank');addAct('b','Shared via WhatsApp',getUser().name);}
+function doEmail(){var nm=STATE.org.name||'My Organisation';window.location.href='mailto:?subject='+encodeURIComponent('Compliance Register - '+nm)+'&body='+encodeURIComponent('Hi,\n\nPlease find the compliance register for '+nm+':\n\n'+window.location.href+'\n\nShared via ComplianceTrack');}
+
+// ── FAB ──
+function toggleFab(){STATE.fabOpen=!STATE.fabOpen;document.getElementById('fabM').classList.toggle('open',STATE.fabOpen);document.getElementById('fabB').classList.toggle('os',STATE.fabOpen);}
+function closeFab(){STATE.fabOpen=false;document.getElementById('fabM').classList.remove('open');document.getElementById('fabB').classList.remove('os');}
+function libMsg(){closeFab();toast('Compliance Library coming soon — pre-loaded GST, MCA, IT, PF/ESI, SEBI templates!');}
+
+// ── LOCAL STORAGE ──
+function saveL(){
+  try{
+    localStorage.setItem('ct3_comps',JSON.stringify(STATE.comps));
+    localStorage.setItem('ct3_org',JSON.stringify(STATE.org));
+    localStorage.setItem('ct3_log',JSON.stringify(STATE.actLog.slice(0,300)));
+    localStorage.setItem('ct3_users',JSON.stringify(STATE.users));
+    localStorage.setItem('ct3_reqs',JSON.stringify(STATE.accessReqs));
+    document.getElementById('sh').textContent='Auto-saved \u00b7 '+fmtDT()+' \u00b7 One Portal. One Truth.';
+  }catch(e){}
+}
+function loadL(){
+  try{
+    var c=localStorage.getItem('ct3_comps');if(c)STATE.comps=JSON.parse(c);
+    var o=localStorage.getItem('ct3_org');if(o){STATE.org=JSON.parse(o);}
+    var l=localStorage.getItem('ct3_log');if(l)STATE.actLog=JSON.parse(l);
+    var u=localStorage.getItem('ct3_users');if(u)STATE.users=JSON.parse(u);
+    var r=localStorage.getItem('ct3_reqs');if(r)STATE.accessReqs=JSON.parse(r);
+  }catch(e){}
+}
+
+// ── AUTH ──
+function openAuth(){showAuthForm('signin');}
+function showAuthForm(mode){
+  var el=document.getElementById('authFormArea');
+  document.getElementById('authErr').classList.remove('show');
+  document.getElementById('authSucc').classList.remove('show');
+  if(mode==='signin'){
+    document.getElementById('authSubtitle').textContent='Sign in to your workspace';
+    el.innerHTML='<div class="auth-tabs"><button class="auth-tab active" onclick="showAuthForm(\'signin\')">Sign In</button><button class="auth-tab" onclick="showAuthForm(\'signup\')">Create Account</button></div>'
+      +'<div class="af"><label>Email Address</label><input type="email" id="a_em" placeholder="you@company.com" autocomplete="email"></div>'
+      +'<div class="af"><label>Your 4-Digit Passcode</label><div class="passcode-dots"><div class="pc-dot" id="pd0"></div><div class="pc-dot" id="pd1"></div><div class="pc-dot" id="pd2"></div><div class="pc-dot" id="pd3"></div></div><div class="pc-numpad" id="numpad"></div></div>'
+      +'<button class="auth-btn" onclick="submitSignIn()">Sign In</button>'
+      +'<div class="auth-link"><a onclick="showAuthForm(\'request\')">&#10148; Request access to an organisation</a></div>';
+    buildNumpad();
+  } else if(mode==='signup'){
+    document.getElementById('authSubtitle').textContent='Create your account';
+    el.innerHTML='<div class="auth-tabs"><button class="auth-tab" onclick="showAuthForm(\'signin\')">Sign In</button><button class="auth-tab active" onclick="showAuthForm(\'signup\')">Create Account</button></div>'
+      +'<div class="af"><label>Full Name</label><input type="text" id="a_nm" placeholder="Rajesh Kumar"></div>'
+      +'<div class="af"><label>Email Address</label><input type="email" id="a_em" placeholder="you@company.com" autocomplete="email"></div>'
+      +'<div class="af"><label>Set Your 4-Digit Passcode</label><div class="passcode-dots"><div class="pc-dot" id="pd0"></div><div class="pc-dot" id="pd1"></div><div class="pc-dot" id="pd2"></div><div class="pc-dot" id="pd3"></div></div><div class="pc-numpad" id="numpad"></div></div>'
+      +'<button class="auth-btn" onclick="submitSignUp()">Create Account</button>'
+      +'<div class="auth-link">Already have an account? <a onclick="showAuthForm(\'signin\')">Sign in</a></div>';
+    buildNumpad();
+  } else if(mode==='request'){
+    document.getElementById('authSubtitle').textContent='Request Access';
+    el.innerHTML='<p style="font-size:13px;color:var(--slate);margin-bottom:16px;line-height:1.7">You need to be invited by an admin to access a ComplianceTrack workspace. Enter your details and an admin will be notified.</p>'
+      +'<div class="af"><label>Full Name</label><input type="text" id="a_nm" placeholder="Your full name"></div>'
+      +'<div class="af"><label>Email Address</label><input type="email" id="a_em" placeholder="your@email.com"></div>'
+      +'<button class="auth-btn" onclick="submitAccessReq()">Request Access</button>'
+      +'<div class="auth-link"><a onclick="showAuthForm(\'signin\')">&#8592; Back to Sign In</a></div>';
+  }
+}
+var pcVal='';
+function buildNumpad(){
+  pcVal='';updatePcDots();
+  var np=document.getElementById('numpad');if(!np)return;
+  var btns=[1,2,3,4,5,6,7,8,9,'',0,'&#9003;'];
+  np.innerHTML=btns.map(function(b,i){return b===''?'<div></div>':'<button class="pc-btn'+(b==='&#9003;'?' del':'')+'" onclick="pcPress(\''+b+'\')" type="button">'+b+'</button>';}).join('');
+}
+function pcPress(v){
+  if(v==='&#9003;'){pcVal=pcVal.slice(0,-1);}
+  else if(pcVal.length<4){pcVal+=v;}
+  updatePcDots();
+}
+function updatePcDots(){
+  for(var i=0;i<4;i++){
+    var dot=document.getElementById('pd'+i);
+    if(!dot)continue;
+    dot.textContent=pcVal.length>i?'\u25CF':'';
+    dot.classList.toggle('filled',pcVal.length>i);
+    dot.classList.toggle('active',pcVal.length===i&&pcVal.length<4);
+  }
+}
+function showAuthErr(msg){var e=document.getElementById('authErr');e.textContent=msg;e.classList.add('show');}
+function showAuthSucc(msg){var e=document.getElementById('authSucc');e.textContent=msg;e.classList.add('show');}
+
+function submitSignIn(){
+  var em=(document.getElementById('a_em')||{value:''}).value.trim().toLowerCase();
+  if(!em){showAuthErr('Please enter your email');return;}
+  if(pcVal.length!==4){showAuthErr('Please enter your 4-digit passcode');return;}
+  var u=STATE.users.find(function(x){return x.email===em;});
+  if(!u){showAuthErr('No account found. Please create an account or request access.');return;}
+  if(u.passcode&&u.passcode!==pcVal){showAuthErr('Incorrect passcode. Please try again.');return;}
+  if(!u.passcode){u.passcode=pcVal;}
+  u.lastLogin=new Date().toISOString();
+  setLoggedIn(u);saveL();
+}
+function submitSignUp(){
+  var nm=(document.getElementById('a_nm')||{value:''}).value.trim();
+  var em=(document.getElementById('a_em')||{value:''}).value.trim().toLowerCase();
+  if(!nm||!em){showAuthErr('Please fill in all fields');return;}
+  if(pcVal.length!==4){showAuthErr('Please set a 4-digit passcode');return;}
+  if(!em.includes('@')){showAuthErr('Please enter a valid email');return;}
+  var existing=STATE.users.find(function(x){return x.email===em;});
+  if(existing){showAuthErr('An account with this email already exists. Please sign in.');return;}
+  var isFirst=STATE.users.length===0;
+  var u={id:genId('USR'),name:nm,email:em,passcode:pcVal,role:isFirst?'master':'view',addedBy:isFirst?'self':'pending',addedAt:new Date().toISOString(),lastLogin:new Date().toISOString()};
+  if(!isFirst){
+    // Goes to access requests
+    STATE.accessReqs.push({id:genId('REQ'),name:nm,email:em,requestedAt:new Date().toISOString(),approved:false,rejected:false});
+    saveL();
+    showAuthSucc('Account created! An admin will review your access request. You will be notified.');
+    setTimeout(function(){showAuthForm('signin');},3000);
+    return;
+  }
+  STATE.users.push(u);
+  if(isFirst){STATE.org.name=STATE.org.name||'My Organisation';STATE.org.createdBy=nm;STATE.org.createdAt=new Date().toISOString();}
+  u.lastLogin=new Date().toISOString();
+  setLoggedIn(u);saveL();
+}
+function submitAccessReq(){
+  var nm=(document.getElementById('a_nm')||{value:''}).value.trim();
+  var em=(document.getElementById('a_em')||{value:''}).value.trim().toLowerCase();
+  if(!nm||!em){showAuthErr('Please fill in both fields');return;}
+  STATE.accessReqs.push({id:genId('REQ'),name:nm,email:em,requestedAt:new Date().toISOString(),approved:false,rejected:false});
+  saveL();showAuthSucc('Access request submitted! The admin will review and approve your request.');
+  setTimeout(function(){showAuthForm('signin');},2500);
+}
+function setLoggedIn(u){
+  STATE.user=u;
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('mainNav').style.display='flex';
+  document.getElementById('appShell').style.display='block';
+  document.getElementById('navIni').textContent=u.name.substring(0,2).toUpperCase();
+  document.getElementById('navAvName').textContent=u.name;
+  document.getElementById('navAvEmail').textContent=u.email;
+  var rl={master:'Master Admin',admin:'Admin',dept_admin:'Dept Admin',region_admin:'Region Admin',edit:'Editor',view:'Viewer'}[u.role]||'Viewer';
+  var rc={master:'rb-master',admin:'rb-admin',dept_admin:'rb-edit',region_admin:'rb-edit',edit:'rb-edit',view:'rb-view'}[u.role]||'rb-view';
+  document.getElementById('navAvRole').textContent=rl;document.getElementById('navAvRole').className='nav-av-role '+rc;
+  document.getElementById('navAvLogin').textContent='Last login: '+(u.lastLogin?fmtDT(u.lastLogin):'First login');
+  if(!canManageUsers())document.getElementById('navUsersBtn').style.display='none';
+  addAct('g',u.name+' signed in',u.name);
+  updateOrgUI();renderAll();saveL();
+  toast('Welcome back, '+u.name.split(' ')[0]+'!','ok');
+}
+function logout(){
+  STATE.user=null;
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('mainNav').style.display='none';
+  document.getElementById('appShell').style.display='none';
+  showAuthForm('signin');
+  toast('Signed out');
+}
+function tryAutoLogin(){
+  try{
+    var raw=localStorage.getItem('ct3_sess');if(!raw)return false;
+    var s=JSON.parse(raw);
+    if(!s.email||Date.now()-s.ts>7*24*60*60*1000){localStorage.removeItem('ct3_sess');return false;}
+    var u=STATE.users.find(function(x){return x.email===s.email;});
+    if(!u)return false;
+    u.lastLogin=new Date().toISOString();
+    setLoggedIn(u);return true;
+  }catch(e){return false;}
+}
+function saveSession(){
+  if(!STATE.user)return;
+  localStorage.setItem('ct3_sess',JSON.stringify({email:STATE.user.email,ts:Date.now()}));
+}
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded',function(){
+  loadL();
+  showAuthForm('signin');
+  document.getElementById('authScreen').classList.remove('hidden');
+  if(!tryAutoLogin()){
+    // Show auth
+  }
+  ['compMo','reassMo','orgMo','inviteMo'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.addEventListener('click',function(e){if(e.target===this){if(id==='compMo')closeCompModal();else if(id==='reassMo')closeReassign();else if(id==='orgMo')closeOrgModal();else closeInvite();}});
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeCompModal();closeReassign();closeOrgModal();closeInvite();closeDet();closeLog();closeFab();}});
+  document.addEventListener('click',function(e){if(STATE.fabOpen){var fa=document.querySelector('.fab-a');if(fa&&!fa.contains(e.target))closeFab();}});
+  setInterval(function(){if(STATE.comps.length){saveL();saveSession();}},60000);
+});
+
+</script>
+</body>
+</html>

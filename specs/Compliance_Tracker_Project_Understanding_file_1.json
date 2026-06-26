@@ -1,0 +1,5096 @@
+{
+  "project": "Compliance Tracker",
+  "file_purpose": "Complete Project Understanding with 15-Step Development Process",
+  "generated_at": "2026-06-25T13:36:40Z",
+  "version": "1.0",
+  "steps_completed": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "total_steps": 15,
+  "steps": [
+    {
+      "step_number": 1,
+      "step_title": "Project Description & Objectives",
+      "timestamp": "2026-06-25T13:36:40Z",
+      "status": "completed",
+      "achieved": "Full project description collated from 3 source files (landing HTML, app v3 HTML, TechSpec v1 docx) and user requirements message",
+      "last_position": "Step 1 completed. All source material analysed and synthesized.",
+      "next_step": "Proceed to Step 2 - Divide into 15-20 logical modules",
+      "content": {
+        "project_name": "ComplianceTrack",
+        "tagline": "One Portal. One Truth.",
+        "project_type": "Multi-tenant SaaS Compliance Management Platform",
+        "version": "1.0",
+        "description": "ComplianceTrack is a universal compliance tracking platform designed for the AI era. It enables organisations of all sizes, across all industries and geographies, to manage every type of compliance (IT, tax, legal, regulatory, operational, environmental) from a single portal. The platform is built around the principle that missed compliance deadlines are never a knowledge problem but always a coordination problem. By providing one unified view of every deadline, every owner, and every change, it eliminates the gap between departments that leads to penalties.",
+        "target_audience": [
+          "Chartered Accountants (CAs) managing multiple client organisations",
+          "Audit firms and individual auditors",
+          "Accountant firms of all sizes",
+          "Compliance officers in organisations",
+          "IT personnel managing software licence and cybersecurity compliance",
+          "CFOs / Finance Controllers tracking GST, TDS, advance tax deadlines",
+          "HR Managers handling PF, ESIC, POSH, labour law compliance",
+          "Company Secretaries managing MCA filings, DIR-3 KYC, board meetings",
+          "Operations Heads managing factory licences, pollution control, FSSAI",
+          "Import/Export managers handling IEC, DGFT, FEMA compliance",
+          "Organisations of all sizes from sole proprietors to large enterprises",
+          "Government PSUs and state-owned enterprises",
+          "Any business worldwide needing deadline and obligation tracking"
+        ],
+        "core_objectives": [
+          "Provide a single source of truth for all compliance obligations across all departments",
+          "Enable unique URL/access per compliance tracker with role-based visibility (view/edit/no access)",
+          "Capture every activity with full audit trail including timestamp, user identity, IP address, and machine ID",
+          "Support AI-era interactions: direct human use, human-via-AI, AI-autonomous, email (human and AI)",
+          "Enable connectivity via API, access tokens, and MCP (Model Context Protocol) for third-party integrations",
+          "Provide pendency tracking across 8 time buckets: Delayed, 24h, 7d, 30d, 60d, 90d, 180d, 365d",
+          "Support multiple sales and distribution channels with commission, discount, and incentive tracking",
+          "Allow document attachment via email, Google Drive, and in-app uploads with full versioning",
+          "Enable data submission and retrieval from external portals via user-granted API/MCP tokens",
+          "Maintain complete field-level change history with strikethrough visibility"
+        ],
+        "sales_distribution_channels": {
+          "channel_1_freelance_agents": {
+            "name": "Freelance Human Agents",
+            "description": "Individual agents who get unique access links to their portal. Can view commissions earned, discount codes assigned to them, and incentive milestones.",
+            "discount_mechanism": "Central discount portal pushes country-specific discount codes to agents of that country.",
+            "incentive_structure": "Milestone-based, e.g., 'Have 2 paid customers, earn X extra'"
+          },
+          "channel_2_ai_agents": {
+            "name": "AI Agent Sales (Claude, etc.)",
+            "description": "AI agents like Claude and various other AI systems will sell the platform directly to users through conversational interfaces."
+          },
+          "channel_3_company_agents": {
+            "name": "Company-Created Agent Networks",
+            "description": "Companies can create their own human agent networks to sell ComplianceTrack under their brand."
+          },
+          "channel_4_digital_marketing": {
+            "name": "Digital Advertising & Email Campaigns",
+            "description": "Google Ads, social media advertising, and targeted email marketing campaigns."
+          },
+          "channel_5_tele_sales": {
+            "name": "Telesales (AI or Human)",
+            "description": "Outbound telesales through both AI-powered calling systems and human sales representatives."
+          },
+          "channel_6_firms": {
+            "name": "Accountant Firms & Audit Firms",
+            "description": "Direct B2B sales through accounting and audit firm partnerships."
+          },
+          "channel_7_individuals": {
+            "name": "Individual Accountants & Auditors",
+            "description": "Individual practitioners who recommend or resell the platform to their clients."
+          },
+          "channel_8_enterprise": {
+            "name": "Enterprise / Government Partnerships",
+            "description": "Partnerships with enterprises like BSNL Enterprise for distribution to their existing customer base."
+          }
+        },
+        "pricing_model": {
+          "single_entity": {
+            "name": "For Businesses - Single Entity",
+            "price_inr": 30000,
+            "type": "One-time payment, lifetime usage",
+            "includes": [
+              "All departments",
+              "Unlimited users",
+              "Complete audit trail",
+              "Document upload",
+              "Web-based",
+              "Monthly email calendar"
+            ]
+          },
+          "multi_client": {
+            "name": "For CA Firms & Audit Practices - Multi-Client",
+            "base_price_inr": 30000,
+            "per_client_price_inr": 3000,
+            "type": "One-time base + per-client add-on",
+            "includes": [
+              "Single dashboard across all clients",
+              "Each client gets own portal",
+              "No client limit",
+              "Separate audit trail per client",
+              "Priority support"
+            ]
+          }
+        },
+        "access_rights_hierarchy": {
+          "account_admin": {
+            "level": 1,
+            "description": "Full control over the account. Can appoint multiple account admins. Can manage all users, all departments, all compliances, all settings.",
+            "can_appoint": [
+              "account_admin",
+              "client_department_admin",
+              "editor",
+              "viewer"
+            ]
+          },
+          "client_department_admin": {
+            "level": 2,
+            "description": "Can manage within their assigned client/department scope. Can appoint client/department admins, editors, and viewers within their scope.",
+            "can_appoint": [
+              "client_department_admin",
+              "editor",
+              "viewer"
+            ]
+          },
+          "editor": {
+            "level": 3,
+            "description": "Can add, edit, update compliances within their assigned scope. Changes are logged with full audit trail."
+          },
+          "viewer": {
+            "level": 4,
+            "description": "Read-only access to compliances within their assigned scope. Can see audit logs and history."
+          }
+        },
+        "touchpoints": [
+          {
+            "id": "TP1",
+            "name": "Human on Laptop - Direct Portal",
+            "type": "human",
+            "device": "laptop",
+            "via": "direct"
+          },
+          {
+            "id": "TP2",
+            "name": "Human on Mobile - Direct App",
+            "type": "human",
+            "device": "mobile",
+            "via": "direct"
+          },
+          {
+            "id": "TP3",
+            "name": "Human on Laptop - Via AI",
+            "type": "human",
+            "device": "laptop",
+            "via": "ai"
+          },
+          {
+            "id": "TP4",
+            "name": "Human on Mobile - Via AI",
+            "type": "human",
+            "device": "mobile",
+            "via": "ai"
+          },
+          {
+            "id": "TP5",
+            "name": "AI Direct - No Human",
+            "type": "ai",
+            "device": "server",
+            "via": "direct"
+          },
+          {
+            "id": "TP6",
+            "name": "Human via Email",
+            "type": "human",
+            "device": "any",
+            "via": "email"
+          },
+          {
+            "id": "TP7",
+            "name": "AI via Email",
+            "type": "ai",
+            "device": "server",
+            "via": "email"
+          },
+          {
+            "id": "TP8",
+            "name": "Email for Documentation",
+            "type": "system",
+            "device": "any",
+            "via": "email"
+          },
+          {
+            "id": "TP9",
+            "name": "Google Drive Integration",
+            "type": "system",
+            "device": "any",
+            "via": "api"
+          },
+          {
+            "id": "TP10",
+            "name": "MCP / API / Access Token",
+            "type": "system",
+            "device": "any",
+            "via": "api_mcp"
+          }
+        ],
+        "unique_url_system": {
+          "description": "Each compliance tracker has a unique URL. Clicking it lands on the tracker. Access is determined by the user's rights: if they have rights they can view/edit; if not, they must request access from the account admin.",
+          "example": "https://app.compliancetrack.com/{org_slug}/{compliance_id}"
+        },
+        "pendency_tracking_buckets": [
+          {
+            "bucket": "delayed",
+            "label": "Delayed",
+            "description": "Past due date, not completed"
+          },
+          {
+            "bucket": "24h",
+            "label": "Pending in 24 Hours",
+            "description": "Due within next 24 hours"
+          },
+          {
+            "bucket": "7d",
+            "label": "Pending in 7 Days",
+            "description": "Due within next 7 days"
+          },
+          {
+            "bucket": "30d",
+            "label": "Pending in 30 Days",
+            "description": "Due within next 30 days"
+          },
+          {
+            "bucket": "60d",
+            "label": "Pending in 60 Days",
+            "description": "Due within next 60 days"
+          },
+          {
+            "bucket": "90d",
+            "label": "Pending in 90 Days",
+            "description": "Due within next 90 days"
+          },
+          {
+            "bucket": "180d",
+            "label": "Pending in 180 Days",
+            "description": "Due within next 180 days"
+          },
+          {
+            "bucket": "365d",
+            "label": "Pending in 365 Days",
+            "description": "Due within next 365 days"
+          }
+        ],
+        "tech_stack_from_spec": {
+          "database": "PostgreSQL 15 on Supabase",
+          "backend": "Next.js 14+ with App Router",
+          "frontend": "Next.js with React",
+          "auth": "Passcode-based (no passwords), magic links",
+          "ai": "Anthropic Claude API",
+          "email": "SendGrid",
+          "messaging": "WhatsApp (BSNL integration)",
+          "deployment": "Vercel (frontend) + Supabase (backend/DB)",
+          "ci_cd": "GitHub Actions",
+          "realtime": "Supabase Realtime for live updates"
+        }
+      }
+    },
+    {
+      "step_number": 2,
+      "step_title": "Module Division - 18 Logical Modules",
+      "timestamp": "2026-06-25T13:36:40Z",
+      "status": "completed",
+      "achieved": "Divided the entire system into 18 logical, independently deployable modules based on source documents and user requirements",
+      "last_position": "Step 2 completed. 18 modules defined with dependencies.",
+      "next_step": "Proceed to Step 3 - Describe each module in detail with database entities",
+      "content": {
+        "total_modules": 18,
+        "modules": [
+          {
+            "module_id": "M01",
+            "module_name": "Database Schema & Core Data Layer",
+            "branch": "core/database",
+            "dependencies": "None (build first)",
+            "description": "Foundation layer. All tables, RLS policies, indexes, migrations. Every other module depends on this."
+          },
+          {
+            "module_id": "M02",
+            "module_name": "Authentication & Session Management",
+            "branch": "core/auth",
+            "dependencies": "M01",
+            "description": "Passcode-based auth, magic links, session tokens, IP/machine ID capture, access request workflow."
+          },
+          {
+            "module_id": "M03",
+            "module_name": "Multi-Tenancy & Data Segregation",
+            "branch": "core/multi-tenancy",
+            "dependencies": "M01, M02",
+            "description": "Organisation-level data isolation, org creation for firms vs clients, cross-org visibility for CAs."
+          },
+          {
+            "module_id": "M04",
+            "module_name": "Role-Based Access Control (RBAC)",
+            "branch": "core/rbac",
+            "dependencies": "M01, M02, M03",
+            "description": "4-tier rights: Account Admin, Client/Department Admin, Editor, Viewer. Per-compliance, per-department, per-account scoping."
+          },
+          {
+            "module_id": "M05",
+            "module_name": "Compliance Management Engine",
+            "branch": "features/compliance",
+            "dependencies": "M01, M03, M04",
+            "description": "Core compliance CRUD, unique URLs, status lifecycle (draft/published/completed/overdue), owner assignment, reassignment, compliance library."
+          },
+          {
+            "module_id": "M06",
+            "module_name": "Audit Points & Internal Audit Tracking",
+            "branch": "features/audit-points",
+            "dependencies": "M01, M05",
+            "description": "Internal audit findings, remediation tracking, linkage to parent compliances."
+          },
+          {
+            "module_id": "M07",
+            "module_name": "Departments, Regions & Organisation Structure",
+            "branch": "features/organisation-structure",
+            "dependencies": "M01, M03",
+            "description": "Department management, regional grouping, organisation hierarchy."
+          },
+          {
+            "module_id": "M08",
+            "module_name": "User Management & Team Collaboration",
+            "branch": "features/user-management",
+            "dependencies": "M01, M02, M04",
+            "description": "User invitation, access request/approval, team member management, role assignment."
+          },
+          {
+            "module_id": "M09",
+            "module_name": "Activity Logging & Audit Trail",
+            "branch": "core/audit-trail",
+            "dependencies": "M01",
+            "description": "Immutable audit log capturing every action with timestamp, user ID, IP address, machine ID. Field-level change tracking with strikethrough."
+          },
+          {
+            "module_id": "M10",
+            "module_name": "Document Management & Storage",
+            "branch": "features/documents",
+            "dependencies": "M01, M05, M09",
+            "description": "Document upload, versioning, email attachment parsing, Google Drive integration, proof of compliance storage."
+          },
+          {
+            "module_id": "M11",
+            "module_name": "Notifications, Reminders & Daily Digest",
+            "branch": "features/notifications",
+            "dependencies": "M01, M05, M08",
+            "description": "8-bucket pendency reminders, daily digest email, WhatsApp alerts, in-app notifications, escalation rules."
+          },
+          {
+            "module_id": "M12",
+            "module_name": "AI Engine & Smart Features",
+            "branch": "features/ai-engine",
+            "dependencies": "M01, M05, M09",
+            "description": "Claude AI integration, natural language compliance parsing, PDF/document auto-fill, AI-generated compliance library, cost tracking."
+          },
+          {
+            "module_id": "M13",
+            "module_name": "API Layer, MCP & Integrations",
+            "branch": "core/api-integrations",
+            "dependencies": "M01, M02, M04, M05",
+            "description": "Public REST API, access token management, MCP (Model Context Protocol) support, webhook system, AI-detection middleware."
+          },
+          {
+            "module_id": "M14",
+            "module_name": "Sales, Distribution & Agent Portal",
+            "branch": "business/sales-distribution",
+            "dependencies": "M01, M02, M03",
+            "description": "Freelance agent portal, commission tracking, discount code management (country-specific), incentive milestones, company agent networks."
+          },
+          {
+            "module_id": "M15",
+            "module_name": "Web Portal - Desktop UI",
+            "branch": "frontend/web-desktop",
+            "dependencies": "M01-M13",
+            "description": "Full desktop web application: dashboard, compliance table, detail panel, admin panel, audit log viewer, daily digest preview, AI chat interface."
+          },
+          {
+            "module_id": "M16",
+            "module_name": "Mobile App UI",
+            "branch": "frontend/mobile",
+            "dependencies": "M01-M13",
+            "description": "Responsive mobile web / native app: simplified dashboard, quick compliance view, push notifications, mobile document capture."
+          },
+          {
+            "module_id": "M17",
+            "module_name": "Email Integration & Processing",
+            "branch": "integrations/email",
+            "dependencies": "M01, M05, M10, M11",
+            "description": "Email-based compliance updates, document submission via email, email parsing for compliance data, AI email processing."
+          },
+          {
+            "module_id": "M18",
+            "module_name": "Infrastructure, Deployment & Monitoring",
+            "branch": "infra/deployment",
+            "dependencies": "All modules",
+            "description": "CI/CD pipeline, environment configuration, Vercel deployment, Supabase migrations, monitoring, cost limits, logging."
+          }
+        ],
+        "dependency_graph_summary": {
+          "layer_0_foundation": [
+            "M01"
+          ],
+          "layer_1_core": [
+            "M02",
+            "M09"
+          ],
+          "layer_2_platform": [
+            "M03",
+            "M07"
+          ],
+          "layer_3_security": [
+            "M04",
+            "M08"
+          ],
+          "layer_4_features": [
+            "M05",
+            "M06",
+            "M13"
+          ],
+          "layer_5_enhancements": [
+            "M10",
+            "M11",
+            "M12"
+          ],
+          "layer_6_business": [
+            "M14"
+          ],
+          "layer_7_frontends": [
+            "M15",
+            "M16",
+            "M17"
+          ],
+          "layer_8_ops": [
+            "M18"
+          ]
+        }
+      }
+    },
+    {
+      "step_number": 3,
+      "step_title": "Module Descriptions with Database Entities",
+      "timestamp": "2026-06-25T13:36:40Z",
+      "status": "completed",
+      "achieved": "Detailed description of all 18 modules with their database entities, key features, and technical specifications",
+      "last_position": "Step 3 completed. All modules described with DB entities.",
+      "next_step": "Proceed to Step 4 - Write detailed JSON for Module 1 (Database Schema)",
+      "content": {
+        "modules": [
+          {
+            "module_id": "M01",
+            "module_name": "Database Schema & Core Data Layer",
+            "purpose": "Foundation data layer for the entire platform. Defines all tables, relationships, RLS policies, and migration strategy. Built first; all other modules import from here.",
+            "database_entities": [
+              {
+                "table": "organisations",
+                "description": "One row per customer/tenant. Root of all data segregation.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "name",
+                  "slug (unique)",
+                  "plan_type (single_entity|multi_client)",
+                  "country_code",
+                  "timezone",
+                  "settings (JSONB)",
+                  "created_at",
+                  "updated_at",
+                  "deleted_at"
+                ]
+              },
+              {
+                "table": "users",
+                "description": "One row per human user. Belongs to exactly one organisation.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "email",
+                  "name",
+                  "phone",
+                  "role (account_admin|dept_admin|editor|viewer)",
+                  "passcode_hash",
+                  "is_active",
+                  "last_login_at",
+                  "created_at",
+                  "updated_at",
+                  "deleted_at"
+                ]
+              },
+              {
+                "table": "sessions",
+                "description": "Active user sessions with device/IP tracking.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "user_id (UUID FK)",
+                  "org_id (UUID FK)",
+                  "token_hash",
+                  "ip_address",
+                  "machine_id",
+                  "user_agent",
+                  "expires_at",
+                  "created_at"
+                ]
+              },
+              {
+                "table": "access_requests",
+                "description": "Requests from people who arrive without invitation.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "email",
+                  "name",
+                  "requested_role",
+                  "status (pending|approved|rejected)",
+                  "reviewed_by (UUID FK)",
+                  "created_at",
+                  "updated_at"
+                ]
+              },
+              {
+                "table": "compliances",
+                "description": "Core compliance records. Each has a unique URL slug.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "title",
+                  "description",
+                  "compliance_type (tax|legal|it|operational|hr|environmental|financial)",
+                  "department_id (UUID FK)",
+                  "status (draft|published|completed|overdue|archived)",
+                  "priority (low|medium|high|critical)",
+                  "owner_id (UUID FK)",
+                  "due_date",
+                  "completion_date",
+                  "recurrence_rule",
+                  "external_references (JSONB)",
+                  "slug (unique)",
+                  "created_at",
+                  "updated_at",
+                  "deleted_at"
+                ]
+              },
+              {
+                "table": "compliance_history",
+                "description": "Field-level change history. Every edit creates a row.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "compliance_id (UUID FK)",
+                  "org_id (UUID FK)",
+                  "field_name",
+                  "old_value",
+                  "new_value",
+                  "changed_by (UUID FK)",
+                  "changed_at",
+                  "ip_address",
+                  "machine_id"
+                ]
+              },
+              {
+                "table": "comments",
+                "description": "Threaded comments on compliances.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "compliance_id (UUID FK)",
+                  "org_id (UUID FK)",
+                  "user_id (UUID FK)",
+                  "parent_comment_id (UUID FK self-ref)",
+                  "body",
+                  "created_at",
+                  "updated_at",
+                  "deleted_at"
+                ]
+              },
+              {
+                "table": "audit_log",
+                "description": "Immutable log of every system action.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "user_id (UUID FK nullable for AI)",
+                  "action_type",
+                  "entity_type",
+                  "entity_id",
+                  "details (JSONB)",
+                  "ip_address",
+                  "machine_id",
+                  "is_ai_action (boolean)",
+                  "ai_model (nullable)",
+                  "created_at"
+                ]
+              },
+              {
+                "table": "departments",
+                "description": "Departments within an organisation.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "name",
+                  "slug",
+                  "description",
+                  "parent_id (UUID FK self-ref)",
+                  "created_at",
+                  "updated_at"
+                ]
+              },
+              {
+                "table": "notifications",
+                "description": "User notification records.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "user_id (UUID FK)",
+                  "type",
+                  "title",
+                  "body",
+                  "link",
+                  "is_read",
+                  "sent_via (in_app|email|whatsapp)",
+                  "created_at"
+                ]
+              },
+              {
+                "table": "ai_usage",
+                "description": "Track AI API costs per organisation.",
+                "key_fields": [
+                  "id (UUID PK)",
+                  "org_id (UUID FK)",
+                  "user_id (UUID FK)",
+                  "model",
+                  "input_tokens",
+                  "output_tokens",
+                  "cost_usd",
+                  "endpoint",
+                  "created_at"
+                ]
+              }
+            ],
+            "design_principles": [
+              "Every table has: id (UUID), org_id (UUID FK), created_at, updated_at, created_by (UUID FK to users)",
+              "org_id is the tenant key. All queries MUST include org_id in WHERE clause",
+              "RLS policies enforce org_id automatically at database level",
+              "Soft deletes only (deleted_at timestamp) - data is never physically removed",
+              "All timestamps in UTC. Display layer converts to user timezone",
+              "UUID v4 for all primary keys - never sequential integers",
+              "JSONB for flexible metadata fields - version controlled via history tables"
+            ]
+          },
+          {
+            "module_id": "M02",
+            "module_name": "Authentication & Session Management",
+            "purpose": "Handle user authentication via passcode (no passwords), magic link email login, session management with IP/machine ID capture, and access request workflows for uninvited users.",
+            "database_entities": [
+              "users",
+              "sessions",
+              "access_requests"
+            ],
+            "key_features": [
+              "Passcode-based login (4-6 digit, hashed with salt)",
+              "Magic link email login (time-limited tokens)",
+              "Session management with JWT tokens",
+              "IP address and machine ID capture on every session",
+              "Access request workflow for uninvited users",
+              "Multi-device session support",
+              "Session expiry and forced logout"
+            ]
+          },
+          {
+            "module_id": "M03",
+            "module_name": "Multi-Tenancy & Data Segregation",
+            "purpose": "Ensure complete data isolation between organisations. For CA firms, each client is a separate org with separate user records. The CA firm manages clients from a parent dashboard.",
+            "database_entities": [
+              "organisations"
+            ],
+            "key_features": [
+              "Row Level Security (RLS) at PostgreSQL level",
+              "Organisation-level data segregation via org_id",
+              "Parent-child org relationships for CA firms",
+              "Country and timezone settings per org",
+              "Plan type management (single_entity vs multi_client)",
+              "Per-client portal provisioning for multi-client plans"
+            ]
+          },
+          {
+            "module_id": "M04",
+            "module_name": "Role-Based Access Control (RBAC)",
+            "purpose": "Implement 4-tier access rights system with per-compliance, per-department, and per-account scoping. Account Admins can appoint other admins and manage all roles.",
+            "database_entities": [
+              "users (role field)",
+              "access_requests",
+              "audit_log (for permission changes)"
+            ],
+            "key_features": [
+              "4 roles: Account Admin, Client/Dept Admin, Editor, Viewer",
+              "Per-entity permission scoping (compliance, department, account)",
+              "Account Admin can appoint multiple Account Admins",
+              "Client/Dept Admin can appoint within their scope",
+              "Permission change logging in audit trail",
+              "Access request and approval workflow"
+            ]
+          },
+          {
+            "module_id": "M05",
+            "module_name": "Compliance Management Engine",
+            "purpose": "Core compliance CRUD operations, lifecycle management (draft to completed), unique URL generation, owner assignment and reassignment, and compliance library functionality.",
+            "database_entities": [
+              "compliances",
+              "compliance_history",
+              "comments",
+              "departments (FK reference)"
+            ],
+            "key_features": [
+              "CRUD operations with full audit trail",
+              "Status lifecycle: draft > published > in_progress > completed / overdue",
+              "Unique URL per compliance for direct access",
+              "Owner assignment and bulk reassignment",
+              "Compliance library with template compliances",
+              "Load from library function for onboarding",
+              "Recurrence rules for repeating compliances",
+              "Priority levels: low, medium, high, critical",
+              "Draft auto-save functionality"
+            ]
+          },
+          {
+            "module_id": "M06",
+            "module_name": "Audit Points & Internal Audit Tracking",
+            "purpose": "Manage internal audit findings, remediation actions, and their linkage to parent compliance items.",
+            "database_entities": [
+              "audit_points (new table)",
+              "compliances (parent reference)"
+            ],
+            "key_features": [
+              "Audit point creation linked to compliances",
+              "Remediation tracking with status",
+              "Responsible person assignment",
+              "Due dates and escalation",
+              "Audit point history tracking"
+            ]
+          },
+          {
+            "module_id": "M07",
+            "module_name": "Departments, Regions & Organisation Structure",
+            "purpose": "Manage departments within organisations, regional groupings, and hierarchical organisation structure.",
+            "database_entities": [
+              "departments"
+            ],
+            "key_features": [
+              "Department CRUD with hierarchy (parent-child)",
+              "Default departments: Finance, IT, HR, Legal, Operations, Import/Export",
+              "Custom department creation",
+              "Department-level compliance filtering",
+              "Regional grouping support"
+            ]
+          },
+          {
+            "module_id": "M08",
+            "module_name": "User Management & Team Collaboration",
+            "purpose": "Manage user invitations, access requests and approvals, team member listing, and role assignment within the organisation.",
+            "database_entities": [
+              "users",
+              "access_requests"
+            ],
+            "key_features": [
+              "Email-based user invitation",
+              "Access request submission and admin approval",
+              "Role assignment and modification",
+              "User activation/deactivation",
+              "Team member directory with roles",
+              "Multi-org user support (separate records per org)"
+            ]
+          },
+          {
+            "module_id": "M09",
+            "module_name": "Activity Logging & Audit Trail",
+            "purpose": "Immutable audit logging of every system action with full context including timestamp, user identity, IP address, and machine ID. Supports field-level change tracking.",
+            "database_entities": [
+              "audit_log",
+              "compliance_history"
+            ],
+            "key_features": [
+              "Every CRUD operation logged automatically",
+              "Field-level old_value/new_value capture",
+              "IP address and machine ID on every log entry",
+              "AI action detection and tagging",
+              "Immutable logs (no delete, no edit)",
+              "Filterable and searchable audit log viewer",
+              "Compliance-specific change history with strikethrough view",
+              "Export audit log functionality"
+            ]
+          },
+          {
+            "module_id": "M10",
+            "module_name": "Document Management & Storage",
+            "purpose": "Handle document uploads, versioning, email attachment parsing, Google Drive integration, and compliance proof storage.",
+            "database_entities": [
+              "documents (new table)",
+              "compliances (FK reference)"
+            ],
+            "key_features": [
+              "Document upload with drag-and-drop",
+              "Version control for documents",
+              "Email attachment extraction and storage",
+              "Google Drive integration for document linking",
+              "Compliance proof attachment",
+              "Document preview in browser",
+              "File type validation and size limits"
+            ]
+          },
+          {
+            "module_id": "M11",
+            "module_name": "Notifications, Reminders & Daily Digest",
+            "purpose": "8-bucket pendency tracking and reminders, daily digest emails, WhatsApp alerts, in-app notifications, and escalation rules.",
+            "database_entities": [
+              "notifications",
+              "compliances (due_date reference)",
+              "users (notification preferences)"
+            ],
+            "key_features": [
+              "8 pendency buckets: Delayed, 24h, 7d, 30d, 60d, 90d, 180d, 365d",
+              "Daily digest email with compliance summary",
+              "WhatsApp notification support",
+              "In-app notification center",
+              "Escalation rules (notify manager if overdue > X days)",
+              "User notification preferences",
+              "AI-generated summary paragraph in digest"
+            ]
+          },
+          {
+            "module_id": "M12",
+            "module_name": "AI Engine & Smart Features",
+            "purpose": "Claude AI integration for natural language compliance parsing, PDF/document auto-fill, compliance library generation, and AI-driven insights.",
+            "database_entities": [
+              "ai_usage",
+              "compliances (AI-populated fields)"
+            ],
+            "key_features": [
+              "Natural language to compliance form: POST /api/v1/ai/parse-text",
+              "PDF/document to compliance form: POST /api/v1/ai/parse-document",
+              "AI-generated compliance library for new organisations",
+              "AI chat interface for compliance queries",
+              "Cost tracking per organisation with daily limits",
+              "AI usage logging and billing data",
+              "AI detection middleware for API calls"
+            ]
+          },
+          {
+            "module_id": "M13",
+            "module_name": "API Layer, MCP & Integrations",
+            "purpose": "Public REST API with access tokens, MCP (Model Context Protocol) support for AI tool connections, webhook system, and AI-detection middleware.",
+            "database_entities": [
+              "api_tokens (new table)",
+              "webhooks (new table)",
+              "audit_log"
+            ],
+            "key_features": [
+              "RESTful API with versioning (/api/v1/)",
+              "Access token generation and management",
+              "MCP endpoint for AI model connections",
+              "Webhook registration and delivery",
+              "API request logging in audit trail",
+              "AI detection: identify if request is from AI vs human",
+              "Rate limiting per organisation",
+              "Data submission/retrieval from external portals via user-granted tokens"
+            ]
+          },
+          {
+            "module_id": "M14",
+            "module_name": "Sales, Distribution & Agent Portal",
+            "purpose": "Manage all 8 sales channels, freelance agent portal, commission tracking, discount code management, incentive milestones, and company agent networks.",
+            "database_entities": [
+              "agents (new table)",
+              "discount_codes (new table)",
+              "commissions (new table)",
+              "incentives (new table)",
+              "sales_channels (new table)"
+            ],
+            "key_features": [
+              "Freelance agent registration and portal",
+              "Commission calculation and tracking",
+              "Country-specific discount code management from central portal",
+              "Incentive milestone tracking (e.g., 2 paid customers = X bonus)",
+              "Company agent network management",
+              "AI agent sales tracking",
+              "Sales channel analytics",
+              "Agent payout management"
+            ]
+          },
+          {
+            "module_id": "M15",
+            "module_name": "Web Portal - Desktop UI",
+            "purpose": "Full desktop web application with dashboard, compliance table, detail panel, admin panel, audit log viewer, daily digest preview, and AI chat interface.",
+            "database_entities": "Uses all tables via API layer",
+            "key_features": [
+              "Dashboard with compliance health overview",
+              "Filterable/sortable compliance table",
+              "Slide-out detail panel (Details, Comments, History, Documents tabs)",
+              "Add/Edit compliance modal forms",
+              "Reassign owners functionality",
+              "Organisation settings panel",
+              "User management (invite, approve, assign roles)",
+              "Audit log viewer with filters",
+              "Daily digest preview",
+              "AI chat interface (natural language input)",
+              "CSV/Excel/PDF export",
+              "WhatsApp and Email sharing"
+            ]
+          },
+          {
+            "module_id": "M16",
+            "module_name": "Mobile App UI",
+            "purpose": "Mobile-responsive web app and/or native app with simplified views for on-the-go compliance management.",
+            "database_entities": "Uses all tables via API layer",
+            "key_features": [
+              "Mobile-optimized dashboard",
+              "Quick compliance status view",
+              "Push notifications for urgent items",
+              "Mobile document capture (camera upload)",
+              "Simplified compliance edit forms",
+              "Offline-capable for view mode"
+            ]
+          },
+          {
+            "module_id": "M17",
+            "module_name": "Email Integration & Processing",
+            "purpose": "Enable compliance updates, document submissions, and data extraction via email. Support both human and AI email interactions.",
+            "database_entities": [
+              "email_logs (new table)",
+              "documents",
+              "compliances"
+            ],
+            "key_features": [
+              "Email-to-compliance update (parse incoming emails)",
+              "Document submission via email attachment",
+              "AI email processing for data extraction",
+              "Outbound email notifications (digests, reminders)",
+              "Email thread tracking",
+              "Bounce handling and delivery tracking"
+            ]
+          },
+          {
+            "module_id": "M18",
+            "module_name": "Infrastructure, Deployment & Monitoring",
+            "purpose": "CI/CD pipeline, environment configuration, deployment automation, monitoring, cost management, and operational tooling.",
+            "database_entities": "System-level, no application tables",
+            "key_features": [
+              "GitHub Actions CI/CD: lint > test > build > deploy",
+              "Vercel preview deployments on PR",
+              "Production deployment on merge to main",
+              "Supabase migration management",
+              "Environment-specific configuration (.env)",
+              "AI cost daily limit enforcement",
+              "Error monitoring and alerting",
+              "Slack/WhatsApp deployment notifications"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "step_number": 4,
+      "step_title": "Detailed JSON - M01: Database Schema & Core Data Layer",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete database schema with all 11 core tables, field definitions, constraints, indexes, RLS policies, and migration plan",
+      "last_position": "Step 4 completed. All tables fully specified.",
+      "next_step": "Proceed to Step 5 - Detailed JSON for M02: Authentication & Session Management",
+      "content": {
+        "module_id": "M01",
+        "module_name": "Database Schema & Core Data Layer",
+        "branch": "core/database",
+        "tech_stack": {
+          "database": "PostgreSQL 15",
+          "hosting": "Supabase",
+          "orm": "Supabase client (server) + Drizzle ORM (optional)",
+          "migrations": "Supabase CLI migrations"
+        },
+        "design_principles": [
+          "Every table: id (UUID PK), org_id (UUID FK), created_at, updated_at, created_by (UUID FK)",
+          "org_id is tenant key. All queries MUST filter by org_id",
+          "RLS policies enforce org_id at DB level - not application level",
+          "Soft deletes only (deleted_at timestamp)",
+          "All timestamps UTC. Display layer converts to timezone",
+          "UUID v4 for all PKs. Never sequential integers",
+          "JSONB for flexible metadata. Version controlled via history tables"
+        ],
+        "tables": [
+          {
+            "name": "organisations",
+            "description": "One row per customer/tenant. Root of all data segregation.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "name",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "slug",
+                "type": "VARCHAR(100)",
+                "constraints": "UNIQUE NOT NULL"
+              },
+              {
+                "name": "plan_type",
+                "type": "VARCHAR(20)",
+                "constraints": "NOT NULL DEFAULT 'single_entity'",
+                "enum": [
+                  "single_entity",
+                  "multi_client"
+                ]
+              },
+              {
+                "name": "country_code",
+                "type": "VARCHAR(3)",
+                "constraints": "DEFAULT 'IND'"
+              },
+              {
+                "name": "timezone",
+                "type": "VARCHAR(50)",
+                "constraints": "DEFAULT 'Asia/Kolkata'"
+              },
+              {
+                "name": "settings",
+                "type": "JSONB",
+                "constraints": "DEFAULT '{}'::jsonb"
+              },
+              {
+                "name": "parent_org_id",
+                "type": "UUID",
+                "constraints": "FK -> organisations(id)",
+                "description": "For multi-client: CA firm org is parent"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "deleted_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_orgs_slug",
+                "fields": [
+                  "slug"
+                ],
+                "unique": true
+              },
+              {
+                "name": "idx_orgs_parent",
+                "fields": [
+                  "parent_org_id"
+                ]
+              }
+            ],
+            "rls_policy": "Users can only read their own org and child orgs (if parent)"
+          },
+          {
+            "name": "users",
+            "description": "One row per human user. Belongs to exactly one org. Same email can exist in different orgs.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "email",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "name",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "phone",
+                "type": "VARCHAR(20)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "role",
+                "type": "VARCHAR(20)",
+                "constraints": "NOT NULL DEFAULT 'viewer'",
+                "enum": [
+                  "account_admin",
+                  "dept_admin",
+                  "editor",
+                  "viewer"
+                ]
+              },
+              {
+                "name": "passcode_hash",
+                "type": "VARCHAR(255)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "passcode_salt",
+                "type": "VARCHAR(64)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "is_active",
+                "type": "BOOLEAN",
+                "constraints": "DEFAULT true"
+              },
+              {
+                "name": "last_login_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "deleted_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_users_org_email",
+                "fields": [
+                  "org_id",
+                  "email"
+                ],
+                "unique": true
+              },
+              {
+                "name": "idx_users_org_role",
+                "fields": [
+                  "org_id",
+                  "role"
+                ]
+              }
+            ],
+            "constraints": [
+              "UNIQUE (org_id, email)"
+            ],
+            "rls_policy": "Users can only see other users in same org"
+          },
+          {
+            "name": "sessions",
+            "description": "Active sessions with device/IP tracking for audit.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> users(id)"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "token_hash",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "ip_address",
+                "type": "INET",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "machine_id",
+                "type": "VARCHAR(255)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "user_agent",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "expires_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_sessions_token",
+                "fields": [
+                  "token_hash"
+                ],
+                "unique": true
+              },
+              {
+                "name": "idx_sessions_user",
+                "fields": [
+                  "user_id"
+                ]
+              },
+              {
+                "name": "idx_sessions_expiry",
+                "fields": [
+                  "expires_at"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "access_requests",
+            "description": "Uninvited users requesting access. Admins approve/reject.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "email",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "name",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "phone",
+                "type": "VARCHAR(20)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "requested_role",
+                "type": "VARCHAR(20)",
+                "constraints": "DEFAULT 'viewer'"
+              },
+              {
+                "name": "message",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "status",
+                "type": "VARCHAR(20)",
+                "constraints": "DEFAULT 'pending'",
+                "enum": [
+                  "pending",
+                  "approved",
+                  "rejected"
+                ]
+              },
+              {
+                "name": "reviewed_by",
+                "type": "UUID",
+                "constraints": "NULLABLE FK -> users(id)"
+              },
+              {
+                "name": "reviewed_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              }
+            ]
+          },
+          {
+            "name": "compliances",
+            "description": "Core compliance records. Unique URL slug per compliance.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "title",
+                "type": "VARCHAR(500)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "description",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "compliance_type",
+                "type": "VARCHAR(30)",
+                "constraints": "NOT NULL",
+                "enum": [
+                  "tax",
+                  "legal",
+                  "it",
+                  "operational",
+                  "hr",
+                  "environmental",
+                  "financial",
+                  "other"
+                ]
+              },
+              {
+                "name": "department_id",
+                "type": "UUID",
+                "constraints": "NULLABLE FK -> departments(id)"
+              },
+              {
+                "name": "status",
+                "type": "VARCHAR(20)",
+                "constraints": "NOT NULL DEFAULT 'draft'",
+                "enum": [
+                  "draft",
+                  "published",
+                  "in_progress",
+                  "completed",
+                  "overdue",
+                  "archived"
+                ]
+              },
+              {
+                "name": "priority",
+                "type": "VARCHAR(10)",
+                "constraints": "DEFAULT 'medium'",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "name": "owner_id",
+                "type": "UUID",
+                "constraints": "NULLABLE FK -> users(id)"
+              },
+              {
+                "name": "due_date",
+                "type": "DATE",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "completion_date",
+                "type": "DATE",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "recurrence_rule",
+                "type": "VARCHAR(100)",
+                "constraints": "NULLABLE",
+                "description": "e.g., 'monthly', 'quarterly', 'annually'"
+              },
+              {
+                "name": "external_references",
+                "type": "JSONB",
+                "constraints": "DEFAULT '[]'::jsonb",
+                "description": "Links to external portals, filing references"
+              },
+              {
+                "name": "slug",
+                "type": "VARCHAR(100)",
+                "constraints": "UNIQUE NOT NULL"
+              },
+              {
+                "name": "tags",
+                "type": "JSONB",
+                "constraints": "DEFAULT '[]'::jsonb"
+              },
+              {
+                "name": "metadata",
+                "type": "JSONB",
+                "constraints": "DEFAULT '{}'::jsonb"
+              },
+              {
+                "name": "created_by",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> users(id)"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "deleted_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_comp_org_status",
+                "fields": [
+                  "org_id",
+                  "status"
+                ]
+              },
+              {
+                "name": "idx_comp_org_dept",
+                "fields": [
+                  "org_id",
+                  "department_id"
+                ]
+              },
+              {
+                "name": "idx_comp_org_due",
+                "fields": [
+                  "org_id",
+                  "due_date"
+                ]
+              },
+              {
+                "name": "idx_comp_slug",
+                "fields": [
+                  "slug"
+                ],
+                "unique": true
+              },
+              {
+                "name": "idx_comp_owner",
+                "fields": [
+                  "owner_id"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "compliance_history",
+            "description": "Field-level change history. Every edit creates a row for each changed field.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "compliance_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> compliances(id) ON DELETE CASCADE"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "field_name",
+                "type": "VARCHAR(100)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "old_value",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "new_value",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "changed_by",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> users(id)"
+              },
+              {
+                "name": "changed_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "ip_address",
+                "type": "INET",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "machine_id",
+                "type": "VARCHAR(255)",
+                "constraints": "NULLABLE"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_chist_comp",
+                "fields": [
+                  "compliance_id",
+                  "changed_at DESC"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "comments",
+            "description": "Threaded comments on compliances.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "compliance_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> compliances(id) ON DELETE CASCADE"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> users(id)"
+              },
+              {
+                "name": "parent_comment_id",
+                "type": "UUID",
+                "constraints": "NULLABLE FK -> comments(id)"
+              },
+              {
+                "name": "body",
+                "type": "TEXT",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "deleted_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_comments_comp",
+                "fields": [
+                  "compliance_id",
+                  "created_at"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "audit_log",
+            "description": "Immutable log of every system action. Never edited or deleted.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "NULLABLE FK -> users(id)",
+                "description": "NULL for AI actions"
+              },
+              {
+                "name": "action_type",
+                "type": "VARCHAR(50)",
+                "constraints": "NOT NULL",
+                "enum": [
+                  "create",
+                  "update",
+                  "delete",
+                  "status_change",
+                  "permission_change",
+                  "login",
+                  "logout",
+                  "export",
+                  "api_call",
+                  "ai_action"
+                ]
+              },
+              {
+                "name": "entity_type",
+                "type": "VARCHAR(50)",
+                "constraints": "NOT NULL",
+                "enum": [
+                  "compliance",
+                  "user",
+                  "department",
+                  "organisation",
+                  "document",
+                  "notification",
+                  "comment",
+                  "audit_point",
+                  "api_token",
+                  "webhook",
+                  "agent",
+                  "discount_code"
+                ]
+              },
+              {
+                "name": "entity_id",
+                "type": "UUID",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "details",
+                "type": "JSONB",
+                "constraints": "DEFAULT '{}'::jsonb"
+              },
+              {
+                "name": "ip_address",
+                "type": "INET",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "machine_id",
+                "type": "VARCHAR(255)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "is_ai_action",
+                "type": "BOOLEAN",
+                "constraints": "DEFAULT false"
+              },
+              {
+                "name": "ai_model",
+                "type": "VARCHAR(50)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_audit_org",
+                "fields": [
+                  "org_id",
+                  "created_at DESC"
+                ]
+              },
+              {
+                "name": "idx_audit_entity",
+                "fields": [
+                  "entity_type",
+                  "entity_id"
+                ]
+              },
+              {
+                "name": "idx_audit_user",
+                "fields": [
+                  "user_id",
+                  "created_at DESC"
+                ]
+              },
+              {
+                "name": "idx_audit_ai",
+                "fields": [
+                  "is_ai_action",
+                  "created_at DESC"
+                ]
+              }
+            ],
+            "rls_policy": "No RLS. Audit log is append-only. Users see their org's logs."
+          },
+          {
+            "name": "departments",
+            "description": "Departments within an organisation. Supports hierarchy.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "name",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "slug",
+                "type": "VARCHAR(100)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "description",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "parent_id",
+                "type": "UUID",
+                "constraints": "NULLABLE FK -> departments(id)"
+              },
+              {
+                "name": "icon",
+                "type": "VARCHAR(50)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "sort_order",
+                "type": "INTEGER",
+                "constraints": "DEFAULT 0"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              },
+              {
+                "name": "deleted_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NULLABLE"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_dept_org",
+                "fields": [
+                  "org_id"
+                ]
+              },
+              {
+                "name": "idx_dept_parent",
+                "fields": [
+                  "parent_id"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "notifications",
+            "description": "User notification records across channels.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> users(id)"
+              },
+              {
+                "name": "type",
+                "type": "VARCHAR(50)",
+                "constraints": "NOT NULL",
+                "enum": [
+                  "reminder",
+                  "overdue",
+                  "assignment",
+                  "comment",
+                  "status_change",
+                  "access_request",
+                  "daily_digest",
+                  "escalation"
+                ]
+              },
+              {
+                "name": "title",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "body",
+                "type": "TEXT",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "link",
+                "type": "VARCHAR(500)",
+                "constraints": "NULLABLE"
+              },
+              {
+                "name": "is_read",
+                "type": "BOOLEAN",
+                "constraints": "DEFAULT false"
+              },
+              {
+                "name": "sent_via",
+                "type": "VARCHAR(20)",
+                "constraints": "DEFAULT 'in_app'",
+                "enum": [
+                  "in_app",
+                  "email",
+                  "whatsapp"
+                ]
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_notif_user",
+                "fields": [
+                  "user_id",
+                  "is_read",
+                  "created_at DESC"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "ai_usage",
+            "description": "Track AI API costs per organisation for billing and limits.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> organisations(id)"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "NOT NULL FK -> users(id)"
+              },
+              {
+                "name": "model",
+                "type": "VARCHAR(50)",
+                "constraints": "NOT NULL",
+                "description": "e.g., 'claude-3-5-sonnet-20241022'"
+              },
+              {
+                "name": "input_tokens",
+                "type": "INTEGER",
+                "constraints": "DEFAULT 0"
+              },
+              {
+                "name": "output_tokens",
+                "type": "INTEGER",
+                "constraints": "DEFAULT 0"
+              },
+              {
+                "name": "cost_usd",
+                "type": "DECIMAL(10, 6)",
+                "constraints": "DEFAULT 0"
+              },
+              {
+                "name": "endpoint",
+                "type": "VARCHAR(100)",
+                "constraints": "NOT NULL",
+                "description": "e.g., '/api/v1/ai/parse-text'"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "constraints": "NOT NULL DEFAULT now()"
+              }
+            ],
+            "indexes": [
+              {
+                "name": "idx_aiusage_org_date",
+                "fields": [
+                  "org_id",
+                  "created_at DESC"
+                ]
+              }
+            ]
+          }
+        ],
+        "additional_tables_needed": [
+          "documents (M10)",
+          "audit_points (M06)",
+          "api_tokens (M13)",
+          "webhooks (M13)",
+          "agents (M14)",
+          "discount_codes (M14)",
+          "commissions (M14)",
+          "incentives (M14)",
+          "email_logs (M17)",
+          "permission_scopes (M04)"
+        ],
+        "migration_strategy": "Supabase CLI. Versioned migration files. Never modify past migrations - only add new ones."
+      }
+    },
+    {
+      "step_number": 5,
+      "step_title": "Detailed JSON - M02: Authentication & Session Management",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete auth specification including passcode login, magic links, session management, IP/machine capture, and access requests",
+      "last_position": "Step 5 completed. M02 fully specified.",
+      "next_step": "Proceed to Step 6 - Detailed JSON for M03: Multi-Tenancy & Data Segregation",
+      "content": {
+        "module_id": "M02",
+        "module_name": "Authentication & Session Management",
+        "branch": "core/auth",
+        "dependencies": [
+          "M01"
+        ],
+        "api_endpoints": [
+          {
+            "method": "POST",
+            "path": "/api/v1/auth/send-passcode",
+            "description": "Send 6-digit passcode to email. Creates or finds user.",
+            "request_body": {
+              "email": "string (required)",
+              "org_slug": "string (required for URL-based access)"
+            },
+            "response": {
+              "message": "Passcode sent",
+              "expires_in": 300
+            },
+            "logic": [
+              "Look up org by slug",
+              "Find user by (org_id, email)",
+              "If not found, create access_request",
+              "Generate 6-digit code, hash with salt, store hash",
+              "Send via SendGrid",
+              "Rate limit: 1 per minute per email"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/auth/verify-passcode",
+            "description": "Verify passcode and create session.",
+            "request_body": {
+              "email": "string",
+              "passcode": "string (6 digits)",
+              "org_slug": "string"
+            },
+            "response": {
+              "token": "JWT",
+              "user": "user_object",
+              "session_id": "UUID"
+            },
+            "logic": [
+              "Verify passcode against hash",
+              "Check user is_active and not deleted",
+              "Create session with IP, machine_id, user_agent",
+              "Return JWT token",
+              "Log login in audit_log with IP and machine ID"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/auth/magic-link",
+            "description": "Send magic link to email for passwordless login.",
+            "request_body": {
+              "email": "string",
+              "org_slug": "string"
+            },
+            "response": {
+              "message": "Magic link sent"
+            },
+            "logic": [
+              "Generate time-limited token (15 min expiry)",
+              "Create link: https://app.compliancetrack.com/auth/verify?token=xxx",
+              "Send via SendGrid",
+              "On click: verify token, create session, redirect to dashboard"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/auth/logout",
+            "description": "Invalidate current session.",
+            "headers": {
+              "Authorization": "Bearer JWT"
+            },
+            "response": {
+              "message": "Logged out"
+            },
+            "logic": [
+              "Delete session from sessions table",
+              "Log logout in audit_log"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/auth/access-request",
+            "description": "Submit access request for uninvited users.",
+            "request_body": {
+              "org_slug": "string",
+              "name": "string",
+              "email": "string",
+              "phone": "string (optional)",
+              "requested_role": "string",
+              "message": "string (optional)"
+            },
+            "response": {
+              "request_id": "UUID",
+              "status": "pending"
+            },
+            "logic": [
+              "Validate org exists by slug",
+              "Check if user already exists in org",
+              "Create access_request with status 'pending'",
+              "Notify all account_admins of the org via in-app + email"
+            ]
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/auth/session",
+            "description": "Validate current session and return user info.",
+            "headers": {
+              "Authorization": "Bearer JWT"
+            },
+            "response": {
+              "user": "user_object",
+              "org": "org_object",
+              "permissions": [
+                "array of permission strings"
+              ]
+            }
+          }
+        ],
+        "security_measures": [
+          "Passcode hashed with per-user salt (bcrypt/argon2)",
+          "Passcode expires in 5 minutes",
+          "Rate limiting: 1 passcode per minute, 5 attempts per 15 minutes",
+          "JWT with 24-hour expiry, refresh token with 7-day expiry",
+          "IP address captured on every auth event",
+          "Machine ID captured using browser fingerprinting",
+          "Session invalidation on password/passcode change",
+          "CORS restricted to compliancetrack.com domains"
+        ],
+        "session_management": {
+          "session_duration": "24 hours (configurable per org)",
+          "refresh_token_duration": "7 days",
+          "max_concurrent_sessions": "5 per user",
+          "session_storage": "PostgreSQL sessions table",
+          "token_format": "JWT with org_id, user_id, role, permissions payload"
+        }
+      }
+    },
+    {
+      "step_number": 6,
+      "step_title": "Detailed JSON - M03: Multi-Tenancy & Data Segregation",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete multi-tenancy specification with RLS policies, org hierarchy, and data isolation",
+      "last_position": "Step 6 completed. M03 fully specified.",
+      "next_step": "Proceed to Step 7 - Detailed JSON for M04: RBAC",
+      "content": {
+        "module_id": "M03",
+        "module_name": "Multi-Tenancy & Data Segregation",
+        "branch": "core/multi-tenancy",
+        "dependencies": [
+          "M01",
+          "M02"
+        ],
+        "isolation_strategy": {
+          "method": "Shared database with Row Level Security (RLS)",
+          "tenant_key": "org_id (UUID FK on every table)",
+          "enforcement_level": "Database level (PostgreSQL RLS policies), NOT application level",
+          "description": "Even a compromised API endpoint cannot read another tenant's data because the database itself enforces isolation."
+        },
+        "org_hierarchy": {
+          "model": "Parent-Child via parent_org_id",
+          "use_cases": {
+            "single_entity": "One org, no parent. Self-contained.",
+            "multi_client_ca_firm": {
+              "description": "CA firm is parent org. Each client is a child org with parent_org_id pointing to the CA firm.",
+              "data_visibility": "CA firm Account Admins can view (but not edit) child org compliance dashboards. Each child org is fully isolated from other child orgs.",
+              "user_isolation": "CA firm users exist only in parent org. Client users exist in child orgs. No user record is shared.",
+              "pricing": "Base INR 30,000 for parent org + INR 3,000 per child org (one-time each)."
+            },
+            "company_agent_network": {
+              "description": "Company creates parent org. Company's agents sell to end users. Each end user org is a child.",
+              "data_visibility": "Company can see aggregate stats of child orgs but not individual compliance data."
+            }
+          }
+        },
+        "rls_policies": [
+          {
+            "table": "compliances",
+            "policy_name": "compliances_select_org",
+            "using": "org_id = get_current_org_id()",
+            "with_check": "org_id = get_current_org_id()"
+          },
+          {
+            "table": "users",
+            "policy_name": "users_select_org",
+            "using": "org_id = get_current_org_id()",
+            "with_check": "org_id = get_current_org_id()"
+          },
+          {
+            "table": "audit_log",
+            "policy_name": "audit_log_select_org",
+            "using": "org_id = get_current_org_id()",
+            "description": "Audit log has NO with_check because it is INSERT-only from service key"
+          }
+        ],
+        "api_endpoints": [
+          {
+            "method": "POST",
+            "path": "/api/v1/organisations",
+            "description": "Create new organisation (for onboarding or CA adding client).",
+            "request_body": {
+              "name": "string",
+              "plan_type": "single_entity|multi_client",
+              "country_code": "string",
+              "timezone": "string",
+              "parent_org_id": "UUID (optional, for multi-client)"
+            },
+            "response": {
+              "organisation": "org_object",
+              "slug": "generated_slug"
+            },
+            "auth": "Account Admin only. Or system onboarding."
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/organisations/me",
+            "description": "Get current user's organisation details.",
+            "response": {
+              "organisation": "org_object_with_settings"
+            }
+          },
+          {
+            "method": "PATCH",
+            "path": "/api/v1/organisations/me",
+            "description": "Update organisation settings.",
+            "request_body": {
+              "name": "string (optional)",
+              "timezone": "string (optional)",
+              "settings": "JSONB (optional)"
+            },
+            "auth": "Account Admin only"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/organisations/children",
+            "description": "List child organisations (for CA firms / company networks).",
+            "response": {
+              "children": [
+                "array of org_objects with compliance_counts"
+              ]
+            },
+            "auth": "Account Admin of parent org only"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/organisations/children",
+            "description": "Add a new client org under current org (multi-client plans).",
+            "request_body": {
+              "name": "string",
+              "country_code": "string",
+              "timezone": "string"
+            },
+            "response": {
+              "child_org": "org_object"
+            },
+            "auth": "Account Admin of parent org. Plan must be multi_client.",
+            "billing": "Triggers per-client charge (INR 3,000)."
+          }
+        ],
+        "tenant_context_middleware": {
+          "description": "Every API request must resolve the tenant context before any data access.",
+          "flow": [
+            "1. Extract JWT from Authorization header",
+            "2. Decode JWT to get org_id and user_id",
+            "3. Set PostgreSQL search_path or RLS variable: SET app.current_org_id = '{org_id}'",
+            "4. All subsequent queries automatically filtered by RLS",
+            "5. If JWT invalid/expired: return 401"
+          ]
+        }
+      }
+    },
+    {
+      "step_number": 7,
+      "step_title": "Detailed JSON - M04: Role-Based Access Control (RBAC)",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete RBAC with 4 roles, permission scoping, per-entity access, and API endpoints",
+      "last_position": "Step 7 completed. M04 fully specified.",
+      "next_step": "Proceed to Step 8 - Detailed JSON for M05: Compliance Management Engine",
+      "content": {
+        "module_id": "M04",
+        "module_name": "Role-Based Access Control (RBAC)",
+        "branch": "core/rbac",
+        "dependencies": [
+          "M01",
+          "M02",
+          "M03"
+        ],
+        "roles": [
+          {
+            "role": "account_admin",
+            "level": 1,
+            "description": "Full control over the account. Can do everything within the organisation.",
+            "can_appoint": [
+              "account_admin",
+              "dept_admin",
+              "editor",
+              "viewer"
+            ],
+            "permissions": {
+              "compliance": [
+                "create",
+                "read",
+                "update",
+                "delete",
+                "change_status",
+                "reassign",
+                "export"
+              ],
+              "users": [
+                "create",
+                "read",
+                "update",
+                "delete",
+                "invite",
+                "approve_access",
+                "change_role"
+              ],
+              "departments": [
+                "create",
+                "read",
+                "update",
+                "delete"
+              ],
+              "organisation": [
+                "read",
+                "update_settings"
+              ],
+              "audit_log": [
+                "read",
+                "export"
+              ],
+              "documents": [
+                "create",
+                "read",
+                "delete"
+              ],
+              "api_tokens": [
+                "create",
+                "read",
+                "revoke"
+              ],
+              "reports": [
+                "read",
+                "export"
+              ]
+            }
+          },
+          {
+            "role": "dept_admin",
+            "level": 2,
+            "description": "Can manage within their assigned departments. Can appoint within scope.",
+            "can_appoint": [
+              "dept_admin",
+              "editor",
+              "viewer"
+            ],
+            "scope": "Limited to assigned departments and their compliances",
+            "permissions": {
+              "compliance": [
+                "create",
+                "read",
+                "update",
+                "change_status",
+                "reassign",
+                "export"
+              ],
+              "users": [
+                "read",
+                "invite_to_dept"
+              ],
+              "departments": [
+                "read"
+              ],
+              "audit_log": [
+                "read"
+              ],
+              "documents": [
+                "create",
+                "read",
+                "delete"
+              ],
+              "reports": [
+                "read",
+                "export"
+              ]
+            }
+          },
+          {
+            "role": "editor",
+            "level": 3,
+            "description": "Can add and edit compliances within their assigned scope.",
+            "scope": "Limited to explicitly assigned compliances and departments",
+            "permissions": {
+              "compliance": [
+                "create",
+                "read",
+                "update",
+                "export"
+              ],
+              "users": [
+                "read"
+              ],
+              "departments": [
+                "read"
+              ],
+              "audit_log": [
+                "read"
+              ],
+              "documents": [
+                "create",
+                "read"
+              ],
+              "reports": [
+                "read"
+              ]
+            }
+          },
+          {
+            "role": "viewer",
+            "level": 4,
+            "description": "Read-only access within assigned scope.",
+            "scope": "Limited to explicitly granted compliances and departments",
+            "permissions": {
+              "compliance": [
+                "read",
+                "export"
+              ],
+              "users": [
+                "read"
+              ],
+              "departments": [
+                "read"
+              ],
+              "audit_log": [
+                "read"
+              ],
+              "documents": [
+                "read"
+              ],
+              "reports": [
+                "read"
+              ]
+            }
+          }
+        ],
+        "permission_scoping": {
+          "description": "Permissions are scoped at three levels: Account (org-wide), Department, and Individual Compliance. A user with 'viewer' role may be granted edit access to a specific compliance or department via explicit permission grants.",
+          "new_table": {
+            "name": "permission_scopes",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK -> organisations(id)"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "FK -> users(id)"
+              },
+              {
+                "name": "scope_type",
+                "type": "VARCHAR(20)",
+                "enum": [
+                  "department",
+                  "compliance"
+                ]
+              },
+              {
+                "name": "scope_id",
+                "type": "UUID",
+                "description": "department_id or compliance_id"
+              },
+              {
+                "name": "granted_role",
+                "type": "VARCHAR(20)",
+                "description": "Override role for this scope"
+              },
+              {
+                "name": "granted_by",
+                "type": "UUID",
+                "constraints": "FK -> users(id)"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ"
+              }
+            ]
+          }
+        },
+        "api_endpoints": [
+          {
+            "method": "POST",
+            "path": "/api/v1/users/invite",
+            "description": "Invite a user to the organisation.",
+            "auth": "account_admin or dept_admin",
+            "request_body": {
+              "email": "string",
+              "name": "string",
+              "role": "string",
+              "department_ids": [
+                "array of UUIDs"
+              ]
+            },
+            "logic": [
+              "Create user record with invited role",
+              "Send invitation email",
+              "Log in audit_log"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/users/{id}/change-role",
+            "description": "Change a user's role.",
+            "auth": "account_admin (any role) or dept_admin (within scope)",
+            "request_body": {
+              "role": "string"
+            },
+            "logic": [
+              "Validate permissions",
+              "Update user.role",
+              "Log permission change in audit_log with old/new value"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/permissions/grant",
+            "description": "Grant scoped permission (e.g., editor access to specific compliance).",
+            "auth": "account_admin or dept_admin (within their departments)",
+            "request_body": {
+              "user_id": "UUID",
+              "scope_type": "department|compliance",
+              "scope_id": "UUID",
+              "granted_role": "editor|viewer"
+            },
+            "logic": [
+              "Create permission_scopes record",
+              "Notify user",
+              "Log in audit_log"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/access-requests/{id}/review",
+            "description": "Approve or reject an access request.",
+            "auth": "account_admin only",
+            "request_body": {
+              "action": "approve|reject",
+              "role": "string (if approved)"
+            },
+            "logic": [
+              "Update access_request status",
+              "If approved: create user record, send welcome email",
+              "If rejected: send rejection email",
+              "Log in audit_log"
+            ]
+          }
+        ],
+        "middleware": {
+          "permission_check_flow": [
+            "1. Decode JWT to get user_id, org_id, role",
+            "2. For the requested action, check role permissions matrix",
+            "3. If action requires scoped permission, check permission_scopes table",
+            "4. If user has account_admin role: allow all",
+            "5. If user has dept_admin role: check if entity belongs to their departments",
+            "6. If user has editor/viewer role: check permission_scopes for explicit grant",
+            "7. If no permission found: return 403 Forbidden",
+            "8. Log access attempt in audit_log if denied"
+          ]
+        }
+      }
+    },
+    {
+      "step_number": 8,
+      "step_title": "Detailed JSON - M05: Compliance Management Engine",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete compliance engine with CRUD, lifecycle, unique URLs, owner management, library, and recurrence",
+      "last_position": "Step 8 completed. M05 fully specified.",
+      "next_step": "Proceed to Step 9 - Detailed JSON for M06: Audit Points",
+      "content": {
+        "module_id": "M05",
+        "module_name": "Compliance Management Engine",
+        "branch": "features/compliance",
+        "dependencies": [
+          "M01",
+          "M03",
+          "M04"
+        ],
+        "compliance_lifecycle": {
+          "states": [
+            "draft",
+            "published",
+            "in_progress",
+            "completed",
+            "overdue",
+            "archived"
+          ],
+          "transitions": [
+            {
+              "from": "draft",
+              "to": "published",
+              "action": "Publish",
+              "trigger": "User action or auto-publish"
+            },
+            {
+              "from": "published",
+              "to": "in_progress",
+              "action": "Start Work",
+              "trigger": "Owner begins work"
+            },
+            {
+              "from": "in_progress",
+              "to": "completed",
+              "action": "Complete",
+              "trigger": "Owner marks done"
+            },
+            {
+              "from": "published",
+              "to": "overdue",
+              "action": "Auto-overdue",
+              "trigger": "Cron job when due_date passes and status is published"
+            },
+            {
+              "from": "in_progress",
+              "to": "overdue",
+              "action": "Auto-overdue",
+              "trigger": "Cron job when due_date passes and status is in_progress"
+            },
+            {
+              "from": "overdue",
+              "to": "completed",
+              "action": "Complete Late",
+              "trigger": "Owner marks done after due date"
+            },
+            {
+              "from": "completed",
+              "to": "archived",
+              "action": "Archive",
+              "trigger": "Admin action"
+            },
+            {
+              "from": "overdue",
+              "to": "published",
+              "action": "Reopen",
+              "trigger": "Admin action"
+            }
+          ]
+        },
+        "unique_url_system": {
+          "format": "https://app.compliancetrack.com/{org_slug}/c/{compliance_slug}",
+          "access_control": {
+            "has_rights": "Show compliance details with edit/view based on role",
+            "no_rights": "Show access request form. User must request access from account admin.",
+            "not_logged_in": "Redirect to login page, then return to this URL after auth"
+          },
+          "slug_generation": "Title slugified + 6-char random suffix for uniqueness"
+        },
+        "api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/compliances",
+            "description": "List compliances with filters, sorting, pagination.",
+            "query_params": {
+              "status": "filter by status",
+              "department_id": "filter by department",
+              "compliance_type": "filter by type",
+              "priority": "filter by priority",
+              "owner_id": "filter by owner",
+              "due_before": "filter due date before",
+              "due_after": "filter due date after",
+              "pendency_bucket": "delayed|24h|7d|30d|60d|90d|180d|365d",
+              "search": "text search in title/description",
+              "sort": "due_date|title|priority|status|created_at",
+              "order": "asc|desc",
+              "page": "page number",
+              "limit": "items per page (default 25)"
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/compliances",
+            "description": "Create a new compliance.",
+            "auth": "editor+ (within scope) or account_admin or dept_admin",
+            "request_body": {
+              "title": "string (required)",
+              "description": "string",
+              "compliance_type": "string (required)",
+              "department_id": "UUID",
+              "priority": "string (default: medium)",
+              "owner_id": "UUID (required)",
+              "due_date": "date (required)",
+              "recurrence_rule": "string (optional)",
+              "tags": [
+                "array of strings"
+              ],
+              "metadata": "object (optional)",
+              "status": "string (default: draft)"
+            },
+            "logic": [
+              "Validate required fields",
+              "Generate unique slug",
+              "Create compliance record",
+              "If status=published: set owner_id, create notification to owner",
+              "Log creation in audit_log",
+              "If recurrence_rule: schedule next occurrence"
+            ]
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/compliances/{id}",
+            "description": "Get compliance detail with full data.",
+            "response": {
+              "compliance": "full_object",
+              "owner": "user_object",
+              "department": "dept_object",
+              "comments": [
+                "array"
+              ],
+              "documents": [
+                "array"
+              ],
+              "history": [
+                "array of field changes"
+              ]
+            }
+          },
+          {
+            "method": "PATCH",
+            "path": "/api/v1/compliances/{id}",
+            "description": "Update compliance fields.",
+            "auth": "editor+ (within scope)",
+            "logic": [
+              "Compare old and new values for each field",
+              "Create compliance_history row for each changed field (old_value, new_value, IP, machine_id)",
+              "Update compliance record",
+              "If status changed: create notification, log in audit_log",
+              "If owner changed: notify new owner, notify old owner"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/compliances/{id}/reassign",
+            "description": "Reassign owner of one or multiple compliances.",
+            "request_body": {
+              "owner_id": "UUID",
+              "compliance_ids": [
+                "array of UUIDs"
+              ]
+            },
+            "auth": "account_admin or dept_admin or current owner"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/compliances/load-library",
+            "description": "Load compliance library templates for the organisation.",
+            "auth": "account_admin or dept_admin",
+            "request_body": {
+              "industry": "string",
+              "country": "string",
+              "departments": [
+                "array of strings"
+              ]
+            },
+            "logic": [
+              "Call AI engine to generate compliance templates",
+              "Create compliance records with status=draft",
+              "Return list of created compliances",
+              "Log in audit_log"
+            ]
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/compliances/pendency-summary",
+            "description": "Get pendency counts across all 8 buckets.",
+            "response": {
+              "delayed": 3,
+              "24h": 1,
+              "7d": 5,
+              "30d": 12,
+              "60d": 8,
+              "90d": 15,
+              "180d": 22,
+              "365d": 45
+            }
+          }
+        ],
+        "cron_jobs": [
+          {
+            "name": "overdue_checker",
+            "schedule": "Every hour",
+            "logic": "SELECT compliances WHERE status IN ('published','in_progress') AND due_date < CURRENT_DATE AND deleted_at IS NULL. Update status to 'overdue'. Create notification. Log in audit_log."
+          },
+          {
+            "name": "recurrence-generator",
+            "schedule": "Daily at midnight UTC",
+            "logic": "For completed compliances with recurrence_rule, create next occurrence with new due_date based on rule."
+          },
+          {
+            "name": "pendency-bucket-refresher",
+            "schedule": "Every 15 minutes",
+            "logic": "Refresh materialized view or cache of pendency counts per org."
+          }
+        ]
+      }
+    },
+    {
+      "step_number": 9,
+      "step_title": "Detailed JSON - M06: Audit Points & Internal Audit Tracking",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete audit point specification with tables, API, and linkage to compliances",
+      "last_position": "Step 9 completed. M06 fully specified.",
+      "next_step": "Proceed to Step 10 - Detailed JSON for M07: Departments & Org Structure",
+      "content": {
+        "module_id": "M06",
+        "module_name": "Audit Points & Internal Audit Tracking",
+        "branch": "features/audit-points",
+        "dependencies": [
+          "M01",
+          "M05"
+        ],
+        "new_table": {
+          "name": "audit_points",
+          "description": "Internal audit findings linked to compliance items.",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "constraints": "PK DEFAULT gen_random_uuid()"
+            },
+            {
+              "name": "org_id",
+              "type": "UUID",
+              "constraints": "FK -> organisations(id) NOT NULL"
+            },
+            {
+              "name": "compliance_id",
+              "type": "UUID",
+              "constraints": "FK -> compliances(id) NOT NULL"
+            },
+            {
+              "name": "title",
+              "type": "VARCHAR(500)",
+              "constraints": "NOT NULL"
+            },
+            {
+              "name": "description",
+              "type": "TEXT"
+            },
+            {
+              "name": "finding_type",
+              "type": "VARCHAR(20)",
+              "enum": [
+                "observation",
+                "weakness",
+                "non_compliance",
+                "improvement",
+                "best_practice"
+              ]
+            },
+            {
+              "name": "severity",
+              "type": "VARCHAR(10)",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            {
+              "name": "status",
+              "type": "VARCHAR(20)",
+              "enum": [
+                "open",
+                "in_progress",
+                "remediated",
+                "accepted_risk",
+                "closed"
+              ],
+              "default": "open"
+            },
+            {
+              "name": "responsible_id",
+              "type": "UUID",
+              "constraints": "FK -> users(id)"
+            },
+            {
+              "name": "due_date",
+              "type": "DATE"
+            },
+            {
+              "name": "remediation_plan",
+              "type": "TEXT"
+            },
+            {
+              "name": "evidence",
+              "type": "JSONB",
+              "description": "Array of document IDs or links"
+            },
+            {
+              "name": "created_by",
+              "type": "UUID",
+              "constraints": "FK -> users(id) NOT NULL"
+            },
+            {
+              "name": "created_at",
+              "type": "TIMESTAMPTZ",
+              "default": "now()"
+            },
+            {
+              "name": "updated_at",
+              "type": "TIMESTAMPTZ",
+              "default": "now()"
+            },
+            {
+              "name": "deleted_at",
+              "type": "TIMESTAMPTZ"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_ap_comp",
+              "fields": [
+                "compliance_id"
+              ]
+            },
+            {
+              "name": "idx_ap_org_status",
+              "fields": [
+                "org_id",
+                "status"
+              ]
+            },
+            {
+              "name": "idx_ap_responsible",
+              "fields": [
+                "responsible_id"
+              ]
+            }
+          ]
+        },
+        "api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/compliances/{id}/audit-points",
+            "description": "List audit points for a compliance."
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/compliances/{id}/audit-points",
+            "description": "Create audit point linked to a compliance.",
+            "request_body": {
+              "title": "string",
+              "description": "string",
+              "finding_type": "string",
+              "severity": "string",
+              "responsible_id": "UUID",
+              "due_date": "date"
+            },
+            "auth": "editor+"
+          },
+          {
+            "method": "PATCH",
+            "path": "/api/v1/audit-points/{id}",
+            "description": "Update audit point.",
+            "auth": "editor+ (within scope)"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/audit-points/summary",
+            "description": "Get audit point summary counts by status and severity."
+          }
+        ]
+      }
+    },
+    {
+      "step_number": 10,
+      "step_title": "Detailed JSON - M07: Departments, Regions & Organisation Structure",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete department management with hierarchy, default departments, and regional grouping",
+      "last_position": "Step 10 completed. M07 fully specified.",
+      "next_step": "Proceed to Step 11 - Detailed JSON for M08: User Management",
+      "content": {
+        "module_id": "M07",
+        "module_name": "Departments, Regions & Organisation Structure",
+        "branch": "features/organisation-structure",
+        "dependencies": [
+          "M01",
+          "M03"
+        ],
+        "default_departments": [
+          {
+            "name": "Finance & Accounts",
+            "slug": "finance",
+            "icon": "chart",
+            "compliance_examples": [
+              "GST GSTR-3B Filing",
+              "TDS Payments",
+              "Advance Tax",
+              "Income Tax Filing",
+              "Audit Completion"
+            ]
+          },
+          {
+            "name": "IT Department",
+            "slug": "it",
+            "icon": "laptop",
+            "compliance_examples": [
+              "Software Licence Renewal",
+              "AMC Renewal",
+              "Cybersecurity Audit",
+              "CERT-In Reporting",
+              "Data Localisation"
+            ]
+          },
+          {
+            "name": "Human Resources",
+            "slug": "hr",
+            "icon": "users",
+            "compliance_examples": [
+              "PF Monthly Contributions",
+              "ESIC Contributions",
+              "Professional Tax",
+              "POSH Annual Report",
+              "Labour Law Returns"
+            ]
+          },
+          {
+            "name": "Legal & Secretarial",
+            "slug": "legal",
+            "icon": "scale",
+            "compliance_examples": [
+              "MCA AOC-4 Filing",
+              "MGT-7 Filing",
+              "Director KYC DIR-3",
+              "Board Meeting Requirements",
+              "Charge Creation/Satisfaction"
+            ]
+          },
+          {
+            "name": "Operations",
+            "slug": "operations",
+            "icon": "factory",
+            "compliance_examples": [
+              "Factory Licence Renewal",
+              "Pollution Control Board",
+              "FSSAI Licence",
+              "Fire NOC",
+              "Weights & Measures"
+            ]
+          },
+          {
+            "name": "Import / Export",
+            "slug": "import-export",
+            "icon": "globe",
+            "compliance_examples": [
+              "IEC Renewal",
+              "DGFT Compliance",
+              "FEMA Reporting",
+              "Customs Bond",
+              "Annual Performance Report"
+            ]
+          }
+        ],
+        "api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/departments",
+            "description": "List departments with compliance counts.",
+            "response": {
+              "departments": [
+                {
+                  "id": "UUID",
+                  "name": "string",
+                  "slug": "string",
+                  "compliance_count": 0,
+                  "overdue_count": 0,
+                  "children": []
+                }
+              ]
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/departments",
+            "description": "Create department.",
+            "auth": "account_admin",
+            "request_body": {
+              "name": "string",
+              "description": "string",
+              "parent_id": "UUID (optional)",
+              "icon": "string (optional)"
+            }
+          },
+          {
+            "method": "PATCH",
+            "path": "/api/v1/departments/{id}",
+            "description": "Update department.",
+            "auth": "account_admin"
+          },
+          {
+            "method": "DELETE",
+            "path": "/api/v1/departments/{id}",
+            "description": "Soft delete department (only if no compliances assigned).",
+            "auth": "account_admin"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/departments/seed-defaults",
+            "description": "Seed the 6 default departments for a new organisation.",
+            "auth": "system (during onboarding)"
+          }
+        ],
+        "regional_grouping": {
+          "description": "Departments can be grouped by region for multi-location organisations.",
+          "implementation": "JSONB metadata field on departments: {region: 'North', location: 'Delhi'}",
+          "filtering": "API supports ?region=North filter"
+        }
+      }
+    },
+    {
+      "step_number": 11,
+      "step_title": "Detailed JSON - M08: User Management & Team Collaboration",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete user management with invitation, access requests, role assignment, and team directory",
+      "last_position": "Step 11 completed. M08 fully specified.",
+      "next_step": "Proceed to Step 12 - Detailed JSON for M09: Activity Logging & Audit Trail",
+      "content": {
+        "module_id": "M08",
+        "module_name": "User Management & Team Collaboration",
+        "branch": "features/user-management",
+        "dependencies": [
+          "M01",
+          "M02",
+          "M04"
+        ],
+        "api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/users",
+            "description": "List users in the organisation.",
+            "query_params": {
+              "role": "filter by role",
+              "department_id": "filter by department",
+              "search": "search name/email",
+              "status": "active|inactive"
+            },
+            "response": {
+              "users": [
+                {
+                  "id": "UUID",
+                  "name": "string",
+                  "email": "string",
+                  "role": "string",
+                  "is_active": "true",
+                  "last_login_at": "timestamp",
+                  "department_permissions": []
+                }
+              ]
+            }
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/users/invite",
+            "description": "Invite a new user. Sends email with magic link.",
+            "auth": "account_admin or dept_admin",
+            "request_body": {
+              "email": "string",
+              "name": "string",
+              "role": "string",
+              "department_ids": [
+                "UUIDs"
+              ],
+              "compliance_ids": [
+                "UUIDs for scoped access"
+              ]
+            },
+            "logic": [
+              "Check if user already exists in org",
+              "If exists and deleted: reactivate",
+              "If exists and active: return error",
+              "If new: create user record with is_active=true",
+              "Create permission_scopes for departments/compliances",
+              "Send invitation email with magic link",
+              "Log in audit_log"
+            ]
+          },
+          {
+            "method": "PATCH",
+            "path": "/api/v1/users/{id}",
+            "description": "Update user details or role.",
+            "auth": "account_admin (any) or dept_admin (within scope)",
+            "request_body": {
+              "name": "string (optional)",
+              "role": "string (optional)",
+              "is_active": "boolean (optional)"
+            },
+            "logic": [
+              "Update fields",
+              "If role changed: log in audit_log with old/new role",
+              "If deactivated: invalidate all sessions"
+            ]
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/users/access-requests",
+            "description": "List pending access requests (for admins).",
+            "auth": "account_admin"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/users/{id}/deactivate",
+            "description": "Deactivate a user. Invalidates sessions.",
+            "auth": "account_admin"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/users/me",
+            "description": "Get current user profile with permissions.",
+            "response": {
+              "user": "object",
+              "permissions": {
+                "global_role": "string",
+                "department_scopes": [],
+                "compliance_scopes": []
+              }
+            }
+          }
+        ],
+        "team_collaboration_features": [
+          "Real-time presence indicators (who is online)",
+          "Comment threads on compliances with @mentions",
+          "Owner reassignment with notification",
+          "Share compliance view-only snapshot via WhatsApp/Email",
+          "Daily digest email to all relevant users"
+        ]
+      }
+    },
+    {
+      "step_number": 12,
+      "step_title": "Detailed JSON - M09: Activity Logging & Audit Trail",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete audit trail with immutable logging, field-level history, strikethrough view, IP/machine capture",
+      "last_position": "Step 12 completed. M09 fully specified.",
+      "next_step": "Proceed to Step 13 - Detailed JSON for M10: Document Management",
+      "content": {
+        "module_id": "M09",
+        "module_name": "Activity Logging & Audit Trail",
+        "branch": "core/audit-trail",
+        "dependencies": [
+          "M01"
+        ],
+        "design_principles": [
+          "IMMUTABLE: audit_log rows are NEVER updated or deleted",
+          "APPEND-ONLY: only INSERT operations allowed",
+          "COMPREHENSIVE: every create, update, delete, status change, login, export, API call logged",
+          "FIELD-LEVEL: compliance_history tracks individual field changes with old/new values",
+          "IDENTITY: every log includes user_id (or AI marker), IP address, machine ID",
+          "TIMESTAMPED: all logs have created_at in UTC"
+        ],
+        "logging_middleware": {
+          "description": "Automatic logging for all API endpoints",
+          "implementation": "Next.js middleware that wraps all /api/ routes",
+          "captured_data": {
+            "always": [
+              "org_id",
+              "user_id",
+              "action_type",
+              "entity_type",
+              "entity_id",
+              "ip_address",
+              "machine_id",
+              "created_at"
+            ],
+            "on_update": [
+              "details: {changed_fields: [...], old_values: {}, new_values: {}}"
+            ],
+            "on_ai_action": [
+              "is_ai_action: true",
+              "ai_model: 'claude-3-5-sonnet'"
+            ],
+            "on_login": [
+              "details: {method: 'passcode|magic_link', device: '...', browser: '...'}"
+            ],
+            "on_export": [
+              "details: {format, filters, record_count}"
+            ]
+          }
+        },
+        "field_level_history": {
+          "table": "compliance_history",
+          "trigger": "Automatic on every PATCH to compliances table",
+          "implementation": "PostgreSQL trigger function that compares NEW and OLD row",
+          "captured_per_field": [
+            "field_name",
+            "old_value (text)",
+            "new_value (text)",
+            "changed_by",
+            "changed_at",
+            "ip_address",
+            "machine_id"
+          ],
+          "strikethrough_display": {
+            "description": "In the UI, old values are shown with strikethrough styling and new values are highlighted. This gives a visual 'track changes' effect.",
+            "css_class": ".old-value { text-decoration: line-through; color: #999; } .new-value { background: #e6f4f2; }"
+          }
+        },
+        "api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/audit-log",
+            "description": "List audit log entries with filters.",
+            "query_params": {
+              "entity_type": "filter by entity type",
+              "entity_id": "filter by entity ID",
+              "user_id": "filter by user",
+              "action_type": "filter by action",
+              "is_ai_action": "true|false",
+              "from_date": "start date",
+              "to_date": "end date",
+              "page": "page number",
+              "limit": "items per page"
+            },
+            "response": {
+              "entries": [
+                {
+                  "id": "UUID",
+                  "user_name": "string",
+                  "action_type": "string",
+                  "entity_type": "string",
+                  "entity_id": "UUID",
+                  "details": {},
+                  "ip_address": "string",
+                  "machine_id": "string",
+                  "is_ai_action": "false",
+                  "created_at": "timestamp"
+                }
+              ],
+              "total": 150
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/compliances/{id}/history",
+            "description": "Get field-level change history for a compliance.",
+            "response": {
+              "changes": [
+                {
+                  "field_name": "status",
+                  "old_value": "draft",
+                  "new_value": "published",
+                  "changed_by": {
+                    "name": "...",
+                    "email": "..."
+                  },
+                  "changed_at": "timestamp",
+                  "ip_address": "...",
+                  "machine_id": "..."
+                }
+              ]
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/audit-log/export",
+            "description": "Export audit log as CSV or Excel.",
+            "query_params": {
+              "format": "csv|xlsx",
+              "from_date": "date",
+              "to_date": "date",
+              "entity_type": "string"
+            },
+            "auth": "account_admin"
+          }
+        ],
+        "ai_action_detection": {
+          "description": "The system must identify when an action is performed by AI vs human.",
+          "detection_methods": [
+            "API requests with X-AI-Model header",
+            "MCP tool calls include ai_model in metadata",
+            "API tokens tagged with is_ai_agent=true",
+            "User-Agent analysis (heuristic, not definitive)"
+          ],
+          "logging": "When AI detected: set is_ai_action=true and ai_model field in audit_log"
+        }
+      }
+    },
+    {
+      "step_number": 13,
+      "step_title": "Detailed JSON - M10: Document Management & Storage",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete document management with upload, versioning, email parsing, Google Drive integration",
+      "last_position": "Step 13 completed. M10 fully specified.",
+      "next_step": "Proceed to Step 14 - Detailed JSON for M11: Notifications & Daily Digest",
+      "content": {
+        "module_id": "M10",
+        "module_name": "Document Management & Storage",
+        "branch": "features/documents",
+        "dependencies": [
+          "M01",
+          "M05",
+          "M09"
+        ],
+        "new_table": {
+          "name": "documents",
+          "description": "Document records linked to compliances.",
+          "columns": [
+            {
+              "name": "id",
+              "type": "UUID",
+              "constraints": "PK"
+            },
+            {
+              "name": "org_id",
+              "type": "UUID",
+              "constraints": "FK NOT NULL"
+            },
+            {
+              "name": "compliance_id",
+              "type": "UUID",
+              "constraints": "FK NOT NULL"
+            },
+            {
+              "name": "uploaded_by",
+              "type": "UUID",
+              "constraints": "FK NOT NULL"
+            },
+            {
+              "name": "file_name",
+              "type": "VARCHAR(500)",
+              "constraints": "NOT NULL"
+            },
+            {
+              "name": "file_type",
+              "type": "VARCHAR(50)",
+              "constraints": "NOT NULL"
+            },
+            {
+              "name": "file_size_bytes",
+              "type": "BIGINT"
+            },
+            {
+              "name": "storage_path",
+              "type": "VARCHAR(1000)",
+              "description": "Supabase Storage path"
+            },
+            {
+              "name": "storage_provider",
+              "type": "VARCHAR(20)",
+              "default": "supabase",
+              "enum": [
+                "supabase",
+                "google_drive",
+                "email_attachment"
+              ]
+            },
+            {
+              "name": "external_url",
+              "type": "VARCHAR(1000)",
+              "description": "For Google Drive links"
+            },
+            {
+              "name": "version",
+              "type": "INTEGER",
+              "default": 1
+            },
+            {
+              "name": "parent_doc_id",
+              "type": "UUID",
+              "constraints": "FK -> documents(id) NULLABLE",
+              "description": "For versioning: points to previous version"
+            },
+            {
+              "name": "is_proof",
+              "type": "BOOLEAN",
+              "default": "false",
+              "description": "Marked as compliance proof"
+            },
+            {
+              "name": "metadata",
+              "type": "JSONB",
+              "default": "{}"
+            },
+            {
+              "name": "created_at",
+              "type": "TIMESTAMPTZ",
+              "default": "now()"
+            },
+            {
+              "name": "deleted_at",
+              "type": "TIMESTAMPTZ"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "idx_docs_comp",
+              "fields": [
+                "compliance_id",
+                "created_at DESC"
+              ]
+            },
+            {
+              "name": "idx_docs_org",
+              "fields": [
+                "org_id"
+              ]
+            }
+          ]
+        },
+        "storage_providers": {
+          "supabase_storage": {
+            "description": "Primary storage. Files stored in Supabase Storage buckets.",
+            "bucket_name": "compliance-documents",
+            "path_pattern": "{org_id}/{compliance_id}/{document_id}/{file_name}",
+            "max_file_size_mb": 25,
+            "allowed_types": [
+              "pdf",
+              "doc",
+              "docx",
+              "xls",
+              "xlsx",
+              "jpg",
+              "jpeg",
+              "png",
+              "csv",
+              "txt",
+              "zip"
+            ]
+          },
+          "google_drive": {
+            "description": "Link documents from user's Google Drive. Store reference, not file.",
+            "auth": "OAuth 2.0 with user consent",
+            "scope": "https://www.googleapis.com/auth/drive.readonly"
+          },
+          "email_attachment": {
+            "description": "Documents extracted from incoming emails.",
+            "processing": "Parse email, extract attachments, store in Supabase Storage"
+          }
+        },
+        "api_endpoints": [
+          {
+            "method": "POST",
+            "path": "/api/v1/compliances/{id}/documents",
+            "description": "Upload document.",
+            "auth": "editor+",
+            "request": "multipart/form-data",
+            "logic": [
+              "Validate file type and size",
+              "Store in Supabase Storage",
+              "Create document record",
+              "If version > 1: set parent_doc_id",
+              "Log in audit_log"
+            ]
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/compliances/{id}/documents",
+            "description": "List documents for a compliance."
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/documents/{id}/download",
+            "description": "Download document file.",
+            "auth": "viewer+"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/documents/{id}/mark-proof",
+            "description": "Mark document as compliance proof."
+          },
+          {
+            "method": "DELETE",
+            "path": "/api/v1/documents/{id}",
+            "description": "Soft delete document.",
+            "auth": "editor+ or account_admin"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/integrations/google-drive/link",
+            "description": "Link a Google Drive file to a compliance.",
+            "request_body": {
+              "compliance_id": "UUID",
+              "drive_file_id": "string",
+              "access_token": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "step_number": 14,
+      "step_title": "Detailed JSON - M11: Notifications, Reminders & Daily Digest",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete notification system with 8 pendency buckets, daily digest, WhatsApp, escalation",
+      "last_position": "Step 14 completed. M11 fully specified.",
+      "next_step": "Proceed to Step 15 - Detailed JSON for M12: AI Engine",
+      "content": {
+        "module_id": "M11",
+        "module_name": "Notifications, Reminders & Daily Digest",
+        "branch": "features/notifications",
+        "dependencies": [
+          "M01",
+          "M05",
+          "M08"
+        ],
+        "pendency_buckets": [
+          {
+            "bucket": "delayed",
+            "sql": "due_date < CURRENT_DATE AND status NOT IN ('completed','archived')"
+          },
+          {
+            "bucket": "24h",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '24 hours' AND status NOT IN ('completed','archived','overdue')"
+          },
+          {
+            "bucket": "7d",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP + INTERVAL '24 hours' AND CURRENT_TIMESTAMP + INTERVAL '7 days' AND status NOT IN ('completed','archived','overdue')"
+          },
+          {
+            "bucket": "30d",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP + INTERVAL '7 days' AND CURRENT_TIMESTAMP + INTERVAL '30 days' AND status NOT IN ('completed','archived')"
+          },
+          {
+            "bucket": "60d",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP + INTERVAL '30 days' AND CURRENT_TIMESTAMP + INTERVAL '60 days' AND status NOT IN ('completed','archived')"
+          },
+          {
+            "bucket": "90d",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP + INTERVAL '60 days' AND CURRENT_TIMESTAMP + INTERVAL '90 days' AND status NOT IN ('completed','archived')"
+          },
+          {
+            "bucket": "180d",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP + INTERVAL '90 days' AND CURRENT_TIMESTAMP + INTERVAL '180 days' AND status NOT IN ('completed','archived')"
+          },
+          {
+            "bucket": "365d",
+            "sql": "due_date BETWEEN CURRENT_TIMESTAMP + INTERVAL '180 days' AND CURRENT_TIMESTAMP + INTERVAL '365 days' AND status NOT IN ('completed','archived')"
+          }
+        ],
+        "daily_digest": {
+          "schedule": "Every day at 8:00 AM organisation timezone",
+          "recipients": "All active users in the organisation",
+          "content_structure": {
+            "header": "ComplianceTrack Daily Digest - {org_name} - {date}",
+            "ai_summary": "AI-generated 2-3 sentence summary of overall compliance health",
+            "sections": [
+              {
+                "title": "Overdue (Action Required)",
+                "items": "All delayed compliances with owner name, days overdue, title"
+              },
+              {
+                "title": "Due Today",
+                "items": "Compliances due within 24 hours"
+              },
+              {
+                "title": "Due This Week",
+                "items": "Compliances due within 7 days"
+              },
+              {
+                "title": "Recently Completed",
+                "items": "Compliances completed in last 24 hours"
+              }
+            ],
+            "footer": "View full dashboard: https://app.compliancetrack.com/{org_slug}"
+          },
+          "delivery": "SendGrid email. Optionally WhatsApp if enabled for org."
+        },
+        "escalation_rules": [
+          {
+            "condition": "Compliance overdue by 3+ days",
+            "action": "Notify dept_admin and account_admin"
+          },
+          {
+            "condition": "Compliance overdue by 7+ days",
+            "action": "Send urgent WhatsApp + email to all admins"
+          },
+          {
+            "condition": "Compliance overdue by 30+ days",
+            "action": "Flag as critical in daily digest with red highlight"
+          },
+          {
+            "condition": "No owner assigned and due within 7 days",
+            "action": "Alert account_admin to assign owner"
+          }
+        ],
+        "api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/notifications",
+            "description": "List current user's notifications.",
+            "query_params": {
+              "is_read": "true|false|all",
+              "type": "filter",
+              "page": 1,
+              "limit": 25
+            }
+          },
+          {
+            "method": "PATCH",
+            "path": "/api/v1/notifications/{id}/read",
+            "description": "Mark notification as read."
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/notifications/read-all",
+            "description": "Mark all notifications as read."
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/notifications/unread-count",
+            "description": "Get unread notification count for badge."
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/digest/preview",
+            "description": "Preview today's daily digest without sending."
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/digest/send-now",
+            "description": "Trigger daily digest immediately (admin only).",
+            "auth": "account_admin"
+          }
+        ],
+        "cron_jobs": [
+          {
+            "name": "daily-digest",
+            "schedule": "0 8 * * * (per org timezone)",
+            "description": "Generate and send daily digest for each org"
+          },
+          {
+            "name": "reminder-24h",
+            "schedule": "Every hour",
+            "description": "Send reminders for compliances due within 24 hours"
+          },
+          {
+            "name": "overdue-escalation",
+            "schedule": "Every 6 hours",
+            "description": "Check and execute escalation rules"
+          },
+          {
+            "name": "pendency-cache-refresh",
+            "schedule": "Every 15 minutes",
+            "description": "Refresh pendency count cache"
+          }
+        ]
+      }
+    },
+    {
+      "step_number": 15,
+      "step_title": "Detailed JSON - M12: AI Engine & Smart Features",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete AI engine with Claude integration, NLP parsing, document parsing, compliance library generation, cost tracking",
+      "last_position": "Step 15 completed. M12 fully specified.",
+      "next_step": "Proceed to Step 16 - Detailed JSON for M13: API Layer, MCP & Integrations",
+      "content": {
+        "module_id": "M12",
+        "module_name": "AI Engine & Smart Features",
+        "branch": "features/ai-engine",
+        "dependencies": [
+          "M01",
+          "M05",
+          "M09"
+        ],
+        "ai_provider": {
+          "primary": "Anthropic Claude",
+          "model": "claude-3-5-sonnet-20241022",
+          "api": "Anthropic Messages API",
+          "cost_tracking_table": "ai_usage",
+          "daily_cost_limit_usd": 50,
+          "org_level_cost_limit_usd": "Configurable per org"
+        },
+        "ai_endpoints": [
+          {
+            "method": "POST",
+            "path": "/api/v1/ai/parse-text",
+            "description": "Convert natural language description to pre-filled compliance form.",
+            "request_body": {
+              "text": "string (natural language)",
+              "department_id": "UUID (optional)"
+            },
+            "response": {
+              "compliance": {
+                "title": "...",
+                "description": "...",
+                "compliance_type": "...",
+                "department_id": "...",
+                "priority": "...",
+                "suggested_due_date": "..."
+              }
+            },
+            "logic": [
+              "Send text to Claude with system prompt",
+              "Parse structured JSON response",
+              "Return pre-filled form for user review",
+              "Log AI usage with token counts and cost",
+              "Log in audit_log with is_ai_action=true"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/ai/parse-document",
+            "description": "Upload PDF/document and auto-fill compliance form.",
+            "request_body": {
+              "file": "multipart file"
+            },
+            "response": {
+              "compliance": {
+                "title": "...",
+                "description": "...",
+                "compliance_type": "...",
+                "extracted_fields": {}
+              }
+            },
+            "logic": [
+              "Extract text from PDF",
+              "Send to Claude for analysis",
+              "Extract compliance-relevant information",
+              "Return pre-filled form",
+              "Log AI usage"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/ai/generate-library",
+            "description": "Generate compliance library for organisation based on industry and country.",
+            "request_body": {
+              "industry": "string",
+              "country": "string",
+              "departments": [
+                "array of strings"
+              ]
+            },
+            "response": {
+              "compliances_created": 45,
+              "compliances": [
+                "array of compliance objects with status=draft"
+              ]
+            },
+            "logic": [
+              "Build comprehensive prompt with industry/country compliance knowledge",
+              "Send to Claude",
+              "Parse response into compliance objects",
+              "Batch create in database with status=draft",
+              "Log AI usage",
+              "Notify account_admin"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/ai/chat",
+            "description": "AI chat interface for compliance queries.",
+            "request_body": {
+              "message": "string",
+              "context": {
+                "compliance_id": "UUID (optional)",
+                "department_id": "UUID (optional)"
+              }
+            },
+            "response": {
+              "reply": "string",
+              "suggested_actions": [
+                {
+                  "type": "update_compliance",
+                  "compliance_id": "UUID",
+                  "field": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            "logic": [
+              "Build context from org data, compliance data",
+              "Send to Claude with conversation history",
+              "Parse response for suggested actions",
+              "If user confirms action: execute with AI flag in audit_log"
+            ]
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/ai/digest-summary",
+            "description": "Generate AI summary for daily digest.",
+            "internal": "Called by daily digest cron job"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/ai/usage",
+            "description": "Get AI usage statistics for the organisation.",
+            "response": {
+              "today_usd": 2.5,
+              "month_usd": 45.0,
+              "limit_usd": 50.0,
+              "by_endpoint": []
+            }
+          }
+        ],
+        "ai_detection_for_incoming_requests": {
+          "description": "When the system receives API requests, it must identify if they are from AI agents.",
+          "methods": [
+            "X-AI-Model header in request",
+            "API tokens created with is_ai_agent=true flag",
+            "MCP connections inherently identified as AI",
+            "User-Agent pattern analysis (heuristic)"
+          ],
+          "handling": "AI-identified requests get is_ai_action=true in audit_log. AI agents can be rate-limited differently. AI agents can bypass certain UI-only checks but get stricter audit logging."
+        }
+      }
+    },
+    {
+      "step_number": 16,
+      "step_title": "Detailed JSON - M13: API Layer, MCP & Integrations",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete API/MCP specification with public REST API, access tokens, MCP endpoints, webhooks, AI detection",
+      "last_position": "Step 16 completed. M13 fully specified.",
+      "next_step": "Proceed to Step 17 - Detailed JSON for M14: Sales & Agent Portal",
+      "content": {
+        "module_id": "M13",
+        "module_name": "API Layer, MCP & Integrations",
+        "branch": "core/api-integrations",
+        "dependencies": [
+          "M01",
+          "M02",
+          "M04",
+          "M05"
+        ],
+        "new_tables": [
+          {
+            "name": "api_tokens",
+            "description": "API access tokens for programmatic access.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "user_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "name",
+                "type": "VARCHAR(100)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "token_hash",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL UNIQUE"
+              },
+              {
+                "name": "permissions",
+                "type": "JSONB",
+                "default": "[]"
+              },
+              {
+                "name": "is_ai_agent",
+                "type": "BOOLEAN",
+                "default": "false"
+              },
+              {
+                "name": "ai_model",
+                "type": "VARCHAR(50)"
+              },
+              {
+                "name": "rate_limit_rpm",
+                "type": "INTEGER",
+                "default": 60
+              },
+              {
+                "name": "last_used_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "expires_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              },
+              {
+                "name": "deleted_at",
+                "type": "TIMESTAMPTZ"
+              }
+            ]
+          },
+          {
+            "name": "webhooks",
+            "description": "Webhook registrations for event notifications.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "url",
+                "type": "VARCHAR(1000)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "events",
+                "type": "JSONB",
+                "default": "[]",
+                "description": "Array of event types to subscribe to"
+              },
+              {
+                "name": "secret",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "is_active",
+                "type": "BOOLEAN",
+                "default": "true"
+              },
+              {
+                "name": "last_delivery_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "failure_count",
+                "type": "INTEGER",
+                "default": 0
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          }
+        ],
+        "api_endpoints": [
+          {
+            "method": "POST",
+            "path": "/api/v1/api-tokens",
+            "description": "Create API token.",
+            "auth": "account_admin",
+            "request_body": {
+              "name": "string",
+              "permissions": [
+                "compliance:read",
+                "compliance:write"
+              ],
+              "is_ai_agent": "false",
+              "rate_limit_rpm": 60
+            },
+            "response": {
+              "token": "ct_live_xxxxxxxxxx (show once)",
+              "id": "UUID"
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/api-tokens",
+            "description": "List API tokens (masked).",
+            "auth": "account_admin"
+          },
+          {
+            "method": "DELETE",
+            "path": "/api/v1/api-tokens/{id}",
+            "description": "Revoke API token.",
+            "auth": "account_admin"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/webhooks",
+            "description": "Register webhook.",
+            "auth": "account_admin",
+            "request_body": {
+              "url": "string",
+              "events": [
+                "compliance.created",
+                "compliance.status_changed",
+                "compliance.overdue"
+              ]
+            }
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/webhooks",
+            "description": "List webhooks.",
+            "auth": "account_admin"
+          }
+        ],
+        "mcp_support": {
+          "description": "Model Context Protocol support for AI tools like Claude to directly interact with the compliance tracker.",
+          "endpoint": "/api/v1/mcp",
+          "protocol": "MCP over HTTP (JSON-RPC style)",
+          "tools_exposed": [
+            {
+              "name": "list_compliances",
+              "description": "List compliances with filters",
+              "parameters": {
+                "status": "string",
+                "department": "string",
+                "pendency_bucket": "string"
+              }
+            },
+            {
+              "name": "get_compliance",
+              "description": "Get compliance detail",
+              "parameters": {
+                "id": "UUID"
+              }
+            },
+            {
+              "name": "create_compliance",
+              "description": "Create a new compliance",
+              "parameters": {
+                "title": "string",
+                "compliance_type": "string",
+                "due_date": "date",
+                "department_id": "UUID"
+              }
+            },
+            {
+              "name": "update_compliance",
+              "description": "Update compliance fields",
+              "parameters": {
+                "id": "UUID",
+                "fields": "object"
+              }
+            },
+            {
+              "name": "add_comment",
+              "description": "Add comment to compliance",
+              "parameters": {
+                "compliance_id": "UUID",
+                "body": "string"
+              }
+            },
+            {
+              "name": "get_pendency_summary",
+              "description": "Get counts across all 8 buckets",
+              "parameters": {}
+            }
+          ],
+          "authentication": "Bearer API token with is_ai_agent=true",
+          "audit": "All MCP tool calls logged with is_ai_action=true and ai_model"
+        },
+        "ai_detection_middleware": {
+          "description": "Middleware that identifies if an API request comes from an AI agent.",
+          "checks": [
+            "Header X-AI-Model present",
+            "API token has is_ai_agent=true",
+            "Request from /api/v1/mcp endpoint",
+            "User-Agent contains known AI patterns (Claude, GPT, etc.)"
+          ],
+          "actions_on_detection": [
+            "Set is_ai_action=true in audit_log",
+            "Log ai_model from header or token",
+            "Apply AI-specific rate limits",
+            "Enable AI-allowed operations (bulk create, auto-status-change)"
+          ]
+        },
+        "external_data_submission": {
+          "description": "Users can grant API/MCP access tokens to submit data to or retrieve data from external portals (government filing portals, bank portals, etc.)",
+          "flow": "User provides their access_token/api_key for external portal -> System stores encrypted -> System can make API calls on behalf of user -> Results stored as compliance data or documents",
+          "new_table": {
+            "name": "external_connections",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "service_name",
+                "type": "VARCHAR(100)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "encrypted_credentials",
+                "type": "TEXT",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "connected_by",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "last_sync_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "status",
+                "type": "VARCHAR(20)",
+                "default": "active",
+                "enum": [
+                  "active",
+                  "revoked",
+                  "expired"
+                ]
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "step_number": 17,
+      "step_title": "Detailed JSON - M14: Sales, Distribution & Agent Portal",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete sales/distribution system with 8 channels, agent portal, commissions, discounts, incentives",
+      "last_position": "Step 17 completed. M14 fully specified.",
+      "next_step": "Proceed to Step 18 - Remaining modules (M15-M18) and combined master JSON",
+      "content": {
+        "module_id": "M14",
+        "module_name": "Sales, Distribution & Agent Portal",
+        "branch": "business/sales-distribution",
+        "dependencies": [
+          "M01",
+          "M02",
+          "M03"
+        ],
+        "new_tables": [
+          {
+            "name": "agents",
+            "description": "Freelance and company agents who sell the platform.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "name",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "email",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL UNIQUE"
+              },
+              {
+                "name": "phone",
+                "type": "VARCHAR(20)"
+              },
+              {
+                "name": "country_code",
+                "type": "VARCHAR(3)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "agent_type",
+                "type": "VARCHAR(20)",
+                "enum": [
+                  "freelance",
+                  "company",
+                  "ai_agent",
+                  "individual_professional"
+                ]
+              },
+              {
+                "name": "parent_company_id",
+                "type": "UUID",
+                "constraints": "FK -> agents(id) NULLABLE"
+              },
+              {
+                "name": "commission_rate_percent",
+                "type": "DECIMAL(5,2)",
+                "default": 10.0
+              },
+              {
+                "name": "total_customers",
+                "type": "INTEGER",
+                "default": 0
+              },
+              {
+                "name": "total_commission_earned",
+                "type": "DECIMAL(12,2)",
+                "default": 0
+              },
+              {
+                "name": "is_active",
+                "type": "BOOLEAN",
+                "default": "true"
+              },
+              {
+                "name": "access_token_hash",
+                "type": "VARCHAR(255)"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              },
+              {
+                "name": "updated_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          },
+          {
+            "name": "discount_codes",
+            "description": "Country-specific discount codes pushed from central portal.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "code",
+                "type": "VARCHAR(50)",
+                "constraints": "UNIQUE NOT NULL"
+              },
+              {
+                "name": "country_code",
+                "type": "VARCHAR(3)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "discount_percent",
+                "type": "DECIMAL(5,2)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "max_uses",
+                "type": "INTEGER"
+              },
+              {
+                "name": "used_count",
+                "type": "INTEGER",
+                "default": 0
+              },
+              {
+                "name": "valid_from",
+                "type": "DATE"
+              },
+              {
+                "name": "valid_until",
+                "type": "DATE"
+              },
+              {
+                "name": "is_active",
+                "type": "BOOLEAN",
+                "default": "true"
+              },
+              {
+                "name": "created_by",
+                "type": "UUID",
+                "constraints": "FK -> users(id) NULLABLE"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          },
+          {
+            "name": "commissions",
+            "description": "Commission records for each sale.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "agent_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL",
+                "description": "The purchasing organisation"
+              },
+              {
+                "name": "sale_amount",
+                "type": "DECIMAL(12,2)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "commission_amount",
+                "type": "DECIMAL(12,2)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "commission_rate",
+                "type": "DECIMAL(5,2)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "status",
+                "type": "VARCHAR(20)",
+                "default": "pending",
+                "enum": [
+                  "pending",
+                  "paid",
+                  "cancelled"
+                ]
+              },
+              {
+                "name": "paid_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          },
+          {
+            "name": "incentives",
+            "description": "Milestone-based incentive tracking.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "agent_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "milestone_description",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "requirement",
+                "type": "JSONB",
+                "constraints": "NOT NULL",
+                "description": "Example: paid_customers count threshold"
+              },
+              {
+                "name": "reward_amount",
+                "type": "DECIMAL(12,2)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "current_progress",
+                "type": "JSONB",
+                "default": "{}"
+              },
+              {
+                "name": "status",
+                "type": "VARCHAR(20)",
+                "default": "in_progress",
+                "enum": [
+                  "in_progress",
+                  "achieved",
+                  "reward_paid"
+                ]
+              },
+              {
+                "name": "achieved_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "reward_paid_at",
+                "type": "TIMESTAMPTZ"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          },
+          {
+            "name": "sales_channels",
+            "description": "Track which sales channel led to each customer.",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "channel",
+                "type": "VARCHAR(30)",
+                "enum": [
+                  "freelance_agent",
+                  "ai_agent",
+                  "company_agents",
+                  "digital_marketing",
+                  "telesales",
+                  "firm_partnership",
+                  "individual_professional",
+                  "enterprise_partner"
+                ]
+              },
+              {
+                "name": "agent_id",
+                "type": "UUID",
+                "constraints": "FK NULLABLE"
+              },
+              {
+                "name": "discount_code_id",
+                "type": "UUID",
+                "constraints": "FK NULLABLE"
+              },
+              {
+                "name": "referral_source",
+                "type": "VARCHAR(255)"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          }
+        ],
+        "agent_portal_features": [
+          "Dashboard showing: total customers, commission earned, pending payouts",
+          "Discount codes assigned to agent (country-specific from central portal)",
+          "Unique referral links for each agent",
+          "Incentive milestone tracker (e.g., '2 more paid customers to earn INR 5,000 bonus')",
+          "Commission history and payout schedule",
+          "Customer list with their status"
+        ],
+        "agent_portal_api_endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/agent/dashboard",
+            "description": "Agent portal dashboard data.",
+            "auth": "Agent token"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/agent/commissions",
+            "description": "Commission history.",
+            "auth": "Agent token"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/agent/discount-codes",
+            "description": "Discount codes available to this agent.",
+            "auth": "Agent token"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/agent/incentives",
+            "description": "Incentive milestones and progress.",
+            "auth": "Agent token"
+          },
+          {
+            "method": "GET",
+            "path": "/api/v1/agent/customers",
+            "description": "List of customers acquired by this agent.",
+            "auth": "Agent token"
+          },
+          {
+            "method": "POST",
+            "path": "/api/v1/central/discount-codes",
+            "description": "Create discount code from central portal.",
+            "auth": "System admin",
+            "request_body": {
+              "country_code": "string",
+              "discount_percent": 10.0,
+              "max_uses": 100,
+              "valid_from": "date",
+              "valid_until": "date",
+              "assign_to_agent_ids": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "step_number": 18,
+      "step_title": "Detailed JSON - M15: Web Portal Desktop UI",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete desktop UI specification with all screens, components, and interactions",
+      "last_position": "Step 18 completed. M15 fully specified.",
+      "next_step": "Proceed to Step 19 - Detailed JSON for M16: Mobile App",
+      "content": {
+        "module_id": "M15",
+        "module_name": "Web Portal - Desktop UI",
+        "branch": "frontend/web-desktop",
+        "dependencies": [
+          "M01",
+          "M02",
+          "M03",
+          "M04",
+          "M05",
+          "M06",
+          "M07",
+          "M08",
+          "M09",
+          "M10",
+          "M11",
+          "M12",
+          "M13"
+        ],
+        "tech_stack": {
+          "framework": "Next.js 14+ with App Router",
+          "styling": "Tailwind CSS 4",
+          "ui_components": "shadcn/ui",
+          "state_management": "React Query (TanStack Query) for server state, Zustand for client state",
+          "charts": "Recharts or Chart.js",
+          "realtime": "Supabase Realtime subscriptions",
+          "export": "SheetJS (xlsx) for Excel, jsPDF for PDF"
+        },
+        "screens": [
+          {
+            "screen": "Login / Access Request",
+            "url": "/login?org={slug}",
+            "components": [
+              "Email input",
+              "Passcode input (6 digits)",
+              "Magic link request",
+              "Access request form (if uninvited)"
+            ]
+          },
+          {
+            "screen": "Dashboard",
+            "url": "/dashboard",
+            "components": [
+              "Compliance Health widget (overdue/upcoming/completed counts)",
+              "Pendency summary (8-bucket visual)",
+              "Overdue items list (red)",
+              "Due this week list (amber)",
+              "Recently completed list (green)",
+              "Department filter sidebar",
+              "Quick add compliance button"
+            ]
+          },
+          {
+            "screen": "Compliance Table",
+            "url": "/compliances",
+            "components": [
+              "Filter bar: status, department, type, priority, owner, pendency bucket, search",
+              "Sortable columns: Title, Department, Owner, Due Date, Status, Priority",
+              "Row click opens detail panel",
+              "Bulk actions: reassign, export, status change",
+              "Pagination with page size selector",
+              "Export buttons: CSV, Excel, PDF, Share (WhatsApp/Email)"
+            ]
+          },
+          {
+            "screen": "Compliance Detail Panel (Slide-out)",
+            "url": "Slide-out overlay",
+            "tabs": [
+              {
+                "tab": "Details",
+                "components": [
+                  "All compliance fields (editable)",
+                  "Status badge",
+                  "Priority badge",
+                  "Owner with avatar",
+                  "Department tag",
+                  "Due date with countdown",
+                  "External references",
+                  "Tags"
+                ]
+              },
+              {
+                "tab": "Comments",
+                "components": [
+                  "Threaded comment list",
+                  "@mention users",
+                  "Timestamp on each comment",
+                  "New comment input"
+                ]
+              },
+              {
+                "tab": "History",
+                "components": [
+                  "Field-level change list",
+                  "Strikethrough old values",
+                  "Highlighted new values",
+                  "Who changed, when, from where"
+                ]
+              },
+              {
+                "tab": "Documents",
+                "components": [
+                  "Upload button (drag-drop)",
+                  "Document list with version",
+                  "Download button",
+                  "Delete button",
+                  "Mark as proof toggle",
+                  "Google Drive link button"
+                ]
+              }
+            ]
+          },
+          {
+            "screen": "Admin Panel",
+            "url": "/admin",
+            "sections": [
+              "Organisation Settings",
+              "User Management",
+              "API Tokens",
+              "Webhooks",
+              "Department Management",
+              "Audit Log"
+            ]
+          },
+          {
+            "screen": "Audit Log Viewer",
+            "url": "/audit-log",
+            "components": [
+              "Filter: entity type, user, action, date range, AI vs Human",
+              "Sortable log table",
+              "Detail expand showing full JSON",
+              "Export button"
+            ]
+          },
+          {
+            "screen": "AI Chat Interface",
+            "url": "/ai-chat",
+            "components": [
+              "Chat input: Describe a compliance in plain language",
+              "Upload PDF button for auto-fill",
+              "Generate library button",
+              "Conversation thread",
+              "Suggested action cards"
+            ]
+          }
+        ],
+        "design_system_reference": {
+          "source": "compliancetrack_landing.html and compliance_tracker_v3.html",
+          "colors": {
+            "cream": "#FFFDF9",
+            "navy": "#1C2B3A",
+            "saffron": "#F5820A",
+            "teal": "#0E7C6E",
+            "red": "#C0392B",
+            "green": "#16A34A"
+          },
+          "fonts": {
+            "heading": "DM Serif Display",
+            "body": "Inter"
+          }
+        }
+      }
+    },
+    {
+      "step_number": 19,
+      "step_title": "Detailed JSON - M16: Mobile App UI",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete mobile UI specification",
+      "last_position": "Step 19 completed. M16 fully specified.",
+      "next_step": "Proceed to Step 20 - Detailed JSON for M17: Email Integration",
+      "content": {
+        "module_id": "M16",
+        "module_name": "Mobile App UI",
+        "branch": "frontend/mobile",
+        "dependencies": [
+          "M01-M13"
+        ],
+        "approach": "Responsive web app (PWA) with optional native wrapper (React Native or Capacitor)",
+        "screens": [
+          {
+            "screen": "Mobile Login",
+            "description": "Simplified email + passcode flow optimized for mobile"
+          },
+          {
+            "screen": "Mobile Dashboard",
+            "description": "Compliance health cards, overdue count, urgent items, quick actions"
+          },
+          {
+            "screen": "Compliance List",
+            "description": "Swipeable cards with status colors, filter chips, pull-to-refresh"
+          },
+          {
+            "screen": "Compliance Detail",
+            "description": "Full-screen detail with tab navigation (Details/Comments/History/Documents)"
+          },
+          {
+            "screen": "Quick Add",
+            "description": "Streamlined compliance creation form optimized for mobile input"
+          },
+          {
+            "screen": "Notifications",
+            "description": "Notification center with push notification support"
+          },
+          {
+            "screen": "Document Capture",
+            "description": "Camera integration for document photo upload"
+          }
+        ],
+        "mobile_specific_features": [
+          "Push notifications (via Firebase Cloud Messaging or Supabase Push)",
+          "Camera document capture and upload",
+          "Biometric authentication (fingerprint/face) for app access",
+          "Offline read mode for viewing compliances without internet",
+          "Bottom sheet modals for quick actions",
+          "Swipe gestures for compliance status changes"
+        ]
+      }
+    },
+    {
+      "step_number": 20,
+      "step_title": "Detailed JSON - M17: Email Integration + M18: Infrastructure",
+      "timestamp": "2026-06-25T13:36:41Z",
+      "status": "completed",
+      "achieved": "Complete email integration and infrastructure specification",
+      "last_position": "Step 20 completed. All modules specified.",
+      "next_step": "Proceed to final step - Combine all JSON, check flow, write instructions",
+      "content": {
+        "M17_email": {
+          "module_id": "M17",
+          "module_name": "Email Integration & Processing",
+          "branch": "integrations/email",
+          "dependencies": [
+            "M01",
+            "M05",
+            "M10",
+            "M11"
+          ],
+          "new_table": {
+            "name": "email_logs",
+            "columns": [
+              {
+                "name": "id",
+                "type": "UUID",
+                "constraints": "PK"
+              },
+              {
+                "name": "org_id",
+                "type": "UUID",
+                "constraints": "FK NOT NULL"
+              },
+              {
+                "name": "direction",
+                "type": "VARCHAR(10)",
+                "enum": [
+                  "inbound",
+                  "outbound"
+                ]
+              },
+              {
+                "name": "message_id",
+                "type": "VARCHAR(255)",
+                "constraints": "NOT NULL"
+              },
+              {
+                "name": "from_address",
+                "type": "VARCHAR(255)"
+              },
+              {
+                "name": "to_address",
+                "type": "VARCHAR(255)"
+              },
+              {
+                "name": "subject",
+                "type": "VARCHAR(500)"
+              },
+              {
+                "name": "compliance_id",
+                "type": "UUID",
+                "constraints": "FK NULLABLE"
+              },
+              {
+                "name": "processed_by_ai",
+                "type": "BOOLEAN",
+                "default": "false"
+              },
+              {
+                "name": "ai_extracted_data",
+                "type": "JSONB"
+              },
+              {
+                "name": "created_at",
+                "type": "TIMESTAMPTZ",
+                "default": "now()"
+              }
+            ]
+          },
+          "inbound_email_processing": {
+            "description": "Parse incoming emails to extract compliance updates and documents.",
+            "flow": [
+              "Receive email via SendGrid Inbound Parse or webhook",
+              "Extract sender email, match to user in org",
+              "Parse subject/body for compliance references (compliance ID, title)",
+              "If AI enabled: send to Claude for structured data extraction",
+              "Extract attachments: store as documents linked to compliance",
+              "Create comment on compliance with email content summary",
+              "Log in email_logs and audit_log"
+            ]
+          },
+          "outbound_email_types": [
+            {
+              "type": "daily_digest",
+              "frequency": "Daily",
+              "engine": "SendGrid"
+            },
+            {
+              "type": "reminder_24h",
+              "frequency": "Hourly check",
+              "engine": "SendGrid"
+            },
+            {
+              "type": "escalation",
+              "frequency": "On trigger",
+              "engine": "SendGrid + WhatsApp"
+            },
+            {
+              "type": "invitation",
+              "frequency": "On event",
+              "engine": "SendGrid"
+            },
+            {
+              "type": "access_request_notification",
+              "frequency": "On event",
+              "engine": "SendGrid"
+            }
+          ]
+        },
+        "M18_infrastructure": {
+          "module_id": "M18",
+          "module_name": "Infrastructure, Deployment & Monitoring",
+          "branch": "infra/deployment",
+          "dependencies": [
+            "All modules"
+          ],
+          "tech_stack": {
+            "frontend_hosting": "Vercel",
+            "backend_database": "Supabase (PostgreSQL 15)",
+            "ai_provider": "Anthropic Claude API",
+            "email": "SendGrid",
+            "messaging": "WhatsApp Business API (via BSNL)",
+            "ci_cd": "GitHub Actions",
+            "monitoring": "Vercel Analytics + Supabase Dashboard + custom error tracking"
+          },
+          "environment_variables": {
+            "required": [
+              "SUPABASE_URL",
+              "SUPABASE_ANON_KEY",
+              "SUPABASE_SERVICE_KEY",
+              "ANTHROPIC_API_KEY",
+              "SENDGRID_API_KEY",
+              "JWT_SECRET",
+              "ENCRYPTION_KEY"
+            ],
+            "optional": [
+              "WHATSAPP_API_KEY",
+              "GOOGLE_OAUTH_CLIENT_ID",
+              "GOOGLE_OAUTH_CLIENT_SECRET",
+              "ENABLE_AI (default: true)",
+              "AI_COST_LIMIT_USD (default: 50)"
+            ]
+          },
+          "ci_cd_pipeline": [
+            "Developer pushes to feature branch",
+            "GitHub Actions: lint > unit tests > integration tests > build",
+            "On PR to main: preview deployment on Vercel with test Supabase",
+            "On merge to main: production deployment to Vercel + Supabase migrations",
+            "Deployment notification to team"
+          ],
+          "deployment_principle": "Each module (M01-M17) independently deployable. Database (M01) deployed first, never modified without migration."
+        }
+      }
+    }
+  ],
+  "master_json": {
+    "version": "1.0",
+    "generated_at": "2026-06-25T13:36:41Z",
+    "project_name": "ComplianceTrack",
+    "total_modules": 18,
+    "total_steps": 20,
+    "build_order": {
+      "phase_1_foundation": [
+        "M01 - Database Schema",
+        "M02 - Authentication",
+        "M09 - Audit Trail"
+      ],
+      "phase_2_platform": [
+        "M03 - Multi-Tenancy",
+        "M04 - RBAC",
+        "M07 - Departments"
+      ],
+      "phase_3_core_features": [
+        "M05 - Compliance Engine",
+        "M06 - Audit Points",
+        "M08 - User Management"
+      ],
+      "phase_4_enhancements": [
+        "M10 - Documents",
+        "M11 - Notifications",
+        "M12 - AI Engine"
+      ],
+      "phase_5_integrations": [
+        "M13 - API/MCP",
+        "M17 - Email Integration"
+      ],
+      "phase_6_business": [
+        "M14 - Sales/Agent Portal"
+      ],
+      "phase_7_frontends": [
+        "M15 - Web Desktop",
+        "M16 - Mobile App"
+      ],
+      "phase_8_ops": [
+        "M18 - Infrastructure"
+      ]
+    },
+    "flow_instructions": {
+      "for_zai_or_claude": [
+        "1. Read this JSON file from top to bottom. It contains the complete project specification.",
+        "2. Check the 'steps_completed' array to know which steps are done.",
+        "3. Each step has: timestamp, status, achieved (what was done), last_position (where we stopped), next_step (what to do next).",
+        "4. To continue work: find the first step with status != 'completed' and follow its next_step instruction.",
+        "5. After completing work on a step: update status to 'completed', update achieved and last_position, set next_step, and update timestamp.",
+        "6. Save the JSON file after every change.",
+        "7. Database tables are specified in Steps 4 (M01) and individual module steps. All tables include org_id for tenant isolation.",
+        "8. API endpoints follow REST convention: /api/v1/{resource}. All require Authorization: Bearer JWT or Bearer API token.",
+        "9. Every data mutation MUST be logged in audit_log with IP address and machine ID.",
+        "10. The system must detect AI agents (via header, token flag, or MCP endpoint) and tag audit_log entries accordingly.",
+        "11. Unique URLs: each compliance has /{org_slug}/c/{compliance_slug}. Access is controlled by RBAC + permission_scopes.",
+        "12. Pendency tracking: 8 time buckets calculated from due_date. Used in dashboard, notifications, and daily digest.",
+        "13. Sales channels: 8 different channels. Agent portal with commissions, country-specific discount codes, incentive milestones.",
+        "14. Touchpoints: 10 different ways to interact (human laptop, human mobile, AI laptop, AI mobile, AI direct, human email, AI email, docs via email, Google Drive, MCP/API).",
+        "15. The landing page (compliancetrack_landing.html) shows the marketing site. The app (compliance_tracker_v3.html) shows the working prototype UI."
+      ],
+      "critical_dependencies": {
+        "M01 must be built first": "All other modules depend on database tables",
+        "M02 must be built second": "All API endpoints require authentication",
+        "M03 must be built third": "All data access requires tenant context",
+        "M04 must be built fourth": "All features require permission checks",
+        "M05 is the core feature": "Most UI screens and notifications depend on compliance data"
+      },
+      "testing_requirements": [
+        "Unit tests for all API endpoints",
+        "Integration tests for multi-tenant isolation",
+        "RLS policy tests (verify data segregation)",
+        "Permission scoping tests (verify RBAC)",
+        "AI cost limit enforcement test",
+        "Email delivery verification",
+        "Pendency bucket SQL accuracy tests"
+      ]
+    },
+    "source_files_analyzed": [
+      "compliancetrack_landing.html - Marketing landing page with features, pricing, BSNL partnership",
+      "compliance_tracker_v3.html - Working app prototype with dashboard, compliance table, detail panel, admin panel, audit log",
+      "ComplianceTrack_TechSpec_v1.docx - 24-module technical specification with DB schema, API endpoints, infrastructure"
+    ]
+  },
+  "total_steps_final": 20
+}
