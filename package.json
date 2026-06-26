@@ -13,8 +13,8 @@
   },
   "devDependencies": {
     "turbo": "^2.0.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.6.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
     "@playwright/test": "^1.44.0",
     "prettier": "^3.3.0"
   },
