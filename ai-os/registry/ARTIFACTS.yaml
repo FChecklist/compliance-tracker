@@ -1,0 +1,23 @@
+# Master Knowledge Graph Registry
+# Machine-readable registry of ALL artifacts in this repository.
+# AI agents MUST query this before creating anything new.
+# Impact analysis: find artifact, read related_to[] for all affected artifacts.
+version: "1.0.0"
+last_updated: "2026-06-26T00:00:00Z"
+last_updated_by: "Sentinel"
+
+query_rules:
+  - "Before creating an API: check apis[] - does it already exist?"
+  - "Before creating a DB table: check database_tables[] - does it exist?"
+  - "Before creating a component: check ui_components[] - does it exist?"
+  - "Impact analysis: find artifact by id, read related_to[] for all affected artifacts"
+
+modules: []
+apis: []
+database_tables: []
+ui_screens: []
+ui_components: []
+agents: []
+tests: []
+workflows: []
+business_rules: []
