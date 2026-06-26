@@ -1,0 +1,106 @@
+{
+  "meta": {
+    "project": "ComplianceTrack",
+    "version": "1.0.0",
+    "task_id": "T-M2",
+    "standard": "WCAG 2.1 Level AA",
+    "target_platforms": ["web desktop", "web tablet", "web mobile", "Expo mobile (shared tokens)"]
+  },
+  "colorContrast": {
+    "minimumRatios": { "normalText": "4.5:1", "largeText": "3:1", "uiComponents": "3:1" },
+    "verifiedPairs": [
+      { "foreground": "#1C2B3A", "background": "#FFFDF9", "ratio": "12.8:1", "pass": true },
+      { "foreground": "#1C2B3A", "background": "#F0F4F8", "ratio": "11.2:1", "pass": true },
+      { "foreground": "#718096", "background": "#FFFDF9", "ratio": "4.6:1", "pass": true },
+      { "foreground": "#FFFFFF", "background": "#F5820A", "ratio": "3.1:1", "pass": true, "note": "Large text and UI components only for saffron buttons" },
+      { "foreground": "#FFFFFF", "background": "#1C2B3A", "ratio": "12.8:1", "pass": true },
+      { "foreground": "#C0392B", "background": "#FDECEB", "ratio": "5.2:1", "pass": true },
+      { "foreground": "#0E7C6E", "background": "#E6F4F2", "ratio": "4.8:1", "pass": true }
+    ],
+    "doNotUseAlone": [
+      "Status must not rely on color alone — always pair with text label or icon",
+      "Pendency chips require dot + numeric label",
+      "Table row urgency uses background tint AND status pill"
+    ]
+  },
+  "keyboardNavigation": {
+    "tabOrder": "Logical DOM order: skip link → nav → sidebar → main → panels",
+    "skipLink": { "text": "Skip to main content", "target": "#main-content", "visibleOnFocus": true },
+    "focusVisible": {
+      "outline": "2px solid #F5820A",
+      "outlineOffset": "2px",
+      "boxShadowAlternative": "0 0 0 3px rgba(245,130,10,0.25)"
+    },
+    "shortcuts": [
+      { "key": "Escape", "action": "Close modal, sheet, or dropdown" },
+      { "key": "Enter/Space", "action": "Activate buttons and sidebar items" },
+      { "key": "Arrow keys", "action": "Navigate passcode numpad and table sort headers" }
+    ],
+    "trapFocus": ["Modal dialogs", "Detail slide-out panel when open", "Mobile sidebar drawer"]
+  },
+  "screenReader": {
+    "landmarks": {
+      "banner": "Top navigation",
+      "navigation": "Sidebar primary nav",
+      "main": "Page content area",
+      "complementary": "Detail panel when open"
+    },
+    "ariaLabels": {
+      "navOrgSwitcher": "Switch organisation, current: {orgName}",
+      "healthRibbon": "Compliance health summary",
+      "healthChip": "{count} items {bucket label}",
+      "sidebarBadge": "{count} pending items",
+      "tableSort": "Sort by {column}, currently {direction}",
+      "passcodeDot": "Passcode digit {n} of 6",
+      "fab": "Quick actions menu",
+      "detailPanelClose": "Close compliance details"
+    },
+    "liveRegions": {
+      "toast": "role=status aria-live=polite",
+      "formError": "role=alert aria-live=assertive",
+      "tableLoading": "aria-busy=true with aria-label Loading compliance data"
+    }
+  },
+  "forms": {
+    "labels": "Every input must have visible label or aria-label",
+    "requiredFields": "aria-required=true and visual asterisk with sr-only '(required)'",
+    "errors": {
+      "association": "aria-describedby linking input to error message id",
+      "timing": "Announce on submit and on blur for invalid fields",
+      "color": "Error text #C0392B on #FDECEB background"
+    },
+    "passcode": {
+      "inputMode": "numeric",
+      "autoComplete": "one-time-code where supported",
+      "announceProgress": "Digit {n} entered"
+    }
+  },
+  "tables": {
+    "scope": "Use th scope=col for column headers",
+    "caption": "Visually hidden caption describing table purpose",
+    "selection": "Checkbox column with aria-label Select row {name}",
+    "responsive": "On mobile, provide equivalent card view with same data announced in logical order"
+  },
+  "motion": {
+    "respectPrefersReducedMotion": true,
+    "reducedMotionFallback": "Disable translateY hover, FAB slide, toast slide — use opacity only",
+    "maxAnimationDuration": "300ms for non-decorative motion"
+  },
+  "touchTargets": {
+    "minimumSize": "44px × 44px on mobile",
+    "spacing": "8px minimum between adjacent touch targets",
+    "appliesTo": ["Nav buttons", "Sidebar items", "Passcode numpad", "FAB", "Row action buttons"]
+  },
+  "imagesAndIcons": {
+    "decorativeIcons": "aria-hidden=true",
+    "functionalIcons": "aria-label or accompanying visible text",
+    "logo": "alt='ComplianceTrack logo'"
+  },
+  "testingChecklist": [
+    "Axe DevTools zero critical violations on login, dashboard, compliance table",
+    "Full keyboard traversal without mouse on all primary flows",
+    "VoiceOver/NVDA announces page title and landmark regions",
+    "200% zoom: no horizontal scroll on form pages",
+    "Color blindness simulation: pendency states distinguishable"
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "meta": {
+    "project": "ComplianceTrack",
+    "version": "1.0.0",
+    "task_id": "T-M2",
+    "gridSystem": "12-column fluid with responsive collapse"
+  },
+  "appShell": {
+    "structure": ["NavBar", "HealthRibbon", "Sidebar + MainContent", "OptionalDetailPanel", "FAB", "Toast"],
+    "heights": {
+      "viewport": "100vh",
+      "contentArea": "calc(100vh - 60px - 48px)"
+    },
+    "layout": {
+      "display": "flex",
+      "direction": "column",
+      "mainRow": { "display": "flex", "flex": 1, "overflow": "hidden" }
+    },
+    "responsive": {
+      "mobile": { "sidebar": "hidden drawer overlay", "healthRibbon": "horizontal scroll", "mainPadding": "16px" },
+      "tablet": { "sidebar": "collapsible icon rail 64px or drawer", "mainPadding": "20px" },
+      "desktop": { "sidebar": "fixed 220px", "mainPadding": "24px" }
+    }
+  },
+  "pages": {
+    "auth_login": {
+      "layout": "fullscreen centered overlay",
+      "maxWidth": "440px",
+      "sections": ["auth-top navy header with logo", "auth-body cream form area"],
+      "components": ["PasscodeInput OR EmailInput", "AuthTabs passcode/magic-link", "PrimaryButton", "ErrorAlert"],
+      "breakpoints": { "mobile": "full width card with 20px outer padding" }
+    },
+    "dashboard": {
+      "pageHeader": { "title": "Dashboard", "actions": ["DateRangeFilter", "ExportButton"] },
+      "grid": {
+        "desktop": [
+          { "row": 1, "cols": [{ "span": 3, "component": "StatCard" }, { "span": 3, "component": "StatCard" }, { "span": 3, "component": "StatCard" }, { "span": 3, "component": "StatCard" }] },
+          { "row": 2, "cols": [{ "span": 8, "component": "PendencyChart" }, { "span": 4, "component": "RecentActivity" }] },
+          { "row": 3, "cols": [{ "span": 12, "component": "UpcomingDeadlinesTable" }] }
+        ],
+        "tablet": "2-column stat cards, stacked charts",
+        "mobile": "single column stack, health ribbon scroll"
+      }
+    },
+    "compliance_list": {
+      "pageHeader": { "title": "Compliance Register", "subtitle": "All obligations across departments", "actions": ["AddCompliance FAB", "BulkActions"] },
+      "sections": [
+        { "name": "filterBar", "height": "auto", "components": ["SearchInput", "DepartmentSelect", "StatusSelect", "OwnerSelect", "ClearFilters"] },
+        { "name": "tableCard", "flex": 1, "components": ["DataTable with sort/filter/pagination", "RowSelection", "StatusPills", "RowActions"] }
+      ],
+      "detailPanel": {
+        "trigger": "row click",
+        "position": "right slide-over 480px",
+        "tabs": ["Overview", "Audit Points", "Documents", "Activity", "Comments"]
+      },
+      "responsive": {
+        "mobile": { "table": "horizontal scroll or card list view", "detailPanel": "full screen sheet" },
+        "tablet": { "detailPanel": "80vw overlay" }
+      }
+    },
+    "compliance_detail_panel": {
+      "width": "480px",
+      "sections": [
+        { "name": "header", "bg": "navy gradient", "content": ["title", "status badge", "close button"] },
+        { "name": "tabs", "items": ["Details", "Audit", "Docs", "Log", "Comments"] },
+        { "name": "body", "scroll": true, "padding": "20px 24px" },
+        { "name": "footer", "actions": ["Edit", "Reassign", "Mark Complete", "Export"] }
+      ]
+    },
+    "admin_users": {
+      "pageHeader": { "title": "User Management", "actions": ["InviteUser"] },
+      "layout": "filter bar + table + invite modal",
+      "tableColumns": ["Name", "Email", "Role", "Department", "Status", "Last Login", "Actions"]
+    },
+    "admin_settings": {
+      "layout": "two-column on desktop: settings nav left 240px, content right",
+      "mobile": "stacked sections with accordion"
+    },
+    "audit_log": {
+      "pageHeader": { "title": "Audit Trail" },
+      "filters": ["DateRange", "User", "Action Type", "Entity"],
+      "table": "virtualized or paginated log table"
+    },
+    "ai_chat": {
+      "layout": "split: chat history left 320px (collapsible), main chat center, context panel optional right",
+      "mobile": "full screen chat with history drawer"
+    },
+    "onboarding_wizard": {
+      "layout": "centered stepper max-width 720px",
+      "steps": ["Org Profile", "Departments", "Import Compliances", "Invite Team", "AI Library"],
+      "footer": "Back + Continue sticky bottom"
+    },
+    "landing_marketing": {
+      "reference": "specs/compliancetrack_landing.html",
+      "sections": ["Hero", "Features", "Social Proof", "Pricing CTA", "Footer"],
+      "maxContentWidth": "1200px"
+    }
+  },
+  "navigation": {
+    "primarySidebar": {
+      "sections": [
+        { "label": "Overview", "items": ["Dashboard", "Pendency View"] },
+        { "label": "Compliance", "items": ["Register", "Audit Points", "Documents"] },
+        { "label": "Admin", "items": ["Users", "Departments", "Settings", "Audit Log"] },
+        { "label": "Tools", "items": ["AI Assistant", "Exports", "Integrations"] }
+      ],
+      "badgeRules": { "Pendency View": "overdue count red", "Documents": "pending amber" }
+    },
+    "topNav": {
+      "left": ["Logo", "OrgSwitcher"],
+      "right": ["Notifications", "QuickAdd", "UserAvatarMenu"]
+    }
+  }
+}
