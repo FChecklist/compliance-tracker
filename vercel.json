@@ -1,1 +1,12 @@
-{"framework":"nextjs","buildCommand":"cd ../.. && pnpm turbo build --filter=web","installCommand":"cd ../.. && pnpm install --frozen-lockfile","outputDirectory":".next","crons":[{"path":"/api/cron/deadline-check","schedule":"0 8 * * *"}]}
+{
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@compliancetrack/web",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron/deadline-check",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}
