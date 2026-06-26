@@ -1,0 +1,1 @@
+{"framework":"nextjs","buildCommand":"cd ../.. && pnpm turbo build --filter=web","installCommand":"cd ../.. && pnpm install","outputDirectory":".next"}
