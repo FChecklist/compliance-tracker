@@ -1,0 +1,81 @@
+# SENTINEL Guardian Configuration
+# Sentinel is the supreme guardian. It overrides all agents including BOSS.
+# Version: 1.0.0
+
+sentinel:
+  id: "SENTINEL"
+  version: "1.0.0"
+  role: "Supreme Guardian and Quality Enforcer"
+  authority: "Overrides all agents including BOSS. Can halt any task at any lifecycle stage."
+
+scope:
+  repositories:
+    - "FChecklist/compliance-tracker"
+    - "FChecklist/meettrack-v2"
+    - "FChecklist/veda-advisors"
+
+validation_rules:
+  code_quality:
+    - { id: SQ-001, rule: "No TypeScript any type in production code", severity: warning, auto_block: false }
+    - { id: SQ-002, rule: "No console.log in production code", severity: warning, auto_block: false }
+    - { id: SQ-003, rule: "No unused imports", severity: error, auto_block: false }
+    - { id: SQ-004, rule: "No business logic in UI components", severity: error, auto_block: true }
+
+  architecture:
+    - { id: AR-001, rule: "No direct database access from presentation layer", severity: critical, auto_block: true }
+    - { id: AR-002, rule: "No circular dependencies between modules", severity: critical, auto_block: true }
+    - { id: AR-003, rule: "Module boundaries must be respected as defined in registry/ARTIFACTS.yaml", severity: error, auto_block: true }
+    - { id: AR-004, rule: "No breaking public API changes without ADR and migration plan", severity: critical, auto_block: true }
+    - { id: AR-005, rule: "No duplicate implementations of the same business logic", severity: error, auto_block: true }
+
+  security:
+    - { id: SE-001, rule: "No secrets API keys tokens or passwords in source code", severity: critical, auto_block: true }
+    - { id: SE-002, rule: "All authenticated routes must verify session", severity: critical, auto_block: true }
+    - { id: SE-003, rule: "All user input must be validated at system boundary", severity: critical, auto_block: true }
+    - { id: SE-004, rule: "No SQL string concatenation - use parameterized queries", severity: critical, auto_block: true }
+    - { id: SE-005, rule: "No plaintext password storage", severity: critical, auto_block: true }
+    - { id: SE-006, rule: "No sensitive data in logs", severity: critical, auto_block: true }
+    - { id: SE-007, rule: "CSRF protection on all state-mutating endpoints", severity: critical, auto_block: true }
+
+  testing:
+    - { id: TE-001, rule: "Coverage must not drop below 90%", severity: error, auto_block: true }
+    - { id: TE-002, rule: "Every acceptance criterion must have a corresponding test", severity: error, auto_block: true }
+    - { id: TE-003, rule: "Every fraud scenario must have a corresponding test", severity: error, auto_block: true }
+
+  documentation:
+    - { id: DO-001, rule: "CHANGELOG.md must be updated with every meaningful change", severity: warning, auto_block: false }
+    - { id: DO-002, rule: "SENTINEL.md must exist in repository root", severity: error, auto_block: true }
+    - { id: DO-003, rule: "ai-os/OS.yaml must exist in repository", severity: error, auto_block: true }
+    - { id: DO-004, rule: "New modules must have a spec in ai-os/specs/modules/", severity: error, auto_block: false }
+    - { id: DO-005, rule: "New APIs must be registered in ai-os/registry/ARTIFACTS.yaml", severity: error, auto_block: false }
+
+  deployment:
+    - { id: DE-001, rule: "No direct deployment to production without human approval", severity: critical, auto_block: true }
+    - { id: DE-002, rule: "All CI checks must pass before deployment", severity: critical, auto_block: true }
+    - { id: DE-003, rule: "Database migrations in production require explicit human approval", severity: critical, auto_block: true }
+
+  agent_behaviour:
+    - { id: AG-001, rule: "Every agent must register in ai-os/boss/ROSTER.yaml before working", severity: error, auto_block: true }
+    - { id: AG-002, rule: "No agent starts a task that already exists in BOARD.yaml", severity: critical, auto_block: true }
+    - { id: AG-003, rule: "Agents must follow lifecycle stages in order", severity: error, auto_block: true }
+    - { id: AG-004, rule: "If same failure repeats more than 3 times halt and escalate", severity: error, auto_block: true }
+    - { id: AG-005, rule: "No agent invents APIs tables or packages not in registry", severity: critical, auto_block: true }
+
+human_approval_required:
+  - "Production deployments"
+  - "Database schema migrations in production"
+  - "Changes to authentication or authorization logic"
+  - "Deletion of any data or files"
+  - "Architecture rewrites"
+  - "Breaking API changes"
+  - "Security configuration changes"
+  - "CI/CD pipeline modifications"
+
+escalation_path:
+  level_1: "Agent self-corrects"
+  level_2: "BOSS arbitrates"
+  level_3: "SENTINEL halts"
+  level_4: "Human required"
+
+violation_log: "ai-os/sentinel/VIOLATIONS.yaml"
+health_report: "ai-os/sentinel/HEALTH.yaml"
