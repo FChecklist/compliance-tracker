@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@compliancetrack/types": "*",
-    "ky": "^1.7.0",
-    "zod": "^3.24.0"
+    "ky": "^2.0.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "typescript": "^5.7.0"
