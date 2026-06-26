@@ -44,11 +44,11 @@ export const ComplianceSchema = z.object({
 });
 
 export const CreateComplianceSchema = ComplianceSchema.omit({
-  id: true, status: true, unique_url_slug: true, created_at: true, updated_at: true
+  id: true, status: true, unique_url_slug: true,
 });
 
 export const UpdateComplianceSchema = ComplianceSchema.partial().omit({
-  id: true, created_at: true, updated_at: true
+  id: true,
 });
 
 export const ChangeStatusSchema = z.object({
