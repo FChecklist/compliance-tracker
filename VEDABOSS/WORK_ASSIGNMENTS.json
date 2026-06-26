@@ -1,173 +1,176 @@
 {
-  "board_version": "1.0",
-  "last_updated": "2026-06-26T13:00:00Z",
-  "project_status": "initialized",
+  "board_version": "2.0",
+  "last_updated": "2026-06-26T15:00:00Z",
+  "project_status": "wave_1_active",
   "current_wave": "wave_1",
   "total_tasks": 14,
   "completed_tasks": 0,
+  "vedaboss_note": "WAVE 1 STARTED. T-D1-001 assigned to DEV_1 (VEDABOSS internal sub-agent). T-M1 assigned to PRODUCT (Perplexity). T-M2 assigned to UI_UX (VEDABOSS internal sub-agent). Claude (PROJECT) should monitor. Codex (QC) should wait for DEV_1 completion.",
+  "active_sessions": {
+    "z-ia": "VEDABOSS — Master Controller — executing + coordinating",
+    "claude": "PROJECT_AI_AGENT — Project Manager — monitoring Wave 1",
+    "codex": "QUALITY_CONTROL_AI_AGENT — QC — standby for DEV_1 review",
+    "perplexity": "PRODUCT_AI_AGENT — Product Manager — working on T-M1"
+  },
   "tasks": [
     {
       "task_id": "T-M1",
       "title": "Finalize product decisions for onboarding wizard and edge cases",
       "step": 38,
       "assigned_to": "PRODUCT_AI_AGENT",
-      "status": "pending",
+      "executed_by": "perplexity-via-github",
+      "status": "assigned",
+      "assigned_at": "2026-06-26T15:00:00Z",
       "priority": "medium",
       "depends_on_tasks": [],
-      "notes": "PRODUCT should review file_2 gaps and provide decisions"
+      "notes": "PERPLEXITY: Read specs/Compliance_Tracker_Project_Understanding_file_2.json for 7 gaps. Make decisions. Save to agents/PRODUCT_AI_AGENT/output/product_decisions.json and onboarding_wizard_spec.json. Update this file status to completed when done. Commit as [PERPLEXITY-PRODUCT]."
     },
     {
       "task_id": "T-M2",
       "title": "Create design system specification document",
       "step": 25,
       "assigned_to": "UI_UX_AI_AGENT",
-      "status": "pending",
+      "executed_by": "vedaboss-internal-subagent",
+      "status": "assigned",
+      "assigned_at": "2026-06-26T15:00:00Z",
       "priority": "high",
       "depends_on_tasks": [],
-      "notes": "Colors, typography, spacing, component specs, responsive breakpoints. Must be done before DEV_4 starts."
+      "notes": "VEDABOSS will execute via internal sub-agent. Colors, typography, spacing, component specs, responsive breakpoints."
     },
     {
       "task_id": "T-M3",
-      "title": "Review DEV_1 output \u2014 Foundation",
+      "title": "Review DEV_1 output — Foundation",
       "step": "1-9",
       "assigned_to": "QUALITY_CONTROL_AI_AGENT",
+      "executed_by": "codex-via-github",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D1-001"
-      ],
-      "notes": "Review after DEV_1 completes all foundation work"
+      "depends_on_tasks": ["T-D1-001"],
+      "notes": "CODEX: Wait until T-D1-001 status = completed. Then read agents/DEVELOPER_1_AI_AGENT/output/, review against specs, save review to agents/QUALITY_CONTROL_AI_AGENT/output/review_DEV_1.json. Update T-D1-001 qc_status. Commit as [CODEX-QC]."
     },
     {
       "task_id": "T-M4",
-      "title": "Review DEV_2 output \u2014 Platform",
+      "title": "Review DEV_2 output — Platform",
       "step": "10-15",
       "assigned_to": "QUALITY_CONTROL_AI_AGENT",
+      "executed_by": "codex-via-github",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D2-001"
-      ],
-      "notes": "Review after DEV_2 completes all platform work"
+      "depends_on_tasks": ["T-D2-001"],
+      "notes": "CODEX: Same review process for DEV_2 output."
     },
     {
       "task_id": "T-M5",
-      "title": "Review DEV_3 output \u2014 Backend Features",
+      "title": "Review DEV_3 output — Backend Features",
       "step": "16-24",
       "assigned_to": "QUALITY_CONTROL_AI_AGENT",
+      "executed_by": "codex-via-github",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D3-001"
-      ],
-      "notes": "Review after DEV_3 completes all backend features"
+      "depends_on_tasks": ["T-D3-001"],
+      "notes": "CODEX: Same review process for DEV_3 output."
     },
     {
       "task_id": "T-M6",
-      "title": "Review DEV_4 output \u2014 Web Frontend Core",
+      "title": "Review DEV_4 output — Web Frontend Core",
       "step": "25-30",
       "assigned_to": "QUALITY_CONTROL_AI_AGENT",
+      "executed_by": "codex-via-github",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D4-001"
-      ],
-      "notes": "Review after DEV_4 completes web frontend core"
+      "depends_on_tasks": ["T-D4-001"],
+      "notes": "CODEX: Same review process for DEV_4 output."
     },
     {
       "task_id": "T-M7",
-      "title": "Review DEV_5 output \u2014 Extended + Mobile + Deploy",
+      "title": "Review DEV_5 output — Extended + Mobile + Deploy",
       "step": "31-48",
       "assigned_to": "QUALITY_CONTROL_AI_AGENT",
+      "executed_by": "codex-via-github",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D5-001"
-      ],
-      "notes": "Review after DEV_5 completes all remaining work"
+      "depends_on_tasks": ["T-D5-001"],
+      "notes": "CODEX: Same review process for DEV_5 output."
     },
     {
       "task_id": "T-M8",
       "title": "Write unit tests for backend APIs",
       "step": 39,
       "assigned_to": "TESTER_1_AI_AGENT",
+      "executed_by": "vedaboss-internal-subagent",
       "status": "pending",
       "priority": "medium",
-      "depends_on_tasks": [
-        "T-M3"
-      ],
-      "notes": "After QC approves backend code"
+      "depends_on_tasks": ["T-M3"],
+      "notes": "VEDABOSS will execute via internal sub-agent after QC approves backend."
     },
     {
       "task_id": "T-M9",
       "title": "Write E2E tests for web app",
       "step": 40,
       "assigned_to": "TESTER_2_AI_AGENT",
+      "executed_by": "vedaboss-internal-subagent",
       "status": "pending",
       "priority": "medium",
-      "depends_on_tasks": [
-        "T-M6"
-      ],
-      "notes": "After QC approves frontend code"
+      "depends_on_tasks": ["T-M6"],
+      "notes": "VEDABOSS will execute via internal sub-agent after QC approves frontend."
     },
     {
       "task_id": "T-D1-001",
       "title": "Build entire foundation: monorepo + types + schemas + migrations + RLS + API client + auth utils (Steps 1-9)",
       "step": "1-9",
       "assigned_to": "DEVELOPER_1_AI_AGENT",
-      "status": "pending",
-      "priority": "critical",
+      "executed_by": "vedaboss-internal-subagent",
+      "status": "assigned",
+      "assigned_at": "2026-06-26T15:00:00Z",
+      "priority": "high",
       "depends_on_tasks": [],
-      "notes": "THE first task. Everything else depends on this. Read ai-instructions/Compliance_Tracker_AI_Instruction_Manual.json steps 1-9."
+      "files_created": [],
+      "error_log": [],
+      "notes": "VEDABOSS executing via internal sub-agent. THE first task. Everything else depends on this."
     },
     {
       "task_id": "T-D2-001",
       "title": "Build platform layer: app layout + auth routes + multi-tenancy + RBAC + users + departments (Steps 10-15)",
       "step": "10-15",
       "assigned_to": "DEVELOPER_2_AI_AGENT",
+      "executed_by": "vedaboss-internal-subagent",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D1-001"
-      ],
-      "notes": "Wait for DEV_1 to complete. Read steps 10-15 from the AI manual."
+      "depends_on_tasks": ["T-D1-001"],
+      "notes": "Wait for T-D1-001 approved. VEDABOSS will execute."
     },
     {
       "task_id": "T-D3-001",
       "title": "Build all backend feature APIs: compliance engine + audit + docs + notifications + AI + MCP + sales + email (Steps 16-24)",
       "step": "16-24",
       "assigned_to": "DEVELOPER_3_AI_AGENT",
+      "executed_by": "vedaboss-internal-subagent",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D2-001"
-      ],
-      "notes": "Wait for DEV_2 (auth + RBAC must exist). Read steps 16-24."
+      "depends_on_tasks": ["T-D2-001"],
+      "notes": "Wait for T-D2-001 approved. VEDABOSS will execute."
     },
     {
       "task_id": "T-D4-001",
       "title": "Build web frontend core: shared UI + login + app shell + dashboard + compliance table + detail panel (Steps 25-30)",
       "step": "25-30",
       "assigned_to": "DEVELOPER_4_AI_AGENT",
+      "executed_by": "vedaboss-internal-subagent",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D1-001",
-        "T-M2"
-      ],
-      "notes": "Needs shared types from DEV_1 and design specs from UI_UX. Read steps 25-30."
+      "depends_on_tasks": ["T-D1-001", "T-M2"],
+      "notes": "Wait for T-D1-001 AND T-M2 approved. VEDABOSS will execute."
     },
     {
       "task_id": "T-D5-001",
       "title": "Build remaining: admin + audit + AI chat + mobile + exports + integrations + onboarding + tests + deploy (Steps 31-48)",
       "step": "31-48",
       "assigned_to": "DEVELOPER_5_AI_AGENT",
+      "executed_by": "vedaboss-internal-subagent",
       "status": "pending",
       "priority": "high",
-      "depends_on_tasks": [
-        "T-D4-001"
-      ],
-      "notes": "Needs app shell and core pages from DEV_4. Read steps 31-48."
+      "depends_on_tasks": ["T-D4-001"],
+      "notes": "Wait for T-D4-001 approved. VEDABOSS will execute."
     }
   ]
 }
