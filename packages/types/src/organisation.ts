@@ -22,5 +22,5 @@ export const OrganisationSchema = z.object({
   settings: z.record(z.unknown()).default({}),
 });
 
-export const CreateOrganisationSchema = OrganisationSchema.omit({ id: true, created_at: true, updated_at: true });
-export const UpdateOrganisationSchema = OrganisationSchema.partial().omit({ id: true, created_at: true, updated_at: true });
+export const CreateOrganisationSchema = OrganisationSchema.omit({ id: true });
+export const UpdateOrganisationSchema = OrganisationSchema.partial().omit({ id: true });
