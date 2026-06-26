@@ -1,44 +1,184 @@
 {
+  "agent_system": "VEDABOSS Agentic Workflow - ComplianceTrack",
   "manual_for": "DEVELOPER_5_AI_AGENT",
-  "agent_name": "DEV_5 (Full-Stack Engineer \u2014 Extended)",
-  "role": "Full-Stack Engineer \u2014 Admin panel, AI chat, mobile app, integrations, tests, deployment",
+  "agent_name": "DEV_5 - Full-Stack Engineer (Web Extended + Mobile + Deploy)",
+  "role": "Full-Stack Engineer (Web Extended + Mobile + Deploy)",
+  "type": "developer",
   "runs_on": [
     "claude-code",
     "chatgpt-codex",
-    "z-ai"
+    "z-ai",
+    "gemini",
+    "any-ai-tool"
   ],
   "github_repo": "https://github.com/FChecklist/compliance-tracker",
-  "version": "1.0",
-  "FIRST_THING_YOU_DO": {
-    "step_1": "Read VEDABOSS/WORK_ASSIGNMENTS.json from the GitHub repo",
-    "step_2": "Find tasks where assigned_to = 'DEVELOPER_5_AI_AGENT' AND status = 'assigned'",
-    "step_3": "If no assigned task found: read your task_ids list, check if any have status='pending' and all dependencies met. If yes, you may self-assign. If no: STOP and report to user that no work is available.",
-    "step_4": "Read the relevant spec files listed in your task",
-    "step_5": "Do the work. Save ALL output files to agents/<YOUR_DIR>/output/",
-    "step_6": "Update VEDABOSS/WORK_ASSIGNMENTS.json: set your task status='completed', fill in files_created list",
-    "step_7": "STOP. Do NOT start another task. Wait for VEDABOSS/QC to review."
+  "version": "2.0",
+  "PROJECT_CONTEXT": {
+    "project_name": "ComplianceTrack",
+    "tagline": "One Portal. One Truth.",
+    "description": "Multi-tenant SaaS compliance management platform. 18 modules, 69 API endpoints, 23+ DB tables, web + mobile.",
+    "tech_stack": {
+      "monorepo": "Turborepo with npm workspaces",
+      "web": "Next.js 15 (App Router) on Vercel",
+      "mobile": "Expo Router (React Native) with Expo EAS",
+      "language": "TypeScript (strict mode)",
+      "database": "Supabase (PostgreSQL 15)",
+      "orm": "Drizzle ORM",
+      "auth": "Supabase Auth + custom passcode/magic-link layer",
+      "ui": "shadcn/ui + Tailwind CSS 4",
+      "state_web": "Zustand (client) + TanStack Query (server)",
+      "state_mobile": "Zustand + TanStack Query",
+      "charts": "Recharts",
+      "forms": "React Hook Form + Zod",
+      "tables": "TanStack Table v8",
+      "rich_text": "Tiptap",
+      "ai": "Anthropic Claude API via Vercel AI SDK",
+      "email": "Resend (transactional)",
+      "whatsapp": "Meta WhatsApp Business API",
+      "storage": "Supabase Storage",
+      "realtime": "Supabase Realtime",
+      "background_jobs": "Vercel Cron + Inngest",
+      "ci_cd": "GitHub Actions -> Vercel",
+      "monitoring": "Sentry + Vercel Analytics",
+      "testing": "Vitest + Playwright"
+    },
+    "monorepo_structure": {
+      "compliance-tracker/": {
+        "apps/": {
+          "web/": "Next.js 15 app (Vercel-deployed)",
+          "mobile/": "Expo Router app (Expo EAS)"
+        },
+        "packages/": {
+          "db/": "Drizzle ORM schemas, migrations, shared DB utilities",
+          "types/": "Shared TypeScript types/interfaces",
+          "api-client/": "Shared HTTP client with endpoint functions",
+          "ui/": "Shared shadcn/ui components",
+          "config/": "Shared constants, env validation"
+        },
+        "supabase/": {
+          "migrations/": "SQL migration files",
+          "seed.sql": "Sample data"
+        }
+      }
+    }
+  },
+  "HOW_TO_START_THIS_SESSION": {
+    "step_1": "Clone or ensure you have access to the GitHub repo: https://github.com/FChecklist/compliance-tracker",
+    "step_2": "Read VEDABOSS/WORK_ASSIGNMENTS.json to find your assigned task",
+    "step_3": "Read the relevant spec files (listed in SPEC_FILES section below)",
+    "step_4": "Read the 48-step AI instruction manual for your specific steps",
+    "step_5": "Do the work, save to your output/ directory, update WORK_ASSIGNMENTS.json, commit and push"
   },
   "YOUR_TASK_IDS": [
     "T-D5-001"
   ],
   "WHERE_TO_SAVE_WORK": "agents/DEVELOPER_5_AI_AGENT/output/",
-  "CRITICAL_RULES": [
-    "NEVER start work without checking WORK_ASSIGNMENTS.json first",
-    "NEVER modify files outside your output/ directory",
-    "NEVER assign tasks to other agents \u2014 only VEDABOSS does that",
-    "After completing work, update WORK_ASSIGNMENTS.json and commit to git",
-    "If you get stuck after 3 tries, mark the task with error_log and STOP",
-    "Always read the full spec files before coding \u2014 they contain exact table schemas, API endpoints, and field definitions"
+  "DEPENDS_ON": "DEVELOPER_4_AI_AGENT must complete T-D4-001 (app shell + core pages)",
+  "DEPENDENCY_CHECK": "Before starting, check WORK_ASSIGNMENTS.json: T-D4-001 must have status='approved'.",
+  "YOUR_BUILD_STEPS": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48
   ],
+  "YOUR_PHASE": "Web Extended + Mobile + Integration + Testing + Deploy",
+  "YOUR_WAVE": "Wave 4",
   "SPEC_FILES": {
-    "full_project_spec": "specs/Compliance_Tracker_Project_Understanding_file_1.json (180KB \u2014 read the relevant step sections)",
-    "gap_analysis": "specs/Compliance_Tracker_Project_Understanding_file_2.json (7.5KB)",
-    "48_step_build_manual": "ai-instructions/Compliance_Tracker_AI_Instruction_Manual.json (138KB \u2014 YOUR PRIMARY REFERENCE)",
-    "tech_spec_doc": "docs/ComplianceTrack_TechSpec_Complete.docx (81KB)",
-    "landing_page_ref": "specs/compliancetrack_landing.html",
-    "app_ui_ref": "specs/compliance_tracker_v3.html"
+    "full_project_spec": "specs/Compliance_Tracker_Project_Understanding_file_1.json (180KB - 18 modules, all table schemas, 69 APIs, UI specs)",
+    "gap_analysis": "specs/Compliance_Tracker_Project_Understanding_file_2.json (7.5KB - 7 gaps to address)",
+    "48_step_build_manual": "ai-instructions/Compliance_Tracker_AI_Instruction_Manual.json (138KB - YOUR PRIMARY REFERENCE for exact steps)",
+    "progress_tracker": "ai-instructions/compliance_tracker_progress.json (track step completion)",
+    "tech_spec_doc": "docs/ComplianceTrack_TechSpec_Complete.docx (81KB - narrative tech spec)",
+    "landing_page_ref": "specs/compliancetrack_landing.html (marketing page design)",
+    "app_ui_ref": "specs/compliance_tracker_v3.html (app prototype with all screens)"
   },
-  "YOUR_STEPS": "Steps 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48",
-  "DEPENDENCY_WARNING": "You CANNOT start until DEVELOPER_4_AI_AGENT has completed T-D4-001 (app shell + core pages). You extend their work.",
-  "IMPORTANT": "This is the largest task (18 steps). Work methodically through them in order. Steps 39-40 (tests) can be done in parallel with other steps if backend APIs exist."
+  "COMMUNICATION_PROTOCOL": {
+    "you_are_part_of": "A 12-agent virtual software company coordinated by VEDABOSS",
+    "all_communication_via": "GitHub repository files only",
+    "your_workflow": [
+      "1. Read VEDABOSS/WORK_ASSIGNMENTS.json from the repo",
+      "2. Find tasks where assigned_to = '<YOUR_AGENT_NAME>' AND status = 'assigned'",
+      "3. If no assigned task: check YOUR_TASK_IDS for 'pending' tasks with all dependencies met. If found, self-assign. If not: STOP and tell user no work available.",
+      "4. Read the relevant spec files from the repo (listed below)",
+      "5. Do the work carefully and methodically",
+      "6. Save ALL output to your output/ directory: agents/<YOUR_DIR>/output/",
+      "7. Update VEDABOSS/WORK_ASSIGNMENTS.json: set status='completed', fill files_created",
+      "8. Git commit and push your changes",
+      "9. STOP. Do NOT start another task. Wait for VEDABOSS/QC to review."
+    ],
+    "CRITICAL_RULES": [
+      "NEVER start work without checking WORK_ASSIGNMENTS.json first",
+      "NEVER modify files outside your output/ directory",
+      "NEVER assign tasks to other agents - only VEDABOSS does that",
+      "After completing work, update WORK_ASSIGNMENTS.json and commit to git",
+      "If stuck after 3 tries, mark task with error_log and STOP",
+      "Always read the full spec files before coding - they contain exact table schemas, API endpoints, and field definitions",
+      "If a file exceeds 500 lines, split it into smaller modules",
+      "Use TypeScript strict mode - no 'any' types allowed"
+    ]
+  },
+  "OUTPUT_STRUCTURE": {
+    "description": "This is the LARGEST task (18 steps). Work through them in strict order.",
+    "files": [
+      "apps/web/app/(dashboard)/admin/layout.tsx",
+      "apps/web/app/(dashboard)/admin/users/page.tsx",
+      "apps/web/app/(dashboard)/admin/org-settings/page.tsx",
+      "apps/web/app/(dashboard)/admin/roles/page.tsx",
+      "apps/web/app/(dashboard)/admin/departments/page.tsx",
+      "apps/web/app/(dashboard)/audit-log/page.tsx",
+      "apps/web/app/(dashboard)/ai-chat/page.tsx",
+      "apps/mobile/app/_layout.tsx",
+      "apps/mobile/app/(auth)/login.tsx",
+      "apps/mobile/app/(tabs)/_layout.tsx",
+      "apps/mobile/app/(tabs)/index.tsx (mobile dashboard)",
+      "apps/mobile/app/(tabs)/compliance.tsx (compliance list)",
+      "apps/mobile/app/(tabs)/notifications.tsx",
+      "apps/mobile/app/compliance/[id].tsx (detail view)",
+      "apps/mobile/app/compliance/create.tsx (quick add)",
+      "apps/mobile/app/documents/camera.tsx (document capture)",
+      "apps/web/lib/export/csv.ts",
+      "apps/web/lib/export/excel.ts",
+      "apps/web/lib/export/pdf.ts",
+      "apps/web/app/api/integrations/whatsapp/route.ts (stub)",
+      "apps/web/app/api/integrations/google-drive/route.ts (stub)",
+      "apps/web/app/(dashboard)/onboarding/page.tsx",
+      "apps/web/app/(marketing)/page.tsx (landing page)",
+      "apps/web/app/(marketing)/layout.tsx",
+      "vercel.json (final deployment config)",
+      ".github/workflows/ci-cd.yml",
+      "tsconfig.base.json + eslint.config.js + .prettierrc",
+      "apps/web/components/error-boundary.tsx",
+      "apps/web/components/loading-skeleton.tsx",
+      "apps/web/app/compliance/[slug]/page.tsx (unique URL routes)",
+      "apps/web/lib/realtime.ts (Supabase Realtime subscriptions)",
+      "apps/web/stores/compliance-store.ts (Zustand)",
+      "apps/web/stores/notification-store.ts (Zustand)",
+      "__tests__/api/ (Vitest unit tests)",
+      "__tests__/e2e/ (Playwright E2E tests)"
+    ]
+  },
+  "IMPORTANT_NOTES": [
+    "This is the LARGEST task (18 steps). Work through them strictly in order.",
+    "For the mobile app: Use Expo Router. Share types from packages/types. Build a native-feeling mobile UI.",
+    "Export engine: Use SheetJS for Excel, jsPDF for PDF, native for CSV.",
+    "WhatsApp and Google Drive are STUBS only - implement the API route structure with TODO bodies.",
+    "Landing page: Reference specs/compliancetrack_landing.html for design. Build with Next.js.",
+    "CI/CD: GitHub Actions that runs tests, lint, build on every push. Deploys to Vercel on main branch.",
+    "Steps 39-40 (tests) can be done after other steps if backend APIs exist.",
+    "For unique URLs: Generate slug from compliance title, store in compliance table, create dynamic route."
+  ]
 }
