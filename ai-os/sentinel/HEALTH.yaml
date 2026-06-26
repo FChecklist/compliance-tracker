@@ -1,0 +1,15 @@
+# Repository Health State
+version: "1.0.0"
+last_updated: "2026-06-26T00:00:00Z"
+overall_status: "initializing"
+checks:
+  build: { status: unknown }
+  lint: { status: unknown }
+  typecheck: { status: unknown }
+  unit_tests: { status: unknown }
+  e2e_tests: { status: unknown }
+  coverage: { status: unknown, value: null, target: "90%" }
+  security_scan: { status: unknown }
+open_violations: 0
+technical_debt: { items: [], total_estimated_hours: 0 }
+open_risks: { items: [] }
