@@ -1,0 +1,69 @@
+﻿id: SPEC-MOD-AUTH
+module: MOD-AUTH
+boss: VEDABOSS
+status: DRAFT
+priority: HIGH
+created: "2026-06-26"
+
+business:
+  objective: "Provide JWT-based authentication with RBAC (admin/manager/employee), org-scoped access, and full audit logging"
+  stakeholders: [admins, managers, employees, auditors]
+
+requirements:
+  functional:
+    - "Email/password login with JWT access and refresh tokens"
+    - "Roles: admin (full org access), manager (team access), employee (own data)"
+    - "Organisation-scoped access: users can only access data within their org"
+    - "Invite members to org via email"
+    - "Audit log every auth event (login, logout, failed attempt, role change)"
+    - "Session management with refresh token rotation"
+  technical:
+    - "JWT signed with RS256, 15min expiry"
+    - "Refresh tokens stored in httpOnly cookies, rotated on use"
+    - "RBAC middleware validates role on every protected route"
+    - "Supabase Auth for identity management"
+  non_functional:
+    performance: "Token validation <10ms"
+    security: "Tokens in httpOnly cookies, PKCE for OAuth"
+
+security:
+  requirements:
+    - "Failed login attempts locked after 5 tries for 15 minutes"
+    - "All auth events logged immutably to audit table"
+    - "Role changes require admin permission and trigger audit log"
+  fraud_scenarios:
+    - "Privilege escalation: role validated server-side on every request"
+    - "Org data leak: org_id always checked alongside user_id"
+
+acceptance_criteria:
+  - given: "An employee user"
+    when: "They attempt to access admin routes"
+    then: "They receive 403 Forbidden"
+  - given: "Any auth event (login, logout, role change)"
+    when: "It occurs"
+    then: "An immutable audit log entry is created"
+
+tests:
+  unit:
+    - "RBAC middleware rejects wrong role"
+    - "JWT validation rejects expired tokens"
+  integration:
+    - "Login creates audit log entry"
+    - "Org-scoped queries only return data for user org"
+  e2e:
+    - "Full login and access protected dashboard"
+    - "Role-based UI differences shown correctly"
+
+sentinel_validation_rules:
+  - rule: "Every API route must validate both session and org_id"
+    severity: critical
+  - rule: "Role changes must create audit log entry"
+    severity: error
+
+success_metrics:
+  - metric: "Auth latency p95"
+    target: "<100ms"
+  - metric: "Zero privilege escalation incidents"
+    target: "0"
+
+rollback_strategy: "Revert JWT config; existing sessions invalidated; users re-login"
