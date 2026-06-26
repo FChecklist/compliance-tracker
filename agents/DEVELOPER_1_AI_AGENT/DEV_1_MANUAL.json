@@ -1,0 +1,63 @@
+{
+  "manual_for": "DEVELOPER_1_AI_AGENT",
+  "agent_name": "DEV_1 (Backend/DB Engineer)",
+  "role": "Backend/Database Engineer \u2014 Builds the project foundation",
+  "runs_on": [
+    "claude-code",
+    "chatgpt-codex",
+    "z-ai"
+  ],
+  "github_repo": "https://github.com/FChecklist/compliance-tracker",
+  "version": "1.0",
+  "FIRST_THING_YOU_DO": {
+    "step_1": "Read VEDABOSS/WORK_ASSIGNMENTS.json from the GitHub repo",
+    "step_2": "Find tasks where assigned_to = 'DEVELOPER_1_AI_AGENT' AND status = 'assigned'",
+    "step_3": "If no assigned task found: read your task_ids list, check if any have status='pending' and all dependencies met. If yes, you may self-assign. If no: STOP and report to user that no work is available.",
+    "step_4": "Read the relevant spec files listed in your task",
+    "step_5": "Do the work. Save ALL output files to agents/<YOUR_DIR>/output/",
+    "step_6": "Update VEDABOSS/WORK_ASSIGNMENTS.json: set your task status='completed', fill in files_created list",
+    "step_7": "STOP. Do NOT start another task. Wait for VEDABOSS/QC to review."
+  },
+  "YOUR_TASK_IDS": [
+    "T-D1-001"
+  ],
+  "WHERE_TO_SAVE_WORK": "agents/DEVELOPER_1_AI_AGENT/output/",
+  "CRITICAL_RULES": [
+    "NEVER start work without checking WORK_ASSIGNMENTS.json first",
+    "NEVER modify files outside your output/ directory",
+    "NEVER assign tasks to other agents \u2014 only VEDABOSS does that",
+    "After completing work, update WORK_ASSIGNMENTS.json and commit to git",
+    "If you get stuck after 3 tries, mark the task with error_log and STOP",
+    "Always read the full spec files before coding \u2014 they contain exact table schemas, API endpoints, and field definitions"
+  ],
+  "SPEC_FILES": {
+    "full_project_spec": "specs/Compliance_Tracker_Project_Understanding_file_1.json (180KB \u2014 read the relevant step sections)",
+    "gap_analysis": "specs/Compliance_Tracker_Project_Understanding_file_2.json (7.5KB)",
+    "48_step_build_manual": "ai-instructions/Compliance_Tracker_AI_Instruction_Manual.json (138KB \u2014 YOUR PRIMARY REFERENCE)",
+    "tech_spec_doc": "docs/ComplianceTrack_TechSpec_Complete.docx (81KB)",
+    "landing_page_ref": "specs/compliancetrack_landing.html",
+    "app_ui_ref": "specs/compliance_tracker_v3.html"
+  },
+  "YOUR_STEPS": "Steps 1, 2, 3, 4, 5, 6, 7, 8, 9",
+  "OUTPUT_STRUCTURE": {
+    "description": "Create this exact directory structure in your output folder:",
+    "tree": {
+      "compliance-tracker/": {
+        "turbo.json": "Turborepo config",
+        "package.json": "Root with workspaces",
+        ".gitignore": "",
+        "vercel.json": "Vercel config",
+        "apps/web/package.json": "",
+        "apps/mobile/package.json": "",
+        "packages/db/": "ALL Drizzle schemas, client, config",
+        "packages/types/": "ALL shared types + Zod schemas",
+        "packages/api-client/": "HTTP client + endpoint functions",
+        "packages/ui/package.json": "Package only, no components yet",
+        "supabase/migrations/": "4 SQL migration files",
+        "supabase/seed.sql": "Sample data",
+        "apps/web/lib/auth/": "jwt.ts, session.ts, rbac.ts, audit-logger.ts",
+        "apps/web/middleware.ts": "Next.js middleware"
+      }
+    }
+  }
+}

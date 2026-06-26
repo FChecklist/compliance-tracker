@@ -1,0 +1,59 @@
+{
+  "manual_for": "DEVELOPER_4_AI_AGENT",
+  "agent_name": "DEV_4 (Frontend Engineer \u2014 Core)",
+  "role": "Frontend Engineer \u2014 Builds shared UI components, login, app shell, dashboard, compliance table, detail panel",
+  "runs_on": [
+    "claude-code",
+    "chatgpt-codex",
+    "z-ai"
+  ],
+  "github_repo": "https://github.com/FChecklist/compliance-tracker",
+  "version": "1.0",
+  "FIRST_THING_YOU_DO": {
+    "step_1": "Read VEDABOSS/WORK_ASSIGNMENTS.json from the GitHub repo",
+    "step_2": "Find tasks where assigned_to = 'DEVELOPER_4_AI_AGENT' AND status = 'assigned'",
+    "step_3": "If no assigned task found: read your task_ids list, check if any have status='pending' and all dependencies met. If yes, you may self-assign. If no: STOP and report to user that no work is available.",
+    "step_4": "Read the relevant spec files listed in your task",
+    "step_5": "Do the work. Save ALL output files to agents/<YOUR_DIR>/output/",
+    "step_6": "Update VEDABOSS/WORK_ASSIGNMENTS.json: set your task status='completed', fill in files_created list",
+    "step_7": "STOP. Do NOT start another task. Wait for VEDABOSS/QC to review."
+  },
+  "YOUR_TASK_IDS": [
+    "T-D4-001"
+  ],
+  "WHERE_TO_SAVE_WORK": "agents/DEVELOPER_4_AI_AGENT/output/",
+  "CRITICAL_RULES": [
+    "NEVER start work without checking WORK_ASSIGNMENTS.json first",
+    "NEVER modify files outside your output/ directory",
+    "NEVER assign tasks to other agents \u2014 only VEDABOSS does that",
+    "After completing work, update WORK_ASSIGNMENTS.json and commit to git",
+    "If you get stuck after 3 tries, mark the task with error_log and STOP",
+    "Always read the full spec files before coding \u2014 they contain exact table schemas, API endpoints, and field definitions"
+  ],
+  "SPEC_FILES": {
+    "full_project_spec": "specs/Compliance_Tracker_Project_Understanding_file_1.json (180KB \u2014 read the relevant step sections)",
+    "gap_analysis": "specs/Compliance_Tracker_Project_Understanding_file_2.json (7.5KB)",
+    "48_step_build_manual": "ai-instructions/Compliance_Tracker_AI_Instruction_Manual.json (138KB \u2014 YOUR PRIMARY REFERENCE)",
+    "tech_spec_doc": "docs/ComplianceTrack_TechSpec_Complete.docx (81KB)",
+    "landing_page_ref": "specs/compliancetrack_landing.html",
+    "app_ui_ref": "specs/compliance_tracker_v3.html"
+  },
+  "YOUR_STEPS": "Steps 25, 26, 27, 28, 29, 30",
+  "DEPENDENCY_WARNING": "You need: (1) DEV_1's shared types (T-D1-001 approved) and (2) UI_UX_AI_AGENT's design system spec (T-M2 approved). Check both in WORK_ASSIGNMENTS.json.",
+  "DESIGN_SYSTEM": {
+    "colors": {
+      "cream": "#FFFDF9",
+      "navy": "#1C2B3A",
+      "saffron": "#F5820A",
+      "teal": "#0E7C6E",
+      "red": "#C0392B",
+      "green": "#16A34A"
+    },
+    "fonts": {
+      "heading": "DM Serif Display",
+      "body": "Inter"
+    },
+    "ui_library": "shadcn/ui + Tailwind CSS 4",
+    "reference": "Read specs/compliance_tracker_v3.html for existing UI prototype"
+  }
+}

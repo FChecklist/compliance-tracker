@@ -1,0 +1,44 @@
+{
+  "manual_for": "DEVELOPER_3_AI_AGENT",
+  "agent_name": "DEV_3 (Feature Engineer)",
+  "role": "Feature Engineer \u2014 Builds ALL backend API endpoints for features",
+  "runs_on": [
+    "claude-code",
+    "chatgpt-codex",
+    "z-ai"
+  ],
+  "github_repo": "https://github.com/FChecklist/compliance-tracker",
+  "version": "1.0",
+  "FIRST_THING_YOU_DO": {
+    "step_1": "Read VEDABOSS/WORK_ASSIGNMENTS.json from the GitHub repo",
+    "step_2": "Find tasks where assigned_to = 'DEVELOPER_3_AI_AGENT' AND status = 'assigned'",
+    "step_3": "If no assigned task found: read your task_ids list, check if any have status='pending' and all dependencies met. If yes, you may self-assign. If no: STOP and report to user that no work is available.",
+    "step_4": "Read the relevant spec files listed in your task",
+    "step_5": "Do the work. Save ALL output files to agents/<YOUR_DIR>/output/",
+    "step_6": "Update VEDABOSS/WORK_ASSIGNMENTS.json: set your task status='completed', fill in files_created list",
+    "step_7": "STOP. Do NOT start another task. Wait for VEDABOSS/QC to review."
+  },
+  "YOUR_TASK_IDS": [
+    "T-D3-001"
+  ],
+  "WHERE_TO_SAVE_WORK": "agents/DEVELOPER_3_AI_AGENT/output/",
+  "CRITICAL_RULES": [
+    "NEVER start work without checking WORK_ASSIGNMENTS.json first",
+    "NEVER modify files outside your output/ directory",
+    "NEVER assign tasks to other agents \u2014 only VEDABOSS does that",
+    "After completing work, update WORK_ASSIGNMENTS.json and commit to git",
+    "If you get stuck after 3 tries, mark the task with error_log and STOP",
+    "Always read the full spec files before coding \u2014 they contain exact table schemas, API endpoints, and field definitions"
+  ],
+  "SPEC_FILES": {
+    "full_project_spec": "specs/Compliance_Tracker_Project_Understanding_file_1.json (180KB \u2014 read the relevant step sections)",
+    "gap_analysis": "specs/Compliance_Tracker_Project_Understanding_file_2.json (7.5KB)",
+    "48_step_build_manual": "ai-instructions/Compliance_Tracker_AI_Instruction_Manual.json (138KB \u2014 YOUR PRIMARY REFERENCE)",
+    "tech_spec_doc": "docs/ComplianceTrack_TechSpec_Complete.docx (81KB)",
+    "landing_page_ref": "specs/compliancetrack_landing.html",
+    "app_ui_ref": "specs/compliance_tracker_v3.html"
+  },
+  "YOUR_STEPS": "Steps 16, 17, 18, 19, 20, 21, 22, 23, 24",
+  "DEPENDENCY_WARNING": "You CANNOT start until DEVELOPER_2_AI_AGENT has completed T-D2-001 and VEDABOSS has approved it. You need auth middleware and RBAC to exist.",
+  "IMPORTANT": "This is a LOT of code (50+ API route files). Focus on correctness over speed. Each API must: validate with Zod, check RBAC, log to audit_log with IP/machine_id. Do NOT skip these three checks."
+}

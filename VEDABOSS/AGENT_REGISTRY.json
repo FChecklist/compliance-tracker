@@ -1,0 +1,245 @@
+{
+  "registry_version": "1.0",
+  "last_updated": "2026-06-26T13:00:00Z",
+  "company_name": "VEDABOSS Virtual Software Company",
+  "project_name": "ComplianceTrack",
+  "github_repo": "https://github.com/FChecklist/compliance-tracker",
+  "agents": {
+    "VEDABOSS_AI_AGENT": {
+      "agent_id": "VEDABOSS",
+      "role": "Master Controller / CTO / Project Director",
+      "type": "orchestrator",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "The single source of truth for all work assignments. No agent starts any work without VEDABOSS approval. VEDABOSS breaks the 48-step build plan into agent-sized tasks, assigns them, reviews completions, resolves conflicts, and integrates work.",
+      "status": "active",
+      "current_focus": "Project kickoff - assigning first tasks"
+    },
+    "PROJECT_AI_AGENT": {
+      "agent_id": "PROJECT",
+      "role": "Project Manager / Scrum Master",
+      "type": "management",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Maintains the project board, tracks milestones, identifies blockers, manages dependencies between agents, ensures the 48-step plan is on schedule.",
+      "status": "active",
+      "reports_to": "VEDABOSS"
+    },
+    "PRODUCT_AI_AGENT": {
+      "agent_id": "PRODUCT",
+      "role": "Product Manager / Business Analyst",
+      "type": "product",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Owns the product spec. Makes decisions on feature behavior, edge cases, UX flow, and prioritization when the spec is ambiguous. Writes user stories and acceptance criteria.",
+      "status": "active",
+      "reports_to": "VEDABOSS"
+    },
+    "UI_UX_AI_AGENT": {
+      "agent_id": "UI_UX",
+      "role": "UI/UX Designer / Design System Architect",
+      "type": "design",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Owns the design system (colors, typography, spacing, components). Creates component specifications, responsive breakpoints, accessibility guidelines. Reviews all UI code for design compliance.",
+      "status": "active",
+      "reports_to": "VEDABOSS"
+    },
+    "QUALITY_CONTROL_AI_AGENT": {
+      "agent_id": "QC",
+      "role": "Quality Control / Code Reviewer / Architect",
+      "type": "quality",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Reviews all code before it is marked 'approved'. Checks for: architecture compliance, security issues, performance, code quality, consistency with spec. Can reject work and send it back to the developer.",
+      "status": "active",
+      "reports_to": "VEDABOSS"
+    },
+    "TESTER_1_AI_AGENT": {
+      "agent_id": "TESTER_1",
+      "role": "Unit Test Engineer",
+      "type": "testing",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Writes and runs Vitest unit tests. Tests individual functions, API route handlers, utilities. Ensures all critical paths are covered.",
+      "status": "active",
+      "reports_to": "VEDABOSS"
+    },
+    "TESTER_2_AI_AGENT": {
+      "agent_id": "TESTER_2",
+      "role": "E2E Test Engineer",
+      "type": "testing",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Writes and runs Playwright E2E tests. Tests full user flows: login, dashboard, create compliance, view details, admin panel, mobile screens.",
+      "status": "active",
+      "reports_to": "VEDABOSS"
+    },
+    "DEVELOPER_1_AI_AGENT": {
+      "agent_id": "DEV_1",
+      "role": "Backend/Database Engineer",
+      "type": "developer",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Builds the foundation: monorepo setup, shared types, Drizzle ORM schemas (23 tables), SQL migrations, RLS policies, API client package.",
+      "status": "active",
+      "reports_to": "VEDABOSS",
+      "assigned_steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "DEVELOPER_2_AI_AGENT": {
+      "agent_id": "DEV_2",
+      "role": "Platform/Auth Engineer",
+      "type": "developer",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Builds the platform layer: Next.js layout, auth system (passcode, magic link, sessions), JWT middleware, RBAC, multi-tenancy, organisation APIs, user management, departments.",
+      "status": "active",
+      "reports_to": "VEDABOSS",
+      "assigned_steps": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    "DEVELOPER_3_AI_AGENT": {
+      "agent_id": "DEV_3",
+      "role": "Feature Engineer (Backend)",
+      "type": "developer",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Builds all backend feature APIs: compliance engine, audit points, documents, notifications, AI engine (Claude), MCP endpoint, API tokens, webhooks, sales/agent portal, email integration.",
+      "status": "active",
+      "reports_to": "VEDABOSS",
+      "assigned_steps": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ]
+    },
+    "DEVELOPER_4_AI_AGENT": {
+      "agent_id": "DEV_4",
+      "role": "Frontend Engineer (Web - Core)",
+      "type": "developer",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Builds the web frontend core: shared UI components, login/auth pages, app shell (sidebar, header), dashboard, compliance table, compliance detail slide-out panel.",
+      "status": "active",
+      "reports_to": "VEDABOSS",
+      "assigned_steps": [
+        25,
+        26,
+        27,
+        28,
+        29,
+        30
+      ]
+    },
+    "DEVELOPER_5_AI_AGENT": {
+      "agent_id": "DEV_5",
+      "role": "Full-Stack Engineer (Web Extended + Mobile + Deploy)",
+      "type": "developer",
+      "runs_on": [
+        "claude-code",
+        "chatgpt-codex",
+        "z-ai"
+      ],
+      "purpose": "Builds: admin panel, audit log viewer, AI chat, mobile app (Expo), export engine, integration stubs, onboarding wizard, tests, landing page, CI/CD, deployment, realtime, final verification.",
+      "status": "active",
+      "reports_to": "VEDABOSS",
+      "assigned_steps": [
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48
+      ]
+    }
+  },
+  "workflow": {
+    "step_1_agent_checks_in": "Agent reads VEDABOSS/WORK_ASSIGNMENTS.json to get their next task",
+    "step_2_agent_reads_spec": "Agent reads the relevant spec files (from specs/ and ai-instructions/)",
+    "step_3_agent_does_work": "Agent generates code and saves to agents/<AGENT_NAME>/output/",
+    "step_4_agent_reports": "Agent updates VEDABOSS/WORK_ASSIGNMENTS.json with status='completed' and files_created",
+    "step_5_qc_reviews": "QUALITY_CONTROL_AI_AGENT reviews the output",
+    "step_6_vedaboss_approves": "VEDABOSS marks task as 'approved' and assigns next task",
+    "step_7_integrated": "Approved files are copied to the main compliance-tracker/ directory by VEDABOSS"
+  },
+  "dependency_chain": {
+    "DEV_1": "Must complete FIRST (steps 1-9). All other developers depend on shared types, DB schemas, and API client.",
+    "DEV_2": "Starts after DEV_1 completes step 4 (types + schemas). Builds on top of DB layer.",
+    "DEV_3": "Starts after DEV_2 completes step 12 (auth routes). Needs auth middleware and RBAC to exist.",
+    "DEV_4": "Starts after DEV_1 completes step 3 (shared types) AND DEV_3 has some APIs ready.",
+    "DEV_5": "Starts after DEV_4 has the app shell. Parallel with DEV_4 on later steps.",
+    "TESTER_1": "Starts after DEV_3 completes step 17 (compliance APIs). Tests backend.",
+    "TESTER_2": "Starts after DEV_4 completes step 28 (dashboard). Tests frontend.",
+    "QC": "Reviews work from all developers as it completes.",
+    "PROJECT": "Active throughout, tracking progress.",
+    "PRODUCT": "Active when specs are ambiguous, answers questions.",
+    "UI_UX": "Active before DEV_4 starts, provides design specs."
+  }
+}
