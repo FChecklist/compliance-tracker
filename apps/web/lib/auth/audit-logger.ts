@@ -31,3 +31,29 @@ export function extractRequestInfo(request: Request): { ip: string; machineId: s
   const machineId = request.headers.get("x-machine-id") || "unknown";
   return { ip, machineId: machineId };
 }
+
+/**
+ * Convenience wrapper used by route handlers.
+ * Automatically extracts IP and machine-id from the request.
+ */
+export async function logAuditEvent(opts: {
+  action: string;
+  userId: string;
+  orgId: string;
+  req: Request;
+  entityType?: string;
+  entityId: string;
+  meta?: Record<string, unknown>;
+}): Promise<void> {
+  const { ip, machineId } = extractRequestInfo(opts.req);
+  await createAuditLog({
+    org_id: opts.orgId,
+    user_id: opts.userId,
+    action: opts.action,
+    entity_type: opts.entityType ?? "compliance",
+    entity_id: opts.entityId,
+    ip_address: ip,
+    machine_id: machineId,
+    metadata: opts.meta ?? {},
+  });
+}
