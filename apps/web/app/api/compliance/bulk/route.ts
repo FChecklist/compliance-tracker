@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
 import { db } from "@compliancetrack/db";
 import { compliance, complianceHistory, notifications } from "@compliancetrack/db";
-import { and, eq, inArray, ne, lte } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { BulkStatusChangeSchema, StatusTransitions } from "@compliancetrack/types";
 import { logAuditEvent } from "@/lib/auth/audit-logger";
 

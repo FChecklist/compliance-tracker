@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
 import { db } from "@compliancetrack/db";
 import { apiTokens } from "@compliancetrack/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { createHash, randomBytes } from "crypto";
 

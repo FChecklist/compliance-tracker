@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
 import { db } from "@compliancetrack/db";
-import { compliance, complianceHistory, departments, users } from "@compliancetrack/db";
-import { and, eq, ilike, or, asc, desc, sql, inArray, lte, gte, count, SQL } from "drizzle-orm";
-import { ComplianceFiltersSchema, CreateComplianceSchema, StatusTransitions } from "@compliancetrack/types";
+import { compliance } from "@compliancetrack/db";
+import { and, eq, ilike, or, asc, desc, lte, gte, count, SQL } from "drizzle-orm";
+import { ComplianceFiltersSchema, CreateComplianceSchema } from "@compliancetrack/types";
 import { logAuditEvent } from "@/lib/auth/audit-logger";
 
 function slugify(text: string): string {

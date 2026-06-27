@@ -27,7 +27,7 @@ export function exportToExcel(
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
   // Auto-size column widths based on content
-  ws["!cols"] = headers.map((h, i) => {
+  ws["!cols"] = headers.map((h) => {
     const maxLen = Math.max(
       h.length,
       ...data.slice(0, 50).map((r) => String(r[h] ?? "").length),

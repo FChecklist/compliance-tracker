@@ -20,7 +20,6 @@ export function AppTopbar() {
   const { toggleSidebar } = useUIStore();
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
-  const [pathname, setPathname] = useState("");
   const [pageTitle, setPageTitle] = useState("Dashboard");
 
   // Fetch notifications on mount
@@ -35,7 +34,6 @@ export function AppTopbar() {
   }, [fetchNotifications]);
 
   useEffect(() => {
-    setPathname(window.location.pathname);
     const match = Object.entries(PAGE_TITLES).find(([path]) =>
       window.location.pathname.startsWith(path)
     );

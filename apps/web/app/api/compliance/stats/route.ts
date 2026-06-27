@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
 import { db } from "@compliancetrack/db";
 import { compliance } from "@compliancetrack/db";
-import { eq, and, lt, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export const GET = withAuth(async (_req, ctx) => {
   const rows = await db.select({ status: compliance.status }).from(compliance).where(eq(compliance.org_id, ctx.orgId));

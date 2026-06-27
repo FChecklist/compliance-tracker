@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
 import { db } from "@compliancetrack/db";
 import { compliance, departments, users } from "@compliancetrack/db";
@@ -29,7 +29,7 @@ export const GET = withAuth(async (req, ctx) => {
     return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: filters.error.issues.map((i) => i.message).join(", ") } }, { status: 422 });
   }
 
-  const { sort_by, sort_order, search, page: _p, per_page: _pp, ...rest } = filters.data;
+  const { sort_by, sort_order, search, ...rest } = filters.data;
 
   // Build WHERE
   const conditions: SQL[] = [eq(compliance.org_id, ctx.orgId)];

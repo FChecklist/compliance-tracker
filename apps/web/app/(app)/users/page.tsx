@@ -181,7 +181,7 @@ export default function UsersPage() {
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
       );
-    } catch (err) {
+    } catch {
       // Silently revert the select on error — the user sees the old role
       await fetchUsers();
     } finally {
