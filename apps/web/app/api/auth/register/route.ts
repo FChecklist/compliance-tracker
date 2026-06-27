@@ -52,9 +52,9 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({ success: true, org_id: org.id, user_id: user.id }, { status: 201 });
     res.cookies.set("session", token, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 7 });
     return res;
-  } catch (e: any) {
-    if (e.name === "ZodError") return NextResponse.json({ error: "Validation failed", details: e.errors }, { status: 400 });
-    if (e.code === "23505") return NextResponse.json({ error: "Email already registered", code: "DUPLICATE_EMAIL" }, { status: 409 });
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === "ZodError") return NextResponse.json({ error: "Validation failed", details: (e as { errors?: unknown }).errors }, { status: 400 });
+    if (e instanceof Error && "code" in e && (e as { code: string }).code === "23505") return NextResponse.json({ error: "Email already registered", code: "DUPLICATE_EMAIL" }, { status: 409 });
     return NextResponse.json({ error: "Registration failed" }, { status: 500 });
   }
 }

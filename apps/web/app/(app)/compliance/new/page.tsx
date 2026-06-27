@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { z } from "zod";
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -491,12 +492,12 @@ export default function NewCompliancePage() {
 
         {/* Footer actions */}
         <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50/60 px-6 py-4 rounded-b-xl">
-          <a
+          <Link
             href="/compliance"
             className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-1"
           >
             Cancel
-          </a>
+          </Link>
           <button
             type="submit"
             disabled={submitting}

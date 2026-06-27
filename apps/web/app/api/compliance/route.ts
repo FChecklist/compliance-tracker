@@ -64,7 +64,7 @@ export const GET = withAuth(async (req, ctx) => {
     .where(whereClause);
 
   // Order column mapping
-  const orderCol: Record<string, any> = {
+  const orderCol: Record<string, unknown> = {
     due_date: compliance.due_date,
     priority: compliance.priority,
     status: compliance.status,

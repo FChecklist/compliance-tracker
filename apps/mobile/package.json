@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "expo start",
     "build": "echo \"Mobile build skipped — native apps use EAS Build\" && exit 0",
-    "type-check": "tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@compliancetrack/api-client": "workspace:*",

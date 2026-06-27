@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({ success: true, user: { id: user.id, email: user.email, role: user.role, full_name: user.full_name } });
     res.cookies.set("session", token, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 7 });
     return res;
-  } catch (e: any) {
-    if (e.name === "ZodError") return NextResponse.json({ error: "Validation failed" }, { status: 400 });
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === "ZodError") return NextResponse.json({ error: "Validation failed" }, { status: 400 });
     return NextResponse.json({ error: "Login failed" }, { status: 500 });
   }
 }
