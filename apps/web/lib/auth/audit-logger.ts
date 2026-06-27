@@ -1,5 +1,5 @@
 import { db } from "@compliancetrack/db";
-import { auditLog } from "@compliancetrack/db/schema";
+import { auditLog } from "@compliancetrack/db";
 
 interface LogEntry {
   org_id: string;
@@ -42,7 +42,7 @@ export async function logAuditEvent(opts: {
   orgId: string;
   req: Request;
   entityType?: string;
-  entityId: string;
+  entityId?: string;
   meta?: Record<string, unknown>;
 }): Promise<void> {
   const { ip, machineId } = extractRequestInfo(opts.req);
@@ -51,7 +51,7 @@ export async function logAuditEvent(opts: {
     user_id: opts.userId,
     action: opts.action,
     entity_type: opts.entityType ?? "compliance",
-    entity_id: opts.entityId,
+    entity_id: opts.entityId ?? "system",
     ip_address: ip,
     machine_id: machineId,
     metadata: opts.meta ?? {},

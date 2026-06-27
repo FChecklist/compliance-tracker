@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@compliance/db";
-import { compliance, complianceHistory, notifications } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { compliance, complianceHistory, notifications } from "@compliancetrack/db";
 import { and, eq, lte, gte, inArray, not, isNull } from "drizzle-orm";
 
 // ─── GET /api/cron/deadline-check ──────────────────────────────────

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { organisations } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { organisations } from "@compliancetrack/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -17,4 +17,10 @@ export const PUT = withAuth(async (req, ctx) => {
   const data = updateSchema.parse(await req.json());
   await db.update(organisations).set({ ...data, updated_at: new Date() }).where(eq(organisations.id, ctx.orgId));
   return NextResponse.json({ success: true });
+}, { roles: ["account_admin"] });
+
+export const DELETE = withAuth(async (_req, ctx) => {
+  // Soft-delete by marking as inactive — preserves referential integrity
+  await db.update(organisations).set({ is_active: false, updated_at: new Date() }).where(eq(organisations.id, ctx.orgId));
+  return NextResponse.json({ success: true, data: { deleted: ctx.orgId } });
 }, { roles: ["account_admin"] });

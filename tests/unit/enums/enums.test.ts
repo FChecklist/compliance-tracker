@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ComplianceStatus, StatusTransitions, Priority, Role } from "../packages/types/src/enums";
+import { ComplianceStatus, StatusTransitions, Priority, Role } from "@compliancetrack/types";
 
 describe("Enums", () => {
   it("StatusTransitions are valid", () => {

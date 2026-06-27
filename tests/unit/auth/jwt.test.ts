@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createSessionToken, verifySessionToken } from "../apps/web/lib/auth/jwt";
+import { createSessionToken, verifySessionToken } from "@/lib/auth/jwt";
 
 describe("JWT auth", () => {
   it("creates and verifies a valid token", async () => {

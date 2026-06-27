@@ -1,0 +1,1 @@
+{"version":3,"file":"agents.d.ts","sourceRoot":"","sources":["../../src/endpoints/agents.ts"],"names":[],"mappings":"AAEA,eAAO,MAAM,eAAe;oBACV,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC;cAC5B,MAAM;mBACD,OAAO;iBACT,MAAM,QAAQ,OAAO;iBACrB,MAAM;CACpB,CAAC"}

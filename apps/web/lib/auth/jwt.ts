@@ -21,7 +21,11 @@ export async function createSessionToken(payload: Omit<SessionPayload, "iat" | "
     .sign(JWT_SECRET);
 }
 
-export async function verifySessionToken(token: string): Promise<SessionPayload> {
-  const { payload } = await jwtVerify(token, JWT_SECRET);
-  return payload as unknown as SessionPayload;
+export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as unknown as SessionPayload;
+  } catch {
+    return null;
+  }
 }

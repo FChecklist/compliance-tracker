@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { hasPermission, canManageUser } from "../apps/web/lib/auth/rbac";
+import { hasPermission, canManageUser } from "@/lib/auth/rbac";
 
 describe("RBAC", () => {
   it("account_admin can manage all compliance", () => {
     expect(hasPermission("account_admin", "compliance", "create")).toBe(true);
     expect(hasPermission("account_admin", "compliance", "delete")).toBe(true);
-    expect(hasPermission("account_admin", "users", "manage")).toBe(true);
+    expect(hasPermission("account_admin", "users", "delete")).toBe(true);
+    expect(hasPermission("account_admin", "users", "invite")).toBe(true);
   });
 
   it("viewer cannot create compliance", () => {
