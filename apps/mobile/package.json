@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "expo start",
-    "build": "expo export",
+    "build": "echo \"Mobile build skipped — native apps use EAS Build\" && exit 0",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

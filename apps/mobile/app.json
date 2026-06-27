@@ -10,7 +10,6 @@
     "assetBundlePatterns": ["**/*"],
     "ios": { "supportsTablet": true, "bundleIdentifier": "com.compliancetrack.app" },
     "android": { "adaptiveIcon": { "backgroundColor": "#2563EB" }, "package": "com.compliancetrack.app" },
-    "web": { "bundler": "metro" },
     "plugins": ["expo-router"]
   }
 }
