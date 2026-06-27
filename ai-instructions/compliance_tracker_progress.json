@@ -1,6 +1,6 @@
 {
   "description": "Copy this structure to create compliance_tracker_progress.json. The AI must maintain this file throughout development.",
-  "file_location": "/home/z/my-project/download/compliance_tracker_progress.json",
+  "file_location": "ai-instructions/compliance_tracker_progress.json",
   "last_completed_step": 48,
   "current_step": 48,
   "total_steps": 48,

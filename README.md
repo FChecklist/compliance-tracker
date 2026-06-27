@@ -6,23 +6,117 @@ A multi-tenant SaaS compliance management platform designed for the AI era. Buil
 
 ---
 
-## Repository Structure
+## Project Structure
 
 ```
 compliance-tracker/
-├── specs/                          # Complete Project Specifications
-│   ├── Compliance_Tracker_Project_Understanding_file_1.json   # Full 20-step spec (180KB) - 18 modules, 69 APIs, 23+ tables
-│   ├── Compliance_Tracker_Project_Understanding_file_2.json   # Gap analysis (7.5KB)
-│   ├── compliancetrack_landing.html                           # Marketing landing page reference
-│   └── compliance_tracker_v3.html                             # App UI v3 prototype reference
-├── docs/                           # Technical Documents
-│   ├── ComplianceTrack_TechSpec_Complete.docx                 # Complete tech spec (81KB, 103 headings)
-│   └── ComplianceTrack_TechSpec_v1.docx                       # Original 24-module tech spec
-├── ai-instructions/                 # AI Code Generation Instructions
-│   ├── Compliance_Tracker_AI_Instruction_Manual.json          # 48-step build manual (138KB) - HOW TO BUILD THE PROJECT
-│   └── compliance_tracker_progress.json                       # Progress tracker (update after each step)
-└── README.md
+├── apps/
+│   ├── web/                     # Next.js 15 web application (App Router)
+│   │   ├── app/                 # Route handlers + pages
+│   │   │   ├── (auth)/          # Login, register pages
+│   │   │   ├── (app)/           # Dashboard, compliance, users, admin, AI, settings
+│   │   │   ├── (marketing)/     # Landing page
+│   │   │   ├── api/             # 35+ API route handlers
+│   │   │   └── onboarding/      # Onboarding wizard
+│   │   ├── components/          # AppSidebar, AppTopbar, ErrorBoundary, LoadingSkeleton
+│   │   ├── lib/                 # Auth (JWT, RBAC, session, audit), export, realtime
+│   │   └── stores/              # Zustand stores (compliance, notifications, UI)
+│   └── mobile/                  # Expo Router app (React Native)
+│       └── app/                 # 10 mobile screens
+├── packages/
+│   ├── db/                      # Drizzle ORM schemas + client + migrations
+│   ├── types/                   # Shared TypeScript types and enums
+│   ├── api-client/              # Shared HTTP client with typed endpoint functions
+│   ├── ui/                      # Shared shadcn/ui components (Button, Input, Badge, Card, Spinner)
+│   └── config/                  # Shared env validation + constants
+├── supabase/
+│   └── migrations/              # 5 SQL migrations (core, features, RLS, indexes, onboarding)
+├── tests/
+│   ├── unit/                    # Vitest unit tests (auth, enums, schemas)
+│   └── e2e/                     # Playwright E2E tests (auth, compliance, navigation)
+├── specs/                       # Project specifications
+├── docs/                        # Technical specification documents
+└── ai-instructions/             # AI build manual + progress tracker
 ```
+
+---
+
+## Local Development Setup
+
+### Prerequisites
+
+- **Node.js** >= 20.0.0
+- **pnpm** 9.4.0 (`corepack enable && corepack prepare pnpm@9.4.0 --activate`)
+- **Supabase CLI** (`brew install supabase/tap/supabase` or `npm i -g supabase`)
+- A **Supabase project** (free tier works)
+
+### 1. Clone and Install
+
+```bash
+git clone https://github.com/FChecklist/compliance-tracker.git
+cd compliance-tracker
+pnpm install
+```
+
+### 2. Environment Variables
+
+Copy the example env file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Required variables:
+
+| Variable | Description | Where to Get It |
+|----------|-------------|-----------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL | Supabase Dashboard → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous (public) key | Supabase Dashboard → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side) | Supabase Dashboard → Settings → API |
+| `DATABASE_URL` | PostgreSQL connection string (pooler, port 6543) | Supabase Dashboard → Settings → Database |
+| `DIRECT_URL` | PostgreSQL direct connection (port 5432) | Supabase Dashboard → Settings → Database |
+| `DB_SCHEMA` | Database schema name | Default: `compliance_tracker` |
+| `JWT_SECRET` | 64-character random string for JWT signing | Generate: `openssl rand -hex 32` |
+| `NEXT_PUBLIC_APP_URL` | App URL for callbacks | Local: `http://localhost:3000` |
+| `ANTHROPIC_API_KEY` | Anthropic Claude API key (AI features) | console.anthropic.com |
+
+### 3. Database Setup
+
+Push the 5 migrations to your Supabase database:
+
+```bash
+# Login to Supabase first (one-time)
+supabase login
+
+# Link to your project (replace <project-ref>)
+supabase link --project-ref <your-project-ref>
+
+# Push all migrations
+pnpm db:push
+```
+
+This creates all 23+ tables, RLS policies, indexes, and triggers.
+
+### 4. Run Development Server
+
+```bash
+pnpm dev
+```
+
+This starts the Next.js dev server at `http://localhost:3000` (via Turborepo).
+
+### 5. Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start all dev servers (Turborepo) |
+| `pnpm build` | Production build (all packages) |
+| `pnpm lint` | ESLint across all packages |
+| `pnpm typecheck` | TypeScript type checking across all packages |
+| `pnpm test` | Run Vitest unit tests |
+| `pnpm test:e2e` | Run Playwright E2E tests (requires running server) |
+| `pnpm db:push` | Push Drizzle schema changes to Supabase |
+| `pnpm db:generate` | Generate Drizzle migrations from schema changes |
 
 ---
 
