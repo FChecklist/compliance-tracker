@@ -63,13 +63,15 @@ export const GET = withAuth(async (req, ctx) => {
     .from(compliance)
     .where(whereClause);
 
-  // Order column mapping
-  const orderCol: Record<string, unknown> = {
-    due_date: compliance.due_date,
-    priority: compliance.priority,
-    status: compliance.status,
-    created_at: compliance.created_at,
-    title: compliance.title,
+  // Order column mapping — using a function to avoid `any` while keeping Drizzle types
+  const getOrderColumn = () => {
+    switch (sort_by) {
+      case "priority": return compliance.priority;
+      case "status": return compliance.status;
+      case "created_at": return compliance.created_at;
+      case "title": return compliance.title;
+      default: return compliance.due_date;
+    }
   };
   const orderFn = sort_order === "desc" ? desc : asc;
 
@@ -78,7 +80,7 @@ export const GET = withAuth(async (req, ctx) => {
     .select()
     .from(compliance)
     .where(whereClause)
-    .orderBy(orderFn(orderCol[sort_by] ?? compliance.due_date))
+    .orderBy(orderFn(getOrderColumn()))
     .limit(per_page)
     .offset(offset);
 
