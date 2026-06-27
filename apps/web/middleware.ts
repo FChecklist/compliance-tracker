@@ -7,8 +7,19 @@ const PUBLIC_PATHS = ["/login", "/register", "/onboarding", "/api/auth/login", "
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Root path (/) serves the marketing landing page — always public
+  // Root path (/) — authenticated users go to dashboard, others see landing page
   if (pathname === "/") {
+    const token = request.cookies.get("session")?.value;
+    if (token) {
+      try {
+        const payload = await verifySessionToken(token);
+        if (payload) {
+          return NextResponse.redirect(new URL("/dashboard", request.url));
+        }
+      } catch {
+        // invalid token — fall through to landing page
+      }
+    }
     return NextResponse.next();
   }
 
