@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useUIStore } from "@/stores/ui-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -113,12 +114,17 @@ function TableSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function CompliancePage() {
-  // ── Filter / pagination state ──────────────────────────────────────────
-  const [search, setSearch] = useState("");
+  // ── Filter / pagination state (filters persisted in Zustand UI store) ────
+  const { activeFilters, setActiveFilter } = useUIStore();
+  const search = (activeFilters.search as string) ?? "";
+  const statusFilter = (activeFilters.status as string) ?? "";
+  const priorityFilter = (activeFilters.priority as string) ?? "";
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("");
   const [page, setPage] = useState(1);
+
+  const updateSearch = (v: string) => setActiveFilter("search", v);
+  const updateStatus = (v: string) => setActiveFilter("status", v);
+  const updatePriority = (v: string) => setActiveFilter("priority", v);
 
   // ── Data state ─────────────────────────────────────────────────────────
   const [items, setItems] = useState<ComplianceItem[]>([]);
@@ -132,13 +138,13 @@ export default function CompliancePage() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
+      setDebouncedSearch(activeFilters.search as string ?? "");
       setPage(1); // reset to first page on new search
     }, DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [search]);
+  }, [activeFilters.search]);
 
   // ── Reset page when filters change ─────────────────────────────────────
   useEffect(() => {
@@ -196,9 +202,8 @@ export default function CompliancePage() {
   const hasActiveFilters = debouncedSearch || statusFilter || priorityFilter;
 
   function clearFilters() {
-    setSearch("");
-    setStatusFilter("");
-    setPriorityFilter("");
+    useUIStore.getState().clearFilters();
+    setPage(1);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -250,7 +255,7 @@ export default function CompliancePage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
               placeholder="Search compliance items..."
               className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
@@ -259,7 +264,7 @@ export default function CompliancePage() {
           {/* Status filter */}
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => updateStatus(e.target.value)}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             {STATUS_OPTIONS.map((o) => (
@@ -272,7 +277,7 @@ export default function CompliancePage() {
           {/* Priority filter */}
           <select
             value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
+            onChange={(e) => updatePriority(e.target.value)}
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             {PRIORITY_OPTIONS.map((o) => (

@@ -1,17 +1,22 @@
 import { getApiClient } from "../client";
 export const authEndpoints = {
-    sendPasscode: async (email) => {
-        return getApiClient().post("auth/passcode", { json: { email } }).json();
+    /** POST /api/auth/register — register a new user */
+    register: async (body) => {
+        return getApiClient().post("auth/register", { json: body }).json();
     },
-    verifyPasscode: async (email, passcode) => {
-        return getApiClient().post("auth/passcode/verify", { json: { email, passcode } }).json();
+    /** POST /api/auth/login — email + password login */
+    login: async (body) => {
+        return getApiClient().post("auth/login", { json: body }).json();
     },
-    sendMagicLink: async (email) => {
-        return getApiClient().post("auth/magic-link", { json: { email } }).json();
+    /** GET /api/auth/me — get current session user */
+    me: async () => {
+        return getApiClient().get("auth/me").json();
     },
-    getSession: async () => {
-        return getApiClient().get("auth/session").json();
+    /** POST /api/auth/refresh — refresh session token */
+    refresh: async () => {
+        return getApiClient().post("auth/refresh").json();
     },
+    /** POST /api/auth/logout — clear session */
     logout: async () => {
         return getApiClient().post("auth/logout").json();
     },

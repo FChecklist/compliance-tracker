@@ -1,48 +1,44 @@
 /**
- * Excel Export Utility
- * Generates a simple .xls file using an HTML table wrapper.
- * TODO: Replace with SheetJS (xlsx) for proper .xlsx support with formatting.
+ * Excel Export Utility — generates a real .xlsx file using SheetJS.
  */
 
-function escapeHtml(value: unknown): string {
-  const str = value === null || value === undefined ? "" : String(value);
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+import * as XLSX from "xlsx";
+
+interface ExportRow {
+  [key: string]: unknown;
 }
 
 export function exportToExcel(
-  data: Record<string, unknown>[],
-  filename: string
+  data: ExportRow[],
+  filename: string,
 ): void {
   if (data.length === 0) return;
 
   const headers = Object.keys(data[0]);
 
-  const headerRow = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
-  const bodyRows = data
-    .map(
-      (row) =>
-        `<tr>${headers.map((h) => `<td>${escapeHtml(row[h])}</td>`).join("")}</tr>`
-    )
-    .join("");
+  // Build worksheet: header row + data rows
+  const wsData = [
+    // Header row with formatted column names
+    headers.map((h) => h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())),
+    // Data rows
+    ...data.map((row) => headers.map((h) => row[h] ?? "")),
+  ];
 
-  const html = `
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-<head><meta charset="utf-8"></head>
-<body><table border="1">
-<thead><tr>${headerRow}</tr></thead>
-<tbody>${bodyRows}</tbody>
-</table></body></html>`;
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-  const blob = new Blob([html], { type: "application/vnd.ms-excel" });
-  const url = URL.createObjectURL(blob);
+  // Auto-size column widths based on content
+  ws["!cols"] = headers.map((h, i) => {
+    const maxLen = Math.max(
+      h.length,
+      ...data.slice(0, 50).map((r) => String(r[h] ?? "").length),
+    );
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 40) };
+  });
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${filename}.xls`;
-  link.click();
+  // Freeze the header row
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
-  URL.revokeObjectURL(url);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Compliance Data");
+  XLSX.writeFile(wb, `${filename}.xlsx`);
 }

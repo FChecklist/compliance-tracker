@@ -1,18 +1,23 @@
 import { getApiClient } from "../client";
 
 export const authEndpoints = {
-  sendPasscode: async (email: string) => {
-    return getApiClient().post("auth/passcode", { json: { email } }).json<{ success: boolean }>();
+  /** POST /api/auth/register — register a new user */
+  register: async (body: { email: string; password: string; name: string; org_name: string }) => {
+    return getApiClient().post("auth/register", { json: body }).json<{ success: boolean; data: { user: { id: string; email: string } } }>();
   },
-  verifyPasscode: async (email: string, passcode: string) => {
-    return getApiClient().post("auth/passcode/verify", { json: { email, passcode } }).json<{ success: boolean; token: string }>();
+  /** POST /api/auth/login — email + password login */
+  login: async (body: { email: string; password: string }) => {
+    return getApiClient().post("auth/login", { json: body }).json<{ success: boolean; data: { token: string; user: { id: string; email: string; role: string } } }>();
   },
-  sendMagicLink: async (email: string) => {
-    return getApiClient().post("auth/magic-link", { json: { email } }).json<{ success: boolean }>();
+  /** GET /api/auth/me — get current session user */
+  me: async () => {
+    return getApiClient().get("auth/me").json<{ success: boolean; data: { id: string; email: string; role: string; org_id: string } }>();
   },
-  getSession: async () => {
-    return getApiClient().get("auth/session").json<{ success: boolean; data: unknown }>();
+  /** POST /api/auth/refresh — refresh session token */
+  refresh: async () => {
+    return getApiClient().post("auth/refresh").json<{ success: boolean; data: { token: string } }>();
   },
+  /** POST /api/auth/logout — clear session */
   logout: async () => {
     return getApiClient().post("auth/logout").json<{ success: boolean }>();
   },

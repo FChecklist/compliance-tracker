@@ -23,7 +23,7 @@ export default function NotificationsScreen() {
   const handlePress = async (notif: Notif) => {
     // Mark as read
     const api = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
-    fetch(`${api}/api/notifications/${notif.id}/read`, { method: "PATCH", credentials: "include" }).catch(() => {});
+    fetch(`${api}/api/notifications/${notif.id}/read`, { method: "POST", credentials: "include" }).catch(() => {});
 
     // Navigate if link exists
     if (notif.link_url) {

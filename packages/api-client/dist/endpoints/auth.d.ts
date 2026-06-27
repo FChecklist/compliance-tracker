@@ -1,18 +1,52 @@
 export declare const authEndpoints: {
-    sendPasscode: (email: string) => Promise<{
+    /** POST /api/auth/register — register a new user */
+    register: (body: {
+        email: string;
+        password: string;
+        name: string;
+        org_name: string;
+    }) => Promise<{
         success: boolean;
+        data: {
+            user: {
+                id: string;
+                email: string;
+            };
+        };
     }>;
-    verifyPasscode: (email: string, passcode: string) => Promise<{
+    /** POST /api/auth/login — email + password login */
+    login: (body: {
+        email: string;
+        password: string;
+    }) => Promise<{
         success: boolean;
-        token: string;
+        data: {
+            token: string;
+            user: {
+                id: string;
+                email: string;
+                role: string;
+            };
+        };
     }>;
-    sendMagicLink: (email: string) => Promise<{
+    /** GET /api/auth/me — get current session user */
+    me: () => Promise<{
         success: boolean;
+        data: {
+            id: string;
+            email: string;
+            role: string;
+            org_id: string;
+        };
     }>;
-    getSession: () => Promise<{
+    /** POST /api/auth/refresh — refresh session token */
+    refresh: () => Promise<{
         success: boolean;
-        data: unknown;
+        data: {
+            token: string;
+        };
     }>;
+    /** POST /api/auth/logout — clear session */
     logout: () => Promise<{
         success: boolean;
     }>;
