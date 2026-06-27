@@ -16,6 +16,7 @@ interface NotificationStore {
   setNotifications: (notifications: Notification[]) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
+  fetchNotifications: () => Promise<void>;
 }
 
 export const useNotificationStore = create<NotificationStore>((set) => ({
@@ -29,7 +30,7 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
   markRead: (id) =>
     set((state) => {
       const notifications = state.notifications.map((n) =>
-        n.id === id ? { ...n, is_read: true } : n
+        n.id === id ? { ...n, is_read: true } : n,
       );
       return { notifications, unreadCount: notifications.filter((n) => !n.is_read).length };
     }),
@@ -38,4 +39,15 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       notifications: state.notifications.map((n) => ({ ...n, is_read: true })),
       unreadCount: 0,
     })),
+  fetchNotifications: async () => {
+    try {
+      const res = await fetch("/api/notifications", { credentials: "include" });
+      const json = await res.json();
+      if (json.success) {
+        set({ notifications: json.data ?? [], unreadCount: json.meta?.unread_count ?? 0 });
+      }
+    } catch {
+      // silent fail — polling will retry next cycle
+    }
+  },
 }));

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 
-const TYPES = ["statutory", "internal", "regulatory", "contractual"];
+const TYPES = ["it", "tax", "legal", "regulatory", "operational", "environmental", "hr", "finance", "other"];
+const TYPE_LABELS: Record<string, string> = { it: "IT", tax: "Tax", legal: "Legal", regulatory: "Regulatory", operational: "Operational", environmental: "Environmental", hr: "HR", finance: "Finance", other: "Other" };
 const PRIORITIES = ["critical", "high", "medium", "low"];
 
 export default function ComplianceCreateScreen() {
@@ -52,7 +53,7 @@ export default function ComplianceCreateScreen() {
       <View style={s.row}>
         {TYPES.map((t, i) => (
           <TouchableOpacity key={t} style={[s.chip, i === typeIdx && s.chipActive]} onPress={() => setTypeIdx(i)}>
-            <Text style={[s.chipText, i === typeIdx && s.chipTextActive]}>{t}</Text>
+            <Text style={[s.chipText, i === typeIdx && s.chipTextActive]}>{TYPE_LABELS[t]}</Text>
           </TouchableOpacity>
         ))}
       </View>

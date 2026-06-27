@@ -18,3 +18,9 @@ export const PUT = withAuth(async (req, ctx) => {
   await db.update(organisations).set({ ...data, updated_at: new Date() }).where(eq(organisations.id, ctx.orgId));
   return NextResponse.json({ success: true });
 }, { roles: ["account_admin"] });
+
+export const DELETE = withAuth(async (_req, ctx) => {
+  // Soft-delete by marking as inactive — preserves referential integrity
+  await db.update(organisations).set({ is_active: false, updated_at: new Date() }).where(eq(organisations.id, ctx.orgId));
+  return NextResponse.json({ success: true, data: { deleted: ctx.orgId } });
+}, { roles: ["account_admin"] });

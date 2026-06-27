@@ -288,7 +288,7 @@ export default function DashboardPage() {
     setOverdueLoading(true);
     setOverdueError(null);
     try {
-      const res = await fetch("/api/compliance?status=overdue&limit=5");
+      const res = await fetch("/api/compliance?status=overdue&per_page=5");
       if (!res.ok) throw new Error(`Failed to load overdue items (${res.status})`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error?.message ?? "Unexpected response");
