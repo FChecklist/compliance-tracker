@@ -1,43 +1,43 @@
 {
   "system": "VEDABOSS SOLO MODE",
   "version": "6.0",
-  "last_updated": "2025-07-10T10:00:00Z",
-  "mode": "WAVE 2 — Frontend Build-Out",
-  "status": "WAVE 2 IN PROGRESS",
-  "wave_1_summary": {
-    "total_tasks": 14,
-    "all_approved": true,
-    "note": "Foundation, APIs, auth, basic pages complete. Frontend is stub-grade."
+  "last_updated": "2025-07-10T12:00:00Z",
+  "mode": "WAVE 2 COMPLETE — REVIEWING FOR WAVE 3",
+  "status": "WAVE 2 COMPLETE",
+  "wave_1_summary": { "total_tasks": 14, "all_approved": true },
+  "wave_2_summary": {
+    "total_tasks": 10,
+    "all_completed": true,
+    "commits": 10,
+    "branch": "wave-2-frontend-buildout",
+    "files_changed": 14,
+    "lines_added": "~1900"
   },
   "tasks": [
-    {"id":"T-M1","status":"approved","agent":"PRODUCT_AI_AGENT","wave":"1"},
-    {"id":"T-M2","status":"approved","agent":"UI_UX_AI_AGENT","wave":"1"},
-    {"id":"T-D1-001","status":"approved","agent":"DEVELOPER_1_AI_AGENT","wave":"1"},
-    {"id":"T-M3","status":"approved","agent":"QUALITY_CONTROL_AI_AGENT","wave":"1"},
-    {"id":"T-D2-001","status":"approved","agent":"DEVELOPER_2_AI_AGENT","wave":"1"},
-    {"id":"T-D4-001","status":"approved","agent":"DEVELOPER_4_AI_AGENT","wave":"1"},
-    {"id":"T-D3-001","status":"approved","agent":"DEVELOPER_3_AI_AGENT","wave":"1"},
-    {"id":"T-D5-001","status":"approved","agent":"DEVELOPER_5_AI_AGENT","wave":"1"},
-    {"id":"T-M4","status":"approved","agent":"QUALITY_CONTROL_AI_AGENT","wave":"1"},
-    {"id":"T-M5","status":"approved","agent":"QUALITY_CONTROL_AI_AGENT","wave":"1"},
-    {"id":"T-M6","status":"approved","agent":"QUALITY_CONTROL_AI_AGENT","wave":"1"},
-    {"id":"T-M7","status":"approved","agent":"QUALITY_CONTROL_AI_AGENT","wave":"1"},
-    {"id":"T-M8","status":"approved","agent":"TESTER_1_AI_AGENT","wave":"1"},
-    {"id":"T-M9","status":"approved","agent":"TESTER_2_AI_AGENT","wave":"1"},
-    {"id":"W2-T01","status":"assigned","agent":"WORKER","title":"Create compliance list API route","description":"Build /api/compliance/route.ts with GET (filters, pagination, search) and POST (create compliance item)","wave":"2","priority":1},
-    {"id":"W2-T02","status":"assigned","agent":"WORKER","title":"Build shared UI components","description":"Add DataTable, Modal, Select, Textarea, Tabs, StatusBadge, EmptyState to packages/ui","wave":"2","priority":2},
-    {"id":"W2-T03","status":"assigned","agent":"WORKER","title":"Implement Dashboard page","description":"Stats cards with icons, Recharts charts, recent compliance items, pendency breakdown","wave":"2","priority":3},
-    {"id":"W2-T04","status":"assigned","agent":"WORKER","title":"Build Compliance table page","description":"TanStack Table with filters, search, pagination, bulk actions","wave":"2","priority":4},
-    {"id":"W2-T05","status":"assigned","agent":"WORKER","title":"Build Compliance detail page","description":"4-tab panel (Overview, Audit Points, Documents, Activity)","wave":"2","priority":5},
-    {"id":"W2-T06","status":"assigned","agent":"WORKER","title":"Build New Compliance form page","description":"Full create form with all fields","wave":"2","priority":6},
-    {"id":"W2-T07","status":"assigned","agent":"WORKER","title":"Build Departments management page","description":"List with create/edit modal, member/compliance counts","wave":"2","priority":7},
-    {"id":"W2-T08","status":"assigned","agent":"WORKER","title":"Build Users management page","description":"User list, invite modal, role badges, status toggles","wave":"2","priority":8},
-    {"id":"W2-T09","status":"assigned","agent":"WORKER","title":"Build AppSidebar with real navigation","description":"Org name, nav items with icons, active state, user menu, notification bell","wave":"2","priority":9},
-    {"id":"W2-T10","status":"assigned","agent":"WORKER","title":"Build Settings page","description":"Org settings form, danger zone, theme toggle","wave":"2","priority":10}
+    {"id":"W2-T01","status":"completed","title":"Compliance list API route","wave":"2"},
+    {"id":"W2-T02","status":"completed","title":"Shared UI components (7 new)","wave":"2"},
+    {"id":"W2-T03","status":"completed","title":"Dashboard page with charts","wave":"2"},
+    {"id":"W2-T04","status":"completed","title":"Compliance table page","wave":"2"},
+    {"id":"W2-T05","status":"completed","title":"Compliance detail page (4-tab)","wave":"2"},
+    {"id":"W2-T06","status":"completed","title":"New Compliance form page","wave":"2"},
+    {"id":"W2-T07","status":"completed","title":"Departments management page","wave":"2"},
+    {"id":"W2-T08","status":"completed","title":"Users management page","wave":"2"},
+    {"id":"W2-T09","status":"completed","title":"AppSidebar + AppTopbar","wave":"2"},
+    {"id":"W2-T10","status":"completed","title":"Settings page","wave":"2"},
+    {"id":"W3-T01","status":"assigned","agent":"WORKER","title":"AI Chat page — Claude integration UI","description":"Build the AI assistant page with chat interface, message bubbles, typing indicator, suggested prompts","wave":"3","priority":1},
+    {"id":"W3-T02","status":"assigned","agent":"WORKER","title":"Audit Points API routes","description":"CRUD for audit points: GET/POST /api/compliance/[id]/audit-points, PUT/DELETE /api/audit-points/[id]","wave":"3","priority":2},
+    {"id":"W3-T03","status":"assigned","agent":"WORKER","title":"Comments API routes","description":"GET/POST /api/compliance/[id]/comments, DELETE /api/comments/[id]","wave":"3","priority":3},
+    {"id":"W3-T04","status":"assigned","agent":"WORKER","title":"Compliance history API route","description":"GET /api/compliance/[id]/history — status change timeline","wave":"3","priority":4},
+    {"id":"W3-T05","status":"assigned","agent":"WORKER","title":"Global layout + globals.css with design system tokens","description":"Apply Cream/Navy/Saffron design tokens, DM Serif Display + Inter fonts, proper CSS variables","wave":"3","priority":5},
+    {"id":"W3-T06","status":"assigned","agent":"WORKER","title":"Onboarding wizard page","description":"Multi-step onboarding: org name, invite team, select compliance types, completion","wave":"3","priority":6},
+    {"id":"W3-T07","status":"assigned","agent":"WORKER","title":"Compliance reassign API","description":"PUT /api/compliance/[id]/reassign with notification creation","wave":"3","priority":7},
+    {"id":"W3-T08","status":"assigned","agent":"WORKER","title":"Bulk status change API","description":"POST /api/compliance/bulk-status with validation and audit logging","wave":"3","priority":8},
+    {"id":"W3-T09","status":"assigned","agent":"WORKER","title":"Notification bell dropdown + mark read API","description":"Dropdown in topbar showing notifications, PUT /api/notifications/[id]/read, unread count","wave":"3","priority":9},
+    {"id":"W3-T10","status":"assigned","agent":"WORKER","title":"Landing page (public marketing site)","description":"Hero section, features grid, pricing cards, CTA, footer","wave":"3","priority":10}
   ],
-  "wave_2_progress": {
+  "wave_3_progress": {
     "completed": 0,
     "total": 10,
-    "current_task": "W2-T01"
+    "current_task": "W3-T01"
   }
 }
