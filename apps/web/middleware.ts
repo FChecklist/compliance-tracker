@@ -22,6 +22,11 @@ export async function middleware(request: NextRequest) {
 
   try {
     const payload = await verifySessionToken(token);
+    if (!payload) {
+      const response = NextResponse.redirect(new URL("/login", request.url));
+      response.cookies.set("auth-token", "", { maxAge: 0 });
+      return response;
+    }
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-user-id", payload.sub);
     requestHeaders.set("x-user-role", payload.role);
