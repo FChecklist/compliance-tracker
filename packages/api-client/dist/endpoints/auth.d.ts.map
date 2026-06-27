@@ -1,0 +1,1 @@
+{"version":3,"file":"auth.d.ts","sourceRoot":"","sources":["../../src/endpoints/auth.ts"],"names":[],"mappings":"AAEA,eAAO,MAAM,aAAa;0BACI,MAAM;iBACiD,OAAO;;4BAE5D,MAAM,YAAY,MAAM;iBAC8C,OAAO;eAAS,MAAM;;2BAE7F,MAAM;iBACkD,OAAO;;;iBAGhC,OAAO;cAAQ,OAAO;;;iBAGtB,OAAO;;CAEpE,CAAC"}

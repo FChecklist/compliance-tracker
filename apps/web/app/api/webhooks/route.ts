@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { webhooks } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { webhooks } from "@compliancetrack/db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { createHash, randomBytes } from "crypto";
@@ -43,7 +43,7 @@ export const GET = withAuth(async (_req, ctx) => {
     .orderBy(desc(webhooks.created_at));
 
   return NextResponse.json({ success: true, data: { webhooks: rows } });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // POST /api/webhooks — create webhook (admin only)
 export const POST = withAuth(async (req, ctx) => {
@@ -65,4 +65,4 @@ export const POST = withAuth(async (req, ctx) => {
       signing_secret: plaintext, // Only returned once at creation
     },
   }, { status: 201 });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

@@ -1,1 +1,5 @@
-C:\Users\Dell
+import { redirect } from "next/navigation";
+
+export default function RootPage() {
+  redirect("/login");
+}

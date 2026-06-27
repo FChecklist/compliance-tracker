@@ -8,4 +8,4 @@ export const GET = withAuth(async () => {
     success: true,
     data: { status: "not_configured", message: "Google Drive OAuth integration pending" },
   });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

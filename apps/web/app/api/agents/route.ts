@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { salesAgents } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { salesAgents } from "@compliancetrack/db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "crypto";
@@ -26,7 +26,7 @@ export const GET = withAuth(async (_req, ctx) => {
     .orderBy(desc(salesAgents.created_at));
 
   return NextResponse.json({ success: true, data: { agents: rows } });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // POST /api/agents — create a sales agent
 export const POST = withAuth(async (req, ctx) => {
@@ -45,4 +45,4 @@ export const POST = withAuth(async (req, ctx) => {
     success: true,
     data: { name: body.name, email: body.email },
   }, { status: 201 });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { compliance, complianceHistory, departments, users } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { compliance, complianceHistory, departments, users } from "@compliancetrack/db";
 import { and, eq, ilike, or, asc, desc, sql, inArray, lte, gte, count, SQL } from "drizzle-orm";
 import { ComplianceFiltersSchema, CreateComplianceSchema, StatusTransitions } from "@compliancetrack/types";
 import { logAuditEvent } from "@/lib/auth/audit-logger";
@@ -64,7 +64,7 @@ export const GET = withAuth(async (req, ctx) => {
     .where(whereClause);
 
   // Order column mapping
-  const orderCol: Record<string, typeof compliance.due_date> = {
+  const orderCol: Record<string, any> = {
     due_date: compliance.due_date,
     priority: compliance.priority,
     status: compliance.status,

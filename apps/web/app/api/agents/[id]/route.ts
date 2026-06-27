@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { salesAgents } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { salesAgents } from "@compliancetrack/db";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -26,7 +26,7 @@ export const GET = withAuth(async (req, ctx) => {
   }
 
   return NextResponse.json({ success: true, data: agent });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // PUT /api/agents/[id] — update agent fields
 export const PUT = withAuth(async (req, ctx) => {
@@ -46,7 +46,7 @@ export const PUT = withAuth(async (req, ctx) => {
     .where(and(eq(salesAgents.id, id), eq(salesAgents.org_id, ctx.orgId)));
 
   return NextResponse.json({ success: true });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // DELETE /api/agents/[id] — soft-delete (set is_active = false)
 export const DELETE = withAuth(async (req, ctx) => {
@@ -57,4 +57,4 @@ export const DELETE = withAuth(async (req, ctx) => {
     .where(and(eq(salesAgents.id, id), eq(salesAgents.org_id, ctx.orgId)));
 
   return NextResponse.json({ success: true });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

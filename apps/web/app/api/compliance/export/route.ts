@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { compliance, departments, users } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { compliance, departments, users } from "@compliancetrack/db";
 import { and, eq, ilike, or, asc, desc, lte, gte, inArray, SQL } from "drizzle-orm";
 import { ComplianceFiltersSchema } from "@compliancetrack/types";
 
@@ -45,7 +45,8 @@ export const GET = withAuth(async (req, ctx) => {
   }
 
   const whereClause = and(...conditions);
-  const orderCol: Record<string, typeof compliance.due_date> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orderCol: Record<string, any> = {
     due_date: compliance.due_date,
     priority: compliance.priority,
     status: compliance.status,

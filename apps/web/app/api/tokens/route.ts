@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { apiTokens } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { apiTokens } from "@compliancetrack/db";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { createHash, randomBytes } from "crypto";
@@ -35,7 +35,7 @@ export const GET = withAuth(async (_req, ctx) => {
     .orderBy(desc(apiTokens.created_at));
 
   return NextResponse.json({ success: true, data: { tokens: rows } });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // POST /api/tokens — create a new token (admin only)
 export const POST = withAuth(async (req, ctx) => {
@@ -59,4 +59,4 @@ export const POST = withAuth(async (req, ctx) => {
       expires_at: body.expires_at ?? null,
     },
   }, { status: 201 });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

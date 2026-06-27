@@ -12,6 +12,11 @@ export const organisations = pgTable("organisations", {
   owner_id: uuid("owner_id").notNull(),
   is_active: boolean("is_active").notNull().default(true),
   settings: jsonb("settings").default({}).$type<Record<string, unknown>>(),
+  onboarding_step: integer("onboarding_step").notNull().default(0),
+  onboarding_completed: boolean("onboarding_completed").notNull().default(false),
+  onboarding_skipped_ai: boolean("onboarding_skipped_ai").notNull().default(false),
+  timezone: text("timezone").notNull().default("Asia/Kolkata"),
+  financial_year_start: text("financial_year_start").notNull().default("April"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -29,6 +34,7 @@ export const users = pgTable("users", {
   org_id: uuid("org_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("viewer"),
   is_active: boolean("is_active").notNull().default(true),
+  passcode_hash: text("passcode_hash"),
   last_login_at: timestamp("last_login_at", { withTimezone: true }),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -111,10 +117,12 @@ export const auditPoints = pgTable("audit_points", {
 ]);
 
 // ============ COMMENTS ============
-export const comments = pgTable("comments", {
+// Self-referencing FK: parent_comment_id -> comments.id
+// We define the base table first, then add the self-ref via separate export
+const commentsTable = pgTable("comments", {
   id: uuid("id").defaultRandom().primaryKey(),
   compliance_id: uuid("compliance_id").notNull().references(() => compliance.id, { onDelete: "cascade" }),
-  parent_comment_id: uuid("parent_comment_id").references(() => comments.id, { onDelete: "cascade" }),
+  parent_comment_id: uuid("parent_comment_id"), // self-ref added below
   author_id: uuid("author_id").notNull().references(() => users.id),
   body: text("body").notNull(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -124,6 +132,7 @@ export const comments = pgTable("comments", {
   index("comments_parent_idx").on(table.parent_comment_id),
   index("comments_author_idx").on(table.author_id),
 ]);
+export { commentsTable as comments };
 
 // ============ AUDIT LOG ============
 export const auditLog = pgTable("audit_log", {
@@ -321,7 +330,7 @@ export type Compliance = typeof compliance.$inferSelect;
 export type NewCompliance = typeof compliance.$inferInsert;
 export type ComplianceHistory = typeof complianceHistory.$inferSelect;
 export type AuditPoint = typeof auditPoints.$inferSelect;
-export type Comment = typeof comments.$inferSelect;
+export type Comment = typeof commentsTable.$inferSelect;
 export type AuditLog = typeof auditLog.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;

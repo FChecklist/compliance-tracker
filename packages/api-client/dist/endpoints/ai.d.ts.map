@@ -1,0 +1,1 @@
+{"version":3,"file":"ai.d.ts","sourceRoot":"","sources":["../../src/endpoints/ai.ts"],"names":[],"mappings":"AAEA,eAAO,MAAM,WAAW;oBACN,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC;cAC5B,MAAM;mBACD,OAAO;iBACT,MAAM,QAAQ,OAAO;iBACrB,MAAM;CACpB,CAAC"}

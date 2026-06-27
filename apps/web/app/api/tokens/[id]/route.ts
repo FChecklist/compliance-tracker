@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { apiTokens } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { apiTokens } from "@compliancetrack/db";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -31,7 +31,7 @@ export const GET = withAuth(async (req, ctx) => {
   }
 
   return NextResponse.json({ success: true, data: token });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // PUT /api/tokens/[id] — update name or permissions
 export const PUT = withAuth(async (req, ctx) => {
@@ -49,7 +49,7 @@ export const PUT = withAuth(async (req, ctx) => {
     .where(and(eq(apiTokens.id, id), eq(apiTokens.org_id, ctx.orgId)));
 
   return NextResponse.json({ success: true });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });
 
 // DELETE /api/tokens/[id] — revoke (delete) a token
 export const DELETE = withAuth(async (req, ctx) => {
@@ -59,4 +59,4 @@ export const DELETE = withAuth(async (req, ctx) => {
     .where(and(eq(apiTokens.id, id), eq(apiTokens.org_id, ctx.orgId)));
 
   return NextResponse.json({ success: true });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

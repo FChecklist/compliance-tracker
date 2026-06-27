@@ -1,0 +1,1 @@
+{"version":3,"file":"audit.d.ts","sourceRoot":"","sources":["../../src/endpoints/audit.ts"],"names":[],"mappings":"AAEA,eAAO,MAAM,cAAc;oBACT,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC;cAC5B,MAAM;mBACD,OAAO;iBACT,MAAM,QAAQ,OAAO;iBACrB,MAAM;CACpB,CAAC"}

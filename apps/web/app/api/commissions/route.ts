@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { commissions, salesAgents } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { commissions, salesAgents } from "@compliancetrack/db";
 import { eq, and, desc } from "drizzle-orm";
 
 // GET /api/commissions — list commissions for the org (admin only)
@@ -30,4 +30,4 @@ export const GET = withAuth(async (req, ctx) => {
     .orderBy(desc(commissions.created_at));
 
   return NextResponse.json({ success: true, data: { commissions: rows } });
-}, { roles: ["admin", "super_admin", "account_admin"] });
+}, { roles: ["account_admin"] });

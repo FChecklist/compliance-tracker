@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth/jwt";
-import { Role } from "@compliance/types";
+import { Role } from "@compliancetrack/types";
 
 export type AuthContext = {
   userId: string;
@@ -10,10 +10,10 @@ export type AuthContext = {
   fullName: string;
 };
 
-type Handler = (req: NextRequest, ctx: AuthContext) => Promise<NextResponse>;
+type Handler = (req: NextRequest, ctx: AuthContext) => Promise<NextResponse | Response>;
 
 export function withAuth(handler: Handler, options?: { roles?: Role[] }) {
-  return async (req: NextRequest): Promise<NextResponse> => {
+  return async (req: NextRequest): Promise<NextResponse | Response> => {
     const token = req.cookies.get("session")?.value;
     if (!token) return NextResponse.json({ error: "Unauthorized", code: "NO_TOKEN" }, { status: 401 });
 
