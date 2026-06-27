@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@compliance/db";
-import { organisations, users } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { organisations, users } from "@compliancetrack/db/schema";
 import { createSessionToken } from "@/lib/auth/jwt";
 import { logAuditEvent } from "@/lib/auth/audit-logger";
 import { hash } from "bcryptjs";

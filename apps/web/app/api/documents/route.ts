@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { documents } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { documents } from "@compliancetrack/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";

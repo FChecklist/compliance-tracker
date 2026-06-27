@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth/jwt";
-import { Role } from "@compliance/types";
+import { Role } from "@compliancetrack/types";
 
 export type AuthContext = {
   userId: string;

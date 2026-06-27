@@ -1,14 +1,26 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  NEXT_PUBLIC_API_URL: z.string().default("/api"),
+  // Supabase
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
+  // Database
+  DATABASE_URL: z.string().min(1),
+  DIRECT_URL: z.string().min(1).optional(),
+  DB_SCHEMA: z.string().default("compliance_tracker"),
+
+  // Auth
   JWT_SECRET: z.string().min(32),
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_ANON_KEY: z.string().min(1),
+
+  // App
+  NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+
+  // Integrations (optional)
   RESEND_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  VERCEL_URL: z.string().url().optional(),
+  VERCEL_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

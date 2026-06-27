@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { verifySessionToken, type SessionPayload } from "./jwt";
 
-export const SESSION_COOKIE_NAME = "auth-token";
+export const SESSION_COOKIE_NAME = "session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export async function getSession(): Promise<SessionPayload | null> {

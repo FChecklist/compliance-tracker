@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifySessionToken } from "./lib/auth/jwt";
+import { verifySessionToken } from "@/lib/auth/jwt";
 
 const PUBLIC_PATHS = ["/login", "/auth/verify", "/api/auth/passcode", "/api/auth/magic-link", "/api/auth/passcode/verify"];
 
@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get("auth-token")?.value;
+  const token = request.cookies.get("session")?.value;
   if (!token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ headers: requestHeaders });
   } catch {
     const response = NextResponse.redirect(new URL("/login", request.url));
-    response.cookies.set("auth-token", "", { maxAge: 0 });
+    response.cookies.set("session", "", { maxAge: 0 });
     return response;
   }
 }

@@ -3,7 +3,22 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL!;
-const queryClient = postgres(connectionString);
+const dbSchema = process.env.DB_SCHEMA || "compliance_tracker";
 
-export const db = drizzle(queryClient, { schema });
+const queryClient = postgres(connectionString, {
+  prepare: true,
+});
+
+export const db = drizzle(queryClient, {
+  schema,
+});
+
+// Helper to set the PostgreSQL search_path so queries hit the correct schema
+let schemaSet = false;
+export async function ensureSchema() {
+  if (schemaSet) return;
+  await queryClient.unsafe(`SET search_path TO "${dbSchema}", public`);
+  schemaSet = true;
+}
+
 export type Database = typeof db;

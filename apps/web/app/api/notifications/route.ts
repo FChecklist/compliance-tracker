@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth/with-auth";
-import { db } from "@compliance/db";
-import { notifications } from "@compliance/db/schema";
+import { db } from "@compliancetrack/db";
+import { notifications } from "@compliancetrack/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 
 export const GET = withAuth(async (_req, ctx) => {
