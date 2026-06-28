@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 
 type ComplianceItem = {
@@ -44,38 +45,6 @@ type ComplianceItem = {
   assignedTo: { name: string; avatarUrl: string | null } | null;
   createdAt: string;
   updatedAt: string;
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  overdue: "bg-red-100 text-red-700",
-  pending: "bg-amber-100 text-amber-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  draft: "bg-purple-100 text-purple-700",
-  not_applicable: "bg-gray-100 text-gray-600",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  overdue: "Overdue",
-  pending: "Pending",
-  in_progress: "In Progress",
-  completed: "Completed",
-  draft: "Draft",
-  not_applicable: "N/A",
-};
-
-const PRIORITY_BADGE: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  high: "bg-orange-100 text-orange-700",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-emerald-100 text-emerald-700",
-};
-
-const PRIORITY_LABELS: Record<string, string> = {
-  critical: "Critical",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
 };
 
 const COMPLIANCE_TYPES = [
@@ -322,26 +291,10 @@ export default function ChecklistsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[10px] px-2 py-0.5 font-medium",
-                          STATUS_BADGE[item.status] ?? ""
-                        )}
-                      >
-                        {STATUS_LABELS[item.status] ?? item.status}
-                      </Badge>
+                      <StatusBadge status={item.status} />
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[10px] px-1.5 py-0.5 capitalize",
-                          PRIORITY_BADGE[item.priority] ?? ""
-                        )}
-                      >
-                        {PRIORITY_LABELS[item.priority] ?? item.priority}
-                      </Badge>
+                      <PriorityBadge priority={item.priority} />
                     </TableCell>
                     <TableCell className="text-xs text-ct-muted hidden lg:table-cell">
                       {item.department.name}

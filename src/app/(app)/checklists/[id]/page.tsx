@@ -27,32 +27,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
-
-const STATUS_BADGE: Record<string, string> = {
-  overdue: "bg-red-100 text-red-700",
-  pending: "bg-amber-100 text-amber-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  draft: "bg-purple-100 text-purple-700",
-  not_applicable: "bg-gray-100 text-gray-600",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  overdue: "Overdue",
-  pending: "Pending",
-  in_progress: "In Progress",
-  completed: "Completed",
-  draft: "Draft",
-  not_applicable: "N/A",
-};
-
-const PRIORITY_BADGE: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  high: "bg-orange-100 text-orange-700",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-emerald-100 text-emerald-700",
-};
 
 type ChecklistDetail = {
   id: string;
@@ -219,24 +195,8 @@ export default function ChecklistDetailPage() {
             {data.title}
           </h1>
           <div className="flex flex-wrap items-center gap-2 mb-4">
-            <Badge
-              variant="secondary"
-              className={cn(
-                "text-[10px] px-2 py-0.5 font-medium",
-                STATUS_BADGE[data.status] ?? ""
-              )}
-            >
-              {STATUS_LABELS[data.status] ?? data.status}
-            </Badge>
-            <Badge
-              variant="secondary"
-              className={cn(
-                "text-[10px] px-2 py-0.5 capitalize font-medium",
-                PRIORITY_BADGE[data.priority] ?? ""
-              )}
-            >
-              {data.priority}
-            </Badge>
+            <StatusBadge status={data.status} />
+            <PriorityBadge priority={data.priority} />
             <Badge
               variant="outline"
               className="text-[10px] px-2 py-0.5 font-medium border-ct-border text-ct-slate"

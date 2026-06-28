@@ -162,7 +162,20 @@ export function DataTable<TData, TValue>({
       {/* Pagination */}
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-ct-muted">
-          {totalRows} {totalRows === 1 ? "row" : "rows"} in total
+          Showing{" "}
+          <span className="font-medium text-ct-navy">
+            {totalRows === 0
+              ? 0
+              : table.getState().pagination.pageIndex * PAGE_SIZE + 1}
+            –
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) * PAGE_SIZE,
+              totalRows
+            )}
+          </span>{" "}
+          of{" "}
+          <span className="font-medium text-ct-navy">{totalRows}</span>{" "}
+          {totalRows === 1 ? "row" : "rows"}
         </p>
         <div className="flex items-center gap-1">
           <Button
