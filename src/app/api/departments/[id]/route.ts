@@ -1,47 +1,61 @@
-import { db } from '@/lib/db'
-import { departments, complianceItems } from '@/lib/db/schema'
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { db } from "@/lib/db";
+import { NextResponse } from "next/server";
 
-type RouteContext = { params: Promise<{ id: string }> }
-
-export async function GET(_req: NextRequest, ctx: RouteContext) {
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = await ctx.params
-    const dept = await db.query.departments.findFirst({
-      where: (f, { eq }) => eq(f.id, id),
-      with: {
-        head: { columns: { name: true, email: true } },
-        users: { columns: { id: true, name: true, role: true } },
+    const { id } = await params;
+
+    const department = await db.department.findUnique({
+      where: { id },
+      include: {
         compliance: {
-          columns: { id: true, title: true, status: true, priority: true, dueDate: true },
-          orderBy: (f, { asc }) => asc(f.dueDate),
+          orderBy: { dueDate: "asc" },
+        },
+        users: {
+          select: { id: true, name: true, role: true },
         },
       },
-    })
+    });
 
-    if (!dept) return NextResponse.json({ error: 'Department not found' }, { status: 404 })
+    if (!department) {
+      return NextResponse.json({ error: "Department not found" }, { status: 404 });
+    }
+
+    const statusCounts = {
+      pending: 0,
+      in_progress: 0,
+      completed: 0,
+      overdue: 0,
+      not_applicable: 0,
+    };
+
+    for (const item of department.compliance) {
+      statusCounts[item.status as keyof typeof statusCounts]++;
+    }
 
     return NextResponse.json({
       department: {
-        id: dept.id,
-        name: dept.name,
-        description: dept.description,
-        head: dept.head ? { name: dept.head.name, email: dept.head.email } : null,
-        memberCount: dept.users.length,
-        members: dept.users,
-        complianceCount: dept.compliance.length,
-        completedCount: dept.compliance.filter(c => c.status === 'completed').length,
-        compliance: dept.compliance.map(c => ({
-          id: c.id, title: c.title, status: c.status, priority: c.priority,
-          dueDate: c.dueDate?.toISOString(),
+        id: department.id,
+        name: department.name,
+        description: department.description,
+        complianceCount: department.compliance.length,
+        statusCounts,
+        users: department.users,
+        complianceItems: department.compliance.map((c) => ({
+          id: c.id,
+          title: c.title,
+          status: c.status,
+          priority: c.priority,
+          dueDate: c.dueDate?.toISOString() ?? null,
+          complianceType: c.complianceType,
         })),
-        createdAt: dept.createdAt.toISOString(),
-        updatedAt: dept.updatedAt.toISOString(),
       },
-    })
+    });
   } catch (error) {
-    console.error('Department detail API error:', error)
-    return NextResponse.json({ error: 'Failed to fetch department' }, { status: 500 })
+    console.error("Department detail API error:", error);
+    return NextResponse.json({ error: "Failed to fetch department" }, { status: 500 });
   }
 }

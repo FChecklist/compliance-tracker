@@ -1,4 +1,13 @@
-// Drizzle ORM client — replaces the Prisma client that was here
-export { db } from './db/index'
-export type { Database } from './db/index'
-export * from './db/schema'
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+export const db =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['query'],
+  })
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

@@ -1,18 +1,37 @@
-import { db } from '@/lib/db'
-import { notifications } from '@/lib/db/schema'
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { db } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
 
-type RouteContext = { params: Promise<{ id: string }> }
+type RouteContext = { params: Promise<{ id: string }> };
 
-export async function PATCH(_req: NextRequest, ctx: RouteContext) {
+export async function PATCH(
+  _request: NextRequest,
+  context: RouteContext
+) {
   try {
-    const { id } = await ctx.params
-    const [updated] = await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id)).returning()
-    if (!updated) return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
-    return NextResponse.json({ success: true })
+    const { id } = await context.params;
+
+    const notification = await db.notification.findUnique({
+      where: { id },
+    });
+
+    if (!notification) {
+      return NextResponse.json(
+        { error: "Notification not found" },
+        { status: 404 }
+      );
+    }
+
+    await db.notification.update({
+      where: { id },
+      data: { isRead: true },
+    });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Notification read API error:', error)
-    return NextResponse.json({ error: 'Failed to mark notification as read' }, { status: 500 })
+    console.error("Notification read API error:", error);
+    return NextResponse.json(
+      { error: "Failed to mark notification as read" },
+      { status: 500 }
+    );
   }
 }

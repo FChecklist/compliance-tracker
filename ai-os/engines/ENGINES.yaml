@@ -1,0 +1,21 @@
+engines:
+  zai:
+    id: zai
+    name: "Z.ai GLM"
+    status: active
+    secret_key: ZAI_API_KEY
+    base_url_key: ZAI_BASE_URL
+    trigger_event: zai-task
+    capabilities: [code_generation, ui_design, full_stack_development, prisma, nextjs, tailwind]
+  claude_code:
+    id: claude-code
+    name: "Claude Code (Anthropic)"
+    status: pending_key
+    secret_key: ANTHROPIC_API_KEY
+    trigger_event: claude-task
+    capabilities: [code_generation, code_review, architecture, devops]
+gateway:
+  primary: zai
+  all_changes_via_ai: true
+  human_coding: false
+  sentinel_required: true
