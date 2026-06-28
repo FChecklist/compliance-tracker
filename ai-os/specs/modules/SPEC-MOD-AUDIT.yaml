@@ -1,0 +1,62 @@
+﻿id: SPEC-MOD-AUDIT
+module: MOD-AUDIT
+boss: VEDABOSS
+status: DRAFT
+priority: HIGH
+created: "2026-06-26"
+
+business:
+  objective: "Maintain an immutable audit trail of all system changes for regulatory compliance and security forensics"
+  stakeholders: [admins, auditors, compliance officers]
+
+requirements:
+  functional:
+    - "Log every create/update/delete on all compliance entities"
+    - "Each log entry: entity_type, entity_id, action, changed_by, timestamp, before_state, after_state"
+    - "Audit log is append-only (no updates or deletes)"
+    - "Filter audit log by entity, user, date range, action type"
+    - "Export audit log as CSV for external auditors"
+  technical:
+    - "audit_logs table with insert-only RLS (no update, no delete)"
+    - "Postgres triggers create audit entries automatically"
+    - "before/after stored as JSONB"
+  non_functional:
+    performance: "Audit log write adds <5ms to any operation"
+    security: "Audit log immutable even to org admins"
+
+security:
+  requirements:
+    - "Audit logs are insert-only: no one can modify or delete"
+    - "Database-level constraint enforces immutability"
+  fraud_scenarios:
+    - "Admin deleting audit evidence: impossible via DB constraints"
+    - "Timestamp manipulation: server timestamps only, not client-provided"
+
+acceptance_criteria:
+  - given: "Any compliance control status change"
+    when: "The change is saved"
+    then: "Audit log entry is created within the same transaction"
+  - given: "An admin"
+    when: "They attempt to delete an audit log entry"
+    then: "Database returns permission denied"
+
+tests:
+  unit:
+    - "Audit log entry creation format"
+  integration:
+    - "Control status change creates audit entry atomically"
+    - "Delete attempt on audit_logs table fails"
+  e2e:
+    - "Full change flow shows in audit trail"
+
+sentinel_validation_rules:
+  - rule: "Audit log writes must be in same transaction as the triggering operation"
+    severity: critical
+  - rule: "No API endpoint may allow audit log modification"
+    severity: critical
+
+success_metrics:
+  - metric: "Audit log coverage"
+    target: "100% of entity changes captured"
+
+rollback_strategy: "N/A: audit log is permanent by design"

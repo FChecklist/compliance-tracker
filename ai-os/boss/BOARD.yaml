@@ -1,0 +1,303 @@
+# VEDABOSS Work Board
+# Single source of truth for all tasks — agents check here before starting any work
+# Status: open | in_progress | review | completed | blocked
+# Updated: 2026-06-28
+
+tasks:
+  # ══════════════════════════════════════════════
+  # MIGRATED FROM LEGACY VEDABOSS (Wave 1-4, all APPROVED)
+  # ══════════════════════════════════════════════
+
+  - id: T-M1
+    title: "Product decisions and onboarding wizard spec"
+    module: MOD-COMPLIANCE
+    type: product
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: PRODUCT_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - agents/PRODUCT_AI_AGENT/output/product_decisions.json
+      - agents/PRODUCT_AI_AGENT/output/onboarding_wizard_spec.json
+    notes: "Legacy Wave 1 — approved by QC"
+
+  - id: T-M2
+    title: "Design system, component specs, page layouts, accessibility"
+    module: MOD-COMPLIANCE
+    type: design
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: UI_UX_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - agents/UI_UX_AI_AGENT/output/design_system.json
+      - agents/UI_UX_AI_AGENT/output/component_specs.json
+      - agents/UI_UX_AI_AGENT/output/page_layouts.json
+      - agents/UI_UX_AI_AGENT/output/accessibility_guidelines.json
+    notes: "Legacy Wave 1 — approved by QC"
+
+  - id: T-D1-001
+    title: "Full monorepo foundation: schema, RLS, RBAC, JWT, types, api-client"
+    module: MOD-AUTH
+    type: implementation
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: DEVELOPER_1_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created_count: 57
+    notes: "Legacy Wave 1 — 57 files pushed, score 92/100 from QC"
+
+  - id: T-D2-001
+    title: "Auth API routes, onboarding, org management, departments, user RBAC"
+    module: MOD-AUTH
+    type: implementation
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: DEVELOPER_2_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - supabase/migrations/005_onboarding_fields.sql
+      - apps/web/lib/auth/with-auth.ts
+      - apps/web/app/api/auth/register/route.ts
+      - apps/web/app/api/auth/login/route.ts
+      - apps/web/app/api/auth/logout/route.ts
+      - apps/web/app/api/auth/me/route.ts
+      - apps/web/app/api/auth/refresh/route.ts
+      - apps/web/app/api/onboarding/status/route.ts
+      - apps/web/app/api/onboarding/complete-step/route.ts
+      - apps/web/app/api/orgs/[id]/route.ts
+      - apps/web/app/api/departments/route.ts
+      - apps/web/app/api/users/route.ts
+      - apps/web/app/api/users/invite/route.ts
+      - apps/web/app/api/ai/usage/route.ts
+    notes: "Legacy Wave 2 — approved by QC"
+
+  - id: T-D3-001
+    title: "Compliance CRUD, notifications, documents, AI generate, audit APIs"
+    module: MOD-COMPLIANCE
+    type: implementation
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: DEVELOPER_3_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - apps/web/app/api/compliance/route.ts
+      - apps/web/app/api/compliance/[id]/route.ts
+      - apps/web/app/api/compliance/stats/route.ts
+      - apps/web/app/api/notifications/route.ts
+      - apps/web/app/api/documents/route.ts
+      - apps/web/app/api/ai/generate/route.ts
+      - apps/web/app/api/audit/route.ts
+    notes: "Legacy Wave 3 — approved by QC"
+
+  - id: T-D4-001
+    title: "All 11 UI pages, AppShell, role-based nav, Tailwind config"
+    module: MOD-COMPLIANCE
+    type: implementation
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: DEVELOPER_4_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - apps/web/app/layout.tsx
+      - apps/web/app/page.tsx
+      - apps/web/app/(auth)/login/page.tsx
+      - apps/web/app/(auth)/register/page.tsx
+      - apps/web/app/onboarding/page.tsx
+      - apps/web/app/(app)/dashboard/page.tsx
+      - apps/web/app/(app)/compliance/page.tsx
+      - apps/web/app/(app)/departments/page.tsx
+      - apps/web/app/(app)/users/page.tsx
+      - apps/web/app/(app)/settings/page.tsx
+      - apps/web/app/(app)/ai/page.tsx
+      - apps/web/components/AppSidebar.tsx
+      - apps/web/components/AppTopbar.tsx
+    notes: "Legacy Wave 3 — approved by QC"
+
+  - id: T-D5-001
+    title: "CI/CD workflow, env example, mobile app scaffold"
+    module: MOD-MOBILE
+    type: implementation
+    priority: MEDIUM
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: DEVELOPER_5_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - .github/workflows/ci.yml
+      - .env.example
+      - apps/mobile/app.json
+      - apps/mobile/app/index.tsx
+      - apps/mobile/app/login.tsx
+    notes: "Legacy Wave 4 — approved by QC"
+
+  - id: T-M8
+    title: "Unit tests: JWT, RBAC, enums, vitest config"
+    module: MOD-AUTH
+    type: testing
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: TESTER_1_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - tests/unit/auth/jwt.test.ts
+      - tests/unit/auth/rbac.test.ts
+      - tests/unit/enums/enums.test.ts
+      - vitest.config.ts
+    notes: "Legacy Wave 4 — approved"
+
+  - id: T-M9
+    title: "E2E tests: auth, compliance, navigation"
+    module: MOD-COMPLIANCE
+    type: testing
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: TESTER_2_AI_AGENT
+    completed_date: "2026-06-26"
+    files_created:
+      - playwright.config.ts
+      - tests/e2e/auth.spec.ts
+      - tests/e2e/compliance.spec.ts
+      - tests/e2e/navigation.spec.ts
+    notes: "Legacy Wave 4 — approved"
+
+  # ══════════════════════════════════════════════
+  # AI-OS BOOTSTRAP TASKS (Current session 2026-06-28)
+  # ══════════════════════════════════════════════
+
+  - id: T-AIOS-001
+    title: "Install AI-OS directory structure across all repos"
+    module: MOD-API
+    type: governance
+    priority: CRITICAL
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: SENTINEL
+    completed_date: "2026-06-26"
+    branch: sentinel/bootstrap
+    pr_url: "https://github.com/FChecklist/compliance-tracker/pull/15"
+    files_created:
+      - ai-os/OS.yaml
+      - ai-os/LIFECYCLE.yaml
+      - ai-os/boss/BOSS.yaml
+      - ai-os/boss/BOARD.yaml
+      - ai-os/boss/ROSTER.yaml
+      - ai-os/boss/COMPLETED.yaml
+      - ai-os/sentinel/SENTINEL.yaml
+      - ai-os/sentinel/VIOLATIONS.yaml
+      - ai-os/sentinel/HEALTH.yaml
+      - ai-os/registry/ARTIFACTS.yaml
+      - ai-os/specs/SPEC-TEMPLATE.yaml
+      - ai-os/schemas/spec.schema.json
+      - ai-os/schemas/agent.schema.json
+      - ai-os/schemas/artifact.schema.json
+      - SENTINEL.md
+      - .github/workflows/ci.yml
+      - .github/workflows/codeql.yml
+      - .github/workflows/sentinel.yml
+      - .github/dependabot.yml
+      - docs/governance/CHANGELOG.md
+      - docs/governance/HEALTH.md
+      - docs/decisions/ADR-0003-ai-sentinel-governance.md
+    notes: "AI OS bootstrap complete. PR #15 awaiting CI to merge."
+
+  - id: T-AIOS-002
+    title: "Write all 11 module specs for compliance-tracker"
+    module: MOD-COMPLIANCE
+    type: documentation
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: SENTINEL
+    completed_date: "2026-06-28"
+    branch: sentinel/bootstrap
+    files_created:
+      - ai-os/specs/modules/SPEC-MOD-AUTH.yaml
+      - ai-os/specs/modules/SPEC-MOD-ORG.yaml
+      - ai-os/specs/modules/SPEC-MOD-COMPLIANCE.yaml
+      - ai-os/specs/modules/SPEC-MOD-TASKS.yaml
+      - ai-os/specs/modules/SPEC-MOD-WORKFLOW.yaml
+      - ai-os/specs/modules/SPEC-MOD-NOTIFY.yaml
+      - ai-os/specs/modules/SPEC-MOD-AI.yaml
+      - ai-os/specs/modules/SPEC-MOD-REPORTS.yaml
+      - ai-os/specs/modules/SPEC-MOD-AUDIT.yaml
+      - ai-os/specs/modules/SPEC-MOD-API.yaml
+      - ai-os/specs/modules/SPEC-MOD-MOBILE.yaml
+
+  - id: T-AIOS-003
+    title: "Populate ARTIFACTS.yaml knowledge graph"
+    module: MOD-API
+    type: documentation
+    priority: HIGH
+    status: completed
+    lifecycle_stage: IMPROVE
+    assigned_to: SENTINEL
+    completed_date: "2026-06-28"
+    branch: sentinel/bootstrap
+    files_created:
+      - ai-os/registry/ARTIFACTS.yaml
+
+  # ══════════════════════════════════════════════
+  # NEXT UP — open tasks for AI agents to claim
+  # ══════════════════════════════════════════════
+
+  - id: T-NEXT-001
+    title: "Apply all 5 Supabase migrations to production database"
+    module: MOD-AUTH
+    type: deployment
+    priority: CRITICAL
+    status: open
+    lifecycle_stage: UNDERSTAND
+    assigned_to: unassigned
+    notes: |
+      Human action required: run `supabase db push` with production DATABASE_URL.
+      Migrations are in supabase/migrations/ (001_core_tables through 005_onboarding_fields).
+
+  - id: T-NEXT-002
+    title: "Add Vercel env vars: DATABASE_URL, JWT_SECRET, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    module: MOD-AUTH
+    type: deployment
+    priority: CRITICAL
+    status: open
+    lifecycle_stage: UNDERSTAND
+    assigned_to: unassigned
+    notes: "Human action required: add secrets to Vercel dashboard for compliance-tracker project"
+
+  - id: T-NEXT-003
+    title: "Merge PR #15 (sentinel/bootstrap) into main"
+    module: MOD-API
+    type: governance
+    priority: HIGH
+    status: open
+    lifecycle_stage: DEPLOY
+    assigned_to: unassigned
+    pr_url: "https://github.com/FChecklist/compliance-tracker/pull/15"
+    notes: "CI must pass before merge. CI fixed 2026-06-28."
+
+  - id: T-NEXT-004
+    title: "Configure Sentry error monitoring"
+    module: MOD-API
+    type: implementation
+    priority: MEDIUM
+    status: open
+    lifecycle_stage: UNDERSTAND
+    assigned_to: unassigned
+    notes: "Install @sentry/nextjs, add SENTRY_DSN to env, wrap next.config"
+
+  - id: T-NEXT-005
+    title: "Configure PostHog product analytics"
+    module: MOD-API
+    type: implementation
+    priority: MEDIUM
+    status: open
+    lifecycle_stage: UNDERSTAND
+    assigned_to: unassigned
+    notes: "Install posthog-js, add NEXT_PUBLIC_POSTHOG_KEY, wrap in Provider"

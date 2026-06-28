@@ -1,0 +1,61 @@
+﻿id: SPEC-MOD-MOBILE
+module: MOD-MOBILE
+boss: VEDABOSS
+status: DRAFT
+priority: LOW
+created: "2026-06-26"
+
+business:
+  objective: "Provide compliance officers and managers a mobile app to view tasks, approve items, and get push notifications on the go"
+  stakeholders: [managers, compliance officers]
+
+requirements:
+  functional:
+    - "View assigned tasks and overdue items"
+    - "Approve/reject workflow submissions with comment"
+    - "Push notifications for task assignments and approvals"
+    - "Compliance score overview screen"
+    - "Offline support for viewing cached data"
+  technical:
+    - "Expo React Native (iOS and Android)"
+    - "Supabase JS client for auth and data"
+    - "Expo Push Notifications"
+    - "React Query for caching"
+  non_functional:
+    performance: "App cold start <2s"
+    security: "Biometric authentication option"
+
+security:
+  requirements:
+    - "Biometric or PIN lock on app open"
+    - "Session tokens stored in Expo SecureStore"
+    - "No sensitive data cached to disk unencrypted"
+  fraud_scenarios:
+    - "Lost device: remote session revocation via web dashboard"
+
+acceptance_criteria:
+  - given: "A manager on the mobile app"
+    when: "A workflow submission is pending their approval"
+    then: "They receive push notification and can approve in-app"
+
+tests:
+  unit:
+    - "Task list renders correctly with mock data"
+    - "Push notification registration"
+  integration:
+    - "Auth flow with Supabase"
+    - "Task status update syncs to server"
+  e2e:
+    - "Login and view tasks on device"
+
+sentinel_validation_rules:
+  - rule: "Session tokens must be stored in SecureStore, not AsyncStorage"
+    severity: critical
+
+success_metrics:
+  - metric: "App crash rate"
+    target: "<0.1%"
+  - metric: "Push notification delivery rate"
+    target: ">95%"
+
+rollback_strategy: "Revert app update via Expo OTA; server API unaffected"

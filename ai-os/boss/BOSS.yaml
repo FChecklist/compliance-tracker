@@ -1,0 +1,81 @@
+# VEDABOSS - Compliance Tracker Project BOSS
+boss:
+  id: VEDABOSS
+  project: ComplianceTrack
+  repository: FChecklist/compliance-tracker
+  version: 2.0.0
+  status: active
+  authority:
+    can_do:
+      - Create and assign tasks to agents
+      - Review and approve completed work
+      - Reject and reassign work with feedback
+      - Integrate approved code
+      - Create new AI agents as needed
+      - Escalate to human when required
+    cannot_do:
+      - Deploy to production without human approval
+      - Delete data without human approval
+      - Override SENTINEL violations
+
+project_context:
+  name: ComplianceTrack
+  type: B2B SaaS Compliance Management Platform
+  tech_stack:
+    frontend: Next.js 14 App Router TypeScript Tailwind shadcn/ui
+    mobile: Expo React Native
+    backend: Next.js API Routes Drizzle ORM
+    database: Supabase PostgreSQL
+    monorepo: Turborepo pnpm
+    packages: api-client config db types ui
+
+modules:
+  - { id: MOD-AUTH, name: Authentication and User Management, status: in_progress, priority: critical }
+  - { id: MOD-ORG, name: Organization Management, status: pending, priority: critical }
+  - { id: MOD-COMPLIANCE, name: Compliance Framework Management, status: pending, priority: critical }
+  - { id: MOD-TASKS, name: Task and Item Management, status: pending, priority: high }
+  - { id: MOD-WORKFLOW, name: Workflow Engine, status: pending, priority: high }
+  - { id: MOD-NOTIFY, name: Notifications Email WhatsApp, status: pending, priority: high }
+  - { id: MOD-AI, name: AI Assistant, status: pending, priority: medium }
+  - { id: MOD-REPORTS, name: Reporting and Analytics, status: pending, priority: medium }
+  - { id: MOD-AUDIT, name: Audit Trail, status: pending, priority: high }
+  - { id: MOD-API, name: External API and Integrations, status: pending, priority: medium }
+  - { id: MOD-MOBILE, name: Mobile App Expo, status: pending, priority: medium }
+
+agents:
+  - { id: VEDABOSS, role: Master Controller, type: orchestrator, status: active, reports_to: SENTINEL }
+  - { id: PROJECT_AGENT, role: Project Manager, type: management, status: active, reports_to: VEDABOSS }
+  - { id: PRODUCT_AGENT, role: Product Manager, type: product, status: active, reports_to: VEDABOSS }
+  - { id: UI_UX_AGENT, role: UI UX Designer, type: designer, status: active, reports_to: VEDABOSS }
+  - { id: DEV_1_AGENT, role: Backend Engineer ZAI, type: developer, status: active, reports_to: VEDABOSS, ai_tool: Z.ai }
+  - { id: DEV_2_AGENT, role: Platform QC Engineer CODEX, type: developer, status: active, reports_to: VEDABOSS, ai_tool: OpenAI-Codex }
+  - { id: DEV_3_AGENT, role: Full Stack Engineer, type: developer, status: active, reports_to: VEDABOSS }
+  - { id: DEV_4_AGENT, role: Frontend Mobile Engineer CURSOR, type: developer, status: active, reports_to: VEDABOSS, ai_tool: Cursor }
+  - { id: DEV_5_AGENT, role: Full Stack Engineer, type: developer, status: active, reports_to: VEDABOSS }
+  - { id: QC_AGENT, role: Quality Control, type: quality, status: active, reports_to: VEDABOSS }
+  - { id: TESTER_1_AGENT, role: Test Engineer 1, type: tester, status: active, reports_to: QC_AGENT }
+  - { id: TESTER_2_AGENT, role: Test Engineer 2, type: tester, status: active, reports_to: QC_AGENT }
+
+work_files:
+  board: ai-os/boss/BOARD.yaml
+  completed: ai-os/boss/COMPLETED.yaml
+  roster: ai-os/boss/ROSTER.yaml
+  legacy_assignments: VEDABOSS/WORK_ASSIGNMENTS.json
+  legacy_roster: VEDABOSS/AI_ROSTER.json
+
+allocation_rules:
+  - Read BOARD.yaml before allocating any task
+  - Check task not already assigned or completed
+  - Backend DB tasks to DEV_1_AGENT or DEV_2_AGENT
+  - Frontend tasks to DEV_4_AGENT
+  - Mobile tasks to DEV_4_AGENT
+  - Product decisions to PRODUCT_AGENT
+  - Design decisions to UI_UX_AGENT
+  - QC review to QC_AGENT
+  - Tests to TESTER_1_AGENT or TESTER_2_AGENT
+
+deduplication:
+  rule: If task_id exists in BOARD.yaml with any status other than cancelled do not create duplicate
+  check_files:
+    - ai-os/boss/BOARD.yaml
+    - VEDABOSS/WORK_ASSIGNMENTS.json (legacy)

@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI-OS Feature Specification",
+  "type": "object",
+  "required": ["metadata","business","requirements","security","edge_cases","acceptance_criteria","tests","sentinel_validation_rules","success_metrics","rollback_strategy"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["id","name","module","project","boss","status","priority"],
+      "properties": {
+        "id": {"type":"string","pattern":"^SPEC-[A-Z0-9-]+$"},
+        "project": {"type":"string","enum":["compliance-tracker","meettrack","veda-advisors"]},
+        "boss": {"type":"string","enum":["VEDABOSS","MEETINGBOSS","VEDAADVISORBOSS"]},
+        "status": {"type":"string","enum":["pending","in_progress","implemented","tested","deployed"]},
+        "priority": {"type":"string","enum":["critical","high","medium","low"]}
+      }
+    },
+    "business": {"type":"object","required":["objective"]},
+    "requirements": {"type":"object","required":["functional","technical"]},
+    "security": {"type":"object","required":["requirements","fraud_scenarios"]},
+    "edge_cases": {"type":"array"},
+    "acceptance_criteria": {"type":"array","minItems":1},
+    "tests": {"type":"object","required":["unit","e2e"]},
+    "sentinel_validation_rules": {"type":"array"},
+    "success_metrics": {"type":"array","minItems":1},
+    "rollback_strategy": {"type":"object","required":["triggers","steps"]}
+  }
+}

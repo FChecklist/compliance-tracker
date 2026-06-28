@@ -1,0 +1,61 @@
+﻿id: SPEC-MOD-REPORTS
+module: MOD-REPORTS
+boss: VEDABOSS
+status: DRAFT
+priority: MEDIUM
+created: "2026-06-26"
+
+business:
+  objective: "Generate audit-ready compliance reports and dashboards showing compliance posture across all frameworks"
+  stakeholders: [admins, compliance officers, auditors, executives]
+
+requirements:
+  functional:
+    - "Compliance score dashboard: % compliant per framework"
+    - "Control status breakdown by category"
+    - "Trend charts: compliance over time"
+    - "PDF export of full compliance report"
+    - "Evidence summary report per framework"
+    - "Overdue items report"
+  technical:
+    - "Reports generated server-side for PDF"
+    - "Chart data computed from compliance tables"
+    - "Report scheduling for recurring exports"
+  non_functional:
+    performance: "Dashboard renders <1s, PDF generation <10s"
+    security: "Reports contain org-scoped data only"
+
+security:
+  requirements:
+    - "PDF reports only accessible to org admins and compliance officers"
+    - "Report download logged to audit trail"
+  fraud_scenarios:
+    - "Accessing another org report: org_id checked server-side"
+
+acceptance_criteria:
+  - given: "An org with 50% of GDPR controls compliant"
+    when: "Admin views the dashboard"
+    then: "Dashboard shows 50% compliance score for GDPR"
+  - given: "An admin"
+    when: "They export a PDF report"
+    then: "PDF contains all controls, statuses, and evidence summary"
+
+tests:
+  unit:
+    - "Compliance score calculation"
+    - "Overdue items filter"
+  integration:
+    - "PDF generation produces valid file"
+  e2e:
+    - "Dashboard loads with correct score"
+    - "PDF export downloads successfully"
+
+sentinel_validation_rules:
+  - rule: "Reports must be scoped to authenticated org"
+    severity: critical
+
+success_metrics:
+  - metric: "PDF generation time"
+    target: "<10s"
+
+rollback_strategy: "Revert report template; underlying data unchanged"

@@ -1,0 +1,262 @@
+# Compliance Tracker — AI-OS Knowledge Graph
+# Auto-populated 2026-06-26 from codebase analysis
+# Stack: pnpm monorepo, Next.js App Router, Supabase, TypeScript
+
+modules:
+  - id: MOD-AUTH
+    spec: ai-os/specs/modules/SPEC-MOD-AUTH.yaml
+    status: PLANNED
+    related_to: [MOD-ORG, MOD-AUDIT, MOD-API]
+  - id: MOD-ORG
+    spec: ai-os/specs/modules/SPEC-MOD-ORG.yaml
+    status: PLANNED
+    related_to: [MOD-AUTH, MOD-COMPLIANCE, MOD-TASKS]
+  - id: MOD-COMPLIANCE
+    spec: ai-os/specs/modules/SPEC-MOD-COMPLIANCE.yaml
+    status: PLANNED
+    related_to: [MOD-ORG, MOD-TASKS, MOD-WORKFLOW, MOD-AUDIT]
+  - id: MOD-TASKS
+    spec: ai-os/specs/modules/SPEC-MOD-TASKS.yaml
+    status: PLANNED
+    related_to: [MOD-COMPLIANCE, MOD-NOTIFY, MOD-WORKFLOW]
+  - id: MOD-WORKFLOW
+    spec: ai-os/specs/modules/SPEC-MOD-WORKFLOW.yaml
+    status: PLANNED
+    related_to: [MOD-COMPLIANCE, MOD-TASKS, MOD-NOTIFY, MOD-AUDIT]
+  - id: MOD-NOTIFY
+    spec: ai-os/specs/modules/SPEC-MOD-NOTIFY.yaml
+    status: PLANNED
+    related_to: [MOD-TASKS, MOD-WORKFLOW]
+  - id: MOD-AI
+    spec: ai-os/specs/modules/SPEC-MOD-AI.yaml
+    status: PLANNED
+    related_to: [MOD-COMPLIANCE, MOD-TASKS]
+  - id: MOD-REPORTS
+    spec: ai-os/specs/modules/SPEC-MOD-REPORTS.yaml
+    status: PLANNED
+    related_to: [MOD-COMPLIANCE, MOD-AUDIT]
+  - id: MOD-AUDIT
+    spec: ai-os/specs/modules/SPEC-MOD-AUDIT.yaml
+    status: PLANNED
+    related_to: [MOD-AUTH, MOD-COMPLIANCE, MOD-WORKFLOW]
+  - id: MOD-API
+    spec: ai-os/specs/modules/SPEC-MOD-API.yaml
+    status: PLANNED
+    related_to: [MOD-AUTH, MOD-COMPLIANCE]
+  - id: MOD-MOBILE
+    spec: ai-os/specs/modules/SPEC-MOD-MOBILE.yaml
+    status: PLANNED
+    related_to: [MOD-AUTH, MOD-TASKS, MOD-WORKFLOW]
+
+apis:
+  - id: API-AUTH-LOGIN
+    path: /api/auth/login
+    method: POST
+    module: MOD-AUTH
+    related_to: [TABLE-USERS, TABLE-AUDIT-LOGS]
+  - id: API-AUTH-LOGOUT
+    path: /api/auth/logout
+    method: POST
+    module: MOD-AUTH
+    related_to: [TABLE-AUDIT-LOGS]
+  - id: API-ORGS
+    path: /api/orgs
+    method: GET/POST
+    module: MOD-ORG
+    related_to: [TABLE-ORGS]
+  - id: API-ORGS-MEMBERS
+    path: /api/orgs/[id]/members
+    method: GET/POST/DELETE
+    module: MOD-ORG
+    related_to: [TABLE-ORG-MEMBERS]
+  - id: API-CONTROLS
+    path: /api/controls
+    method: GET/POST/PUT
+    module: MOD-COMPLIANCE
+    related_to: [TABLE-CONTROLS, TABLE-AUDIT-LOGS]
+  - id: API-TASKS
+    path: /api/tasks
+    method: GET/POST/PUT
+    module: MOD-TASKS
+    related_to: [TABLE-TASKS]
+  - id: API-WORKFLOWS
+    path: /api/workflows
+    method: GET/POST/PUT
+    module: MOD-WORKFLOW
+    related_to: [TABLE-WORKFLOW-INSTANCES]
+  - id: API-NOTIFICATIONS
+    path: /api/notifications
+    method: GET/PUT
+    module: MOD-NOTIFY
+    related_to: [TABLE-NOTIFICATIONS]
+  - id: API-AI-CHAT
+    path: /api/ai/chat
+    method: POST
+    module: MOD-AI
+    related_to: []
+  - id: API-REPORTS
+    path: /api/reports
+    method: GET
+    module: MOD-REPORTS
+    related_to: [TABLE-CONTROLS, TABLE-AUDIT-LOGS]
+  - id: API-AUDIT-LOGS
+    path: /api/audit
+    method: GET
+    module: MOD-AUDIT
+    related_to: [TABLE-AUDIT-LOGS]
+  - id: API-V1-CONTROLS
+    path: /api/v1/controls
+    method: GET
+    module: MOD-API
+    related_to: [TABLE-CONTROLS]
+  - id: API-V1-SCORE
+    path: /api/v1/compliance/score
+    method: GET
+    module: MOD-API
+    related_to: [TABLE-CONTROLS]
+
+database_tables:
+  - id: TABLE-USERS
+    name: users
+    description: "User identities (Supabase Auth)"
+    module: MOD-AUTH
+    columns: [id, email, org_id, role, created_at]
+    related_to: [TABLE-ORGS, TABLE-AUDIT-LOGS]
+  - id: TABLE-ORGS
+    name: orgs
+    description: "Organisation records"
+    module: MOD-ORG
+    columns: [id, name, industry, size, settings, created_at, deleted_at]
+    related_to: [TABLE-ORG-MEMBERS, TABLE-CONTROLS]
+  - id: TABLE-ORG-MEMBERS
+    name: org_members
+    description: "User-to-org membership with roles"
+    module: MOD-ORG
+    columns: [id, org_id, user_id, role, invited_at, accepted_at]
+    related_to: [TABLE-ORGS, TABLE-USERS]
+  - id: TABLE-FRAMEWORKS
+    name: frameworks
+    description: "Compliance frameworks (GDPR, ISO 27001, SOC 2)"
+    module: MOD-COMPLIANCE
+    columns: [id, name, version, category, org_id, created_at]
+    related_to: [TABLE-CONTROLS]
+  - id: TABLE-CONTROLS
+    name: controls
+    description: "Individual compliance controls within frameworks"
+    module: MOD-COMPLIANCE
+    columns: [id, framework_id, org_id, title, description, status, owner_id, due_date, evidence_url, created_at, updated_at]
+    related_to: [TABLE-FRAMEWORKS, TABLE-TASKS, TABLE-AUDIT-LOGS]
+  - id: TABLE-TASKS
+    name: tasks
+    description: "Compliance tasks linked to controls"
+    module: MOD-TASKS
+    columns: [id, control_id, org_id, title, description, assignee_id, priority, status, due_date, created_at, updated_at]
+    related_to: [TABLE-CONTROLS, TABLE-USERS]
+  - id: TABLE-WORKFLOW-INSTANCES
+    name: workflow_instances
+    description: "Active approval workflow instances"
+    module: MOD-WORKFLOW
+    columns: [id, control_id, submitted_by, approver_id, status, comment, submitted_at, decided_at]
+    related_to: [TABLE-CONTROLS, TABLE-AUDIT-LOGS]
+  - id: TABLE-NOTIFICATIONS
+    name: notifications
+    description: "In-app notifications for all users"
+    module: MOD-NOTIFY
+    columns: [id, user_id, type, data, read, created_at]
+    related_to: [TABLE-USERS]
+  - id: TABLE-AUDIT-LOGS
+    name: audit_logs
+    description: "Immutable append-only audit trail of all changes"
+    module: MOD-AUDIT
+    columns: [id, org_id, entity_type, entity_id, action, changed_by, before_state, after_state, created_at]
+    related_to: []
+  - id: TABLE-API-KEYS
+    name: api_keys
+    description: "External API keys per org"
+    module: MOD-API
+    columns: [id, org_id, name, key_hash, last_used_at, revoked_at, created_at]
+    related_to: [TABLE-ORGS]
+
+ui_screens:
+  - id: SCREEN-LOGIN
+    route: /auth/login
+    module: MOD-AUTH
+    related_to: [SCREEN-DASHBOARD]
+  - id: SCREEN-DASHBOARD
+    route: /dashboard
+    module: MOD-COMPLIANCE
+    related_to: [SCREEN-CONTROLS, SCREEN-TASKS]
+  - id: SCREEN-CONTROLS
+    route: /controls
+    module: MOD-COMPLIANCE
+    related_to: [SCREEN-DASHBOARD]
+  - id: SCREEN-TASKS
+    route: /tasks
+    module: MOD-TASKS
+    related_to: [SCREEN-DASHBOARD]
+  - id: SCREEN-ORG-SETTINGS
+    route: /settings/org
+    module: MOD-ORG
+    related_to: [SCREEN-DASHBOARD]
+  - id: SCREEN-REPORTS
+    route: /reports
+    module: MOD-REPORTS
+    related_to: [SCREEN-DASHBOARD]
+  - id: SCREEN-AUDIT
+    route: /audit
+    module: MOD-AUDIT
+    related_to: [SCREEN-DASHBOARD]
+  - id: SCREEN-AI-CHAT
+    route: /ai
+    module: MOD-AI
+    related_to: [SCREEN-DASHBOARD]
+
+ui_components: []
+
+agents:
+  - id: AGENT-DEV-1
+    name: DEV_1 (ZAI)
+    description: "Backend: auth, API routes, Supabase schema"
+    register_in: ai-os/boss/ROSTER.yaml
+  - id: AGENT-DEV-2
+    name: DEV_2 (CODEX)
+    description: "Platform: CI/CD, infra, QC, code review"
+    register_in: ai-os/boss/ROSTER.yaml
+  - id: AGENT-DEV-4
+    name: DEV_4 (CURSOR)
+    description: "Frontend: React components, mobile, UI"
+    register_in: ai-os/boss/ROSTER.yaml
+
+tests: []
+
+workflows:
+  - id: WF-CI
+    path: .github/workflows/ci.yml
+    triggers: [push, pull_request]
+    related_to: []
+  - id: WF-CODEQL
+    path: .github/workflows/codeql.yml
+    triggers: [push, pull_request, schedule]
+    related_to: []
+  - id: WF-SENTINEL
+    path: .github/workflows/sentinel.yml
+    triggers: [push, pull_request]
+    related_to: []
+
+business_rules:
+  - id: BR-001
+    rule: "Every API must validate both JWT session and org_id before data access"
+    module: MOD-AUTH
+    enforcement: middleware
+  - id: BR-002
+    rule: "Audit log writes must be in same DB transaction as the triggering operation"
+    module: MOD-AUDIT
+    enforcement: database_trigger
+  - id: BR-003
+    rule: "Self-approval in workflows is prohibited"
+    module: MOD-WORKFLOW
+    enforcement: application
+  - id: BR-004
+    rule: "API keys stored as bcrypt hash, never plain text"
+    module: MOD-API
+    enforcement: application
