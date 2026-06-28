@@ -17,9 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+          run_install: false
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+        with:
+          node-version: '20'
+      - run: pnpm install
       - run: pnpm turbo lint || echo "::warning::Lint issues found"
 
   typecheck:
@@ -28,9 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+          run_install: false
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+        with:
+          node-version: '20'
+      - run: pnpm install
       - run: pnpm turbo typecheck || echo "::warning::Type errors found"
 
   unit-tests:
@@ -39,9 +47,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+          run_install: false
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+        with:
+          node-version: '20'
+      - run: pnpm install
       - run: pnpm test --passWithNoTests 2>/dev/null || echo "::warning::Tests not yet configured"
         env:
           CI: true
@@ -59,9 +71,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+          run_install: false
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+        with:
+          node-version: '20'
+      - run: pnpm install
       - run: pnpm turbo build --filter=web || echo "::warning::Build failed"
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
@@ -81,9 +97,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+          run_install: false
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+        with:
+          node-version: '20'
+      - run: pnpm install
       - run: pnpm turbo build-storybook 2>/dev/null || echo "::warning::Storybook not yet configured"
 
   e2e:
@@ -93,9 +113,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+          run_install: false
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+        with:
+          node-version: '20'
+      - run: pnpm install
       - run: pnpm exec playwright install --with-deps chromium 2>/dev/null || true
       - run: pnpm exec playwright test --pass-with-no-tests 2>/dev/null || echo "::warning::E2E not yet configured"
         env:
