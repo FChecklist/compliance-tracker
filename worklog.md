@@ -84,3 +84,41 @@ Stage Summary:
 - Real data: 18 compliance items, 7 users, 4 departments, audit trails
 - All pages responsive with mobile sidebar (Sheet)
 - Health ribbon shows overdue/due-in-30/safe counts
+
+---
+Task ID: T4
+Agent: Worker
+Task: Blocks B–E — Verify, refine, and polish all component + page implementations
+
+Work Log:
+- Verified all 11 tasks (TASK-004 through TASK-014) against their specifications
+- BLOCK B (Layout):
+  - TASK-004: Confirmed DM_Serif_Display already imported in layout.tsx, dmSerifDisplay.variable in body className ✅
+  - TASK-005: Confirmed AppSidebar TOOLS section already has all 5 nav links (Checklists, Tasks, Reports, Penalty Tracker, Team) ✅
+- BLOCK C (Shell Components):
+  - TASK-006D: Confirmed ThemeToggle with Sun/Moon toggle using next-themes useTheme(), placed in AppTopbar ✅
+  - TASK-006C: Confirmed SearchCommand with Cmd+K palette, debounced fetch, CommandDialog ✅
+- BLOCK D (UI Components):
+  - TASK-007A: Confirmed DashboardCard with 4 variants (total, overdue, pending, completed) and brand colors ✅
+  - TASK-007B: Confirmed StatusBadge (6 statuses) + PriorityBadge (4 priorities) with dark mode support ✅
+  - TASK-007C: Confirmed ComplianceChart with ResponsiveContainer, 3 stacked bars (red, saffron, teal), custom tooltip/legend ✅
+  - TASK-007D: Updated DataTable pagination row count from "X rows in total" to "Showing X–Y of Z rows" format
+- BLOCK E (Pages):
+  - TASK-009: Refactored Checklists page to use StatusBadge and PriorityBadge components (replaced inline badge maps)
+  - TASK-010: Refactored Checklist Detail page to use StatusBadge and PriorityBadge components (replaced inline badge maps)
+  - TASK-011: Confirmed Tasks Kanban page with 3 columns, framer-motion hover, type/priority/due/dept/assignee on cards ✅
+  - TASK-012: Refactored Reports page:
+    - Replaced inline BarChart with ComplianceChart component for department pendency
+    - Replaced inline Table with DataTable component (with search, sort, pagination) for full compliance table
+    - Kept inline PieChart for status donut (different shape, not reusable via ComplianceChart)
+    - Uses StatusBadge and PriorityBadge in DataTable columns
+  - TASK-013: Confirmed Penalty Tracker with overdue table, manual calculator, hardcoded rates for GST/TDS/PF/ESIC/MCA/INCOME_TAX ✅
+  - TASK-014: Confirmed Team page with 3-col/2-col/1-col responsive grid, avatar initials, role badge, department, status dot ✅
+- Ran lint: 0 errors, 5 warnings (all pre-existing in API routes + TanStack Table incompatible-library)
+
+Stage Summary:
+- All 11 tasks verified complete and matching specifications
+- 4 files refined for better component reuse (checklists page, checklist detail, reports page, data-table)
+- Pages now properly consume shared UI components (StatusBadge, PriorityBadge, ComplianceChart, DataTable)
+- DataTable shows "Showing X–Y of Z rows" format
+- Lint clean (0 errors)
