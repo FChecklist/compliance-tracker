@@ -1,86 +1,51 @@
-import { db } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import type { AuditAction } from "@prisma/client";
+import { db } from '@/lib/db'
+import { auditLogs } from '@/lib/db/schema'
+import { NextRequest, NextResponse } from 'next/server'
+import { eq, and, gte, lt, sql } from 'drizzle-orm'
 
-type RouteContext = { params: Promise<{ id: string }> };
+const VALID_ACTIONS = ['create','update','delete','status_change','assign','reassign','login','logout','export','invite'] as const
+type AuditAction = typeof VALID_ACTIONS[number]
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = request.nextUrl;
+    const { searchParams } = request.nextUrl
+    const userId = searchParams.get('userId') || ''
+    const action = searchParams.get('action') || ''
+    const entityType = searchParams.get('entityType') || ''
+    const startDate = searchParams.get('startDate') || ''
+    const endDate = searchParams.get('endDate') || ''
+    const page = Math.max(1, Number(searchParams.get('page')) || 1)
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20))
+    const offset = (page - 1) * limit
 
-    const userId = searchParams.get("userId") || "";
-    const action = searchParams.get("action") || "";
-    const entityType = searchParams.get("entityType") || "";
-    const startDate = searchParams.get("startDate") || "";
-    const endDate = searchParams.get("endDate") || "";
-    const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20));
-    const skip = (page - 1) * limit;
+    const conditions = []
+    if (userId) conditions.push(eq(auditLogs.userId, userId))
+    if (action && VALID_ACTIONS.includes(action as AuditAction)) conditions.push(eq(auditLogs.action, action as AuditAction))
+    if (entityType) conditions.push(eq(auditLogs.entityType, entityType))
+    if (startDate) conditions.push(gte(auditLogs.createdAt, new Date(startDate)))
+    if (endDate) { const end = new Date(endDate); end.setDate(end.getDate() + 1); conditions.push(lt(auditLogs.createdAt, end)) }
+    const where = conditions.length ? and(...conditions) : undefined
 
-    const where: Prisma.AuditLogWhereInput = {};
-
-    if (userId) {
-      where.userId = userId;
-    }
-
-    if (action) {
-      where.action = action as AuditAction;
-    }
-
-    if (entityType) {
-      where.entityType = entityType;
-    }
-
-    if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) {
-        (where.createdAt as Prisma.DateTimeNullableFilter).gte = new Date(startDate);
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        (where.createdAt as Prisma.DateTimeNullableFilter).lt = end;
-      }
-    }
-
-    const [logs, total] = await Promise.all([
-      db.auditLog.findMany({
-        where,
-        include: {
-          user: {
-            select: { name: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
+    const [logs, [{ count }]] = await Promise.all([
+      db.query.auditLogs.findMany({
+        where: where ? () => where : undefined,
+        with: { user: { columns: { name: true } } },
+        orderBy: (f, { desc }) => desc(f.createdAt),
+        limit,
+        offset,
       }),
-      db.auditLog.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
+      db.select({ count: sql<number>`count(*)::int` }).from(auditLogs).where(where),
+    ])
 
     return NextResponse.json({
-      auditLogs: logs.map((log) => ({
-        id: log.id,
-        action: log.action,
-        entityType: log.entityType,
-        entityId: log.entityId,
-        details: log.details,
-        userName: log.user.name,
-        createdAt: log.createdAt.toISOString(),
-      })),
-      total,
+      auditLogs: logs.map(l => ({ id: l.id, action: l.action, entityType: l.entityType, entityId: l.entityId, details: l.details, userName: l.user.name, createdAt: l.createdAt.toISOString() })),
+      total: count,
       page,
       limit,
-      totalPages,
-    });
+      totalPages: Math.ceil(count / limit),
+    })
   } catch (error) {
-    console.error("Audit API error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch audit logs" },
-      { status: 500 }
-    );
+    console.error('Audit API error:', error)
+    return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 })
   }
 }
