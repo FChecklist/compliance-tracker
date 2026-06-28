@@ -1,5 +1,0 @@
-# Active Agent Registry
-# Every AI agent MUST register here before starting any work.
-version: "1.0.0"
-last_updated: "2026-06-26T00:00:00Z"
-registered_agents: []
