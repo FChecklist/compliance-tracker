@@ -1,55 +1,32 @@
 # AI Engines Registry
-# Defines all AI engines that can connect to and operate on this repository
-# Version: 1.0.0
-
+# Version: 1.1.0 — Updated: 2026-06-28
 engines:
   claude_code:
     id: claude-code
     name: "Claude Code (Anthropic)"
-    status: active
+    status: pending_key
     secret_key: ANTHROPIC_API_KEY
     trigger_event: claude-task
-    capabilities:
-      - code_generation
-      - code_review
-      - refactoring
-      - testing
-      - documentation
-    dispatch_url: "https://api.github.com/repos/FChecklist/{repo}/dispatches"
-    auth_header: "Authorization: Bearer {PAT_FCHECKLIST}"
-    body: |
-      {"event_type": "claude-task", "client_payload": {"task": "{task}", "branch": "{branch}"}}
-
+    capabilities: [code_generation, code_review, refactoring, testing, documentation]
   zai:
     id: zai
     name: "Z.ai"
-    status: pending_key
+    status: active
     secret_key: ZAI_API_KEY
     trigger_event: zai-task
-    capabilities:
-      - code_generation
-      - ui_design
-      - full_stack_development
-    dispatch_url: "https://api.github.com/repos/FChecklist/{repo}/dispatches"
-    note: "Requires ZAI_API_KEY to be added to GitHub Secrets"
-
+    capabilities: [code_generation, ui_design, full_stack_development, autonomous_coding]
   codex:
     id: codex
     name: "OpenAI Codex"
     status: pending_key
     secret_key: OPENAI_API_KEY
     trigger_event: codex-task
-    capabilities:
-      - code_completion
-      - code_generation
-      - refactoring
-    dispatch_url: "https://api.github.com/repos/FChecklist/{repo}/dispatches"
-    note: "Requires OPENAI_API_KEY to be added to GitHub Secrets"
-
+    capabilities: [code_completion, code_generation, refactoring]
 gateway:
-  primary: claude-code
-  fallback: zai
+  primary: zai
+  fallback: claude-code
   all_changes_via_ai: true
   human_coding: false
-  dispatch_pattern: repository_dispatch
   sentinel_required: true
+  active_engines: [zai]
+  pending_engines: [claude-code, codex]
