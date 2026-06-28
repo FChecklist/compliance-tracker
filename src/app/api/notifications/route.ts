@@ -1,26 +1,27 @@
-import { db } from "@/lib/db";
+import { db, users, notifications } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export async function GET() {
   try {
-    // For demo, get notifications for the admin user
-    const adminUser = await db.user.findFirst({ where: { role: "admin" } });
+    const adminUser = await db.query.users.findFirst({ where: eq(users.role, 'admin') })
     if (!adminUser) {
-      return NextResponse.json({ notifications: [], unreadCount: 0 });
+      return NextResponse.json({ notifications: [], unreadCount: 0 })
     }
 
-    const notifications = await db.notification.findMany({
-      where: { userId: adminUser.id },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    const unreadCount = await db.notification.count({
-      where: { userId: adminUser.id, isRead: false },
-    });
+    const [notifs, [{ count }]] = await Promise.all([
+      db.query.notifications.findMany({
+        where: eq(notifications.userId, adminUser.id),
+        orderBy: desc(notifications.createdAt),
+        limit: 20,
+      }),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(and(eq(notifications.userId, adminUser.id), eq(notifications.isRead, false))),
+    ])
 
     return NextResponse.json({
-      notifications: notifications.map((n) => ({
+      notifications: notifs.map((n) => ({
         id: n.id,
         title: n.title,
         message: n.message,
@@ -28,13 +29,10 @@ export async function GET() {
         isRead: n.isRead,
         createdAt: n.createdAt.toISOString(),
       })),
-      unreadCount,
-    });
+      unreadCount: count,
+    })
   } catch (error) {
-    console.error("Notifications API error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch notifications" },
-      { status: 500 }
-    );
+    console.error("Notifications API error:", error)
+    return NextResponse.json({ error: "Failed to fetch notifications" }, { status: 500 })
   }
 }

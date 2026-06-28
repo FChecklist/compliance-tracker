@@ -1,45 +1,33 @@
-import { db } from "@/lib/db";
+import { db, departments, complianceItems, users } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { eq, asc, sql } from "drizzle-orm";
 
 export async function GET() {
   try {
-    const departments = await db.department.findMany({
-      include: {
-        _count: {
-          select: {
-            compliance: true,
-            users: true,
-          },
-        },
-        head: {
-          select: { name: true },
-        },
-        compliance: {
-          where: { status: "completed" },
-          select: { id: true },
-        },
+    const depts = await db.query.departments.findMany({
+      with: {
+        head: { columns: { name: true } },
+        complianceItems: { columns: { id: true, status: true } },
+        users: { columns: { id: true } },
       },
-      orderBy: { name: "asc" },
-    });
+      orderBy: asc(departments.name),
+    })
 
     return NextResponse.json({
-      departments: departments.map((dept) => ({
+      departments: depts.map((dept) => ({
         id: dept.id,
         name: dept.name,
         description: dept.description,
-        complianceCount: dept._count.compliance,
-        memberCount: dept._count.users,
+        complianceCount: dept.complianceItems.length,
+        memberCount: dept.users.length,
         headName: dept.head?.name ?? null,
-        completedCount: dept.compliance.length,
+        completedCount: dept.complianceItems.filter(i => i.status === 'completed').length,
         createdAt: dept.createdAt.toISOString(),
         updatedAt: dept.updatedAt.toISOString(),
       })),
-    });
+    })
   } catch (error) {
-    console.error("Departments API error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch departments" },
-      { status: 500 }
-    );
+    console.error("Departments API error:", error)
+    return NextResponse.json({ error: "Failed to fetch departments" }, { status: 500 })
   }
 }
