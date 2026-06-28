@@ -1,0 +1,6 @@
+{
+  "buildCommand": "bun run db:generate && bun run build",
+  "installCommand": "bun install",
+  "framework": "nextjs",
+  "regions": ["sin1"]
+}
