@@ -1,32 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
   ShieldCheck,
   AlertTriangle,
   CheckCircle2,
-  BarChart3,
   Download,
   FileSpreadsheet,
 } from "lucide-react";
+import { type ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -36,11 +27,10 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
 } from "recharts";
+import { ComplianceChart, type DeptData } from "@/components/ui/compliance-chart";
+import { DataTable } from "@/components/ui/data-table";
+import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 
 type ComplianceItem = {
   id: string;
@@ -67,31 +57,6 @@ type Stats = {
     pending: number;
     safe: number;
   }[];
-};
-
-const STATUS_BADGE: Record<string, string> = {
-  overdue: "bg-red-100 text-red-700",
-  pending: "bg-amber-100 text-amber-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  draft: "bg-purple-100 text-purple-700",
-  not_applicable: "bg-gray-100 text-gray-600",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  overdue: "Overdue",
-  pending: "Pending",
-  in_progress: "In Progress",
-  completed: "Completed",
-  draft: "Draft",
-  not_applicable: "N/A",
-};
-
-const PRIORITY_BADGE: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  high: "bg-orange-100 text-orange-700",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-emerald-100 text-emerald-700",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -176,6 +141,75 @@ function ReportsSkeleton() {
   );
 }
 
+const columns: ColumnDef<ComplianceItem>[] = [
+  {
+    accessorKey: "title",
+    header: "Title",
+    cell: ({ row }) => {
+      const item = row.original;
+      return (
+        <Link
+          href={`/checklists/${item.id}`}
+          className="font-medium text-sm text-ct-navy hover:text-ct-saffron transition-colors truncate block max-w-[240px]"
+        >
+          {item.title}
+        </Link>
+      );
+    },
+  },
+  {
+    accessorKey: "complianceType",
+    header: "Type",
+    cell: ({ getValue }) => (
+      <span className="text-xs text-ct-muted">
+        {String(getValue()).replace("_", " ")}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ getValue }) => <StatusBadge status={String(getValue())} />,
+  },
+  {
+    accessorKey: "priority",
+    header: "Priority",
+    cell: ({ getValue }) => <PriorityBadge priority={String(getValue())} />,
+  },
+  {
+    accessorKey: "department",
+    header: "Department",
+    cell: ({ getValue }) => {
+      const dept = getValue() as { name: string };
+      return <span className="text-xs text-ct-muted">{dept.name}</span>;
+    },
+  },
+  {
+    accessorKey: "assignedTo",
+    header: "Assigned To",
+    cell: ({ getValue }) => {
+      const user = getValue() as { name: string } | null;
+      return (
+        <span className="text-xs text-ct-muted">
+          {user?.name ?? "Unassigned"}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "dueDate",
+    header: "Due Date",
+    cell: ({ getValue }) => {
+      const d = getValue() as string | null;
+      return (
+        <span className="text-xs font-medium text-ct-navy">
+          {d ? format(new Date(d), "dd MMM yyyy") : "—"}
+        </span>
+      );
+    },
+  },
+];
+
 export default function ReportsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [items, setItems] = useState<ComplianceItem[]>([]);
@@ -223,6 +257,17 @@ export default function ReportsPage() {
   const overduePct =
     totalItems > 0 ? Math.round((overdueCount / totalItems) * 100) : 0;
 
+  // Department data for ComplianceChart
+  const deptChartData: DeptData[] = useMemo(() => {
+    if (!stats?.byDepartment) return [];
+    return stats.byDepartment.map((d) => ({
+      name: d.name,
+      overdue: d.overdue,
+      pending: d.pending,
+      safe: d.safe,
+    }));
+  }, [stats]);
+
   // CSV Export
   const exportCSV = () => {
     const headers = [
@@ -238,7 +283,7 @@ export default function ReportsPage() {
     const rows = items.map((item) => [
       `"${item.title}"`,
       item.complianceType,
-      STATUS_LABELS[item.status] ?? item.status,
+      item.status,
       item.priority,
       item.department.name,
       item.assignedTo?.name ?? "Unassigned",
@@ -374,183 +419,41 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        {/* Bar Chart */}
+        {/* Department Bar Chart — using ComplianceChart */}
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-              <BarChart3 className="size-4 text-ct-teal" />
+              <FileSpreadsheet className="size-4 text-ct-teal" />
               Pendency by Department
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {(!stats?.byDepartment || stats.byDepartment.length === 0) ? (
-              <div className="h-[280px] flex items-center justify-center">
+            {deptChartData.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center">
                 <p className="text-sm text-ct-muted">No data available.</p>
               </div>
             ) : (
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={stats.byDepartment}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                  >
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 12, fill: "#718096" }}
-                      axisLine={{ stroke: "#E2E8F0" }}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: "#718096" }}
-                      axisLine={false}
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: "10px",
-                        border: "1px solid #E2E8F0",
-                        fontSize: "12px",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
-                      }}
-                    />
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-                    />
-                    <Bar
-                      dataKey="overdue"
-                      name="Overdue"
-                      fill="#C0392B"
-                      radius={[2, 2, 0, 0]}
-                      barSize={16}
-                    />
-                    <Bar
-                      dataKey="pending"
-                      name="Pending"
-                      fill="#F5820A"
-                      radius={[2, 2, 0, 0]}
-                      barSize={16}
-                    />
-                    <Bar
-                      dataKey="safe"
-                      name="Safe"
-                      fill="#0E7C6E"
-                      radius={[2, 2, 0, 0]}
-                      barSize={16}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ComplianceChart data={deptChartData} />
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Full Compliance Table */}
+      {/* Full Compliance Table — using DataTable */}
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-ct-navy">
             All Compliance Items ({items.length})
           </CardTitle>
         </CardHeader>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs font-semibold text-ct-navy">
-                  Title
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">
-                  Type
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy">
-                  Status
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">
-                  Priority
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">
-                  Department
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">
-                  Assigned To
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy">
-                  Due Date
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-24 text-center text-ct-muted text-sm"
-                  >
-                    No compliance items found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                items.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className="cursor-pointer hover:bg-ct-row-hover"
-                    onClick={() =>
-                      (window.location.href = `/checklists/${item.id}`)
-                    }
-                  >
-                    <TableCell className="font-medium text-sm max-w-[240px] truncate text-ct-navy">
-                      <Link
-                        href={`/checklists/${item.id}`}
-                        className="hover:text-ct-saffron transition-colors"
-                      >
-                        {item.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-xs text-ct-muted hidden md:table-cell">
-                      {item.complianceType.replace("_", " ")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[10px] px-2 py-0.5 font-medium",
-                          STATUS_BADGE[item.status] ?? ""
-                        )}
-                      >
-                        {STATUS_LABELS[item.status] ?? item.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[10px] px-1.5 py-0.5 capitalize",
-                          PRIORITY_BADGE[item.priority] ?? ""
-                        )}
-                      >
-                        {item.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-ct-muted hidden lg:table-cell">
-                      {item.department.name}
-                    </TableCell>
-                    <TableCell className="text-xs text-ct-muted hidden lg:table-cell">
-                      {item.assignedTo?.name ?? "Unassigned"}
-                    </TableCell>
-                    <TableCell className="text-xs text-ct-navy font-medium">
-                      {item.dueDate
-                        ? format(new Date(item.dueDate), "dd MMM yyyy")
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <CardContent>
+          <DataTable
+            columns={columns}
+            data={items}
+            searchKey="title"
+            searchPlaceholder="Search compliance items..."
+          />
+        </CardContent>
       </Card>
     </div>
   );
