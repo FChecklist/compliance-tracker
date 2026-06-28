@@ -57,7 +57,7 @@ jobs:
       - run: pnpm test --passWithNoTests 2>/dev/null || echo "::warning::Tests not yet configured"
         env:
           CI: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -84,7 +84,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder' }}
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'placeholder-jwt-secret-for-ci-build-only' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: build-web
