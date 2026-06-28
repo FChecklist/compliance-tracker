@@ -1,296 +1,101 @@
-import { db } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
-import type { ComplianceStatus, Priority, AuditAction } from "@prisma/client";
+import { db } from '@/lib/db'
+import { complianceItems, auditLogs, users } from '@/lib/db/schema'
+import { NextRequest, NextResponse } from 'next/server'
+import { eq, and } from 'drizzle-orm'
 
-const VALID_STATUSES: ComplianceStatus[] = [
-  "pending",
-  "in_progress",
-  "completed",
-  "overdue",
-  "not_applicable",
-  "draft",
-];
+const VALID_STATUSES = ['pending','in_progress','completed','overdue','not_applicable','draft'] as const
+const VALID_PRIORITIES = ['low','medium','high','critical'] as const
+type ComplianceStatus = typeof VALID_STATUSES[number]
+type Priority = typeof VALID_PRIORITIES[number]
+type RouteContext = { params: Promise<{ id: string }> }
 
-const VALID_PRIORITIES: Priority[] = ["low", "medium", "high", "critical"];
-
-const VALID_ACTIONS: AuditAction[] = [
-  "create",
-  "update",
-  "delete",
-  "status_change",
-  "assign",
-  "reassign",
-  "login",
-  "logout",
-  "export",
-  "invite",
-];
-
-type RouteContext = { params: Promise<{ id: string }> };
-
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext
-) {
+export async function GET(_req: NextRequest, ctx: RouteContext) {
   try {
-    const { id } = await context.params;
+    const { id } = await ctx.params
 
-    const item = await db.complianceItem.findUnique({
-      where: { id },
-      include: {
-        department: {
-          select: { name: true },
-        },
-        assignedTo: {
-          select: { name: true, avatarUrl: true },
-        },
-        auditPoints: {
-          include: {
-            assignedTo: { select: { name: true } },
-          },
-          orderBy: { createdAt: "asc" },
-        },
-        documents: {
-          include: {
-            uploadedBy: { select: { name: true } },
-          },
-          orderBy: { createdAt: "desc" },
-        },
-        comments: {
-          include: {
-            author: { select: { name: true, avatarUrl: true } },
-          },
-          orderBy: { createdAt: "desc" },
-        },
+    const item = await db.query.complianceItems.findFirst({
+      where: (f, { eq }) => eq(f.id, id),
+      with: {
+        department: { columns: { name: true } },
+        assignedTo: { columns: { name: true, avatarUrl: true } },
+        auditPoints: { with: { assignedTo: { columns: { name: true } } }, orderBy: (f, { asc }) => asc(f.createdAt) },
+        documents: { with: { uploadedBy: { columns: { name: true } } }, orderBy: (f, { desc }) => desc(f.createdAt) },
+        comments: { with: { author: { columns: { name: true, avatarUrl: true } } }, orderBy: (f, { desc }) => desc(f.createdAt) },
       },
-    });
+    })
+    if (!item) return NextResponse.json({ error: 'Compliance item not found' }, { status: 404 })
 
-    if (!item) {
-      return NextResponse.json(
-        { error: "Compliance item not found" },
-        { status: 404 }
-      );
-    }
-
-    // Fetch audit logs for this item
-    const auditLogs = await db.auditLog.findMany({
-      where: {
-        entityId: id,
-        entityType: "ComplianceItem",
-      },
-      include: {
-        user: {
-          select: { name: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const logs = await db.query.auditLogs.findMany({
+      where: (f, { eq, and }) => and(eq(f.entityId, id), eq(f.entityType, 'ComplianceItem')),
+      with: { user: { columns: { name: true } } },
+      orderBy: (f, { desc }) => desc(f.createdAt),
+    })
 
     return NextResponse.json({
       item: {
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        complianceType: item.complianceType,
-        status: item.status,
-        priority: item.priority,
-        dueDate: item.dueDate?.toISOString(),
-        completedAt: item.completedAt?.toISOString(),
-        departmentId: item.departmentId,
-        department: { name: item.department.name },
-        assignedTo: item.assignedTo
-          ? { name: item.assignedTo.name, avatarUrl: item.assignedTo.avatarUrl }
-          : null,
-        createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
+        id: item.id, title: item.title, description: item.description,
+        complianceType: item.complianceType, status: item.status, priority: item.priority,
+        dueDate: item.dueDate?.toISOString(), completedAt: item.completedAt?.toISOString(),
+        departmentId: item.departmentId, department: { name: item.department.name },
+        assignedTo: item.assignedTo ? { name: item.assignedTo.name, avatarUrl: item.assignedTo.avatarUrl } : null,
+        createdAt: item.createdAt.toISOString(), updatedAt: item.updatedAt.toISOString(),
       },
-      auditPoints: item.auditPoints.map((ap) => ({
-        id: ap.id,
-        title: ap.title,
-        description: ap.description,
-        status: ap.status,
-        dueDate: ap.dueDate?.toISOString(),
-        completedAt: ap.completedAt?.toISOString(),
-        assignedTo: ap.assignedTo ? { name: ap.assignedTo.name } : null,
-        createdAt: ap.createdAt.toISOString(),
-      })),
-      documents: item.documents.map((doc) => ({
-        id: doc.id,
-        name: doc.name,
-        fileUrl: doc.fileUrl,
-        fileType: doc.fileType,
-        fileSize: doc.fileSize,
-        uploadedBy: { name: doc.uploadedBy.name },
-        createdAt: doc.createdAt.toISOString(),
-      })),
-      comments: item.comments.map((c) => ({
-        id: c.id,
-        content: c.content,
-        author: { name: c.author.name, avatarUrl: c.author.avatarUrl },
-        createdAt: c.createdAt.toISOString(),
-      })),
-      auditLogs: auditLogs.map((log) => ({
-        id: log.id,
-        action: log.action,
-        entityType: log.entityType,
-        entityId: log.entityId,
-        details: log.details,
-        userName: log.user.name,
-        createdAt: log.createdAt.toISOString(),
-      })),
-    });
+      auditPoints: item.auditPoints.map(ap => ({ id: ap.id, title: ap.title, description: ap.description, status: ap.status, dueDate: ap.dueDate?.toISOString(), completedAt: ap.completedAt?.toISOString(), assignedTo: ap.assignedTo ? { name: ap.assignedTo.name } : null, createdAt: ap.createdAt.toISOString() })),
+      documents: item.documents.map(d => ({ id: d.id, name: d.name, fileUrl: d.fileUrl, fileType: d.fileType, fileSize: d.fileSize, uploadedBy: { name: d.uploadedBy.name }, createdAt: d.createdAt.toISOString() })),
+      comments: item.comments.map(c => ({ id: c.id, content: c.content, author: { name: c.author.name, avatarUrl: c.author.avatarUrl }, createdAt: c.createdAt.toISOString() })),
+      auditLogs: logs.map(l => ({ id: l.id, action: l.action, entityType: l.entityType, entityId: l.entityId, details: l.details, userName: l.user.name, createdAt: l.createdAt.toISOString() })),
+    })
   } catch (error) {
-    console.error("Compliance detail API error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch compliance item" },
-      { status: 500 }
-    );
+    console.error('Compliance detail API error:', error)
+    return NextResponse.json({ error: 'Failed to fetch compliance item' }, { status: 500 })
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: RouteContext
-) {
+export async function PATCH(request: NextRequest, ctx: RouteContext) {
   try {
-    const { id } = await context.params;
-    const body = await request.json();
-    const { title, description, status, priority, dueDate, assignedToId } = body;
+    const { id } = await ctx.params
+    const body = await request.json()
+    const { title, description, status, priority, dueDate, assignedToId } = body
 
-    // Check item exists
-    const existingItem = await db.complianceItem.findUnique({
-      where: { id },
-    });
+    const existing = await db.query.complianceItems.findFirst({ where: (f, { eq }) => eq(f.id, id) })
+    if (!existing) return NextResponse.json({ error: 'Compliance item not found' }, { status: 404 })
 
-    if (!existingItem) {
-      return NextResponse.json(
-        { error: "Compliance item not found" },
-        { status: 404 }
-      );
-    }
+    if (status !== undefined && !VALID_STATUSES.includes(status)) return NextResponse.json({ error: `Invalid status` }, { status: 400 })
+    if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) return NextResponse.json({ error: `Invalid priority` }, { status: 400 })
 
-    // Validate status if provided
-    if (status !== undefined && !VALID_STATUSES.includes(status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const [adminUser] = await db.query.users.findMany({ where: (f, { eq }) => eq(f.role, 'admin'), limit: 1 })
+    if (!adminUser) return NextResponse.json({ error: 'No admin user found' }, { status: 500 })
 
-    // Validate priority if provided
-    if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
-      return NextResponse.json(
-        { error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const updateData: Partial<typeof complianceItems.$inferInsert> = {}
+    if (title !== undefined) updateData.title = title.trim()
+    if (description !== undefined) updateData.description = description
+    if (priority !== undefined) updateData.priority = priority
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null as unknown as Date
+    if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null
+    if (status !== undefined) { updateData.status = status; if (status === 'completed') updateData.completedAt = new Date() }
 
-    // Get admin user for audit log
-    const adminUser = await db.user.findFirst({ where: { role: "admin" } });
-    if (!adminUser) {
-      return NextResponse.json(
-        { error: "No admin user found for audit logging" },
-        { status: 500 }
-      );
-    }
-
-    // Build update data
-    const updateData: Record<string, unknown> = {};
-    if (title !== undefined && typeof title === "string") updateData.title = title.trim();
-    if (description !== undefined) updateData.description = description;
-    if (priority !== undefined) updateData.priority = priority;
-    if (dueDate !== undefined) {
-      if (dueDate === null) {
-        updateData.dueDate = null;
-      } else {
-        const parsed = new Date(dueDate);
-        if (!isNaN(parsed.getTime())) updateData.dueDate = parsed;
+    const [updatedItem] = await db.transaction(async tx => {
+      const [updated] = await tx.update(complianceItems).set(updateData).where(eq(complianceItems.id, id)).returning()
+      if (status !== undefined && status !== existing.status) {
+        await tx.insert(auditLogs).values({ action: 'status_change', entityType: 'ComplianceItem', entityId: id, userId: adminUser.id, details: `Status changed from ${existing.status} to ${status}` })
       }
-    }
-    if (assignedToId !== undefined) {
-      if (assignedToId === null) {
-        updateData.assignedTo = { disconnect: true };
-      } else {
-        updateData.assignedTo = { connect: { id: assignedToId } };
+      if (assignedToId !== undefined && assignedToId !== existing.assignedToId) {
+        await tx.insert(auditLogs).values({ action: existing.assignedToId ? 'reassign' : 'assign', entityType: 'ComplianceItem', entityId: id, userId: adminUser.id, details: existing.assignedToId ? 'Reassigned' : `Assigned to ${assignedToId}` })
       }
-    }
-    if (status !== undefined) {
-      updateData.status = status;
-      if (status === "completed") updateData.completedAt = new Date();
-    }
-
-    const updatedItem = await db.$transaction(async (tx) => {
-      const updated = await tx.complianceItem.update({
-        where: { id },
-        data: updateData,
-        include: {
-          department: { select: { name: true } },
-          assignedTo: { select: { name: true, avatarUrl: true } },
-        },
-      });
-
-      // Create audit log entries
-      if (status !== undefined && status !== existingItem.status) {
-        await tx.auditLog.create({
-          data: {
-            action: "status_change",
-            entityType: "ComplianceItem",
-            entityId: id,
-            userId: adminUser.id,
-            details: `Status changed from ${existingItem.status} to ${status}`,
-          },
-        });
+      if (title !== undefined && title !== existing.title) {
+        await tx.insert(auditLogs).values({ action: 'update', entityType: 'ComplianceItem', entityId: id, userId: adminUser.id, details: 'Title updated' })
       }
+      return [updated]
+    })
 
-      if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
-        await tx.auditLog.create({
-          data: {
-            action: existingItem.assignedToId ? "reassign" : "assign",
-            entityType: "ComplianceItem",
-            entityId: id,
-            userId: adminUser.id,
-            details: existingItem.assignedToId
-              ? `Reassigned from previous user`
-              : `Assigned to user ${assignedToId}`,
-          },
-        });
-      }
+    const result = await db.query.complianceItems.findFirst({
+      where: (f, { eq }) => eq(f.id, id),
+      with: { department: { columns: { name: true } }, assignedTo: { columns: { name: true, avatarUrl: true } } },
+    })
 
-      if (title !== undefined && title !== existingItem.title) {
-        await tx.auditLog.create({
-          data: {
-            action: "update",
-            entityType: "ComplianceItem",
-            entityId: id,
-            userId: adminUser.id,
-            details: `Title updated`,
-          },
-        });
-      }
-
-      return updated;
-    });
-
-    return NextResponse.json({
-      id: updatedItem.id,
-      title: updatedItem.title,
-      description: updatedItem.description,
-      complianceType: updatedItem.complianceType,
-      status: updatedItem.status,
-      priority: updatedItem.priority,
-      dueDate: updatedItem.dueDate?.toISOString(),
-      department: { name: updatedItem.department.name },
-      assignedTo: updatedItem.assignedTo
-        ? { name: updatedItem.assignedTo.name, avatarUrl: updatedItem.assignedTo.avatarUrl }
-        : null,
-      createdAt: updatedItem.createdAt.toISOString(),
-      updatedAt: updatedItem.updatedAt.toISOString(),
-    });
+    return NextResponse.json({ id: result!.id, title: result!.title, description: result!.description, complianceType: result!.complianceType, status: result!.status, priority: result!.priority, dueDate: result!.dueDate?.toISOString(), department: { name: result!.department.name }, assignedTo: result!.assignedTo ? { name: result!.assignedTo.name, avatarUrl: result!.assignedTo.avatarUrl } : null, createdAt: result!.createdAt.toISOString(), updatedAt: result!.updatedAt.toISOString() })
   } catch (error) {
-    console.error("Compliance update API error:", error);
-    return NextResponse.json(
-      { error: "Failed to update compliance item" },
-      { status: 500 }
-    );
+    console.error('Compliance update API error:', error)
+    return NextResponse.json({ error: 'Failed to update compliance item' }, { status: 500 })
   }
 }
