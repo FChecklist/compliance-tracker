@@ -1,0 +1,4 @@
+stages: [UNDERSTAND, RESEARCH, DESIGN, VALIDATE, IMPLEMENT, TEST, REVIEW, DEPLOY, MONITOR, LEARN, IMPROVE]
+current_stage: DEPLOY
+engine: zai
+note: "Z.ai completed full rebuild 2026-06-28. Next: Supabase PostgreSQL migration + Vercel deploy."
