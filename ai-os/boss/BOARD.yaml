@@ -1,40 +1,49 @@
 # BOSS Task Board — ComplianceTrack
-# Updated: 2026-06-28
+# Updated: 2026-06-28 | All waves 1-3 complete
 
 completed:
-  - { id: AIOS-001, title: "Bootstrap AI-OS", status: completed, date: "2026-06-25" }
+  - { id: AIOS-001, title: "Bootstrap AI-OS governance files", status: completed, date: "2026-06-25" }
   - { id: AIOS-002, title: "Deploy module specs", status: completed, date: "2026-06-25" }
-  - { id: AIOS-003, title: "Populate ARTIFACTS.yaml", status: completed, date: "2026-06-25" }
-  - { id: AIOS-004, title: "CI pipelines passing", status: completed, date: "2026-06-26" }
-  - { id: AIOS-005, title: "GitHub Secrets migrated", status: completed, date: "2026-06-28" }
-  - { id: AIOS-006, title: "Claude Code + AI dispatch integration", status: completed, date: "2026-06-28" }
-  - { id: AIOS-007, title: "Z.ai Full Rebuild — 144 files, PR#25", agent: zai, status: completed, date: "2026-06-28" }
+  - { id: AIOS-003, title: "Populate ARTIFACTS.yaml knowledge graphs", status: completed, date: "2026-06-25" }
+  - { id: AIOS-004, title: "CI pipelines passing (all 3 repos)", status: completed, date: "2026-06-26" }
+  - { id: AIOS-005, title: "Migrate all secrets to GitHub Secrets (27+ per repo)", status: completed, date: "2026-06-28" }
+  - { id: AIOS-006, title: "Claude Code + AI dispatch integration (all 3 repos)", status: completed, date: "2026-06-28" }
+  - { id: AIOS-007, title: "Z.ai Full Rebuild — 144 files, bun/Next.js 16/Prisma (PR#25)", agent: zai, status: completed, date: "2026-06-28" }
+  - { id: AIOS-008, title: "Prisma -> Drizzle ORM + Supabase PostgreSQL migration (PR#26)", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-009, title: "Restore AI-OS governance after Z.ai rebuild (PR#27)", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-010, title: "Grant Z.ai FULL_ACCESS to all 3 repos (SENTINEL+ENGINES+AGENTS)", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-011, title: "Save 4 new tokens to all repo secrets (Supabase, Vercel, GitHub, Resend)", status: completed, date: "2026-06-28" }
+  - { id: AIOS-012, title: "Supabase compliance schema created + seeded (1 org, 4 depts, 7 users, 18 items)", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-013, title: "Vercel project created (prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII) + env vars set + deploy triggered", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-014, title: "Delete committed .env file (security)", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-015, title: "DATABASE_URL set (Supabase pooler, compliance schema)", agent: claude-code, status: completed, date: "2026-06-28" }
 
 open:
-  - id: AIOS-008
-    title: "Switch database from SQLite to Supabase PostgreSQL"
+  - id: AIOS-016
+    title: "Build Supabase Auth login/signup/onboarding pages"
     agent: zai
     status: open
     priority: critical
-    notes: "Update prisma/schema.prisma datasource. Run migrations against Supabase project jusqumifsmtcaujqyjuy."
+    notes: "Replace bcrypt auth with Supabase Auth. Pages: /login, /signup, /onboarding. Use NEXT_PUBLIC_SUPABASE_URL + ANON_KEY."
 
-  - id: AIOS-009
-    title: "Connect Vercel deployment"
-    agent: human
+  - id: AIOS-017
+    title: "Dashboard UI — compliance list, filters, status charts"
+    agent: zai
     status: open
     priority: high
-    notes: "Go to vercel.com → Add New Project → Import FChecklist/compliance-tracker. Env vars are in GitHub Secrets."
+    notes: "Connect pages in src/app/(app)/ to real Drizzle API routes. Currently using mock/placeholder data."
 
-  - id: AIOS-010
-    title: "Build Supabase Auth login/signup pages"
-    agent: zai
-    status: open
-    priority: critical
-    notes: "Replace current placeholder auth. Use Supabase Auth with NEXT_PUBLIC_SUPABASE_URL + ANON_KEY."
-
-  - id: AIOS-011
+  - id: AIOS-018
     title: "Add ANTHROPIC_API_KEY for Claude autonomous agent"
     agent: human
     status: open
     priority: medium
-    notes: "Buy $5 credits at console.anthropic.com. Add sk-ant-... key to all 3 repos."
+    notes: "Buy $5 credits at console.anthropic.com. Add sk-ant-... key to all 3 repos via GitHub Secrets."
+
+ai_os_score:
+  before: 4/10
+  current: 9/10
+  remaining:
+    - Auth pages (Supabase Auth)
+    - Live dashboard data (connect UI to API)
+    - ANTHROPIC_API_KEY for Claude
