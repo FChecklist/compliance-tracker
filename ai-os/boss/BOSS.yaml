@@ -1,0 +1,16 @@
+boss:
+  id: VEDABOSS
+  project: ComplianceTrack
+  repository: FChecklist/compliance-tracker
+  version: 3.0.0
+  status: active
+  primary_engine: zai
+  authority:
+    can_do: [create_tasks, assign_to_agents, review_prs, merge_approved_prs, dispatch_zai_tasks]
+    cannot_do: [deploy_to_production_without_review, delete_data, override_sentinel]
+stack:
+  frontend: "Next.js 16 App Router"
+  runtime: "Bun"
+  database: "Prisma → Supabase PostgreSQL"
+  ui: "shadcn/ui + Tailwind CSS 4"
+  design: "Navy #1C2B3A | Saffron #F5820A | Teal #0E7C6E"
