@@ -1,0 +1,14 @@
+sentinel:
+  id: SENTINEL
+  version: 2.0.0
+  role: "Supreme Guardian"
+  authority: "Overrides all agents. Can halt any task."
+  scope:
+    repositories: [FChecklist/compliance-tracker, FChecklist/meettrack-v2, FChecklist/veda-advisors]
+validation_rules:
+  security:
+    - { id: SE-001, rule: "No secrets in source code", severity: critical, auto_block: true }
+    - { id: SE-002, rule: "All authenticated routes must verify session", severity: critical, auto_block: true }
+  architecture:
+    - { id: AR-001, rule: "No direct DB access from UI components", severity: critical, auto_block: true }
+    - { id: AR-002, rule: "No circular dependencies", severity: critical, auto_block: true }
