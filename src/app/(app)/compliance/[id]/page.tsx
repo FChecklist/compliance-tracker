@@ -27,6 +27,9 @@ import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -139,7 +142,13 @@ export default function ComplianceDetailPage() {
         return r.json();
       })
       .then((d) => {
-        setData(d.item);
+        setData({
+          ...d.item,
+          auditPoints: d.auditPoints ?? [],
+          documents: d.documents ?? [],
+          comments: d.comments ?? [],
+          auditLogs: d.auditLogs ?? [],
+        });
         setLoading(false);
       })
       .catch(() => {
@@ -192,6 +201,10 @@ export default function ComplianceDetailPage() {
         if (!open) router.push("/compliance");
       }}>
         <SheetContent side="right" className="w-full sm:w-[480px] p-0 overflow-y-auto">
+          <SheetHeader className="sr-only">
+            <SheetTitle>{data?.title ?? "Compliance Detail"}</SheetTitle>
+            <SheetDescription>Compliance item details</SheetDescription>
+          </SheetHeader>
           {loading ? (
             <DetailSkeleton />
           ) : !data ? (

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowLeft, Building2, Users, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Building2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/table";
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  in_progress: "bg-cyan-100 text-cyan-800",
-  completed: "bg-emerald-100 text-emerald-800",
-  overdue: "bg-red-100 text-red-800",
-  not_applicable: "bg-zinc-100 text-zinc-600",
+  pending: "bg-amber-100 text-amber-700",
+  in_progress: "bg-blue-100 text-blue-700",
+  completed: "bg-emerald-100 text-emerald-700",
+  overdue: "bg-red-100 text-red-700",
+  not_applicable: "bg-gray-100 text-gray-600",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -74,9 +74,9 @@ export default function DepartmentDetailPage() {
       <div className="space-y-6">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-8 w-64" />
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-16" />
+            <Skeleton key={i} className="h-16 rounded-xl" />
           ))}
         </div>
       </div>
@@ -86,8 +86,8 @@ export default function DepartmentDetailPage() {
   if (!data) {
     return (
       <div className="text-center py-16">
-        <p className="text-muted-foreground">Department not found.</p>
-        <Link href="/departments" className="text-sm text-emerald-600 hover:underline">
+        <p className="text-ct-muted">Department not found.</p>
+        <Link href="/departments" className="text-sm text-ct-teal hover:underline">
           Back to departments
         </Link>
       </div>
@@ -100,28 +100,28 @@ export default function DepartmentDetailPage() {
     <div className="space-y-6">
       <Link
         href="/departments"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition"
+        className="inline-flex items-center gap-1 text-sm text-ct-muted hover:text-ct-navy transition"
       >
         <ArrowLeft className="size-4" />
         Back to Departments
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Building2 className="size-6 text-emerald-600" />
+        <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
+          <Building2 className="size-6 text-ct-saffron" />
           {data.name}
         </h1>
         {data.description && (
-          <p className="text-sm text-muted-foreground mt-1">{data.description}</p>
+          <p className="text-sm text-ct-muted mt-1">{data.description}</p>
         )}
       </div>
 
       {/* Status summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {statusEntries.map(([status, count]) => (
-          <Card key={status}>
+          <Card key={status} className="rounded-xl shadow-card bg-white">
             <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold">{count}</p>
+              <p className="text-2xl font-bold text-ct-navy">{count}</p>
               <Badge
                 variant="secondary"
                 className={`text-[10px] mt-1 ${STATUS_STYLES[status] ?? ""}`}
@@ -135,10 +135,10 @@ export default function DepartmentDetailPage() {
 
       {/* Team */}
       {data.users.length > 0 && (
-        <Card>
+        <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Users className="size-4" />
+            <CardTitle className="text-sm font-semibold text-ct-navy flex items-center gap-2">
+              <Users className="size-4 text-ct-teal" />
               Team Members ({data.users.length})
             </CardTitle>
           </CardHeader>
@@ -147,7 +147,7 @@ export default function DepartmentDetailPage() {
               {data.users.map((u) => (
                 <Badge key={u.id} variant="outline" className="text-xs">
                   {u.name}
-                  <span className="ml-1 text-muted-foreground">({u.role})</span>
+                  <span className="ml-1 text-ct-muted">({u.role})</span>
                 </Badge>
               ))}
             </div>
@@ -156,9 +156,9 @@ export default function DepartmentDetailPage() {
       )}
 
       {/* Compliance Items */}
-      <Card>
+      <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">
+          <CardTitle className="text-sm font-semibold text-ct-navy">
             Compliance Items ({data.complianceItems.length})
           </CardTitle>
         </CardHeader>
@@ -166,16 +166,16 @@ export default function DepartmentDetailPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs">Title</TableHead>
-                <TableHead className="text-xs hidden sm:table-cell">Type</TableHead>
-                <TableHead className="text-xs">Status</TableHead>
-                <TableHead className="text-xs hidden md:table-cell">Due Date</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy">Title</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">Type</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">Due Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.complianceItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-6">
+                  <TableCell colSpan={4} className="text-center text-sm text-ct-muted py-6">
                     No compliance items in this department.
                   </TableCell>
                 </TableRow>
@@ -183,12 +183,12 @@ export default function DepartmentDetailPage() {
                 data.complianceItems.map((item) => (
                   <TableRow
                     key={item.id}
-                    className="cursor-pointer"
+                    className="cursor-pointer hover:bg-ct-row-hover"
                     onClick={() => router.push(`/compliance/${item.id}`)}
                   >
-                    <TableCell className="text-sm font-medium">{item.title}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground hidden sm:table-cell">
-                      {item.complianceType}
+                    <TableCell className="text-sm font-medium text-ct-navy">{item.title}</TableCell>
+                    <TableCell className="text-xs text-ct-muted hidden sm:table-cell">
+                      {item.complianceType.replace("_", " ")}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -198,7 +198,7 @@ export default function DepartmentDetailPage() {
                         {STATUS_LABELS[item.status] ?? item.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
+                    <TableCell className="text-xs text-ct-muted hidden md:table-cell">
                       {item.dueDate ? format(new Date(item.dueDate), "dd MMM yyyy") : "—"}
                     </TableCell>
                   </TableRow>

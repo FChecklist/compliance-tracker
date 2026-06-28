@@ -52,3 +52,35 @@ Stage Summary:
 - Realistic seed data representing Indian compliance management scenario
 - Schema includes multi-tenancy (orgId on most models), role-based access, pendency tracking
 - Lint passes
+
+---
+Task ID: T3
+Agent: Worker (direct build, no subagent)
+Task: Build full app UI + API routes
+
+Work Log:
+- Discovered most files were already created in previous session (pages, API routes, shell components)
+- Verified all existing files: AppShell, AppSidebar, AppTopbar, HealthRibbon
+- Verified all pages: Landing, Dashboard, Compliance Register, Compliance Detail, New Compliance, Departments, Department Detail, Users, Audit Log, Settings
+- Verified all API routes: compliance (GET/POST), compliance/[id] (GET/PATCH), compliance/stats, departments, departments/[id], users, notifications, notifications/[id]/read, audit
+- Fixed critical bug: ComplianceDetailPage crashed with "Cannot read properties of undefined (reading 'length')" because API returns auditPoints/documents/comments/auditLogs at top level but client set data=d.item (which doesn't include those)
+- Fixed accessibility error: Added SheetTitle + SheetDescription to compliance detail Sheet (Radix UI requirement)
+- Fixed brand color consistency on department detail page (was using generic tailwind colors)
+- Ran lint: zero errors
+- Browser-tested all pages via agent-browser through Caddy gateway on port 81:
+  - Landing page: hero, features grid, CTA all render correctly
+  - Dashboard: stat cards, pendency bar chart, upcoming deadlines table, recent activity all display real data
+  - Compliance Register: filters (search, status, department, type), table with 18 items, pagination
+  - Compliance Detail: Sheet slide-over with tabs (Details, Audit Points, Documents, Activity, Comments), status change buttons
+  - Departments: card grid with progress bars, member counts, head names
+  - Users: table with avatars, role badges, department, status
+  - Settings: profile, organisation, notifications, preferences (dark mode), about sections
+  - Audit Log: filtered table with action badges, date filters, pagination
+
+Stage Summary:
+- Full compliance tracking application built and verified
+- 10 pages, 9 API routes, 4 shell components
+- Design system: Navy/Saffron/Teal/Cream brand with DM Serif Display + Inter fonts
+- Real data: 18 compliance items, 7 users, 4 departments, audit trails
+- All pages responsive with mobile sidebar (Sheet)
+- Health ribbon shows overdue/due-in-30/safe counts
