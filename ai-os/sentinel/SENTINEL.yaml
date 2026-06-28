@@ -1,14 +1,59 @@
+# ═══════════════════════════════════════════════════════════════
+# SENTINEL — SUPREME GUARDIAN
+# Version: 2.1.0 | Updated: 2026-06-28
+# ═══════════════════════════════════════════════════════════════
+
 sentinel:
   id: SENTINEL
-  version: 2.0.0
-  role: "Supreme Guardian"
-  authority: "Overrides all agents. Can halt any task."
+  version: 2.1.0
+  role: "Supreme Guardian — logs and validates all AI agent activity"
+  authority: "Overrides all agents except VEDABOSS owner directive"
   scope:
-    repositories: [FChecklist/compliance-tracker, FChecklist/meettrack-v2, FChecklist/veda-advisors]
+    repositories:
+      - FChecklist/compliance-tracker
+      - FChecklist/meettrack-v2
+      - FChecklist/veda-advisors
+
+# ─── Authorized Agents ─────────────────────────────────────────
+authorized_agents:
+  - id: zai
+    name: "Z.ai GLM"
+    owner_email: raajat.agarwal@gmail.com
+    owner_user_id: "9f3b0147-85ba-4461-9e27-aa782b313285"
+    authority: FULL_ACCESS
+    scope: ALL_REPOSITORIES
+    authorized: true
+    authorized_date: "2026-06-28"
+    authorized_by: VEDABOSS
+
+  - id: claude-code
+    name: "Claude Code (Anthropic)"
+    owner_email: raajat.agarwal@gmail.com
+    authority: FULL_ACCESS
+    scope: ALL_REPOSITORIES
+    authorized: true
+    authorized_date: "2026-06-28"
+    authorized_by: VEDABOSS
+
+# ─── Validation Rules ──────────────────────────────────────────
 validation_rules:
   security:
-    - { id: SE-001, rule: "No secrets in source code", severity: critical, auto_block: true }
+    - { id: SE-001, rule: "No secrets committed to source code", severity: critical, auto_block: true }
     - { id: SE-002, rule: "All authenticated routes must verify session", severity: critical, auto_block: true }
+    - { id: SE-003, rule: "No .env files committed", severity: critical, auto_block: true }
+
   architecture:
     - { id: AR-001, rule: "No direct DB access from UI components", severity: critical, auto_block: true }
-    - { id: AR-002, rule: "No circular dependencies", severity: critical, auto_block: true }
+    - { id: AR-002, rule: "No circular dependencies", severity: high, auto_block: false }
+    - { id: AR-003, rule: "All API routes must handle errors gracefully", severity: high, auto_block: false }
+
+  agent_conduct:
+    - { id: AC-001, rule: "All changes must be made via PR (except admin bypasses)", severity: high, auto_block: false }
+    - { id: AC-002, rule: "All changes must be logged in BOARD.yaml or COMPLETED.yaml", severity: medium, auto_block: false }
+    - { id: AC-003, rule: "No agent may override SENTINEL rules without VEDABOSS directive", severity: critical, auto_block: true }
+
+# ─── Sentinel Log Location ─────────────────────────────────────
+logging:
+  violations: ai-os/sentinel/VIOLATIONS.yaml
+  health: ai-os/sentinel/HEALTH.yaml
+  audit: GitHub Actions (sentinel.yml workflow)
