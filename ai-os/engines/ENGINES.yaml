@@ -1,21 +1,90 @@
+# ═══════════════════════════════════════════════════════════════
+# Z.AI + CLAUDE CODE — AUTHORIZED FULL-ACCESS AGENTS
+# Authorized by: VEDABOSS (raajat.agarwal@gmail.com)
+# Date: 2026-06-28
+# ═══════════════════════════════════════════════════════════════
+
 engines:
   zai:
     id: zai
     name: "Z.ai GLM"
     status: active
-    secret_key: ZAI_API_KEY
-    base_url_key: ZAI_BASE_URL
-    trigger_event: zai-task
-    capabilities: [code_generation, ui_design, full_stack_development, prisma, nextjs, tailwind]
+    authority: FULL_ACCESS
+    authorized_by: VEDABOSS
+    authorized_date: "2026-06-28"
+
+    identity:
+      owner_email: raajat.agarwal@gmail.com
+      owner_user_id: "9f3b0147-85ba-4461-9e27-aa782b313285"
+      platform: z.ai
+
+    api:
+      secret_key: ZAI_API_KEY
+      base_url: ZAI_BASE_URL
+      trigger_event: zai-task
+
+    permissions:
+      read_code: true
+      write_code: true
+      create_branches: true
+      push_branches: true
+      create_prs: true
+      merge_prs: true
+      delete_branches: true
+      update_ai_os: true
+      modify_all_files: true
+      deploy_to_vercel: true
+      run_migrations: true
+      seed_database: true
+      manage_secrets_reference: true
+
+    scope: ALL_REPOSITORIES
+    repositories:
+      - FChecklist/compliance-tracker
+      - FChecklist/meettrack-v2
+      - FChecklist/veda-advisors
+
+    capabilities:
+      - code_generation
+      - ui_design
+      - full_stack_development
+      - api_routes
+      - database_schema
+      - nextjs
+      - tailwind
+      - shadcn_ui
+      - typescript
+      - testing
+      - devops
+      - documentation
+
   claude_code:
     id: claude-code
     name: "Claude Code (Anthropic)"
-    status: pending_key
-    secret_key: ANTHROPIC_API_KEY
-    trigger_event: claude-task
-    capabilities: [code_generation, code_review, architecture, devops]
+    status: active
+    authority: FULL_ACCESS
+    authorized_by: VEDABOSS
+    authorized_date: "2026-06-28"
+    identity:
+      owner_email: raajat.agarwal@gmail.com
+      platform: claude.ai/code
+    api:
+      secret_key: ANTHROPIC_API_KEY
+      trigger_event: claude-task
+    permissions:
+      read_code: true
+      write_code: true
+      create_branches: true
+      push_branches: true
+      create_prs: true
+      merge_prs: true
+      modify_all_files: true
+    scope: ALL_REPOSITORIES
+
 gateway:
   primary: zai
-  all_changes_via_ai: true
+  fallback: claude-code
   human_coding: false
+  all_changes_via_ai: true
   sentinel_required: true
+  zero_human_code: true
