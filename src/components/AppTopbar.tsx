@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -14,6 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { SearchTrigger } from "@/components/search-command";
 
 export function AppTopbar() {
   const router = useRouter();
@@ -39,14 +40,10 @@ export function AppTopbar() {
       <div className="flex-1" />
 
       {/* Search */}
-      <div className="hidden sm:block relative max-w-xs w-full">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-white/50" />
-        <Input
-          type="search"
-          placeholder="Search compliance..."
-          className="h-9 pl-9 bg-white/10 border-white/10 text-white placeholder:text-white/40 focus-visible:bg-white/15 focus-visible:ring-1 focus-visible:ring-white/20"
-        />
-      </div>
+      <SearchTrigger />
+
+      {/* Theme toggle */}
+      <ThemeToggle />
 
       {/* Right: notification + user */}
       <div className="flex items-center gap-2">

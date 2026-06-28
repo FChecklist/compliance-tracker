@@ -14,6 +14,10 @@ import {
   History,
   Bot,
   X,
+  CheckSquare,
+  ListTodo,
+  BarChart3,
+  AlertCircle,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +108,31 @@ function getNavSections(overdueCount: number, docCount: number): NavSection[] {
           label: "AI Assistant",
           href: "/dashboard",
           icon: Bot,
+        },
+        {
+          label: "Checklists",
+          href: "/checklists",
+          icon: CheckSquare,
+        },
+        {
+          label: "Tasks",
+          href: "/tasks",
+          icon: ListTodo,
+        },
+        {
+          label: "Reports",
+          href: "/reports",
+          icon: BarChart3,
+        },
+        {
+          label: "Penalty Tracker",
+          href: "/penalties",
+          icon: AlertCircle,
+        },
+        {
+          label: "Team",
+          href: "/team",
+          icon: Users,
         },
       ],
     },
