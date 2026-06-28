@@ -1,0 +1,9 @@
+id: AIOS-CT
+name: ComplianceTrack AI Operating System
+version: 2.0.0
+repo: FChecklist/compliance-tracker
+stack: { frontend: "Next.js 16", runtime: "Bun", db: "Prisma/SQLite→PostgreSQL", ui: "shadcn/ui", styling: "Tailwind CSS 4" }
+primary_engine: zai
+sentinel: ai-os/sentinel/SENTINEL.yaml
+boss: ai-os/boss/BOSS.yaml
+artifacts: ai-os/registry/ARTIFACTS.yaml

@@ -1,0 +1,31 @@
+name: AI Engine Dispatch
+on:
+  repository_dispatch:
+    types: [ai-task, claude-task, zai-task, codex-task, sentinel-task]
+  workflow_dispatch:
+    inputs:
+      engine: { description: "AI engine (claude|zai|codex)", required: true, default: "zai" }
+      task: { description: "Task for the AI agent", required: true }
+      branch: { description: "Branch to work on", required: false, default: "main" }
+jobs:
+  dispatch-log:
+    name: Log AI Dispatch Event
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log dispatch event
+        run: |
+          echo "AI Dispatch at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Event: ${{ github.event_name }} / ${{ github.event.action }}"
+          echo "ZAI_API_KEY configured: ${{ secrets.ZAI_API_KEY != '' }}"
+  zai-agent:
+    name: Z.ai Agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Call Z.ai GLM
+        run: |
+          echo "Z.ai agent triggered"
+          echo "Task: ${{ github.event.inputs.task || github.event.client_payload.task }}"
+          echo "ZAI_API_KEY present: ${{ secrets.ZAI_API_KEY != '' }}"
+          echo "ZAI_BASE_URL: ${{ secrets.ZAI_BASE_URL }}"

@@ -1,0 +1,4 @@
+agents:
+  - { id: VEDABOSS, provider: claude, role: architect }
+  - { id: ZAI, provider: zai-glm, role: fullstack_developer, status: active }
+  - { id: SENTINEL, provider: system, role: guardian }
