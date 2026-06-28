@@ -1,0 +1,40 @@
+# BOSS Task Board — ComplianceTrack
+# Updated: 2026-06-28
+
+completed:
+  - { id: AIOS-001, title: "Bootstrap AI-OS", status: completed, date: "2026-06-25" }
+  - { id: AIOS-002, title: "Deploy module specs", status: completed, date: "2026-06-25" }
+  - { id: AIOS-003, title: "Populate ARTIFACTS.yaml", status: completed, date: "2026-06-25" }
+  - { id: AIOS-004, title: "CI pipelines passing", status: completed, date: "2026-06-26" }
+  - { id: AIOS-005, title: "GitHub Secrets migrated", status: completed, date: "2026-06-28" }
+  - { id: AIOS-006, title: "Claude Code + AI dispatch integration", status: completed, date: "2026-06-28" }
+  - { id: AIOS-007, title: "Z.ai Full Rebuild — 144 files, PR#25", agent: zai, status: completed, date: "2026-06-28" }
+
+open:
+  - id: AIOS-008
+    title: "Switch database from SQLite to Supabase PostgreSQL"
+    agent: zai
+    status: open
+    priority: critical
+    notes: "Update prisma/schema.prisma datasource. Run migrations against Supabase project jusqumifsmtcaujqyjuy."
+
+  - id: AIOS-009
+    title: "Connect Vercel deployment"
+    agent: human
+    status: open
+    priority: high
+    notes: "Go to vercel.com → Add New Project → Import FChecklist/compliance-tracker. Env vars are in GitHub Secrets."
+
+  - id: AIOS-010
+    title: "Build Supabase Auth login/signup pages"
+    agent: zai
+    status: open
+    priority: critical
+    notes: "Replace current placeholder auth. Use Supabase Auth with NEXT_PUBLIC_SUPABASE_URL + ANON_KEY."
+
+  - id: AIOS-011
+    title: "Add ANTHROPIC_API_KEY for Claude autonomous agent"
+    agent: human
+    status: open
+    priority: medium
+    notes: "Buy $5 credits at console.anthropic.com. Add sk-ant-... key to all 3 repos."
