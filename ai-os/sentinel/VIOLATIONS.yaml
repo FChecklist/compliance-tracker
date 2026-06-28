@@ -1,4 +1,0 @@
-# Sentinel Violation Log
-# Never delete entries. Append only.
-version: "1.0.0"
-violations: []
