@@ -1,65 +1,45 @@
-import { db } from "@/lib/db";
+import { db, auditLogs } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import type { AuditAction } from "@prisma/client";
-
-type RouteContext = { params: Promise<{ id: string }> };
+import { eq, and, gte, lt, desc, sql } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = request.nextUrl;
+    const { searchParams } = request.nextUrl
 
-    const userId = searchParams.get("userId") || "";
-    const action = searchParams.get("action") || "";
-    const entityType = searchParams.get("entityType") || "";
-    const startDate = searchParams.get("startDate") || "";
-    const endDate = searchParams.get("endDate") || "";
-    const page = Math.max(1, Number(searchParams.get("page")) || 1);
-    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20));
-    const skip = (page - 1) * limit;
+    const userId = searchParams.get("userId") || ""
+    const action = searchParams.get("action") || ""
+    const entityType = searchParams.get("entityType") || ""
+    const startDate = searchParams.get("startDate") || ""
+    const endDate = searchParams.get("endDate") || ""
+    const page = Math.max(1, Number(searchParams.get("page")) || 1)
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20))
+    const offset = (page - 1) * limit
 
-    const where: Prisma.AuditLogWhereInput = {};
-
-    if (userId) {
-      where.userId = userId;
+    const conditions = []
+    if (userId) conditions.push(eq(auditLogs.userId, userId))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (action) conditions.push(eq(auditLogs.action, action as any))
+    if (entityType) conditions.push(eq(auditLogs.entityType, entityType))
+    if (startDate) conditions.push(gte(auditLogs.createdAt, new Date(startDate)))
+    if (endDate) {
+      const end = new Date(endDate)
+      end.setDate(end.getDate() + 1)
+      conditions.push(lt(auditLogs.createdAt, end))
     }
 
-    if (action) {
-      where.action = action as AuditAction;
-    }
+    const where = conditions.length > 0 ? and(...conditions) : undefined
 
-    if (entityType) {
-      where.entityType = entityType;
-    }
-
-    if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) {
-        (where.createdAt as Prisma.DateTimeNullableFilter).gte = new Date(startDate);
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setDate(end.getDate() + 1);
-        (where.createdAt as Prisma.DateTimeNullableFilter).lt = end;
-      }
-    }
-
-    const [logs, total] = await Promise.all([
-      db.auditLog.findMany({
-        where,
-        include: {
-          user: {
-            select: { name: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
+    const [logs, [{ count }]] = await Promise.all([
+      db.query.auditLogs.findMany({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        where: where as any,
+        with: { user: { columns: { name: true } } },
+        orderBy: desc(auditLogs.createdAt),
+        limit,
+        offset,
       }),
-      db.auditLog.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
+      db.select({ count: sql<number>`count(*)::int` }).from(auditLogs).where(where),
+    ])
 
     return NextResponse.json({
       auditLogs: logs.map((log) => ({
@@ -71,16 +51,13 @@ export async function GET(request: NextRequest) {
         userName: log.user.name,
         createdAt: log.createdAt.toISOString(),
       })),
-      total,
+      total: count,
       page,
       limit,
-      totalPages,
-    });
+      totalPages: Math.ceil(count / limit),
+    })
   } catch (error) {
-    console.error("Audit API error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch audit logs" },
-      { status: 500 }
-    );
+    console.error("Audit API error:", error)
+    return NextResponse.json({ error: "Failed to fetch audit logs" }, { status: 500 })
   }
 }
