@@ -1,17 +1,15 @@
-import { db } from "@/lib/db";
-import { NextResponse } from "next/server";
+import { db } from '@/lib/db'
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const users = await db.user.findMany({
-      include: {
-        department: { select: { name: true } },
-      },
-      orderBy: { name: "asc" },
-    });
+    const allUsers = await db.query.users.findMany({
+      with: { department: { columns: { name: true } } },
+      orderBy: (f, { asc }) => asc(f.name),
+    })
 
     return NextResponse.json({
-      users: users.map((u) => ({
+      users: allUsers.map(u => ({
         id: u.id,
         name: u.name,
         email: u.email,
@@ -21,9 +19,9 @@ export async function GET() {
         department: u.department ? { name: u.department.name } : null,
         createdAt: u.createdAt.toISOString(),
       })),
-    });
+    })
   } catch (error) {
-    console.error("Users API error:", error);
-    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+    console.error('Users API error:', error)
+    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
   }
 }
