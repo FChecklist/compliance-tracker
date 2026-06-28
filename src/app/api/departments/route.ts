@@ -8,12 +8,18 @@ export async function GET() {
         _count: {
           select: {
             compliance: true,
+            users: true,
           },
         },
+        head: {
+          select: { name: true },
+        },
+        compliance: {
+          where: { status: "completed" },
+          select: { id: true },
+        },
       },
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: { name: "asc" },
     });
 
     return NextResponse.json({
@@ -22,6 +28,9 @@ export async function GET() {
         name: dept.name,
         description: dept.description,
         complianceCount: dept._count.compliance,
+        memberCount: dept._count.users,
+        headName: dept.head?.name ?? null,
+        completedCount: dept.compliance.length,
         createdAt: dept.createdAt.toISOString(),
         updatedAt: dept.updatedAt.toISOString(),
       })),

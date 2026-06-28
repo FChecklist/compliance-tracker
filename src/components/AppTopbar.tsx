@@ -1,11 +1,9 @@
 "use client";
 
-import { Search, Bell, LogOut, ChevronDown, User } from "lucide-react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
+import Link from "next/link";
+import { Search, Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -19,75 +17,84 @@ import { useEffect, useState } from "react";
 
 export function AppTopbar() {
   const router = useRouter();
-  const [overdueCount, setOverdueCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    fetch("/api/compliance/stats")
+    fetch("/api/notifications")
       .then((r) => r.json())
-      .then((d) => setOverdueCount(d.stats?.overdue ?? 0))
+      .then((d) => setUnreadCount(d.unreadCount ?? 0))
       .catch(() => {});
   }, []);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-2 h-4" />
+    <header className="flex h-[60px] shrink-0 items-center gap-4 px-4 md:px-6 bg-gradient-navy shadow-nav sticky top-0 z-30">
+      {/* Left: hamburger is handled by AppSidebar (mobile) */}
 
-      <div className="flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search compliance..."
-            className="h-9 pl-8 bg-muted/40 border-0 focus-visible:bg-background focus-visible:ring-1"
-          />
-        </div>
+      {/* Org name (visible on md+) */}
+      <div className="hidden md:block">
+        <h2 className="text-sm font-medium text-white/90">Acme Financial Services</h2>
       </div>
 
-      <div className="flex items-center gap-2 ml-auto">
+      {/* Center spacer */}
+      <div className="flex-1" />
+
+      {/* Search */}
+      <div className="hidden sm:block relative max-w-xs w-full">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-white/50" />
+        <Input
+          type="search"
+          placeholder="Search compliance..."
+          className="h-9 pl-9 bg-white/10 border-white/10 text-white placeholder:text-white/40 focus-visible:bg-white/15 focus-visible:ring-1 focus-visible:ring-white/20"
+        />
+      </div>
+
+      {/* Right: notification + user */}
+      <div className="flex items-center gap-2">
+        {/* Notification bell */}
         <Button
           variant="ghost"
           size="icon"
-          className="relative"
-          onClick={() => router.push("/compliance?filter=overdue")}
+          className="relative text-white/80 hover:text-white hover:bg-white/10"
+          onClick={() => router.push("/compliance?status=overdue")}
         >
-          <Bell className="size-4" />
-          {overdueCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-destructive text-white border-2 border-background">
-              {overdueCount}
-            </Badge>
+          <Bell className="size-[18px]" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-red-500 ring-2 ring-ct-navy" />
           )}
         </Button>
 
+        {/* User avatar dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="gap-2 px-2"
+              className="gap-2 px-2 text-white/90 hover:text-white hover:bg-white/10"
             >
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-ct-saffron text-white text-xs font-bold">
                   RS
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:inline text-sm font-medium">
-                Rajesh S.
-              </span>
-              <ChevronDown className="size-3 text-muted-foreground" />
+              <span className="hidden md:inline text-sm font-medium">Rajesh Sharma</span>
+              <ChevronDown className="size-3 text-white/50" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem className="gap-2">
+            <DropdownMenuItem className="gap-2" onClick={() => router.push("/settings")}>
               <User className="size-4" />
               Profile
             </DropdownMenuItem>
+            <DropdownMenuItem className="gap-2" onClick={() => router.push("/settings")}>
+              <Settings className="size-4" />
+              Settings
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="gap-2 text-destructive focus:text-destructive"
+              className="gap-2 text-red-600 focus:text-red-600"
               onClick={() => router.push("/")}
             >
               <LogOut className="size-4" />
-              Sign out
+              Logout
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

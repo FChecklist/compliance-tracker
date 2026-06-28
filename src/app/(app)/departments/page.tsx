@@ -7,57 +7,36 @@ import {
   Users,
   ShieldCheck,
   ChevronRight,
+  Plus,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 
 type Department = {
   id: string;
   name: string;
   description: string | null;
   complianceCount: number;
+  memberCount: number;
+  headName: string | null;
+  completedCount: number;
   createdAt: string;
   updatedAt: string;
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-yellow-500",
-  in_progress: "bg-cyan-500",
-  completed: "bg-emerald-500",
-  overdue: "bg-red-500",
-  not_applicable: "bg-zinc-400",
 };
 
 export default function DepartmentsPage() {
   const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [statusData, setStatusData] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/departments")
       .then((r) => r.json())
       .then((d) => {
-        const depts = d.departments ?? d;
-        setDepartments(depts);
-        return Promise.all(
-          depts.map((dept: Department) =>
-            fetch(`/api/departments/${dept.id}`)
-              .then((r) => r.json())
-              .then((detail) => ({
-                id: dept.id,
-                statusCounts: detail.department?.statusCounts ?? {},
-              }))
-          )
-        );
-      })
-      .then((results) => {
-        const map: Record<string, Record<string, number>> = {};
-        for (const r of results) {
-          map[r.id] = r.statusCounts;
-        }
-        setStatusData(map);
+        setDepartments(d.departments ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -65,17 +44,24 @@ export default function DepartmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Departments</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {departments.length} departments managing compliance
-        </p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Departments</h1>
+          <p className="text-sm text-ct-muted mt-1">
+            {departments.length} departments managing compliance
+          </p>
+        </div>
+        <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
+          <Plus className="size-4 mr-2" />
+          Add Department
+        </Button>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Card key={i} className="cursor-pointer">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="rounded-xl">
               <CardContent className="p-5">
                 <Skeleton className="h-5 w-32 mb-2" />
                 <Skeleton className="h-4 w-48 mb-4" />
@@ -85,59 +71,65 @@ export default function DepartmentsPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {departments.map((dept) => {
-            const counts = statusData[dept.id] ?? {};
-            const totalActive = Object.entries(counts)
-              .filter(([k]) => k !== "not_applicable")
-              .reduce((sum, [, v]) => sum + v, 0);
+            const progressPct = dept.complianceCount > 0
+              ? Math.round((dept.completedCount / dept.complianceCount) * 100)
+              : 0;
 
             return (
               <Card
                 key={dept.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
+                className="rounded-xl shadow-card bg-white cursor-pointer hover:shadow-nav transition-shadow"
                 onClick={() => router.push(`/departments/${dept.id}`)}
               >
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <div className="size-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                        <Building2 className="size-4 text-emerald-600" />
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="size-10 rounded-xl bg-ct-accent flex items-center justify-center">
+                        <Building2 className="size-5 text-ct-saffron" />
                       </div>
-                      {dept.name}
-                    </CardTitle>
-                    <ChevronRight className="size-4 text-muted-foreground" />
+                      <div>
+                        <CardTitle className="text-base font-heading text-ct-navy">
+                          {dept.name}
+                        </CardTitle>
+                        {dept.headName && (
+                          <p className="text-xs text-ct-muted mt-0.5">
+                            Head: {dept.headName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 text-ct-muted shrink-0 mt-1" />
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   {dept.description && (
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                    <p className="text-sm text-ct-muted mb-3 line-clamp-2">
                       {dept.description}
                     </p>
                   )}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+
+                  {/* Stats row */}
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="flex items-center gap-1.5 text-xs text-ct-muted">
                       <ShieldCheck className="size-3.5" />
-                      {dept.complianceCount} compliance items
+                      {dept.complianceCount} items
                     </div>
-                    <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700">
-                      {totalActive > 0
-                        ? `${counts.completed ?? 0}/${totalActive} done`
-                        : "No active items"}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 text-xs text-ct-muted">
+                      <Users className="size-3.5" />
+                      {dept.memberCount} members
+                    </div>
                   </div>
-                  {/* Mini progress bar */}
-                  {totalActive > 0 && (
-                    <div className="flex h-1.5 rounded-full overflow-hidden bg-muted">
-                      {Object.entries(counts)
-                        .filter(([k]) => k !== "not_applicable" && (counts[k] ?? 0) > 0)
-                        .map(([status, count]) => (
-                          <div
-                            key={status}
-                            className={`${STATUS_COLORS[status] ?? "bg-zinc-400"}`}
-                            style={{ width: `${(count / totalActive) * 100}%` }}
-                          />
-                        ))}
+
+                  {/* Progress bar */}
+                  {dept.complianceCount > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-ct-muted">Completion</span>
+                        <span className="font-semibold text-ct-navy">{progressPct}%</span>
+                      </div>
+                      <Progress value={progressPct} className="h-2" />
                     </div>
                   )}
                 </CardContent>

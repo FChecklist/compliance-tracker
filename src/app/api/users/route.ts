@@ -16,6 +16,8 @@ export async function GET() {
         name: u.name,
         email: u.email,
         role: u.role,
+        isActive: u.isActive,
+        lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
         department: u.department ? { name: u.department.name } : null,
         createdAt: u.createdAt.toISOString(),
       })),

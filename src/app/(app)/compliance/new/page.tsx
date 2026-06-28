@@ -25,12 +25,15 @@ import { toast } from "sonner";
 
 type Department = { id: string; name: string };
 
+const COMPLIANCE_TYPES = [
+  "GST", "TDS", "MCA", "PF", "ESIC", "INCOME_TAX", "ROC", "LABOUR", "ENVIRONMENTAL", "OTHER",
+];
+
 export default function NewCompliancePage() {
   const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [complianceType, setComplianceType] = useState("");
@@ -74,7 +77,7 @@ export default function NewCompliancePage() {
       }
 
       const created = await res.json();
-      toast.success("Compliance item created successfully!");
+      toast.success("Compliance item created!");
       router.push(`/compliance/${created.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create");
@@ -85,34 +88,28 @@ export default function NewCompliancePage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Back link */}
       <Link
         href="/compliance"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition"
+        className="inline-flex items-center gap-1 text-sm text-ct-muted hover:text-ct-navy transition"
       >
         <ArrowLeft className="size-4" />
         Back to Compliance
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Add New Compliance
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Create a new compliance tracking item
-        </p>
+        <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Add New Compliance</h1>
+        <p className="text-sm text-ct-muted mt-1">Create a new compliance tracking item</p>
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base">Compliance Details</CardTitle>
+      <Card className="rounded-xl shadow-card bg-white">
+        <CardHeader>
+          <CardTitle className="text-base text-ct-navy">Compliance Details</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Title */}
             <div className="space-y-1.5">
-              <Label htmlFor="title">
-                Title <span className="text-destructive">*</span>
+              <Label htmlFor="title" className="text-xs font-semibold text-ct-muted uppercase">
+                Title <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="title"
@@ -122,9 +119,10 @@ export default function NewCompliancePage() {
               />
             </div>
 
-            {/* Description */}
             <div className="space-y-1.5">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description" className="text-xs font-semibold text-ct-muted uppercase">
+                Description
+              </Label>
               <Textarea
                 id="description"
                 placeholder="Details about this compliance item..."
@@ -135,47 +133,25 @@ export default function NewCompliancePage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Compliance Type */}
               <div className="space-y-1.5">
-                <Label htmlFor="type">
-                  Compliance Type <span className="text-destructive">*</span>
+                <Label className="text-xs font-semibold text-ct-muted uppercase">
+                  Compliance Type <span className="text-red-500">*</span>
                 </Label>
                 <Select value={complianceType} onValueChange={setComplianceType}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="GST">GST</SelectItem>
-                    <SelectItem value="TDS">TDS</SelectItem>
-                    <SelectItem value="Income Tax">Income Tax</SelectItem>
-                    <SelectItem value="MCA Filing">MCA Filing</SelectItem>
-                    <SelectItem value="Corporate Governance">
-                      Corporate Governance
-                    </SelectItem>
-                    <SelectItem value="IP Compliance">IP Compliance</SelectItem>
-                    <SelectItem value="ESIC">ESIC</SelectItem>
-                    <SelectItem value="PF">PF</SelectItem>
-                    <SelectItem value="Labour Law">Labour Law</SelectItem>
-                    <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
-                    <SelectItem value="Software Licence">
-                      Software Licence
-                    </SelectItem>
-                    <SelectItem value="Data Protection">Data Protection</SelectItem>
-                    <SelectItem value="IT Infrastructure">
-                      IT Infrastructure
-                    </SelectItem>
-                    <SelectItem value="Factory Licence">Factory Licence</SelectItem>
-                    <SelectItem value="Environmental">Environmental</SelectItem>
-                    <SelectItem value="FSSAI">FSSAI</SelectItem>
-                    <SelectItem value="Safety">Safety</SelectItem>
+                    {COMPLIANCE_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Department */}
               <div className="space-y-1.5">
-                <Label htmlFor="dept">
-                  Department <span className="text-destructive">*</span>
+                <Label className="text-xs font-semibold text-ct-muted uppercase">
+                  Department <span className="text-red-500">*</span>
                 </Label>
                 <Select value={departmentId} onValueChange={setDepartmentId}>
                   <SelectTrigger>
@@ -183,17 +159,14 @@ export default function NewCompliancePage() {
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Priority */}
               <div className="space-y-1.5">
-                <Label htmlFor="priority">Priority</Label>
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Priority</Label>
                 <Select value={priority} onValueChange={setPriority}>
                   <SelectTrigger>
                     <SelectValue />
@@ -207,9 +180,10 @@ export default function NewCompliancePage() {
                 </Select>
               </div>
 
-              {/* Due Date */}
               <div className="space-y-1.5">
-                <Label htmlFor="dueDate">Due Date</Label>
+                <Label htmlFor="dueDate" className="text-xs font-semibold text-ct-muted uppercase">
+                  Due Date
+                </Label>
                 <Input
                   id="dueDate"
                   type="date"
@@ -219,11 +193,10 @@ export default function NewCompliancePage() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 pt-2">
               <Button
                 type="submit"
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
                 disabled={submitting}
               >
                 {submitting ? "Creating..." : "Create Compliance"}

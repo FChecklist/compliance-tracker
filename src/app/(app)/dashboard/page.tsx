@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   ShieldCheck,
   AlertTriangle,
-  Clock,
+  Calendar,
   CheckCircle2,
-  Activity,
+  TrendingUp,
   ArrowUpRight,
+  Activity,
+  Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,28 +31,28 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
+  Legend,
 } from "recharts";
 
-type DashboardData = {
-  stats: {
+type DashboardStats = {
+  total: number;
+  overdue: number;
+  dueThisWeek: number;
+  completed: number;
+  byDepartment: {
+    name: string;
     total: number;
-    completed: number;
     overdue: number;
-    inProgress: number;
     pending: number;
-    dueSoon: number;
-    notApplicable: number;
-  };
-  departmentBreakdown: { name: string; count: number }[];
-  overdueItems: {
+    safe: number;
+  }[];
+  upcomingDeadlines: {
     id: string;
     title: string;
     department: string;
     dueDate: string | null;
-    priority: string;
+    assignedTo: string;
+    status: string;
   }[];
   recentActivity: {
     id: string;
@@ -60,21 +62,24 @@ type DashboardData = {
     userName: string;
     createdAt: string;
   }[];
-  statusDistribution: { name: string; value: number; color: string }[];
 };
 
-const PRIORITY_STYLES: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  high: "bg-orange-100 text-orange-700",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-emerald-100 text-emerald-700",
+const STATUS_BADGE: Record<string, string> = {
+  pending: "bg-amber-100 text-amber-700",
+  in_progress: "bg-blue-100 text-blue-700",
+  completed: "bg-emerald-100 text-emerald-700",
+  overdue: "bg-red-100 text-red-700",
+  not_applicable: "bg-gray-100 text-gray-600",
+  draft: "bg-purple-100 text-purple-700",
 };
 
-const ACTION_ICONS: Record<string, string> = {
-  created: "🆕",
-  status_changed: "🔄",
-  assigned: "👤",
-  comment_added: "💬",
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  in_progress: "In Progress",
+  completed: "Completed",
+  overdue: "Overdue",
+  not_applicable: "N/A",
+  draft: "Draft",
 };
 
 function StatCard({
@@ -82,29 +87,27 @@ function StatCard({
   value,
   icon: Icon,
   accent,
+  iconBg,
   sub,
 }: {
   title: string;
   value: number;
   icon: React.ElementType;
   accent: string;
+  iconBg: string;
   sub?: string;
 }) {
   return (
-    <Card>
-      <CardContent className="p-4 md:p-5">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-muted-foreground">
-            {title}
-          </span>
-          <div className={`size-9 rounded-lg flex items-center justify-center ${accent}`}>
-            <Icon className="size-4" />
+    <Card className="rounded-xl shadow-card bg-white">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-medium text-ct-muted">{title}</span>
+          <div className={`size-10 rounded-xl flex items-center justify-center ${iconBg}`}>
+            <Icon className={`size-5 ${accent}`} />
           </div>
         </div>
-        <p className="text-3xl font-bold">{value}</p>
-        {sub && (
-          <p className="text-xs text-muted-foreground mt-1">{sub}</p>
-        )}
+        <p className="text-3xl font-bold text-ct-navy">{value}</p>
+        {sub && <p className="text-xs text-ct-muted mt-1.5">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -115,7 +118,7 @@ function DashboardSkeleton() {
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
+          <Card key={i} className="rounded-xl">
             <CardContent className="p-5">
               <Skeleton className="h-4 w-24 mb-3" />
               <Skeleton className="h-9 w-16" />
@@ -123,30 +126,22 @@ function DashboardSkeleton() {
           </Card>
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-5 w-40 mb-4" />
-            <Skeleton className="h-[200px]" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-5 w-40 mb-4" />
-            <Skeleton className="h-[200px]" />
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="rounded-xl">
+        <CardContent className="p-6">
+          <Skeleton className="h-5 w-48 mb-4" />
+          <Skeleton className="h-[240px]" />
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    fetch("/api/compliance/stats")
       .then((r) => r.json())
       .then((d) => {
         setData(d);
@@ -156,17 +151,18 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) return <DashboardSkeleton />;
-  if (!data) return <p className="text-muted-foreground">Failed to load dashboard.</p>;
+  if (!data)
+    return <p className="text-ct-muted">Failed to load dashboard.</p>;
 
-  const { stats, departmentBreakdown, overdueItems, recentActivity, statusDistribution } = data;
+  const completionRate = data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0;
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Overview of your compliance status and recent activity
+        <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Dashboard</h1>
+        <p className="text-sm text-ct-muted mt-1">
+          Compliance overview for Acme Financial Services
         </p>
       </div>
 
@@ -174,195 +170,154 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Compliance"
-          value={stats.total}
+          value={data.total}
           icon={ShieldCheck}
-          accent="bg-emerald-100 text-emerald-600"
-          sub={`${stats.completed} of ${stats.total} completed`}
+          accent="text-ct-navy"
+          iconBg="bg-ct-cloud"
+          sub={`${completionRate}% completion rate`}
         />
         <StatCard
           title="Overdue"
-          value={stats.overdue}
+          value={data.overdue}
           icon={AlertTriangle}
-          accent="bg-red-100 text-red-600"
-          sub="Requires immediate attention"
+          accent="text-red-600"
+          iconBg="bg-red-50"
+          sub="Requires attention"
         />
         <StatCard
-          title="Due Soon"
-          value={stats.dueSoon}
-          icon={Clock}
-          accent="bg-amber-100 text-amber-600"
-          sub="Within next 7 days"
+          title="Due This Week"
+          value={data.dueThisWeek}
+          icon={Calendar}
+          accent="text-amber-600"
+          iconBg="bg-amber-50"
+          sub="Coming up soon"
         />
         <StatCard
           title="Completed"
-          value={stats.completed}
+          value={data.completed}
           icon={CheckCircle2}
-          accent="bg-emerald-100 text-emerald-600"
-          sub={`${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}% completion rate`}
+          accent="text-emerald-600"
+          iconBg="bg-emerald-50"
+          sub={`${data.total - data.completed} remaining`}
         />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Department Bar Chart */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">
-              Compliance by Department
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={departmentBreakdown}
-                  layout="vertical"
-                  margin={{ left: 10, right: 20, top: 5, bottom: 5 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={100}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Bar
-                    dataKey="count"
-                    fill="#10b981"
-                    radius={[0, 4, 4, 0]}
-                    barSize={24}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Pendency Bar Chart */}
+      <Card className="rounded-xl shadow-card bg-white">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+            <TrendingUp className="size-4 text-ct-saffron" />
+            Pendency by Department
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data.byDepartment}
+                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 12, fill: "#718096" }}
+                  axisLine={{ stroke: "#E2E8F0" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: "#718096" }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "10px",
+                    border: "1px solid #E2E8F0",
+                    fontSize: "12px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+                  }}
+                />
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
+                />
+                <Bar dataKey="overdue" name="Overdue" fill="#C0392B" radius={[2, 2, 0, 0]} barSize={16} />
+                <Bar dataKey="pending" name="Pending" fill="#F5820A" radius={[2, 2, 0, 0]} barSize={16} />
+                <Bar dataKey="safe" name="Safe" fill="#0E7C6E" radius={[2, 2, 0, 0]} barSize={16} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Status Donut Chart */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">
-              Status Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center gap-6">
-              <div className="h-[180px] w-[180px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusDistribution.filter((s) => s.value > 0)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {statusDistribution.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: "8px",
-                        border: "1px solid var(--border)",
-                        fontSize: "12px",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex-1 space-y-2">
-                {statusDistribution
-                  .filter((s) => s.value > 0)
-                  .map((s) => (
-                    <div key={s.name} className="flex items-center gap-2 text-sm">
-                      <div
-                        className="size-3 rounded-full shrink-0"
-                        style={{ backgroundColor: s.color }}
-                      />
-                      <span className="text-muted-foreground flex-1">
-                        {s.name}
-                      </span>
-                      <span className="font-medium">{s.value}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Bottom Row: Overdue + Activity */}
+      {/* Bottom Row: Upcoming Deadlines + Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Overdue Items */}
-        <Card>
+        {/* Upcoming Deadlines */}
+        <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <AlertTriangle className="size-4 text-red-500" />
-                Overdue Items
+              <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                <Clock className="size-4 text-ct-saffron" />
+                Upcoming Deadlines
               </CardTitle>
               <Link
-                href="/compliance?filter=overdue"
-                className="text-xs text-emerald-600 hover:underline flex items-center gap-1"
+                href="/compliance"
+                className="text-xs text-ct-saffron hover:underline flex items-center gap-1 font-medium"
               >
                 View all <ArrowUpRight className="size-3" />
               </Link>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            {overdueItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                No overdue items. Great job!
-              </p>
+            {data.upcomingDeadlines.length === 0 ? (
+              <p className="text-sm text-ct-muted py-4">No upcoming deadlines.</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs">Title</TableHead>
-                    <TableHead className="text-xs">Dept</TableHead>
-                    <TableHead className="text-xs">Priority</TableHead>
+                    <TableHead className="text-xs hidden sm:table-cell">Dept</TableHead>
+                    <TableHead className="text-xs hidden md:table-cell">Assigned</TableHead>
                     <TableHead className="text-xs">Due</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {overdueItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-xs font-medium max-w-[160px] truncate">
+                  {data.upcomingDeadlines.map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className="cursor-pointer hover:bg-ct-row-hover"
+                      onClick={() =>
+                        (window.location.href = `/compliance/${item.id}`)
+                      }
+                    >
+                      <TableCell className="text-xs font-medium max-w-[140px] truncate">
                         <Link
                           href={`/compliance/${item.id}`}
-                          className="hover:text-emerald-600 hover:underline"
+                          className="hover:text-ct-saffron transition-colors"
                         >
                           {item.title}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="text-xs text-ct-muted hidden sm:table-cell">
                         {item.department}
+                      </TableCell>
+                      <TableCell className="text-xs text-ct-muted hidden md:table-cell">
+                        {item.assignedTo}
+                      </TableCell>
+                      <TableCell className="text-xs text-ct-navy font-medium">
+                        {item.dueDate
+                          ? format(new Date(item.dueDate), "dd MMM")
+                          : "—"}
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="secondary"
-                          className={`text-[10px] px-1.5 py-0 ${PRIORITY_STYLES[item.priority] ?? ""}`}
+                          className={`text-[10px] px-2 py-0.5 font-medium ${STATUS_BADGE[item.status] ?? ""}`}
                         >
-                          {item.priority}
+                          {STATUS_LABELS[item.status] ?? item.status}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-red-600 font-medium">
-                        {item.dueDate
-                          ? formatDistanceToNow(new Date(item.dueDate), {
-                              addSuffix: true,
-                            })
-                          : "—"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -373,33 +328,24 @@ export default function DashboardPage() {
         </Card>
 
         {/* Recent Activity */}
-        <Card>
+        <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Activity className="size-4 text-emerald-500" />
+            <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+              <Activity className="size-4 text-ct-teal" />
               Recent Activity
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            {recentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">
-                No recent activity yet.
-              </p>
+            {data.recentActivity.length === 0 ? (
+              <p className="text-sm text-ct-muted py-4">No recent activity yet.</p>
             ) : (
-              <div className="space-y-3 max-h-[240px] overflow-y-auto">
-                {recentActivity.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-3 text-sm"
-                  >
-                    <span className="text-base mt-0.5">
-                      {ACTION_ICONS[log.action] ?? "📝"}
-                    </span>
+              <div className="space-y-3 max-h-[280px] overflow-y-auto">
+                {data.recentActivity.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3 text-sm">
+                    <div className="mt-1.5 size-2 rounded-full bg-ct-teal shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-foreground truncate">
-                        {log.details ?? log.action}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-ct-navy truncate">{log.details ?? log.action}</p>
+                      <p className="text-xs text-ct-muted">
                         {log.userName} &middot;{" "}
                         {formatDistanceToNow(new Date(log.createdAt), {
                           addSuffix: true,
