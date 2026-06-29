@@ -1,0 +1,19 @@
+This is the testing file.
+
+## Test Serial Number
+
+| # | Test Scenario | Test Result | Bug Found | Resolved | Status |
+|---|---------------|-------------|-----------|----------|--------|
+| 1 | | | | | |
+| 2 | | | | | |
+| 3 | | | | | |
+
+## Instructions for AI Agent
+
+1. **Test Serial Number** — Assign a unique serial number for each test.
+2. **Test Scenario** — Describe the test scenario to be executed.
+3. **AI need to test and input the test result** — Run the test and fill in the "Test Result" column.
+4. **Find the bug if any** — If a bug is found, note it in the "Bug Found" column.
+5. **Resolve if needed** — If the bug can be resolved, fix it and mark "Resolved" as Yes/No.
+6. **Once done write "Test Done, Task Completed."** — After all tests are finished, append this line at the bottom.
+
