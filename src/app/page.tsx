@@ -67,7 +67,7 @@ export default function LandingPage() {
             asChild
             className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
           >
-            <Link href="/dashboard">
+            <Link href="/login">
               Get Started
               <ArrowRight className="ml-2 size-4" />
             </Link>
@@ -107,18 +107,21 @@ export default function LandingPage() {
                 size="lg"
                 className="bg-ct-saffron hover:bg-ct-saffron-hover text-white text-base px-8 h-12 shadow-saffron"
               >
-                <Link href="/dashboard">
+                <Link href="/login">
                   Get Started
                   <ArrowRight className="ml-2 size-4" />
                 </Link>
               </Button>
               <Button
+                asChild
                 variant="outline"
                 size="lg"
                 className="text-base px-8 h-12 border-white/20 text-white hover:bg-white/10 hover:text-white"
-                onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
               >
-                See Features
+                <Link href="/signup">
+                  Sign Up Free
+                  <ArrowRight className="ml-2 size-4" />
+                </Link>
               </Button>
             </div>
           </div>
@@ -173,8 +176,8 @@ export default function LandingPage() {
               size="lg"
               className="bg-ct-saffron hover:bg-ct-saffron-hover text-white text-base px-8 h-12 shadow-saffron"
             >
-              <Link href="/dashboard">
-                Open Dashboard
+              <Link href="/login">
+                Get Started
                 <ArrowRight className="ml-2 size-4" />
               </Link>
             </Button>

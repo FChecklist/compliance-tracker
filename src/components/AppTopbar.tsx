@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { Bell, User, Settings, LogOut, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -15,17 +15,48 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchTrigger } from "@/components/search-command";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 export function AppTopbar() {
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
-    fetch("/api/notifications")
+ fetch("/api/notifications")
       .then((r) => r.json())
       .then((d) => setUnreadCount(d.unreadCount ?? 0))
       .catch(() => {});
+
+    // Get current user from Supabase
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserEmail(user.email);
+        setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || null);
+      }
+    });
   }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error("Failed to sign out");
+      setLoggingOut(false);
+      return;
+    }
+    router.push("/login");
+    router.refresh();
+  };
+
+  const initials = userName
+    ? userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "CT";
 
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-4 px-4 md:px-6 bg-gradient-navy shadow-nav sticky top-0 z-30">
@@ -69,10 +100,12 @@ export function AppTopbar() {
             >
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-ct-saffron text-white text-xs font-bold">
-                  RS
+                  {initials}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden md:inline text-sm font-medium">Rajesh Sharma</span>
+              <span className="hidden md:inline text-sm font-medium">
+                {userName || "User"}
+              </span>
               <ChevronDown className="size-3 text-white/50" />
             </Button>
           </DropdownMenuTrigger>
@@ -88,10 +121,11 @@ export function AppTopbar() {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="gap-2 text-red-600 focus:text-red-600"
-              onClick={() => router.push("/")}
+              onClick={handleLogout}
+              disabled={loggingOut}
             >
-              <LogOut className="size-4" />
-              Logout
+              {loggingOut ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+              {loggingOut ? "Signing out..." : "Sign Out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
