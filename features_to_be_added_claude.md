@@ -1,594 +1,779 @@
-# Features To Be Added — ComplianceTrack
-## Merged Analysis: Claude Code (DEVABOSS) + Z.ai
-## Sources: evaluation_by_ca.md (6 evaluations, 4 personas) + Z.ai feature audit + full codebase review
+# ComplianceTrack — Platform Vision & Feature Prioritisation
+## Author: DEVABOSS (Claude Code) — Merged with Z.ai audit
+## Perspective: AI-Native Compliance & Audit Operating System
 ## Last Updated: 2026-06-29
-
-> **Context:** Zero customers. Pricing undecided. Goal: AI-native Compliance and Audit SaaS for the Indian market.
-> This is the merged and re-evaluated master list combining both Claude's analysis (from evaluation_by_ca.md) and Z.ai's independent feature audit. Where the two lists disagreed, the final tier reflects a reasoned decision — explained inline.
 
 ---
 
-## Conflicts Resolved Between Claude and Z.ai
+## The Reframe: What This Product Actually Is
 
-| Feature | Z.ai Tier | Claude Tier | Final Decision | Reason |
-|---|---|---|---|---|
-| Recurring compliance engine | Good to Have | Must Have | **Must Have** | Cannot use product sustainably without it — 350 items/month require auto-generation |
-| Government notice / SCN register | Good to Have | Must Have | **Must Have** | Personal CFO liability; missed 21-day reply window = ex-parte demand order |
-| Challan payment tracking | Good to Have | Must Have | **Must Have** | Filing ≠ Payment; auditors require challan evidence; "Completed" without BSR code is meaningless |
-| Tally integration (basic) | Good to Have | Ignore | **Good to Have** | Z.ai is right — Tally has 90%+ Indian SME market share; basic CSV import is achievable and removes the biggest "we already have Tally" objection |
-| AI/ML predictive analytics | Ignore | Not listed | **Ignore** | Too early — build dataset first (500+ notices, 10,000+ compliance items), then AI |
-| Native mobile apps | Ignore | Not listed (PWA is path) | **Ignore** | PWA delivers 60% of value at 20% of cost; native app is V3 |
-| Hierarchical dashboards (CFO→Manager→Location) | Ignore | Not listed | **Good to Have** | Mid-market companies with 5+ departments need role-filtered views; not enterprise-only complexity |
+**This is NOT a tax filing platform.**
+This is a **Compliance & Audit Operating System** — the single source of truth for every compliance obligation a company has, which can ingest data from any tool, expose that data to any AI, and push outputs to any downstream system.
+
+The distinction matters for every product and engineering decision:
+
+| Tax Filing Platform | Compliance & Audit OS (what we are building) |
+|---|---|
+| Files returns on government portals | Tracks whether returns were filed, by whom, when, with what proof |
+| Replaces your CA / Tally / GSTN portal | Works alongside your CA / Tally / GSTN portal |
+| Owns the transaction | Owns the record, the evidence, and the accountability |
+| Single workflow | Orchestrates across people, tools, and AI agents |
+| Closed system | Open platform — data in, data out, AI pluggable |
+
+The product's job: **know everything about your compliance state, make it available to humans and AI alike, and ensure nothing falls through the cracks.**
+
+---
+
+## The Four Architectural Principles
+
+### 1. Data In — Ingest from Anywhere
+Pull compliance data from: government portals (when APIs are available), Tally CSV exports, uploaded PDF documents (notices, certificates, challans), manual entry via web UI, and external systems via inbound API/webhooks.
+
+### 2. Data Out — Export to Anything
+Push compliance state to: customer's own AI (via API key), customer's CA firm's system (via shared access code), board reporting tools (via PDF/Excel export), customer's ERP (via outbound webhooks), and customer's custom GPT or AI agent (via MCP server interface).
+
+### 3. AI-Native — Every Feature Has an AI Layer
+Document upload → AI extracts structured data automatically. Notice received → AI identifies reply deadline and suggests action. Overdue item → AI drafts escalation email. Compliance history → AI generates board report. The AI is pluggable: customer uses their own OpenAI / Anthropic / Groq key (BYOK — Bring Your Own Key). Platform's own orchestration uses Groq's free open-source LLMs.
+
+### 4. Near-Zero Operating Cost — Cloud-Native, AI-Assisted Operations
+Every layer of the product lifecycle — development, deployment, customer support, AI, storage — is covered by free or near-free cloud tiers. The goal: the platform can serve the first 200 customers at under ₹5,000/month total infrastructure cost.
+
+---
+
+## Zero-Cost Infrastructure Architecture
+
+The entire stack is designed so that cloud provider free tiers and BYOK AI keys eliminate ongoing costs until significant revenue is generated.
+
+### Infrastructure Layer (Near-Zero Cost)
+
+| Service | Purpose | Cost |
+|---|---|---|
+| **Supabase** (already live) | PostgreSQL + Auth + Storage + pgvector + Edge Functions | Free up to 500MB DB / 5GB storage. Pro = $25/month for production scale |
+| **Vercel** (already live) | Next.js deployment + CDN + edge | Free tier — 100GB bandwidth, unlimited deployments |
+| **GitHub Actions** (already live) | CI/CD pipeline | Free for public repos |
+| **Groq Cloud** | Open-source LLM orchestration (Llama 3.3 70B, Mixtral, Gemma 2, DeepSeek R1) | Free tier: 6,000 req/day, 30 req/min — sufficient for first 200 customers |
+| **Resend** | Transactional email (deadline reminders, notices) | Free: 100 emails/day. $20/month for 50K emails |
+| **Cloudflare** | DNS, CDN, DDoS protection | Free tier covers all early-stage needs |
+| **pgvector** (Supabase extension) | Vector embeddings for semantic search and RAG | Included in Supabase — $0 additional |
+| **pdf-parse / Tesseract** (npm) | PDF text extraction for uploaded documents | Open-source — $0 |
+
+**Total operating cost for first 200 customers: $25–50/month (Supabase Pro + Resend).**
+
+### AI Layer (BYOK = $0 Platform Cost)
+
+The platform never pays for AI API calls. Customers bring their own keys:
+
+```
+Customer Settings → AI Configuration
+├── OpenAI API Key    → GPT-4o / ChatGPT for their work
+├── Anthropic API Key → Claude for complex legal/tax analysis
+├── Groq API Key      → Free Llama 3.3 70B for high volume tasks
+└── Google AI Key     → Gemini for document understanding
+```
+
+Keys are stored encrypted in Supabase Vault. All AI API calls are routed through the customer's own key — billed to the customer's account, not the platform's. Platform AI cost = $0.
+
+**Platform's own AI (for features like auto-extraction, health scoring, orchestration):** Uses Groq free tier (Llama 3.3 70B). Cost: $0.
+
+### Customer Lifecycle Cost = $0 via AI
+
+| Activity | Traditional Cost | AI-Native Cost |
+|---|---|---|
+| Customer onboarding | Human CSM call | AI onboarding assistant (Groq) guides setup |
+| Support tickets | Human support agent | AI support bot trained on help docs (pgvector RAG) |
+| Compliance Q&A | Human answers | AI answers from customer's own data |
+| Board report generation | Human analyst | AI generates from structured data |
+| Notice response drafting | CA firm billable hour | AI drafts, human reviews |
+| Bug reports | Manual triage | AI classifies and routes |
+
+---
+
+## AI Architecture: The Orchestrator Model
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  GROQ ORCHESTRATOR                       │
+│           (Llama 3.3 70B — Free Tier)                   │
+│  The "super boss" — routes tasks to the right agent     │
+└────────────┬──────────────────────────────┬─────────────┘
+             │                              │
+    ┌────────▼────────┐          ┌──────────▼──────────┐
+    │  DOCUMENT AGENT  │          │  COMPLIANCE AGENT    │
+    │  Groq Vision /  │          │  Customer BYOK key   │
+    │  pdf-parse      │          │  (Claude/GPT/Llama)  │
+    │                 │          │                      │
+    │  - Extract ARN  │          │  - Analyse notice    │
+    │  - Parse notice │          │  - Draft reply       │
+    │  - Read challan │          │  - Summarise status  │
+    └────────┬────────┘          └──────────┬───────────┘
+             │                              │
+    ┌────────▼──────────────────────────────▼───────────┐
+    │              pgvector DATABASE (Supabase)          │
+    │  Embeddings of: documents + compliance items +    │
+    │  Indian tax law (CBIC circulars, GST notifications│
+    │  CBDT orders) + company's own compliance history  │
+    └────────────────────────┬──────────────────────────┘
+                             │
+    ┌────────────────────────▼──────────────────────────┐
+    │              OPEN API / ACCESS CODE               │
+    │  Customer's ChatGPT Custom GPT can query this     │
+    │  Customer's CA firm can pull client data          │
+    │  Customer's ERP receives compliance webhooks      │
+    │  Customer's MCP-compatible AI tool connects here  │
+    └───────────────────────────────────────────────────┘
+```
+
+### What the Orchestrator Does
+
+The Groq orchestrator agent (running on Groq's free API, Llama 3.3 70B) is the "brain" that:
+1. Receives a trigger (new document uploaded / deadline approaching / notice logged)
+2. Decides which sub-agent to invoke (document parser, compliance analyser, reminder drafter)
+3. Passes the result to the appropriate next step (store in pgvector / notify user / update compliance item)
+4. Logs all agent actions in the audit trail
+
+This is a lightweight agentic loop — not a complex multi-agent framework. It runs as a Supabase Edge Function triggered by database events. Cost: $0 (Groq free tier + Supabase Edge Functions free tier).
+
+---
+
+## Data In — What the Platform Accepts
+
+| Source | Method | What Gets Created |
+|---|---|---|
+| Manual entry (web UI) | Form submission | Compliance item |
+| CSV/Excel upload | Bulk import | Multiple compliance items |
+| PDF upload (notice, certificate, return acknowledgement) | AI extraction | Structured fields auto-populated (ARN, amount, deadline) |
+| Tally CSV export | Parsed import | TDS and GST compliance items with amounts pre-filled |
+| Inbound API (customer pushes data from their tool) | REST API + access code | Compliance item or notice or challan record |
+| Inbound webhook (from customer's ERP or CA software) | Webhook endpoint | Auto-created compliance item |
+| Email forward (customer forwards a government notice to a dedicated inbox) | Email parsing (Resend inbound) | Notice created in SCN register automatically |
+
+---
+
+## Data Out — What the Platform Exports
+
+| Destination | Method | What Goes Out |
+|---|---|---|
+| Customer's ChatGPT / AI agent | API + access code or MCP server | Compliance status, items, documents, notice history |
+| Customer's CA firm | Shared read-only access code | Client's full compliance dashboard (no coding needed) |
+| Customer's ERP / Tally | Outbound webhook on status change | Compliance status updates, challan records |
+| Board report | PDF export | Structured quarterly compliance report |
+| Audit team | Excel export | Full compliance register with evidence links |
+| Government portals | Manual (we do NOT file — we track) | N/A — user files on portal, pastes ARN back |
+| Customer's custom script | REST API | Any compliance data in JSON |
+
+---
+
+## pgvector: What It Enables
+
+Supabase supports pgvector natively — no additional service needed. This unlocks:
+
+**1. Semantic search across all compliance data**
+"Find all compliance items related to ITC mismatch" — returns relevant items even if they don't contain those exact words.
+
+**2. Document RAG (Retrieval Augmented Generation)**
+Customer uploads 3 years of GST notices. Asks: "Have we received any notice about interest on late payment for Maharashtra GSTIN?" The AI searches the vector index and returns the relevant notice with the exact paragraph highlighted.
+
+**3. Indian tax law knowledge base**
+Pre-load embeddings of: CBIC GST notifications, CBDT Income Tax circulars, MCA company law updates. When a customer asks "what is the penalty for late GSTR-9 filing?", the AI retrieves from this knowledge base — not from a hallucinated answer.
+
+**4. Compliance pattern analysis**
+"Which compliance types have the highest miss rate for companies in your industry?" — analysed from anonymised, aggregated vector data across all customers.
+
+**5. AI onboarding assistant**
+New user asks: "How do I set up GST compliance for my Pvt Ltd?" The AI retrieves the relevant help articles from pgvector and gives a contextual, specific answer.
 
 ---
 
 ## What Already Exists — Do Not Re-Build
 
-Confirmed from schema + live pages + Z.ai's audit:
+Confirmed from schema + codebase + Z.ai audit:
 
 | Feature | Status | Notes |
 |---|---|---|
-| Authentication | ✅ Exists | Supabase Auth SSR — email/password + magic link |
-| Entity / Organisation | ✅ Exists | Single org per account; name, slug, logo, plan field. Z.ai confirmed: GSTIN, PAN, CIN fields exist at entity level |
-| Departments | ✅ Exists | Create/manage, assign department head |
-| Users & Roles (RBAC) | ✅ Exists | admin / manager / member / viewer — Z.ai listed RBAC as "Must Have missing"; it already exists |
-| Task Assignment | ✅ Exists | assignedToId on compliance items + audit points; Z.ai listed as missing — exists in schema |
-| Compliance Items | ✅ Exists | 10 Indian types, 6 statuses, 4 priorities, due date, dept, assignee |
-| Audit Points | ✅ Exists | Sub-tasks with separate assignee and due date |
-| Documents | ✅ Exists | Upload per item (URL stored — Supabase Storage not yet wired) |
-| Comments | ✅ Exists | Threaded per compliance item |
-| Notifications | ✅ Exists | In-app: deadline reminder, assignment, status change, comment, mention |
-| Audit Log | ✅ Exists | Full action trail — Z.ai listed as "Good to Have"; already built |
-| Dashboard | ✅ Exists | Totals, overdue, due-this-week, completion %, dept chart, upcoming deadlines, activity feed |
-| Reports + CSV Export | ✅ Exists | Status chart, department chart, CSV — Z.ai listed basic reporting as "Must Have missing"; basic version exists |
-| Penalty Calculator | ✅ Exists | Indian rates (GST, TDS, PF, MCA) — Z.ai listed as "Must Have missing"; already built |
-| Compliance List with Filters | ✅ Exists | Status and type filters, search |
-| Settings | ✅ Exists | Profile, Organisation, Notifications, Preferences |
-| Team Management | ✅ Exists | Invite, list, manage |
-| Global Search | ✅ Exists | Cmd+K command palette |
-| Dark Mode | ✅ Exists | Z.ai listed as "Good to Have"; already built |
-| Responsive Design | ✅ Exists | Tailwind-based |
+| Authentication | ✅ | Supabase Auth SSR — email + magic link |
+| Organisation management | ✅ | GSTIN, PAN, CIN at entity level (Z.ai confirmed) |
+| Departments + RBAC | ✅ | admin / manager / member / viewer |
+| Task assignment | ✅ | assignedToId on items + audit points |
+| Compliance items (10 Indian types) | ✅ | GST, TDS, MCA, PF, ESIC, Income Tax, ROC, Labour, Environmental, Other |
+| Audit points (sub-tasks) | ✅ | Separate assignee, due date |
+| Documents (basic) | ✅ | URL stored — Supabase Storage not yet wired |
+| Comments | ✅ | Threaded per item |
+| In-app notifications | ✅ | Deadline, assignment, status, comment, mention |
+| Audit log | ✅ | Full action trail |
+| Dashboard | ✅ | Totals, overdue, due-this-week, completion %, charts |
+| Reports + CSV export | ✅ | Basic — needs enhancement |
+| Penalty calculator | ✅ | Indian rates — GST, TDS, PF, MCA |
+| Compliance list + search | ✅ | Basic filters |
+| Settings | ✅ | Profile, org, notifications, preferences |
+| Team management | ✅ | Invite, list |
+| Global search | ✅ | Cmd+K |
+| Dark mode | ✅ | Already built |
+| Responsive design | ✅ | Tailwind |
 
-**What the schema is provably missing:** no period field, no acknowledgement/ARN field, no challan table, no notice/SCN table, no location table, no recurrence engine, no approval/maker-checker workflow, no trial date tracking, no filing date / payment date fields.
+**Schema gaps that block use today:** no period/FY field, no ARN/acknowledgement field, no challan table, no notice/SCN table, no location table, no recurrence engine, no approval workflow, no pgvector schema, no API key management table, no access code table.
 
 ---
 ---
 
 # TIER 1 — MUST HAVE
-### Without these, the product cannot acquire or retain its first 50 paying customers.
-### Both Claude and Z.ai agree on the majority. Disagreements are noted.
+### Without these, the platform cannot acquire or retain its first 50 paying customers.
 
 ---
 
-### M-01: Recurring Compliance Engine
-**Source:** Claude (Must Have) | Z.ai (Good to Have — overruled)
-**What:** Mark a compliance item as recurring (monthly / quarterly / half-yearly / annually). System auto-generates the next instance when current one is marked "Completed." Carries forward assignee, department, type, and registration number.
-**Why Must Have:** GST, TDS, PF, ESIC, advance tax — all repeat on fixed schedules. A company with 5 GSTINs has 60 GSTR-3B filings per year. Manually creating each is not viable. Without this, the product can only be used for one-time tracking — not ongoing compliance management.
-**Minimum scope:** Recurrence type selector (monthly/quarterly/half-yearly/annual). Auto-create next item on completion. `recurrence_type` and `recurrence_parent_id` fields on compliance_items table.
+### M-01: pgvector Schema + Document Embedding Pipeline
+**What:** Enable the `pgvector` extension in Supabase (already supported, just needs to be activated). Add `embedding vector(1536)` column to compliance_items, documents, and a new `knowledge_base` table. When a document is uploaded or a compliance item is created, generate embeddings via Groq's embedding model (free) or OpenAI's `text-embedding-3-small` (customer BYOK). Store in pgvector.
+**Why Must Have:** This is the foundational layer for every AI feature. Without it, the "AI-native" claim is hollow. Every other AI feature (document extraction, semantic search, RAG Q&A, AI onboarding) depends on this being in place first. It is also a near-zero-cost infrastructure addition — pgvector runs inside the existing Supabase instance.
+**Minimum scope:** Activate pgvector extension in Supabase. `embeddings` table with: entity_type, entity_id, embedding vector(1536), content_hash. Background job (Supabase Edge Function) to generate embeddings on document upload or item creation. Groq `llama-3.3-70b` or `nomic-embed-text` for embedding generation (free tier).
 
 ---
 
-### M-02: Indian Compliance Calendar Database + Entity-Type Auto-Suggestion
-**Source:** Claude (M-07 — India due date library) merged with Z.ai (M1 + M2)
-**What:** A library of 60+ standard Indian compliance obligations with pre-populated due dates, mapped to entity type. When a user selects "GSTR-3B — Monthly," due date auto-fills as 20th of following month. When a Private Limited company is created, the system suggests its mandatory annual compliances (AGM, AOC-4, MGT-7, DIR-3 KYC, etc.). Covers: GST, TDS, MCA, PF/ESIC, advance tax, Professional Tax.
-**Why Must Have:** Z.ai confirmed entity types exist (Company / LLP / Partnership / Individual) at entity creation. Auto-suggesting compliances based on entity type is the fastest path to first value — new user signs up, creates their Pvt Ltd company, and immediately sees the 15 annual compliances they must track. Eliminates manual setup. Proves domain expertise in the first 5 minutes.
-**Minimum scope:** Template library with 60 entries (filing name, type, frequency, standard due date formula, entity types it applies to). Quick-add picker on Compliance → New. Entity-type-based suggestion on first login.
+### M-02: Document OCR + AI Field Extraction
+**What:** When a user uploads a PDF (government notice, GST certificate, TDS challan, ITR acknowledgement, PCB consent), the system automatically extracts structured data: notice number, issuing authority, demand amount, reply deadline, ARN/SRN, PAN/GSTIN, period, date. Extracted data pre-fills the relevant fields on the compliance item or notice register. Human reviews and confirms.
+**Why Must Have:** This is the #1 AI feature that immediately demonstrates product value. Without it, every compliance record requires manual data entry — slow and error-prone. With it, the user uploads a notice PDF and the form fills itself. The "wow" moment in every demo. Uses pdf-parse (open source) + Groq Llama 3.2 Vision (free tier) for extraction. Cost: $0.
+**Minimum scope:** PDF upload → pdf-parse for text extraction → Groq structured output prompt → JSON with extracted fields → pre-fill form. Human confirm/edit step before saving. Supported document types: GST notice, TDS challan, ITR acknowledgement, PF challan, ROC SRN receipt.
 
 ---
 
-### M-03: Period / Financial Year Field
-**Source:** Claude (Must Have) | Z.ai (M3 — Financial Year View, Must Have)
-**What:** Structured "Period" field on compliance items — month+year for monthly filings (June 2026), quarter+year for quarterly (Q1 FY2026-27), assessment year for annual (AY2026-27). Dashboard and calendar respect the Indian financial year (April–March), not calendar year.
-**Why Must Have:** Without a period field, 12 GSTR-3B items for a year are 12 identical rows. Cannot tell which month is filed vs. pending. The Indian FY runs April–March — any date grouping, chart, or calendar that defaults to January–December is wrong for Indian compliance professionals.
-**Minimum scope:** Period text field on compliance items. FY selector on the dashboard (FY2025-26, FY2026-27). All charts and calendar group by April–March.
+### M-03: Open API with Access Code (Customer Data API)
+**What:** Every customer gets a unique API access code (secret key) generated in Settings → API. This key allows external tools to: GET compliance items, GET notices, GET audit logs, POST new compliance items, PATCH item status, and GET documents list. Full REST API with OpenAPI/Swagger documentation at `/api/docs`. Rate-limited per plan tier.
+**Why Must Have:** This is what makes the platform an OS rather than a closed SaaS. A CA firm's custom script can pull all client compliance statuses. A customer's ChatGPT Custom GPT can query their live compliance data. A customer's ERP can push challan data in. An access code with read/write scopes costs nothing to build but unlocks the entire "bring your own AI" use case. Without this, the platform is a dead end.
+**Minimum scope:** `api_keys` table (key hash, org_id, name, scopes, created_at, last_used_at, is_active). Key generation in Settings → API Access. API authentication middleware (Bearer token → look up org). Public OpenAPI schema. Rate limit: 100 req/min on free, 1000 req/min on paid.
 
 ---
 
-### M-04: Acknowledgement Number + Filing Reference Capture
-**Source:** Claude (Must Have)
-**What:** A field on each compliance item to record the government-issued acknowledgement number after filing — ARN (GST), ITR acknowledgement, SRN (ROC), TDS receipt number. This is the proof of filing.
-**Why Must Have:** "Completed" without an acknowledgement number is not a compliance record — it is a checkbox. If a department notice arrives asking "when was GSTR-3B for June 2026 filed?", the Finance Manager cannot answer from this system without an ARN. Transforms the tool from a checklist into a compliance register.
-**Minimum scope:** Single "Acknowledgement / Reference No." text field on compliance item detail. Shown in list view. Included in CSV export.
+### M-04: BYOK AI Integration (Bring Your Own Key)
+**What:** In Settings → AI Configuration, the customer enters their own API keys: OpenAI, Anthropic, Groq, or Google AI. Keys are stored encrypted in Supabase Vault. All AI features (document extraction, Q&A, draft generation) use the customer's key — billed to the customer's AI account, not the platform. A "Use Platform AI" fallback (Groq free tier) is available for customers without their own key.
+**Why Must Have:** This is how the platform's AI operating cost stays at $0. The customer owns their AI relationship. They can use free Groq (Llama 3.3 70B), free Gemini API, or their existing ChatGPT subscription. The platform just routes the call. Customers who already pay for OpenAI or Claude will love this — they get compliance intelligence without a separate AI subscription cost.
+**Minimum scope:** Settings → AI page with: key input fields per provider, test connection button, "which AI to use for what" selector (document extraction / Q&A / drafting). Keys encrypted at rest using Supabase Vault. Platform fallback: Groq free tier (Llama 3.3 70B) — no customer key required.
 
 ---
 
-### M-05: Challan Payment Tracking
-**Source:** Claude (Must Have) | Z.ai (G10 — Good to Have — overruled)
-**What:** A "Challan Details" section on each compliance item: BSR code, challan serial number, payment date, amount paid, bank name, mode of payment. Separate from the filing acknowledgement — payment and filing are two distinct acts.
-**Why Must Have:** Filing a return and paying the tax are legally separate in India. TDS must be paid before the 7th. GST must be paid before filing GSTR-3B. Without challan records, statutory auditors have no payment evidence. "Completed" with no BSR code means nothing to an auditor. Z.ai classified this as Good-to-Have — overruled because audit season makes this non-negotiable for retention.
-**Minimum scope:** Challan card on compliance item detail page. Fields: BSR code, serial no., date, amount, bank. Optional per item. Included in PDF/CSV export.
+### M-05: Groq Orchestrator Agent (Edge Function)
+**What:** A Supabase Edge Function that acts as the orchestration layer. Triggered by database events (document uploaded, notice created, item overdue, deadline approaching). Routes each trigger to the appropriate sub-agent: document parser, compliance classifier, email drafter, escalation notifier. Uses Groq API (Llama 3.3 70B) as the orchestrator model — free tier covers thousands of daily triggers.
+**Why Must Have:** Without orchestration, each AI feature is a disconnected button the user must click. With the orchestrator, the system acts automatically: notice uploaded → AI extracts data → compliance item created → escalation email drafted → user approves. This is the "super boss" that runs the compliance workflow. Groq's free tier (6,000 req/day) is sufficient for first 500 customers.
+**Minimum scope:** `orchestrator` Edge Function listening to Supabase Realtime events. Event types: `document.uploaded`, `item.overdue`, `notice.received`, `deadline.approaching`. Each event type has a pre-defined agent action. Groq API call for classification/routing. Output: structured JSON action (update field X, send notification Y, create record Z). Full action log in audit_logs table.
 
 ---
 
-### M-06: Annual Compliance Calendar View
-**Source:** Claude (Must Have)
-**What:** 12-month calendar grid where each compliance item appears as a colour-coded block on its due date. Colour by compliance type (GST = orange, TDS = blue, ROC = green, PF = purple). Click block to open item. Monthly and annual views. Respects April–March FY (M-03).
-**Why Must Have:** The most powerful demo visual in compliance software. A calendar shows the prospect their entire compliance year at a glance — every obligation, every deadline, who owns it. Competitors who have this visual win demos against those who don't. Also how compliance professionals actually plan — not in lists, but in time.
-**Minimum scope:** Monthly calendar grid. Colour by compliance type. Filter by department/assignee. The shadcn/ui calendar component is already in the codebase — extend it.
+### M-06: Semantic Search Across All Compliance Data
+**What:** Replace or augment the existing keyword search (Cmd+K) with vector similarity search. User types "show me all GST matters related to ITC reversal" — system returns semantically relevant compliance items, notices, and documents even if those exact words don't appear. Powered by pgvector (M-01).
+**Why Must Have:** As the compliance database grows (hundreds of items, dozens of notices, years of history), keyword search breaks down. A CA asking "find all things related to the 2023 IT scrutiny for Client A" needs semantic retrieval, not substring matching. This is table-stakes for an AI-native product — it is what makes the data useful at scale.
+**Minimum scope:** Query input → generate query embedding → pgvector cosine similarity search → rank and return top 10 results across compliance_items + notices + documents. Display with relevance indicator. Powered by Groq embedding model (free).
 
 ---
 
-### M-07: Government Notice / SCN Register
-**Source:** Claude (Must Have) | Z.ai (G5 — Good to Have — overruled)
-**What:** Dedicated module to log incoming government notices and show-cause notices. Fields: notice number, issuing authority, date received, demand amount, reply deadline (auto-calculated from statutory days), assigned to, status (received / reply filed / under appeal / closed), document upload (notice PDF + reply PDF).
-**Why Must Have:** Z.ai placed this as Good-to-Have. Overruled. This is the highest personal-liability feature for any Finance Manager or CFO. A GST department notice with a 21-day reply window that gets missed results in an ex-parte demand order. No other feature creates more urgency or more goodwill when the customer realises the system saved them from a missed reply. Strong differentiator — most SME compliance tools ignore it entirely.
-**Minimum scope:** "Notices" section in sidebar. New notice form. Dashboard widget: "Notices with reply deadline in next 7 days." Auto-calculate reply deadline from received date + statutory days (configurable per authority type).
+### M-07: Recurring Compliance Engine
+**Source:** Claude + Z.ai (upgraded from Z.ai's Good to Have)
+**What:** Mark a compliance item as recurring (monthly / quarterly / half-yearly / annually). System auto-generates the next instance when current is marked "Completed." Carries forward: assignee, department, type, GSTIN/registration number, recurrence schedule.
+**Why Must Have:** GST, TDS, PF, ESIC all repeat on fixed schedules. Without auto-generation, users manually create 300+ items per month. The platform cannot be used for ongoing compliance management without this.
+**Minimum scope:** `recurrence_type` enum field on compliance_items. `recurrence_parent_id` for lineage. Trigger: when item marked Completed → create next instance with due_date = formula(recurrence_type). Edge Function handles the auto-creation.
 
 ---
 
-### M-08: Email Notifications (External — Verified Delivery)
-**Source:** Claude (Must Have) | Z.ai (M4 — Email Reminder System, Must Have) — Full agreement
-**What:** External email delivery of deadline reminders: 7 days before, 3 days before, 1 day before due date, on due date, and 1 day after. User controls which alerts they receive in Settings → Notifications. Also: notice reply deadline reminders (M-07) via email.
-**Why Must Have:** In-app notifications exist but users are not in the app all day. Email is the minimum viable external channel. Without external notifications, deadlines will still be missed — the product fails its core promise. Both evaluators agree this is critical.
-**Minimum scope:** Resend / Supabase Edge Function cron triggered daily. Plain-text email with item name, due date, days remaining, and direct link. Respects per-user notification preferences from Settings.
+### M-08: India Compliance Calendar + Entity-Type Auto-Suggestion
+**Source:** Claude + Z.ai M1+M2
+**What:** Library of 60+ standard Indian compliance obligations with pre-populated due dates, mapped to entity type. Create a Pvt Ltd → system suggests 15 mandatory annual compliances. Select "GSTR-3B Monthly" → due date auto-fills 20th of next month. Covers all 10 compliance types.
+**Why Must Have:** Proves domain expertise in the first 5 minutes. Eliminates setup friction. Reduces date-entry errors (most common compliance miss cause). Essential for the "quick win" onboarding moment.
+**Minimum scope:** JSON template library (60 entries). Quick-add picker on Compliance → New. Entity-type-based suggestion modal on first org setup.
 
 ---
 
-### M-09: Registration Number Fields on Compliance Items
-**Source:** Claude (Must Have) — Z.ai partially addresses this at entity level (GSTIN, PAN, CIN exist on entity), but not on individual compliance items
-**What:** Optional registration number field on each compliance item, auto-labelled based on compliance type: "GSTIN" for GST items, "TAN" for TDS, "PAN" for Income Tax, "CIN/LLPIN" for ROC/MCA, "PF Code" for PF, "ESIC Code" for ESIC. Pre-fills from entity registration data where available.
-**Why Must Have:** A compliance tracker with no registration number on the filing is a generic task list. Every professional works by registration number. 24 GSTINs generating 24 indistinguishable GSTR-3B rows is the core failure mode for multi-state companies. Z.ai captures registration at entity level — this extends it to the filing level where it matters operationally.
-**Minimum scope:** Single conditional text field on compliance item form. Label changes based on compliance type selected. No validation at V1.
+### M-09: Period / Financial Year Field (April–March)
+**Source:** Claude + Z.ai M3
+**What:** Period field on compliance items (June 2026 / Q1 FY2026-27 / AY2026-27). Dashboard and calendar group by Indian FY (April–March).
+**Why Must Have:** Without period, 12 monthly GSTR-3B items are indistinguishable. Every chart and report that defaults to January–December is wrong for Indian compliance.
 
 ---
 
-### M-10: Bulk Import via CSV
-**Source:** Claude (Must Have) | Z.ai (G7 — Bulk Operations, Good to Have — upgrading to Must Have)
-**What:** Upload a CSV file to bulk-create compliance items. Downloadable template with columns: title, compliance type, period, due date, registration number, department, assignee email, priority. Row-by-row validation with error report.
-**Why Must Have:** Any company with more than 20 compliance items cannot onboard manually. A CA firm with 119 clients × 40 items = 4,760 entries. Even a single company with 10 GSTINs has 120 GSTR-3B items per year. Bulk import is the first-day experience gate — without it, onboarding is so painful that users quit before getting value.
-**Minimum scope:** CSV upload on Compliance → Import. Template download. Validate all rows before creating any. Error report lists row number + issue.
+### M-10: Acknowledgement / ARN / Reference Number Field
+**Source:** Claude Must Have
+**What:** Field on compliance items to record government-issued acknowledgement: ARN (GST), ITR ack, SRN (ROC), TDS receipt. The AI document extractor (M-02) pre-fills this automatically from uploaded PDFs.
+**Why Must Have:** "Completed" without an ARN is not a compliance record. The ARN is the proof of filing that every auditor, department, and client asks for.
 
 ---
 
-### M-11: Free Trial + Self-Serve Signup
-**Source:** Claude (Must Have) | Z.ai (M8 — Pricing Page & Self-Service Sign-Up, Must Have) — Full agreement
-**What:** 14-day free trial with no credit card. Full feature access. Trial countdown banner from day 10. Read-only mode after day 15 until plan selected.
-**Why Must Have:** Any SaaS without a free trial in 2026 is invisible to self-evaluating buyers. The salesperson evaluator's #2 rejection reason: "I am the bottleneck for every single evaluation." Self-serve is how the first 50 customers find you without a sales team.
-**Minimum scope:** `trial_started_at` field on organisations table (already has `plan` field). Trial countdown banner in app header. Lock item creation after trial ends. No payment integration needed at V1 — just the UX gate.
+### M-11: Challan Payment Tracking
+**Source:** Claude Must Have | Z.ai Good to Have — overruled
+**What:** Challan section on each compliance item: BSR code, challan serial number, payment date, amount, bank. AI document extractor (M-02) pre-fills from uploaded challan PDF automatically.
+**Why Must Have:** Filing ≠ Payment in Indian law. Statutory auditors require payment evidence. "Completed" with no BSR code fails audit season.
 
 ---
 
-### M-12: Public Pricing Page
-**Source:** Claude (Must Have) | Z.ai (M8 combined, Must Have) — Full agreement
-**What:** `/pricing` page with 3 plan tiers (Starter / Growth / Business), feature comparison table, annual vs. monthly toggle, "Start Free Trial" CTA. Enterprise tier = "Contact us."
-**Why Must Have:** Salesperson evaluator's #1 rejection reason: "I cannot answer the first question every prospect asks." Without published pricing, no repeatable sales or self-serve motion is possible. Opaque pricing signals either high cost or unreadiness.
-**Minimum scope:** Static marketing page. Three plan cards. Feature grid. Pricing can be ₹X/month placeholders until decided — but the structure must exist.
+### M-12: Government Notice / SCN Register
+**Source:** Claude Must Have | Z.ai Good to Have — overruled
+**What:** Module to log incoming notices: notice number, authority, date received, demand amount, reply deadline (auto-calculated), assigned to, status, documents. AI (M-02) auto-extracts all fields from uploaded notice PDF. Dashboard widget: notices with reply deadline in next 7 days.
+**Why Must Have:** Missed notice reply = ex-parte demand order = CFO personal liability. AI extraction from notice PDF removes all friction — user just uploads the notice, everything else is done.
 
 ---
 
-### M-13: Improved Landing Page with Clear Value Proposition
-**Source:** Z.ai (M9, Must Have) — not in Claude's original list
-**What:** Rewrite the landing page with: a specific, outcome-focused headline ("Never miss a GST deadline again"), a 60-second demo video or animated product walkthrough, social proof section (even if just "Built for Indian compliance"), clear CTA hierarchy (Free Trial primary, Demo secondary), and a public-facing penalty calculator widget.
-**Why Must Have:** The salesperson evaluator: "When a competitor's sales rep answers 'here is our pricing page' in the same conversation, I have already lost on perception." The landing page is the first impression for every self-serve prospect. A vague headline ("One Portal. One Truth.") is brand positioning, not conversion copy. The first thing a Finance Manager needs to see is: "this solves my specific problem."
-**Minimum scope:** New headline + subheadline copy. Product screenshot or short GIF. Public penalty calculator widget (no login). Single CTA: "Start free trial." Takes 1 week, not 1 sprint.
+### M-13: Email Notifications (External — Verified Delivery)
+**Source:** Claude + Z.ai M4
+**What:** External email deadline reminders (7 days / 3 days / 1 day / due date / 1 day after). Notice reply deadline reminders. Powered by Resend (free: 100/day). Edge Function cron triggers daily.
+**Why Must Have:** Users are not in the app all day. Without external notifications, the product fails its core promise of "nothing falls through the cracks."
 
 ---
 
-### M-14: Approval Workflow (2-Level Maker-Checker)
-**Source:** Claude (Must Have) | Z.ai (G9 — Audit Workflow Module, Good to Have — upgrading to Must Have for companies above 50 employees)
-**What:** Before marking "Completed," assignee submits item for review. Reviewer (Manager/Admin) gets notification, checks acknowledgement number and challan, approves or rejects with a mandatory comment. Rejection returns item to "In Progress." Full approval chain in audit log.
-**Why Must Have:** Corporate governance standard for companies above 100 employees. The CFO evaluator: "My board and statutory auditors require segregation of duties." Any mid-market company's internal audit will flag the absence of maker-checker. Without it, any "member" can close any compliance item with no review — creating both compliance risk and governance failure.
-**Minimum scope:** `submitted_for_review` status added to enum. `reviewer_id` field on compliance items. Notification to reviewer. Approve/reject action with comment. Audit log records approver + timestamp.
+### M-14: Registration Number Fields on Compliance Items
+**Source:** Claude Must Have
+**What:** GSTIN / TAN / PAN / CIN / PF Code field on compliance items, auto-labelled based on compliance type. Pre-fills from entity's registration data where available. AI extractor (M-02) pulls from uploaded documents.
+**Why Must Have:** A compliance tracker with no registration number on the filing is a task list, not a compliance register.
 
 ---
 
-### M-15: Dashboard Filters (Department, Type, Status, Assignee, Date Range)
-**Source:** Claude (Must Have)
-**What:** Filter bar on compliance list and dashboard: compliance type, status, department, assignee, priority, due date range. URL-persisted filters. Dashboard summary cards update to reflect active filter.
-**Why Must Have:** A company with 5 departments and 200 compliance items cannot work with unfiltered aggregate numbers. The CFO evaluator: "I cannot filter the dashboard to see what is overdue at my Chennai office." Table-stakes for any SaaS with a dashboard and more than 20 records.
-**Minimum scope:** Filter bar on compliance list page. Multi-select dropdowns. URL query params for sharing filtered views.
+### M-15: Bulk Import via CSV + AI-Assisted Import
+**Source:** Claude Must Have | Z.ai Good to Have — upgraded
+**What:** Upload CSV to bulk-create compliance items. Standard template download. Row-by-row validation. **New:** AI-assisted import — user uploads a messy Excel compliance tracker; AI maps columns to system fields, suggests corrections, and creates items in bulk.
+**Why Must Have:** First-day onboarding gate. A company with 200 compliance items cannot set up manually. AI-assisted import removes even the "I need to clean my data first" objection.
 
 ---
 
-### M-16: Help Centre + In-App Onboarding Checklist
-**Source:** Claude (Must Have) | Z.ai (noted as missing but not explicitly listed)
-**What:** 10–15 help articles (how to create a compliance item, how to use audit points, what each status means, how to use the penalty calculator). Plus in-app first-time-user checklist: 5 steps to first value (add item → invite teammate → set reminder → try penalty calculator → complete first item).
-**Why Must Have:** Without documentation, the founding team becomes the support desk. Unscalable past 20 customers. Also signals product maturity to any procurement evaluator who checks.
-**Minimum scope:** Static `/help` section with Markdown articles. In-app banner for new users showing the 5-step checklist. Dismiss button. Persistent until all 5 steps done.
+### M-16: Outbound Webhooks (Push Compliance Events to Customer Systems)
+**What:** Customer configures webhook URLs in Settings → Integrations. On events (item.completed, item.overdue, notice.received, challan.recorded), the system POSTs a JSON payload to the customer's URL. Customer's ERP, CA software, or Zapier workflow receives the event.
+**Why Must Have:** This is the Data Out layer that makes the platform an OS rather than a closed tool. A customer's Tally receives "GST paid — ₹2.3L" from the compliance platform. A CA firm's system receives "client GSTR-3B filed" automatically. Without webhooks, the platform is a dead end that requires manual data transfer everywhere.
+**Minimum scope:** `webhooks` table (url, events[], secret, is_active). Event delivery with HMAC signature. Retry on failure (3 attempts, exponential backoff). Webhook log in Settings → Integrations. Edge Function handles delivery.
+
+---
+
+### M-17: Free Trial + Self-Serve Signup
+**Source:** Claude + Z.ai M8
+**What:** 14-day free trial. No credit card. Full feature access. Trial countdown banner from day 10. Read-only after day 15.
+**Why Must Have:** No self-serve = no growth at zero marketing spend.
+
+---
+
+### M-18: Public Pricing Page
+**Source:** Claude + Z.ai M8
+**What:** `/pricing` with 3 tiers, feature comparison, annual/monthly toggle. Free Trial CTA.
+**Why Must Have:** Cannot answer "what does it cost?" = lost deals and failed demos.
+
+---
+
+### M-19: Improved Landing Page with Value Proposition + Public Penalty Calculator
+**Source:** Z.ai M9 + Claude
+**What:** Rewrite landing page: specific outcome headline ("Never miss a compliance deadline — AI fills the form from your notice PDF"), 60-second product GIF, public-facing penalty calculator (no login), clear Free Trial CTA. The penalty calculator is the #1 lead magnet — put it on the home page.
+**Why Must Have:** Current tagline ("One Portal. One Truth.") is brand, not conversion copy. Finance Manager lands and needs to see their specific problem solved in 10 seconds.
+
+---
+
+### M-20: Help Centre + AI Support Bot + In-App Onboarding
+**Source:** Claude + Z.ai
+**What:** 15 help articles (Markdown). In-app 5-step onboarding checklist. **AI support bot** powered by pgvector RAG (M-01) — user asks "how do I add a GSTIN?" and the bot retrieves the relevant help article and answers in context. The bot runs on Groq free tier. Cost: $0.
+**Why Must Have:** Without AI support, founders answer every support question manually. The AI bot trained on help docs handles 80% of tier-1 questions automatically.
 
 ---
 ---
 
 # TIER 2 — GOOD TO HAVE
-### These unlock higher-paying segments, reduce churn, or significantly improve conversion. Required to reach 500 customers.
+### Unlock higher-paying segments, reduce churn, improve conversion. Required to reach 500 customers.
 
 ---
 
-### G-01: Multi-Client Architecture (CA / Consulting Firm Edition)
-**Source:** Claude | Z.ai (G8 — Client/Vendor Read-Only Portal is a lighter version)
-**What:** Firm-level account managing multiple client organisations under one login. Top-level org switcher. Consolidated "All Clients" overdue dashboard. Each client's data fully isolated.
-**Note on Z.ai G8:** Z.ai proposed a read-only client portal (clients view their own compliance status). That is the lighter version of this — build the read-only portal first as it requires less architectural change, then extend to full multi-client management.
-**Why Good to Have:** CA firms are the best referral channel in Indian compliance software. Current single-org architecture blocks them entirely. High effort (schema change: firm → client relationships) — V2 priority after PMF is confirmed.
+### G-01: MCP Server Interface (Compliance Data as MCP Tool)
+**What:** Expose the platform's API as an MCP (Model Context Protocol) server. Any MCP-compatible AI client (Claude Desktop, Cursor, custom agents) can connect using the customer's access code and query compliance data natively. "What GST filings are due this week?" from Claude Desktop returns live data from the platform.
+**Why Good to Have:** MCP is rapidly becoming the standard for AI-tool integration. A customer who connects their AI assistant to the compliance platform via MCP never needs to open the web app — they manage compliance from their existing AI interface. This is the future of the product but requires stable API (M-03) first.
 
 ---
 
-### G-02: Location / Branch Management
+### G-02: AI Compliance Q&A (RAG on Customer's Own Data)
+**What:** Chat interface inside the platform. Customer asks: "How many GST notices have we received this year?" or "Which compliance items are overdue for our Karnataka GSTIN?" The AI uses pgvector RAG to search the customer's actual data and returns a grounded, factual answer — not a hallucination. Uses BYOK key (M-04) or Groq fallback.
+**Why Good to Have:** This is the feature that makes the platform "intelligent" rather than just a tracker. The first customer who asks "summarise all pending compliances for my board meeting next week" and gets an accurate answer in 10 seconds will never leave.
+
+---
+
+### G-03: AI Notice Reply Drafter
+**What:** When a government notice is logged (M-12), offer "Draft Reply." AI reads the notice content (from pgvector), retrieves relevant Indian tax law from the knowledge base, and drafts a reply letter covering: acknowledgement of the notice, factual response to the specific allegation, supporting document references, and signature block. Human lawyer/CA reviews and edits before sending.
+**Why Good to Have:** Notice reply drafting is a high-value, billable activity for CA firms. If the platform drafts the first version in 30 seconds, it saves 2–3 hours of CA time per notice. Strong retention driver and word-of-mouth trigger. Requires M-12 (notice register) and M-02 (document extraction) to be in place first.
+
+---
+
+### G-04: Indian Tax Law Knowledge Base (Pre-loaded pgvector)
+**What:** Pre-load embeddings of: all CBIC GST notifications and circulars (2017–present), CBDT Income Tax circulars, MCA company law updates, and key High Court / Supreme Court judgements on tax matters. Stored in pgvector `knowledge_base` table. Used by AI Q&A (G-02) and Notice Reply Drafter (G-03) for grounded, cited answers.
+**Why Good to Have:** Without this knowledge base, AI answers are generic (trained on public internet data up to cutoff). With it, the AI can answer: "Is there any CBIC circular that allows ITC credit on this specific expense?" with a cited, current answer. This is the moat — a compliance platform with current Indian regulatory intelligence baked in.
+
+---
+
+### G-05: Multi-Client Architecture (CA Practice Edition)
+**Source:** Claude + Z.ai G8
+**What:** Firm-level account managing multiple client organisations. Top-level client switcher. Consolidated "All Clients" overdue dashboard. Each client's data isolated. Read-only client portal (client logs in to view their own dashboard).
+**Why Good to Have:** CA firms are the highest-density referral channel. Requires significant schema change (firm → client relationship). V2 priority after PMF confirmed.
+
+---
+
+### G-06: Tally Integration (Basic — CSV Import + Auto-Parsing)
+**Source:** Z.ai Good to Have | Claude upgraded from Ignore
+**What:** Import Tally Prime CSV exports (TDS deductions report, GST liability report). AI parser reads the Tally CSV format and creates corresponding compliance items (TDS payment due on 7th, GST payment due before GSTR-3B). No Tally API — just CSV import with AI column mapping.
+**Why Good to Have:** Tally has 90%+ Indian SME market share. "We already have Tally" is the #1 objection. With this feature: "We connect to Tally — upload the weekly report and we create all your TDS and GST obligations automatically."
+
+---
+
+### G-07: Compliance Health Score (0–100)
+**Source:** Z.ai G14
+**What:** Single score per organisation: computed from completion rate, overdue %, average days-to-file, notice response rate. Dashboard widget. Trend (up/down from last month). Colour-coded Green/Yellow/Red.
+**Why Good to Have:** The CFO and CEO can read this in 2 seconds. It gamifies compliance management. "Our compliance score went from 62 to 88 this quarter" is the renewal conversation hook.
+
+---
+
+### G-08: Annual Compliance Calendar View
 **Source:** Claude
-**What:** `locations` table (name, type: office/factory/warehouse, city, state). Assign compliance items to a location. Dashboard filterable by location. Location-wise compliance health card.
-**Why Good to Have:** CFO evaluator's Reason 1. Required for manufacturing and multi-state companies. SME buyers (1–2 states) can use departments as a proxy. Build after the core product is stable.
+**What:** 12-month calendar grid. Compliance items as colour-coded blocks on due dates. Colour by type. Click to open. April–March FY view. The best demo visual in compliance software.
 
 ---
 
-### G-03: TDS / TCS Section-Wise Tracking
-**Source:** Z.ai (G3) — not in Claude's original list
-**What:** When a TDS compliance item is created, allow selection of TDS section: 192 (salary), 194C (contractor), 194I (rent), 194J (professional fees), 194H (commission), etc. Track challan and filing by section. Section-wise TDS summary in reports.
-**Why Good to Have:** TDS is India's most voluminous tax compliance — every company deducts TDS under multiple sections monthly. A Finance Manager tracking TDS at item level needs to know which section each payment and challan belongs to. This makes the TDS module genuinely useful vs. a generic "TDS" label. Z.ai is right to add this — it is a meaningful depth feature for the largest compliance type.
+### G-09: Approval Workflow (2-Level Maker-Checker)
+**Source:** Claude Must Have | Z.ai Good to Have — keeping in Good to Have for this reframed list (AI extraction reduces the manual review burden; approval workflow is still valuable but less urgent when AI pre-validates)
+**What:** Assignee submits for review. Reviewer approves or rejects with comment. Audit log records approver + timestamp.
+**Why Good to Have:** Corporate governance standard for companies above 100 employees. Depends on M-10 (ARN field) and M-11 (challan tracking) being in place so the reviewer has something to check.
 
 ---
 
-### G-04: Tally Integration (Basic — Import Only)
-**Source:** Z.ai (G4) — Claude originally had as Ignore — upgraded based on Z.ai's reasoning
-**What:** Import TDS deductions and GST liability data from Tally Prime via CSV export. Tally's TDL export generates standardised CSVs. Parse these to auto-create compliance items (TDS payment due on 7th, GST payment due before GSTR-3B). No bidirectional sync at V1.
-**Why Good to Have:** Tally has 90%+ Indian SME accounting market share. The #1 objection in every demo will be: "we already have Tally." A basic Tally import (not full API integration) removes this objection — "we connect to Tally." Tally CSV export is well-documented, no API partnership needed. Z.ai correctly upgraded this from Ignore to Good-to-Have.
+### G-10: Escalation Engine (Configurable Rules)
+**Source:** Claude
+**What:** Configurable escalation: if item not updated 7 days before due → notify assignee. If 3 days before → notify Dept Head. If on due date → notify Admin. Rules in Settings → Escalation Matrix.
+**Why Good to Have:** CFO evaluator: "I need a system that chases my team so I don't have to." Unlocks mid-market ACV.
 
 ---
 
-### G-05: Escalation Engine
-**Source:** Claude | Z.ai (G16 — Email Template Customization partially covers this)
-**What:** Configurable escalation rules: "If item not updated 7 days before due date → notify assignee. If 3 days before → notify Department Head. If on due date → notify Admin/CFO." Rules configured in Settings → Escalation Matrix.
-**Why Good to Have:** CFO evaluator's Reason 6: "I need a system that chases my team so I don't have to." Basic email notifications (M-08) solve 80% of this. Escalation chains unlock mid-market and enterprise ACV.
+### G-11: Hierarchical Dashboard Views (Role-Scoped)
+**Source:** Z.ai (upgraded from Ignore)
+**What:** Admin/CFO sees all. Manager sees their department only. Member sees assigned items only. Auto-applied based on role — no configuration.
+**Why Good to Have:** Basic multi-user product design. High impact for mid-market team adoption at low engineering effort.
 
 ---
 
-### G-06: Compliance Health Score
-**Source:** Z.ai (G14) — not in Claude's original list
-**What:** A single numerical score (0–100) per organisation representing overall compliance health: calculated from completion rate, overdue items, average days-to-file, and pending-vs-due ratio. Shown on dashboard. Trend (up/down from last month). Colour-coded: Green (80+), Yellow (60–79), Red (<60).
-**Why Good to Have:** Z.ai correctly identified this — it is the single number a CEO or CFO can read in 2 seconds. It gamifies compliance management. It also creates a shareable metric ("our compliance score went from 62 to 88 this quarter") that drives renewals and word-of-mouth. Easy to compute from existing data.
+### G-12: Location / Branch Management
+**Source:** Claude
+**What:** `locations` table (name, type: office/factory/warehouse, city, state). Assign compliance items to locations. Filter dashboard by location.
+**Why Good to Have:** Required for multi-state, multi-location companies. SME buyers use departments as proxy.
 
 ---
 
-### G-07: Hierarchical Dashboard Views (CFO → Manager → Location)
-**Source:** Z.ai (I8 — Can Be Ignored — upgraded) | not in Claude's original list
-**What:** Role-filtered dashboard: Admin/CFO sees all departments and all locations. Manager sees only their department. Member sees only their assigned items. Each view shows the same dashboard metrics but filtered to their scope automatically.
-**Why Good to Have (not Ignore):** Z.ai put this in "Ignore" — disagree. Companies above 50 employees have multiple managers. A Finance Manager should not see HR compliance items and vice versa. Automatic scope filtering by role is not enterprise complexity — it is basic multi-user product design. Low effort (filter dashboard data by user's department assignment) with high impact on team adoption.
+### G-13: TDS/TCS Section-Wise Tracking
+**Source:** Z.ai G3
+**What:** TDS section selector on compliance items: 192 (salary), 194C (contractor), 194I (rent), 194J (professional fees), etc. Section-wise TDS summary in reports. AI extractor (M-02) reads section from uploaded TDS challan.
+**Why Good to Have:** TDS is the most voluminous tax compliance — every company deducts under multiple sections. Section-wise tracking makes the TDS module genuinely useful.
 
 ---
 
-### G-08: Filed Date + Payment Date Fields
-**Source:** Claude | Z.ai (G10 — Challan Payment Tracking covers payment date)
-**What:** Two additional date fields: "Filed On" (actual filing date, separate from due date) and "Paid On" (challan payment date). Enables accurate late-fee calculation: penalty is computed on actual filing date vs. due date, not on when status was updated.
-**Why Good to Have:** Late filing penalty requires knowing actual filing date. Payment date is needed for TDS interest computation. Connects the existing penalty calculator to live item data rather than requiring manual entry.
+### G-14: ROC / MCA Compliance Module (Dedicated)
+**Source:** Z.ai G11
+**What:** AOC-4, MGT-7, MGT-14, DIR-3 KYC, ADT-1 — auto-suggested based on company type. SRN tracking. Due dates relative to AGM date. AI extracts SRN from uploaded MCA filing acknowledgement.
+**Why Good to Have:** ROC is mandatory for every company. Dedicated module unlocks CS (Company Secretary) as a user persona.
 
 ---
 
-### G-09: Financial Exposure Dashboard Widget
-**Source:** Claude | Z.ai (I16 — Risk Scoring & Penalty Impact Analysis — placed in Ignore; disagree for the widget version)
-**What:** Dashboard widget: "Estimated penalty if all overdue items remain unfiled today: ₹X." Auto-computed by cross-referencing overdue items' types and delay days with penalty calculator rates. Requires adding a "tax/fee amount" field to compliance items.
-**Why Good to Have:** The number CFOs look at every week — not "how many items overdue" but "what does the overdue cost us in rupees." Makes compliance urgency tangible in money. Small schema change (`amount` field on items), large dashboard impact.
+### G-15: Multi-GSTIN Register
+**Source:** Claude + Z.ai G12
+**What:** Org-level GSTIN register: state, type (Regular/Composition/SEZ), registration date, status. GST compliance items link to specific GSTIN. Required for multi-state companies.
 
 ---
 
-### G-10: Mobile-Responsive PWA
-**Source:** Claude (G-06) | Z.ai (G6) — Full agreement
-**What:** Ensure full mobile optimisation. Configure as PWA (manifest.json, service worker) — users can add to phone home screen and receive push notifications without a native app.
-**Why Good to Have:** Factory managers, warehouse staff, field users are on phones. A web-only tool with no mobile experience loses the operational buyer at every demo. PWA is 20% of the cost of a native app at 60% of the value.
+### G-16: Financial Exposure Dashboard Widget
+**Source:** Claude
+**What:** Dashboard widget: "Estimated penalty if all overdue items remain unfiled today: ₹X." Auto-computed from overdue items × delay days × penalty rates. Requires `amount` field on compliance items.
+**Why Good to Have:** Makes compliance urgency tangible in money. CFOs check this daily.
 
 ---
 
-### G-11: WhatsApp Notification Integration
-**Source:** Claude (G-12) | Z.ai (G1) — Full agreement
-**What:** Compliance deadline alerts and escalation notifications via WhatsApp Business API (Interakt / Gupshup). User opts in with WhatsApp number in Settings.
-**Why Good to Have:** WhatsApp read rate in India = 95% vs. email = 20%. A deadline reminder on WhatsApp gets acted on. However, WhatsApp Business API requires business verification, template pre-approval, and per-message costs — infrastructure lift. Build at 200+ customers.
+### G-17: Mobile PWA
+**Source:** Claude + Z.ai G6
+**What:** PWA configuration (manifest.json, service worker). Home screen icon. Push notifications. Full mobile optimisation. Field managers update compliance from phone.
 
 ---
 
-### G-12: ROC / MCA Compliance Module (Dedicated)
-**Source:** Z.ai (G11) — not explicitly in Claude's original list
-**What:** Dedicated section for ROC/MCA compliance: annual filings calendar (AOC-4, MGT-7, MGT-14, DIR-3 KYC, ADT-1), SRN tracking per filing, charge satisfaction tracking, director DIN status. Auto-suggests based on company type (Pvt Ltd / Public Ltd / OPC) and paid-up capital.
-**Why Good to Have:** ROC compliance is mandatory for every registered company — 10 Pvt Ltd, 2 Public Ltd, 4 LLPs in a CA firm's portfolio all have annual MCA filings. Currently "ROC" is just a compliance type label. A dedicated module with MCA-specific fields and due date intelligence (MGT-7 due 60 days from AGM, etc.) makes the product genuinely useful for CS professionals — unlocking a new user persona.
+### G-18: WhatsApp Notification Integration
+**Source:** Claude + Z.ai G1
+**What:** Deadline alerts via WhatsApp Business API (Interakt/Gupshup). 95% read rate vs. 20% email. Build at 200+ customers.
 
 ---
 
-### G-13: Multi-GSTIN Register
-**Source:** Claude (G-13) | Z.ai (G12) — Full agreement
-**What:** Org-level GSTIN register: all GSTIN registrations with state, registration date, type (Regular/Composition/SEZ), status. GST compliance items link to a specific GSTIN from this register.
-**Why Good to Have:** Registration number field (M-09) handles the single-GSTIN case. Multi-GSTIN register handles companies with 3+ state registrations — enables filtering GSTR-3B items by GSTIN and auto-populating state. Required for mid-market segment.
+### G-19: Board / Audit Committee PDF Report
+**Source:** Claude
+**What:** AI-generated quarterly compliance report (PDF): completion %, overdue, penalties paid, notices summary, trend vs. last quarter. AI writes the narrative section from the data. Renewal lock-in feature.
 
 ---
 
-### G-14: Email Template Customization
-**Source:** Z.ai (G16) — not in Claude's original list
-**What:** Allow users to customise the wording of deadline reminder emails — add company name, custom message, CC recipients. Admin can preview before saving. Default templates are professional but editable.
-**Why Good to Have:** CA firms forwarding compliance reminders to clients need the email to say "From: Your CA Firm" not a generic ComplianceTrack notification. Small feature, high perceived value for the CA segment. Low development effort.
+### G-20: Email Template Customisation
+**Source:** Z.ai G16
+**What:** CA firms customise reminder emails to show their firm name. Admin previews before saving. Low effort, high perceived value for CA segment.
 
 ---
 
-### G-15: Staff Workload + Performance View
-**Source:** Claude (G-07)
-**What:** Per-user view (Admin/Manager): items assigned, completed in last 30 days, overdue, average days-to-complete.
-**Why Good to Have:** CA evaluator: "How do I know how many items each person completed this month?" Management feature that makes the product valuable to team leads — drives renewal when managers see team accountability data.
+### G-21: Filed Date + Payment Date Fields
+**Source:** Claude
+**What:** "Filed On" and "Paid On" date fields on compliance items (separate from "Completed At"). Enables accurate penalty calculation: actual filing date vs. due date.
 
 ---
 
-### G-16: Board / Audit Committee Report Generator (PDF)
-**Source:** Claude (G-08)
-**What:** Structured quarterly PDF report: total obligations, completion %, overdue, penalties paid, notices summary, overdue details, trend vs. last quarter.
-**Why Good to Have:** CFO cannot justify not using the tool if this report generates automatically. Renewal lock-in feature. Depends on M-05 (challan) and M-07 (notices) being in place first.
+### G-22: Staff Workload + Performance View
+**Source:** Claude
+**What:** Per-user: items assigned, completed in 30 days, overdue, average days-to-complete. Capacity planning for managers.
 
 ---
 
-### G-17: SSO / Google Workspace / Microsoft Entra Login
-**Source:** Claude (G-10) | Z.ai (not listed separately)
-**What:** OAuth login via Google and Microsoft. Supabase Auth supports both natively — configuration change.
-**Why Good to Have:** Procurement requirement for mid-market. 1-day task using existing Supabase Auth providers. Disproportionate value for low effort.
+### G-23: SSO / Google / Microsoft Login
+**Source:** Claude
+**What:** Supabase Auth supports both natively — 1-day configuration task. Required for mid-market procurement.
 
 ---
 
-### G-18: Document Version Control
-**Source:** Claude (G-11)
-**What:** When a new file is uploaded for the same compliance item, keep previous versions accessible. Mark latest as current. Version history with uploader name and timestamp.
-**Why Good to Have:** Final signed Form 3CD must be distinguishable from drafts. Audit-grade document management. Moderate effort — `version` field on documents table.
+### G-24: Document Version Control
+**Source:** Claude
+**What:** Version history on uploaded documents. Latest marked as current. Distinguishes draft Form 3CD from final signed version.
 
 ---
 
-### G-19: Public ROI Calculator
-**Source:** Claude (G-05)
-**What:** Public-facing (no login) ROI calculator on the landing page. Inputs: company size, GSTINs, states, last year's penalties paid. Output: estimated savings vs. software cost.
-**Why Good to Have:** Converts top-of-funnel visitors into qualified leads. The penalty calculator already exists in-app — this is a public-facing version of the same logic.
+### G-25: Public ROI Calculator
+**Source:** Claude
+**What:** Landing page ROI calculator (no login). Inputs: company size, states, GSTINs, historical penalties. Output: estimated savings vs. software cost. Top-of-funnel lead magnet.
 
 ---
 
-### G-20: Public Roadmap Page
-**Source:** Claude (G-14)
-**What:** `/roadmap` page showing shipped, in-progress, and planned features. Customer upvoting.
-**Why Good to Have:** Salesperson evaluator Reason 20: "I cannot sell the future when the present has gaps." Builds trust with prospects and handles the "when will X be ready?" objection in every competitive deal.
-
----
-
-### G-21: G2 / Capterra / SoftwareSuggest Listing
-**Source:** Claude (G-15)
-**What:** Verified listings in "Compliance Management Software — India" category. 5 reviews from beta users before launch.
-**Why Good to Have:** Salesperson Reason 5: product doesn't exist in the prospect's research phase. Not a product feature but as important as any feature for early traction. 2-week effort.
+### G-26: Public Roadmap + G2/Capterra Listing
+**Source:** Claude
+**What:** `/roadmap` page with upvoting. G2/Capterra listings with 5 beta reviews. Product exists in the prospect's research phase.
 
 ---
 ---
 
 # TIER 3 — CAN BE IGNORED
-### Premature, niche, or requiring non-engineering investment (regulatory, partnerships, certifications). Do not build before 500+ customers.
+### Do not build before 500+ customers. Premature complexity, niche markets, or non-engineering work.
 
 ---
 
-### I-01: EXIM / Import-Export Compliance Module (DGFT, Advance Authorisation, EPCG, RODTEP, Duty Drawback)
-**Source:** Claude + Z.ai (I4) — Full agreement
-**Why ignore:** Relevant only to active EXIM companies. Deep DGFT domain knowledge required. "Other" compliance type handles basic tracking. Build only when 3+ enterprise EXIM customers request it with budget.
+### I-01: Direct Government Portal Filing (GST Portal, TRACES, MCA21)
+**Why ignore:** This product does NOT file. It tracks. Government portal APIs (GSTN, MCA21, TRACES) require GSP licence (6–12 month regulatory process) or intermediary registration. We record the acknowledgement after the user files — we do not replace the portal.
 
 ---
 
-### I-02: Factory Licence + Industrial Compliance Lifecycle (PCB Consent, Boiler Certificates, Environmental Clearance)
-**Source:** Claude (I-03) + Z.ai (I1 + I3) — Full agreement
-**Why ignore:** Relevant only to companies with factories. "Environmental" type handles basic tracking. Licence-condition linkage is complex to model. Build when manufacturing becomes a primary customer segment.
+### I-02: EXIM / Import-Export Compliance Module (DGFT, Advance Auth, EPCG, RODTEP)
+**Why ignore:** Relevant only to active EXIM companies. Deep DGFT domain knowledge required. "Other" compliance type handles basic tracking. Build when 3+ enterprise EXIM customers ask with budget.
 
 ---
 
-### I-03: Fire + Safety Compliance Module
-**Source:** Claude (I-12) + Z.ai (I2) — Full agreement
-**Why ignore:** Fire NOC, extinguisher certificates, mock drill records — can all be tracked under "Other" compliance type with location tags (G-02). Dedicated module adds UI complexity without new data capability. Build only if facilities management becomes a target segment.
+### I-03: Factory / Industrial Compliance Lifecycle (PCB Consent, Boiler Certificates)
+**Why ignore:** Manufacturing-specific. "Environmental" type handles basic tracking. Licence-condition linkage is complex to model. Build when manufacturing is a primary customer segment.
 
 ---
 
-### I-04: C&F Agent / Third-Party Vendor Compliance Portal
-**Source:** Claude (I-04) + Z.ai (I5) — Full agreement
-**Why ignore:** Requires a separate external portal with its own auth, upload flow, and verification workflow — effectively a second product. V3 feature for logistics and distribution companies.
+### I-04: Fire + Safety Dedicated Module
+**Why ignore:** Fire NOC, extinguisher certs, mock drills — tracked under "Other" with location tags. Dedicated module adds complexity without new data capability.
 
 ---
 
-### I-05: Contract Labour Compliance Module
-**Source:** Claude (I-05) + Z.ai (I6 — State-Specific Labour Law Variations)
-**Why ignore:** Relevant to factories and warehouses with contract workers. "Labour" compliance type handles basic tracking. Full module (principal employer register, contractor licence tracking) requires significant domain complexity.
+### I-05: C&F Agent / Third-Party Vendor Compliance Portal
+**Why ignore:** Requires a separate external portal — effectively a second product. V3 for logistics companies.
 
 ---
 
-### I-06: ERP Integration (SAP / Oracle)
-**Source:** Claude (I-02) + Z.ai (I7)
-**Why ignore:** Requires vendor partnership, dedicated API maintenance, enterprise-grade SLAs. Development cost exceeds revenue from first 100 customers. Tally basic import (G-04) is the correct stepping stone.
+### I-06: Contract Labour Compliance Module
+**Why ignore:** Factories Act + CLRA Act — relevant to factory/warehouse operators. "Labour" type handles basic tracking. Build when manufacturing is primary segment.
 
 ---
 
-### I-07: AI / ML Predictive Analytics
-**Source:** Z.ai (I9)
-**Why ignore:** Too early. Build the dataset first — 500+ notices logged, 10,000+ compliance items tracked — then AI analysis becomes meaningful. Premature AI is expensive and under-delivers when the training data does not exist yet.
+### I-07: Full ERP Integration (SAP / Oracle bidirectional sync)
+**Why ignore:** Vendor partnership, dedicated API maintenance, enterprise SLAs required. Development cost exceeds first 100 customers' revenue. Tally basic CSV import (G-06) is the correct stepping stone. Webhooks (M-16) cover the outbound side.
 
 ---
 
-### I-08: AI-Powered Notice Analysis (Auto-identify grounds to contest, demand calculation)
-**Source:** Claude (I-07)
-**Why ignore:** Legally complex — AI-generated legal advice creates liability exposure. Depends on M-07 (notice register) being built and used first. Revisit when 500+ notices are in the system and legal review process is defined.
+### I-08: AI/ML Predictive Analytics ("you will miss this filing based on past patterns")
+**Why ignore:** Requires 2+ years of customer data to be meaningful. Build after 10,000+ compliance items are in the system. Use pgvector (M-01) foundation to enable this later.
 
 ---
 
-### I-09: Government Portal API Integration (GSTN API, MCA21 API, TRACES API)
-**Source:** Claude (I-08)
-**Why ignore:** GSTN API requires a GSP (GST Suvidha Provider) licence — 6–12 month regulatory process. MCA21 and TRACES APIs are similarly gated. This is a regulatory and business development challenge, not a development task.
+### I-09: SOC 2 Type II / ISO 27001 Certification
+**Why ignore now:** A process, not a feature. 12–18 months preparation. Implement security practices now (already done), document them, pursue certifications post-Series A when enterprise sales motion justifies cost.
 
 ---
 
-### I-10: SOC 2 Type II / ISO 27001 Certification
-**Source:** Claude (I-09) + Z.ai (I11) — Full agreement
-**Why ignore now:** A process, not a feature. SOC 2 Type II takes 12–18 months. Implement security best practices now (already done — auth-guard, audit logs, row isolation), document them, pursue certifications post–Series A.
+### I-10: CA Billing / Professional Fee Tracking
+**Why ignore:** Requires multi-client architecture (G-05) first. Building billing before multi-client is a room without a foundation.
 
 ---
 
-### I-11: CA Firm Billing / Professional Fee Tracking
-**Source:** Claude (I-10) + Z.ai (G13 — Compliance Fee/Billing Tracking moved to Good to Have)
-**Why ignore:** Z.ai placed this as Good-to-Have. Kept in Ignore because fee tracking requires multi-client architecture (G-01) to be built first. Building billing before multi-client is building a room without a foundation. Add after G-01 ships.
+### I-11: Board Meeting + Corporate Governance Calendar
+**Why ignore:** Too narrow — relevant to listed companies with active board schedules. Company Secretaries manage this manually. Niche within a niche.
 
 ---
 
-### I-12: Board Meeting + Corporate Governance Calendar
-**Source:** Z.ai (I12) — not in Claude's original list
-**Why ignore:** Board meeting dates, quorum requirements, notice periods — relevant only to listed companies or companies with active board governance requirements. Covered by a Company Secretary manually. Too narrow a use case for general compliance SaaS.
+### I-12: Insurance Compliance Tracking
+**Why ignore:** Different buyer persona (admin/HR), different tool. Adds UI clutter for the core compliance user.
 
 ---
 
-### I-13: Insurance Compliance Tracking
-**Source:** Z.ai (I13) — not in Claude's original list
-**Why ignore:** Insurance policy renewals (D&O, asset, workmen's compensation, group health) are managed by the admin/HR team, not the finance/compliance team. Different buyer persona, different tool. Niche feature that adds UI clutter for the core compliance user.
+### I-13: Real Estate / Property Compliance (RERA, property tax)
+**Why ignore:** Vertical-specific. Build a separate product for this segment.
 
 ---
 
-### I-14: Real Estate / Property Compliance
-**Source:** Z.ai (I14) — not in Claude's original list
-**Why ignore:** Vertical-specific (RERA registration, property tax, lease compliance). Requires deep real estate regulatory knowledge. Build a separate product for this segment, not a module in a general compliance SaaS.
+### I-14: Bank / FI Compliance (CMA Data, LC/BG Tracking)
+**Why ignore:** Treasury tool, not compliance tool. Different user, different regulatory domain.
 
 ---
 
-### I-15: Bank / FI Compliance (CMA Data, LC / BG Tracking)
-**Source:** Z.ai (I15) — not in Claude's original list
-**Why ignore:** Bank compliance (CMA data submission, stock statement to banks, LC/BG validity) is managed by treasury/finance teams using banking portals. Different tool, different user, different regulatory domain.
+### I-15: Multi-Currency / Multi-Country Support
+**Why ignore:** Product is explicitly Indian. Internationalise at Series B.
 
 ---
 
-### I-16: Multi-Currency / Multi-Country Support
-**Source:** Z.ai (I18)
-**Why ignore:** Product is explicitly built for India. Multi-country support requires separate regulatory databases, currency handling, and tax regime knowledge for each country. Premature internationalisation kills focus. Build India first; internationalise at Series B.
+### I-16: Native iOS / Android Apps
+**Why ignore:** PWA (G-17) delivers 60% of the value at 20% of the cost. Native apps are V3 if PWA proves insufficient.
 
 ---
 
-### I-17: Native Mobile Apps (iOS / Android)
-**Source:** Z.ai (I17) — Claude has PWA (G-10) as the path
-**Why ignore:** Native apps require separate iOS and Android codebases, App Store/Play Store submissions, and ongoing maintenance. PWA (G-10) delivers 60% of the value at 20% of the cost. Native apps are V3 if PWA proves insufficient.
+### I-17: Partner / Channel Sales Programme
+**Why ignore:** Go-to-market activity, not a product feature. Start informally with 5 CA referral partners — if it works, formalise it.
 
 ---
 
-### I-18: Partner / Channel Sales Programme
-**Source:** Z.ai (I10) — not a product feature
-**Why ignore:** A go-to-market programme, not a product feature. CA referral partnerships, reseller agreements, and co-marketing deals are business development activities. Cannot be built by engineering. Start informally with 5 CA partners — if it works, formalise it.
+### I-18: Contingent Liability Disclosure Tracker (Balance Sheet Notes under AS 29)
+**Why ignore:** Financial accounting feature requiring accounting system integration. Too specialised.
 
 ---
 
-### I-19: Contingent Liability Disclosure Tracker (Balance Sheet Notes)
-**Source:** Claude (I-11)
-**Why ignore:** Financial accounting feature (AS 29 / Ind AS 37 disclosure). Overlaps with notice register (M-07) and exposure widget (G-09) but requires accounting system integration. Too specialised for general compliance SaaS.
+### I-19: FEMA / RBI Transaction Reporting
+**Why ignore:** Relevant only to companies with foreign investments. Covered by specialist software.
 
 ---
 
-### I-20: FEMA / RBI Transaction Reporting
-**Source:** Claude (I-13)
-**Why ignore:** Relevant only to companies with foreign investments or specific forex transactions. Covered by specialist compliance consultants and software. Adding it to a general compliance tool creates noise.
+### I-20: Multi-State Professional Tax Dedicated Module (18-state PT)
+**Why ignore:** A generic PT item with state tag (G-12 location management) handles adequately. Full 18-state module is niche within a niche — implement only as a paid upsell after 200 customers.
 
 ---
 ---
 
 ## Master Summary Table
 
-| ID | Feature | Tier | Effort | Impact | Source |
+| ID | Feature | Tier | Effort | Cost | AI-Powered |
 |---|---|---|---|---|---|
-| M-01 | Recurring compliance engine | **Must Have** | High | Critical | Both (Claude Must, Z.ai Good — overruled) |
-| M-02 | India compliance calendar DB + entity auto-suggest | **Must Have** | Medium | Critical | Both (M1+M2 from Z.ai, M-07 from Claude) |
-| M-03 | Period / financial year field (April–March) | **Must Have** | Low | Critical | Both |
-| M-04 | Acknowledgement / ARN / reference number field | **Must Have** | Low | High | Claude |
-| M-05 | Challan payment tracking (BSR, amount, date) | **Must Have** | Medium | High | Both (Claude Must, Z.ai Good — overruled) |
-| M-06 | Annual compliance calendar view | **Must Have** | Medium | High | Claude |
-| M-07 | Government notice / SCN register | **Must Have** | Medium | Critical | Both (Claude Must, Z.ai Good — overruled) |
-| M-08 | Email notifications (external, verified delivery) | **Must Have** | Low | Critical | Both |
-| M-09 | Registration number fields on compliance items | **Must Have** | Low | Critical | Claude |
-| M-10 | Bulk import via CSV | **Must Have** | Medium | High | Both (Claude Must, Z.ai Good — upgraded) |
-| M-11 | Free trial / self-serve signup | **Must Have** | Low | Critical | Both |
-| M-12 | Public pricing page | **Must Have** | Low | Critical | Both |
-| M-13 | Improved landing page + value proposition | **Must Have** | Low | High | Z.ai |
-| M-14 | Approval workflow — 2-level maker-checker | **Must Have** | Medium | High | Both (Claude Must, Z.ai Good — upgraded) |
-| M-15 | Dashboard filters (type, status, dept, assignee) | **Must Have** | Medium | High | Claude |
-| M-16 | Help centre + in-app onboarding checklist | **Must Have** | Low | High | Claude |
-| G-01 | Multi-client architecture (CA Practice Edition) | Good to Have | Very High | Very High | Claude |
-| G-02 | Location / branch management | Good to Have | High | High | Claude |
-| G-03 | TDS/TCS section-wise tracking | Good to Have | Medium | High | Z.ai |
-| G-04 | Tally integration (basic CSV import) | Good to Have | Medium | High | Z.ai (Claude upgraded from Ignore) |
-| G-05 | Escalation engine (configurable rules) | Good to Have | High | High | Claude |
-| G-06 | Compliance health score (0–100) | Good to Have | Low | High | Z.ai |
-| G-07 | Hierarchical dashboard views (role-scoped) | Good to Have | Medium | High | Z.ai (upgraded from Ignore) |
-| G-08 | Filed date + payment date fields | Good to Have | Low | Medium | Claude |
-| G-09 | Financial exposure widget (₹X at risk today) | Good to Have | Low | High | Claude |
-| G-10 | Mobile PWA | Good to Have | Medium | High | Both |
-| G-11 | WhatsApp notification integration | Good to Have | High | High | Both |
-| G-12 | ROC / MCA dedicated module | Good to Have | Medium | High | Z.ai |
-| G-13 | Multi-GSTIN register | Good to Have | Medium | High | Both |
-| G-14 | Email template customisation | Good to Have | Low | Medium | Z.ai |
-| G-15 | Staff workload + performance view | Good to Have | Medium | Medium | Claude |
-| G-16 | Board / audit committee PDF report | Good to Have | High | High | Claude |
-| G-17 | SSO / Google / Microsoft login | Good to Have | Low | Medium | Claude |
-| G-18 | Document version control | Good to Have | Medium | Medium | Claude |
-| G-19 | Public ROI calculator | Good to Have | Low | High | Claude |
-| G-20 | Public roadmap page | Good to Have | Low | Medium | Claude |
-| G-21 | G2 / Capterra listing | Good to Have | Low | High | Claude |
-| I-01 | EXIM compliance module | Ignore | Very High | Low | Both |
-| I-02 | Factory / industrial compliance lifecycle | Ignore | High | Low | Both |
-| I-03 | Fire + safety dedicated module | Ignore | Medium | Low | Both |
-| I-04 | C&F agent / vendor compliance portal | Ignore | Very High | Low | Both |
-| I-05 | Contract labour compliance module | Ignore | High | Low | Both |
-| I-06 | ERP integration (SAP / Oracle) | Ignore | Very High | Low | Both |
-| I-07 | AI / ML predictive analytics | Ignore | Very High | Medium | Z.ai |
-| I-08 | AI-powered notice analysis | Ignore | Very High | Medium | Claude |
-| I-09 | Government portal API (GSTN / MCA / TRACES) | Ignore | Very High | Low | Claude |
-| I-10 | SOC 2 / ISO 27001 certification | Ignore | Very High | Medium | Both |
-| I-11 | CA billing / fee tracking | Ignore | High | Low | Both |
-| I-12 | Board meeting + governance calendar | Ignore | Medium | Low | Z.ai |
-| I-13 | Insurance compliance tracking | Ignore | Medium | Low | Z.ai |
-| I-14 | Real estate / property compliance | Ignore | High | Low | Z.ai |
-| I-15 | Bank / FI compliance (CMA, LC/BG) | Ignore | High | Low | Z.ai |
-| I-16 | Multi-currency / multi-country | Ignore | Very High | Low | Z.ai |
-| I-17 | Native iOS / Android apps | Ignore | Very High | Medium | Z.ai (PWA is the path) |
-| I-18 | Partner / channel sales programme | Ignore | N/A | Low | Z.ai (GTM not product) |
-| I-19 | Contingent liability disclosure tracker | Ignore | Medium | Low | Claude |
-| I-20 | FEMA / RBI reporting | Ignore | High | Low | Claude |
+| M-01 | pgvector schema + document embedding pipeline | **Must Have** | Low | $0 (Supabase + Groq free) | ✅ Yes |
+| M-02 | Document OCR + AI field extraction | **Must Have** | Medium | $0 (pdf-parse + Groq Vision) | ✅ Yes |
+| M-03 | Open API with access codes | **Must Have** | Medium | $0 | No |
+| M-04 | BYOK AI key management | **Must Have** | Low | $0 (customer pays own AI) | ✅ Yes |
+| M-05 | Groq orchestrator agent (Edge Function) | **Must Have** | Medium | $0 (Groq free tier) | ✅ Yes |
+| M-06 | Semantic search (pgvector) | **Must Have** | Low | $0 | ✅ Yes |
+| M-07 | Recurring compliance engine | **Must Have** | High | $0 | No |
+| M-08 | India compliance calendar + entity auto-suggest | **Must Have** | Medium | $0 | No |
+| M-09 | Period / financial year field (April–March) | **Must Have** | Low | $0 | No |
+| M-10 | Acknowledgement / ARN / reference number field | **Must Have** | Low | $0 | Partial (M-02 auto-fills) |
+| M-11 | Challan payment tracking | **Must Have** | Medium | $0 | Partial (M-02 auto-fills) |
+| M-12 | Government notice / SCN register | **Must Have** | Medium | $0 | ✅ Yes (M-02 extracts) |
+| M-13 | Email notifications (verified external) | **Must Have** | Low | $20/month (Resend) | No |
+| M-14 | Registration number fields on compliance items | **Must Have** | Low | $0 | Partial (M-02 auto-fills) |
+| M-15 | Bulk import (CSV + AI-assisted column mapping) | **Must Have** | Medium | $0 | ✅ Yes |
+| M-16 | Outbound webhooks | **Must Have** | Medium | $0 | No |
+| M-17 | Free trial + self-serve signup | **Must Have** | Low | $0 | No |
+| M-18 | Public pricing page | **Must Have** | Low | $0 | No |
+| M-19 | Improved landing page + public penalty calculator | **Must Have** | Low | $0 | No |
+| M-20 | Help centre + AI support bot + onboarding | **Must Have** | Low | $0 (Groq RAG) | ✅ Yes |
+| G-01 | MCP server interface | Good to Have | Medium | $0 | ✅ Yes |
+| G-02 | AI compliance Q&A (RAG on customer data) | Good to Have | Medium | $0 (BYOK/Groq) | ✅ Yes |
+| G-03 | AI notice reply drafter | Good to Have | Medium | $0 (BYOK) | ✅ Yes |
+| G-04 | Indian tax law knowledge base (pgvector) | Good to Have | High | $0 | ✅ Yes |
+| G-05 | Multi-client architecture (CA Edition) | Good to Have | Very High | $0 | No |
+| G-06 | Tally CSV import + AI column mapping | Good to Have | Medium | $0 | ✅ Yes |
+| G-07 | Compliance health score (0–100) | Good to Have | Low | $0 | No |
+| G-08 | Annual compliance calendar view | Good to Have | Medium | $0 | No |
+| G-09 | Approval workflow (maker-checker) | Good to Have | Medium | $0 | No |
+| G-10 | Escalation engine | Good to Have | High | $0 | No |
+| G-11 | Hierarchical role-scoped dashboard | Good to Have | Medium | $0 | No |
+| G-12 | Location / branch management | Good to Have | High | $0 | No |
+| G-13 | TDS/TCS section-wise tracking | Good to Have | Medium | $0 | Partial |
+| G-14 | ROC/MCA dedicated module | Good to Have | Medium | $0 | Partial |
+| G-15 | Multi-GSTIN register | Good to Have | Medium | $0 | No |
+| G-16 | Financial exposure widget (₹X at risk today) | Good to Have | Low | $0 | No |
+| G-17 | Mobile PWA | Good to Have | Medium | $0 | No |
+| G-18 | WhatsApp notifications | Good to Have | High | Per-message | No |
+| G-19 | AI board report generator (PDF) | Good to Have | High | $0 (BYOK) | ✅ Yes |
+| G-20 | Email template customisation | Good to Have | Low | $0 | No |
+| G-21 | Filed date + payment date fields | Good to Have | Low | $0 | No |
+| G-22 | Staff workload + performance view | Good to Have | Medium | $0 | No |
+| G-23 | SSO / Google / Microsoft login | Good to Have | Low | $0 | No |
+| G-24 | Document version control | Good to Have | Medium | $0 | No |
+| G-25 | Public ROI calculator | Good to Have | Low | $0 | No |
+| G-26 | Public roadmap + G2/Capterra listing | Good to Have | Low | $0 | No |
+| I-01 to I-20 | (see Tier 3 section) | Ignore | — | — | — |
 
-**Totals: 16 Must Have | 21 Good to Have | 20 Can Be Ignored**
+**Totals: 20 Must Have | 26 Good to Have | 20 Can Be Ignored (66 total)**
+**AI-powered features: 13 Must Have + 9 Good to Have = 22 AI features**
+**Estimated total infrastructure cost for first 200 customers: $20–50/month**
 
 ---
 
 ## Recommended Build Sequence
 
-**Sprint 1 (Weeks 1–2): Acquisition foundation**
-- M-11: Free trial flow
-- M-12: Pricing page
-- M-13: Landing page rewrite
-- M-16: Help centre + onboarding checklist
-- G-17: Google SSO (1 day — Supabase config)
+**Sprint 1 (Weeks 1–2): AI Foundation + Acquisition**
+- M-01: pgvector schema (activate extension, embeddings table) — 1 day
+- M-04: BYOK AI key management (Settings → AI) — 2 days
+- M-17: Free trial flow — 2 days
+- M-18: Pricing page — 1 day
+- M-19: Landing page rewrite + public penalty calculator — 3 days
+- M-20: Help centre (static articles) + onboarding checklist — 2 days
 
-**Sprint 2 (Weeks 3–4): Core data fields**
-- M-03: Period / FY field
-- M-04: Acknowledgement number field
-- M-09: Registration number fields
-- G-08: Filed date + payment date fields
-- G-06: Compliance health score (computed from existing data — low effort)
+**Sprint 2 (Weeks 3–4): Data Completeness**
+- M-09: Period / FY field — 1 day
+- M-10: ARN / acknowledgement field — 1 day
+- M-14: Registration number fields — 1 day
+- G-21: Filed date + payment date — 1 day
+- M-03: Open API with access codes — 3 days
+- M-16: Outbound webhooks — 3 days
 
-**Sprint 3 (Weeks 5–6): Automation + scale**
-- M-01: Recurring compliance engine
-- M-10: Bulk CSV import
-- M-02: India compliance calendar DB + entity auto-suggest templates
+**Sprint 3 (Weeks 5–6): AI Document Intelligence**
+- M-02: Document OCR + AI extraction (pdf-parse + Groq Vision) — 5 days
+- M-06: Semantic search (pgvector similarity) — 3 days
+- M-05: Groq orchestrator agent (Edge Function, basic routing) — 2 days
 
-**Sprint 4 (Weeks 7–8): Visibility + control**
-- M-06: Annual calendar view
-- M-15: Dashboard filters
-- G-07: Hierarchical role-scoped dashboard
-- G-09: Financial exposure widget
+**Sprint 4 (Weeks 7–8): Scale + Automation**
+- M-07: Recurring compliance engine — 4 days
+- M-08: India compliance calendar + entity auto-suggest templates — 3 days
+- M-15: Bulk CSV import + AI column mapping — 3 days
 
-**Sprint 5 (Weeks 9–10): Evidence + governance**
-- M-05: Challan tracking
-- M-14: Approval workflow (maker-checker)
-- G-18: Document version control
-- G-03: TDS/TCS section-wise tracking
+**Sprint 5 (Weeks 9–10): Risk + Evidence**
+- M-11: Challan payment tracking (+ AI auto-fill from M-02) — 3 days
+- M-12: Government notice / SCN register (+ AI extraction from M-02) — 4 days
+- M-13: External email notifications (Resend Edge Function cron) — 2 days
 
-**Sprint 6 (Weeks 11–12): Risk management + external comms**
-- M-07: Government notice / SCN register
-- M-08: Email notifications (verified external)
-- G-05: Escalation engine (basic 2-level)
-- G-19: Public ROI calculator
+**Sprint 6 (Weeks 11–12): Intelligence Layer**
+- G-02: AI compliance Q&A (RAG on customer data) — 4 days
+- G-07: Compliance health score — 2 days
+- G-08: Annual calendar view — 3 days
+- G-11: Hierarchical role-scoped dashboard — 1 day
 
-**Sprint 7 (Weeks 13–14): Market visibility**
-- G-21: G2 / Capterra listing (business action, not engineering)
-- G-20: Public roadmap page
-- G-04: Tally basic CSV import
-- G-12: ROC / MCA dedicated module
+**Sprint 7 (Weeks 13–14): Market Visibility**
+- G-04: Indian tax law knowledge base (pre-load CBIC/CBDT circulars into pgvector) — 3 days
+- G-06: Tally CSV import + AI parsing — 3 days
+- G-26: G2/Capterra listing (business action) — ongoing
+- G-01: MCP server interface — 3 days
 
-**Post-Sprint 7 — evaluate PMF signals:**
-- CA firms primary segment → Build G-01 (multi-client), G-14 (email templates)
-- Mid-market primary → Build G-02 (location), G-16 (board report), G-13 (multi-GSTIN)
-- Growth stalling → G-11 (WhatsApp), G-10 (PWA), G-15 (staff performance)
+**Post-Sprint 7: Based on PMF signals**
+- CA firms dominant → G-05 (multi-client architecture)
+- Mid-market dominant → G-12 (locations), G-09 (approval workflow), G-10 (escalation)
+- AI usage high → G-03 (notice reply drafter), G-19 (board report generator)
+- Mobile demand high → G-17 (PWA)
+
+---
+
+## The Zero-Cost Proof
+
+| Cost Item | Solution | Monthly Cost |
+|---|---|---|
+| Database + Auth + Storage | Supabase (free → $25 Pro) | $0–$25 |
+| Hosting + CDN | Vercel (free tier) | $0 |
+| AI orchestration | Groq free tier (Llama 3.3 70B, 6K req/day) | $0 |
+| Document extraction | pdf-parse (open source) + Groq Vision (free) | $0 |
+| AI features (customer-facing) | BYOK — customer pays their own OpenAI/Anthropic bill | $0 |
+| Email notifications | Resend (100/day free → $20/month for 50K) | $0–$20 |
+| CI/CD | GitHub Actions (free public repo) | $0 |
+| DNS + CDN | Cloudflare (free tier) | $0 |
+| Support | AI bot on Groq RAG (pgvector help docs) | $0 |
+| Monitoring | Vercel Analytics (free) + Supabase logs | $0 |
+| **Total for first 200 customers** | | **$20–$45/month** |
+
+The first ₹10 lakh ARR costs ₹3,500–4,000/month to serve. Net margin from day one: 99%+.
 
 ---
 
 *Document prepared by: DEVABOSS / Claude Code*
-*Merged with: Z.ai independent feature audit*
-*Sources: evaluation_by_ca.md (6 evaluations, 4 personas) + Z.ai feature table + full codebase review (schema, pages, API routes)*
+*Sources: evaluation_by_ca.md (6 evaluations), Z.ai feature audit, full codebase review, architectural analysis*
+*Framework: Compliance & Audit OS — not tax filing — with AI-native, open-API, BYOK, pgvector, near-zero-cost architecture*
 *Date: 2026-06-29*
-*This is a living document. Update after each sprint. Where Claude and Z.ai disagreed, decisions are documented in the Conflicts Resolved table at the top.*
+*Living document. Update after each sprint.*
