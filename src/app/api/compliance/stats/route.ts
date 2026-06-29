@@ -1,8 +1,11 @@
 import { db, complianceItems, departments, auditLogs } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { eq, and, not, inArray, gte, lte, asc, desc, sql } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET() {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const now = new Date()
     const weekEnd = new Date(now.getTime() + 7 * 86400000)

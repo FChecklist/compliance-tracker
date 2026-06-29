@@ -1,6 +1,7 @@
 import { db, complianceItems, departments, users, auditLogs } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, or, like, asc, sql } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
@@ -9,6 +10,8 @@ const SORTABLE_FIELDS = ['dueDate', 'createdAt', 'title'] as const
 type SortField = (typeof SORTABLE_FIELDS)[number]
 
 export async function GET(request: NextRequest) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const { searchParams } = request.nextUrl
 
@@ -87,6 +90,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const body = await request.json()
     const { title, description, complianceType, priority, dueDate, departmentId, assignedToId } = body

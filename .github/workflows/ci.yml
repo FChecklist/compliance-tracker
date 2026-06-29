@@ -12,16 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - run: bun run lint || echo "::warning::Lint issues found"
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - run: bunx tsc --noEmit || echo "::warning::Type errors found"
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit
   build:
     name: Build
     needs: [lint, typecheck]
@@ -29,21 +29,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bun run db:generate || true
-      - run: bun run build || echo "::warning::Build issues"
+      - run: bun run build
         env:
-          DATABASE_URL: file:./dev.db
-          NEXTAUTH_SECRET: ci-placeholder-secret
-          NEXTAUTH_URL: http://localhost:3000
+          DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - run: bun test --passWithNoTests || echo "::warning::Test issues"
+      - run: bun install --frozen-lockfile
+      - run: bun test --passWithNoTests
   e2e:
     name: E2E Tests
     needs: [build]
@@ -51,6 +51,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+      - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium || true
-      - run: bunx playwright test --pass-with-no-tests || echo "::warning::E2E issues"
+      - run: bunx playwright test --pass-with-no-tests

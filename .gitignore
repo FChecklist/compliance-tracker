@@ -55,3 +55,8 @@ server.log
 
 # Skills
 /skills/
+
+# Legacy files removed from repo
+/prisma/
+/db/custom.db
+/tool-results/

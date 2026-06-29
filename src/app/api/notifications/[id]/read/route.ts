@@ -1,10 +1,13 @@
 import { db, notifications } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PATCH(_request: NextRequest, context: RouteContext) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const { id } = await context.params
 

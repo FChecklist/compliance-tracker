@@ -1,8 +1,11 @@
 import { db, departments, complianceItems, users } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { eq, asc, sql } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET() {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const depts = await db.query.departments.findMany({
       with: {

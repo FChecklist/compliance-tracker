@@ -1,8 +1,11 @@
 import { db, users, notifications } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET() {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const adminUser = await db.query.users.findFirst({ where: eq(users.role, 'admin') })
     if (!adminUser) {
