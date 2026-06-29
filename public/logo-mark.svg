@@ -1,0 +1,14 @@
+<svg width="100%" viewBox="0 0 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Veridian AI Monogram</title>
+  <desc>V in teal, AI in gold — compact monogram</desc>
+
+  <text x="20" y="148"
+        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        font-size="130" font-weight="700" letter-spacing="-2"
+        fill="#0F6E56">V</text>
+
+  <text x="108" y="148"
+        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        font-size="72" font-weight="700" letter-spacing="-1"
+        fill="#F4A922">AI</text>
+</svg>
