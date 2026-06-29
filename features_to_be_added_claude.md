@@ -1,421 +1,594 @@
 # Features To Be Added — ComplianceTrack
-## Analysis by: DEVABOSS / Claude Code
-## Based on: evaluation_by_ca.md (4 evaluations: CA × 2, CFO × 2, Sales × 2) + full codebase review
+## Merged Analysis: Claude Code (DEVABOSS) + Z.ai
+## Sources: evaluation_by_ca.md (6 evaluations, 4 personas) + Z.ai feature audit + full codebase review
+## Last Updated: 2026-06-29
 
 > **Context:** Zero customers. Pricing undecided. Goal: AI-native Compliance and Audit SaaS for the Indian market.
-> This document synthesises every gap raised across all evaluations and maps them against what already exists in the codebase. Features are divided into three tiers based on one filter: **will the absence of this feature prevent a paying customer from signing up or cause them to churn in the first 90 days?**
+> This is the merged and re-evaluated master list combining both Claude's analysis (from evaluation_by_ca.md) and Z.ai's independent feature audit. Where the two lists disagreed, the final tier reflects a reasoned decision — explained inline.
 
 ---
 
-## What Already Exists (Do Not Re-Build)
+## Conflicts Resolved Between Claude and Z.ai
 
-Before listing additions, here is what the product already has — confirmed from schema + pages:
-
-| Feature | Details |
-|---|---|
-| Authentication | Supabase Auth SSR — email/password + magic link, middleware-protected routes |
-| Organisation | Single org per account, name, slug, logo, plan field |
-| Departments | Create/manage departments, assign department head |
-| Users & Roles | admin / manager / member / viewer — org-scoped |
-| Compliance Items | Title, description, type (10 Indian types), status (6 states), priority (4 levels), due date, department, assigned-to |
-| Audit Points | Sub-tasks within each compliance item, separate assignee and due date |
-| Documents | File upload per compliance item (URL-stored, Supabase Storage not yet wired) |
-| Comments | Threaded comments per compliance item |
-| Notifications | In-app: deadline reminder, assignment, status change, comment, mention |
-| Audit Log | Full action trail: create, update, delete, status change, assign, login, logout, export |
-| Dashboard | Totals, overdue count, due-this-week, completion rate, dept pendency chart, upcoming deadlines, recent activity |
-| Reports Page | Status distribution chart, department bar chart, CSV export |
-| Penalties Page | Indian penalty calculator (GST, TDS, PF, MCA — accurate rates) |
-| Compliance List | Filterable list with search |
-| Settings | Profile, Organisation, Notifications, Preferences |
-| Team Management | Invite, list, manage team members |
-| Search | Global search command (Cmd+K) |
-| Theme | Dark / light mode toggle |
-| Compliance Types | GST, TDS, MCA, PF, ESIC, Income Tax, ROC, Labour, Environmental, Other |
-
-**What the schema is missing that directly blocks use:** no GSTIN/PAN/TAN field, no period field, no acknowledgement number field, no challan table, no notice table, no location table, no recurrence engine, no approval workflow.
+| Feature | Z.ai Tier | Claude Tier | Final Decision | Reason |
+|---|---|---|---|---|
+| Recurring compliance engine | Good to Have | Must Have | **Must Have** | Cannot use product sustainably without it — 350 items/month require auto-generation |
+| Government notice / SCN register | Good to Have | Must Have | **Must Have** | Personal CFO liability; missed 21-day reply window = ex-parte demand order |
+| Challan payment tracking | Good to Have | Must Have | **Must Have** | Filing ≠ Payment; auditors require challan evidence; "Completed" without BSR code is meaningless |
+| Tally integration (basic) | Good to Have | Ignore | **Good to Have** | Z.ai is right — Tally has 90%+ Indian SME market share; basic CSV import is achievable and removes the biggest "we already have Tally" objection |
+| AI/ML predictive analytics | Ignore | Not listed | **Ignore** | Too early — build dataset first (500+ notices, 10,000+ compliance items), then AI |
+| Native mobile apps | Ignore | Not listed (PWA is path) | **Ignore** | PWA delivers 60% of value at 20% of cost; native app is V3 |
+| Hierarchical dashboards (CFO→Manager→Location) | Ignore | Not listed | **Good to Have** | Mid-market companies with 5+ departments need role-filtered views; not enterprise-only complexity |
 
 ---
 
+## What Already Exists — Do Not Re-Build
+
+Confirmed from schema + live pages + Z.ai's audit:
+
+| Feature | Status | Notes |
+|---|---|---|
+| Authentication | ✅ Exists | Supabase Auth SSR — email/password + magic link |
+| Entity / Organisation | ✅ Exists | Single org per account; name, slug, logo, plan field. Z.ai confirmed: GSTIN, PAN, CIN fields exist at entity level |
+| Departments | ✅ Exists | Create/manage, assign department head |
+| Users & Roles (RBAC) | ✅ Exists | admin / manager / member / viewer — Z.ai listed RBAC as "Must Have missing"; it already exists |
+| Task Assignment | ✅ Exists | assignedToId on compliance items + audit points; Z.ai listed as missing — exists in schema |
+| Compliance Items | ✅ Exists | 10 Indian types, 6 statuses, 4 priorities, due date, dept, assignee |
+| Audit Points | ✅ Exists | Sub-tasks with separate assignee and due date |
+| Documents | ✅ Exists | Upload per item (URL stored — Supabase Storage not yet wired) |
+| Comments | ✅ Exists | Threaded per compliance item |
+| Notifications | ✅ Exists | In-app: deadline reminder, assignment, status change, comment, mention |
+| Audit Log | ✅ Exists | Full action trail — Z.ai listed as "Good to Have"; already built |
+| Dashboard | ✅ Exists | Totals, overdue, due-this-week, completion %, dept chart, upcoming deadlines, activity feed |
+| Reports + CSV Export | ✅ Exists | Status chart, department chart, CSV — Z.ai listed basic reporting as "Must Have missing"; basic version exists |
+| Penalty Calculator | ✅ Exists | Indian rates (GST, TDS, PF, MCA) — Z.ai listed as "Must Have missing"; already built |
+| Compliance List with Filters | ✅ Exists | Status and type filters, search |
+| Settings | ✅ Exists | Profile, Organisation, Notifications, Preferences |
+| Team Management | ✅ Exists | Invite, list, manage |
+| Global Search | ✅ Exists | Cmd+K command palette |
+| Dark Mode | ✅ Exists | Z.ai listed as "Good to Have"; already built |
+| Responsive Design | ✅ Exists | Tailwind-based |
+
+**What the schema is provably missing:** no period field, no acknowledgement/ARN field, no challan table, no notice/SCN table, no location table, no recurrence engine, no approval/maker-checker workflow, no trial date tracking, no filing date / payment date fields.
+
+---
 ---
 
 # TIER 1 — MUST HAVE
-### Definition: Without these, the product cannot acquire or retain its first 50 paying customers. These are the features that every evaluator — CA, CFO, salesperson — cited as an immediate blocker.
+### Without these, the product cannot acquire or retain its first 50 paying customers.
+### Both Claude and Z.ai agree on the majority. Disagreements are noted.
 
 ---
 
 ### M-01: Recurring Compliance Engine
-**What:** Ability to mark a compliance item as recurring (monthly / quarterly / half-yearly / annually) and have the system auto-generate the next instance when the current one is closed as "Completed."
-**Why must-have:** GST, TDS, PF, ESIC, advance tax — all are recurring. A company with 5 GSTINs has 60 GSTR-3B items per year. Manually creating each one is not viable. Every evaluator raised this. Without it, the tool cannot be used for ongoing compliance management — only for one-time tracking.
-**Minimum scope:** Recurrence type (monthly/quarterly/half-yearly/annual), auto-create next item on completion, carry forward assignee and department. No complex scheduling needed at V1.
+**Source:** Claude (Must Have) | Z.ai (Good to Have — overruled)
+**What:** Mark a compliance item as recurring (monthly / quarterly / half-yearly / annually). System auto-generates the next instance when current one is marked "Completed." Carries forward assignee, department, type, and registration number.
+**Why Must Have:** GST, TDS, PF, ESIC, advance tax — all repeat on fixed schedules. A company with 5 GSTINs has 60 GSTR-3B filings per year. Manually creating each is not viable. Without this, the product can only be used for one-time tracking — not ongoing compliance management.
+**Minimum scope:** Recurrence type selector (monthly/quarterly/half-yearly/annual). Auto-create next item on completion. `recurrence_type` and `recurrence_parent_id` fields on compliance_items table.
 
 ---
 
-### M-02: Registration Number Fields on Compliance Items
-**What:** Add structured fields to compliance items: GSTIN (for GST items), TAN (for TDS items), PAN (for Income Tax items), CIN/LLPIN (for ROC/MCA items), PF Code (for PF items), ESIC Code (for ESIC items). These should be optional but prominently placed.
-**Why must-have:** A compliance tracker with no registration number is a generic task list. The CA evaluator called this out explicitly — "A product that calls itself a GST compliance tool but has no field for the GSTIN number is not a GST compliance tool." The CFO evaluator cited 24 GSTINs being indistinguishable. Every professional user works by registration number.
-**Minimum scope:** Single text field per item labelled based on compliance type selected. No validation at V1 — just capture and display.
+### M-02: Indian Compliance Calendar Database + Entity-Type Auto-Suggestion
+**Source:** Claude (M-07 — India due date library) merged with Z.ai (M1 + M2)
+**What:** A library of 60+ standard Indian compliance obligations with pre-populated due dates, mapped to entity type. When a user selects "GSTR-3B — Monthly," due date auto-fills as 20th of following month. When a Private Limited company is created, the system suggests its mandatory annual compliances (AGM, AOC-4, MGT-7, DIR-3 KYC, etc.). Covers: GST, TDS, MCA, PF/ESIC, advance tax, Professional Tax.
+**Why Must Have:** Z.ai confirmed entity types exist (Company / LLP / Partnership / Individual) at entity creation. Auto-suggesting compliances based on entity type is the fastest path to first value — new user signs up, creates their Pvt Ltd company, and immediately sees the 15 annual compliances they must track. Eliminates manual setup. Proves domain expertise in the first 5 minutes.
+**Minimum scope:** Template library with 60 entries (filing name, type, frequency, standard due date formula, entity types it applies to). Quick-add picker on Compliance → New. Entity-type-based suggestion on first login.
 
 ---
 
 ### M-03: Period / Financial Year Field
-**What:** A structured "Period" field on compliance items — month+year for monthly filings (e.g., June 2026), quarter+year for quarterly filings (e.g., Q1 FY2026-27), or assessment year for annual filings (e.g., AY2026-27).
-**Why must-have:** Without a period field, 12 GSTR-3B items for a year are 12 identical rows. The CFO and CA evaluators both cited this: you cannot tell which month's return is pending vs. filed. Filing history becomes meaningless without period context.
-**Minimum scope:** Free-text period field at V1. Can be made a structured dropdown (month + year) at V2.
+**Source:** Claude (Must Have) | Z.ai (M3 — Financial Year View, Must Have)
+**What:** Structured "Period" field on compliance items — month+year for monthly filings (June 2026), quarter+year for quarterly (Q1 FY2026-27), assessment year for annual (AY2026-27). Dashboard and calendar respect the Indian financial year (April–March), not calendar year.
+**Why Must Have:** Without a period field, 12 GSTR-3B items for a year are 12 identical rows. Cannot tell which month is filed vs. pending. The Indian FY runs April–March — any date grouping, chart, or calendar that defaults to January–December is wrong for Indian compliance professionals.
+**Minimum scope:** Period text field on compliance items. FY selector on the dashboard (FY2025-26, FY2026-27). All charts and calendar group by April–March.
 
 ---
 
-### M-04: Acknowledgement Number Capture
-**What:** A field on each compliance item to record the government-issued acknowledgement/reference number after a filing is made — ARN (GST), acknowledgement number (ITR), SRN (ROC), challan serial number (TDS).
-**Why must-have:** "Completed" without proof is meaningless for compliance purposes. The CA evaluator stated: "If a client's IT department sends a notice and asks when was the ITR filed and what is the acknowledgement number, I cannot answer that question from this system." This is the evidence field that transforms the tool from a checklist into a compliance record.
-**Minimum scope:** Single text field labelled "Reference / Acknowledgement Number" on the compliance item detail page.
+### M-04: Acknowledgement Number + Filing Reference Capture
+**Source:** Claude (Must Have)
+**What:** A field on each compliance item to record the government-issued acknowledgement number after filing — ARN (GST), ITR acknowledgement, SRN (ROC), TDS receipt number. This is the proof of filing.
+**Why Must Have:** "Completed" without an acknowledgement number is not a compliance record — it is a checkbox. If a department notice arrives asking "when was GSTR-3B for June 2026 filed?", the Finance Manager cannot answer from this system without an ARN. Transforms the tool from a checklist into a compliance register.
+**Minimum scope:** Single "Acknowledgement / Reference No." text field on compliance item detail. Shown in list view. Included in CSV export.
 
 ---
 
-### M-05: Challan Tracking Table
-**What:** A dedicated section within each compliance item (or a standalone challan register) to record payment details: challan/BSR code, challan serial number, payment date, amount paid, bank used, mode of payment (net banking / OTC).
-**Why must-have:** In Indian compliance, filing and payment are two separate acts — both must be tracked. The CFO evaluator: "I can mark a compliance item as Completed with no evidence of what was paid." The CA evaluator cited this specifically. Without challan records, statutory auditors have no payment evidence to rely on, and the tool fails at audit season.
-**Minimum scope:** A "Challan Details" card on the compliance item detail page with fields: BSR code, challan serial no., date, amount, bank. Optional at item level. No separate table required at V1.
+### M-05: Challan Payment Tracking
+**Source:** Claude (Must Have) | Z.ai (G10 — Good to Have — overruled)
+**What:** A "Challan Details" section on each compliance item: BSR code, challan serial number, payment date, amount paid, bank name, mode of payment. Separate from the filing acknowledgement — payment and filing are two distinct acts.
+**Why Must Have:** Filing a return and paying the tax are legally separate in India. TDS must be paid before the 7th. GST must be paid before filing GSTR-3B. Without challan records, statutory auditors have no payment evidence. "Completed" with no BSR code means nothing to an auditor. Z.ai classified this as Good-to-Have — overruled because audit season makes this non-negotiable for retention.
+**Minimum scope:** Challan card on compliance item detail page. Fields: BSR code, serial no., date, amount, bank. Optional per item. Included in PDF/CSV export.
 
 ---
 
 ### M-06: Annual Compliance Calendar View
-**What:** A 12-month calendar grid where each compliance item appears as a colour-coded block on its due date. Colour by compliance type (GST = orange, TDS = blue, ROC = green, etc.). Click on a block to open the item.
-**Why must-have:** The salesperson evaluator: "The single most powerful visual in any compliance software demo is the calendar view... In a demo against a competitor who has a calendar view, I will lose every time." Beyond demos — a calendar view is how compliance professionals actually think about their work. Monthly list view is insufficient for planning.
-**Minimum scope:** Monthly calendar grid with item blocks. Filter by type and department. The shadcn/ui calendar component is already in the codebase — extend it.
+**Source:** Claude (Must Have)
+**What:** 12-month calendar grid where each compliance item appears as a colour-coded block on its due date. Colour by compliance type (GST = orange, TDS = blue, ROC = green, PF = purple). Click block to open item. Monthly and annual views. Respects April–March FY (M-03).
+**Why Must Have:** The most powerful demo visual in compliance software. A calendar shows the prospect their entire compliance year at a glance — every obligation, every deadline, who owns it. Competitors who have this visual win demos against those who don't. Also how compliance professionals actually plan — not in lists, but in time.
+**Minimum scope:** Monthly calendar grid. Colour by compliance type. Filter by department/assignee. The shadcn/ui calendar component is already in the codebase — extend it.
 
 ---
 
-### M-07: India-Specific Due Date Library (Pre-populated Templates)
-**What:** A library of standard Indian compliance obligations with pre-populated due dates. When a user selects "GSTR-3B — Monthly" the due date auto-fills as the 20th of the following month. When they select "TDS Return — Q1" it auto-fills 31st July. Covers: GST filing dates, TDS payment/return dates, MCA annual return deadlines, advance tax dates, PF/ESIC challan dates, Professional Tax state-wise dates.
-**Why must-have:** Every CA and CFO evaluator noted that manual due date entry is error-prone and inefficient. Auto-populated dates reduce setup time by 70% and eliminate the most common source of compliance misses (typing the wrong date). This is a foundational feature for an Indian compliance SaaS — it is what proves domain expertise.
-**Minimum scope:** A "Quick Add" template picker — user selects filing type and period, system fills due date. 40–50 templates covering all 10 compliance types.
+### M-07: Government Notice / SCN Register
+**Source:** Claude (Must Have) | Z.ai (G5 — Good to Have — overruled)
+**What:** Dedicated module to log incoming government notices and show-cause notices. Fields: notice number, issuing authority, date received, demand amount, reply deadline (auto-calculated from statutory days), assigned to, status (received / reply filed / under appeal / closed), document upload (notice PDF + reply PDF).
+**Why Must Have:** Z.ai placed this as Good-to-Have. Overruled. This is the highest personal-liability feature for any Finance Manager or CFO. A GST department notice with a 21-day reply window that gets missed results in an ex-parte demand order. No other feature creates more urgency or more goodwill when the customer realises the system saved them from a missed reply. Strong differentiator — most SME compliance tools ignore it entirely.
+**Minimum scope:** "Notices" section in sidebar. New notice form. Dashboard widget: "Notices with reply deadline in next 7 days." Auto-calculate reply deadline from received date + statutory days (configurable per authority type).
 
 ---
 
-### M-08: Government Notice / SCN Register
-**What:** A dedicated module to log incoming government notices and show-cause notices (SCN). Fields: notice number, issuing authority (GST dept / Income Tax / EPFO / Factories Inspector / Customs), date received, demand amount (if any), reply deadline (auto-calculated: received date + statutory days), assigned to (lawyer / CA / finance manager), status (received / reply filed / appealed / closed), documents (upload notice + reply).
-**Why must-have:** The CFO evaluator's single strongest statement: "If I rely on this tool and a GST department notice arrives with a 21-day window that someone forgets to action, my company gets an ex-parte demand order." Notice management is the highest personal-liability feature for any Finance Manager or CFO. It is also a strong differentiator — most compliance trackers in the SME segment ignore this entirely.
-**Minimum scope:** A "Notices" section in the sidebar. New notice form with the fields above. Dashboard widget showing "Notices with reply deadline in next 7 days."
+### M-08: Email Notifications (External — Verified Delivery)
+**Source:** Claude (Must Have) | Z.ai (M4 — Email Reminder System, Must Have) — Full agreement
+**What:** External email delivery of deadline reminders: 7 days before, 3 days before, 1 day before due date, on due date, and 1 day after. User controls which alerts they receive in Settings → Notifications. Also: notice reply deadline reminders (M-07) via email.
+**Why Must Have:** In-app notifications exist but users are not in the app all day. Email is the minimum viable external channel. Without external notifications, deadlines will still be missed — the product fails its core promise. Both evaluators agree this is critical.
+**Minimum scope:** Resend / Supabase Edge Function cron triggered daily. Plain-text email with item name, due date, days remaining, and direct link. Respects per-user notification preferences from Settings.
 
 ---
 
-### M-09: Email Notifications (External Delivery — Verified)
-**What:** Confirm and complete the external email notification system — deadline reminders (7 days before, 3 days before, 1 day before, on due date, day after) delivered to the user's email address, not just in-app. User controls frequency in Settings → Notifications.
-**Why must-have:** The in-app notification system exists but users are not in the app all day. The CA evaluator: "I am not sitting in this application all day — I am in Tally, in the GST portal, in the income tax portal, in client meetings." Email is the minimum viable external channel. Without external notifications, deadlines will still be missed and the product fails its core promise.
-**Minimum scope:** Resend or Supabase edge function triggered on due date approach. Plain-text email with compliance item name, due date, and link to item. Uses existing notification preferences from Settings.
+### M-09: Registration Number Fields on Compliance Items
+**Source:** Claude (Must Have) — Z.ai partially addresses this at entity level (GSTIN, PAN, CIN exist on entity), but not on individual compliance items
+**What:** Optional registration number field on each compliance item, auto-labelled based on compliance type: "GSTIN" for GST items, "TAN" for TDS, "PAN" for Income Tax, "CIN/LLPIN" for ROC/MCA, "PF Code" for PF, "ESIC Code" for ESIC. Pre-fills from entity registration data where available.
+**Why Must Have:** A compliance tracker with no registration number on the filing is a generic task list. Every professional works by registration number. 24 GSTINs generating 24 indistinguishable GSTR-3B rows is the core failure mode for multi-state companies. Z.ai captures registration at entity level — this extends it to the filing level where it matters operationally.
+**Minimum scope:** Single conditional text field on compliance item form. Label changes based on compliance type selected. No validation at V1.
 
 ---
 
 ### M-10: Bulk Import via CSV
-**What:** Allow users to upload a CSV file to bulk-create compliance items. CSV template: title, compliance type, period, due date, registration number, department, assignee email, priority, status. System validates and creates all rows, reports errors row-by-row.
-**Why must-have:** The CA evaluator: "Even just the recurring monthly obligations — 24 GSTR-3B items, 42 PF challans — that is 156 items per month I need to create." The salesperson evaluator: "119 clients × 40 items = 4,760 items entered one by one — 238 hours of data entry." Any company with more than 20 compliance items per year cannot onboard without bulk import. It is the first-day experience gate.
-**Minimum scope:** CSV upload form in Compliance → Import. Template download. Row-by-row validation with error summary. No partial import — either validate all, or report errors and ask user to fix.
+**Source:** Claude (Must Have) | Z.ai (G7 — Bulk Operations, Good to Have — upgrading to Must Have)
+**What:** Upload a CSV file to bulk-create compliance items. Downloadable template with columns: title, compliance type, period, due date, registration number, department, assignee email, priority. Row-by-row validation with error report.
+**Why Must Have:** Any company with more than 20 compliance items cannot onboard manually. A CA firm with 119 clients × 40 items = 4,760 entries. Even a single company with 10 GSTINs has 120 GSTR-3B items per year. Bulk import is the first-day experience gate — without it, onboarding is so painful that users quit before getting value.
+**Minimum scope:** CSV upload on Compliance → Import. Template download. Validate all rows before creating any. Error report lists row number + issue.
 
 ---
 
-### M-11: Free Trial / Self-Serve Signup
-**What:** Allow any visitor to sign up and use the product for 14 days without a credit card. Full feature access during trial. On day 10, in-app prompt to select a plan. On day 15, read-only mode until payment.
-**Why must-have:** The salesperson evaluator rated this as the #2 rejection reason: "Every prospect must go through me to access the product. That means I am the bottleneck for every evaluation." In 2026, any SaaS without a free trial is invisible to the majority of buyers who self-evaluate before engaging with sales. The product cannot grow without a self-serve path.
-**Minimum scope:** `plan` field already exists on the `organisations` table. Add trial start date. Build a trial countdown banner in the app header. Gate creation of new items after trial expires (read-only). No payment integration required at V1 — just the UX flow.
+### M-11: Free Trial + Self-Serve Signup
+**Source:** Claude (Must Have) | Z.ai (M8 — Pricing Page & Self-Service Sign-Up, Must Have) — Full agreement
+**What:** 14-day free trial with no credit card. Full feature access. Trial countdown banner from day 10. Read-only mode after day 15 until plan selected.
+**Why Must Have:** Any SaaS without a free trial in 2026 is invisible to self-evaluating buyers. The salesperson evaluator's #2 rejection reason: "I am the bottleneck for every single evaluation." Self-serve is how the first 50 customers find you without a sales team.
+**Minimum scope:** `trial_started_at` field on organisations table (already has `plan` field). Trial countdown banner in app header. Lock item creation after trial ends. No payment integration needed at V1 — just the UX gate.
 
 ---
 
 ### M-12: Public Pricing Page
-**What:** A published pricing page on the landing/marketing site with 3 tiers (Starter / Growth / Business), feature comparison table, and a CTA to start free trial. Pricing can be "Contact us" for Enterprise tier.
-**Why must-have:** The salesperson evaluator's #1 rejection reason: "I cannot answer the first question every prospect asks." No SaaS can build a repeatable sales or self-serve motion without public pricing. Opaque pricing signals either very high prices or organisational unreadiness — both deter buyers.
-**Minimum scope:** A `/pricing` page on the marketing site. Three plan cards. Feature comparison grid. "Start Free Trial" CTA. Annual vs. monthly toggle.
+**Source:** Claude (Must Have) | Z.ai (M8 combined, Must Have) — Full agreement
+**What:** `/pricing` page with 3 plan tiers (Starter / Growth / Business), feature comparison table, annual vs. monthly toggle, "Start Free Trial" CTA. Enterprise tier = "Contact us."
+**Why Must Have:** Salesperson evaluator's #1 rejection reason: "I cannot answer the first question every prospect asks." Without published pricing, no repeatable sales or self-serve motion is possible. Opaque pricing signals either high cost or unreadiness.
+**Minimum scope:** Static marketing page. Three plan cards. Feature grid. Pricing can be ₹X/month placeholders until decided — but the structure must exist.
 
 ---
 
-### M-13: Approval Workflow (2-Level Maker-Checker)
-**What:** Before a compliance item can be marked "Completed," the system requires an approval from a designated reviewer (Finance Manager / Manager role). Assignee marks as "Submitted for Review." Reviewer gets a notification, reviews the item (checks acknowledgement number, challan, documents), and approves or rejects with a comment. Rejection returns item to "In Progress."
-**Why must-have:** The CFO evaluator: "My board and statutory auditors require segregation of duties. Any user with 'member' role can mark any compliance item as 'Completed' — no review, no authorisation." Without maker-checker, the tool fails corporate governance requirements. Any mid-market company's internal audit will flag this. It is a standard requirement for companies above 100 employees.
-**Minimum scope:** Add "submitted_for_review" to status enum. Add `reviewer_id` to compliance items. Notification to reviewer on submission. Approve/reject action with required comment on rejection. Audit log records approver name and timestamp.
+### M-13: Improved Landing Page with Clear Value Proposition
+**Source:** Z.ai (M9, Must Have) — not in Claude's original list
+**What:** Rewrite the landing page with: a specific, outcome-focused headline ("Never miss a GST deadline again"), a 60-second demo video or animated product walkthrough, social proof section (even if just "Built for Indian compliance"), clear CTA hierarchy (Free Trial primary, Demo secondary), and a public-facing penalty calculator widget.
+**Why Must Have:** The salesperson evaluator: "When a competitor's sales rep answers 'here is our pricing page' in the same conversation, I have already lost on perception." The landing page is the first impression for every self-serve prospect. A vague headline ("One Portal. One Truth.") is brand positioning, not conversion copy. The first thing a Finance Manager needs to see is: "this solves my specific problem."
+**Minimum scope:** New headline + subheadline copy. Product screenshot or short GIF. Public penalty calculator widget (no login). Single CTA: "Start free trial." Takes 1 week, not 1 sprint.
 
 ---
 
-### M-14: Dashboard Filters (by Department, Type, Assignee, Status)
-**What:** Make the main dashboard and compliance list filterable by: department, compliance type, assignee, status, priority, and date range. Save filter presets. Dashboard summary cards update to reflect active filter.
-**Why must-have:** The CFO evaluator: "I cannot filter the dashboard to see: what is overdue at my Chennai office?" The current dashboard is useful for a 10-person company. A company with 5 departments and 200 compliance items needs to slice data. Without filters, the dashboard becomes noise beyond a certain scale. This is table-stakes for any SaaS with a dashboard.
-**Minimum scope:** Filter bar on the compliance list page with dropdowns for type, status, department, assignee, priority, and due date range. URL-persisted filters so links can be shared.
+### M-14: Approval Workflow (2-Level Maker-Checker)
+**Source:** Claude (Must Have) | Z.ai (G9 — Audit Workflow Module, Good to Have — upgrading to Must Have for companies above 50 employees)
+**What:** Before marking "Completed," assignee submits item for review. Reviewer (Manager/Admin) gets notification, checks acknowledgement number and challan, approves or rejects with a mandatory comment. Rejection returns item to "In Progress." Full approval chain in audit log.
+**Why Must Have:** Corporate governance standard for companies above 100 employees. The CFO evaluator: "My board and statutory auditors require segregation of duties." Any mid-market company's internal audit will flag the absence of maker-checker. Without it, any "member" can close any compliance item with no review — creating both compliance risk and governance failure.
+**Minimum scope:** `submitted_for_review` status added to enum. `reviewer_id` field on compliance items. Notification to reviewer. Approve/reject action with comment. Audit log records approver + timestamp.
 
 ---
 
-### M-15: Help Centre / In-App Onboarding
-**What:** A basic help centre (10–15 articles covering: how to set up your first compliance item, how to use audit points, how to invite team members, what each status means, how to use the penalty calculator). Plus an in-app onboarding checklist for new users (first 5 steps to get value).
-**Why must-have:** The salesperson evaluator: "I become the support desk. I spend 30% of my time supporting existing customers instead of selling to new ones." Without documentation, every new user is dependent on the sales/founding team for onboarding. This does not scale past 20 customers. It also signals product maturity to procurement evaluators.
-**Minimum scope:** Static `/help` section with 10 articles (Markdown rendered). In-app first-time-user banner with a 5-step checklist (Add first compliance item → Invite a teammate → Set up a deadline reminder → Try the penalty calculator → Complete your first item).
+### M-15: Dashboard Filters (Department, Type, Status, Assignee, Date Range)
+**Source:** Claude (Must Have)
+**What:** Filter bar on compliance list and dashboard: compliance type, status, department, assignee, priority, due date range. URL-persisted filters. Dashboard summary cards update to reflect active filter.
+**Why Must Have:** A company with 5 departments and 200 compliance items cannot work with unfiltered aggregate numbers. The CFO evaluator: "I cannot filter the dashboard to see what is overdue at my Chennai office." Table-stakes for any SaaS with a dashboard and more than 20 records.
+**Minimum scope:** Filter bar on compliance list page. Multi-select dropdowns. URL query params for sharing filtered views.
 
 ---
 
+### M-16: Help Centre + In-App Onboarding Checklist
+**Source:** Claude (Must Have) | Z.ai (noted as missing but not explicitly listed)
+**What:** 10–15 help articles (how to create a compliance item, how to use audit points, what each status means, how to use the penalty calculator). Plus in-app first-time-user checklist: 5 steps to first value (add item → invite teammate → set reminder → try penalty calculator → complete first item).
+**Why Must Have:** Without documentation, the founding team becomes the support desk. Unscalable past 20 customers. Also signals product maturity to any procurement evaluator who checks.
+**Minimum scope:** Static `/help` section with Markdown articles. In-app banner for new users showing the 5-step checklist. Dismiss button. Persistent until all 5 steps done.
+
+---
 ---
 
 # TIER 2 — GOOD TO HAVE
-### Definition: These features significantly increase the product's market coverage, reduce churn, or unlock higher-paying customer segments. They are not required to get the first 50 customers but are required to get to 500 customers or to move upmarket.
+### These unlock higher-paying segments, reduce churn, or significantly improve conversion. Required to reach 500 customers.
 
 ---
 
 ### G-01: Multi-Client Architecture (CA / Consulting Firm Edition)
-**What:** A firm-level account that can manage multiple client organisations under one login. The firm admin can switch between client orgs from a top-level selector. A consolidated "All Clients" dashboard shows overdue items across all clients. Each client's data is isolated.
-**Why good-to-have:** Every CA evaluator listed this as the #1 reason for rejection. CA firms are the highest-density channel for compliance software in India — if a CA uses this for their practice, they become a referral machine for their 50–100 clients. The current single-org architecture blocks this segment entirely. However, this requires significant schema changes (firm entity, client-firm relationship, org-switching) and is a V2 priority, not V1.
+**Source:** Claude | Z.ai (G8 — Client/Vendor Read-Only Portal is a lighter version)
+**What:** Firm-level account managing multiple client organisations under one login. Top-level org switcher. Consolidated "All Clients" overdue dashboard. Each client's data fully isolated.
+**Note on Z.ai G8:** Z.ai proposed a read-only client portal (clients view their own compliance status). That is the lighter version of this — build the read-only portal first as it requires less architectural change, then extend to full multi-client management.
+**Why Good to Have:** CA firms are the best referral channel in Indian compliance software. Current single-org architecture blocks them entirely. High effort (schema change: firm → client relationships) — V2 priority after PMF is confirmed.
 
 ---
 
 ### G-02: Location / Branch Management
-**What:** Add a `locations` table (name, type: office/factory/warehouse, city, state, address). Assign compliance items to a specific location. Dashboard filterable by location. Location-wise compliance health view.
-**Why good-to-have:** The CFO evaluator's Reason 1 was the absence of location management for 42 locations. Any company with more than 2 offices needs location-level compliance tracking. Location is a prerequisite for manufacturing segment penetration. However, the majority of SME buyers (50–150 employees, 2–3 states) can use department-level assignment as a proxy. Make it V2 unless a target enterprise customer requires it.
+**Source:** Claude
+**What:** `locations` table (name, type: office/factory/warehouse, city, state). Assign compliance items to a location. Dashboard filterable by location. Location-wise compliance health card.
+**Why Good to Have:** CFO evaluator's Reason 1. Required for manufacturing and multi-state companies. SME buyers (1–2 states) can use departments as a proxy. Build after the core product is stable.
 
 ---
 
-### G-03: Filed Date + Payment Date Fields
-**What:** Two additional date fields on compliance items: "Filed On" (actual filing date, separate from due date) and "Paid On" (challan payment date). These are distinct from the due date and from "Completed At" (which currently records when the status was updated in the system).
-**Why good-to-have:** Both CA and CFO evaluators raised this. Late filing calculation requires knowing the actual filing date vs. the due date. Payment date is needed for TDS interest computation. The penalty calculator already exists — connecting it to these dates makes it live, not manual. Adds significant audit trail completeness.
+### G-03: TDS / TCS Section-Wise Tracking
+**Source:** Z.ai (G3) — not in Claude's original list
+**What:** When a TDS compliance item is created, allow selection of TDS section: 192 (salary), 194C (contractor), 194I (rent), 194J (professional fees), 194H (commission), etc. Track challan and filing by section. Section-wise TDS summary in reports.
+**Why Good to Have:** TDS is India's most voluminous tax compliance — every company deducts TDS under multiple sections monthly. A Finance Manager tracking TDS at item level needs to know which section each payment and challan belongs to. This makes the TDS module genuinely useful vs. a generic "TDS" label. Z.ai is right to add this — it is a meaningful depth feature for the largest compliance type.
 
 ---
 
-### G-04: Escalation Engine
-**What:** Configurable escalation rules per compliance type or department. Rule example: "If item is not updated 7 days before due date → notify assignee. If 3 days before → notify Department Head. If on due date → notify CFO/Admin." Rules configured in Settings → Escalation. Notifications go via email (and eventually WhatsApp).
-**Why good-to-have:** The CFO evaluator's Reason 6 — "I need a system that chases my team so I don't have to." This is a premium feature that drives daily active use of the product and reduces compliance misses. However, basic email notifications (M-09) solve the 80% case for most SME buyers. Escalation chains are needed for enterprise and mid-market — it is a tier-2 feature that unlocks higher ACV.
+### G-04: Tally Integration (Basic — Import Only)
+**Source:** Z.ai (G4) — Claude originally had as Ignore — upgraded based on Z.ai's reasoning
+**What:** Import TDS deductions and GST liability data from Tally Prime via CSV export. Tally's TDL export generates standardised CSVs. Parse these to auto-create compliance items (TDS payment due on 7th, GST payment due before GSTR-3B). No bidirectional sync at V1.
+**Why Good to Have:** Tally has 90%+ Indian SME accounting market share. The #1 objection in every demo will be: "we already have Tally." A basic Tally import (not full API integration) removes this objection — "we connect to Tally." Tally CSV export is well-documented, no API partnership needed. Z.ai correctly upgraded this from Ignore to Good-to-Have.
 
 ---
 
-### G-05: ROI Calculator (Public, Marketing Asset)
-**What:** A public-facing ROI calculator on the marketing/landing page. Inputs: company size, number of states, number of GSTINs, historical late fees paid. Output: estimated annual penalty savings from using the tool, compared to typical software cost. No login required.
-**Why good-to-have:** The salesperson evaluator's Reason 9 — "I cannot justify the price against 'we'll just use Excel' without a document to leave behind." The penalty calculator (already built) is a private in-app tool. A public ROI calculator that works before signup converts top-of-funnel visitors into qualified leads. High marketing ROI, relatively low development effort.
+### G-05: Escalation Engine
+**Source:** Claude | Z.ai (G16 — Email Template Customization partially covers this)
+**What:** Configurable escalation rules: "If item not updated 7 days before due date → notify assignee. If 3 days before → notify Department Head. If on due date → notify Admin/CFO." Rules configured in Settings → Escalation Matrix.
+**Why Good to Have:** CFO evaluator's Reason 6: "I need a system that chases my team so I don't have to." Basic email notifications (M-08) solve 80% of this. Escalation chains unlock mid-market and enterprise ACV.
 
 ---
 
-### G-06: Mobile-Responsive PWA (Progressive Web App)
-**What:** Ensure the web app is fully mobile-optimised with touch-friendly controls, and configure it as a PWA (manifest.json, service worker) so users can add it to their phone's home screen and receive push notifications without a native app.
-**Why good-to-have:** The salesperson evaluator's Reason 7 — "When I meet Operations or Factory Manager, they immediately ask: is there a phone app?" A full native iOS/Android app is expensive. A PWA costs 20% of that effort and delivers 60% of the value — home screen icon, push notifications, offline capability for reading. A genuine native app is V3; PWA is achievable now.
+### G-06: Compliance Health Score
+**Source:** Z.ai (G14) — not in Claude's original list
+**What:** A single numerical score (0–100) per organisation representing overall compliance health: calculated from completion rate, overdue items, average days-to-file, and pending-vs-due ratio. Shown on dashboard. Trend (up/down from last month). Colour-coded: Green (80+), Yellow (60–79), Red (<60).
+**Why Good to Have:** Z.ai correctly identified this — it is the single number a CEO or CFO can read in 2 seconds. It gamifies compliance management. It also creates a shareable metric ("our compliance score went from 62 to 88 this quarter") that drives renewals and word-of-mouth. Easy to compute from existing data.
 
 ---
 
-### G-07: Staff Workload & Performance View
-**What:** A view (accessible to admin/manager) showing per-user: number of items assigned, completed in the last 30 days, overdue, and average days-to-complete. Used for capacity planning and performance appraisals.
-**Why good-to-have:** The CA evaluator's Reason 13 — "How do I know how many compliance items each person has completed this month?" This is a management feature that makes the product useful to team leads and partners, not just individual contributors. It increases the number of people in a company who benefit from the tool — which drives renewal decisions.
+### G-07: Hierarchical Dashboard Views (CFO → Manager → Location)
+**Source:** Z.ai (I8 — Can Be Ignored — upgraded) | not in Claude's original list
+**What:** Role-filtered dashboard: Admin/CFO sees all departments and all locations. Manager sees only their department. Member sees only their assigned items. Each view shows the same dashboard metrics but filtered to their scope automatically.
+**Why Good to Have (not Ignore):** Z.ai put this in "Ignore" — disagree. Companies above 50 employees have multiple managers. A Finance Manager should not see HR compliance items and vice versa. Automatic scope filtering by role is not enterprise complexity — it is basic multi-user product design. Low effort (filter dashboard data by user's department assignment) with high impact on team adoption.
 
 ---
 
-### G-08: Board / Audit Committee Report Generator
-**What:** A structured quarterly compliance report (PDF export) with: summary table (total obligations, completed %, overdue, penalties paid), compliance type breakdown, notices summary, overdue items detail, and trend vs. last quarter. Template-based, auto-populated from the live data.
-**Why good-to-have:** The CFO evaluator's Reason 14. Every CFO presents a quarterly compliance report to the board. If this report generates automatically from the tool, the CFO cannot justify not using the tool. It is a renewal lock-in feature — the CFO becomes dependent on it. However, it requires clean data in the system (notices, challans, penalties paid) before it can be meaningful — so it is a V2 feature that depends on M-05 and M-08 being in place first.
+### G-08: Filed Date + Payment Date Fields
+**Source:** Claude | Z.ai (G10 — Challan Payment Tracking covers payment date)
+**What:** Two additional date fields: "Filed On" (actual filing date, separate from due date) and "Paid On" (challan payment date). Enables accurate late-fee calculation: penalty is computed on actual filing date vs. due date, not on when status was updated.
+**Why Good to Have:** Late filing penalty requires knowing actual filing date. Payment date is needed for TDS interest computation. Connects the existing penalty calculator to live item data rather than requiring manual entry.
 
 ---
 
 ### G-09: Financial Exposure Dashboard Widget
-**What:** A dashboard widget showing: "Estimated penalty if all overdue items remain unfiled today: ₹X." Computed automatically by cross-referencing overdue items' types and delay days with the penalty calculator rates. Requires a "tax/penalty amount" field on compliance items.
-**Why good-to-have:** The CFO evaluator's Reason 20 — "the number I look at every week is what is the financial exposure if all overdue items are not filed today." This is the single metric that makes compliance urgency tangible in money, not count. It requires adding a "tax/fee amount" field to compliance items — a small schema change with enormous dashboard impact.
+**Source:** Claude | Z.ai (I16 — Risk Scoring & Penalty Impact Analysis — placed in Ignore; disagree for the widget version)
+**What:** Dashboard widget: "Estimated penalty if all overdue items remain unfiled today: ₹X." Auto-computed by cross-referencing overdue items' types and delay days with penalty calculator rates. Requires adding a "tax/fee amount" field to compliance items.
+**Why Good to Have:** The number CFOs look at every week — not "how many items overdue" but "what does the overdue cost us in rupees." Makes compliance urgency tangible in money. Small schema change (`amount` field on items), large dashboard impact.
 
 ---
 
-### G-10: SSO / Google Workspace / Microsoft Entra Login
-**What:** Add OAuth-based login via Google (for Workspace users) and Microsoft (for Entra ID / Office 365 users). Supabase Auth already supports this — configuration change, not major development.
-**Why good-to-have:** The CA evaluator mentioned Google/Microsoft SSO. The CFO evaluator's Reason 18 mentioned SSO as a procurement requirement for mid-market. Supabase Auth has built-in Google and Microsoft OAuth providers — this is a 1-day configuration task, not a sprint. High value to unlock corporate accounts, low effort to implement.
+### G-10: Mobile-Responsive PWA
+**Source:** Claude (G-06) | Z.ai (G6) — Full agreement
+**What:** Ensure full mobile optimisation. Configure as PWA (manifest.json, service worker) — users can add to phone home screen and receive push notifications without a native app.
+**Why Good to Have:** Factory managers, warehouse staff, field users are on phones. A web-only tool with no mobile experience loses the operational buyer at every demo. PWA is 20% of the cost of a native app at 60% of the value.
 
 ---
 
-### G-11: Document Version Control
-**What:** Within the Documents section of each compliance item, support versioning: when a new file is uploaded with the same name or explicitly marked as a version, the system keeps previous versions accessible (download history) while marking the latest as current.
-**Why good-to-have:** The CFO and CA evaluators cited this. In a statutory audit, the final signed Form 3CD must be distinguishable from drafts. Without versioning, all uploads are a flat pile. Version control adds audit-grade document management. Moderate effort — requires a `version` field and UI changes to the documents section.
+### G-11: WhatsApp Notification Integration
+**Source:** Claude (G-12) | Z.ai (G1) — Full agreement
+**What:** Compliance deadline alerts and escalation notifications via WhatsApp Business API (Interakt / Gupshup). User opts in with WhatsApp number in Settings.
+**Why Good to Have:** WhatsApp read rate in India = 95% vs. email = 20%. A deadline reminder on WhatsApp gets acted on. However, WhatsApp Business API requires business verification, template pre-approval, and per-message costs — infrastructure lift. Build at 200+ customers.
 
 ---
 
-### G-12: WhatsApp Notification Integration
-**What:** Send compliance deadline alerts and escalation notifications via WhatsApp Business API (Twilio / Interakt / Gupshup) in addition to email. User opts in with their WhatsApp number in Settings.
-**Why good-to-have:** Multiple evaluators raised WhatsApp. In India, WhatsApp is the primary professional communication channel — email open rates are 20%, WhatsApp read rates are 95%. A reminder that arrives on WhatsApp is far more likely to trigger action than one in email. However, WhatsApp Business API requires business verification, per-message costs, and template pre-approval — making it an infrastructure lift. Worth it at 200+ customers, not at launch.
+### G-12: ROC / MCA Compliance Module (Dedicated)
+**Source:** Z.ai (G11) — not explicitly in Claude's original list
+**What:** Dedicated section for ROC/MCA compliance: annual filings calendar (AOC-4, MGT-7, MGT-14, DIR-3 KYC, ADT-1), SRN tracking per filing, charge satisfaction tracking, director DIN status. Auto-suggests based on company type (Pvt Ltd / Public Ltd / OPC) and paid-up capital.
+**Why Good to Have:** ROC compliance is mandatory for every registered company — 10 Pvt Ltd, 2 Public Ltd, 4 LLPs in a CA firm's portfolio all have annual MCA filings. Currently "ROC" is just a compliance type label. A dedicated module with MCA-specific fields and due date intelligence (MGT-7 due 60 days from AGM, etc.) makes the product genuinely useful for CS professionals — unlocking a new user persona.
 
 ---
 
 ### G-13: Multi-GSTIN Register
-**What:** An org-level GSTIN register: list all GSTIN registrations with their state, registration date, type (Regular / Composition / SEZ), and status (Active / Suspended / Cancelled). Compliance items of type "GST" can be linked to a specific GSTIN from this register.
-**Why good-to-have:** The CFO evaluator's Reason 2 — 24 GSTINs generating 24 indistinguishable GSTR-3B rows. The registration number field (M-02) partially solves this by allowing free-text entry. A structured GSTIN register goes further — it enables filtering by GSTIN, auto-populating state, and eventually pulling filing status from the GSTN API. Required for companies with 3+ GSTINs; optional for SMEs with 1.
+**Source:** Claude (G-13) | Z.ai (G12) — Full agreement
+**What:** Org-level GSTIN register: all GSTIN registrations with state, registration date, type (Regular/Composition/SEZ), status. GST compliance items link to a specific GSTIN from this register.
+**Why Good to Have:** Registration number field (M-09) handles the single-GSTIN case. Multi-GSTIN register handles companies with 3+ state registrations — enables filtering GSTR-3B items by GSTIN and auto-populating state. Required for mid-market segment.
 
 ---
 
-### G-14: Public Roadmap Page
-**What:** A public-facing product roadmap (`/roadmap`) showing: what is shipped, what is in progress (current quarter), what is planned (next quarter), and an open voting/suggestion mechanism for customers to upvote features.
-**Why good-to-have:** The salesperson evaluator's Reason 20 — "I cannot sell the future when the present has gaps." A public roadmap builds trust with prospects evaluating competing tools, gives sales a tool to handle "when will X be available?" objections, and signals active development velocity. Canny.io or a simple static page is sufficient at V1.
+### G-14: Email Template Customization
+**Source:** Z.ai (G16) — not in Claude's original list
+**What:** Allow users to customise the wording of deadline reminder emails — add company name, custom message, CC recipients. Admin can preview before saving. Default templates are professional but editable.
+**Why Good to Have:** CA firms forwarding compliance reminders to clients need the email to say "From: Your CA Firm" not a generic ComplianceTrack notification. Small feature, high perceived value for the CA segment. Low development effort.
 
 ---
 
-### G-15: G2 / Capterra / SoftwareSuggest Listing
-**What:** Create verified listings on G2, Capterra, and SoftwareSuggest in the "Compliance Management Software — India" category. Collect 5 reviews from beta users before launch. Maintain actively.
-**Why good-to-have:** The salesperson evaluator's Reason 5: "My product does not exist in the prospect's research phase." This is not a product feature — it is a go-to-market action — but it is as important as any feature for early traction. Every Indian SME procurement process includes a Capterra or G2 check. Zero reviews = zero credibility. Achievable in 2 weeks with 5 beta users willing to write a review.
+### G-15: Staff Workload + Performance View
+**Source:** Claude (G-07)
+**What:** Per-user view (Admin/Manager): items assigned, completed in last 30 days, overdue, average days-to-complete.
+**Why Good to Have:** CA evaluator: "How do I know how many items each person completed this month?" Management feature that makes the product valuable to team leads — drives renewal when managers see team accountability data.
 
 ---
 
+### G-16: Board / Audit Committee Report Generator (PDF)
+**Source:** Claude (G-08)
+**What:** Structured quarterly PDF report: total obligations, completion %, overdue, penalties paid, notices summary, overdue details, trend vs. last quarter.
+**Why Good to Have:** CFO cannot justify not using the tool if this report generates automatically. Renewal lock-in feature. Depends on M-05 (challan) and M-07 (notices) being in place first.
+
+---
+
+### G-17: SSO / Google Workspace / Microsoft Entra Login
+**Source:** Claude (G-10) | Z.ai (not listed separately)
+**What:** OAuth login via Google and Microsoft. Supabase Auth supports both natively — configuration change.
+**Why Good to Have:** Procurement requirement for mid-market. 1-day task using existing Supabase Auth providers. Disproportionate value for low effort.
+
+---
+
+### G-18: Document Version Control
+**Source:** Claude (G-11)
+**What:** When a new file is uploaded for the same compliance item, keep previous versions accessible. Mark latest as current. Version history with uploader name and timestamp.
+**Why Good to Have:** Final signed Form 3CD must be distinguishable from drafts. Audit-grade document management. Moderate effort — `version` field on documents table.
+
+---
+
+### G-19: Public ROI Calculator
+**Source:** Claude (G-05)
+**What:** Public-facing (no login) ROI calculator on the landing page. Inputs: company size, GSTINs, states, last year's penalties paid. Output: estimated savings vs. software cost.
+**Why Good to Have:** Converts top-of-funnel visitors into qualified leads. The penalty calculator already exists in-app — this is a public-facing version of the same logic.
+
+---
+
+### G-20: Public Roadmap Page
+**Source:** Claude (G-14)
+**What:** `/roadmap` page showing shipped, in-progress, and planned features. Customer upvoting.
+**Why Good to Have:** Salesperson evaluator Reason 20: "I cannot sell the future when the present has gaps." Builds trust with prospects and handles the "when will X be ready?" objection in every competitive deal.
+
+---
+
+### G-21: G2 / Capterra / SoftwareSuggest Listing
+**Source:** Claude (G-15)
+**What:** Verified listings in "Compliance Management Software — India" category. 5 reviews from beta users before launch.
+**Why Good to Have:** Salesperson Reason 5: product doesn't exist in the prospect's research phase. Not a product feature but as important as any feature for early traction. 2-week effort.
+
+---
 ---
 
 # TIER 3 — CAN BE IGNORED
-### Definition: These features were raised in evaluations but represent either extreme niche requirements, premature enterprise complexity, or infrastructure/regulatory processes that require significant non-engineering investment. Building these before Product-Market Fit would be a distraction.
+### Premature, niche, or requiring non-engineering investment (regulatory, partnerships, certifications). Do not build before 500+ customers.
 
 ---
 
-### I-01: EXIM Compliance Module (DGFT, Advance Authorisation, EPCG, RODTEP, Duty Drawback)
-**Why ignore now:** Relevant only to companies with active import-export operations. Requires deep DGFT domain knowledge, complex licence-obligation linkage, and regulatory change management. The "Other" compliance type with good tagging handles EXIM items adequately for early customers. Build only when 3+ enterprise EXIM customers request it with budget.
+### I-01: EXIM / Import-Export Compliance Module (DGFT, Advance Authorisation, EPCG, RODTEP, Duty Drawback)
+**Source:** Claude + Z.ai (I4) — Full agreement
+**Why ignore:** Relevant only to active EXIM companies. Deep DGFT domain knowledge required. "Other" compliance type handles basic tracking. Build only when 3+ enterprise EXIM customers request it with budget.
 
 ---
 
-### I-02: Full ERP Integration (SAP, Tally API, Oracle, Microsoft Dynamics)
-**Why ignore now:** ERP integrations require vendor partnerships, dedicated API maintenance, and enterprise-grade support SLAs. The development cost exceeds the revenue from the first 100 customers. Manual data entry is the right default until 200+ enterprise customers justify the integration investment. A Zapier/webhook interface (G-tier) is the correct stepping stone.
+### I-02: Factory Licence + Industrial Compliance Lifecycle (PCB Consent, Boiler Certificates, Environmental Clearance)
+**Source:** Claude (I-03) + Z.ai (I1 + I3) — Full agreement
+**Why ignore:** Relevant only to companies with factories. "Environmental" type handles basic tracking. Licence-condition linkage is complex to model. Build when manufacturing becomes a primary customer segment.
 
 ---
 
-### I-03: Factory / Industrial Compliance Lifecycle (PCB Consent, Boiler Certificates, Environmental Clearance)
-**Why ignore now:** Relevant only to manufacturing companies with active factories. The "Environmental" compliance type handles these adequately as basic tracking items. The "licence + conditions linkage" feature is complex to model correctly. Build this when manufacturing becomes a primary customer segment — not at launch when the ICP is SME Finance Managers.
+### I-03: Fire + Safety Compliance Module
+**Source:** Claude (I-12) + Z.ai (I2) — Full agreement
+**Why ignore:** Fire NOC, extinguisher certificates, mock drill records — can all be tracked under "Other" compliance type with location tags (G-02). Dedicated module adds UI complexity without new data capability. Build only if facilities management becomes a target segment.
 
 ---
 
 ### I-04: C&F Agent / Third-Party Vendor Compliance Portal
-**Why ignore now:** Requires a separate external portal for agents to upload documents, a portal authentication system, and a verification workflow — effectively a second product. The primary product needs to be stable and adopted first. This is a V3 feature for logistics and distribution companies with complex agent networks.
+**Source:** Claude (I-04) + Z.ai (I5) — Full agreement
+**Why ignore:** Requires a separate external portal with its own auth, upload flow, and verification workflow — effectively a second product. V3 feature for logistics and distribution companies.
 
 ---
 
 ### I-05: Contract Labour Compliance Module
-**Why ignore now:** The Contract Labour (Regulation and Abolition) Act compliance is relevant to companies with factories and contract workers. The "Labour" compliance type handles basic tracking. A full module (principal employer register, contractor licence tracking, wage compliance monitoring) is complex and applies to a narrow segment of early customers. Add when manufacturing and logistics are primary segments.
+**Source:** Claude (I-05) + Z.ai (I6 — State-Specific Labour Law Variations)
+**Why ignore:** Relevant to factories and warehouses with contract workers. "Labour" compliance type handles basic tracking. Full module (principal employer register, contractor licence tracking) requires significant domain complexity.
 
 ---
 
-### I-06: Multi-State Professional Tax Management (18-State PT Module)
-**Why ignore now:** Professional Tax is state-specific, with 18 different regimes, slabs, and authorities. A generic PT item with a state tag (enabled by location management — G-02) handles this adequately for most users. A full PT module with state-by-state due date intelligence is a niche within a niche — implement only when state-specific compliance intelligence becomes a paid upsell tier.
+### I-06: ERP Integration (SAP / Oracle)
+**Source:** Claude (I-02) + Z.ai (I7)
+**Why ignore:** Requires vendor partnership, dedicated API maintenance, enterprise-grade SLAs. Development cost exceeds revenue from first 100 customers. Tally basic import (G-04) is the correct stepping stone.
 
 ---
 
-### I-07: AI-Powered Notice Analysis ("This notice demands ₹X, you have 21 days, here are 3 grounds to contest")
-**Why ignore now:** Legally complex — any AI-generated legal advice creates liability exposure. Requires ongoing updates to case law, departmental circulars, and FAQs. The infrastructure (LLM integration, RAG on tax law, legal review process) is significant. First, build the notice register (M-08). After 500+ notices are logged in the system, the dataset and use case will be clear enough to build AI analysis correctly.
+### I-07: AI / ML Predictive Analytics
+**Source:** Z.ai (I9)
+**Why ignore:** Too early. Build the dataset first — 500+ notices logged, 10,000+ compliance items tracked — then AI analysis becomes meaningful. Premature AI is expensive and under-delivers when the training data does not exist yet.
 
 ---
 
-### I-08: Government Portal API Integration (GSTN API, MCA21 API, TRACES API)
-**Why ignore now:** GSTN API requires a GSP (GST Suvidha Provider) license from GSTN — a regulatory process that takes 6–12 months and significant compliance overhead. MCA21 API is restricted to registered intermediaries. TRACES API is similarly gated. This is a regulatory and business development challenge, not a development task. Build the product first; pursue API licenses at Series A stage.
+### I-08: AI-Powered Notice Analysis (Auto-identify grounds to contest, demand calculation)
+**Source:** Claude (I-07)
+**Why ignore:** Legally complex — AI-generated legal advice creates liability exposure. Depends on M-07 (notice register) being built and used first. Revisit when 500+ notices are in the system and legal review process is defined.
 
 ---
 
-### I-09: SOC 2 Type II / ISO 27001 Certification
-**Why ignore now:** Certifications are processes, not features. SOC 2 Type II takes 12–18 months of preparation. ISO 27001 takes 6–12 months. Both require significant investment and cannot be rushed. The correct approach: implement security best practices now (already done — auth-guard, row-level isolation, audit logs), document them, and pursue certifications after Series A when an enterprise sales motion justifies the cost. Focus early sales on SME buyers who do not require certifications.
+### I-09: Government Portal API Integration (GSTN API, MCA21 API, TRACES API)
+**Source:** Claude (I-08)
+**Why ignore:** GSTN API requires a GSP (GST Suvidha Provider) licence — 6–12 month regulatory process. MCA21 and TRACES APIs are similarly gated. This is a regulatory and business development challenge, not a development task.
 
 ---
 
-### I-10: Billing / Professional Fee Tracking per Compliance Item (CA Firm Billing)
-**Why ignore now:** This feature is exclusively relevant to CA firms managing client billing — a segment that requires the multi-client architecture (G-01) first. Building fee tracking before multi-client architecture would be building a room in a house that has no foundation. Once G-01 is built and CA firms are using the product, billing integration becomes the natural next upsell.
+### I-10: SOC 2 Type II / ISO 27001 Certification
+**Source:** Claude (I-09) + Z.ai (I11) — Full agreement
+**Why ignore now:** A process, not a feature. SOC 2 Type II takes 12–18 months. Implement security best practices now (already done — auth-guard, audit logs, row isolation), document them, pursue certifications post–Series A.
 
 ---
 
-### I-11: Contingent Liability Disclosure Tracker (Balance Sheet Notes)
-**Why ignore now:** This is a financial accounting feature — tracking disputed tax demands for balance sheet disclosure under AS 29 / Ind AS 37. It overlaps with the notice register (M-08) and financial exposure widget (G-09), but requires accounting knowledge and integration with the company's books. Far too specialised for general use. Build only on explicit enterprise customer request.
+### I-11: CA Firm Billing / Professional Fee Tracking
+**Source:** Claude (I-10) + Z.ai (G13 — Compliance Fee/Billing Tracking moved to Good to Have)
+**Why ignore:** Z.ai placed this as Good-to-Have. Kept in Ignore because fee tracking requires multi-client architecture (G-01) to be built first. Building billing before multi-client is building a room without a foundation. Add after G-01 ships.
 
 ---
 
-### I-12: Fire and Safety as a Dedicated Module
-**Why ignore now:** Fire NOC, extinguisher certificates, mock drills — all can be tracked as "Other" compliance type with a location tag (G-02) and appropriate period/due date fields. A dedicated fire and safety module adds UI complexity without adding data capability that the generic model cannot handle. Build only if a facilities management company becomes a primary target segment.
+### I-12: Board Meeting + Corporate Governance Calendar
+**Source:** Z.ai (I12) — not in Claude's original list
+**Why ignore:** Board meeting dates, quorum requirements, notice periods — relevant only to listed companies or companies with active board governance requirements. Covered by a Company Secretary manually. Too narrow a use case for general compliance SaaS.
 
 ---
 
-### I-13: FEMA / RBI Transaction Reporting
-**Why ignore now:** Extremely niche — relevant only to companies with foreign investments, overseas subsidiaries, or specific foreign exchange transactions. Covered by specialist compliance firms and software. Adding it to a general compliance tool creates noise without adding addressable market.
+### I-13: Insurance Compliance Tracking
+**Source:** Z.ai (I13) — not in Claude's original list
+**Why ignore:** Insurance policy renewals (D&O, asset, workmen's compensation, group health) are managed by the admin/HR team, not the finance/compliance team. Different buyer persona, different tool. Niche feature that adds UI clutter for the core compliance user.
 
 ---
 
-### I-14: Zapier / Webhook / API Integration Marketplace
-**Why ignore now:** Building an integration marketplace before having stable APIs and a developer community is premature. Add webhooks (outbound event hooks) after the core product is stable and 3+ enterprise customers request API-based automation. Zapier partnership requires a minimum active user base. Build after 200 customers.
+### I-14: Real Estate / Property Compliance
+**Source:** Z.ai (I14) — not in Claude's original list
+**Why ignore:** Vertical-specific (RERA registration, property tax, lease compliance). Requires deep real estate regulatory knowledge. Build a separate product for this segment, not a module in a general compliance SaaS.
 
 ---
 
----
-
-## Summary Table
-
-| # | Feature | Tier | Effort | Impact |
-|---|---|---|---|---|
-| M-01 | Recurring compliance engine | Must Have | High | Critical |
-| M-02 | Registration number fields (GSTIN/PAN/TAN) | Must Have | Low | Critical |
-| M-03 | Period / financial year field | Must Have | Low | Critical |
-| M-04 | Acknowledgement number field | Must Have | Low | High |
-| M-05 | Challan tracking | Must Have | Medium | High |
-| M-06 | Annual calendar view | Must Have | Medium | High |
-| M-07 | India due date library / templates | Must Have | Medium | Critical |
-| M-08 | Government notice / SCN register | Must Have | Medium | Critical |
-| M-09 | Email notifications (verified external) | Must Have | Low | Critical |
-| M-10 | Bulk CSV import | Must Have | Medium | High |
-| M-11 | Free trial / self-serve signup | Must Have | Low | Critical |
-| M-12 | Public pricing page | Must Have | Low | Critical |
-| M-13 | Approval workflow (maker-checker) | Must Have | Medium | High |
-| M-14 | Dashboard filters | Must Have | Medium | High |
-| M-15 | Help centre / in-app onboarding | Must Have | Low | High |
-| G-01 | Multi-client architecture (CA Edition) | Good to Have | Very High | Very High |
-| G-02 | Location / branch management | Good to Have | High | High |
-| G-03 | Filed date + payment date fields | Good to Have | Low | Medium |
-| G-04 | Escalation engine | Good to Have | High | High |
-| G-05 | Public ROI calculator | Good to Have | Low | High |
-| G-06 | Mobile PWA | Good to Have | Medium | High |
-| G-07 | Staff workload / performance view | Good to Have | Medium | Medium |
-| G-08 | Board report generator (PDF) | Good to Have | High | High |
-| G-09 | Financial exposure dashboard widget | Good to Have | Low | High |
-| G-10 | SSO / Google / Microsoft login | Good to Have | Low | Medium |
-| G-11 | Document version control | Good to Have | Medium | Medium |
-| G-12 | WhatsApp notification integration | Good to Have | High | High |
-| G-13 | Multi-GSTIN register | Good to Have | Medium | High |
-| G-14 | Public roadmap page | Good to Have | Low | Medium |
-| G-15 | G2 / Capterra listing | Good to Have | Low | High |
-| I-01 | EXIM compliance module | Ignore Now | Very High | Low |
-| I-02 | ERP integration (SAP / Tally API) | Ignore Now | Very High | Low |
-| I-03 | Factory industrial compliance lifecycle | Ignore Now | High | Low |
-| I-04 | C&F agent / vendor compliance portal | Ignore Now | Very High | Low |
-| I-05 | Contract labour compliance module | Ignore Now | High | Low |
-| I-06 | Multi-state Professional Tax module | Ignore Now | High | Low |
-| I-07 | AI-powered notice analysis | Ignore Now | Very High | Medium |
-| I-08 | Government portal API (GSTN/MCA/TRACES) | Ignore Now | Very High | Low |
-| I-09 | SOC 2 / ISO 27001 certification | Ignore Now | Very High | Medium |
-| I-10 | CA billing / fee tracking | Ignore Now | High | Low |
-| I-11 | Contingent liability tracker | Ignore Now | Medium | Low |
-| I-12 | Fire & safety dedicated module | Ignore Now | Medium | Low |
-| I-13 | FEMA / RBI reporting | Ignore Now | High | Low |
-| I-14 | Zapier / webhook / API marketplace | Ignore Now | High | Low |
+### I-15: Bank / FI Compliance (CMA Data, LC / BG Tracking)
+**Source:** Z.ai (I15) — not in Claude's original list
+**Why ignore:** Bank compliance (CMA data submission, stock statement to banks, LC/BG validity) is managed by treasury/finance teams using banking portals. Different tool, different user, different regulatory domain.
 
 ---
 
-## Recommended Build Sequence (Sprint Planning View)
+### I-16: Multi-Currency / Multi-Country Support
+**Source:** Z.ai (I18)
+**Why ignore:** Product is explicitly built for India. Multi-country support requires separate regulatory databases, currency handling, and tax regime knowledge for each country. Premature internationalisation kills focus. Build India first; internationalise at Series B.
 
-**Sprint 1 (Weeks 1–2): Zero-friction acquisition**
+---
+
+### I-17: Native Mobile Apps (iOS / Android)
+**Source:** Z.ai (I17) — Claude has PWA (G-10) as the path
+**Why ignore:** Native apps require separate iOS and Android codebases, App Store/Play Store submissions, and ongoing maintenance. PWA (G-10) delivers 60% of the value at 20% of the cost. Native apps are V3 if PWA proves insufficient.
+
+---
+
+### I-18: Partner / Channel Sales Programme
+**Source:** Z.ai (I10) — not a product feature
+**Why ignore:** A go-to-market programme, not a product feature. CA referral partnerships, reseller agreements, and co-marketing deals are business development activities. Cannot be built by engineering. Start informally with 5 CA partners — if it works, formalise it.
+
+---
+
+### I-19: Contingent Liability Disclosure Tracker (Balance Sheet Notes)
+**Source:** Claude (I-11)
+**Why ignore:** Financial accounting feature (AS 29 / Ind AS 37 disclosure). Overlaps with notice register (M-07) and exposure widget (G-09) but requires accounting system integration. Too specialised for general compliance SaaS.
+
+---
+
+### I-20: FEMA / RBI Transaction Reporting
+**Source:** Claude (I-13)
+**Why ignore:** Relevant only to companies with foreign investments or specific forex transactions. Covered by specialist compliance consultants and software. Adding it to a general compliance tool creates noise.
+
+---
+---
+
+## Master Summary Table
+
+| ID | Feature | Tier | Effort | Impact | Source |
+|---|---|---|---|---|---|
+| M-01 | Recurring compliance engine | **Must Have** | High | Critical | Both (Claude Must, Z.ai Good — overruled) |
+| M-02 | India compliance calendar DB + entity auto-suggest | **Must Have** | Medium | Critical | Both (M1+M2 from Z.ai, M-07 from Claude) |
+| M-03 | Period / financial year field (April–March) | **Must Have** | Low | Critical | Both |
+| M-04 | Acknowledgement / ARN / reference number field | **Must Have** | Low | High | Claude |
+| M-05 | Challan payment tracking (BSR, amount, date) | **Must Have** | Medium | High | Both (Claude Must, Z.ai Good — overruled) |
+| M-06 | Annual compliance calendar view | **Must Have** | Medium | High | Claude |
+| M-07 | Government notice / SCN register | **Must Have** | Medium | Critical | Both (Claude Must, Z.ai Good — overruled) |
+| M-08 | Email notifications (external, verified delivery) | **Must Have** | Low | Critical | Both |
+| M-09 | Registration number fields on compliance items | **Must Have** | Low | Critical | Claude |
+| M-10 | Bulk import via CSV | **Must Have** | Medium | High | Both (Claude Must, Z.ai Good — upgraded) |
+| M-11 | Free trial / self-serve signup | **Must Have** | Low | Critical | Both |
+| M-12 | Public pricing page | **Must Have** | Low | Critical | Both |
+| M-13 | Improved landing page + value proposition | **Must Have** | Low | High | Z.ai |
+| M-14 | Approval workflow — 2-level maker-checker | **Must Have** | Medium | High | Both (Claude Must, Z.ai Good — upgraded) |
+| M-15 | Dashboard filters (type, status, dept, assignee) | **Must Have** | Medium | High | Claude |
+| M-16 | Help centre + in-app onboarding checklist | **Must Have** | Low | High | Claude |
+| G-01 | Multi-client architecture (CA Practice Edition) | Good to Have | Very High | Very High | Claude |
+| G-02 | Location / branch management | Good to Have | High | High | Claude |
+| G-03 | TDS/TCS section-wise tracking | Good to Have | Medium | High | Z.ai |
+| G-04 | Tally integration (basic CSV import) | Good to Have | Medium | High | Z.ai (Claude upgraded from Ignore) |
+| G-05 | Escalation engine (configurable rules) | Good to Have | High | High | Claude |
+| G-06 | Compliance health score (0–100) | Good to Have | Low | High | Z.ai |
+| G-07 | Hierarchical dashboard views (role-scoped) | Good to Have | Medium | High | Z.ai (upgraded from Ignore) |
+| G-08 | Filed date + payment date fields | Good to Have | Low | Medium | Claude |
+| G-09 | Financial exposure widget (₹X at risk today) | Good to Have | Low | High | Claude |
+| G-10 | Mobile PWA | Good to Have | Medium | High | Both |
+| G-11 | WhatsApp notification integration | Good to Have | High | High | Both |
+| G-12 | ROC / MCA dedicated module | Good to Have | Medium | High | Z.ai |
+| G-13 | Multi-GSTIN register | Good to Have | Medium | High | Both |
+| G-14 | Email template customisation | Good to Have | Low | Medium | Z.ai |
+| G-15 | Staff workload + performance view | Good to Have | Medium | Medium | Claude |
+| G-16 | Board / audit committee PDF report | Good to Have | High | High | Claude |
+| G-17 | SSO / Google / Microsoft login | Good to Have | Low | Medium | Claude |
+| G-18 | Document version control | Good to Have | Medium | Medium | Claude |
+| G-19 | Public ROI calculator | Good to Have | Low | High | Claude |
+| G-20 | Public roadmap page | Good to Have | Low | Medium | Claude |
+| G-21 | G2 / Capterra listing | Good to Have | Low | High | Claude |
+| I-01 | EXIM compliance module | Ignore | Very High | Low | Both |
+| I-02 | Factory / industrial compliance lifecycle | Ignore | High | Low | Both |
+| I-03 | Fire + safety dedicated module | Ignore | Medium | Low | Both |
+| I-04 | C&F agent / vendor compliance portal | Ignore | Very High | Low | Both |
+| I-05 | Contract labour compliance module | Ignore | High | Low | Both |
+| I-06 | ERP integration (SAP / Oracle) | Ignore | Very High | Low | Both |
+| I-07 | AI / ML predictive analytics | Ignore | Very High | Medium | Z.ai |
+| I-08 | AI-powered notice analysis | Ignore | Very High | Medium | Claude |
+| I-09 | Government portal API (GSTN / MCA / TRACES) | Ignore | Very High | Low | Claude |
+| I-10 | SOC 2 / ISO 27001 certification | Ignore | Very High | Medium | Both |
+| I-11 | CA billing / fee tracking | Ignore | High | Low | Both |
+| I-12 | Board meeting + governance calendar | Ignore | Medium | Low | Z.ai |
+| I-13 | Insurance compliance tracking | Ignore | Medium | Low | Z.ai |
+| I-14 | Real estate / property compliance | Ignore | High | Low | Z.ai |
+| I-15 | Bank / FI compliance (CMA, LC/BG) | Ignore | High | Low | Z.ai |
+| I-16 | Multi-currency / multi-country | Ignore | Very High | Low | Z.ai |
+| I-17 | Native iOS / Android apps | Ignore | Very High | Medium | Z.ai (PWA is the path) |
+| I-18 | Partner / channel sales programme | Ignore | N/A | Low | Z.ai (GTM not product) |
+| I-19 | Contingent liability disclosure tracker | Ignore | Medium | Low | Claude |
+| I-20 | FEMA / RBI reporting | Ignore | High | Low | Claude |
+
+**Totals: 16 Must Have | 21 Good to Have | 20 Can Be Ignored**
+
+---
+
+## Recommended Build Sequence
+
+**Sprint 1 (Weeks 1–2): Acquisition foundation**
 - M-11: Free trial flow
 - M-12: Pricing page
-- M-15: Help centre + onboarding checklist
+- M-13: Landing page rewrite
+- M-16: Help centre + onboarding checklist
+- G-17: Google SSO (1 day — Supabase config)
 
-**Sprint 2 (Weeks 3–4): Core data completeness**
-- M-02: Registration number fields
-- M-03: Period field
+**Sprint 2 (Weeks 3–4): Core data fields**
+- M-03: Period / FY field
 - M-04: Acknowledgement number field
-- G-03: Filed date + payment date fields
-- G-10: Google SSO (1 day — Supabase config)
+- M-09: Registration number fields
+- G-08: Filed date + payment date fields
+- G-06: Compliance health score (computed from existing data — low effort)
 
-**Sprint 3 (Weeks 5–6): Recurring + bulk setup**
+**Sprint 3 (Weeks 5–6): Automation + scale**
 - M-01: Recurring compliance engine
 - M-10: Bulk CSV import
-- M-07: India due date library / templates
+- M-02: India compliance calendar DB + entity auto-suggest templates
 
-**Sprint 4 (Weeks 7–8): Visibility and control**
-- M-06: Calendar view
-- M-14: Dashboard filters
-- G-09: Financial exposure widget (requires `amount` field on items)
-- G-05: Public ROI calculator
+**Sprint 4 (Weeks 7–8): Visibility + control**
+- M-06: Annual calendar view
+- M-15: Dashboard filters
+- G-07: Hierarchical role-scoped dashboard
+- G-09: Financial exposure widget
 
-**Sprint 5 (Weeks 9–10): Evidence and governance**
+**Sprint 5 (Weeks 9–10): Evidence + governance**
 - M-05: Challan tracking
-- M-13: Approval workflow
-- G-11: Document version control
+- M-14: Approval workflow (maker-checker)
+- G-18: Document version control
+- G-03: TDS/TCS section-wise tracking
 
-**Sprint 6 (Weeks 11–12): Risk management and notifications**
-- M-08: Government notice / SCN register
-- M-09: Email notifications (verified external delivery)
-- G-04: Escalation engine (basic 2-level)
+**Sprint 6 (Weeks 11–12): Risk management + external comms**
+- M-07: Government notice / SCN register
+- M-08: Email notifications (verified external)
+- G-05: Escalation engine (basic 2-level)
+- G-19: Public ROI calculator
 
-**After Sprint 6:** Evaluate PMF signals. If CA firms are the primary segment → build G-01 (multi-client). If mid-market companies → build G-02 (location), G-08 (board report). If growth stalls on awareness → G-15 (G2 listing), G-14 (roadmap), G-12 (WhatsApp).
+**Sprint 7 (Weeks 13–14): Market visibility**
+- G-21: G2 / Capterra listing (business action, not engineering)
+- G-20: Public roadmap page
+- G-04: Tally basic CSV import
+- G-12: ROC / MCA dedicated module
+
+**Post-Sprint 7 — evaluate PMF signals:**
+- CA firms primary segment → Build G-01 (multi-client), G-14 (email templates)
+- Mid-market primary → Build G-02 (location), G-16 (board report), G-13 (multi-GSTIN)
+- Growth stalling → G-11 (WhatsApp), G-10 (PWA), G-15 (staff performance)
 
 ---
 
 *Document prepared by: DEVABOSS / Claude Code*
-*Source: evaluation_by_ca.md (6 evaluations across 4 personas) + full codebase review (schema, pages, API routes)*
+*Merged with: Z.ai independent feature audit*
+*Sources: evaluation_by_ca.md (6 evaluations, 4 personas) + Z.ai feature table + full codebase review (schema, pages, API routes)*
 *Date: 2026-06-29*
-*This is a living document. Update after each sprint with completed items and revised priorities.*
+*This is a living document. Update after each sprint. Where Claude and Z.ai disagreed, decisions are documented in the Conflicts Resolved table at the top.*
