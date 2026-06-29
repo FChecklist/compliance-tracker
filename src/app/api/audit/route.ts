@@ -1,8 +1,11 @@
 import { db, auditLogs } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, gte, lt, desc, sql } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(request: NextRequest) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const { searchParams } = request.nextUrl
 

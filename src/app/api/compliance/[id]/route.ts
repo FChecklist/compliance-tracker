@@ -1,6 +1,7 @@
 import { db, complianceItems, auditLogs, users } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
@@ -8,6 +9,8 @@ const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const { id } = await context.params
 
@@ -101,6 +104,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const { id } = await context.params
     const body = await request.json()

@@ -1,11 +1,14 @@
 import { db, departments } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { eq, asc } from "drizzle-orm";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { response } = await requireAuth()
+  if (response) return response
   try {
     const { id } = await params
 
