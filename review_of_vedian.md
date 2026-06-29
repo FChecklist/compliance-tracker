@@ -1,9 +1,34 @@
 # VERDIAN AI — ComplianceTrack: End-to-End CEO Review
 
 > **Author:** DEVABOSS (Claude Code acting as CEO, VERDIAN AI)
-> **Date:** 2026-06-29
+> **Review Date:** 2026-06-29
+> **Last Updated:** 2026-06-29 (Sprint 1 complete — launch-readiness fixes merged)
 > **Scope:** Full codebase review of `FChecklist/compliance-tracker` — architecture, UI, AI-OS, database, auth, issues, and strategic recommendations
-> **Instruction:** No code changes. Observation and recommendation only.
+
+---
+
+## Sprint 1 — Completed (2026-06-29)
+
+| Fix | Status | PR/Commit |
+|---|---|---|
+| C1: DATABASE_URL → Supabase pooler (ct_app@aws-0-ap-northeast-2.pooler.supabase.com:6543) | ✅ Done | Vercel env updated + db/index.ts pooler fallback |
+| C2: Auth guard on all 9 API routes | ✅ Done | PR #38 merged |
+| H1: Removed next-auth + z-ai-web-dev-sdk | ✅ Done | PR #38 merged |
+| H2: Removed prisma/ directory from git | ✅ Done | PR #38 merged |
+| H3: Removed db/custom.db from git | ✅ Done | PR #38 merged |
+| H4: Removed tool-results/ from git | ✅ Done | PR #38 merged |
+| H5: CI hardened — lint/typecheck/build now hard-fail | ✅ Done | PR #38 merged |
+| H6: package.json name fixed to compliance-tracker | ✅ Done | PR #38 merged |
+| M5: PR #21 (Wave 5 stale) closed | ✅ Done | Closed |
+| M6: PR #35 and #37 merged to main | ✅ Done | Merged |
+| BOARD.yaml updated with 8 new completed tasks (AIOS-019–026) | ✅ Done | Committed |
+| CLAUDE.md updated with correct stack (Drizzle not Prisma) | ✅ Done | PR #38 merged |
+
+**Remaining blockers (need human or Z.ai):**
+- C3/C4: ANTHROPIC_API_KEY not set → human must add via console.anthropic.com
+- AIOS-027: Verify API returns 200 on live site after pooler fix
+- AIOS-028: End-to-end login + CRUD test on live site
+- AIOS-029: Run remaining 32 QA test cases
 
 ---
 
