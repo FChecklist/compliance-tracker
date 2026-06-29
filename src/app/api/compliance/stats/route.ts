@@ -88,6 +88,7 @@ export async function GET() {
     })
   } catch (error) {
     console.error("Stats API error:", error)
-    return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 })
+    const msg = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: "Failed to fetch stats", debug: msg }, { status: 500 })
   }
 }
