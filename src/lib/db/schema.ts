@@ -170,3 +170,18 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
 }))
+
+// MCP access tokens — one per org, used by customer AI or Groq orchestrator
+export const mcpAccessCodes = complianceSchemaDB.table('mcp_access_codes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  token: text('token').notNull().unique(),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull().default('Default'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const mcpAccessCodesRelations = relations(mcpAccessCodes, ({ one }) => ({
+  org: one(organisations, { fields: [mcpAccessCodes.orgId], references: [organisations.id] }),
+}))
