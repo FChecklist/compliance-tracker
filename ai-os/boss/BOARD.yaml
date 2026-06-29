@@ -1,5 +1,5 @@
 # BOSS Task Board — ComplianceTrack
-# Updated: 2026-06-28 | All waves 1-3 complete
+# Updated: 2026-06-29 | All waves 1-3 complete + auth
 
 completed:
   - { id: AIOS-001, title: "Bootstrap AI-OS governance files", status: completed, date: "2026-06-25" }
@@ -17,22 +17,10 @@ completed:
   - { id: AIOS-013, title: "Vercel project created (prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII) + env vars set + deploy triggered", agent: claude-code, status: completed, date: "2026-06-28" }
   - { id: AIOS-014, title: "Delete committed .env file (security)", agent: claude-code, status: completed, date: "2026-06-28" }
   - { id: AIOS-015, title: "DATABASE_URL set (Supabase pooler, compliance schema)", agent: claude-code, status: completed, date: "2026-06-28" }
+  - { id: AIOS-016, title: "Supabase Auth — login, signup, middleware, logout, callback (commit 6f75ef9)", agent: zai, status: completed, date: "2026-06-29" }
+  - { id: AIOS-017, title: "Dashboard + all pages connected to real Drizzle API routes", agent: zai, status: completed, date: "2026-06-29" }
 
 open:
-  - id: AIOS-016
-    title: "Build Supabase Auth login/signup/onboarding pages"
-    agent: zai
-    status: open
-    priority: critical
-    notes: "Replace bcrypt auth with Supabase Auth. Pages: /login, /signup, /onboarding. Use NEXT_PUBLIC_SUPABASE_URL + ANON_KEY."
-
-  - id: AIOS-017
-    title: "Dashboard UI — compliance list, filters, status charts"
-    agent: zai
-    status: open
-    priority: high
-    notes: "Connect pages in src/app/(app)/ to real Drizzle API routes. Currently using mock/placeholder data."
-
   - id: AIOS-018
     title: "Add ANTHROPIC_API_KEY for Claude autonomous agent"
     agent: human
@@ -42,8 +30,6 @@ open:
 
 ai_os_score:
   before: 4/10
-  current: 9/10
+  current: 9.5/10
   remaining:
-    - Auth pages (Supabase Auth)
-    - Live dashboard data (connect UI to API)
-    - ANTHROPIC_API_KEY for Claude
+    - ANTHROPIC_API_KEY for Claude (human action)
