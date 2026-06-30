@@ -177,7 +177,7 @@ function Navbar() {
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <a href="/" className="flex items-center">
-          <Image src="/logo-compact.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto" priority unoptimized />
+          <Image src="/logo-compact-dark.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto" priority unoptimized />
         </a>
 
         {/* Desktop links */}
@@ -1268,7 +1268,7 @@ function Footer() {
           <div>
             <div className="mb-4">
               <a href="/" className="flex items-center">
-                <Image src="/logo-compact.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto brightness-0 invert" unoptimized />
+                <Image src="/logo-compact-dark.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto" unoptimized />
               </a>
             </div>
             <p className="text-sm text-white/50 leading-relaxed">

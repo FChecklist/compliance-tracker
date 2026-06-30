@@ -1,28 +1,31 @@
-<svg width="100%" viewBox="0 0 680 220" role="img" xmlns="http://www.w3.org/2000/svg">
+<svg width="100%" viewBox="0 0 700 220" role="img" xmlns="http://www.w3.org/2000/svg">
   <title>Veridian AI — One Truth.</title>
-  <desc>Veridian AI logo: VER in deep teal, DIAN in midnight navy, AI in gold</desc>
+  <desc>Veridian AI logo: VERI in teal, DIAN in navy, AI in gold</desc>
   <style>
     .subtitle { display: block; }
     @media (max-width: 300px) { .wordmark-dian { display: none; } .subtitle { display: none; } }
   </style>
 
-  <!-- VER -->
+  <!-- VERI in deep teal -->
   <text x="50" y="118"
         font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
         font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#0F6E56">VERIDIAN</text>
+        fill="#0F6E56">VERI<tspan fill="#0F6E56">_</tspan></text>
 
-  <!-- DIAN -->
-  
+  <!-- DIAN in midnight navy -->
+  <text x="277" y="118"
+        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
+        font-size="76" font-weight="700" letter-spacing="-1"
+        fill="#1C2B3A">DIAN<tspan fill="#F4A922">__</tspan></text>
 
-  <!-- AI -->
-  <text x="494" y="118"
+  <!-- AI in gold -->
+  <text x="537" y="118"
         font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
         font-size="76" font-weight="700" letter-spacing="-1"
         fill="#F4A922">AI</text>
 
   <!-- Divider -->
-  <line x1="50" y1="133" x2="618" y2="133" stroke="#1D9E75" stroke-width="0.8" opacity="0.4"/>
+  <line x1="50" y1="133" x2="638" y2="133" stroke="#1D9E75" stroke-width="0.8" opacity="0.4"/>
 
   <!-- Full form -->
   <text x="50" y="162"
