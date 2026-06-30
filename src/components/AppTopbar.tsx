@@ -23,10 +23,11 @@ export function AppTopbar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
- fetch("/api/notifications")
+    fetch("/api/notifications")
       .then((r) => r.json())
       .then((d) => setUnreadCount(d.unreadCount ?? 0))
       .catch(() => {});
@@ -35,10 +36,16 @@ export function AppTopbar() {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        setUserEmail(user.email);
+        setUserEmail(user.email ?? null);
         setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || null);
       }
     });
+
+    // Fetch org name from /api/me
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => { if (d.orgName) setOrgName(d.orgName); })
+      .catch(() => {});
   }, []);
 
   const handleLogout = async () => {
@@ -64,7 +71,7 @@ export function AppTopbar() {
 
       {/* Org name (visible on md+) */}
       <div className="hidden md:block">
-        <h2 className="text-sm font-medium text-white/90">Acme Financial Services</h2>
+        {orgName && <h2 className="text-sm font-medium text-white/90">{orgName}</h2>}
       </div>
 
       {/* Center spacer */}

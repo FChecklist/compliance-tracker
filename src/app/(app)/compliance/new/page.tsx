@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, ChevronDown, Search, X } from "lucide-react";
@@ -86,9 +86,13 @@ const RECURRENCE_LABELS: Record<string, string> = {
   none: "One-time",
 };
 
+type UserOption = { id: string; name: string };
+
 export default function NewCompliancePage() {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const [title, setTitle] = useState("");
@@ -106,6 +110,7 @@ export default function NewCompliancePage() {
   const [filedDate, setFiledDate] = useState("");
   const [paidDate, setPaidDate] = useState("");
   const [recurrenceType, setRecurrenceType] = useState("none");
+  const [assignedToId, setAssignedToId] = useState("");
 
   // Template picker state
   const [templateSearch, setTemplateSearch] = useState("");
@@ -156,6 +161,10 @@ export default function NewCompliancePage() {
       .then((r) => r.json())
       .then((d) => setDepartments(d.departments ?? d))
       .catch(() => {});
+    fetch("/api/users")
+      .then((r) => r.json())
+      .then((d) => setUserOptions(d.users ?? []))
+      .catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,6 +187,7 @@ export default function NewCompliancePage() {
           priority,
           dueDate: dueDate || null,
           departmentId,
+          assignedToId: assignedToId === 'unassigned' ? null : assignedToId || null,
           period: period.trim() || null,
           financialYear: financialYear || null,
           acknowledgementNumber: acknowledgementNumber.trim() || null,
@@ -362,7 +372,7 @@ export default function NewCompliancePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="title" className="text-xs font-semibold text-ct-muted uppercase">
                 Title <span className="text-red-500">*</span>
@@ -416,6 +426,21 @@ export default function NewCompliancePage() {
                   <SelectContent>
                     {departments.map((d) => (
                       <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Assign To</Label>
+                <Select value={assignedToId} onValueChange={setAssignedToId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select team member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {userOptions.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -566,10 +591,7 @@ export default function NewCompliancePage() {
           type="button"
           className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
           disabled={submitting}
-          onClick={(e) => {
-            const form = e.currentTarget.closest("div").parentElement?.querySelector("form");
-            form?.requestSubmit();
-          }}
+          onClick={() => formRef.current?.requestSubmit()}
         >
           {submitting ? "Creating..." : "Create Compliance"}
         </Button>

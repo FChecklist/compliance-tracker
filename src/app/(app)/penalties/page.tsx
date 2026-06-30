@@ -50,7 +50,7 @@ const PENALTY_RATES: Record<
   string,
   { interestRate: number; interestPeriod: "yearly" | "monthly"; penaltyPerDay?: number; penaltyMax?: number }
 > = {
-  GST: { interestRate: 18, interestPeriod: "yearly", penaltyPerDay: 200, penaltyMax: 5000 },
+  GST: { interestRate: 18, interestPeriod: "yearly", penaltyPerDay: 50, penaltyMax: 5000 },
   TDS: { interestRate: 1.5, interestPeriod: "monthly" },
   PF: { interestRate: 12, interestPeriod: "yearly" },
   ESIC: { interestRate: 12, interestPeriod: "yearly" },
@@ -99,10 +99,8 @@ export default function PenaltiesPage() {
   const enrichedItems = useMemo(() => {
     return overdueItems.map((item) => {
       if (!item.dueDate) return { ...item, daysOverdue: 0, estPenalty: 0 };
-      const days = Math.max(
-        0,
-        differenceInDays(new Date(), new Date(item.dueDate))
-      );
+      const daysLate = item.dueDate ? Math.max(0, differenceInDays(new Date(), new Date(item.dueDate))) : 0;
+      const days = daysLate;
       const rate = PENALTY_RATES[item.complianceType] ?? DEFAULT_RATE;
       // Use a rough estimate of 10000 as base for table display
       const baseAmount = 10000;

@@ -140,6 +140,19 @@ export default function ComplianceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [commentText, setCommentText] = useState("");
 
+  // Edit state
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editPriority, setEditPriority] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editPeriod, setEditPeriod] = useState('');
+  const [editARN, setEditARN] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editFiledDate, setEditFiledDate] = useState('');
+  const [editAssignedToId, setEditAssignedToId] = useState('');
+  const [teamUsers, setTeamUsers] = useState<{id: string; name: string}[]>([]);
+  const [saving, setSaving] = useState(false);
+
   const sheetOpen = true;
   const id = params.id as string;
 
@@ -185,10 +198,64 @@ export default function ComplianceDetailPage() {
     }
   };
 
-  const addComment = () => {
+  const startEditing = () => {
+    if (!data) return;
+    setEditTitle(data.title);
+    setEditPriority(data.priority);
+    setEditDueDate(data.dueDate ? data.dueDate.split('T')[0] : '');
+    setEditPeriod(data.period ?? '');
+    setEditARN(data.acknowledgementNumber ?? '');
+    setEditAmount(data.amount ?? '');
+    setEditFiledDate(data.filedDate ? data.filedDate.split('T')[0] : '');
+    setEditAssignedToId('');
+    setEditing(true);
+    fetch('/api/users').then(r => r.json()).then(d => setTeamUsers(d.users ?? []));
+  };
+
+  const saveEdits = async () => {
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        title: editTitle,
+        priority: editPriority,
+        dueDate: editDueDate || null,
+        period: editPeriod || null,
+        acknowledgementNumber: editARN || null,
+        amount: editAmount || null,
+        filedDate: editFiledDate || null,
+      };
+      if (editAssignedToId) body.assignedToId = editAssignedToId;
+      const res = await fetch(`/api/compliance/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Changes saved');
+      setEditing(false);
+      fetchDetail();
+    } catch {
+      toast.error('Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addComment = async () => {
     if (!commentText.trim()) return;
-    toast.success("Comment added (demo)");
-    setCommentText("");
+    try {
+      const res = await fetch(`/api/compliance/${id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: commentText.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Comment added');
+      setCommentText('');
+      fetchDetail();
+    } catch {
+      toast.error('Failed to add comment');
+    }
   };
 
   return (
@@ -349,6 +416,19 @@ export default function ComplianceDetailPage() {
                           <Checkbox
                             checked={ap.status === "completed"}
                             className="mt-0.5"
+                            onCheckedChange={async (checked) => {
+                              try {
+                                const res = await fetch(`/api/audit-points/${ap.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: checked ? 'completed' : 'pending' }),
+                                });
+                                if (!res.ok) throw new Error();
+                                fetchDetail();
+                              } catch {
+                                toast.error('Failed to update');
+                              }
+                            }}
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-ct-navy">{ap.title}</p>
@@ -480,37 +560,111 @@ export default function ComplianceDetailPage() {
               </Tabs>
 
               {/* Footer Actions */}
-              <div className="flex gap-2 p-4 border-t border-ct-border">
-                {data.status !== "completed" && (
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-ct-teal hover:bg-ct-teal-hover text-white"
-                    onClick={() => changeStatus("completed")}
-                  >
-                    <CheckCircle2 className="size-4 mr-1.5" />
-                    Mark Complete
-                  </Button>
+              <div className="flex gap-2 p-4 border-t border-ct-border flex-wrap">
+                {editing ? (
+                  <>
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-ct-teal hover:bg-ct-teal-hover text-white"
+                      onClick={saveEdits}
+                      disabled={saving}
+                    >
+                      {saving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setEditing(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {data.status !== "completed" && (
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-ct-teal hover:bg-ct-teal-hover text-white"
+                        onClick={() => changeStatus("completed")}
+                      >
+                        <CheckCircle2 className="size-4 mr-1.5" />
+                        Mark Complete
+                      </Button>
+                    )}
+                    {data.status === "pending" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                        onClick={() => changeStatus("in_progress")}
+                      >
+                        <PlayCircle className="size-4 mr-1.5" />
+                        Start
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={startEditing}
+                    >
+                      Edit
+                    </Button>
+                  </>
                 )}
-                {data.status === "pending" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50"
-                    onClick={() => changeStatus("in_progress")}
-                  >
-                    <PlayCircle className="size-4 mr-1.5" />
-                    Start
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => toast.info("Reassign feature coming soon")}
-                >
-                  Reassign
-                </Button>
               </div>
+
+              {/* Edit Form (shown when editing) */}
+              {editing && (
+                <div className="p-4 border-t border-ct-border space-y-3 bg-ct-cloud/30">
+                  <p className="text-xs font-semibold text-ct-muted uppercase">Edit Details</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Title</label>
+                      <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Priority</label>
+                      <select value={editPriority} onChange={e => setEditPriority(e.target.value)} className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Due Date</label>
+                      <Input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Period</label>
+                      <Input value={editPeriod} onChange={e => setEditPeriod(e.target.value)} className="h-8 text-sm" placeholder="e.g. June 2026" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">ARN / Ref</label>
+                      <Input value={editARN} onChange={e => setEditARN(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Amount (₹)</label>
+                      <Input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Filed Date</label>
+                      <Input type="date" value={editFiledDate} onChange={e => setEditFiledDate(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    {teamUsers.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-ct-muted uppercase">Reassign To</label>
+                        <select value={editAssignedToId} onChange={e => setEditAssignedToId(e.target.value)} className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm">
+                          <option value="">Keep current</option>
+                          {teamUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </SheetContent>

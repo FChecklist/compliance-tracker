@@ -1,37 +1,50 @@
-import { db, complianceItems, departments, auditLogs } from "@/lib/db";
+import { db, complianceItems, departments, auditLogs, notices } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { eq, and, not, inArray, gte, lte, asc, desc, sql } from "drizzle-orm";
+import { eq, and, not, inArray, gte, lte, asc, desc, sql, lt } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET() {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
   try {
     const now = new Date()
     const weekEnd = new Date(now.getTime() + 7 * 86400000)
     const monthEnd = new Date(now.getTime() + 30 * 86400000)
 
+    // Auto-sync overdue status before computing stats
+    await db.update(complianceItems)
+      .set({ status: 'overdue', updatedAt: now })
+      .where(
+        and(
+          lt(complianceItems.dueDate, now),
+          not(inArray(complianceItems.status, ['completed', 'not_applicable', 'overdue'])),
+          eq(complianceItems.orgId, orgId ?? '')
+        )
+      )
+
     const notDoneStatuses = ['completed', 'not_applicable'] as const
+    const orgFilter = eq(complianceItems.orgId, orgId ?? '')
 
     const [total, completed, overdue, inProgress, pending, notApplicable, dueThisWeek, dueIn30Days] =
       await Promise.all([
-        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).then(r => r[0].count),
-        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(eq(complianceItems.status, 'completed')).then(r => r[0].count),
-        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(eq(complianceItems.status, 'overdue')).then(r => r[0].count),
-        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(eq(complianceItems.status, 'in_progress')).then(r => r[0].count),
-        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(eq(complianceItems.status, 'pending')).then(r => r[0].count),
-        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(eq(complianceItems.status, 'not_applicable')).then(r => r[0].count),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(orgFilter).then(r => r[0].count),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(and(orgFilter, eq(complianceItems.status, 'completed'))).then(r => r[0].count),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(and(orgFilter, eq(complianceItems.status, 'overdue'))).then(r => r[0].count),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(and(orgFilter, eq(complianceItems.status, 'in_progress'))).then(r => r[0].count),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(and(orgFilter, eq(complianceItems.status, 'pending'))).then(r => r[0].count),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(and(orgFilter, eq(complianceItems.status, 'not_applicable'))).then(r => r[0].count),
         db.select({ count: sql<number>`count(*)::int` }).from(complianceItems)
-          .where(and(gte(complianceItems.dueDate, now), lte(complianceItems.dueDate, weekEnd), not(inArray(complianceItems.status, [...notDoneStatuses]))))
+          .where(and(orgFilter, gte(complianceItems.dueDate, now), lte(complianceItems.dueDate, weekEnd), not(inArray(complianceItems.status, [...notDoneStatuses]))))
           .then(r => r[0].count),
         db.select({ count: sql<number>`count(*)::int` }).from(complianceItems)
-          .where(and(gte(complianceItems.dueDate, now), lte(complianceItems.dueDate, monthEnd), not(inArray(complianceItems.status, ['completed', 'not_applicable', 'overdue']))))
+          .where(and(orgFilter, gte(complianceItems.dueDate, now), lte(complianceItems.dueDate, monthEnd), not(inArray(complianceItems.status, ['completed', 'not_applicable', 'overdue']))))
           .then(r => r[0].count),
       ])
 
     const depts = await db.query.departments.findMany({
       with: { complianceItems: true },
       orderBy: asc(departments.name),
+      where: orgId ? eq(departments.orgId, orgId) : undefined,
     })
 
     const byDepartment = depts.map((dept) => {
@@ -47,6 +60,7 @@ export async function GET() {
 
     const upcomingDeadlines = await db.query.complianceItems.findMany({
       where: and(
+        orgFilter,
         not(inArray(complianceItems.status, [...notDoneStatuses])),
         gte(complianceItems.dueDate, now),
       ),
@@ -64,6 +78,11 @@ export async function GET() {
       limit: 8,
     })
 
+    const noticeCount = await db.select({ count: sql<number>`count(*)::int` })
+      .from(notices)
+      .where(orgId ? eq(notices.orgId, orgId) : undefined)
+      .then(r => r[0].count)
+
     return NextResponse.json({
       total,
       overdue,
@@ -71,6 +90,7 @@ export async function GET() {
       completed,
       dueIn30Days,
       safe: Math.max(0, pending + inProgress - dueIn30Days),
+      noticeCount,
       byDepartment,
       upcomingDeadlines: upcomingDeadlines.map(i => ({
         id: i.id,

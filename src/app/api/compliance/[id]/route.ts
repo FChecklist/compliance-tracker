@@ -114,7 +114,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const { response } = await requireAuth()
+  const { response, dbUser } = await requireAuth()
   if (response) return response
   try {
     const { id } = await context.params
@@ -135,7 +135,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: `Invalid priority` }, { status: 400 })
     }
 
-    const adminUser = await db.query.users.findFirst({ where: eq(users.role, 'admin') })
+    const adminUser = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
     if (!adminUser) {
       return NextResponse.json({ error: "No admin user found" }, { status: 500 })
     }

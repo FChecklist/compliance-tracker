@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -56,7 +57,7 @@ const PENALTY_RATES: Record<
     label: "GST (GSTR-3B / GSTR-1 / GSTR-9)",
     interestRate: 18,
     interestPeriod: "yearly",
-    penaltyPerDay: 200,
+    penaltyPerDay: 50,
     penaltyMax: 5000,
   },
   TDS: {
@@ -198,9 +199,9 @@ function Navbar() {
 
         {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <Button variant="ghost" className="text-white/80 hover:text-white hover:bg-white/10">
-            Log In
-          </Button>
+          <Link href="/login" className="text-sm font-medium text-white/80 hover:text-white transition">
+            Login
+          </Link>
           <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
             Start Free Trial
           </Button>
@@ -869,7 +870,7 @@ function PenaltyCalculatorSection() {
                 </span>
                 <span className="hidden sm:inline">|</span>
                 <span>
-                  {complianceType === "GST" && "₹200/day late fee (max ₹5,000) + 18% p.a. interest"}
+                  {complianceType === "GST" && "₹50/day late fee (max ₹5,000) + 18% p.a. interest"}
                   {complianceType === "TDS" && "1.5% per month under Section 201(1A)"}
                   {complianceType === "PF" && "12% per annum interest under Section 7Q"}
                   {complianceType === "INCOME_TAX" && "1% per month under Section 234A/234B/234C"}

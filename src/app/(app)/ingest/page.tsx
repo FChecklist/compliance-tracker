@@ -56,16 +56,16 @@ const PRIORITIES = ['low','medium','high','critical']
 // Helpers
 // ---------------------------------------------------------------------------
 function confidenceBadge(c: number) {
-  if (c >= 0.85) return <Badge className="bg-green-900/40 text-green-300 border-green-700 text-[10px]">{Math.round(c * 100)}% sure</Badge>
-  if (c >= 0.6) return <Badge className="bg-yellow-900/40 text-yellow-300 border-yellow-700 text-[10px]">{Math.round(c * 100)}% sure</Badge>
-  return <Badge className="bg-red-900/40 text-red-300 border-red-700 text-[10px]">{Math.round(c * 100)}% sure</Badge>
+  if (c >= 0.85) return <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">{Math.round(c * 100)}% sure</Badge>
+  if (c >= 0.6) return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-[10px]">{Math.round(c * 100)}% sure</Badge>
+  return <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px]">{Math.round(c * 100)}% sure</Badge>
 }
 
 function rowBg(item: IngestItem) {
-  if (item.reviewStatus === 'rejected') return 'opacity-40 bg-red-950/20'
-  if (item.isDuplicate) return 'bg-yellow-950/20 border-l-2 border-yellow-600'
-  if (item.warnings.length > 0 || item.confidence < 0.7) return 'bg-yellow-950/10'
-  if (item.reviewStatus === 'approved' || item.reviewStatus === 'edited') return 'bg-green-950/20'
+  if (item.reviewStatus === 'rejected') return 'opacity-50 bg-red-50'
+  if (item.isDuplicate) return 'bg-yellow-50 border-l-2 border-yellow-400'
+  if (item.warnings.length > 0 || item.confidence < 0.7) return 'bg-yellow-50/50'
+  if (item.reviewStatus === 'approved' || item.reviewStatus === 'edited') return 'bg-green-50'
   return ''
 }
 
@@ -199,10 +199,10 @@ export default function IngestPage() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#0f1117] text-gray-100 p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-white">Import Compliance Data</h1>
-        <p className="text-gray-400 text-sm mt-1">
+    <div className="space-y-6 max-w-7xl">
+      <div>
+        <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Import Compliance Data</h1>
+        <p className="text-sm text-ct-muted mt-1">
           Upload your existing compliance data from Excel, CSV, or PDF. AI extracts the items. You review before anything is saved.
         </p>
       </div>
@@ -210,8 +210,8 @@ export default function IngestPage() {
       {/* ── Upload zone ── */}
       {!batch && !uploading && (
         <div
-          className={`border-2 border-dashed rounded-xl p-16 text-center transition-colors cursor-pointer
-            ${dragOver ? 'border-blue-500 bg-blue-900/10' : 'border-gray-700 hover:border-gray-500 bg-gray-900/30'}`}
+          className={`border-2 border-dashed rounded-xl p-16 text-center transition-colors cursor-pointer bg-white
+            ${dragOver ? 'border-ct-saffron bg-ct-saffron/5' : 'border-ct-border hover:border-ct-saffron/50'}`}
           onDragOver={e => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
@@ -224,10 +224,10 @@ export default function IngestPage() {
             accept=".xlsx,.xls,.csv,.pdf"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
           />
-          <Upload className="mx-auto mb-4 text-gray-500" size={40} />
-          <p className="text-lg font-medium text-gray-300 mb-1">Drop your file here or click to browse</p>
-          <p className="text-sm text-gray-500 mb-6">Supports Excel (.xlsx, .xls), CSV (.csv), and PDF (.pdf) — up to 10 MB</p>
-          <div className="flex justify-center gap-6 text-xs text-gray-600">
+          <Upload className="mx-auto mb-4 text-ct-saffron" size={40} />
+          <p className="text-lg font-medium text-ct-navy mb-1">Drop your file here or click to browse</p>
+          <p className="text-sm text-ct-muted mb-6">Supports Excel (.xlsx, .xls), CSV (.csv), and PDF (.pdf) — up to 10 MB</p>
+          <div className="flex justify-center gap-6 text-xs text-ct-muted">
             <span className="flex items-center gap-1"><FileSpreadsheet size={14} /> Tally exports</span>
             <span className="flex items-center gap-1"><FileSpreadsheet size={14} /> GST portal CSVs</span>
             <span className="flex items-center gap-1"><FileText size={14} /> Compliance tracker sheets</span>
@@ -238,12 +238,12 @@ export default function IngestPage() {
 
       {/* ── Upload error ── */}
       {uploadError && (
-        <div className="mt-4 p-4 bg-red-900/20 border border-red-700 rounded-lg flex items-start gap-3">
-          <XCircle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <XCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-red-300 font-medium text-sm">Upload failed</p>
-            <p className="text-red-400 text-xs mt-1">{uploadError}</p>
-            <Button variant="ghost" size="sm" className="mt-2 text-red-400 hover:text-red-300 h-7 px-2 text-xs" onClick={() => { setUploadError(null); fileRef.current?.click() }}>
+            <p className="text-red-700 font-medium text-sm">Upload failed</p>
+            <p className="text-red-600 text-xs mt-1">{uploadError}</p>
+            <Button variant="ghost" size="sm" className="mt-2 text-red-600 hover:text-red-700 h-7 px-2 text-xs" onClick={() => { setUploadError(null); fileRef.current?.click() }}>
               Try again
             </Button>
           </div>
@@ -252,24 +252,24 @@ export default function IngestPage() {
 
       {/* ── Processing ── */}
       {uploading && (
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <Loader2 size={36} className="text-blue-400 animate-spin" />
-          <p className="text-gray-300 font-medium">Parsing file and extracting compliance items with AI…</p>
-          <p className="text-gray-500 text-sm">This takes 10–30 seconds depending on file size.</p>
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white rounded-xl border border-ct-border">
+          <Loader2 size={36} className="text-ct-saffron animate-spin" />
+          <p className="text-ct-navy font-medium">Parsing file and extracting compliance items with AI…</p>
+          <p className="text-ct-muted text-sm">This takes 10–30 seconds depending on file size.</p>
         </div>
       )}
 
       {/* ── Confirmed result ── */}
       {confirmResult && (
-        <div className="mb-6 p-5 bg-green-900/20 border border-green-700 rounded-xl">
+        <div className="mb-6 p-5 bg-green-50 border border-green-200 rounded-xl">
           <div className="flex items-center gap-3">
-            <CheckCircle size={20} className="text-green-400" />
-            <p className="text-green-300 font-semibold">{confirmResult.message}</p>
+            <CheckCircle size={20} className="text-green-600" />
+            <p className="text-green-700 font-semibold">{confirmResult.message}</p>
           </div>
           {confirmResult.failed > 0 && (
-            <p className="mt-2 text-yellow-400 text-sm">{confirmResult.failed} items failed to import. Check the console logs for details.</p>
+            <p className="mt-2 text-amber-600 text-sm">{confirmResult.failed} items failed to import. Check the console logs for details.</p>
           )}
-          <Button variant="ghost" size="sm" className="mt-3 text-gray-400 text-xs" onClick={() => { setBatch(null); setConfirmResult(null) }}>
+          <Button variant="ghost" size="sm" className="mt-3 text-ct-muted text-xs" onClick={() => { setBatch(null); setConfirmResult(null) }}>
             <RotateCcw size={12} className="mr-1" /> Import another file
           </Button>
         </div>
@@ -279,80 +279,80 @@ export default function IngestPage() {
       {batch && !confirmResult && (
         <>
           {/* Stats bar */}
-          <div className="mb-4 p-4 bg-gray-900/50 rounded-xl border border-gray-800 flex flex-wrap gap-6 items-center justify-between">
+          <div className="p-4 bg-white rounded-xl border border-ct-border shadow-card flex flex-wrap gap-6 items-center justify-between">
             <div className="flex flex-wrap gap-4 text-sm">
-              <span className="text-gray-400">File: <span className="text-white font-medium">{batch.fileName}</span></span>
-              <span className="text-gray-400">Rows parsed: <span className="text-white">{batch.stats.totalRowsParsed}</span></span>
-              <span className="text-gray-400">Items extracted: <span className="text-white">{batch.stats.itemsExtracted}</span></span>
-              {batch.stats.skippedRows > 0 && <span className="text-yellow-400">{batch.stats.skippedRows} rows skipped</span>}
+              <span className="text-ct-muted">File: <span className="text-ct-navy font-medium">{batch.fileName}</span></span>
+              <span className="text-ct-muted">Rows parsed: <span className="text-ct-navy">{batch.stats.totalRowsParsed}</span></span>
+              <span className="text-ct-muted">Items extracted: <span className="text-ct-navy">{batch.stats.itemsExtracted}</span></span>
+              {batch.stats.skippedRows > 0 && <span className="text-amber-600">{batch.stats.skippedRows} rows skipped</span>}
             </div>
             <div className="flex gap-3 text-xs">
-              <span className="px-2 py-1 rounded bg-green-900/30 text-green-300 border border-green-800">✓ {approvedCount} approved</span>
-              <span className="px-2 py-1 rounded bg-yellow-900/30 text-yellow-300 border border-yellow-800">⏳ {pendingCount} pending</span>
-              <span className="px-2 py-1 rounded bg-red-900/30 text-red-300 border border-red-800">✕ {rejectedCount} rejected</span>
-              {batch.stats.duplicates > 0 && <span className="px-2 py-1 rounded bg-orange-900/30 text-orange-300 border border-orange-800">⚠ {batch.stats.duplicates} duplicates</span>}
+              <span className="px-2 py-1 rounded bg-green-100 text-green-700 border border-green-200">✓ {approvedCount} approved</span>
+              <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 border border-amber-200">⏳ {pendingCount} pending</span>
+              <span className="px-2 py-1 rounded bg-red-100 text-red-700 border border-red-200">✕ {rejectedCount} rejected</span>
+              {batch.stats.duplicates > 0 && <span className="px-2 py-1 rounded bg-orange-100 text-orange-700 border border-orange-200">⚠ {batch.stats.duplicates} duplicates</span>}
             </div>
           </div>
 
           {/* Bulk actions */}
-          <div className="mb-3 flex gap-2">
-            <Button size="sm" variant="outline" className="text-xs border-green-800 text-green-400 hover:bg-green-900/20" onClick={approveAll}>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="text-xs border-green-300 text-green-700 hover:bg-green-50" onClick={approveAll}>
               Approve all non-rejected
             </Button>
-            <Button size="sm" variant="outline" className="text-xs border-gray-700 text-gray-400 hover:bg-gray-800" onClick={() => { setBatch(null) }}>
+            <Button size="sm" variant="outline" className="text-xs" onClick={() => { setBatch(null) }}>
               Cancel import
             </Button>
           </div>
 
           {/* Table */}
-          <div className="rounded-xl border border-gray-800 overflow-hidden mb-4">
+          <div className="rounded-xl border border-ct-border overflow-hidden bg-white shadow-card">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-gray-900 text-gray-400 text-left">
-                  <th className="px-3 py-2 w-8">#</th>
-                  <th className="px-3 py-2">Title</th>
-                  <th className="px-3 py-2 w-28">Type</th>
-                  <th className="px-3 py-2 w-24">Due Date</th>
-                  <th className="px-3 py-2 w-20">Priority</th>
-                  <th className="px-3 py-2 w-20">Confidence</th>
-                  <th className="px-3 py-2 w-20">Warnings</th>
-                  <th className="px-3 py-2 w-32 text-right">Actions</th>
+                <tr className="bg-ct-cloud text-ct-navy text-left border-b border-ct-border">
+                  <th className="px-3 py-2.5 w-8 font-semibold">#</th>
+                  <th className="px-3 py-2.5 font-semibold">Title</th>
+                  <th className="px-3 py-2.5 w-28 font-semibold">Type</th>
+                  <th className="px-3 py-2.5 w-24 font-semibold">Due Date</th>
+                  <th className="px-3 py-2.5 w-20 font-semibold">Priority</th>
+                  <th className="px-3 py-2.5 w-20 font-semibold">Confidence</th>
+                  <th className="px-3 py-2.5 w-20 font-semibold">Warnings</th>
+                  <th className="px-3 py-2.5 w-32 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/50">
+              <tbody className="divide-y divide-ct-border">
                 {batch.items.map(item => (
                   <>
-                    <tr key={item.id} className={`hover:bg-gray-800/30 transition-colors ${rowBg(item)}`}>
-                      <td className="px-3 py-2.5 text-gray-500">{item.sourceRow}</td>
+                    <tr key={item.id} className={`hover:bg-ct-cloud/50 transition-colors ${rowBg(item)}`}>
+                      <td className="px-3 py-2.5 text-ct-muted">{item.sourceRow}</td>
                       <td className="px-3 py-2.5">
                         {editingItem === item.id ? (
                           <Input
                             value={editDraft.title ?? ''}
                             onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))}
-                            className="h-6 text-xs bg-gray-800 border-gray-600"
+                            className="h-6 text-xs"
                           />
                         ) : (
-                          <span className={item.title ? 'text-gray-200' : 'text-red-400 italic'}>
+                          <span className={item.title ? 'text-ct-navy' : 'text-red-500 italic'}>
                             {item.title ?? 'No title — must be set before import'}
                           </span>
                         )}
-                        {item.isDuplicate && <span className="ml-2 text-orange-400">[possible duplicate]</span>}
+                        {item.isDuplicate && <span className="ml-2 text-amber-600">[possible duplicate]</span>}
                       </td>
                       <td className="px-3 py-2.5">
                         {editingItem === item.id ? (
                           <Select value={editDraft.complianceType ?? 'OTHER'} onValueChange={v => setEditDraft(d => ({ ...d, complianceType: v }))}>
-                            <SelectTrigger className="h-6 text-xs bg-gray-800 border-gray-600"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-6 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>{COMPLIANCE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                           </Select>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] border-blue-800 text-blue-300">{item.complianceType ?? '?'}</Badge>
+                          <Badge variant="outline" className="text-[10px] border-ct-border text-ct-slate">{item.complianceType ?? '?'}</Badge>
                         )}
                       </td>
                       <td className="px-3 py-2.5">
                         {editingItem === item.id ? (
-                          <Input type="date" value={editDraft.dueDate ?? ''} onChange={e => setEditDraft(d => ({ ...d, dueDate: e.target.value }))} className="h-6 text-xs bg-gray-800 border-gray-600" />
+                          <Input type="date" value={editDraft.dueDate ?? ''} onChange={e => setEditDraft(d => ({ ...d, dueDate: e.target.value }))} className="h-6 text-xs" />
                         ) : (
-                          <span className={item.dueDate ? 'text-gray-300' : 'text-red-400 italic'}>
+                          <span className={item.dueDate ? 'text-ct-navy' : 'text-red-500 italic'}>
                             {item.dueDate ?? 'Missing'}
                           </span>
                         )}
@@ -360,11 +360,11 @@ export default function IngestPage() {
                       <td className="px-3 py-2.5">
                         {editingItem === item.id ? (
                           <Select value={editDraft.priority ?? 'medium'} onValueChange={v => setEditDraft(d => ({ ...d, priority: v }))}>
-                            <SelectTrigger className="h-6 text-xs bg-gray-800 border-gray-600"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-6 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>{PRIORITIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                           </Select>
                         ) : (
-                          <span className={item.priority === 'critical' ? 'text-red-400' : item.priority === 'high' ? 'text-orange-400' : 'text-gray-400'}>
+                          <span className={item.priority === 'critical' ? 'text-red-600 font-medium' : item.priority === 'high' ? 'text-orange-600' : 'text-ct-muted'}>
                             {item.priority}
                           </span>
                         )}
@@ -372,7 +372,7 @@ export default function IngestPage() {
                       <td className="px-3 py-2.5">{confidenceBadge(item.confidence)}</td>
                       <td className="px-3 py-2.5">
                         {item.warnings.length > 0 && (
-                          <button onClick={() => setExpandedRow(expandedRow === item.id ? null : item.id)} className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300">
+                          <button onClick={() => setExpandedRow(expandedRow === item.id ? null : item.id)} className="flex items-center gap-1 text-amber-600 hover:text-amber-700">
                             <AlertTriangle size={11} />
                             <span>{item.warnings.length}</span>
                             {expandedRow === item.id ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -381,24 +381,24 @@ export default function IngestPage() {
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         {saving === item.id ? (
-                          <Loader2 size={12} className="animate-spin text-gray-400 ml-auto" />
+                          <Loader2 size={12} className="animate-spin text-ct-muted ml-auto" />
                         ) : editingItem === item.id ? (
                           <div className="flex gap-1 justify-end">
-                            <Button size="sm" className="h-5 text-[10px] px-2 bg-blue-700 hover:bg-blue-600" onClick={() => saveEdit(item.id)}>Save</Button>
-                            <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1 text-gray-400" onClick={() => setEditingItem(null)}>Cancel</Button>
+                            <Button size="sm" className="h-5 text-[10px] px-2 bg-ct-teal hover:bg-ct-teal text-white" onClick={() => saveEdit(item.id)}>Save</Button>
+                            <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1 text-ct-muted" onClick={() => setEditingItem(null)}>Cancel</Button>
                           </div>
                         ) : (
                           <div className="flex gap-1 justify-end">
-                            <button onClick={() => startEdit(item)} className="px-2 py-0.5 rounded text-[10px] text-gray-400 hover:text-gray-200 hover:bg-gray-700">Edit</button>
+                            <button onClick={() => startEdit(item)} className="px-2 py-0.5 rounded text-[10px] text-ct-muted hover:text-ct-navy hover:bg-ct-cloud">Edit</button>
                             {item.reviewStatus !== 'approved' && item.reviewStatus !== 'edited' ? (
-                              <button onClick={() => setReviewStatus(item.id, 'approved')} className="px-2 py-0.5 rounded text-[10px] bg-green-900/40 text-green-300 hover:bg-green-800/50">✓</button>
+                              <button onClick={() => setReviewStatus(item.id, 'approved')} className="px-2 py-0.5 rounded text-[10px] bg-green-100 text-green-700 hover:bg-green-200">✓</button>
                             ) : (
-                              <span className="px-2 py-0.5 text-[10px] text-green-500">✓ OK</span>
+                              <span className="px-2 py-0.5 text-[10px] text-green-600">✓ OK</span>
                             )}
                             {item.reviewStatus !== 'rejected' ? (
-                              <button onClick={() => setReviewStatus(item.id, 'rejected')} className="px-2 py-0.5 rounded text-[10px] bg-red-900/40 text-red-300 hover:bg-red-800/50">✕</button>
+                              <button onClick={() => setReviewStatus(item.id, 'rejected')} className="px-2 py-0.5 rounded text-[10px] bg-red-100 text-red-700 hover:bg-red-200">✕</button>
                             ) : (
-                              <button onClick={() => setReviewStatus(item.id, 'pending')} className="px-2 py-0.5 rounded text-[10px] text-gray-500 hover:text-gray-300">↩</button>
+                              <button onClick={() => setReviewStatus(item.id, 'pending')} className="px-2 py-0.5 rounded text-[10px] text-ct-muted hover:text-ct-navy">↩</button>
                             )}
                           </div>
                         )}
@@ -406,19 +406,19 @@ export default function IngestPage() {
                     </tr>
                     {/* Warnings expansion row */}
                     {expandedRow === item.id && item.warnings.length > 0 && (
-                      <tr key={`${item.id}-warnings`} className="bg-yellow-950/10">
+                      <tr key={`${item.id}-warnings`} className="bg-amber-50">
                         <td colSpan={8} className="px-4 py-2">
                           <ul className="space-y-0.5">
                             {item.warnings.map((w, i) => (
-                              <li key={i} className="text-yellow-400 text-[11px] flex items-start gap-1.5">
+                              <li key={i} className="text-amber-700 text-[11px] flex items-start gap-1.5">
                                 <AlertTriangle size={10} className="mt-0.5 flex-shrink-0" /> {w}
                               </li>
                             ))}
                           </ul>
                           {Object.keys(item.extraData).length > 0 && (
                             <details className="mt-2">
-                              <summary className="text-gray-500 text-[10px] cursor-pointer">Extra data from file ({Object.keys(item.extraData).length} columns)</summary>
-                              <pre className="text-[10px] text-gray-500 mt-1">{JSON.stringify(item.extraData, null, 2)}</pre>
+                              <summary className="text-ct-muted text-[10px] cursor-pointer">Extra data from file ({Object.keys(item.extraData).length} columns)</summary>
+                              <pre className="text-[10px] text-ct-muted mt-1">{JSON.stringify(item.extraData, null, 2)}</pre>
                             </details>
                           )}
                         </td>
@@ -431,17 +431,17 @@ export default function IngestPage() {
           </div>
 
           {/* Confirm button */}
-          <div className="flex items-center justify-between p-4 bg-gray-900/50 rounded-xl border border-gray-800">
-            <div className="text-sm text-gray-400">
-              <span className="text-white font-medium">{approvedCount} items</span> will be imported.{' '}
-              <span className="text-gray-500">{rejectedCount} rejected, {pendingCount} still pending review.</span>
-              {pendingCount > 0 && <span className="text-yellow-400 ml-2">Pending items will be skipped.</span>}
+          <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-ct-border shadow-card">
+            <div className="text-sm text-ct-muted">
+              <span className="text-ct-navy font-medium">{approvedCount} items</span> will be imported.{' '}
+              <span className="text-ct-muted">{rejectedCount} rejected, {pendingCount} still pending review.</span>
+              {pendingCount > 0 && <span className="text-amber-600 ml-2">Pending items will be skipped.</span>}
             </div>
             <div className="flex gap-3">
               {batch.stats.duplicates > 0 && (
                 <Button
                   variant="outline"
-                  className="border-orange-800 text-orange-400 hover:bg-orange-900/20 text-sm"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-50 text-sm"
                   onClick={() => confirmImport(true)}
                   disabled={confirming || approvedCount === 0}
                 >
@@ -449,7 +449,7 @@ export default function IngestPage() {
                 </Button>
               )}
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-sm px-6"
+                className="bg-ct-saffron hover:bg-ct-saffron-hover text-white text-sm px-6"
                 onClick={() => confirmImport(false)}
                 disabled={confirming || approvedCount === 0}
               >

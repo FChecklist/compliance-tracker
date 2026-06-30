@@ -1,12 +1,12 @@
 import { db, notices, departments, users, auditLogs, organisations } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, or, like, asc, sql, lte } from "drizzle-orm";
+import { eq, and, or, like, asc, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['received', 'in_progress', 'replied', 'closed', 'appealed'] as const
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
   try {
     const { searchParams } = request.nextUrl
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit
 
     const conditions = []
+    conditions.push(eq(notices.orgId, orgId ?? ''))
     if (search) {
       conditions.push(or(
         like(notices.noticeNumber, `%${search}%`),
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(notices.departmentId, departmentId))
     }
 
-    const where = conditions.length > 0 ? and(...conditions) : undefined
+    const where = and(...conditions)
 
     const [items, [{ count }]] = await Promise.all([
       db.query.notices.findMany({
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   try {
     const body = await request.json()
@@ -106,10 +107,12 @@ export async function POST(request: NextRequest) {
     const dept = await db.query.departments.findFirst({ where: eq(departments.id, departmentId) })
     if (!dept) return NextResponse.json({ error: "Department not found" }, { status: 404 })
 
-    const org = await db.query.organisations.findFirst()
+    const org = orgId
+      ? await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
+      : await db.query.organisations.findFirst()
     if (!org) return NextResponse.json({ error: "No organisation found" }, { status: 500 })
 
-    const adminUser = await db.query.users.findFirst({ where: eq(users.role, 'admin') })
+    const adminUser = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
     if (!adminUser) return NextResponse.json({ error: "No admin user found" }, { status: 500 })
 
     // Auto-calculate reply deadline: 30 days from dateReceived if not provided

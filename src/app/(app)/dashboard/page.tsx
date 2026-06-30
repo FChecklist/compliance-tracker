@@ -140,6 +140,7 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [orgName, setOrgName] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/compliance/stats")
@@ -149,6 +150,11 @@ export default function DashboardPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => { if (d.orgName) setOrgName(d.orgName); })
+      .catch(() => {});
   }, []);
 
   if (loading) return <DashboardSkeleton />;
@@ -166,7 +172,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Dashboard</h1>
         <p className="text-sm text-ct-muted mt-1">
-          Compliance overview for Acme Financial Services
+          {`Compliance overview for ${orgName ?? 'your organisation'}`}
         </p>
       </div>
 

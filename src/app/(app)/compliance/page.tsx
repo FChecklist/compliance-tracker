@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type ComplianceItem = {
   id: string;
@@ -129,6 +131,45 @@ export default function CompliancePage() {
 
   const hasActiveFilters = statusFilter !== "all" || deptFilter !== "all" || typeFilter !== "all";
 
+  const exportCSV = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '1000');
+      if (search) params.set('search', search);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (deptFilter !== 'all') params.set('departmentId', deptFilter);
+      if (typeFilter !== 'all') params.set('complianceType', typeFilter);
+
+      const res = await fetch(`/api/compliance?${params}`);
+      const data = await res.json();
+      const exportItems = data.compliance ?? [];
+
+      const headers = ['Title','Type','Status','Priority','Department','Assigned To','Due Date','Period','ARN'];
+      const rows = exportItems.map((item: ComplianceItem) => [
+        `"${item.title}"`,
+        item.complianceType,
+        item.status,
+        item.priority,
+        `"${item.department.name}"`,
+        item.assignedTo?.name ?? '',
+        item.dueDate ? new Date(item.dueDate).toLocaleDateString('en-IN') : '',
+        item.period ?? '',
+        item.acknowledgementNumber ?? '',
+      ].join(','));
+
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compliance-export-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Export failed');
+    }
+  };
+
   const clearFilters = () => {
     setStatusFilter("all");
     setDeptFilter("all");
@@ -150,15 +191,21 @@ export default function CompliancePage() {
             {total} compliance item{total !== 1 ? "s" : ""} tracked
           </p>
         </div>
-        <Button
-          asChild
-          className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
-        >
-          <Link href="/compliance/new">
-            <Plus className="size-4 mr-2" />
-            Add Compliance
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportCSV} className="gap-2">
+            <Download className="size-4" />
+            Export CSV
+          </Button>
+          <Button
+            asChild
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <Link href="/compliance/new">
+              <Plus className="size-4 mr-2" />
+              Add Compliance
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
