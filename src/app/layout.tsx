@@ -18,19 +18,21 @@ const dmSerifDisplay = DM_Serif_Display({
 });
 
 export const metadata: Metadata = {
-  title: "ComplianceTrack — One Portal. One Truth.",
+  title: "Veridian AI — AI-Native Compliance & Audit Operating System",
   description:
-    "Universal compliance tracking platform for organisations of all sizes. Manage GST, TDS, MCA, PF, ESIC, and every compliance deadline from one portal.",
+    "Never miss a compliance deadline. AI extracts data from your notice PDFs, tracks filings, and calculates penalties in seconds. The single source of truth for Indian compliance.",
   keywords: [
+    "Veridian AI",
     "compliance",
     "GST",
     "TDS",
     "MCA",
-    "regulatory",
-    "deadline tracking",
-    "audit",
+    "AI compliance",
+    "audit management",
+    "penalty calculator",
+    "compliance OS",
   ],
-  icons: { icon: "/logo.svg" },
+  icons: { icon: "/logo-mark.svg" },
 };
 
 export default function RootLayout({

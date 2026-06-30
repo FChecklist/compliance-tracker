@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     token,
     warning: 'Save this token — it will not be shown again.',
     usage: {
-      endpoint: 'https://compliance-tracker-ai.vercel.app/api/mcp',
+      endpoint: 'https://verdian-ai.vercel.app/api/mcp',
       header: `Authorization: Bearer ${token}`,
     },
   }, { status: 201 })

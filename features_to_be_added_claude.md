@@ -348,10 +348,17 @@ Confirmed from schema + codebase + Z.ai audit:
 
 ---
 
-### M-19: Improved Landing Page with Value Proposition + Public Penalty Calculator
+### M-19: Improved Landing Page with Value Proposition + Public Penalty Calculator ✅ COMPLETED
 **Source:** Z.ai M9 + Claude
+**Status:** ✅ Done — Deployed 2026-06-30
 **What:** Rewrite landing page: specific outcome headline ("Never miss a compliance deadline — AI fills the form from your notice PDF"), 60-second product GIF, public-facing penalty calculator (no login), clear Free Trial CTA. The penalty calculator is the #1 lead magnet — put it on the home page.
 **Why Must Have:** Current tagline ("One Portal. One Truth.") is brand, not conversion copy. Finance Manager lands and needs to see their specific problem solved in 10 seconds.
+**Implemented:**
+- Full landing page with 8 sections: Hero (AI extraction demo), Trust Bar (8 compliance types), AI Features Grid (6 cards), Public Penalty Calculator (6 Indian compliance types with official rates), How It Works (4-step flow), Compliance Types (60+ obligations), Open Platform Architecture, CTA + Footer
+- Interactive penalty calculator supporting GST (18% p.a. + ₹200/day max ₹5,000), TDS (1.5%/month), PF (12% p.a.), Income Tax (1%/month), MCA (₹100/day max ₹1L), ESIC (12% p.a.)
+- Veridian AI branding with logo-mark.svg and logo-compact.svg
+- Framer Motion animations, mobile responsive, shadcn/ui components
+- Deployed at https://verdian-ai.vercel.app/
 
 ---
 

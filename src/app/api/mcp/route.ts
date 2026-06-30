@@ -317,7 +317,7 @@ async function dispatch(body: Record<string, unknown>, orgId: string) {
     return rpcResult(id, {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'ComplianceTrack MCP', version: '1.0.0' },
+      serverInfo: { name: 'Veridian AI MCP', version: '1.0.0' },
     })
   }
 
@@ -379,7 +379,7 @@ export async function POST(req: NextRequest) {
 // MCP clients probe with GET to discover the endpoint
 export async function GET() {
   return NextResponse.json({
-    name: 'ComplianceTrack MCP Server',
+    name: 'Veridian AI MCP Server',
     version: '1.0.0',
     protocol: 'MCP 2024-11-05',
     transport: 'HTTP JSON-RPC 2.0',

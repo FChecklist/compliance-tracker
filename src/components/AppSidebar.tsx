@@ -1,7 +1,7 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -146,14 +146,12 @@ function SidebarContent({ overdueCount, docCount }: { overdueCount: number; docC
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex size-[34px] items-center justify-center rounded-lg bg-ct-saffron text-white font-bold text-sm shadow-saffron">
-          CT
-        </div>
+      <Link href="/" className="flex items-center gap-3 px-5 py-5">
+        <Image src="/logo-mark.svg" alt="Veridian AI" width={34} height={34} className="size-[34px]" />
         <span className="font-heading text-lg text-ct-navy tracking-tight">
-          ComplianceTrack
+          Veridian AI
         </span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 pb-4">

@@ -282,7 +282,7 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { label: "Application", value: "ComplianceTrack", icon: ShieldCheck },
+                  { label: "Application", value: "Veridian AI", icon: ShieldCheck },
                   { label: "Tagline", value: "One Portal. One Truth." },
                   { label: "Version", value: "1.0.0", isBadge: true },
                   { label: "Tech Stack", value: "Next.js 16, Prisma, SQLite, shadcn/ui, Tailwind CSS 4" },

@@ -69,7 +69,7 @@ export default function SignupPage() {
                   CT
                 </div>
                 <span className="font-heading text-2xl text-white">
-                  ComplianceTrack
+                  Veridian AI
                 </span>
               </div>
             </div>
@@ -119,7 +119,7 @@ export default function SignupPage() {
                 CT
               </div>
               <span className="font-heading text-2xl text-white">
-                ComplianceTrack
+                Veridian AI
               </span>
             </div>
             <p className="text-white/60 text-sm">

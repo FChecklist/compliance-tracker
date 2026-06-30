@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useCallback, useMemo } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import {
   Shield,
   Upload,
@@ -21,22 +24,27 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
+import Image from "next/image";
+import {  Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
+import Image from "next/image";
 import { Label } from "@/components/ui/label";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
@@ -176,14 +184,9 @@ function Navbar() {
     >
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-ct-saffron">
-            <Shield className="size-4 text-white" />
-          </div>
-          <span className="text-lg font-bold text-white tracking-tight">
-            Compliance<span className="text-ct-saffron">Track</span>
-          </span>
-        </div>
+        <a href="/" className="flex items-center">
+          <Image src="/logo-compact.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto" priority />
+        </a>
 
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-8 text-sm text-white/80">
@@ -234,7 +237,7 @@ function Navbar() {
               <a href="#features" onClick={() => setOpen(false)} className="py-2 px-3 rounded-lg hover:bg-white/10">Features</a>
               <a href="#calculator" onClick={() => setOpen(false)} className="py-2 px-3 rounded-lg hover:bg-white/10">Penalty Calculator</a>
               <a href="#how-it-works" onClick={() => setOpen(false)} className="py-2 px-3 rounded-lg hover:bg-white/10">How It Works</a>
-              <a href="#compliance-types" onClick={() => setOpen(false)} className="py-2 px-3 rounded-lg hover:bg-white/10">Compliance Types</a>
+              <a href="#compliance-types" onClick={() => setOpen(false)} className="py-2 px-3 rounded-lg hover:bg-white/10">Compliance</a>
               <div className="flex gap-2 pt-2 border-t border-white/10 mt-2">
                 <Button variant="ghost" className="text-white/80 hover:text-white hover:bg-white/10 flex-1">Log In</Button>
                 <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron flex-1">
@@ -1164,7 +1167,7 @@ function OpenPlatformSection() {
                   },
                   { label: "↓  Ingest (CSV, PDF, API, Webhook)", color: "border-white/10" },
                   {
-                    label: "ComplianceTrack AI Engine",
+                    label: "Veridian AI Engine",
                     sub: "Groq Orchestrator • pgvector • BYOK AI",
                     color: "bg-ct-saffron/20 border-ct-saffron/40",
                   },
@@ -1271,13 +1274,10 @@ function Footer() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-ct-saffron">
-                <Shield className="size-4 text-white" />
-              </div>
-              <span className="text-lg font-bold tracking-tight">
-                Compliance<span className="text-ct-saffron">Track</span>
-              </span>
+            <div className="mb-4">
+              <a href="/" className="flex items-center">
+                <Image src="/logo-compact.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto brightness-0 invert" />
+              </a>
             </div>
             <p className="text-sm text-white/50 leading-relaxed">
               The AI-Native Compliance &amp; Audit Operating System. One portal.
@@ -1360,12 +1360,12 @@ function Footer() {
 
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs text-white/30">
-            &copy; {new Date().getFullYear()} ComplianceTrack. All rights
+            &copy; {new Date().getFullYear()} Veridian AI. All rights
             reserved.
           </p>
           <p className="text-xs text-white/30">
             Built for Indian businesses. AI-Native. Open Platform. Near-Zero
-            Cost.
+            Cost. <a href="https://verdian-ai.vercel.app" className="hover:text-ct-saffron transition-colors">verdian-ai.vercel.app</a>
           </p>
         </div>
       </div>
