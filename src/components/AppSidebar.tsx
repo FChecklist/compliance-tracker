@@ -147,7 +147,7 @@ function SidebarContent({ overdueCount, docCount }: { overdueCount: number; docC
     <div className="flex flex-col h-full">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-3 px-5 py-5">
-        <Image src="/logo-mark.svg" alt="Veridian AI" width={34} height={34} className="size-[34px]" />
+        <Image src="/logo-mark.svg" alt="Veridian AI" width={34} height={34} className="size-[34px]" unoptimized />
         <span className="font-heading text-lg text-ct-navy tracking-tight">
           Veridian AI
         </span>
