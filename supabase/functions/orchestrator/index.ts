@@ -1,7 +1,7 @@
 /**
  * Groq Orchestrator — AI-OS Super Boss
  *
- * Supabase Edge Function (Deno). This is the always-on AI brain of ComplianceTrack.
+ * Supabase Edge Function (Deno). This is the always-on AI brain of Veridian AI.
  * It receives requests, selects the best Groq model for the task type, calls
  * MCP Server 1 (compliance data) and MCP Server 2 (dev dispatch) via tool use,
  * and returns a structured final response.
@@ -399,7 +399,7 @@ async function runGroqAgent(
 function buildRequest(taskType: TaskType, message: string, context?: Record<string, unknown>) {
   const config = MODEL_REGISTRY[taskType] ?? MODEL_REGISTRY.chat
 
-  const baseSystem = `You are the Groq Orchestrator for ComplianceTrack — an AI-Native compliance management platform for Indian businesses.
+  const baseSystem = `You are the Groq Orchestrator for Veridian AI — an AI-Native compliance management platform for Indian businesses.
 You have access to tools that read and write compliance data, and tools that dispatch development tasks to AI agents.
 Always cite the specific compliance items, types, and due dates when answering. Be precise about deadlines and penalties.
 Current date: ${new Date().toISOString().slice(0, 10)}.
@@ -472,7 +472,7 @@ Deno.serve(async (req: Request) => {
 
   if (req.method === 'GET') {
     return new Response(JSON.stringify({
-      name: 'ComplianceTrack Groq Orchestrator',
+      name: 'Veridian AI Groq Orchestrator',
       version: '1.0.0',
       models: Object.fromEntries(
         Object.entries(MODEL_REGISTRY).map(([k, v]) => [k, { model: v.model, description: v.description }])

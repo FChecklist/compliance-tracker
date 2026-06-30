@@ -48,7 +48,7 @@ async function fireDispatch(eventType: 'claude-task' | 'zai-task', payload: unkn
       Authorization: `Bearer ${GITHUB_PAT}`,
       Accept: 'application/vnd.github.v3+json',
       'Content-Type': 'application/json',
-      'User-Agent': 'ComplianceTrack-Orchestrator/1.0',
+      'User-Agent': 'Veridian AI-Orchestrator/1.0',
     },
     body: JSON.stringify({ event_type: eventType, client_payload: payload }),
   })
@@ -158,7 +158,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
         headers: {
           Authorization: `Bearer ${GITHUB_PAT}`,
           Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'ComplianceTrack-Orchestrator/1.0',
+          'User-Agent': 'Veridian AI-Orchestrator/1.0',
         },
       }
     )
@@ -175,7 +175,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
         headers: {
           Authorization: `Bearer ${GITHUB_PAT}`,
           Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'ComplianceTrack-Orchestrator/1.0',
+          'User-Agent': 'Veridian AI-Orchestrator/1.0',
         },
       }
     )
@@ -218,7 +218,7 @@ async function dispatch(body: Record<string, unknown>) {
     return rpcResult(id, {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'ComplianceTrack Dev-MCP', version: '1.0.0' },
+      serverInfo: { name: 'Veridian AI Dev-MCP', version: '1.0.0' },
     })
   }
 
@@ -262,7 +262,7 @@ Deno.serve(async (req: Request) => {
 
   if (req.method === 'GET') {
     return new Response(JSON.stringify({
-      name: 'ComplianceTrack Dev-MCP',
+      name: 'Veridian AI Dev-MCP',
       version: '1.0.0',
       protocol: 'MCP 2024-11-05',
       transport: 'HTTP JSON-RPC 2.0',

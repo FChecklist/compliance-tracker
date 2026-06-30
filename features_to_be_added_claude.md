@@ -1,4 +1,4 @@
-# ComplianceTrack — Platform Vision & Feature Prioritisation
+# Veridian AI — Platform Vision & Feature Prioritisation
 ## Author: DEVABOSS (Claude Code) — Merged with Z.ai audit
 ## Perspective: AI-Native Compliance & Audit Operating System
 ## Last Updated: 2026-06-29
@@ -348,9 +348,9 @@ Confirmed from schema + codebase + Z.ai audit:
 
 ---
 
-### M-19: Improved Landing Page with Value Proposition + Public Penalty Calculator ✅ COMPLETED
+### M-19: Improved Landing Page with Value Proposition + Public Penalty Calculator ✅
 **Source:** Z.ai M9 + Claude
-**Status:** ✅ Done — Deployed 2026-06-30
+**Status:** ✅ COMPLETED (2026-06-30) — Landing page rewritten with value-prop hero, feature cards, public penalty calculator (GST/TDS/PF/Income Tax), trust logos, how-it-works flow, CTA sections. Rebranded to Veridian AI with real logo SVGs.
 **What:** Rewrite landing page: specific outcome headline ("Never miss a compliance deadline — AI fills the form from your notice PDF"), 60-second product GIF, public-facing penalty calculator (no login), clear Free Trial CTA. The penalty calculator is the #1 lead magnet — put it on the home page.
 **Why Must Have:** Current tagline ("One Portal. One Truth.") is brand, not conversion copy. Finance Manager lands and needs to see their specific problem solved in 10 seconds.
 **Implemented:**
@@ -670,7 +670,7 @@ Confirmed from schema + codebase + Z.ai audit:
 | M-16 | Outbound webhooks | **Must Have** | Medium | $0 | No |
 | M-17 | Free trial + self-serve signup | **Must Have** | Low | $0 | No |
 | M-18 | Public pricing page | **Must Have** | Low | $0 | No |
-| M-19 | Improved landing page + public penalty calculator | **Must Have** | Low | $0 | No |
+| M-19 | Improved landing page + public penalty calculator | **Must Have** | Low | $0 | ✅ Yes |
 | M-20 | Help centre + AI support bot + onboarding | **Must Have** | Low | $0 (Groq RAG) | ✅ Yes |
 | G-01 | MCP server interface | Good to Have | Medium | $0 | ✅ Yes |
 | G-02 | AI compliance Q&A (RAG on customer data) | Good to Have | Medium | $0 (BYOK/Groq) | ✅ Yes |

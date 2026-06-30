@@ -1,4 +1,4 @@
-# ComplianceTrack — MCP Protocol Specification
+# Veridian AI — MCP Protocol Specification
 
 **Version:** 1.0.0 | **Date:** 2026-06-29 | **Protocol:** MCP 2024-11-05 (JSON-RPC 2.0)
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-ComplianceTrack runs two MCP servers. They serve completely different layers of the AI-OS architecture and must never be confused.
+Veridian AI runs two MCP servers. They serve completely different layers of the AI-OS architecture and must never be confused.
 
 | | MCP Server 1 | MCP Server 2 |
 |---|---|---|

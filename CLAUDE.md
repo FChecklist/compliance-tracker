@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# ComplianceTrack — Agent Context
+# Veridian AI — Agent Context
 
-**Brand:** VERDIAN AI | **Product:** ComplianceTrack | **Tagline:** One Portal. One Truth.
+**Brand:** VERIDIAN AI | **Product:** Veridian AI | **Tagline:** One Portal. One Truth.
 **Runtime:** Bun | Next.js 16 App Router | TypeScript strict | Tailwind CSS 4 | shadcn/ui
 **Database:** Drizzle ORM + postgres.js → Supabase PostgreSQL (`compliance` schema)
 **Auth:** Supabase Auth SSR (`@supabase/ssr`) — middleware-protected app routes

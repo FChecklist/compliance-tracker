@@ -1,6 +1,6 @@
-# VERDIAN AI — ComplianceTrack: End-to-End CEO Review
+# VERIDIAN AI — Veridian AI: End-to-End CEO Review
 
-> **Author:** DEVABOSS (Claude Code acting as CEO, VERDIAN AI)
+> **Author:** DEVABOSS (Claude Code acting as CEO, VERIDIAN AI)
 > **Review Date:** 2026-06-29
 > **Last Updated:** 2026-06-29 (Sprint 1 complete — launch-readiness fixes merged)
 > **Scope:** Full codebase review of `FChecklist/compliance-tracker` — architecture, UI, AI-OS, database, auth, issues, and strategic recommendations
@@ -34,7 +34,7 @@
 
 ## 1. Executive Summary
 
-ComplianceTrack is a multi-tenant Indian compliance management SaaS built under the VERDIAN AI brand. The project is functionally complete as a V1: all pages are built, the database is wired, auth works, and the AI-OS governance layer is in place with a self-reported score of 9.5/10.
+Veridian AI is a multi-tenant Indian compliance management SaaS built under the VERIDIAN AI brand. The project is functionally complete as a V1: all pages are built, the database is wired, auth works, and the AI-OS governance layer is in place with a self-reported score of 9.5/10.
 
 **The product works. The foundation is solid. The gaps are operational, not architectural.**
 
@@ -48,7 +48,7 @@ Critical blockers before public launch:
 
 ## 2. Brand and Identity
 
-- **Brand name:** VERDIAN AI (product: ComplianceTrack)
+- **Brand name:** VERIDIAN AI (product: Veridian AI)
 - **Tagline:** "One Portal. One Truth."
 - **Logo variants:** 4 SVG files — `logo.svg`, `logo-dark.svg`, `logo-mark.svg`, `logo-compact.svg`
 - **Logo reads:** "Veridian AI — One Truth." with VER=teal, DIAN=navy, AI=gold accent

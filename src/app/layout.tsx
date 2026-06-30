@@ -31,6 +31,9 @@ export const metadata: Metadata = {
     "audit management",
     "penalty calculator",
     "compliance OS",
+    "regulatory",
+    "deadline tracking",
+    "audit",
   ],
   icons: { icon: "/logo-mark.svg" },
 };

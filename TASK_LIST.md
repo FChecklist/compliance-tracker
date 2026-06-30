@@ -1,4 +1,4 @@
-# ComplianceTrack — Agent Task List
+# Veridian AI — Agent Task List
 
 > **Repo:** https://github.com/FChecklist/compliance-tracker  
 > **Purpose:** Every pending task is listed here with full instructions so any AI agent (Claude Code via z.ai or otherwise) can pick up and execute autonomously.  
