@@ -29,18 +29,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import Image from "next/image";
 import {  Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Image from "next/image";
 import { Input } from "@/components/ui/input";
-import Image from "next/image";
 import { Label } from "@/components/ui/label";
-import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
