@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 import { db, complianceItems, notices, auditLogs } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { callGroqLLMJson, getGroqApiKey } from "@/lib/groq";
@@ -98,6 +99,9 @@ function getUserMessage(
 }
 
 export async function POST(request: NextRequest) {
+  const { user, response: authError } = await requireAuth();
+  if (!user) return authError!;
+
   try {
     const body = await request.json();
     const { eventType, entityId, payload } = body as {
