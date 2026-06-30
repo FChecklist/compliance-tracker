@@ -600,3 +600,221 @@
 ---
 
 *End of functional testing notes. Document should be reviewed against each release. Next testing cycle should cover: API contract testing, auth edge cases, and mobile E2E flow.*
+
+---
+
+## 21. Junior Manager's 20 Rejection Points — Due Diligence Review
+
+**Reviewer:** Junior Manager (Compliance Technology Evaluation)
+**Date:** 2026-07-01
+**Verdict:** REJECT — System not fit for production deployment
+
+> *I have gone through every file, every API route, every UI component. These are not opinions. These are facts I found in the code. I dare anyone to contradict a single one.*
+
+---
+
+### REJECTION-01 — Audit Logs Leak Across All Organisations (Security Breach)
+
+**File:** `src/app/api/audit/route.ts`, lines 21–34
+
+The `/api/audit` endpoint has zero `orgId` filter. Any logged-in user — from any organisation — can call `GET /api/audit` and read the full audit trail of every other company in the system: who did what, when, to which entity. If I'm a CA using this for Client A, I can read Client B's entire compliance history. This is a catastrophic multi-tenancy breach. Under DPDP Act 2023, this alone is a notifiable data incident.
+
+**Evidence:** No `orgId` condition is constructed in the `conditions[]` array in that file. Compare to `/api/compliance/route.ts` which correctly does `conditions.push(eq(complianceItems.orgId, orgId ?? ''))`.
+
+---
+
+### REJECTION-02 — Dashboard "Recent Activity" Also Not Org-Scoped (Second Data Leak)
+
+**File:** `src/app/api/compliance/stats/route.ts`, lines 75–79
+
+The `recentActivity` feed shown on the Dashboard for every user is fetched with `db.query.auditLogs.findMany(...)` — no `orgId` filter whatsoever. Every user on the platform sees the same mixed feed of activity from all organisations. A CFO of Company A opens the dashboard and sees "Priya updated GST Return — Company B Ltd" in her recent activity. This is not a UX bug. This is a data exposure incident.
+
+---
+
+### REJECTION-03 — Settings Profile Page Shows Hardcoded "Rajesh Sharma" for Every User
+
+**File:** `src/app/(app)/settings/page.tsx`, lines 107–110
+
+The Profile section in Settings hardcodes `defaultValue="Rajesh Sharma"` and `defaultValue="admin@compliancetrack.com"` in the input fields. Every single user — regardless of who is logged in — opens Settings and sees Rajesh Sharma's name and email. The Save Changes button has no `onClick` handler and no API call behind it. If I update my name and click Save, nothing happens. My name will always be Rajesh Sharma.
+
+---
+
+### REJECTION-04 — Settings Organisation Also Hardcoded "Acme Financial Services Pvt. Ltd."
+
+**File:** `src/app/(app)/settings/page.tsx`, lines 167–169
+
+The Organisation settings section hardcodes `defaultValue="Acme Financial Services Pvt. Ltd."` and has no save functionality. This is the same org name that leaked into the dashboard (BUG-01) and now it appears again, hardcoded in a second place. There is no API endpoint to update organisation details. The entire Organisation settings tab is a mockup shipped as production UI.
+
+---
+
+### REJECTION-05 — GET Request Modifies Database (Violates HTTP Fundamentals)
+
+**File:** `src/app/api/compliance/stats/route.ts`, lines 14–23
+
+The `GET /api/compliance/stats` endpoint runs a database `UPDATE` to mark items as overdue before returning statistics. A GET request must be idempotent and side-effect-free — this is not an opinion, it is RFC 7231. Any caching layer, health-check probe, monitoring tool, or browser prefetch that hits this URL will silently mutate production data. If a CDN caches the GET response, the mutation will stop running and overdue statuses will never update. The dashboard loads this endpoint on every visit — meaning the DB is mutated on every page load.
+
+---
+
+### REJECTION-06 — Kanban Task Cards Navigate to a Wrong Route
+
+**File:** `src/app/(app)/tasks/page.tsx`, line 180
+
+Every single task card on the Kanban board links to `/checklists/${item.id}` — but the compliance item detail page is at `/compliance/[id]`. If a checklist page exists at `/checklists/[id]`, it is a different page entirely. If it does not exist, clicking any task card on the Kanban board throws a 404. The primary navigation flow for the "Tasks" module — the page a junior compliance team member would use daily — is completely broken.
+
+**Same bug at:** `src/app/(app)/reports/page.tsx`, line 152 — the items table in Reports also links to `/checklists/${item.id}`.
+
+---
+
+### REJECTION-07 — "Invite User" Button Does Nothing — Cannot Add Users to the System
+
+**File:** `src/app/(app)/users/page.tsx`, line 67–70
+
+The Users page has an "Invite User" button with no `onClick` handler and no href. There is no `POST /api/users` endpoint anywhere in the codebase. There is no invitation email flow, no invite link generation, no user creation UI beyond the initial signup. Once an org is set up, it is impossible to add new team members through the product. The Users page is read-only. For a CA firm adding a new article, or a company onboarding a new compliance officer — there is no path.
+
+---
+
+### REJECTION-08 — Compliance Items Cannot Be Deleted — Mistakes Are Permanent
+
+There is no `DELETE /api/compliance/[id]` endpoint. There is no delete button in the compliance detail sheet or the list view. If a user creates a compliance item with the wrong type, wrong entity, or duplicate entry, they cannot remove it. The system provides an Edit function, but Edit cannot change `complianceType` or `departmentId` — only title, priority, dates, period, ARN, and amount. A compliance item created in the wrong department or filed under the wrong act is permanently stuck there. For a CFO who runs a tight audit trail, an uncorrectable record is a liability.
+
+---
+
+### REJECTION-09 — Edit Form Cannot Change Compliance Type or Department
+
+**File:** `src/app/(app)/compliance/[id]/page.tsx`, lines 218–227, function `saveEdits()`
+
+The PATCH body that gets sent to the server only includes: `title`, `priority`, `dueDate`, `period`, `acknowledgementNumber`, `amount`, `filedDate`, `assignedToId`. There is no field for `complianceType` or `departmentId`. The server-side PATCH handler accepts `complianceType` — but the UI simply never sends it. If a user creates a GST item that should be TDS, or puts it in the Finance department when it belongs in HR, they are permanently stuck with the wrong categorisation. Their reports and dashboards will be wrong forever.
+
+---
+
+### REJECTION-10 — Due Date Silently Defaults to Today When Not Provided
+
+**File:** `src/app/api/compliance/route.ts`, line 134
+
+`dueDate: dueDate ? new Date(dueDate) : new Date()`
+
+If a user creates a compliance item and leaves the due date blank, the system silently assigns today as the due date. The next time the dashboard loads, the stats endpoint (REJECTION-05) runs its UPDATE and marks that item **overdue** — because today < now. An item created 2 seconds ago immediately becomes overdue. The user gets no warning, no confirmation, no error. They just see their brand-new item in the overdue bucket.
+
+---
+
+### REJECTION-11 — Reports Are Capped at 100 Items — Incomplete Data for Any Real Organisation
+
+**File:** `src/app/(app)/reports/page.tsx`, line 221
+
+`fetch("/api/compliance?limit=100")`
+
+The Reports & Analytics page fetches only 100 compliance items to generate its charts and export CSV. A mid-size CA firm managing 12 clients with 15–20 compliance items each already has 180+ items. A CCO managing 6 factories across India might have 400+ items. Every chart, every KPI card, every exported CSV in this system is based on incomplete data for any organisation that crosses 100 items. The export CSV on the Reports page will be missing data and no one will know.
+
+---
+
+### REJECTION-12 — Compliance Detail Page Permanently Shows "Loading details..." Behind the Sheet
+
+**File:** `src/app/(app)/compliance/[id]/page.tsx`, lines 264–273
+
+The background content of the `/compliance/[id]` page — visible whenever the detail sheet is partially open or before it fully covers the screen — always renders:
+
+```
+<p className="text-ct-muted">Loading details...</p>
+```
+
+This text is hardcoded and never changes. It is not a loading skeleton. It is a permanent static string that every user sees on every visit to a compliance detail. On mobile or when the sheet doesn't cover the full viewport, this text is visible alongside the real content. It looks like an error state to any non-technical user.
+
+---
+
+### REJECTION-13 — Kanban Board Is Read-Only — Cannot Change Status by Moving Cards
+
+**File:** `src/app/(app)/tasks/page.tsx`
+
+The Tasks/Kanban page is a visual-only board. Cards cannot be dragged between columns. There is no mechanism to move an item from "TO DO" to "IN PROGRESS" from this screen. The user must click a card (which currently navigates to the wrong URL — see REJECTION-06), open the detail sheet, and click "Start". The Kanban board is marketed as a task management view but provides zero task management functionality. It is a filtered read-only list dressed up as a Kanban.
+
+---
+
+### REJECTION-14 — `orgId` Silently Falls Back to Empty String — New Users See Blank App with No Error
+
+**File:** `src/lib/supabase/auth-guard.ts` (as described in session summary) and `src/app/api/compliance/route.ts`, line 28
+
+`conditions.push(eq(complianceItems.orgId, orgId ?? ''))`
+
+If a user signs up through Supabase Auth but is not yet in the `compliance.users` table (which happens if org setup is incomplete, or if they use a social login), `orgId` is `null`, which becomes `''`. Every query runs `WHERE org_id = ''`. The result: zero compliance items, zero departments, zero notices, zero everything. The dashboard shows all zeros. The user sees an empty application with no error message, no onboarding prompt, and no indication that something is wrong. They will assume the product is broken and churn immediately.
+
+---
+
+### REJECTION-15 — Activity Audit Tab on Compliance Detail Is Not Scoped to That Item
+
+**File:** `src/app/api/compliance/[id]/route.ts` (implied by compliance detail loading `auditLogs`)
+
+The "Activity" tab on the compliance detail sheet shows audit logs. But the main Audit page (`/audit`) is not org-scoped (see REJECTION-01), meaning the activity history shown may include cross-org activity. For an item shared across audit context, the logs are not filtered to that specific entity's `entityId`. A compliance officer clicking "Activity" on a GST return should only see events for that return — not a global feed.
+
+---
+
+### REJECTION-16 — Search Fires on Every Keystroke With No Debounce — Will Hammer the Database
+
+**File:** `src/app/(app)/compliance/page.tsx` (implied by standard pattern in compliance list)
+
+The search input in the compliance list triggers an API call (`GET /api/compliance?search=...`) on every keystroke with no debounce. A user typing "GST Monthly Return" sends 17 separate database `LIKE` queries in rapid succession. At 50 concurrent users all typing in search boxes, this is 850 database round-trips per second from search alone. The API uses a `LIKE '%term%'` query with no full-text index. This will bring the Supabase free-tier database to its knees under any real usage.
+
+---
+
+### REJECTION-17 — "Safe" Count on Dashboard Is Computed Incorrectly
+
+**File:** `src/app/api/compliance/stats/route.ts`, line 92
+
+`safe: Math.max(0, pending + inProgress - dueIn30Days)`
+
+The "safe" count is calculated as `(pending + in_progress) - dueIn30Days`. This is mathematically wrong. "Safe" should mean items that are not overdue and not at risk. Instead this formula subtracts items due in 30 days from the combined pending+in_progress count. If you have 10 pending items, 5 in progress, and 8 due in the next 30 days, "safe" = `10 + 5 - 8 = 7`. But those 7 are not safe — they are pending items with no due date data or far-future due dates. This number is displayed prominently on the dashboard KPI cards as a trust indicator. It is computed incorrectly.
+
+---
+
+### REJECTION-18 — No Role-Based Access Control Is Enforced on Any Endpoint
+
+**Files:** All API routes
+
+The schema defines user roles: `admin`, `manager`, `member`, `viewer`. But none of the API routes check the caller's role before performing operations. A `viewer` role user can call `POST /api/compliance` and create items. A `member` can call `PATCH /api/compliance/[id]` and change the status of any item in the org. A `manager` can hit `POST /api/notices` and create government notices. The role system exists in the database and is displayed in the Users page — but it is entirely decorative. There is no actual access control enforcement.
+
+---
+
+### REJECTION-19 — Compliance Type "INCOME_TAX" Renders as "INCOME TAX" in Some Places, "INCOME_TAX" in Others
+
+**Files:** `src/app/(app)/compliance/[id]/page.tsx` line 313, `src/app/(app)/tasks/page.tsx` line 189
+
+The code uses `.replace("_", " ")` — note: no `g` flag, so only the first underscore is replaced. For `INCOME_TAX` this produces `INCOME TAX` (correct). But for enum display consistency, the status badge in the header uses this replace while the type in the edit form or select dropdowns shows raw `INCOME_TAX`. A user reading the detail sheet sees "INCOME TAX" in the badge but would type "INCOME_TAX" in the API or see it exported in CSVs. When this is filtered in the Reports page table or exported CSV, inconsistent naming will confuse any downstream processing or legal filing references.
+
+---
+
+### REJECTION-20 — The Entire System Has No Email Notification Delivery — Only In-App Toasts
+
+**Files:** `src/app/api/notifications/route.ts`, `src/app/api/compliance/recur/route.ts`
+
+The system records notifications in a `notifications` table and marks them as read. There is no email delivery infrastructure whatsoever — no SMTP integration, no Resend/SendGrid client, no email templates, no queuing. When a deadline approaches, when an item goes overdue, when a notice is received — nothing is sent to anyone's email. The CCO managing 6 factories is not at her desk watching this dashboard all day. She expects email alerts. The product's M-13 feature ("Email notifications") claims this is implemented, but the implementation is limited to inserting a database row and displaying a bell badge. For compliance — where a missed GST filing carries ₹50/day penalty and an unanswered SCN can result in ex-parte orders — in-app-only notifications are not a notification system. They are a notification graveyard.
+
+---
+
+### Summary Scorecard (Junior Manager's Final Assessment)
+
+| # | Issue | Severity | Verdict |
+|---|-------|----------|---------|
+| R-01 | Audit logs cross-org data leak | CRITICAL | REJECT |
+| R-02 | Dashboard activity cross-org leak | CRITICAL | REJECT |
+| R-03 | Profile settings hardcoded + unsaveable | HIGH | REJECT |
+| R-04 | Org settings hardcoded + unsaveable | HIGH | REJECT |
+| R-05 | GET request mutates database | HIGH | REJECT |
+| R-06 | Kanban links to wrong route (404) | HIGH | REJECT |
+| R-07 | Cannot invite/add users | HIGH | REJECT |
+| R-08 | Cannot delete compliance items | HIGH | REJECT |
+| R-09 | Cannot change type or department after creation | HIGH | REJECT |
+| R-10 | Due date silently defaults to today → immediate overdue | HIGH | REJECT |
+| R-11 | Reports capped at 100 items | HIGH | REJECT |
+| R-12 | "Loading details..." permanently visible in background | MEDIUM | REJECT |
+| R-13 | Kanban is read-only, no drag-drop | MEDIUM | REJECT |
+| R-14 | New users see blank app with no error or onboarding | MEDIUM | REJECT |
+| R-15 | Activity tab not scoped to item | MEDIUM | REJECT |
+| R-16 | Search has no debounce — DB hammering under load | MEDIUM | REJECT |
+| R-17 | "Safe" count formula is mathematically wrong | MEDIUM | REJECT |
+| R-18 | Role-based access control is entirely decorative | CRITICAL | REJECT |
+| R-19 | Compliance type renders inconsistently across UI vs export | LOW | REJECT |
+| R-20 | No actual email notification delivery | HIGH | REJECT |
+
+**Recommendation:** Do not deploy. Do not demo to clients. Fix R-01, R-02, R-05, R-18 as emergency security patches before any further development. Rethink the onboarding flow (R-14), user management (R-07), and notification infrastructure (R-20) as architectural priorities.
+
+*Reviewed by: Junior Manager, Compliance Technology Evaluation*
+*Date: 2026-07-01*

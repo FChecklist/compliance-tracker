@@ -1,7 +1,7 @@
 import { db, notices, departments, users, auditLogs, organisations } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, or, like, asc, sql } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['received', 'in_progress', 'replied', 'closed', 'appealed'] as const
 
@@ -82,6 +82,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
+  const roleErr = requireRole(dbUser, 'member')
+  if (roleErr) return roleErr
   try {
     const body = await request.json()
     const {

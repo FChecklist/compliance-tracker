@@ -34,7 +34,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 const SETTINGS_NAV = [
   { id: "profile", label: "Profile", icon: User },
@@ -50,6 +51,65 @@ const SETTINGS_NAV = [
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [activeSection, setActiveSection] = useState("profile");
+
+  // Profile state
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileRole, setProfileRole] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // Org state
+  const [orgName, setOrgName] = useState('');
+  const [orgAddress, setOrgAddress] = useState('');
+  const [orgCin, setOrgCin] = useState('');
+  const [orgPan, setOrgPan] = useState('');
+  const [orgGstin, setOrgGstin] = useState('');
+  const [orgSaving, setOrgSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/me').then(r => r.json()).then(d => {
+      setProfileName(d.name ?? '');
+      setProfileEmail(d.email ?? '');
+      setProfileRole(d.role ?? '');
+      setOrgName(d.orgName ?? '');
+      setIsAdmin(d.role === 'admin');
+    }).catch(() => {});
+  }, []);
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const res = await fetch('/api/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: profileName }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Profile updated');
+    } catch {
+      toast.error('Failed to save profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const saveOrg = async () => {
+    setOrgSaving(true);
+    try {
+      const res = await fetch('/api/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgName, orgAddress, orgCin, orgGstin, orgPan }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('Organisation updated');
+    } catch {
+      toast.error('Failed to save organisation');
+    } finally {
+      setOrgSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -101,17 +161,14 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-4 mb-2">
                   <Avatar className="h-14 w-14">
                     <AvatarFallback className="bg-ct-saffron text-white text-lg font-bold">
-                      RS
+                      {profileName ? profileName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) : '??'}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-semibold text-ct-navy">Rajesh Sharma</p>
-                    <p className="text-sm text-ct-muted">admin@compliancetrack.com</p>
-                    <Badge
-                      variant="secondary"
-                      className="bg-ct-accent text-ct-saffron text-[10px] mt-1 font-medium"
-                    >
-                      Admin
+                    <p className="font-semibold text-ct-navy">{profileName || '—'}</p>
+                    <p className="text-sm text-ct-muted">{profileEmail || '—'}</p>
+                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron text-[10px] mt-1 font-medium capitalize">
+                      {profileRole || 'member'}
                     </Badge>
                   </div>
                 </div>
@@ -119,34 +176,21 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">Full Name</Label>
-                    <Input defaultValue="Rajesh Sharma" className="h-9" />
+                    <Input value={profileName} onChange={e => setProfileName(e.target.value)} className="h-9" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">Email</Label>
-                    <Input defaultValue="admin@compliancetrack.com" className="h-9" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-ct-muted uppercase">Phone</Label>
-                    <Input defaultValue="+91 98765 43210" className="h-9" />
+                    <Input value={profileEmail} disabled className="h-9 opacity-60" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">Role</Label>
-                    <Select defaultValue="admin">
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="member">Member</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input value={profileRole} disabled className="h-9 opacity-60 capitalize" />
                   </div>
                 </div>
                 <div className="pt-2">
-                  <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
+                  <Button onClick={saveProfile} disabled={profileSaving} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
                     <Save className="size-4 mr-2" />
-                    Save Changes
+                    {profileSaving ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </div>
               </CardContent>
@@ -162,34 +206,41 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {!isAdmin && (
+                  <p className="text-sm text-ct-muted bg-ct-cloud rounded-lg p-3">
+                    Only admins can edit organisation details.
+                  </p>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">Organisation Name</Label>
-                    <Input defaultValue="Acme Financial Services Pvt. Ltd." className="h-9" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-ct-muted uppercase">Industry</Label>
-                    <Input defaultValue="Financial Services" className="h-9" />
+                    <Input value={orgName} onChange={e => setOrgName(e.target.value)} disabled={!isAdmin} className="h-9" />
                   </div>
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">Address</Label>
-                    <Input defaultValue="Mumbai, Maharashtra, India" className="h-9" />
+                    <Input value={orgAddress} onChange={e => setOrgAddress(e.target.value)} disabled={!isAdmin} className="h-9" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">CIN Number</Label>
-                    <Input defaultValue="U67120MH2020PTC345678" className="h-9" />
+                    <Input value={orgCin} onChange={e => setOrgCin(e.target.value)} disabled={!isAdmin} className="h-9" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">PAN</Label>
-                    <Input defaultValue="AABCS1234K" className="h-9" />
+                    <Input value={orgPan} onChange={e => setOrgPan(e.target.value)} disabled={!isAdmin} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-ct-muted uppercase">GSTIN</Label>
+                    <Input value={orgGstin} onChange={e => setOrgGstin(e.target.value)} disabled={!isAdmin} className="h-9" />
                   </div>
                 </div>
-                <div className="pt-2">
-                  <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
-                    <Save className="size-4 mr-2" />
-                    Save Changes
-                  </Button>
-                </div>
+                {isAdmin && (
+                  <div className="pt-2">
+                    <Button onClick={saveOrg} disabled={orgSaving} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
+                      <Save className="size-4 mr-2" />
+                      {orgSaving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

@@ -1,7 +1,7 @@
 import { db, complianceItems, departments, users, auditLogs, organisations } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, or, like, asc, sql } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
@@ -95,6 +95,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
+  const roleErr = requireRole(dbUser, 'member')
+  if (roleErr) return roleErr
   try {
     const body = await request.json()
     const {
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
       description: description?.trim() || null,
       complianceType: complianceType.trim() as typeof VALID_TYPES[number],
       priority: (VALID_PRIORITIES as readonly string[]).includes(priority) ? priority : 'medium',
-      dueDate: dueDate ? new Date(dueDate) : new Date(),
+      dueDate: dueDate ? new Date(dueDate) : null,
       departmentId,
       orgId: org.id,
       assignedToId: assignedToId || null,

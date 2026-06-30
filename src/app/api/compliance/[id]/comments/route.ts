@@ -1,8 +1,9 @@
-import { db, comments, users, auditLogs } from "@/lib/db"
+import { db, comments, users, auditLogs, complianceItems } from "@/lib/db"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { createId } from "@paralleldrive/cuid2"
+import { notifyNewComment } from "@/lib/email"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -37,6 +38,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       details: 'Comment added',
       createdAt: new Date(),
     })
+
+    // Notify the compliance item's assignee about the new comment (if different from author)
+    try {
+      const item = await db.query.complianceItems.findFirst({
+        where: eq(complianceItems.id, id),
+        with: { assignedTo: { columns: { name: true, email: true } } },
+      })
+      if (item?.assignedTo?.email && item.assignedTo.email !== author.email) {
+        notifyNewComment(item.assignedTo.email, item.assignedTo.name, author.name, item.title, id, content.trim()).catch(() => {})
+      }
+    } catch {}
 
     return NextResponse.json({
       id: newComment[0].id,

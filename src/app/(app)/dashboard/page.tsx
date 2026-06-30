@@ -141,8 +141,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [orgName, setOrgName] = useState<string | null>(null);
+  const [notSetup, setNotSetup] = useState(false);
 
   useEffect(() => {
+    // Trigger overdue sync before fetching stats (was incorrectly in GET stats)
+    fetch("/api/compliance/overdue", { method: "POST" }).catch(() => {});
+
     fetch("/api/compliance/stats")
       .then((r) => r.json())
       .then((d) => {
@@ -153,11 +157,23 @@ export default function DashboardPage() {
 
     fetch("/api/me")
       .then((r) => r.json())
-      .then((d) => { if (d.orgName) setOrgName(d.orgName); })
+      .then((d) => {
+        if (d.orgName) setOrgName(d.orgName);
+        if (!d.orgId) setNotSetup(true);
+      })
       .catch(() => {});
   }, []);
 
   if (loading) return <DashboardSkeleton />;
+  if (notSetup) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+      <ShieldCheck className="size-14 text-ct-saffron mb-4" />
+      <h2 className="font-heading text-2xl text-ct-navy mb-2">Account Setup Incomplete</h2>
+      <p className="text-ct-muted max-w-md mb-6">
+        Your account is not linked to an organisation yet. Please contact your administrator to complete your account setup.
+      </p>
+    </div>
+  );
   if (!data)
     return <p className="text-ct-muted">Failed to load dashboard.</p>;
 

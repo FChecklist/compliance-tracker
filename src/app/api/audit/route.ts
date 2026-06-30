@@ -1,10 +1,10 @@
-import { db, auditLogs } from "@/lib/db";
+import { db, auditLogs, users } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, gte, lt, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lt, desc, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
   try {
     const { searchParams } = request.nextUrl
@@ -18,7 +18,13 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20))
     const offset = (page - 1) * limit
 
+    // Scope audit logs to this org by finding all user IDs in the org
+    const orgUserIds = orgId
+      ? (await db.select({ id: users.id }).from(users).where(eq(users.orgId, orgId))).map(u => u.id)
+      : []
+
     const conditions = []
+    if (orgUserIds.length > 0) conditions.push(inArray(auditLogs.userId, orgUserIds))
     if (userId) conditions.push(eq(auditLogs.userId, userId))
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (action) conditions.push(eq(auditLogs.action, action as any))

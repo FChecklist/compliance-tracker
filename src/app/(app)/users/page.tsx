@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -15,8 +17,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 type UserRow = {
   id: string;
@@ -43,8 +53,13 @@ function getInitials(name: string) {
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('member');
+  const [inviting, setInviting] = useState(false);
 
-  useEffect(() => {
+  const loadUsers = () => {
     fetch("/api/users")
       .then((r) => r.json())
       .then((d) => {
@@ -52,7 +67,34 @@ export default function UsersPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadUsers(); }, []);
+
+  const sendInvite = async () => {
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      toast.error('Name and email are required');
+      return;
+    }
+    setInviting(true);
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: inviteName.trim(), email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Failed to invite'); return; }
+      toast.success(`Invite sent to ${inviteEmail}`);
+      setShowInvite(false);
+      setInviteName(''); setInviteEmail(''); setInviteRole('member');
+      loadUsers();
+    } catch {
+      toast.error('Failed to invite user');
+    } finally {
+      setInviting(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -64,7 +106,7 @@ export default function UsersPage() {
             {users.length} team members
           </p>
         </div>
-        <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
+        <Button onClick={() => setShowInvite(true)} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
           <UserPlus className="size-4 mr-2" />
           Invite User
         </Button>
@@ -154,6 +196,48 @@ export default function UsersPage() {
           </Table>
         </div>
       </Card>
+
+      {/* Invite Modal */}
+      {showInvite && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <Card className="rounded-xl bg-white w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between p-5 border-b border-ct-border">
+              <h2 className="font-heading text-lg text-ct-navy">Invite Team Member</h2>
+              <button onClick={() => setShowInvite(false)} className="text-ct-muted hover:text-ct-navy">
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Full Name</Label>
+                <Input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="Priya Sharma" className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Email Address</Label>
+                <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="priya@company.com" className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Role</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="viewer">Viewer (read-only)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button onClick={sendInvite} disabled={inviting} className="flex-1 bg-ct-saffron hover:bg-ct-saffron-hover text-white">
+                  {inviting ? 'Sending...' : 'Send Invite'}
+                </Button>
+                <Button variant="outline" onClick={() => setShowInvite(false)} className="flex-1">Cancel</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,8 @@ import {
   Building2,
   User,
   LayoutGrid,
+  PlayCircle,
+  ArrowRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -135,14 +137,24 @@ function ColumnSkeleton() {
   );
 }
 
+async function changeStatus(id: string, newStatus: string) {
+  await fetch(`/api/compliance/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus }),
+  })
+}
+
 function KanbanColumn({
   column,
   items,
   loading,
+  onStatusChange,
 }: {
   column: Column;
   items: ComplianceItem[];
   loading: boolean;
+  onStatusChange: (id: string, status: string) => void;
 }) {
   const Icon = column.icon;
 
@@ -177,8 +189,7 @@ function KanbanColumn({
               whileHover={{ y: -2, boxShadow: "0 8px 25px -5px rgba(0,0,0,0.1)" }}
               transition={{ type: "spring", stiffness: 400, damping: 25 }}
             >
-              <Link href={`/checklists/${item.id}`}>
-                <Card className="rounded-xl bg-white border border-ct-border cursor-pointer hover:border-ct-saffron/30 transition-colors">
+              <Card className="rounded-xl bg-white border border-ct-border hover:border-ct-saffron/30 transition-colors">
                   <CardContent className="p-4 space-y-3">
                     {/* Top Row: Type + Priority */}
                     <div className="flex items-center justify-between">
@@ -186,7 +197,7 @@ function KanbanColumn({
                         variant="outline"
                         className="text-[10px] px-1.5 py-0 font-semibold border-ct-border text-ct-slate"
                       >
-                        {item.complianceType.replace("_", " ")}
+                        {item.complianceType.replace(/_/g, " ")}
                       </Badge>
                       <Badge
                         variant="secondary"
@@ -241,9 +252,34 @@ function KanbanColumn({
                         </div>
                       )}
                     </div>
+                    {/* Action buttons */}
+                    <div className="flex gap-1.5 pt-1 border-t border-ct-border/50">
+                      <Link
+                        href={`/compliance/${item.id}`}
+                        className="flex-1 text-[10px] text-ct-muted hover:text-ct-saffron transition-colors flex items-center justify-center gap-1 py-1"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        View <ArrowRight className="size-3" />
+                      </Link>
+                      {column.key === 'todo' && (
+                        <button
+                          className="flex-1 text-[10px] text-blue-600 hover:text-blue-800 flex items-center justify-center gap-1 py-1 border-l border-ct-border/50"
+                          onClick={() => onStatusChange(item.id, 'in_progress')}
+                        >
+                          <PlayCircle className="size-3" /> Start
+                        </button>
+                      )}
+                      {column.key === 'inprogress' && (
+                        <button
+                          className="flex-1 text-[10px] text-emerald-600 hover:text-emerald-800 flex items-center justify-center gap-1 py-1 border-l border-ct-border/50"
+                          onClick={() => onStatusChange(item.id, 'completed')}
+                        >
+                          <CheckCircle2 className="size-3" /> Done
+                        </button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              </Link>
             </motion.div>
           ))
         )}
@@ -253,47 +289,33 @@ function KanbanColumn({
 }
 
 export default function TasksPage() {
-  const [columns, setColumns] = useState<Record<string, ComplianceItem[]>>({
+  const [cols, setCols] = useState<Record<string, ComplianceItem[]>>({
     todo: [],
     inprogress: [],
     done: [],
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchColumn = (status: string, limit?: number): Promise<ComplianceItem[]> => {
+    const params = new URLSearchParams();
+    params.set("status", status);
+    params.set("limit", limit?.toString() ?? "100");
+    return fetch(`/api/compliance?${params}`).then(r => r.json()).then(d => d.compliance ?? []);
+  };
 
-    const fetchColumn = (
-      status: string,
-      limit?: number
-    ): Promise<ComplianceItem[]> => {
-      const params = new URLSearchParams();
-      params.set("status", status);
-      params.set("limit", limit?.toString() ?? "100");
-      return fetch(`/api/compliance?${params}`)
-        .then((r) => r.json())
-        .then((d) => d.compliance ?? []);
-    };
+  const loadAll = () => {
+    setLoading(true);
+    Promise.all([fetchColumn("pending"), fetchColumn("in_progress"), fetchColumn("completed", 10)])
+      .then(([todo, inprogress, done]) => { setCols({ todo, inprogress, done }); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
 
-    Promise.all([
-      fetchColumn("pending"),
-      fetchColumn("in_progress"),
-      fetchColumn("completed", 10),
-    ])
-      .then(([todo, inprogress, done]) => {
-        if (!cancelled) {
-          setColumns({ todo, inprogress, done });
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
+  useEffect(() => { loadAll(); }, []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    await changeStatus(id, newStatus);
+    loadAll();
+  };
 
   return (
     <div className="space-y-6">
@@ -321,8 +343,9 @@ export default function TasksPage() {
             <KanbanColumn
               key={col.key}
               column={col}
-              items={columns[col.key]}
+              items={cols[col.key]}
               loading={false}
+              onStatusChange={handleStatusChange}
             />
           ))}
         </div>

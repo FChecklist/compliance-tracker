@@ -18,6 +18,7 @@ import {
   History,
   ClipboardCheck,
   Send,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -150,8 +151,14 @@ export default function ComplianceDetailPage() {
   const [editAmount, setEditAmount] = useState('');
   const [editFiledDate, setEditFiledDate] = useState('');
   const [editAssignedToId, setEditAssignedToId] = useState('');
+  const [editComplianceType, setEditComplianceType] = useState('');
+  const [editDepartmentId, setEditDepartmentId] = useState('');
   const [teamUsers, setTeamUsers] = useState<{id: string; name: string}[]>([]);
+  const [departments, setDepartments] = useState<{id: string; name: string}[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const COMPLIANCE_TYPES = ['GST','TDS','MCA','PF','ESIC','INCOME_TAX','ROC','LABOUR','ENVIRONMENTAL','OTHER'];
 
   const sheetOpen = true;
   const id = params.id as string;
@@ -208,8 +215,11 @@ export default function ComplianceDetailPage() {
     setEditAmount(data.amount ?? '');
     setEditFiledDate(data.filedDate ? data.filedDate.split('T')[0] : '');
     setEditAssignedToId('');
+    setEditComplianceType(data.complianceType);
+    setEditDepartmentId('');
     setEditing(true);
     fetch('/api/users').then(r => r.json()).then(d => setTeamUsers(d.users ?? []));
+    fetch('/api/departments').then(r => r.json()).then(d => setDepartments(d.departments ?? d));
   };
 
   const saveEdits = async () => {
@@ -223,8 +233,10 @@ export default function ComplianceDetailPage() {
         acknowledgementNumber: editARN || null,
         amount: editAmount || null,
         filedDate: editFiledDate || null,
+        complianceType: editComplianceType,
       };
       if (editAssignedToId) body.assignedToId = editAssignedToId;
+      if (editDepartmentId) body.departmentId = editDepartmentId;
       const res = await fetch(`/api/compliance/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -238,6 +250,25 @@ export default function ComplianceDetailPage() {
       toast.error('Failed to save');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteItem = async () => {
+    if (!confirm('Delete this compliance item? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/compliance/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error ?? 'Failed to delete');
+        return;
+      }
+      toast.success('Compliance item deleted');
+      router.push('/compliance');
+    } catch {
+      toast.error('Failed to delete');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -260,16 +291,12 @@ export default function ComplianceDetailPage() {
 
   return (
     <>
-      {/* Keep the compliance list in background */}
+      {/* Background: compliance list — user navigates back to see it */}
       <div className="space-y-4">
         <div>
           <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Compliance Register</h1>
           <p className="text-sm text-ct-muted mt-1">Select an item to view details</p>
         </div>
-        <Card className="rounded-xl shadow-card bg-white p-8 text-center">
-          <ClipboardCheck className="size-12 text-ct-border mx-auto mb-3" />
-          <p className="text-ct-muted">Loading details...</p>
-        </Card>
       </div>
 
       {/* Slide-over Sheet */}
@@ -309,7 +336,7 @@ export default function ComplianceDetailPage() {
                         {STATUS_LABELS[data.status]}
                       </Badge>
                       <Badge className="text-[10px] px-2 py-0.5 bg-white/15 text-white/90 border-0">
-                        {data.complianceType.replace("_", " ")}
+                        {data.complianceType.replace(/_/g, " ")}
                       </Badge>
                     </div>
                   </div>
@@ -373,7 +400,7 @@ export default function ComplianceDetailPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { label: "Type", value: data.complianceType.replace("_", " "), icon: Tag },
+                      { label: "Type", value: data.complianceType.replace(/_/g, " "), icon: Tag },
                       { label: "Priority", value: data.priority, icon: AlertTriangle },
                       { label: "Period", value: data.period ?? "—", icon: Clock },
                       { label: "Financial Year", value: data.financialYear ? `FY ${data.financialYear}` : "—", icon: Calendar },
@@ -611,6 +638,15 @@ export default function ComplianceDetailPage() {
                     >
                       Edit
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={deleteItem}
+                      disabled={deleting}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </>
                 )}
               </div>
@@ -653,6 +689,21 @@ export default function ComplianceDetailPage() {
                       <label className="text-[10px] font-semibold text-ct-muted uppercase">Filed Date</label>
                       <Input type="date" value={editFiledDate} onChange={e => setEditFiledDate(e.target.value)} className="h-8 text-sm" />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-ct-muted uppercase">Compliance Type</label>
+                      <select value={editComplianceType} onChange={e => setEditComplianceType(e.target.value)} className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm">
+                        {COMPLIANCE_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                      </select>
+                    </div>
+                    {departments.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-ct-muted uppercase">Move to Department</label>
+                        <select value={editDepartmentId} onChange={e => setEditDepartmentId(e.target.value)} className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm">
+                          <option value="">Keep current</option>
+                          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      </div>
+                    )}
                     {teamUsers.length > 0 && (
                       <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-ct-muted uppercase">Reassign To</label>

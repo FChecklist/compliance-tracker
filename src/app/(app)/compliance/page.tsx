@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -84,9 +84,11 @@ export default function CompliancePage() {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const limit = 20;
   const totalPages = Math.ceil(total / limit);
@@ -95,6 +97,15 @@ export default function CompliancePage() {
     setLoading(true);
     updater();
     setPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(value);
+      setPage(1);
+    }, 350);
   };
 
   useEffect(() => {
@@ -109,7 +120,7 @@ export default function CompliancePage() {
     const params = new URLSearchParams();
     params.set("page", page.toString());
     params.set("limit", limit.toString());
-    if (search) params.set("search", search);
+    if (debouncedSearch) params.set("search", debouncedSearch);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (deptFilter !== "all") params.set("departmentId", deptFilter);
     if (typeFilter !== "all") params.set("complianceType", typeFilter);
@@ -127,7 +138,7 @@ export default function CompliancePage() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [page, search, statusFilter, deptFilter, typeFilter]);
+  }, [page, debouncedSearch, statusFilter, deptFilter, typeFilter]);
 
   const hasActiveFilters = statusFilter !== "all" || deptFilter !== "all" || typeFilter !== "all";
 
@@ -216,7 +227,7 @@ export default function CompliancePage() {
             <Input
               placeholder="Search title..."
               value={search}
-              onChange={(e) => updateFilter(() => setSearch(e.target.value))}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-8 h-9"
             />
           </div>
@@ -253,7 +264,7 @@ export default function CompliancePage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {COMPLIANCE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
+                  <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -315,7 +326,7 @@ export default function CompliancePage() {
                       {item.title}
                     </TableCell>
                     <TableCell className="text-xs text-ct-muted hidden md:table-cell">
-                      {item.complianceType.replace("_", " ")}
+                      {item.complianceType.replace(/_/g, " ")}
                     </TableCell>
                     <TableCell className="text-xs text-ct-muted hidden lg:table-cell">
                       {item.period ?? "—"}

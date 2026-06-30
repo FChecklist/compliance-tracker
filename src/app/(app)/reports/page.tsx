@@ -149,7 +149,7 @@ const columns: ColumnDef<ComplianceItem>[] = [
       const item = row.original;
       return (
         <Link
-          href={`/checklists/${item.id}`}
+          href={`/compliance/${item.id}`}
           className="font-medium text-sm text-ct-navy hover:text-ct-saffron transition-colors truncate block max-w-[240px]"
         >
           {item.title}
@@ -162,7 +162,7 @@ const columns: ColumnDef<ComplianceItem>[] = [
     header: "Type",
     cell: ({ getValue }) => (
       <span className="text-xs text-ct-muted">
-        {String(getValue()).replace("_", " ")}
+        {String(getValue()).replace(/_/g, " ")}
       </span>
     ),
   },
@@ -219,7 +219,7 @@ export default function ReportsPage() {
     let cancelled = false;
     Promise.all([
       fetch("/api/compliance/stats").then((r) => r.json()),
-      fetch("/api/compliance?limit=100").then((r) => r.json()),
+      fetch("/api/compliance?limit=1000").then((r) => r.json()),
     ])
       .then(([s, d]) => {
         if (!cancelled) {

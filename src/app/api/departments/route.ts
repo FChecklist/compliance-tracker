@@ -1,7 +1,7 @@
 import { db, departments, organisations, users, auditLogs } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, asc } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { createId } from "@paralleldrive/cuid2";
 
 export async function GET() {
@@ -40,6 +40,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
+  const roleErr = requireRole(dbUser, 'manager')
+  if (roleErr) return roleErr
   try {
     const { name, description } = await request.json()
     if (!name || typeof name !== 'string' || !name.trim()) {

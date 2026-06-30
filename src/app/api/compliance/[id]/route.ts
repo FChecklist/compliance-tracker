@@ -1,7 +1,8 @@
 import { db, complianceItems, auditLogs, users } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { eq, and, ne } from "drizzle-orm";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { notifyAssigned } from "@/lib/email";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
@@ -116,10 +117,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { response, dbUser } = await requireAuth()
   if (response) return response
+  const roleErr = requireRole(dbUser, 'member')
+  if (roleErr) return roleErr
   try {
     const { id } = await context.params
     const body = await request.json()
-    const { title, description, status, priority, dueDate, assignedToId, period, financialYear, acknowledgementNumber, registrationNumber, amount, filedDate, paidDate } = body
+    const { title, description, status, priority, dueDate, assignedToId, period, financialYear, acknowledgementNumber, registrationNumber, amount, filedDate, paidDate, complianceType, departmentId } = body
 
     const existingItem = await db.query.complianceItems.findFirst({
       where: eq(complianceItems.id, id),
@@ -140,8 +143,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "No admin user found" }, { status: 500 })
     }
 
+    const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'] as const
+
     const updateData: Record<string, unknown> = {}
     if (title !== undefined && typeof title === "string") updateData.title = title.trim()
+    if (complianceType !== undefined && (VALID_TYPES as readonly string[]).includes(complianceType)) updateData.complianceType = complianceType
+    if (departmentId !== undefined && typeof departmentId === "string" && departmentId.trim()) updateData.departmentId = departmentId.trim()
     if (description !== undefined) updateData.description = description
     if (priority !== undefined) updateData.priority = priority
     if (dueDate !== undefined) {
@@ -181,6 +188,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       await db.insert(auditLogs).values(logEntries)
     }
 
+    // Send assignment email when item is (re)assigned
+    if (assignedToId && assignedToId !== existingItem.assignedToId) {
+      const assignee = await db.query.users.findFirst({ where: eq(users.id, assignedToId) })
+      if (assignee?.email) {
+        notifyAssigned(assignee.email, assignee.name, existingItem.title, id).catch(() => {})
+      }
+    }
+
     const result = await db.query.complianceItems.findFirst({
       where: eq(complianceItems.id, id),
       with: {
@@ -207,5 +222,37 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   } catch (error) {
     console.error("Compliance update API error:", error)
     return NextResponse.json({ error: "Failed to update compliance item" }, { status: 500 })
+  }
+}
+
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  if (dbUser?.role === 'viewer' || dbUser?.role === 'member') {
+    return NextResponse.json({ error: "Insufficient permissions to delete compliance items" }, { status: 403 })
+  }
+  try {
+    const { id } = await context.params
+    const item = await db.query.complianceItems.findFirst({
+      where: and(eq(complianceItems.id, id), eq(complianceItems.orgId, orgId ?? '')),
+    })
+    if (!item) return NextResponse.json({ error: "Compliance item not found" }, { status: 404 })
+
+    await db.delete(complianceItems).where(eq(complianceItems.id, id))
+
+    const adminUser = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
+    if (adminUser) {
+      await db.insert(auditLogs).values({
+        action: 'delete',
+        entityType: 'ComplianceItem',
+        entityId: id,
+        userId: adminUser.id,
+        details: `Deleted compliance item: ${item.title}`,
+      })
+    }
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Compliance delete API error:", error)
+    return NextResponse.json({ error: "Failed to delete compliance item" }, { status: 500 })
   }
 }

@@ -1,6 +1,6 @@
-import { db, complianceItems, departments, auditLogs, notices } from "@/lib/db";
+import { db, complianceItems, departments, auditLogs, notices, users } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { eq, and, not, inArray, gte, lte, asc, desc, sql, lt } from "drizzle-orm";
+import { eq, and, not, inArray, gte, lte, asc, desc, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET() {
@@ -11,16 +11,7 @@ export async function GET() {
     const weekEnd = new Date(now.getTime() + 7 * 86400000)
     const monthEnd = new Date(now.getTime() + 30 * 86400000)
 
-    // Auto-sync overdue status before computing stats
-    await db.update(complianceItems)
-      .set({ status: 'overdue', updatedAt: now })
-      .where(
-        and(
-          lt(complianceItems.dueDate, now),
-          not(inArray(complianceItems.status, ['completed', 'not_applicable', 'overdue'])),
-          eq(complianceItems.orgId, orgId ?? '')
-        )
-      )
+    // Overdue sync is handled by POST /api/compliance/overdue — not in GET
 
     const notDoneStatuses = ['completed', 'not_applicable'] as const
     const orgFilter = eq(complianceItems.orgId, orgId ?? '')
@@ -72,7 +63,13 @@ export async function GET() {
       limit: 5,
     })
 
+    // Scope recent activity to this org's users only
+    const orgUserIds = orgId
+      ? (await db.select({ id: users.id }).from(users).where(eq(users.orgId, orgId))).map(u => u.id)
+      : []
+
     const recentActivity = await db.query.auditLogs.findMany({
+      where: orgUserIds.length > 0 ? inArray(auditLogs.userId, orgUserIds) : undefined,
       with: { user: { columns: { name: true } } },
       orderBy: desc(auditLogs.createdAt),
       limit: 8,
@@ -89,7 +86,7 @@ export async function GET() {
       dueThisWeek,
       completed,
       dueIn30Days,
-      safe: Math.max(0, pending + inProgress - dueIn30Days),
+      safe: completed,
       noticeCount,
       byDepartment,
       upcomingDeadlines: upcomingDeadlines.map(i => ({
