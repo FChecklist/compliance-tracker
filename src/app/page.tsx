@@ -2,9 +2,7 @@
 
 import Image from "next/image";
 import { useState, useCallback, useMemo } from "react";
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 import {
   Shield,
   Upload,
@@ -24,9 +22,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import {
   Card,
   CardContent,
