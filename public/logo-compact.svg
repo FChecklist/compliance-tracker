@@ -5,12 +5,9 @@
   <text x="50" y="110"
         font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
         font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#0F6E56">VER</text>
+        fill="#0F6E56">VERIDIAN</text>
 
-  <text x="242" y="110"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#0D1B2A">DIAN</text>
+  
 
   <text x="494" y="110"
         font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
