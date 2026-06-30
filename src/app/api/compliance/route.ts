@@ -71,6 +71,8 @@ export async function GET(request: NextRequest) {
         status: item.status,
         priority: item.priority,
         dueDate: item.dueDate?.toISOString(),
+        period: item.period ?? null,
+        acknowledgementNumber: item.acknowledgementNumber ?? null,
         department: { name: item.department.name },
         assignedTo: item.assignedTo
           ? { name: item.assignedTo.name, avatarUrl: item.assignedTo.avatarUrl }
@@ -94,7 +96,11 @@ export async function POST(request: NextRequest) {
   if (response) return response
   try {
     const body = await request.json()
-    const { title, description, complianceType, priority, dueDate, departmentId, assignedToId } = body
+    const {
+      title, description, complianceType, priority, dueDate, departmentId, assignedToId,
+      period, financialYear, acknowledgementNumber, registrationNumber,
+      amount, filedDate, paidDate, recurrenceType,
+    } = body
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 })
@@ -105,6 +111,8 @@ export async function POST(request: NextRequest) {
     if (!departmentId || typeof departmentId !== "string") {
       return NextResponse.json({ error: "departmentId is required" }, { status: 400 })
     }
+
+    const VALID_RECURRENCE = ['none', 'monthly', 'quarterly', 'half_yearly', 'annually'] as const
 
     const dept = await db.query.departments.findFirst({ where: eq(departments.id, departmentId) })
     if (!dept) return NextResponse.json({ error: "Department not found" }, { status: 404 })
@@ -124,6 +132,14 @@ export async function POST(request: NextRequest) {
       departmentId,
       orgId: org.id,
       assignedToId: assignedToId || null,
+      period: typeof period === 'string' && period.trim() ? period.trim() : null,
+      financialYear: typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null,
+      acknowledgementNumber: typeof acknowledgementNumber === 'string' && acknowledgementNumber.trim() ? acknowledgementNumber.trim() : null,
+      registrationNumber: typeof registrationNumber === 'string' && registrationNumber.trim() ? registrationNumber.trim() : null,
+      amount: amount != null && amount !== '' ? String(amount) : null,
+      filedDate: filedDate ? new Date(filedDate) : null,
+      paidDate: paidDate ? new Date(paidDate) : null,
+      recurrenceType: (VALID_RECURRENCE as readonly string[]).includes(recurrenceType) ? recurrenceType : 'none',
     }).returning()
 
     await db.insert(auditLogs).values({

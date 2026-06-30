@@ -14,6 +14,7 @@ import {
   Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import OnboardingChecklist from "@/components/OnboardingChecklist";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -158,6 +159,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Checklist */}
+      <OnboardingChecklist />
+
       {/* Page Header */}
       <div>
         <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Dashboard</h1>

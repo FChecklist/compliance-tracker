@@ -56,7 +56,9 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/tasks") ||
     request.nextUrl.pathname.startsWith("/reports") ||
     request.nextUrl.pathname.startsWith("/penalties") ||
-    request.nextUrl.pathname.startsWith("/team")
+    request.nextUrl.pathname.startsWith("/team") ||
+    request.nextUrl.pathname.startsWith("/notices") ||
+    request.nextUrl.pathname.startsWith("/help")
 
   if (!user && isAppRoute) {
     const url = request.nextUrl.clone()

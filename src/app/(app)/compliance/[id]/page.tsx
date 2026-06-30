@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import ChallanSection from "@/components/ChallanSection";
 
 const STATUS_BADGE: Record<string, string> = {
   overdue: "bg-red-100 text-red-700",
@@ -71,6 +72,14 @@ type ComplianceDetail = {
   priority: string;
   dueDate: string | null;
   completedAt: string | null;
+  period: string | null;
+  financialYear: string | null;
+  acknowledgementNumber: string | null;
+  registrationNumber: string | null;
+  amount: string | null;
+  filedDate: string | null;
+  paidDate: string | null;
+  recurrenceType: string;
   createdAt: string;
   updatedAt: string;
   department: { name: string };
@@ -278,6 +287,9 @@ export default function ComplianceDetailPage() {
                   <TabsTrigger value="activity" className="text-xs data-[state=active]:border-b-2 data-[state=active]:border-ct-saffron data-[state=active]:shadow-none rounded-none">
                     Activity
                   </TabsTrigger>
+                  <TabsTrigger value="challans" className="text-xs data-[state=active]:border-b-2 data-[state=active]:border-ct-saffron data-[state=active]:shadow-none rounded-none">
+                    Challans
+                  </TabsTrigger>
                   <TabsTrigger value="comments" className="text-xs data-[state=active]:border-b-2 data-[state=active]:border-ct-saffron data-[state=active]:shadow-none rounded-none">
                     Comments
                   </TabsTrigger>
@@ -296,11 +308,19 @@ export default function ComplianceDetailPage() {
                     {[
                       { label: "Type", value: data.complianceType.replace("_", " "), icon: Tag },
                       { label: "Priority", value: data.priority, icon: AlertTriangle },
+                      { label: "Period", value: data.period ?? "—", icon: Clock },
+                      { label: "Financial Year", value: data.financialYear ? `FY ${data.financialYear}` : "—", icon: Calendar },
                       { label: "Department", value: data.department.name, icon: Building2 },
                       { label: "Assigned To", value: data.assignedTo?.name ?? "Unassigned", icon: User },
                       { label: "Due Date", value: data.dueDate ? format(new Date(data.dueDate), "dd MMM yyyy") : "—", icon: Calendar },
+                      { label: "ARN / Ref", value: data.acknowledgementNumber ?? "—", icon: FileText },
+                      ...(data.registrationNumber ? [{ label: "Registration", value: data.registrationNumber, icon: Tag }] : []),
+                      ...(data.amount ? [{ label: "Amount", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(data.amount)), icon: FileText }] : []),
+                      ...(data.filedDate ? [{ label: "Filed Date", value: format(new Date(data.filedDate), "dd MMM yyyy"), icon: CheckCircle2 }] : []),
+                      ...(data.paidDate ? [{ label: "Paid Date", value: format(new Date(data.paidDate), "dd MMM yyyy"), icon: CheckCircle2 }] : []),
+                      ...(data.recurrenceType !== "none" ? [{ label: "Recurrence", value: data.recurrenceType.replace("_", "-"), icon: History }] : []),
                       { label: "Created", value: format(new Date(data.createdAt), "dd MMM yyyy"), icon: Clock },
-                    ].map((field) => (
+                    ].map((field, idx) => (
                       <div key={field.label} className="bg-ct-cloud rounded-lg p-3">
                         <div className="flex items-center gap-1.5 text-[10px] text-ct-muted uppercase font-semibold mb-1">
                           <field.icon className="size-3" />
@@ -407,6 +427,11 @@ export default function ComplianceDetailPage() {
                       ))}
                     </div>
                   )}
+                </TabsContent>
+
+                {/* Challans Tab */}
+                <TabsContent value="challans" className="p-4 mt-0">
+                  <ChallanSection complianceItemId={id} />
                 </TabsContent>
 
                 {/* Comments Tab */}

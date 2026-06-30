@@ -19,6 +19,9 @@ import {
   ListTodo,
   BarChart3,
   AlertCircle,
+  HelpCircle,
+  Bell,
+  Upload,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +41,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-function getNavSections(overdueCount: number, docCount: number): NavSection[] {
+function getNavSections(overdueCount: number, docCount: number, noticeCount: number): NavSection[] {
   return [
     {
       title: "OVERVIEW",
@@ -65,6 +68,12 @@ function getNavSections(overdueCount: number, docCount: number): NavSection[] {
           icon: ClipboardList,
         },
         {
+          label: "Notices",
+          href: "/notices",
+          icon: Bell,
+          badge: noticeCount > 0 ? { count: noticeCount, color: "bg-amber-500 text-white" } : undefined,
+        },
+        {
           label: "Audit Points",
           href: "/compliance?status=in_progress",
           icon: FileCheck,
@@ -74,6 +83,11 @@ function getNavSections(overdueCount: number, docCount: number): NavSection[] {
           href: "/compliance",
           icon: FileText,
           badge: docCount > 0 ? { count: docCount, color: "bg-amber-500 text-white" } : undefined,
+        },
+        {
+          label: "Bulk Import",
+          href: "/compliance",
+          icon: Upload,
         },
       ],
     },
@@ -131,6 +145,11 @@ function getNavSections(overdueCount: number, docCount: number): NavSection[] {
           icon: AlertCircle,
         },
         {
+          label: "Help Centre",
+          href: "/help",
+          icon: HelpCircle,
+        },
+        {
           label: "Team",
           href: "/team",
           icon: Users,
@@ -140,9 +159,9 @@ function getNavSections(overdueCount: number, docCount: number): NavSection[] {
   ];
 }
 
-function SidebarContent({ overdueCount, docCount }: { overdueCount: number; docCount: number }) {
+function SidebarContent({ overdueCount, docCount, noticeCount }: { overdueCount: number; docCount: number; noticeCount: number }) {
   const pathname = usePathname();
-  const sections = getNavSections(overdueCount, docCount);
+  const sections = getNavSections(overdueCount, docCount, noticeCount);
 
   return (
     <div className="flex flex-col h-full">
@@ -206,24 +225,23 @@ function SidebarContent({ overdueCount, docCount }: { overdueCount: number; docC
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0 }: { overdueCount?: number; docCount?: number }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0 }: { overdueCount?: number; docCount?: number; noticeCount?: number }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount }: { overdueCount: number; docCount: number }) {
-  const pathname = usePathname();
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount }: { overdueCount: number; docCount: number; noticeCount: number }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -241,7 +259,7 @@ function MobileSheetTrigger({ overdueCount, docCount }: { overdueCount: number; 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} />
       </SheetContent>
     </Sheet>
   );

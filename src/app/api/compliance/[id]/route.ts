@@ -54,6 +54,16 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         priority: item.priority,
         dueDate: item.dueDate?.toISOString(),
         completedAt: item.completedAt?.toISOString(),
+        filedDate: item.filedDate?.toISOString() ?? null,
+        paidDate: item.paidDate?.toISOString() ?? null,
+        period: item.period ?? null,
+        financialYear: item.financialYear ?? null,
+        acknowledgementNumber: item.acknowledgementNumber ?? null,
+        registrationNumber: item.registrationNumber ?? null,
+        amount: item.amount ?? null,
+        recurrenceType: item.recurrenceType,
+        recurrenceParentId: item.recurrenceParentId ?? null,
+        isTemplateSuggested: item.isTemplateSuggested,
         departmentId: item.departmentId,
         department: { name: item.department.name },
         assignedTo: item.assignedTo
@@ -109,7 +119,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
     const body = await request.json()
-    const { title, description, status, priority, dueDate, assignedToId } = body
+    const { title, description, status, priority, dueDate, assignedToId, period, financialYear, acknowledgementNumber, registrationNumber, amount, filedDate, paidDate } = body
 
     const existingItem = await db.query.complianceItems.findFirst({
       where: eq(complianceItems.id, id),
@@ -142,6 +152,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
     if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null
+    if (period !== undefined) updateData.period = typeof period === 'string' && period.trim() ? period.trim() : null
+    if (financialYear !== undefined) updateData.financialYear = typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null
+    if (acknowledgementNumber !== undefined) updateData.acknowledgementNumber = typeof acknowledgementNumber === 'string' && acknowledgementNumber.trim() ? acknowledgementNumber.trim() : null
+    if (registrationNumber !== undefined) updateData.registrationNumber = typeof registrationNumber === 'string' && registrationNumber.trim() ? registrationNumber.trim() : null
+    if (amount !== undefined) updateData.amount = amount != null && amount !== '' ? String(amount) : null
+    if (filedDate !== undefined) updateData.filedDate = filedDate ? new Date(filedDate) : null
+    if (paidDate !== undefined) updateData.paidDate = paidDate ? new Date(paidDate) : null
     if (status !== undefined) {
       updateData.status = status
       if (status === "completed") updateData.completedAt = new Date()

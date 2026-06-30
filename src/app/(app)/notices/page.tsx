@@ -7,7 +7,6 @@ import { format } from "date-fns";
 import {
   Plus,
   Search,
-  Filter,
   X,
   ChevronLeft,
   ChevronRight,
@@ -35,47 +34,57 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-type ComplianceItem = {
+type Notice = {
   id: string;
-  title: string;
-  complianceType: string;
+  noticeNumber: string | null;
+  authority: string | null;
+  dateReceived: string;
+  demandAmount: string | null;
+  replyDeadline: string | null;
   status: string;
-  priority: string;
-  dueDate: string | null;
-  period: string | null;
-  acknowledgementNumber: string | null;
+  description: string | null;
   department: { name: string };
   assignedTo: { name: string; avatarUrl: string | null } | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  overdue: "bg-red-100 text-red-700",
-  pending: "bg-amber-100 text-amber-700",
+  received: "bg-amber-100 text-amber-700",
   in_progress: "bg-blue-100 text-blue-700",
-  completed: "bg-emerald-100 text-emerald-700",
-  draft: "bg-purple-100 text-purple-700",
-  not_applicable: "bg-gray-100 text-gray-600",
+  replied: "bg-emerald-100 text-emerald-700",
+  closed: "bg-gray-100 text-gray-600",
+  appealed: "bg-purple-100 text-purple-700",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  overdue: "Overdue",
-  pending: "Pending",
+  received: "Received",
   in_progress: "In Progress",
-  completed: "Completed",
-  draft: "Draft",
-  not_applicable: "N/A",
+  replied: "Replied",
+  closed: "Closed",
+  appealed: "Appealed",
 };
 
-const PRIORITY_BADGE: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  high: "bg-orange-100 text-orange-700",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-emerald-100 text-emerald-700",
-};
+function formatCurrency(amount: string | null): string {
+  if (!amount) return "—";
+  const num = parseFloat(amount);
+  if (isNaN(num)) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(num);
+}
 
-export default function CompliancePage() {
+function isOverdue(deadline: string | null, status: string): boolean {
+  if (!deadline) return false;
+  if (status === "replied" || status === "closed") return false;
+  return new Date(deadline) < new Date();
+}
+
+export default function NoticesPage() {
   const router = useRouter();
-  const [items, setItems] = useState<ComplianceItem[]>([]);
+  const [items, setItems] = useState<Notice[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -84,7 +93,6 @@ export default function CompliancePage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
 
   const limit = 20;
   const totalPages = Math.ceil(total / limit);
@@ -110,13 +118,12 @@ export default function CompliancePage() {
     if (search) params.set("search", search);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (deptFilter !== "all") params.set("departmentId", deptFilter);
-    if (typeFilter !== "all") params.set("complianceType", typeFilter);
 
-    fetch(`/api/compliance?${params}`)
+    fetch(`/api/notices?${params}`)
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) {
-          setItems(d.compliance ?? []);
+          setItems(d.notices ?? []);
           setTotal(d.total ?? 0);
           setLoading(false);
         }
@@ -125,38 +132,33 @@ export default function CompliancePage() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [page, search, statusFilter, deptFilter, typeFilter]);
+  }, [page, search, statusFilter, deptFilter]);
 
-  const hasActiveFilters = statusFilter !== "all" || deptFilter !== "all" || typeFilter !== "all";
+  const hasActiveFilters = statusFilter !== "all" || deptFilter !== "all";
 
   const clearFilters = () => {
     setStatusFilter("all");
     setDeptFilter("all");
-    setTypeFilter("all");
     setPage(1);
   };
-
-  const COMPLIANCE_TYPES = [
-    "GST", "TDS", "MCA", "PF", "ESIC", "INCOME_TAX", "ROC", "LABOUR", "ENVIRONMENTAL", "OTHER",
-  ];
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Compliance Register</h1>
+          <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Notice Register</h1>
           <p className="text-sm text-ct-muted mt-1">
-            {total} compliance item{total !== 1 ? "s" : ""} tracked
+            {total} notice{total !== 1 ? "s" : ""} tracked
           </p>
         </div>
         <Button
           asChild
           className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
         >
-          <Link href="/compliance/new">
+          <Link href="/notices/new">
             <Plus className="size-4 mr-2" />
-            Add Compliance
+            Add Notice
           </Link>
         </Button>
       </div>
@@ -167,7 +169,7 @@ export default function CompliancePage() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 size-4 text-ct-muted" />
             <Input
-              placeholder="Search title..."
+              placeholder="Search notice number, authority..."
               value={search}
               onChange={(e) => updateFilter(() => setSearch(e.target.value))}
               className="pl-8 h-9"
@@ -175,17 +177,16 @@ export default function CompliancePage() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <Select value={statusFilter} onValueChange={(v) => updateFilter(() => setStatusFilter(v))}>
-              <SelectTrigger className="w-[130px] h-9">
+              <SelectTrigger className="w-[140px] h-9">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="received">Received</SelectItem>
                 <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="not_applicable">N/A</SelectItem>
+                <SelectItem value="replied">Replied</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="appealed">Appealed</SelectItem>
               </SelectContent>
             </Select>
             <Select value={deptFilter} onValueChange={(v) => updateFilter(() => setDeptFilter(v))}>
@@ -196,17 +197,6 @@ export default function CompliancePage() {
                 <SelectItem value="all">All Departments</SelectItem>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={(v) => updateFilter(() => setTypeFilter(v))}>
-              <SelectTrigger className="w-[130px] h-9">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {COMPLIANCE_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -225,14 +215,12 @@ export default function CompliancePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs font-semibold text-ct-navy">Title</TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">Type</TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">Period</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy">Notice Number</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">Authority</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy">Status</TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">Priority</TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden xl:table-cell">ARN / Ref</TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">Department</TableHead>
-                <TableHead className="text-xs font-semibold text-ct-navy">Due Date</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">Demand Amount</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">Reply Deadline</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">Assigned To</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy w-16">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -240,21 +228,19 @@ export default function CompliancePage() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
-                    <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
-                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-8" /></TableCell>
                   </TableRow>
                 ))
               ) : items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center text-ct-muted text-sm">
-                    No compliance records found.
+                  <TableCell colSpan={7} className="h-24 text-center text-ct-muted text-sm">
+                    No notices found.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -262,16 +248,13 @@ export default function CompliancePage() {
                   <TableRow
                     key={item.id}
                     className="cursor-pointer hover:bg-ct-row-hover"
-                    onClick={() => router.push(`/compliance/${item.id}`)}
+                    onClick={() => router.push(`/notices/${item.id}`)}
                   >
-                    <TableCell className="font-medium text-sm max-w-[220px] truncate text-ct-navy">
-                      {item.title}
+                    <TableCell className="font-medium text-sm max-w-[180px] truncate text-ct-navy">
+                      {item.noticeNumber ?? "—"}
                     </TableCell>
                     <TableCell className="text-xs text-ct-muted hidden md:table-cell">
-                      {item.complianceType.replace("_", " ")}
-                    </TableCell>
-                    <TableCell className="text-xs text-ct-muted hidden lg:table-cell">
-                      {item.period ?? "—"}
+                      {item.authority ?? "—"}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -284,29 +267,23 @@ export default function CompliancePage() {
                         {STATUS_LABELS[item.status] ?? item.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-[10px] px-1.5 py-0.5 capitalize",
-                          PRIORITY_BADGE[item.priority] ?? ""
-                        )}
-                      >
-                        {item.priority}
-                      </Badge>
+                    <TableCell className="text-xs text-ct-navy font-medium hidden sm:table-cell">
+                      {formatCurrency(item.demandAmount)}
                     </TableCell>
-                    <TableCell className="text-xs text-ct-navy font-mono hidden xl:table-cell">
-                      {item.acknowledgementNumber ? (
-                        <span title={item.acknowledgementNumber} className="truncate block max-w-[120px]">
-                          {item.acknowledgementNumber}
-                        </span>
-                      ) : "—"}
+                    <TableCell className="hidden lg:table-cell">
+                      <span className={cn(
+                        "text-xs font-medium",
+                        isOverdue(item.replyDeadline, item.status)
+                          ? "text-red-600"
+                          : "text-ct-navy"
+                      )}>
+                        {item.replyDeadline
+                          ? format(new Date(item.replyDeadline), "dd MMM yyyy")
+                          : "—"}
+                      </span>
                     </TableCell>
                     <TableCell className="text-xs text-ct-muted hidden lg:table-cell">
-                      {item.department.name}
-                    </TableCell>
-                    <TableCell className="text-xs text-ct-navy font-medium">
-                      {item.dueDate ? format(new Date(item.dueDate), "dd MMM yyyy") : "—"}
+                      {item.assignedTo?.name ?? "Unassigned"}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -315,7 +292,7 @@ export default function CompliancePage() {
                         className="size-7 text-ct-muted hover:text-ct-saffron"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/compliance/${item.id}`);
+                          router.push(`/notices/${item.id}`);
                         }}
                       >
                         <Eye className="size-3.5" />
@@ -382,7 +359,7 @@ export default function CompliancePage() {
       </Card>
 
       {/* FAB */}
-      <Link href="/compliance/new">
+      <Link href="/notices/new">
         <button className="fixed bottom-6 right-6 size-14 rounded-full bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron-fab flex items-center justify-center transition-transform hover:scale-105 z-20">
           <Plus className="size-6" />
         </button>

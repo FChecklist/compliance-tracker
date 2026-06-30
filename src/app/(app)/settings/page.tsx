@@ -11,7 +11,13 @@ import {
   Sun,
   Moon,
   Save,
+  Brain,
+  Key,
+  Webhook,
 } from "lucide-react";
+import AiConfigSection from "@/components/AiConfigSection";
+import ApiKeySection from "@/components/ApiKeySection";
+import WebhookSection from "@/components/WebhookSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +40,10 @@ const SETTINGS_NAV = [
   { id: "profile", label: "Profile", icon: User },
   { id: "organisation", label: "Organisation", icon: Building2 },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "preferences", label: "Preferences", icon: Palette },
+  { id: "api-access", label: "API Access", icon: Key },
+  { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -213,6 +222,10 @@ export default function SettingsPage() {
             </Card>
           )}
 
+          {activeSection === "ai-config" && (
+            <AiConfigSection />
+          )}
+
           {activeSection === "preferences" && (
             <Card className="rounded-xl shadow-card bg-white">
               <CardHeader>
@@ -268,6 +281,34 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "api-access" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Key className="size-4" />
+                  API Access
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ApiKeySection />
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "webhooks" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Webhook className="size-4" />
+                  Webhooks & Integrations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WebhookSection />
               </CardContent>
             </Card>
           )}
