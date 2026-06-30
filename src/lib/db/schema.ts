@@ -381,3 +381,72 @@ export const mcpAccessCodesRelations = relations(mcpAccessCodes, ({ one }) => ({
 export const onboardingStepsRelations = relations(onboardingSteps, ({ one }) => ({
   user: one(users, { fields: [onboardingSteps.userId], references: [users.id] }),
 }))
+
+// ---------------------------------------------------------------------------
+// File ingestion pipeline — staging tables
+// ---------------------------------------------------------------------------
+
+export const ingestionBatchStatusEnum = complianceSchemaDB.enum('ingestion_batch_status', [
+  'processing', 'review_pending', 'confirmed', 'cancelled', 'failed'
+])
+
+export const ingestionItemStatusEnum = complianceSchemaDB.enum('ingestion_item_status', [
+  'pending', 'approved', 'rejected', 'edited'
+])
+
+export const ingestionBatches = complianceSchemaDB.table('ingestion_batches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  fileName: text('file_name').notNull(),
+  fileType: text('file_type').notNull(),        // xlsx | csv | pdf
+  fileSizeBytes: integer('file_size_bytes'),
+  fileUrl: text('file_url'),
+  orgId: text('org_id').notNull(),
+  uploadedById: text('uploaded_by_id').notNull(),
+  status: ingestionBatchStatusEnum('status').notNull().default('processing'),
+  totalRows: integer('total_rows'),
+  extractedCount: integer('extracted_count'),
+  approvedCount: integer('approved_count'),
+  rejectedCount: integer('rejected_count'),
+  confirmedCount: integer('confirmed_count'),
+  aiModel: text('ai_model'),
+  extractionSummary: text('extraction_summary'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  confirmedAt: timestamp('confirmed_at'),
+  cancelledAt: timestamp('cancelled_at'),
+})
+
+export const ingestionItems = complianceSchemaDB.table('ingestion_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  batchId: text('batch_id').notNull(),
+  sourceRow: integer('source_row'),
+  title: text('title'),
+  complianceType: text('compliance_type'),
+  dueDate: text('due_date'),
+  status: text('status').default('pending'),
+  priority: text('priority').default('medium'),
+  departmentName: text('department_name'),
+  departmentId: text('department_id'),
+  assignedToName: text('assigned_to_name'),
+  assignedToId: text('assigned_to_id'),
+  description: text('description'),
+  extraData: text('extra_data'),
+  confidence: text('confidence').default('0'),
+  reviewStatus: ingestionItemStatusEnum('review_status').notNull().default('pending'),
+  warnings: text('warnings'),
+  missingFields: text('missing_fields'),
+  isDuplicate: boolean('is_duplicate').default(false),
+  duplicateOfId: text('duplicate_of_id'),
+  createdItemId: text('created_item_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const ingestionBatchesRelations = relations(ingestionBatches, ({ one, many }) => ({
+  org: one(organisations, { fields: [ingestionBatches.orgId], references: [organisations.id] }),
+  uploadedBy: one(users, { fields: [ingestionBatches.uploadedById], references: [users.id] }),
+  items: many(ingestionItems),
+}))
+
+export const ingestionItemsRelations = relations(ingestionItems, ({ one }) => ({
+  batch: one(ingestionBatches, { fields: [ingestionItems.batchId], references: [ingestionBatches.id] }),
+}))
