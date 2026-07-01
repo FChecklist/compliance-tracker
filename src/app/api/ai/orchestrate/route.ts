@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth-guard";
-import { db, complianceItems, notices, auditLogs } from "@/lib/db";
+import { complianceItems, notices } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
 import { callGroqLLMJson, getGroqApiKey } from "@/lib/groq";
 
@@ -99,8 +100,11 @@ function getUserMessage(
 }
 
 export async function POST(request: NextRequest) {
-  const { user, response: authError } = await requireAuth();
+  const { user, orgId, response: authError } = await requireAuth();
   if (!user) return authError!;
+  if (!orgId) {
+    return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+  }
 
   try {
     const body = await request.json();
@@ -136,13 +140,18 @@ export async function POST(request: NextRequest) {
         typedEvent === "item.overdue" ||
         typedEvent === "deadline.approaching"
       ) {
-        const item = await db.query.complianceItems.findFirst({
-          where: eq(complianceItems.id, entityId),
-          with: {
-            department: { columns: { name: true } },
-            assignedTo: { columns: { name: true, email: true } },
-          },
-        });
+        // RLS-scoped -- previously this had no org check at all, so an
+        // authenticated user from any org could pass another org's
+        // entityId and get AI suggestions built from that org's data.
+        const item = await withTenantContext({ orgId }, (db) =>
+          db.query.complianceItems.findFirst({
+            where: eq(complianceItems.id, entityId),
+            with: {
+              department: { columns: { name: true } },
+              assignedTo: { columns: { name: true, email: true } },
+            },
+          })
+        );
         if (item) {
           const daysOverdue = item.dueDate
             ? Math.floor(
@@ -165,13 +174,15 @@ export async function POST(request: NextRequest) {
       }
 
       if (typedEvent === "notice.received") {
-        const notice = await db.query.notices.findFirst({
-          where: eq(notices.id, entityId),
-          with: {
-            department: { columns: { name: true } },
-            assignedTo: { columns: { name: true, email: true } },
-          },
-        });
+        const notice = await withTenantContext({ orgId }, (db) =>
+          db.query.notices.findFirst({
+            where: eq(notices.id, entityId),
+            with: {
+              department: { columns: { name: true } },
+              assignedTo: { columns: { name: true, email: true } },
+            },
+          })
+        );
         if (notice) {
           const daysUntilDeadline = notice.replyDeadline
             ? Math.floor(

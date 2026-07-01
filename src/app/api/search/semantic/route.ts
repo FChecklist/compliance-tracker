@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findSimilar } from "@/lib/embeddings";
-import { db, complianceItems, notices, documents } from "@/lib/db";
+import { complianceItems, notices, documents } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
+  const { response, orgId } = await requireAuth();
+  if (response) return response;
+  if (!orgId) return NextResponse.json({ query: "", total: 0, grouped: {}, results: [] });
+
   try {
     const body = await request.json();
     const { query, limit = 10 } = body;
@@ -15,101 +21,104 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find similar embeddings
-    const similarItems = await findSimilar(query.trim(), undefined, limit);
+    // Scoped to this org's embeddings only -- previously this searched
+    // every organization's embeddings with no filter at all, and this
+    // whole route had no authentication either.
+    const similarItems = await findSimilar(query.trim(), orgId, limit);
 
-    // Fetch full entity data for each result
-    const enrichedResults = await Promise.all(
-      similarItems.map(async (item) => {
-        try {
-          if (item.entityType === "compliance_item") {
-            const ci = await db.query.complianceItems.findFirst({
-              where: eq(complianceItems.id, item.entityId),
-              with: {
-                department: { columns: { name: true } },
-                assignedTo: { columns: { name: true } },
-              },
-            });
-            if (!ci) return null;
+    const enrichedResults = await withTenantContext({ orgId }, (db) =>
+      Promise.all(
+        similarItems.map(async (item) => {
+          try {
+            if (item.entityType === "compliance_item") {
+              const ci = await db.query.complianceItems.findFirst({
+                where: eq(complianceItems.id, item.entityId),
+                with: {
+                  department: { columns: { name: true } },
+                  assignedTo: { columns: { name: true } },
+                },
+              });
+              if (!ci) return null;
+              return {
+                type: "compliance_item" as const,
+                label: "Compliance Item",
+                id: ci.id,
+                title: ci.title,
+                description: ci.description,
+                complianceType: ci.complianceType,
+                status: ci.status,
+                priority: ci.priority,
+                dueDate: ci.dueDate?.toISOString(),
+                department: ci.department?.name,
+                assignedTo: ci.assignedTo?.name,
+                score: item.score,
+                snippet: item.content.slice(0, 200),
+              };
+            }
+
+            if (item.entityType === "notice") {
+              const notice = await db.query.notices.findFirst({
+                where: eq(notices.id, item.entityId),
+                with: {
+                  department: { columns: { name: true } },
+                  assignedTo: { columns: { name: true } },
+                },
+              });
+              if (!notice) return null;
+              return {
+                type: "notice" as const,
+                label: "Notice",
+                id: notice.id,
+                title: notice.noticeNumber
+                  ? `Notice ${notice.noticeNumber}`
+                  : "Government Notice",
+                description: notice.description,
+                authority: notice.authority,
+                status: notice.status,
+                demandAmount: notice.demandAmount,
+                replyDeadline: notice.replyDeadline?.toISOString(),
+                department: notice.department?.name,
+                assignedTo: notice.assignedTo?.name,
+                score: item.score,
+                snippet: item.content.slice(0, 200),
+              };
+            }
+
+            if (item.entityType === "document") {
+              const doc = await db.query.documents.findFirst({
+                where: eq(documents.id, item.entityId),
+                with: {
+                  uploadedBy: { columns: { name: true } },
+                },
+              });
+              if (!doc) return null;
+              return {
+                type: "document" as const,
+                label: "Document",
+                id: doc.id,
+                title: doc.name,
+                fileType: doc.fileType,
+                uploadedBy: doc.uploadedBy?.name,
+                extractedData: doc.extractedData,
+                score: item.score,
+                snippet: item.content.slice(0, 200),
+              };
+            }
+
+            // Unknown entity type — return basic info
             return {
-              type: "compliance_item" as const,
-              label: "Compliance Item",
-              id: ci.id,
-              title: ci.title,
-              description: ci.description,
-              complianceType: ci.complianceType,
-              status: ci.status,
-              priority: ci.priority,
-              dueDate: ci.dueDate?.toISOString(),
-              department: ci.department?.name,
-              assignedTo: ci.assignedTo?.name,
+              type: item.entityType,
+              label: item.entityType.replace(/_/g, " "),
+              id: item.entityId,
+              title: item.content.slice(0, 80),
               score: item.score,
               snippet: item.content.slice(0, 200),
             };
+          } catch {
+            return null;
           }
-
-          if (item.entityType === "notice") {
-            const notice = await db.query.notices.findFirst({
-              where: eq(notices.id, item.entityId),
-              with: {
-                department: { columns: { name: true } },
-                assignedTo: { columns: { name: true } },
-              },
-            });
-            if (!notice) return null;
-            return {
-              type: "notice" as const,
-              label: "Notice",
-              id: notice.id,
-              title: notice.noticeNumber
-                ? `Notice ${notice.noticeNumber}`
-                : "Government Notice",
-              description: notice.description,
-              authority: notice.authority,
-              status: notice.status,
-              demandAmount: notice.demandAmount,
-              replyDeadline: notice.replyDeadline?.toISOString(),
-              department: notice.department?.name,
-              assignedTo: notice.assignedTo?.name,
-              score: item.score,
-              snippet: item.content.slice(0, 200),
-            };
-          }
-
-          if (item.entityType === "document") {
-            const doc = await db.query.documents.findFirst({
-              where: eq(documents.id, item.entityId),
-              with: {
-                uploadedBy: { columns: { name: true } },
-              },
-            });
-            if (!doc) return null;
-            return {
-              type: "document" as const,
-              label: "Document",
-              id: doc.id,
-              title: doc.name,
-              fileType: doc.fileType,
-              uploadedBy: doc.uploadedBy?.name,
-              extractedData: doc.extractedData,
-              score: item.score,
-              snippet: item.content.slice(0, 200),
-            };
-          }
-
-          // Unknown entity type — return basic info
-          return {
-            type: item.entityType,
-            label: item.entityType.replace(/_/g, " "),
-            id: item.entityId,
-            title: item.content.slice(0, 80),
-            score: item.score,
-            snippet: item.content.slice(0, 200),
-          };
-        } catch {
-          return null;
-        }
-      })
+        })
+      )
     );
 
     // Filter out nulls and group by type
