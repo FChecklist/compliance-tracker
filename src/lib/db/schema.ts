@@ -5,7 +5,10 @@ import { relations } from 'drizzle-orm'
 export const complianceSchemaDB = pgSchema('compliance')
 
 // ─── Enums ───────────────────────────────────────────────────────────────
-export const userRoleEnum = complianceSchemaDB.enum('user_role', ['admin', 'manager', 'member', 'viewer'])
+export const userRoleEnum = complianceSchemaDB.enum('user_role', [
+  'admin', 'manager', 'member', 'viewer', // original 4
+  'veridian_admin', 'branch_manager', 'senior_professional', 'team_member', 'client_viewer', 'external_auditor', // Wave 1 additions
+])
 export const complianceStatusEnum = complianceSchemaDB.enum('compliance_status', ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'])
 export const priorityEnum = complianceSchemaDB.enum('priority', ['low', 'medium', 'high', 'critical'])
 export const complianceTypeEnum = complianceSchemaDB.enum('compliance_type', ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'])
@@ -28,8 +31,64 @@ export const organisations = complianceSchemaDB.table('organisations', {
   trialStartsAt: timestamp('trial_starts_at'), // M-17
   trialEndsAt: timestamp('trial_ends_at'),     // M-17
   isReadOnly: boolean('is_read_only').notNull().default(false), // M-17: after trial
+  subscriptionPlanId: text('subscription_plan_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Branches / Clients / Client Entities (Wave 1: Customer Account hierarchy) ──
+// organisations IS the Customer Account (kept as-is -- every existing route
+// already references it). These are the new layers underneath it.
+export const branches = complianceSchemaDB.table('branches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const clients = complianceSchemaDB.table('clients', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  branchId: text('branch_id'),
+  name: text('name').notNull(),
+  isSelf: boolean('is_self').notNull().default(false), // the implicit "Self / Direct" client backfilled for existing orgs
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const clientEntities = complianceSchemaDB.table('client_entities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull(),
+  legalName: text('legal_name').notNull(),
+  entityType: text('entity_type'),
+  gstin: text('gstin'),
+  pan: text('pan'),
+  cin: text('cin'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const userClientAccess = complianceSchemaDB.table('user_client_access', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull(),
+  clientId: text('client_id').notNull(),
+  accessLevel: text('access_level').notNull().default('full'), // 'full' | 'aggregate_only'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const subscriptionPlans = complianceSchemaDB.table('subscription_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull().unique(),
+  userPackSize: integer('user_pack_size').notNull(),
+  assistantsPerUser: integer('assistants_per_user').notNull().default(5),
+  priceMonthly: numeric('price_monthly', { precision: 10, scale: 2 }),
+  features: jsonb('features').notNull().default({}),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // ─── Departments ─────────────────────────────────────────────────────────
@@ -77,6 +136,7 @@ export const complianceItems = complianceSchemaDB.table('compliance_items', {
   departmentId: text('department_id').notNull(),
   assignedToId: text('assigned_to_id'),
   orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // Wave 1 -- nullable during rollout, backfilled for existing rows
   // M-09: Period / Financial Year
   period: text('period'),                     // e.g. "June 2026", "Q1 FY2026-27"
   financialYear: text('financial_year'),      // e.g. "2026-27"
@@ -106,6 +166,7 @@ export const challans = complianceSchemaDB.table('challans', {
   bankName: text('bank_name'),
   description: text('description'),
   orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // Wave 1
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -125,6 +186,7 @@ export const notices = complianceSchemaDB.table('notices', {
   departmentId: text('department_id').notNull(),
   assignedToId: text('assigned_to_id'),
   orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -139,6 +201,7 @@ export const auditPoints = complianceSchemaDB.table('audit_points', {
   completedAt: timestamp('completed_at'),
   complianceItemId: text('compliance_item_id').notNull(),
   assignedToId: text('assigned_to_id'),
+  clientId: text('client_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -154,6 +217,7 @@ export const documents = complianceSchemaDB.table('documents', {
   noticeId: text('notice_id'),           // M-12: notice documents
   extractedData: jsonb('extracted_data'), // M-02: AI extracted fields
   uploadedById: text('uploaded_by_id').notNull(),
+  clientId: text('client_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
