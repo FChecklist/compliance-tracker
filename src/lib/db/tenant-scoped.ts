@@ -37,19 +37,25 @@ function getRawDb() {
 export type TenantContext = {
   orgId: string
   clientIds?: string[]
+  userId?: string
 }
 
 export type TenantDb = Parameters<Parameters<ReturnType<typeof getRawDb>["transaction"]>[0]>[0]
 
 /**
  * Runs `fn` inside a transaction scoped to `context` via Postgres GUCs
- * (`app.current_org_id`, `app.current_client_ids`), read by the
- * `compliance.current_org_id()` / `current_client_ids()` functions that the
- * real RLS policies check. `SET LOCAL` resets automatically at the end of
- * the transaction, so this is safe to reuse across pooled connections.
+ * (`app.current_org_id`, `app.current_client_ids`, `app.current_user_id`),
+ * read by the `compliance.current_org_id()` / `current_client_ids()` /
+ * `current_user_id()` functions that the real RLS policies check.
+ * `SET LOCAL` resets automatically at the end of the transaction, so this
+ * is safe to reuse across pooled connections.
  *
  * Every query inside `fn` runs as `app_runtime`, which has no RLS bypass --
  * a forgotten `WHERE org_id = ...` in a route still gets filtered correctly.
+ *
+ * `userId` is required for Wave 2 (AI Assistants) routes, whose RLS
+ * policies check `compliance.current_user_id()` -- without it, those
+ * tables' queries return zero rows (fail-closed, not fail-open).
  */
 export async function withTenantContext<T>(
   context: TenantContext,
@@ -60,6 +66,9 @@ export async function withTenantContext<T>(
     await tx.execute(sql`SET LOCAL app.current_org_id = ${context.orgId}`)
     if (context.clientIds && context.clientIds.length > 0) {
       await tx.execute(sql`SET LOCAL app.current_client_ids = ${context.clientIds.join(",")}`)
+    }
+    if (context.userId) {
+      await tx.execute(sql`SET LOCAL app.current_user_id = ${context.userId}`)
     }
     return fn(tx)
   })

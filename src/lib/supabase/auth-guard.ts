@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "./server"
-import { db, users, organisations, departments } from "@/lib/db"
+import { db, users, organisations, departments, aiAssistants } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 
@@ -96,6 +96,17 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
       authUserId: authUser.id,
       onboardingCompleted: false,
     }).returning()
+
+    // Wave 2: every user gets 5 numbered AI Assistants (User-tier, strictly
+    // per-user via RLS on current_user_id()). Matches the backfill migration
+    // applied to pre-existing users -- see orchestra_changes.md Wave 2.
+    await db.insert(aiAssistants).values(
+      Array.from({ length: 5 }, (_, i) => ({
+        userId: newUser.id,
+        assistantNumber: i + 1,
+        label: `Assistant ${i + 1}`,
+      }))
+    )
 
     return newUser
   } catch (err) {

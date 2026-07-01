@@ -1,4 +1,4 @@
-import { db, users } from "@/lib/db";
+import { db, users, aiAssistants } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
@@ -85,6 +85,19 @@ export async function POST(request: NextRequest) {
         orgId,
         isActive: false, // becomes active after they accept invite
       }).returning()
+    )
+
+    // Wave 2: provision 5 AI Assistants for the invitee. Uses the raw
+    // (RLS-bypassing) db client deliberately -- ai_assistants RLS requires
+    // current_user_id() to equal the row's user_id, and the inviting admin's
+    // tenant context has no reason to carry the invitee's user id. This
+    // mirrors autoProvisionUser's rationale in auth-guard.ts.
+    await db.insert(aiAssistants).values(
+      Array.from({ length: 5 }, (_, i) => ({
+        userId: newUser.id,
+        assistantNumber: i + 1,
+        label: `Assistant ${i + 1}`,
+      }))
     )
 
     return NextResponse.json({ id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }, { status: 201 })

@@ -1,4 +1,4 @@
-import { pgSchema, pgEnum, text, boolean, integer, timestamp, numeric, jsonb } from 'drizzle-orm/pg-core'
+import { pgSchema, pgEnum, text, boolean, integer, timestamp, numeric, jsonb, date } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { relations } from 'drizzle-orm'
 
@@ -344,6 +344,54 @@ export const onboardingSteps = complianceSchemaDB.table('onboarding_steps', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── AI Assistants (Wave 2: User-tier, strictly per-user) ────────────────
+// Each user gets 5 numbered assistants, auto-provisioned on signup (see
+// autoProvisionUser in auth-guard.ts) and backfilled for pre-existing users.
+// RLS scopes these to compliance.current_user_id() -- readable ONLY by the
+// owning user, not even by org admins. See orchestra_changes.md Wave 2.
+export const aiAssistants = complianceSchemaDB.table('ai_assistants', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull(),
+  assistantNumber: integer('assistant_number').notNull(),
+  label: text('label').notNull(),
+  status: text('status').notNull().default('idle'), // 'idle' | 'working' -- plain text in DB, not a pg enum
+  personalityConfig: jsonb('personality_config').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// embedding vector(1536) column deliberately omitted -- Drizzle can't type
+// pgvector columns, so it's managed via raw SQL (same pattern as `embeddings`,
+// see src/lib/embeddings.ts). Insert/query through withTenantContext's tx.execute.
+export const assistantMemories = complianceSchemaDB.table('assistant_memories', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assistantId: text('assistant_id').notNull(),
+  category: text('category').notNull().default('general'),
+  content: text('content').notNull(),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const assistantSessions = complianceSchemaDB.table('assistant_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assistantId: text('assistant_id').notNull(),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  endedAt: timestamp('ended_at'),
+  taskCount: integer('task_count').notNull().default(0),
+})
+
+export const assistantMetricsDaily = complianceSchemaDB.table('assistant_metrics_daily', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assistantId: text('assistant_id').notNull(),
+  date: date('date', { mode: 'string' }).notNull(),
+  tasksAssigned: integer('tasks_assigned').notNull().default(0),
+  tasksCompleted: integer('tasks_completed').notNull().default(0),
+  tasksAutoSubmitted: integer('tasks_auto_submitted').notNull().default(0),
+  avgCompletionTimeMs: integer('avg_completion_time_ms'),
+  humanInterventions: integer('human_interventions').notNull().default(0),
+  agentsCalledCount: integer('agents_called_count').notNull().default(0),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────
 export const organisationsRelations = relations(organisations, ({ many }) => ({
   users: many(users),
@@ -446,6 +494,25 @@ export const mcpAccessCodesRelations = relations(mcpAccessCodes, ({ one }) => ({
 
 export const onboardingStepsRelations = relations(onboardingSteps, ({ one }) => ({
   user: one(users, { fields: [onboardingSteps.userId], references: [users.id] }),
+}))
+
+export const aiAssistantsRelations = relations(aiAssistants, ({ one, many }) => ({
+  user: one(users, { fields: [aiAssistants.userId], references: [users.id] }),
+  memories: many(assistantMemories),
+  sessions: many(assistantSessions),
+  metricsDaily: many(assistantMetricsDaily),
+}))
+
+export const assistantMemoriesRelations = relations(assistantMemories, ({ one }) => ({
+  assistant: one(aiAssistants, { fields: [assistantMemories.assistantId], references: [aiAssistants.id] }),
+}))
+
+export const assistantSessionsRelations = relations(assistantSessions, ({ one }) => ({
+  assistant: one(aiAssistants, { fields: [assistantSessions.assistantId], references: [aiAssistants.id] }),
+}))
+
+export const assistantMetricsDailyRelations = relations(assistantMetricsDaily, ({ one }) => ({
+  assistant: one(aiAssistants, { fields: [assistantMetricsDaily.assistantId], references: [aiAssistants.id] }),
 }))
 
 // ---------------------------------------------------------------------------
