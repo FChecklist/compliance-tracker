@@ -2,7 +2,23 @@
 
 This is the running plan + change log for turning `compliance-tracker` into VERIDIAN AI Orchestra. See [analysis.md](analysis.md) for the Phase 1 discovery (schema map, feature map, gap analysis) this plan is built on.
 
-**Status: EXECUTION PLAN COMPLETE. EXECUTION NOT YET STARTED.** Order of execution, per wave and per step: **GitHub (code/schema/docs) → Supabase (migration/data) → Vercel (env/deploy)**. Each step below is written to be independently completable and independently verifiable, so progress can be shown incrementally rather than as one giant cutover. This file is updated after every executed step — see the Change Log at the bottom, which is the source of truth for "what's actually been done" (not the wave plan, which is the intent).
+**Status: WAVE 0 EXECUTED.** Order of execution, per wave and per step: **GitHub (code/schema/docs) → Supabase (migration/data) → Vercel (env/deploy)**. Each step below is written to be independently completable and independently verifiable, so progress can be shown incrementally rather than as one giant cutover. This file is updated after every executed step — see the Change Log at the bottom, which is the source of truth for "what's actually been done" (not the wave plan, which is the intent).
+
+---
+
+## ⚠️ Live infrastructure findings (discovered while executing Wave 0 — needs your input before Wave 1)
+
+Two things surfaced by actually connecting to Supabase/Vercel, not by reading the repo, that change what's safe to assume:
+
+1. **Two Supabase projects both have a `compliance` schema**: `jusqumifsmtcaujqyjuy` ("Veridian AI", 9 tables — organisations, departments, users, compliance_items, audit_points, documents, comments, notifications, audit_logs only) and `pcrjmlpuqsbocqfwoxod` ("verdian-ai", 16 tables — the 9 above plus mcp_access_codes, challans, notices, embeddings, onboarding_steps, ingestion_batches, ingestion_items, and now `ai_configurations`). `pcrjmlpuqsbocqfwoxod` is clearly the current one — it has every table the current `schema.ts` needs. **All Wave 0 database work in this file was applied to `pcrjmlpuqsbocqfwoxod`.**
+2. **Two Vercel projects are both linked to `FChecklist/compliance-tracker`'s `main` branch**: `compliance-tracker` (`prj_80z9Rz3BYvvExvGXyt5LNoPPMgiZ`, domain `compliance-tracker.vercel.app`) and `veridian-compliance-ai` (`prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII`, domain `veridian-compliance-ai.vercel.app`). Every push to `main` deploys both, silently.
+3. **Checked both live URLs directly**: `veridian-compliance-ai.vercel.app` serves the real, working "Veridian AI — AI-Native Compliance & Audit Operating System" app. `compliance-tracker.vercel.app` serves a raw, broken JS bundle at its root — it looks orphaned/misconfigured, not a working deployment.
+4. **Both Vercel projects set `NEXT_PUBLIC_SUPABASE_URL` to the *older* project (`jusqumifsmtcaujqyjuy`)**, not `pcrjmlpuqsbocqfwoxod`. That env var is what Supabase Auth (login/signup), the MCP route's admin client, and `lib/embeddings.ts`'s fallback path all use directly — no `DATABASE_URL` alternative for any of those. So **login and the MCP server almost certainly run against the 9-table project**, which doesn't have `mcp_access_codes`, `challans`, `notices`, etc. — meaning those features may currently be erroring in production regardless of anything in this file.
+5. **What's unknown:** `DATABASE_URL` is also set (encrypted) in both Vercel projects, and Drizzle prefers `DATABASE_URL` over the `NEXT_PUBLIC_SUPABASE_URL` fallback. I can't decrypt that value through the Vercel API to see which of the two Supabase projects it actually points to, so I don't know for certain whether the working parts of the live app (dashboard, compliance CRUD) are reading `pcrjmlpuqsbocqfwoxod` (where this file's DB changes now live) or `jusqumifsmtcaujqyjuy` (where they don't exist yet).
+
+**I did not guess further or touch either Vercel project's Git integration, since deleting/unlinking a project is destructive and picking the wrong Supabase project to keep "fixing" would compound the confusion.** I set the one new Wave 0 env var (`AI_CONFIG_ENCRYPTION_KEY`) only on `veridian-compliance-ai`, since that's the one confirmed to be actually serving traffic.
+
+**Needs from you:** (a) confirm what `DATABASE_URL` in the `veridian-compliance-ai` Vercel project actually points to (visible in the Vercel dashboard — Settings → Environment Variables — even though it's encrypted to API calls), and (b) confirm whether the `compliance-tracker` Vercel project can be unlinked/deleted, since it appears to be a dead duplicate. Wave 1 (RLS + hierarchy) should not proceed until it's confirmed which single Supabase project is the real one — building real per-tenant RLS on `pcrjmlpuqsbocqfwoxod` is wasted if the live app is actually reading `jusqumifsmtcaujqyjuy`.
 
 ---
 
@@ -166,10 +182,31 @@ Depends on: Wave 1 (cross-tier knowledge flow must not be able to leak across te
 
 ---
 
+## `main_dashboard_user.md` — captured as the Wave 3 worker-agent seed reference
+
+The dashboard mockup at `main_dashboard_user.md` is a static, self-contained HTML/JS prototype (fake data, `setInterval`-driven simulation, no backend calls) — but its `WA` object is a genuinely useful, concrete taxonomy that should become the actual Wave 3 `worker_agents` seed data rather than being invented fresh:
+
+- **33 Global-tier agents** across India Tax (Direct/Indirect), India Compliance (ROC/Labour), Accounting, Audit, Treasury, and Cross-Cutting (OCR, Anomaly Detection, Report Generation) domains — each with a name, domain path, icon, usage count, and accuracy score.
+- **6 Firm-tier agents** scoped to an example firm ("Shah & Co"): Month-End Close WF, TDS Review Checklist, Client Onboarding, Communication Templates, Approval Chain Config, Manufacturing ITC Rules.
+- **5 Client-tier agents** scoped to example clients (ABC Corp, DEF Inc, GHI Holdings): GST/TDS patterns, approval chains, bank patterns, risk profiles.
+- **3 User-tier agents** scoped to an example user ("Rahul"): task priority, review style, active hours.
+- **5 example assistants**, each wired to exactly 5 worker agents (one plausible combination per assistant persona) with example tasks and chat transcripts — useful as the Wave 2/Wave 4 demo/seed data too, not just Wave 3.
+
+This taxonomy is preserved here so it survives independently of the mockup file. Wave 3, step 3.1/3.3 should seed from this list (translated into real `worker_agents` rows) rather than re-deriving domain examples from scratch.
+
+## Frontend direction (from `main_dashboard_user.md`)
+
+The mockup's interaction model — 5 assistant columns (Kanban-style), each showing its linked worker-agent tags grouped by tier color (teal=Global, indigo=Firm, amber=Client, slate=User), a per-assistant task list with pending/in-progress/completed/submitted states, an embedded per-assistant chat, and a slide-out "Agent Library" panel listing all worker agents filterable by tier — is the target UX. It's built with the Tailwind CDN + Font Awesome CDN, which is fine for a throwaway prototype but not appropriate to bring into the production Next.js app as-is; the real implementation should use the existing shadcn/ui + Tailwind (non-CDN) + lucide-react stack already in `src/components/`, reusing `DataTable`, `StatusBadge`, `DashboardCard` where they fit, rather than hand-rolling new equivalents.
+
+---
+
 ## Change Log
 
 *(entries appended here one per executed step, in the order it actually happened — this table is the ground truth for progress, the waves above are the plan)*
 
 | # | Date | Layer | Change | Commit/Migration ref | Notes |
 |---|------|-------|--------|----------------------|-------|
-| — | — | — | — | — | Execution not yet started — awaiting go-ahead to begin Wave 0 |
+| 1 | 2026-07-01 | Supabase | Enabled RLS + service_role-bypass policy on 7 previously-exposed tables (`mcp_access_codes`, `challans`, `notices`, `embeddings`, `onboarding_steps`, `ingestion_batches`, `ingestion_items`) on project `pcrjmlpuqsbocqfwoxod` | migration `enable_rls_exposed_compliance_tables`; repo copy `drizzle/0003_enable_rls_exposed_compliance_tables.sql` | Applied with explicit user sign-off (Supabase tooling requires this before enabling RLS). Verified clean via `get_advisors` afterward. |
+| 2 | 2026-07-01 | Supabase | Created `compliance.ai_configurations` table (declared in `schema.ts`, never migrated), enabled `pgcrypto`, added `org_id`/`(status, due_date)` indexes on project `pcrjmlpuqsbocqfwoxod` | migration `create_ai_configurations_and_indexes`; repo copy `drizzle/0004_ai_configurations_and_indexes.sql` | — |
+| 3 | 2026-07-01 | GitHub | Rewired `/api/settings/ai-config` to real DB-backed, per-org, pgcrypto-encrypted storage; added `src/lib/ai-config-crypto.ts` | commit `2dca6c1` | Local build/typecheck not run (no `node_modules`/bun in this environment) — Vercel's own build step and existing CI will catch any compile error on deploy. |
+| 4 | 2026-07-01 | Vercel | Added `AI_CONFIG_ENCRYPTION_KEY` (32-byte random, encrypted) to the confirmed-live project `veridian-compliance-ai` (`prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII`), all environments | Vercel env id `3lNDmiwI99rJ43y8` | Not set on the `compliance-tracker` project since that one appears to be a dead/broken duplicate deployment — see infrastructure findings above. |
