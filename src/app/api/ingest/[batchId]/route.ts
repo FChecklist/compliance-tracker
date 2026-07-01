@@ -4,24 +4,28 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase/auth-guard'
-import { db, ingestionBatches, ingestionItems } from '@/lib/db'
+import { ingestionBatches, ingestionItems } from '@/lib/db'
+import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { eq } from 'drizzle-orm'
 
 type Context = { params: Promise<{ batchId: string }> }
 
 export async function GET(_req: NextRequest, ctx: Context) {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
+  if (!orgId) return NextResponse.json({ error: 'No organisation on this account' }, { status: 400 })
 
   const { batchId } = await ctx.params
 
-  const batch = await db.query.ingestionBatches.findFirst({
-    where: eq(ingestionBatches.id, batchId),
-    with: {
-      uploadedBy: { columns: { name: true } },
-      items: { orderBy: (i, { asc }) => [asc(i.sourceRow)] },
-    },
-  })
+  const batch = await withTenantContext({ orgId }, (db) =>
+    db.query.ingestionBatches.findFirst({
+      where: eq(ingestionBatches.id, batchId),
+      with: {
+        uploadedBy: { columns: { name: true } },
+        items: { orderBy: (i, { asc }) => [asc(i.sourceRow)] },
+      },
+    })
+  )
 
   if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
@@ -70,26 +74,32 @@ export async function GET(_req: NextRequest, ctx: Context) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Context) {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
+  if (!orgId) return NextResponse.json({ error: 'No organisation on this account' }, { status: 400 })
 
   const { batchId } = await ctx.params
 
-  const batch = await db.query.ingestionBatches.findFirst({
-    where: eq(ingestionBatches.id, batchId),
-    columns: { id: true, status: true },
+  const result = await withTenantContext({ orgId }, async (db) => {
+    const batch = await db.query.ingestionBatches.findFirst({
+      where: eq(ingestionBatches.id, batchId),
+      columns: { id: true, status: true },
+    })
+
+    if (!batch) return { error: 'Batch not found', status: 404 as const }
+    if (batch.status === 'confirmed') {
+      return { error: 'Cannot cancel a confirmed batch', status: 409 as const }
+    }
+
+    await db.delete(ingestionItems).where(eq(ingestionItems.batchId, batchId))
+    await db.update(ingestionBatches).set({
+      status: 'cancelled',
+      cancelledAt: new Date(),
+    }).where(eq(ingestionBatches.id, batchId))
+
+    return { cancelled: true }
   })
 
-  if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
-  if (batch.status === 'confirmed') {
-    return NextResponse.json({ error: 'Cannot cancel a confirmed batch' }, { status: 409 })
-  }
-
-  await db.delete(ingestionItems).where(eq(ingestionItems.batchId, batchId))
-  await db.update(ingestionBatches).set({
-    status: 'cancelled',
-    cancelledAt: new Date(),
-  }).where(eq(ingestionBatches.id, batchId))
-
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status })
   return NextResponse.json({ cancelled: true, batchId })
 }

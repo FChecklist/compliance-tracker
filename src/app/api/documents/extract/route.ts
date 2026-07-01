@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, documents, complianceItems } from "@/lib/db";
+import { documents } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
+import { requireAuth } from "@/lib/supabase/auth-guard";
 import { eq } from "drizzle-orm";
 import { callGroqLLMJson, getGroqApiKey } from "@/lib/groq";
 import { storeEmbedding } from "@/lib/embeddings";
@@ -43,6 +45,10 @@ interface ExtractedFields {
 }
 
 export async function POST(request: NextRequest) {
+  const { response, orgId } = await requireAuth();
+  if (response) return response;
+  if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+
   try {
     const contentType = request.headers.get("content-type") || "";
 
@@ -132,10 +138,10 @@ export async function POST(request: NextRequest) {
       textContent = body.text || "";
 
       if (documentId && !textContent) {
-        // Fetch document from DB to get info
-        const doc = await db.query.documents.findFirst({
-          where: eq(documents.id, documentId!),
-        });
+        // RLS-scoped -- 404s if this document belongs to another org.
+        const doc = await withTenantContext({ orgId }, (db) =>
+          db.query.documents.findFirst({ where: eq(documents.id, documentId!) })
+        );
         if (!doc) {
           return NextResponse.json(
             { error: "Document not found" },
@@ -170,23 +176,25 @@ export async function POST(request: NextRequest) {
       { temperature: 0.1, maxTokens: 2048 }
     );
 
-    // Store extracted data in document if we have a documentId
-    if (documentId) {
-      await db
-        .update(documents)
-        .set({ extractedData: extractedData as Record<string, unknown> })
-        .where(eq(documents.id, documentId));
-    }
+    await withTenantContext({ orgId }, async (db) => {
+      // Store extracted data in document if we have a documentId
+      // (RLS ensures this can only affect a document in this org)
+      if (documentId) {
+        await db
+          .update(documents)
+          .set({ extractedData: extractedData as Record<string, unknown> })
+          .where(eq(documents.id, documentId!));
+      }
+    });
 
     // Generate and store embedding for the document text
     try {
       const embedContent = `${extractedData.title || fileName}. ${extractedData.description || ""} ${extractedData.complianceType || ""} ${extractedData.authority || ""} ${textContent.slice(0, 500)}`;
-      const org = await db.query.organisations.findFirst();
       await storeEmbedding(
         "document",
         documentId || `upload-${Date.now()}`,
         embedContent,
-        org?.id
+        orgId
       );
     } catch (err) {
       console.warn("Failed to store document embedding:", err);
