@@ -17,6 +17,7 @@ import {
   Bot,
 } from "lucide-react";
 import AiConfigSection from "@/components/AiConfigSection";
+import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import WebhookSection from "@/components/WebhookSection";
@@ -277,7 +278,14 @@ export default function SettingsPage() {
           )}
 
           {activeSection === "ai-config" && (
-            <AiConfigSection />
+            <div className="space-y-6">
+              <AiConfigSection />
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardContent className="pt-6">
+                  <OrchestraModelConfigSection />
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === "ai-assistants" && (
