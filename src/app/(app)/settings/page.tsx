@@ -14,8 +14,10 @@ import {
   Brain,
   Key,
   Webhook,
+  Bot,
 } from "lucide-react";
 import AiConfigSection from "@/components/AiConfigSection";
+import AiAssistantsSection from "@/components/AiAssistantsSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import WebhookSection from "@/components/WebhookSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +44,7 @@ const SETTINGS_NAV = [
   { id: "organisation", label: "Organisation", icon: Building2 },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "ai-config", label: "AI Configuration", icon: Brain },
+  { id: "ai-assistants", label: "AI Assistants", icon: Bot },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
@@ -275,6 +278,20 @@ export default function SettingsPage() {
 
           {activeSection === "ai-config" && (
             <AiConfigSection />
+          )}
+
+          {activeSection === "ai-assistants" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Bot className="size-4" />
+                  AI Assistants
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AiAssistantsSection />
+              </CardContent>
+            </Card>
           )}
 
           {activeSection === "preferences" && (
