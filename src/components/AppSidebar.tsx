@@ -120,8 +120,8 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
       title: "TOOLS",
       items: [
         {
-          label: "AI Assistant",
-          href: "/dashboard",
+          label: "AI Orchestra",
+          href: "/orchestra",
           icon: Bot,
         },
         {
