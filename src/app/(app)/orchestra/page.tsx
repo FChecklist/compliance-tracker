@@ -34,13 +34,13 @@ export default function OrchestraPage() {
       <div className="flex items-start gap-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-3.5 py-3">
         <Info className="size-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
         <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
-          <strong>This page is a preview, not a live feature.</strong> The assistants, tasks, worker
-          agents, and chat below are example content, not connected to your real compliance data —
-          none of the underlying tables exist yet. Chat input and task submission are disabled on
-          purpose rather than faked. See <span className="font-mono">orchestra_changes.md</span> in
-          this repo for the build plan: Wave 1 (tenant hierarchy + real Row Level Security) has to
-          land before Waves 2–5 (real AI assistants, worker agent storage, orchestra layers, and the
-          15 self-improvement loops) can be built on top of it.
+          <strong>Mixed real/preview page.</strong> Click <strong>Agent Library</strong> above to see
+          your real worker agents — that data is live from the database (Wave 3), RLS-enforced per
+          tier. The 5 assistant columns below are still example content: your real 5 assistants
+          exist (Wave 2, editable in Settings → AI Assistants) but the tasks and chat shown per
+          column are illustrative, since nothing creates real tasks for them yet. Chat input and
+          task submission stay disabled here rather than faked. See{" "}
+          <span className="font-mono">orchestra_changes.md</span> for exactly what's real vs. planned.
         </p>
       </div>
 
