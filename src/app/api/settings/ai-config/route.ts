@@ -1,129 +1,116 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth-guard";
+import { db, aiConfigurations } from "@/lib/db";
+import { and, eq } from "drizzle-orm";
+import { encryptApiKey } from "@/lib/ai-config-crypto";
 
-// In-memory store for demo purposes (replace with database in production)
-const aiConfigStore: Record<string, {
-  providers: Record<string, {
-    encryptedKey: string;
-    extraction: boolean;
-    qa: boolean;
-    drafting: boolean;
-  }>;
-  usePlatformAI: boolean;
-}> = {};
+const VALID_PROVIDERS = ["groq", "openai", "anthropic", "google"] as const;
+type Provider = (typeof VALID_PROVIDERS)[number];
 
-// Simple obfuscation (replace with proper encryption in production)
-function obfuscateKey(key: string): string {
-  return Buffer.from(key).toString("base64");
-}
-
-function deobfuscateKey(obfuscated: string): string {
-  return Buffer.from(obfuscated, "base64").toString("utf-8");
+function isValidProvider(id: string): id is Provider {
+  return (VALID_PROVIDERS as readonly string[]).includes(id);
 }
 
 export async function GET() {
-  const { response } = await requireAuth();
+  const { orgId, response } = await requireAuth();
   if (response) return response;
+  if (!orgId) {
+    return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+  }
 
   try {
-    const orgId = "default"; // In production, get from user's org
-    const config = aiConfigStore[orgId];
+    const rows = await db.query.aiConfigurations.findMany({
+      where: eq(aiConfigurations.orgId, orgId),
+    });
 
-    if (!config) {
-      return NextResponse.json({
-        providers: {},
-        usePlatformAI: true,
-      });
-    }
-
-    // NEVER return the actual key — only return provider names and feature flags
-    const safeProviders: Record<string, {
+    // NEVER return the actual key — only provider flags and whether one is set
+    const providers: Record<string, {
       extraction: boolean;
       qa: boolean;
       drafting: boolean;
       hasKey: boolean;
+      isDefault: boolean;
+      isActive: boolean;
     }> = {};
 
-    for (const [providerId, provider] of Object.entries(config.providers)) {
-      safeProviders[providerId] = {
-        extraction: provider.extraction,
-        qa: provider.qa,
-        drafting: provider.drafting,
-        hasKey: !!provider.encryptedKey,
+    for (const row of rows) {
+      providers[row.provider] = {
+        extraction: row.useForExtraction,
+        qa: row.useForQA,
+        drafting: row.useForDrafting,
+        hasKey: !!row.encryptedApiKey,
+        isDefault: row.isDefault,
+        isActive: row.isActive,
       };
     }
 
-    return NextResponse.json({
-      providers: safeProviders,
-      usePlatformAI: config.usePlatformAI,
-    });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to load AI configuration" },
-      { status: 500 }
-    );
+    const usePlatformAI = !rows.some((r) => r.isDefault && r.isActive);
+
+    return NextResponse.json({ providers, usePlatformAI });
+  } catch (error) {
+    console.error("Failed to load AI configuration:", error);
+    return NextResponse.json({ error: "Failed to load AI configuration" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireAuth();
+  const { orgId, response } = await requireAuth();
   if (response) return response;
+  if (!orgId) {
+    return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+  }
 
   try {
     const body = await request.json();
-    const { providers, usePlatformAI } = body;
-    const orgId = "default"; // In production, get from user's org
-
-    const config = aiConfigStore[orgId] || {
-      providers: {},
-      usePlatformAI: true,
+    const { providers } = body as {
+      providers?: Record<string, {
+        key?: string;
+        extraction?: boolean;
+        qa?: boolean;
+        drafting?: boolean;
+        isDefault?: boolean;
+        isActive?: boolean;
+      }>;
     };
 
-    // Save provider configs (encrypt keys)
-    if (providers) {
-      for (const [providerId, providerConfig] of Object.entries(providers)) {
-        const cfg = providerConfig as {
-          key?: string;
-          extraction?: boolean;
-          qa?: boolean;
-          drafting?: boolean;
-        };
+    if (!providers || typeof providers !== "object") {
+      return NextResponse.json({ error: "providers is required" }, { status: 400 });
+    }
 
-        if (!config.providers[providerId]) {
-          config.providers[providerId] = {
-            encryptedKey: "",
-            extraction: false,
-            qa: false,
-            drafting: false,
-          };
-        }
+    for (const [providerId, cfg] of Object.entries(providers)) {
+      if (!isValidProvider(providerId)) continue;
 
-        if (cfg.key) {
-          config.providers[providerId].encryptedKey = obfuscateKey(cfg.key);
-        }
-        if (cfg.extraction !== undefined) {
-          config.providers[providerId].extraction = cfg.extraction;
-        }
-        if (cfg.qa !== undefined) {
-          config.providers[providerId].qa = cfg.qa;
-        }
-        if (cfg.drafting !== undefined) {
-          config.providers[providerId].drafting = cfg.drafting;
-        }
+      const existing = await db.query.aiConfigurations.findFirst({
+        where: and(eq(aiConfigurations.orgId, orgId), eq(aiConfigurations.provider, providerId)),
+      });
+
+      const patch: Partial<typeof aiConfigurations.$inferInsert> = { updatedAt: new Date() };
+      if (cfg.extraction !== undefined) patch.useForExtraction = cfg.extraction;
+      if (cfg.qa !== undefined) patch.useForQA = cfg.qa;
+      if (cfg.drafting !== undefined) patch.useForDrafting = cfg.drafting;
+      if (cfg.isDefault !== undefined) patch.isDefault = cfg.isDefault;
+      if (cfg.isActive !== undefined) patch.isActive = cfg.isActive;
+      if (cfg.key) patch.encryptedApiKey = await encryptApiKey(cfg.key);
+
+      if (existing) {
+        await db.update(aiConfigurations).set(patch).where(eq(aiConfigurations.id, existing.id));
+      } else {
+        await db.insert(aiConfigurations).values({
+          orgId,
+          provider: providerId,
+          useForExtraction: false,
+          useForQA: false,
+          useForDrafting: false,
+          isDefault: false,
+          isActive: true,
+          ...patch,
+        });
       }
     }
 
-    if (usePlatformAI !== undefined) {
-      config.usePlatformAI = usePlatformAI;
-    }
-
-    aiConfigStore[orgId] = config;
-
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to save AI configuration" },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error("Failed to save AI configuration:", error);
+    return NextResponse.json({ error: "Failed to save AI configuration" }, { status: 500 });
   }
 }
