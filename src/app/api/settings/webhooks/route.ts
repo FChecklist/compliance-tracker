@@ -1,6 +1,7 @@
-import { db, webhooks, webhookDeliveries, users } from "@/lib/db";
+import { webhooks, webhookDeliveries } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 const VALID_EVENTS = [
@@ -21,50 +22,46 @@ function generateSecret(): string {
 }
 
 export async function GET() {
-  const { response, user } = await requireAuth();
+  const { response, orgId } = await requireAuth();
   if (response) return response;
+  if (!orgId) return NextResponse.json({ webhooks: [] });
+
   try {
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.email, user!.email!),
-    });
-    if (!userRecord?.orgId) {
-      return NextResponse.json({ webhooks: [] });
-    }
+    const results = await withTenantContext({ orgId }, async (db) => {
+      const items = await db.query.webhooks.findMany({
+        orderBy: desc(webhooks.createdAt),
+      });
 
-    const items = await db.query.webhooks.findMany({
-      where: eq(webhooks.orgId, userRecord.orgId),
-      orderBy: desc(webhooks.createdAt),
+      // For each webhook, get last 5 deliveries
+      return Promise.all(
+        items.map(async (w) => {
+          const deliveries = await db.query.webhookDeliveries.findMany({
+            where: eq(webhookDeliveries.webhookId, w.id),
+            orderBy: desc(webhookDeliveries.createdAt),
+            limit: 5,
+          });
+          return {
+            id: w.id,
+            name: w.name,
+            url: w.url,
+            secret: w.secret,
+            events: w.events,
+            isActive: w.isActive,
+            lastDeliveryAt: w.lastDeliveryAt?.toISOString() ?? null,
+            lastStatusCode: w.lastStatusCode,
+            createdAt: w.createdAt.toISOString(),
+            recentDeliveries: deliveries.map((d) => ({
+              id: d.id,
+              eventType: d.eventType,
+              statusCode: d.statusCode,
+              success: d.success,
+              attempt: d.attempt,
+              createdAt: d.createdAt.toISOString(),
+            })),
+          };
+        })
+      );
     });
-
-    // For each webhook, get last 5 deliveries
-    const results = await Promise.all(
-      items.map(async (w) => {
-        const deliveries = await db.query.webhookDeliveries.findMany({
-          where: eq(webhookDeliveries.webhookId, w.id),
-          orderBy: desc(webhookDeliveries.createdAt),
-          limit: 5,
-        });
-        return {
-          id: w.id,
-          name: w.name,
-          url: w.url,
-          secret: w.secret,
-          events: w.events,
-          isActive: w.isActive,
-          lastDeliveryAt: w.lastDeliveryAt?.toISOString() ?? null,
-          lastStatusCode: w.lastStatusCode,
-          createdAt: w.createdAt.toISOString(),
-          recentDeliveries: deliveries.map((d) => ({
-            id: d.id,
-            eventType: d.eventType,
-            statusCode: d.statusCode,
-            success: d.success,
-            attempt: d.attempt,
-            createdAt: d.createdAt.toISOString(),
-          })),
-        };
-      })
-    );
 
     return NextResponse.json({ webhooks: results });
   } catch (error) {
@@ -74,8 +71,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, user } = await requireAuth();
+  const { response, orgId } = await requireAuth();
   if (response) return response;
+  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+
   try {
     const body = await request.json();
     const { name, url, events } = body;
@@ -94,33 +93,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No valid event types selected" }, { status: 400 });
     }
 
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.email, user!.email!),
-    });
-    if (!userRecord?.orgId) {
-      return NextResponse.json({ error: "No organisation found" }, { status: 400 });
-    }
-
     const secret = generateSecret();
 
-    const [created] = await db.insert(webhooks).values({
-      name: name.trim(),
-      url: url.trim(),
-      secret,
-      events: validEvents.join(","),
-      isActive: true,
-      orgId: userRecord.orgId,
-    }).returning();
+    const created = await withTenantContext({ orgId }, (db) =>
+      db.insert(webhooks).values({
+        name: name.trim(),
+        url: url.trim(),
+        secret,
+        events: validEvents.join(","),
+        isActive: true,
+        orgId,
+      }).returning()
+    );
 
     return NextResponse.json(
       {
-        id: created.id,
-        name: created.name,
-        url: created.url,
-        secret: created.secret,
-        events: created.events,
-        isActive: created.isActive,
-        createdAt: created.createdAt.toISOString(),
+        id: created[0].id,
+        name: created[0].name,
+        url: created[0].url,
+        secret: created[0].secret,
+        events: created[0].events,
+        isActive: created[0].isActive,
+        createdAt: created[0].createdAt.toISOString(),
       },
       { status: 201 }
     );

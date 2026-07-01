@@ -1,6 +1,7 @@
-import { db, apiKeys, users, organisations } from "@/lib/db";
+import { apiKeys } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 async function hashSHA256(input: string): Promise<string> {
@@ -21,20 +22,16 @@ function generateApiKey(): string {
 }
 
 export async function GET() {
-  const { response, user } = await requireAuth();
+  const { response, orgId } = await requireAuth();
   if (response) return response;
-  try {
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.email, user!.email!),
-    });
-    if (!userRecord?.orgId) {
-      return NextResponse.json({ keys: [] });
-    }
+  if (!orgId) return NextResponse.json({ keys: [] });
 
-    const keys = await db.query.apiKeys.findMany({
-      where: eq(apiKeys.orgId, userRecord.orgId),
-      orderBy: desc(apiKeys.createdAt),
-    });
+  try {
+    const keys = await withTenantContext({ orgId }, (db) =>
+      db.query.apiKeys.findMany({
+        orderBy: desc(apiKeys.createdAt),
+      })
+    );
 
     // NEVER return keyHash
     return NextResponse.json({
@@ -55,8 +52,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, user } = await requireAuth();
+  const { response, orgId } = await requireAuth();
   if (response) return response;
+  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 });
+
   try {
     const body = await request.json();
     const { name, scopes } = body;
@@ -72,36 +71,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "At least one valid scope (read/write) is required" }, { status: 400 });
     }
 
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.email, user!.email!),
-    });
-    if (!userRecord?.orgId) {
-      return NextResponse.json({ error: "No organisation found" }, { status: 400 });
-    }
-
     const rawKey = generateApiKey();
     const keyHash = await hashSHA256(rawKey);
     const keyPrefix = rawKey.substring(0, 8) + "...";
 
-    const [created] = await db.insert(apiKeys).values({
-      name: name.trim(),
-      keyHash,
-      keyPrefix,
-      orgId: userRecord.orgId,
-      scopes: validScopes.join(","),
-      isActive: true,
-    }).returning();
+    const created = await withTenantContext({ orgId }, (db) =>
+      db.insert(apiKeys).values({
+        name: name.trim(),
+        keyHash,
+        keyPrefix,
+        orgId,
+        scopes: validScopes.join(","),
+        isActive: true,
+      }).returning()
+    );
 
     // Return the FULL key ONLY on creation
     return NextResponse.json(
       {
-        id: created.id,
-        name: created.name,
+        id: created[0].id,
+        name: created[0].name,
         key: rawKey,
-        keyPrefix: created.keyPrefix,
-        scopes: created.scopes,
-        isActive: created.isActive,
-        createdAt: created.createdAt.toISOString(),
+        keyPrefix: created[0].keyPrefix,
+        scopes: created[0].scopes,
+        isActive: created[0].isActive,
+        createdAt: created[0].createdAt.toISOString(),
       },
       { status: 201 }
     );
