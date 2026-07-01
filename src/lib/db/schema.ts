@@ -459,6 +459,96 @@ export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_dom
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Task System + Orchestra Layers (Wave 4) ─────────────────────────────
+// task_embedding vector(1536) column omitted, same pattern as elsewhere --
+// managed via raw SQL through withTenantContext's tx.execute.
+export const tasks = complianceSchemaDB.table('tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  userId: text('user_id'),
+  assistantId: text('assistant_id'),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('pending'), // pending | in_progress | completed | failed | cancelled
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const taskExecutionPlan = complianceSchemaDB.table('task_execution_plan', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskId: text('task_id').notNull(),
+  stepNumber: integer('step_number').notNull(),
+  workerAgentId: text('worker_agent_id'),
+  description: text('description'),
+  status: text('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const taskAgentExecutions = complianceSchemaDB.table('task_agent_executions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskExecutionPlanId: text('task_execution_plan_id').notNull(),
+  workerAgentId: text('worker_agent_id'),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+  status: text('status').notNull().default('pending'),
+  input: jsonb('input').notNull().default({}),
+  output: jsonb('output'),
+  errorMessage: text('error_message'),
+})
+
+export const taskChatMessages = complianceSchemaDB.table('task_chat_messages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskId: text('task_id').notNull(),
+  role: text('role').notNull(), // 'user' | 'assistant' | 'system'
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Seeded with the 5 layers from the master spec: Task OA, User Assistant OA,
+// Customer Account OA, Global Intelligence OA, Meta OA. Global read (no
+// org scoping), same as subscription_plans.
+export const orchestraLayers = complianceSchemaDB.table('orchestra_layers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  layerKey: text('layer_key').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  layerOrder: integer('layer_order').notNull(),
+  defaultModelConfig: jsonb('default_model_config').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const orchestraExecutions = complianceSchemaDB.table('orchestra_executions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orchestraLayerId: text('orchestra_layer_id').notNull(),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  userId: text('user_id'),
+  taskId: text('task_id'),
+  eventType: text('event_type').notNull(),
+  input: jsonb('input').notNull().default({}),
+  output: jsonb('output'),
+  status: text('status').notNull().default('pending'),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Per-org, optionally per-layer BYO model override. orchestraLayerId=null
+// means "applies to all layers for this org". Distinct from ai_configurations
+// (Wave 0's BYOK table), which is per-org/per-purpose (extraction/QA/drafting),
+// not per-orchestra-layer -- see master spec Wave 4.
+export const customerModelConfig = complianceSchemaDB.table('customer_model_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  orchestraLayerId: text('orchestra_layer_id'),
+  provider: aiProviderEnum('provider').notNull(),
+  encryptedApiKey: text('encrypted_api_key'),
+  modelName: text('model_name'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────
 export const organisationsRelations = relations(organisations, ({ many }) => ({
   users: many(users),
@@ -603,6 +693,41 @@ export const workerAgentLearningsRelations = relations(workerAgentLearnings, ({ 
 
 export const workerAgentDomainIndexRelations = relations(workerAgentDomainIndex, ({ one }) => ({
   workerAgent: one(workerAgents, { fields: [workerAgentDomainIndex.workerAgentId], references: [workerAgents.id] }),
+}))
+
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  assistant: one(aiAssistants, { fields: [tasks.assistantId], references: [aiAssistants.id] }),
+  executionPlan: many(taskExecutionPlan),
+  chatMessages: many(taskChatMessages),
+}))
+
+export const taskExecutionPlanRelations = relations(taskExecutionPlan, ({ one, many }) => ({
+  task: one(tasks, { fields: [taskExecutionPlan.taskId], references: [tasks.id] }),
+  workerAgent: one(workerAgents, { fields: [taskExecutionPlan.workerAgentId], references: [workerAgents.id] }),
+  agentExecutions: many(taskAgentExecutions),
+}))
+
+export const taskAgentExecutionsRelations = relations(taskAgentExecutions, ({ one }) => ({
+  executionPlan: one(taskExecutionPlan, { fields: [taskAgentExecutions.taskExecutionPlanId], references: [taskExecutionPlan.id] }),
+  workerAgent: one(workerAgents, { fields: [taskAgentExecutions.workerAgentId], references: [workerAgents.id] }),
+}))
+
+export const taskChatMessagesRelations = relations(taskChatMessages, ({ one }) => ({
+  task: one(tasks, { fields: [taskChatMessages.taskId], references: [tasks.id] }),
+}))
+
+export const orchestraLayersRelations = relations(orchestraLayers, ({ many }) => ({
+  executions: many(orchestraExecutions),
+  modelConfigs: many(customerModelConfig),
+}))
+
+export const orchestraExecutionsRelations = relations(orchestraExecutions, ({ one }) => ({
+  layer: one(orchestraLayers, { fields: [orchestraExecutions.orchestraLayerId], references: [orchestraLayers.id] }),
+  task: one(tasks, { fields: [orchestraExecutions.taskId], references: [tasks.id] }),
+}))
+
+export const customerModelConfigRelations = relations(customerModelConfig, ({ one }) => ({
+  layer: one(orchestraLayers, { fields: [customerModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
 }))
 
 // ---------------------------------------------------------------------------

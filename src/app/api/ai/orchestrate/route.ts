@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth-guard";
-import { complianceItems, notices } from "@/lib/db";
+import { complianceItems, notices, orchestraLayers, orchestraExecutions } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
 import { callGroqLLMJson, getGroqApiKey } from "@/lib/groq";
+
+// Wave 4: this route is the Task Orchestra Agent ('task_oa') layer in
+// practice -- it plans/dispatches actions for a single event. Logging each
+// invocation to orchestra_executions makes that real without changing any
+// existing behavior (model selection is still hardcoded to Groq here; full
+// per-layer BYO model dispatch via customer_model_config is a larger,
+// separate change -- deferred, see orchestra_changes.md Wave 4).
+// Fire-and-forget: never blocks or fails the actual orchestration response.
+function logOrchestraExecution(
+  orgId: string,
+  eventType: string,
+  input: Record<string, unknown>,
+  status: "completed" | "failed",
+  durationMs: number,
+  output?: Record<string, unknown>
+) {
+  withTenantContext({ orgId }, async (db) => {
+    const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, "task_oa") });
+    if (!layer) return;
+    await db.insert(orchestraExecutions).values({
+      orchestraLayerId: layer.id,
+      orgId,
+      eventType,
+      input,
+      output: output ?? null,
+      status,
+      durationMs,
+    });
+  }).catch((err) => console.warn("orchestra_executions logging failed (non-fatal):", err));
+}
 
 type EventType =
   | "document.uploaded"
@@ -106,6 +136,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
   }
 
+  const startedAt = Date.now();
+  let parsedEventType: string | undefined;
+  let parsedEntityId: string | undefined;
+
   try {
     const body = await request.json();
     const { eventType, entityId, payload } = body as {
@@ -113,6 +147,8 @@ export async function POST(request: NextRequest) {
       entityId: string;
       payload?: Record<string, unknown>;
     };
+    parsedEventType = eventType;
+    parsedEntityId = entityId;
 
     if (!eventType || !VALID_EVENTS.includes(eventType as EventType)) {
       return NextResponse.json(
@@ -215,12 +251,14 @@ export async function POST(request: NextRequest) {
     const apiKey = getGroqApiKey();
     if (!apiKey) {
       // Return sensible defaults without AI
+      const defaultActions = getDefaultActions(typedEvent, entityId, enrichedPayload);
+      logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, { actions: defaultActions });
       return NextResponse.json({
         eventType: typedEvent,
         entityId,
         timestamp: new Date().toISOString(),
         context: `Groq API key not configured. Returning default actions for ${typedEvent}.`,
-        actions: getDefaultActions(typedEvent, entityId, enrichedPayload),
+        actions: defaultActions,
       });
     }
 
@@ -243,11 +281,13 @@ export async function POST(request: NextRequest) {
       })),
     };
 
+    logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, { actions: response.actions });
     return NextResponse.json(response);
   } catch (error) {
     console.error("Orchestrator error:", error);
     const message =
       error instanceof Error ? error.message : "Orchestration failed";
+    logOrchestraExecution(orgId, parsedEventType ?? "unknown", { entityId: parsedEntityId }, "failed", Date.now() - startedAt, { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
