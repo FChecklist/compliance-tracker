@@ -3,7 +3,8 @@ import { requireAuth } from "@/lib/supabase/auth-guard";
 import { complianceItems, notices, orchestraLayers, orchestraExecutions } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
-import { callGroqLLMJson, getGroqApiKey } from "@/lib/groq";
+import { callLLMJson } from "@/lib/llm-client";
+import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 
 // Wave 4: this route is the Task Orchestra Agent ('task_oa') layer in
 // practice -- it plans/dispatches actions for a single event. Logging each
@@ -244,12 +245,14 @@ export async function POST(request: NextRequest) {
       console.warn("Could not enrich orchestrator context:", err);
     }
 
-    // Call Groq LLM
+    // Resolve which provider/model this org uses for the Task Orchestra
+    // Agent layer -- their own BYO customer_model_config if they've set one,
+    // else the platform default (Groq). See lib/orchestra-model-resolver.ts.
     const systemPrompt = getSystemPrompt(typedEvent);
     const userMessage = getUserMessage(typedEvent, entityId, enrichedPayload);
 
-    const apiKey = getGroqApiKey();
-    if (!apiKey) {
+    const modelConfig = await resolveModelConfig(orgId, "task_oa");
+    if (!modelConfig) {
       // Return sensible defaults without AI
       const defaultActions = getDefaultActions(typedEvent, entityId, enrichedPayload);
       logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, { actions: defaultActions });
@@ -257,15 +260,18 @@ export async function POST(request: NextRequest) {
         eventType: typedEvent,
         entityId,
         timestamp: new Date().toISOString(),
-        context: `Groq API key not configured. Returning default actions for ${typedEvent}.`,
+        context: `No LLM provider configured. Returning default actions for ${typedEvent}.`,
         actions: defaultActions,
       });
     }
 
-    const result = await callGroqLLMJson<{
+    const result = await callLLMJson<{
       context: string;
       actions: OrchestratedAction[];
-    }>(systemPrompt, userMessage, { temperature: 0.3, maxTokens: 2048 });
+    }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
+      temperature: 0.3,
+      maxTokens: 2048,
+    });
 
     const response: OrchestratorResponse = {
       eventType: typedEvent,
@@ -281,7 +287,12 @@ export async function POST(request: NextRequest) {
       })),
     };
 
-    logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, { actions: response.actions });
+    logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, {
+      actions: response.actions,
+      provider: modelConfig.provider,
+      model: modelConfig.model,
+      isCustomerConfigured: modelConfig.isCustomerConfigured,
+    });
     return NextResponse.json(response);
   } catch (error) {
     console.error("Orchestrator error:", error);
