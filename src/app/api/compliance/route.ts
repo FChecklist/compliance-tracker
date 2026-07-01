@@ -1,4 +1,5 @@
-import { db, complianceItems, departments, users, auditLogs, organisations } from "@/lib/db";
+import { complianceItems, departments, auditLogs } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, or, like, asc, sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
@@ -12,6 +13,8 @@ type SortField = (typeof SORTABLE_FIELDS)[number]
 export async function GET(request: NextRequest) {
   const { response, orgId } = await requireAuth()
   if (response) return response
+  if (!orgId) return NextResponse.json({ compliance: [], total: 0, page: 1, limit: 20, totalPages: 0 })
+
   try {
     const { searchParams } = request.nextUrl
 
@@ -24,8 +27,11 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20))
     const offset = (page - 1) * limit
 
+    // org_id condition kept here too (belt-and-suspenders with RLS, and
+    // needed since RLS alone can't be seen by the query planner for the
+    // separate count() call's WHERE clause the same way).
     const conditions = []
-    conditions.push(eq(complianceItems.orgId, orgId ?? ''))
+    conditions.push(eq(complianceItems.orgId, orgId))
     if (search) {
       conditions.push(or(
         like(complianceItems.title, `%${search}%`),
@@ -48,20 +54,22 @@ export async function GET(request: NextRequest) {
       : safeSortBy === 'title' ? complianceItems.title
       : complianceItems.createdAt
 
-    const [items, [{ count }]] = await Promise.all([
-      db.query.complianceItems.findMany({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        where: where as any,
-        with: {
-          department: { columns: { name: true } },
-          assignedTo: { columns: { name: true, avatarUrl: true } },
-        },
-        orderBy: asc(orderCol),
-        limit,
-        offset,
-      }),
-      db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(where),
-    ])
+    const [items, [{ count }]] = await withTenantContext({ orgId }, (db) =>
+      Promise.all([
+        db.query.complianceItems.findMany({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          where: where as any,
+          with: {
+            department: { columns: { name: true } },
+            assignedTo: { columns: { name: true, avatarUrl: true } },
+          },
+          orderBy: asc(orderCol),
+          limit,
+          offset,
+        }),
+        db.select({ count: sql<number>`count(*)::int` }).from(complianceItems).where(where),
+      ])
+    )
 
     return NextResponse.json({
       compliance: items.map((item) => ({
@@ -97,6 +105,8 @@ export async function POST(request: NextRequest) {
   if (response) return response
   const roleErr = requireRole(dbUser, 'member')
   if (roleErr) return roleErr
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
   try {
     const body = await request.json()
     const {
@@ -117,45 +127,45 @@ export async function POST(request: NextRequest) {
 
     const VALID_RECURRENCE = ['none', 'monthly', 'quarterly', 'half_yearly', 'annually'] as const
 
-    const dept = await db.query.departments.findFirst({ where: eq(departments.id, departmentId) })
-    if (!dept) return NextResponse.json({ error: "Department not found" }, { status: 404 })
+    const result = await withTenantContext({ orgId }, async (db) => {
+      // RLS means this returns null if departmentId belongs to a different
+      // org, not just if it doesn't exist at all -- fixes a pre-existing
+      // gap where a department id from any org could be referenced here.
+      const dept = await db.query.departments.findFirst({ where: eq(departments.id, departmentId) })
+      if (!dept) return { error: "Department not found", status: 404 as const }
 
-    const org = orgId
-      ? await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
-      : await db.query.organisations.findFirst()
-    if (!org) return NextResponse.json({ error: "No organisation found" }, { status: 500 })
+      const [item] = await db.insert(complianceItems).values({
+        title: title.trim(),
+        description: description?.trim() || null,
+        complianceType: complianceType.trim() as typeof VALID_TYPES[number],
+        priority: (VALID_PRIORITIES as readonly string[]).includes(priority) ? priority : 'medium',
+        dueDate: dueDate ? new Date(dueDate) : null,
+        departmentId,
+        orgId,
+        assignedToId: assignedToId || null,
+        period: typeof period === 'string' && period.trim() ? period.trim() : null,
+        financialYear: typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null,
+        acknowledgementNumber: typeof acknowledgementNumber === 'string' && acknowledgementNumber.trim() ? acknowledgementNumber.trim() : null,
+        registrationNumber: typeof registrationNumber === 'string' && registrationNumber.trim() ? registrationNumber.trim() : null,
+        amount: amount != null && amount !== '' ? String(amount) : null,
+        filedDate: filedDate ? new Date(filedDate) : null,
+        paidDate: paidDate ? new Date(paidDate) : null,
+        recurrenceType: (VALID_RECURRENCE as readonly string[]).includes(recurrenceType) ? recurrenceType : 'none',
+      }).returning()
 
-    const adminUser = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
-    if (!adminUser) return NextResponse.json({ error: "No admin user found" }, { status: 500 })
+      await db.insert(auditLogs).values({
+        action: 'create',
+        entityType: 'ComplianceItem',
+        entityId: item.id,
+        userId: dbUser.id,
+        details: `Created compliance item: ${item.title}`,
+      })
 
-    const [item] = await db.insert(complianceItems).values({
-      title: title.trim(),
-      description: description?.trim() || null,
-      complianceType: complianceType.trim() as typeof VALID_TYPES[number],
-      priority: (VALID_PRIORITIES as readonly string[]).includes(priority) ? priority : 'medium',
-      dueDate: dueDate ? new Date(dueDate) : null,
-      departmentId,
-      orgId: org.id,
-      assignedToId: assignedToId || null,
-      period: typeof period === 'string' && period.trim() ? period.trim() : null,
-      financialYear: typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null,
-      acknowledgementNumber: typeof acknowledgementNumber === 'string' && acknowledgementNumber.trim() ? acknowledgementNumber.trim() : null,
-      registrationNumber: typeof registrationNumber === 'string' && registrationNumber.trim() ? registrationNumber.trim() : null,
-      amount: amount != null && amount !== '' ? String(amount) : null,
-      filedDate: filedDate ? new Date(filedDate) : null,
-      paidDate: paidDate ? new Date(paidDate) : null,
-      recurrenceType: (VALID_RECURRENCE as readonly string[]).includes(recurrenceType) ? recurrenceType : 'none',
-    }).returning()
-
-    await db.insert(auditLogs).values({
-      action: 'create',
-      entityType: 'ComplianceItem',
-      entityId: item.id,
-      userId: adminUser.id,
-      details: `Created compliance item: ${item.title}`,
+      return { item }
     })
 
-    return NextResponse.json({ id: item.id, title: item.title, status: item.status }, { status: 201 })
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json({ id: result.item.id, title: result.item.title, status: result.item.status }, { status: 201 })
   } catch (error) {
     console.error("Compliance create API error:", error)
     return NextResponse.json({ error: "Failed to create compliance item" }, { status: 500 })

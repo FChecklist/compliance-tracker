@@ -1,6 +1,7 @@
-import { db, complianceItems, auditLogs, users } from "@/lib/db";
+import { complianceItems, auditLogs, users } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { notifyAssigned } from "@/lib/email";
 
@@ -10,40 +11,48 @@ const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
+  if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
   try {
     const { id } = await context.params
 
-    const item = await db.query.complianceItems.findFirst({
-      where: eq(complianceItems.id, id),
-      with: {
-        department: { columns: { name: true } },
-        assignedTo: { columns: { name: true, avatarUrl: true } },
-        auditPoints: {
-          with: { assignedTo: { columns: { name: true } } },
-          orderBy: (ap, { asc }) => asc(ap.createdAt),
+    const result = await withTenantContext({ orgId }, async (db) => {
+      const item = await db.query.complianceItems.findFirst({
+        where: eq(complianceItems.id, id),
+        with: {
+          department: { columns: { name: true } },
+          assignedTo: { columns: { name: true, avatarUrl: true } },
+          auditPoints: {
+            with: { assignedTo: { columns: { name: true } } },
+            orderBy: (ap, { asc }) => asc(ap.createdAt),
+          },
+          documents: {
+            with: { uploadedBy: { columns: { name: true } } },
+            orderBy: (d, { desc }) => desc(d.createdAt),
+          },
+          comments: {
+            with: { author: { columns: { name: true, avatarUrl: true } } },
+            orderBy: (c, { desc }) => desc(c.createdAt),
+          },
         },
-        documents: {
-          with: { uploadedBy: { columns: { name: true } } },
-          orderBy: (d, { desc }) => desc(d.createdAt),
-        },
-        comments: {
-          with: { author: { columns: { name: true, avatarUrl: true } } },
-          orderBy: (c, { desc }) => desc(c.createdAt),
-        },
-      },
+      })
+      if (!item) return null
+
+      const logs = await db.query.auditLogs.findMany({
+        where: and(eq(auditLogs.entityId, id), eq(auditLogs.entityType, 'ComplianceItem')),
+        with: { user: { columns: { name: true } } },
+        orderBy: (l, { desc }) => desc(l.createdAt),
+      })
+
+      return { item, logs }
     })
 
-    if (!item) {
+    if (!result) {
       return NextResponse.json({ error: "Compliance item not found" }, { status: 404 })
     }
-
-    const logs = await db.query.auditLogs.findMany({
-      where: and(eq(auditLogs.entityId, id), eq(auditLogs.entityType, 'ComplianceItem')),
-      with: { user: { columns: { name: true } } },
-      orderBy: (l, { desc }) => desc(l.createdAt),
-    })
+    const { item, logs } = result
 
     return NextResponse.json({
       item: {
@@ -115,21 +124,16 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const { response, dbUser } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   const roleErr = requireRole(dbUser, 'member')
   if (roleErr) return roleErr
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
   try {
     const { id } = await context.params
     const body = await request.json()
     const { title, description, status, priority, dueDate, assignedToId, period, financialYear, acknowledgementNumber, registrationNumber, amount, filedDate, paidDate, complianceType, departmentId } = body
-
-    const existingItem = await db.query.complianceItems.findFirst({
-      where: eq(complianceItems.id, id),
-    })
-    if (!existingItem) {
-      return NextResponse.json({ error: "Compliance item not found" }, { status: 404 })
-    }
 
     if (status !== undefined && !(VALID_STATUSES as readonly string[]).includes(status)) {
       return NextResponse.json({ error: `Invalid status` }, { status: 400 })
@@ -138,86 +142,93 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: `Invalid priority` }, { status: 400 })
     }
 
-    const adminUser = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
-    if (!adminUser) {
-      return NextResponse.json({ error: "No admin user found" }, { status: 500 })
-    }
-
     const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'] as const
 
-    const updateData: Record<string, unknown> = {}
-    if (title !== undefined && typeof title === "string") updateData.title = title.trim()
-    if (complianceType !== undefined && (VALID_TYPES as readonly string[]).includes(complianceType)) updateData.complianceType = complianceType
-    if (departmentId !== undefined && typeof departmentId === "string" && departmentId.trim()) updateData.departmentId = departmentId.trim()
-    if (description !== undefined) updateData.description = description
-    if (priority !== undefined) updateData.priority = priority
-    if (dueDate !== undefined) {
-      if (dueDate === null) updateData.dueDate = null
-      else {
-        const parsed = new Date(dueDate)
-        if (!isNaN(parsed.getTime())) updateData.dueDate = parsed
+    const result = await withTenantContext({ orgId }, async (db) => {
+      const existingItem = await db.query.complianceItems.findFirst({
+        where: eq(complianceItems.id, id),
+      })
+      if (!existingItem) return { error: "Compliance item not found", status: 404 as const }
+
+      const updateData: Record<string, unknown> = {}
+      if (title !== undefined && typeof title === "string") updateData.title = title.trim()
+      if (complianceType !== undefined && (VALID_TYPES as readonly string[]).includes(complianceType)) updateData.complianceType = complianceType
+      if (departmentId !== undefined && typeof departmentId === "string" && departmentId.trim()) updateData.departmentId = departmentId.trim()
+      if (description !== undefined) updateData.description = description
+      if (priority !== undefined) updateData.priority = priority
+      if (dueDate !== undefined) {
+        if (dueDate === null) updateData.dueDate = null
+        else {
+          const parsed = new Date(dueDate)
+          if (!isNaN(parsed.getTime())) updateData.dueDate = parsed
+        }
       }
-    }
-    if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null
-    if (period !== undefined) updateData.period = typeof period === 'string' && period.trim() ? period.trim() : null
-    if (financialYear !== undefined) updateData.financialYear = typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null
-    if (acknowledgementNumber !== undefined) updateData.acknowledgementNumber = typeof acknowledgementNumber === 'string' && acknowledgementNumber.trim() ? acknowledgementNumber.trim() : null
-    if (registrationNumber !== undefined) updateData.registrationNumber = typeof registrationNumber === 'string' && registrationNumber.trim() ? registrationNumber.trim() : null
-    if (amount !== undefined) updateData.amount = amount != null && amount !== '' ? String(amount) : null
-    if (filedDate !== undefined) updateData.filedDate = filedDate ? new Date(filedDate) : null
-    if (paidDate !== undefined) updateData.paidDate = paidDate ? new Date(paidDate) : null
-    if (status !== undefined) {
-      updateData.status = status
-      if (status === "completed") updateData.completedAt = new Date()
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.update(complianceItems).set(updateData as any).where(eq(complianceItems.id, id))
-
-    const logEntries = []
-    if (status !== undefined && status !== existingItem.status) {
-      logEntries.push({ action: 'status_change' as const, entityType: 'ComplianceItem', entityId: id, userId: adminUser.id, details: `Status changed from ${existingItem.status} to ${status}` })
-    }
-    if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
-      logEntries.push({ action: (existingItem.assignedToId ? 'reassign' : 'assign') as 'reassign' | 'assign', entityType: 'ComplianceItem', entityId: id, userId: adminUser.id, details: existingItem.assignedToId ? 'Reassigned from previous user' : `Assigned to user ${assignedToId}` })
-    }
-    if (title !== undefined && title !== existingItem.title) {
-      logEntries.push({ action: 'update' as const, entityType: 'ComplianceItem', entityId: id, userId: adminUser.id, details: 'Title updated' })
-    }
-    if (logEntries.length > 0) {
-      await db.insert(auditLogs).values(logEntries)
-    }
-
-    // Send assignment email when item is (re)assigned
-    if (assignedToId && assignedToId !== existingItem.assignedToId) {
-      const assignee = await db.query.users.findFirst({ where: eq(users.id, assignedToId) })
-      if (assignee?.email) {
-        notifyAssigned(assignee.email, assignee.name, existingItem.title, id).catch(() => {})
+      if (assignedToId !== undefined) updateData.assignedToId = assignedToId || null
+      if (period !== undefined) updateData.period = typeof period === 'string' && period.trim() ? period.trim() : null
+      if (financialYear !== undefined) updateData.financialYear = typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null
+      if (acknowledgementNumber !== undefined) updateData.acknowledgementNumber = typeof acknowledgementNumber === 'string' && acknowledgementNumber.trim() ? acknowledgementNumber.trim() : null
+      if (registrationNumber !== undefined) updateData.registrationNumber = typeof registrationNumber === 'string' && registrationNumber.trim() ? registrationNumber.trim() : null
+      if (amount !== undefined) updateData.amount = amount != null && amount !== '' ? String(amount) : null
+      if (filedDate !== undefined) updateData.filedDate = filedDate ? new Date(filedDate) : null
+      if (paidDate !== undefined) updateData.paidDate = paidDate ? new Date(paidDate) : null
+      if (status !== undefined) {
+        updateData.status = status
+        if (status === "completed") updateData.completedAt = new Date()
       }
-    }
 
-    const result = await db.query.complianceItems.findFirst({
-      where: eq(complianceItems.id, id),
-      with: {
-        department: { columns: { name: true } },
-        assignedTo: { columns: { name: true, avatarUrl: true } },
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await db.update(complianceItems).set(updateData as any).where(eq(complianceItems.id, id))
+
+      const logEntries = []
+      if (status !== undefined && status !== existingItem.status) {
+        logEntries.push({ action: 'status_change' as const, entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: `Status changed from ${existingItem.status} to ${status}` })
+      }
+      if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
+        logEntries.push({ action: (existingItem.assignedToId ? 'reassign' : 'assign') as 'reassign' | 'assign', entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: existingItem.assignedToId ? 'Reassigned from previous user' : `Assigned to user ${assignedToId}` })
+      }
+      if (title !== undefined && title !== existingItem.title) {
+        logEntries.push({ action: 'update' as const, entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: 'Title updated' })
+      }
+      if (logEntries.length > 0) {
+        await db.insert(auditLogs).values(logEntries)
+      }
+
+      // Send assignment email when item is (re)assigned
+      if (assignedToId && assignedToId !== existingItem.assignedToId) {
+        const assignee = await db.query.users.findFirst({ where: eq(users.id, assignedToId) })
+        if (assignee?.email) {
+          notifyAssigned(assignee.email, assignee.name, existingItem.title, id).catch(() => {})
+        }
+      }
+
+      const updated = await db.query.complianceItems.findFirst({
+        where: eq(complianceItems.id, id),
+        with: {
+          department: { columns: { name: true } },
+          assignedTo: { columns: { name: true, avatarUrl: true } },
+        },
+      })
+
+      return { updated: updated! }
     })
 
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status })
+    const item = result.updated
+
     return NextResponse.json({
-      id: result!.id,
-      title: result!.title,
-      description: result!.description,
-      complianceType: result!.complianceType,
-      status: result!.status,
-      priority: result!.priority,
-      dueDate: result!.dueDate?.toISOString(),
-      department: { name: result!.department.name },
-      assignedTo: result!.assignedTo
-        ? { name: result!.assignedTo.name, avatarUrl: result!.assignedTo.avatarUrl }
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      complianceType: item.complianceType,
+      status: item.status,
+      priority: item.priority,
+      dueDate: item.dueDate?.toISOString(),
+      department: { name: item.department.name },
+      assignedTo: item.assignedTo
+        ? { name: item.assignedTo.name, avatarUrl: item.assignedTo.avatarUrl }
         : null,
-      createdAt: result!.createdAt.toISOString(),
-      updatedAt: result!.updatedAt.toISOString(),
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
     })
   } catch (error) {
     console.error("Compliance update API error:", error)
@@ -231,25 +242,30 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   if (dbUser?.role === 'viewer' || dbUser?.role === 'member') {
     return NextResponse.json({ error: "Insufficient permissions to delete compliance items" }, { status: 403 })
   }
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
   try {
     const { id } = await context.params
-    const item = await db.query.complianceItems.findFirst({
-      where: and(eq(complianceItems.id, id), eq(complianceItems.orgId, orgId ?? '')),
-    })
-    if (!item) return NextResponse.json({ error: "Compliance item not found" }, { status: 404 })
 
-    await db.delete(complianceItems).where(eq(complianceItems.id, id))
+    const result = await withTenantContext({ orgId }, async (db) => {
+      const item = await db.query.complianceItems.findFirst({
+        where: and(eq(complianceItems.id, id), eq(complianceItems.orgId, orgId)),
+      })
+      if (!item) return null
 
-    const adminUser = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
-    if (adminUser) {
+      await db.delete(complianceItems).where(eq(complianceItems.id, id))
+
       await db.insert(auditLogs).values({
         action: 'delete',
         entityType: 'ComplianceItem',
         entityId: id,
-        userId: adminUser.id,
+        userId: dbUser.id,
         details: `Deleted compliance item: ${item.title}`,
       })
-    }
+      return true
+    })
+
+    if (!result) return NextResponse.json({ error: "Compliance item not found" }, { status: 404 })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Compliance delete API error:", error)

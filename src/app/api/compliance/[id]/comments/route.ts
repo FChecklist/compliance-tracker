@@ -1,4 +1,5 @@
-import { db, comments, users, auditLogs, complianceItems } from "@/lib/db"
+import { comments, auditLogs, complianceItems } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth } from "@/lib/supabase/auth-guard"
@@ -8,8 +9,10 @@ import { notifyNewComment } from "@/lib/email"
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const { response, dbUser } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
+  if (!dbUser || !orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
   try {
     const { id } = await context.params
     const { content } = await request.json()
@@ -17,44 +20,49 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    const author = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
-    if (!author) return NextResponse.json({ error: 'No user found' }, { status: 500 })
-
-    const newComment = await db.insert(comments).values({
-      id: createId(),
-      content: content.trim(),
-      complianceItemId: id,
-      authorId: author.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }).returning()
-
-    await db.insert(auditLogs).values({
-      id: createId(),
-      action: 'update',
-      entityType: 'ComplianceItem',
-      entityId: id,
-      userId: author.id,
-      details: 'Comment added',
-      createdAt: new Date(),
-    })
-
-    // Notify the compliance item's assignee about the new comment (if different from author)
-    try {
+    const result = await withTenantContext({ orgId }, async (db) => {
+      // RLS-filtered -- returns null if the item belongs to another org,
+      // not just if it doesn't exist (previously commenting on any org's
+      // compliance item was possible just by knowing its id).
       const item = await db.query.complianceItems.findFirst({
         where: eq(complianceItems.id, id),
         with: { assignedTo: { columns: { name: true, email: true } } },
       })
-      if (item?.assignedTo?.email && item.assignedTo.email !== author.email) {
-        notifyNewComment(item.assignedTo.email, item.assignedTo.name, author.name, item.title, id, content.trim()).catch(() => {})
+      if (!item) return null
+
+      const newComment = await db.insert(comments).values({
+        id: createId(),
+        content: content.trim(),
+        complianceItemId: id,
+        authorId: dbUser.id,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning()
+
+      await db.insert(auditLogs).values({
+        id: createId(),
+        action: 'update',
+        entityType: 'ComplianceItem',
+        entityId: id,
+        userId: dbUser.id,
+        details: 'Comment added',
+        createdAt: new Date(),
+      })
+
+      if (item.assignedTo?.email && item.assignedTo.email !== dbUser.email) {
+        notifyNewComment(item.assignedTo.email, item.assignedTo.name, dbUser.name, item.title, id, content.trim()).catch(() => {})
       }
-    } catch {}
+
+      return newComment[0]
+    })
+
+    if (!result) return NextResponse.json({ error: "Compliance item not found" }, { status: 404 })
 
     return NextResponse.json({
-      id: newComment[0].id,
-      content: newComment[0].content,
-      author: { name: author.name, avatarUrl: author.avatarUrl },
-      createdAt: newComment[0].createdAt.toISOString(),
+      id: result.id,
+      content: result.content,
+      author: { name: dbUser.name, avatarUrl: dbUser.avatarUrl },
+      createdAt: result.createdAt.toISOString(),
     })
   } catch (error) {
     console.error('Comment POST error:', error)

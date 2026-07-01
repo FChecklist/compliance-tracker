@@ -1,14 +1,16 @@
-import { db, complianceItems, departments, users, auditLogs } from "@/lib/db";
+import { complianceItems, departments, auditLogs } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, like, sql } from "drizzle-orm";
+import { eq, and, like } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'];
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'];
 
 export async function POST(request: NextRequest) {
-  const { response } = await requireAuth();
+  const { response, orgId, dbUser } = await requireAuth();
   if (response) return response;
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
 
   try {
     const formData = await request.formData();
@@ -55,108 +57,103 @@ export async function POST(request: NextRequest) {
       items: [],
     };
 
-    const org = await db.query.organisations.findFirst();
-    if (!org) return NextResponse.json({ error: "No organisation found" }, { status: 500 });
+    await withTenantContext({ orgId }, async (db) => {
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length === 0) continue;
 
-    const adminUser = await db.query.users.findFirst({ where: eq(users.role, "admin") });
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
-      if (values.length === 0) continue;
-
-      const row: Record<string, string> = {};
-      headers.forEach((h, idx) => {
-        row[h] = values[idx]?.trim().replace(/^"|"$/g, "") || "";
-      });
-
-      // Extract mapped values
-      const getData = (field: string): string => {
-        for (const [csvCol, mappedField] of Object.entries(mappedHeaders)) {
-          if (mappedField === field) return row[csvCol] || "";
-        }
-        // Direct header match
-        for (const h of headers) {
-          const mapped = COLUMN_MAP[h];
-          if (mapped === field) return row[h] || "";
-        }
-        return "";
-      };
-
-      const title = getData("title");
-      const complianceType = getData("complianceType").toUpperCase().replace(/ /g, "_");
-      const departmentName = getData("departmentName");
-
-      if (!title) {
-        results.errors.push({ row: i + 1, message: "Title is required" });
-        continue;
-      }
-
-      // Find department
-      let departmentId: string | null = null;
-      if (departmentName) {
-        const dept = await db.query.departments.findFirst({
-          where: like(departments.name, `%${departmentName}%`),
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => {
+          row[h] = values[idx]?.trim().replace(/^"|"$/g, "") || "";
         });
-        departmentId = dept?.id || null;
-      }
-      if (!departmentId) {
-        // Use first department as fallback
-        const firstDept = await db.query.departments.findFirst();
-        departmentId = firstDept?.id || null;
-      }
-      if (!departmentId) {
-        results.errors.push({ row: i + 1, message: "No department found" });
-        continue;
-      }
 
-      const dueDateStr = getData("dueDate");
-      let dueDate: Date | null = null;
-      if (dueDateStr) {
-        dueDate = new Date(dueDateStr);
-        if (isNaN(dueDate.getTime())) {
-          results.errors.push({ row: i + 1, message: `Invalid date: ${dueDateStr}` });
+        // Extract mapped values
+        const getData = (field: string): string => {
+          for (const [csvCol, mappedField] of Object.entries(mappedHeaders)) {
+            if (mappedField === field) return row[csvCol] || "";
+          }
+          // Direct header match
+          for (const h of headers) {
+            const mapped = COLUMN_MAP[h];
+            if (mapped === field) return row[h] || "";
+          }
+          return "";
+        };
+
+        const title = getData("title");
+        const complianceType = getData("complianceType").toUpperCase().replace(/ /g, "_");
+        const departmentName = getData("departmentName");
+
+        if (!title) {
+          results.errors.push({ row: i + 1, message: "Title is required" });
           continue;
         }
-      }
 
-      const type = (VALID_TYPES as string[]).includes(complianceType) ? complianceType : "OTHER";
-      const priority = (VALID_PRIORITIES as string[]).includes(getData("priority").toLowerCase()) ? getData("priority").toLowerCase() : "medium";
-      const recurrenceType = ["none", "monthly", "quarterly", "half_yearly", "annually"].includes(getData("recurrenceType").toLowerCase()) ? getData("recurrenceType").toLowerCase() : "none";
+        // Find department -- RLS-scoped, so "first department" fallback can
+        // only ever land on this org's own departments, not any org's.
+        let departmentId: string | null = null;
+        if (departmentName) {
+          const dept = await db.query.departments.findFirst({
+            where: and(eq(departments.orgId, orgId), like(departments.name, `%${departmentName}%`)),
+          });
+          departmentId = dept?.id || null;
+        }
+        if (!departmentId) {
+          const firstDept = await db.query.departments.findFirst({ where: eq(departments.orgId, orgId) });
+          departmentId = firstDept?.id || null;
+        }
+        if (!departmentId) {
+          results.errors.push({ row: i + 1, message: "No department found" });
+          continue;
+        }
 
-      try {
-        const [item] = await db.insert(complianceItems).values({
-          title: title.trim(),
-          description: getData("description") || null,
-          complianceType: type as typeof VALID_TYPES[number],
-          priority: priority as typeof VALID_PRIORITIES[number],
-          dueDate: dueDate || new Date(),
-          departmentId,
-          orgId: org.id,
-          period: getData("period") || null,
-          financialYear: getData("financialYear") || null,
-          acknowledgementNumber: getData("acknowledgementNumber") || null,
-          registrationNumber: getData("registrationNumber") || null,
-          amount: getData("amount") || null,
-          recurrenceType: recurrenceType as "none" | "monthly" | "quarterly" | "half_yearly" | "annually",
-          isTemplateSuggested: false,
-        }).returning();
+        const dueDateStr = getData("dueDate");
+        let dueDate: Date | null = null;
+        if (dueDateStr) {
+          dueDate = new Date(dueDateStr);
+          if (isNaN(dueDate.getTime())) {
+            results.errors.push({ row: i + 1, message: `Invalid date: ${dueDateStr}` });
+            continue;
+          }
+        }
 
-        if (adminUser) {
+        const type = (VALID_TYPES as string[]).includes(complianceType) ? complianceType : "OTHER";
+        const priority = (VALID_PRIORITIES as string[]).includes(getData("priority").toLowerCase()) ? getData("priority").toLowerCase() : "medium";
+        const recurrenceType = ["none", "monthly", "quarterly", "half_yearly", "annually"].includes(getData("recurrenceType").toLowerCase()) ? getData("recurrenceType").toLowerCase() : "none";
+
+        try {
+          const [item] = await db.insert(complianceItems).values({
+            title: title.trim(),
+            description: getData("description") || null,
+            complianceType: type as typeof VALID_TYPES[number],
+            priority: priority as typeof VALID_PRIORITIES[number],
+            dueDate: dueDate || new Date(),
+            departmentId,
+            orgId,
+            period: getData("period") || null,
+            financialYear: getData("financialYear") || null,
+            acknowledgementNumber: getData("acknowledgementNumber") || null,
+            registrationNumber: getData("registrationNumber") || null,
+            amount: getData("amount") || null,
+            recurrenceType: recurrenceType as "none" | "monthly" | "quarterly" | "half_yearly" | "annually",
+            isTemplateSuggested: false,
+          }).returning();
+
           await db.insert(auditLogs).values({
             action: "create",
             entityType: "ComplianceItem",
             entityId: item.id,
-            userId: adminUser.id,
+            userId: dbUser.id,
             details: `Bulk imported: ${item.title}`,
           });
-        }
 
-        results.success++;
-        results.items.push({ id: item.id, title: item.title });
-      } catch (err) {
-        results.errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Failed to create" });
+          results.success++;
+          results.items.push({ id: item.id, title: item.title });
+        } catch (err) {
+          results.errors.push({ row: i + 1, message: err instanceof Error ? err.message : "Failed to create" });
+        }
       }
-    }
+    })
 
     return NextResponse.json(results);
   } catch (error) {
