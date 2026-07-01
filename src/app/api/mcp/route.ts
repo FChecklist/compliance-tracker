@@ -164,6 +164,62 @@ const TOOL_DEFINITIONS = [
 ]
 
 // ---------------------------------------------------------------------------
+// Wave 3: tool definitions now sourced from compliance.worker_agents
+// (tier='global', is_immutable=true -- these 7 rows were seeded from the
+// TOOL_DEFINITIONS array above, one per existing tool). Falls back to the
+// hardcoded array if the table is empty or the query fails, so this stays
+// backward compatible during the transition -- see orchestra_changes.md Wave 3.
+// ---------------------------------------------------------------------------
+type ToolDefinition = {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+async function getToolDefinitions(): Promise<ToolDefinition[]> {
+  try {
+    const sb = getAdminClient()
+    const { data, error } = await sb
+      .from('worker_agents')
+      .select('code_reference, description, input_schema')
+      .eq('tier', 'global')
+      .not('code_reference', 'is', null)
+
+    if (error || !data || data.length === 0) return TOOL_DEFINITIONS
+
+    return data.map((row) => ({
+      name: row.code_reference as string,
+      description: (row.description as string) ?? '',
+      inputSchema: (row.input_schema as Record<string, unknown>) ?? { type: 'object', properties: {} },
+    }))
+  } catch {
+    return TOOL_DEFINITIONS
+  }
+}
+
+// Fire-and-forget usage logging -- never blocks or fails the actual tool
+// response. Resolves the global worker_agents row by code_reference.
+function logToolUsage(toolName: string, orgId: string, durationMs: number, success: boolean, errorMessage?: string) {
+  const sb = getAdminClient()
+  sb.from('worker_agents')
+    .select('id, usage_count')
+    .eq('tier', 'global')
+    .eq('code_reference', toolName)
+    .maybeSingle()
+    .then(({ data: agent }) => {
+      if (!agent) return
+      sb.from('worker_agent_usage_log').insert({
+        worker_agent_id: agent.id,
+        org_id: orgId,
+        duration_ms: durationMs,
+        success,
+        error_message: errorMessage ?? null,
+      }).then(() => {})
+      sb.from('worker_agents').update({ usage_count: (agent.usage_count as number) + 1 }).eq('id', agent.id).then(() => {})
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Tool handlers
 // ---------------------------------------------------------------------------
 async function handleTool(
@@ -330,18 +386,21 @@ async function dispatch(body: Record<string, unknown>, orgId: string) {
   }
 
   if (method === 'tools/list') {
-    return rpcResult(id, { tools: TOOL_DEFINITIONS })
+    return rpcResult(id, { tools: await getToolDefinitions() })
   }
 
   if (method === 'tools/call') {
     const toolName = params?.name as string
     const toolArgs = (params?.arguments ?? {}) as Record<string, unknown>
+    const startedAt = Date.now()
     try {
       const result = await handleTool(toolName, toolArgs, orgId)
+      logToolUsage(toolName, orgId, Date.now() - startedAt, true)
       return rpcResult(id, {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       })
     } catch (err) {
+      logToolUsage(toolName, orgId, Date.now() - startedAt, false, (err as Error).message)
       return rpcError(id, -32000, (err as Error).message)
     }
   }
@@ -378,6 +437,7 @@ export async function POST(req: NextRequest) {
 
 // MCP clients probe with GET to discover the endpoint
 export async function GET() {
+  const tools = await getToolDefinitions()
   return NextResponse.json({
     name: 'Veridian AI MCP Server',
     version: '1.0.0',
@@ -385,6 +445,6 @@ export async function GET() {
     transport: 'HTTP JSON-RPC 2.0',
     endpoint: '/api/mcp',
     auth: 'Bearer <access_token>',
-    tools: TOOL_DEFINITIONS.map(t => t.name),
+    tools: tools.map(t => t.name),
   })
 }

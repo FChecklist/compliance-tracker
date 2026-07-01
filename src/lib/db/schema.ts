@@ -392,6 +392,73 @@ export const assistantMetricsDaily = complianceSchemaDB.table('assistant_metrics
   agentsCalledCount: integer('agents_called_count').notNull().default(0),
 })
 
+// ─── Worker Agent Library (Wave 3: 4 tiers -- global/customer/client/user) ──
+// `tier='global'` rows are platform-managed and immutable (seeded from the
+// pre-existing MCP tools, see src/app/api/mcp/route.ts). Other tiers are
+// scoped to exactly one of org_id/client_id/user_id, enforced both by a DB
+// CHECK constraint and by RLS (app_runtime can never write tier='global').
+// capability_embedding / knowledge_embedding vector(1536) columns deliberately
+// omitted, same as assistant_memories -- managed via raw SQL.
+export const workerAgents = complianceSchemaDB.table('worker_agents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  tier: text('tier').notNull(), // 'global' | 'customer' | 'client' | 'user'
+  name: text('name').notNull(),
+  domain: text('domain'),
+  description: text('description'),
+  codeReference: text('code_reference'),
+  promptTemplate: text('prompt_template'),
+  inputSchema: jsonb('input_schema').notNull().default({}),
+  outputSchema: jsonb('output_schema').notNull().default({}),
+  isImmutable: boolean('is_immutable').notNull().default(false),
+  version: integer('version').notNull().default(1),
+  usageCount: integer('usage_count').notNull().default(0),
+  accuracyScore: numeric('accuracy_score'),
+  orgId: text('org_id'),
+  clientId: text('client_id'),
+  userId: text('user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const workerAgentVersions = complianceSchemaDB.table('worker_agent_versions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  workerAgentId: text('worker_agent_id').notNull(),
+  version: integer('version').notNull(),
+  promptTemplate: text('prompt_template'),
+  inputSchema: jsonb('input_schema').notNull().default({}),
+  outputSchema: jsonb('output_schema').notNull().default({}),
+  changelog: text('changelog'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const workerAgentUsageLog = complianceSchemaDB.table('worker_agent_usage_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  workerAgentId: text('worker_agent_id').notNull(),
+  orgId: text('org_id'),
+  clientId: text('client_id'),
+  userId: text('user_id'),
+  executedAt: timestamp('executed_at').notNull().defaultNow(),
+  durationMs: integer('duration_ms'),
+  success: boolean('success').notNull().default(true),
+  errorMessage: text('error_message'),
+})
+
+// embedding vector(1536) column omitted, see note above.
+export const workerAgentLearnings = complianceSchemaDB.table('worker_agent_learnings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  workerAgentId: text('worker_agent_id').notNull(),
+  content: text('content').notNull(),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_domain_index', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  workerAgentId: text('worker_agent_id').notNull(),
+  domainPath: text('domain_path').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────
 export const organisationsRelations = relations(organisations, ({ many }) => ({
   users: many(users),
@@ -513,6 +580,29 @@ export const assistantSessionsRelations = relations(assistantSessions, ({ one })
 
 export const assistantMetricsDailyRelations = relations(assistantMetricsDaily, ({ one }) => ({
   assistant: one(aiAssistants, { fields: [assistantMetricsDaily.assistantId], references: [aiAssistants.id] }),
+}))
+
+export const workerAgentsRelations = relations(workerAgents, ({ many }) => ({
+  versions: many(workerAgentVersions),
+  usageLog: many(workerAgentUsageLog),
+  learnings: many(workerAgentLearnings),
+  domainIndex: many(workerAgentDomainIndex),
+}))
+
+export const workerAgentVersionsRelations = relations(workerAgentVersions, ({ one }) => ({
+  workerAgent: one(workerAgents, { fields: [workerAgentVersions.workerAgentId], references: [workerAgents.id] }),
+}))
+
+export const workerAgentUsageLogRelations = relations(workerAgentUsageLog, ({ one }) => ({
+  workerAgent: one(workerAgents, { fields: [workerAgentUsageLog.workerAgentId], references: [workerAgents.id] }),
+}))
+
+export const workerAgentLearningsRelations = relations(workerAgentLearnings, ({ one }) => ({
+  workerAgent: one(workerAgents, { fields: [workerAgentLearnings.workerAgentId], references: [workerAgents.id] }),
+}))
+
+export const workerAgentDomainIndexRelations = relations(workerAgentDomainIndex, ({ one }) => ({
+  workerAgent: one(workerAgents, { fields: [workerAgentDomainIndex.workerAgentId], references: [workerAgents.id] }),
 }))
 
 // ---------------------------------------------------------------------------
