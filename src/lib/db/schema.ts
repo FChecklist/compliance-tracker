@@ -56,6 +56,8 @@ export const users = complianceSchemaDB.table('users', {
   orgId: text('org_id'),
   departmentId: text('department_id'),
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false), // M-20
+  authUserId: text('auth_user_id'), // links to auth.users.id (Supabase Auth) -- Wave 1
+  reportingToId: text('reporting_to_id'), // direct manager, self-FK -- Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

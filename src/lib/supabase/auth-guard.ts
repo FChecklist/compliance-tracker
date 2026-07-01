@@ -38,5 +38,14 @@ export async function requireAuth(): Promise<AuthContext> {
     return { user: null, dbUser: null, orgId: null, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
   const dbUser = await db.query.users.findFirst({ where: eq(users.email, user.email!) }) ?? null
+
+  // Link this Supabase Auth identity to its compliance.users row on first
+  // sight, regardless of login method (password/magic-link/OAuth all resolve
+  // here). Needed for Wave 1 RLS policies keyed off auth_user_id.
+  if (dbUser && dbUser.authUserId !== user.id) {
+    await db.update(users).set({ authUserId: user.id }).where(eq(users.id, dbUser.id))
+    dbUser.authUserId = user.id
+  }
+
   return { user, dbUser, orgId: dbUser?.orgId ?? null, response: null }
 }
