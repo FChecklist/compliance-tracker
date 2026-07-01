@@ -1,26 +1,30 @@
-import { db, challans, auditLogs, users } from "@/lib/db";
+import { challans, auditLogs, complianceItems } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireAuth();
+  const { response, orgId } = await requireAuth();
   if (response) return response;
+  if (!orgId) return NextResponse.json({ challans: [] });
+
   try {
     const { searchParams } = request.nextUrl;
     const complianceItemId = searchParams.get("complianceItemId") || "";
 
-    const conditions = [];
+    const conditions = [eq(challans.orgId, orgId)];
     if (complianceItemId) {
       conditions.push(eq(challans.complianceItemId, complianceItemId));
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const where = and(...conditions);
 
-    const items = await db.query.challans.findMany({
-      where: where as Parameters<typeof db.query.challans.findMany>[0]["where"],
-      orderBy: desc(challans.createdAt),
-    });
+    const items = await withTenantContext({ orgId }, (db) =>
+      db.query.challans.findMany({
+        where,
+        orderBy: desc(challans.createdAt),
+      })
+    );
 
     return NextResponse.json({
       challans: items.map((c) => ({
@@ -44,8 +48,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { response, user } = await requireAuth();
+  const { response, orgId, dbUser } = await requireAuth();
   if (response) return response;
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
+
   try {
     const body = await request.json();
     const {
@@ -65,38 +71,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid amount is required" }, { status: 400 });
     }
 
-    // Look up the org from the compliance item
-    const complianceItem = await db.query.complianceItems.findFirst({
-      where: eq(db.schema.complianceItems.id, complianceItemId),
-    });
-    if (!complianceItem) {
-      return NextResponse.json({ error: "Compliance item not found" }, { status: 404 });
-    }
+    const result = await withTenantContext({ orgId }, async (db) => {
+      // RLS-scoped -- returns null if this compliance item belongs to
+      // another org, rather than deriving orgId from whatever item is found.
+      const complianceItem = await db.query.complianceItems.findFirst({
+        where: eq(complianceItems.id, complianceItemId),
+      });
+      if (!complianceItem) return { error: "Compliance item not found", status: 404 as const };
 
-    // Find the user record
-    const userRecord = await db.query.users.findFirst({
-      where: eq(users.email, user!.email!),
+      const [challan] = await db.insert(challans).values({
+        complianceItemId,
+        bsrCode: bsrCode?.trim() || null,
+        challanSerialNumber: challanSerialNumber?.trim() || null,
+        paymentDate: paymentDate ? new Date(paymentDate) : null,
+        amount: String(amount),
+        bankName: bankName?.trim() || null,
+        description: description?.trim() || null,
+        orgId,
+        createdById: dbUser.id,
+      }).returning();
+
+      await db.insert(auditLogs).values({
+        action: "create",
+        entityType: "Challan",
+        entityId: challan.id,
+        userId: dbUser.id,
+        details: `Recorded challan payment ₹${amount} for compliance item ${complianceItemId}`,
+      });
+
+      return { challan };
     });
 
-    const [challan] = await db.insert(challans).values({
-      complianceItemId,
-      bsrCode: bsrCode?.trim() || null,
-      challanSerialNumber: challanSerialNumber?.trim() || null,
-      paymentDate: paymentDate ? new Date(paymentDate) : null,
-      amount: String(amount),
-      bankName: bankName?.trim() || null,
-      description: description?.trim() || null,
-      orgId: complianceItem.orgId,
-      createdById: userRecord?.id || user!.id,
-    }).returning();
-
-    await db.insert(auditLogs).values({
-      action: "create",
-      entityType: "Challan",
-      entityId: challan.id,
-      userId: userRecord?.id || user!.id,
-      details: `Recorded challan payment ₹${amount} for compliance item ${complianceItemId}`,
-    });
+    if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
+    const { challan } = result;
 
     return NextResponse.json(
       {

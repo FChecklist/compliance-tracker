@@ -1,26 +1,31 @@
-import { db, departments } from "@/lib/db";
+import { departments } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextResponse } from "next/server";
-import { eq, asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { response } = await requireAuth()
+  const { response, orgId } = await requireAuth()
   if (response) return response
+  if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
   try {
     const { id } = await params
 
-    const department = await db.query.departments.findFirst({
-      where: eq(departments.id, id),
-      with: {
-        complianceItems: {
-          orderBy: (ci, { asc }) => asc(ci.dueDate),
+    const department = await withTenantContext({ orgId }, (db) =>
+      db.query.departments.findFirst({
+        where: eq(departments.id, id),
+        with: {
+          complianceItems: {
+            orderBy: (ci, { asc }) => asc(ci.dueDate),
+          },
+          users: { columns: { id: true, name: true, role: true } },
         },
-        users: { columns: { id: true, name: true, role: true } },
-      },
-    })
+      })
+    )
 
     if (!department) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 })
