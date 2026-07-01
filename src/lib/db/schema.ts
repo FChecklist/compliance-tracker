@@ -549,6 +549,93 @@ export const customerModelConfig = complianceSchemaDB.table('customer_model_conf
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
+// Platform-operational tables, NOT tenant data -- loop_executions and
+// friends have no app_runtime RLS policy at all (service_role bypass only),
+// since some loops (12/13) deliberately run cross-tenant audits whose
+// results must never be exposed through the normal org-scoped app path.
+export const loopDefinitions = complianceSchemaDB.table('loop_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  loopNumber: integer('loop_number').notNull(),
+  loopName: text('loop_name').notNull(),
+  description: text('description'),
+  observeWhat: text('observe_what'),
+  analyzeHow: text('analyze_how'),
+  actWhat: text('act_what'),
+  measureWhat: text('measure_what'),
+  targetOrchestraLayers: text('target_orchestra_layers').array().notNull().default([]),
+  executionFrequency: text('execution_frequency'), // interval, read/written as text via raw SQL if ever needed
+  isActive: boolean('is_active').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const loopExecutions = complianceSchemaDB.table('loop_executions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  loopId: text('loop_id').notNull(),
+  triggeredBy: text('triggered_by').notNull(), // 'scheduled' | 'event' | 'manual'
+  observationData: jsonb('observation_data').notNull().default({}),
+  analysisResult: jsonb('analysis_result').notNull().default({}),
+  actionTaken: jsonb('action_taken').notNull().default({}),
+  measurementResult: jsonb('measurement_result').notNull().default({}),
+  improvementDelta: numeric('improvement_delta'),
+  executionTimeMs: integer('execution_time_ms'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const loopImprovements = complianceSchemaDB.table('loop_improvements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  loopId: text('loop_id').notNull(),
+  improvementType: text('improvement_type').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id'),
+  beforeState: jsonb('before_state'),
+  afterState: jsonb('after_state'),
+  improvementDelta: numeric('improvement_delta'),
+  isDeployed: boolean('is_deployed').notNull().default(false),
+  deployedAt: timestamp('deployed_at'),
+  rollbackTriggered: boolean('rollback_triggered').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const loopHealthMetrics = complianceSchemaDB.table('loop_health_metrics', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  loopId: text('loop_id').notNull(),
+  date: date('date', { mode: 'string' }).notNull(),
+  executionsCount: integer('executions_count').notNull().default(0),
+  improvementsGenerated: integer('improvements_generated').notNull().default(0),
+  improvementsDeployed: integer('improvements_deployed').notNull().default(0),
+  improvementsRolledBack: integer('improvements_rolled_back').notNull().default(0),
+  avgImprovementDelta: numeric('avg_improvement_delta'),
+  systemHealthScore: numeric('system_health_score'),
+})
+
+export const knowledgeFlowLog = complianceSchemaDB.table('knowledge_flow_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  direction: text('direction').notNull(), // 'up' | 'down'
+  fromTier: text('from_tier').notNull(),
+  toTier: text('to_tier').notNull(),
+  sourceAgentId: text('source_agent_id'),
+  targetAgentId: text('target_agent_id'),
+  knowledgeType: text('knowledge_type').notNull(),
+  contentSummary: text('content_summary'),
+  isAnonymized: boolean('is_anonymized').notNull().default(false),
+  anonymizationMethod: text('anonymization_method'),
+  orgId: text('org_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const dataSeparationAudit = complianceSchemaDB.table('data_separation_audit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  auditType: text('audit_type').notNull(), // 'access_check' | 'query_analysis' | 'cross_contamination_test'
+  orgId: text('org_id'),
+  userId: text('user_id'),
+  queryText: text('query_text'),
+  vectorSpacesAccessed: text('vector_spaces_accessed').array(),
+  crossContaminationDetected: boolean('cross_contamination_detected').notNull().default(false),
+  details: jsonb('details').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Relations ───────────────────────────────────────────────────────────
 export const organisationsRelations = relations(organisations, ({ many }) => ({
   users: many(users),
@@ -728,6 +815,24 @@ export const orchestraExecutionsRelations = relations(orchestraExecutions, ({ on
 
 export const customerModelConfigRelations = relations(customerModelConfig, ({ one }) => ({
   layer: one(orchestraLayers, { fields: [customerModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
+}))
+
+export const loopDefinitionsRelations = relations(loopDefinitions, ({ many }) => ({
+  executions: many(loopExecutions),
+  improvements: many(loopImprovements),
+  healthMetrics: many(loopHealthMetrics),
+}))
+
+export const loopExecutionsRelations = relations(loopExecutions, ({ one }) => ({
+  loop: one(loopDefinitions, { fields: [loopExecutions.loopId], references: [loopDefinitions.id] }),
+}))
+
+export const loopImprovementsRelations = relations(loopImprovements, ({ one }) => ({
+  loop: one(loopDefinitions, { fields: [loopImprovements.loopId], references: [loopDefinitions.id] }),
+}))
+
+export const loopHealthMetricsRelations = relations(loopHealthMetrics, ({ one }) => ({
+  loop: one(loopDefinitions, { fields: [loopHealthMetrics.loopId], references: [loopDefinitions.id] }),
 }))
 
 // ---------------------------------------------------------------------------
