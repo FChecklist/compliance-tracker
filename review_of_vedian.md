@@ -7,6 +7,19 @@
 
 ---
 
+## ⚠️ Wave 6 reconciliation (2026-07-01) — this whole document predates the VERIDIAN AI Orchestra rebuild
+
+Almost everything below is now superseded by `orchestra_changes.md` (Waves 0–5). Re-verified against current `main` rather than trusting old claims, per the Wave 6 plan:
+
+- **Database/Vercel project references throughout this doc are stale.** `jusqumifsmtcaujqyjuy` (§3, §5, §13 REC-01) and the `compliance-tracker-ai`/`prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII` naming (§8) — the live project is now `pcrjmlpuqsbocqfwoxod` / Vercel project `veridian-compliance-ai`, and the old duplicate project/schemas were deleted (see `orchestra_changes.md` change log #8–#9).
+- **H1–H6 (next-auth, prisma/, db/custom.db, tool-results/, package.json name, CI hard-fail): re-verified true on current `main`**, not just claimed — `package.json` has no `next-auth`/`prisma`/`z-ai-web-dev-sdk` entries, `name` is `compliance-tracker`; `prisma/`, `db/custom.db`, `tool-results/` don't exist; `.github/workflows/ci.yml` has zero `::warning::`-style non-blocking steps.
+- **C2 (no auth guard on API routes): fully re-solved, more thoroughly than this doc's REC-04 describes.** Every route with a real backing table went through Wave 1's tenant-isolation sweep — not just a `getUser()` check, but real RLS enforcement via `app_runtime` + Postgres GUCs. See `orchestra_changes.md`'s Wave 1 checklist for the full 25-file list and the ~20 real bugs found in the process.
+- **REC-11 (multi-tenancy enforcement — "any org can see any org's data"): this was the entire point of Wave 1.** Confirmed fixed and load-tested with a real cross-tenant proof (change log #18), not just filtered at the app layer.
+- **Still true / not yet done:** `next.config.ts`'s `typescript: { ignoreBuildErrors: true }` is still present (flagged this session too, in Wave 1's change log #23) — not removed yet, since the pre-existing type errors it's masking haven't been triaged.
+- **New, more urgent than anything on this old list:** see the 🔴 section at the top of `orchestra_changes.md` — the Supabase connection pooler (Supavisor) currently cannot route to this project at all, meaning real authenticated database queries are very likely failing in production right now. This is a fresh, different-cause instance of the same *category* of problem as this doc's old BUG-001/C1 (DB connectivity), discovered while testing Wave 5.
+
+---
+
 ## Sprint 1 — Completed (2026-06-29)
 
 | Fix | Status | PR/Commit |

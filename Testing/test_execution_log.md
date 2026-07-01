@@ -61,5 +61,22 @@
 | Bug ID | Severity | Description | Status |
 |--------|----------|-------------|--------|
 | BUG-001 | Critical | DATABASE_URL env var on Vercel had incorrect host. All API routes returned 500. | Fix deployed. Verification pending. |
+| BUG-002 | Critical | Supabase Supavisor pooler cannot route to project `pcrjmlpuqsbocqfwoxod` (`tenant/user X not found`) — affects both `DATABASE_URL` and `APP_RUNTIME_DATABASE_URL`, any role. Direct (non-pooler) connection with the same password succeeds. Discovered 2026-07-01 during Wave 5 (VERIDIAN AI Orchestra rebuild) functional testing. | Diagnosed, not yet resolved — Supabase-infrastructure-side, not an app bug. Full detail in `orchestra_changes.md`'s 🔴 section. |
+
+---
+
+## Wave 1 tenant-isolation test cases (added 2026-07-01, VERIDIAN AI Orchestra rebuild)
+
+These supplement the original 46 above, covering the cross-tenant isolation work that is this rebuild's core guarantee — see `orchestra_changes.md` for full context. Executed directly against the database (not via the live app, since BUG-002 currently blocks authenticated live-app testing).
+
+| Test ID | Description | Method | Result |
+|---------|-------------|--------|--------|
+| TC-TEN-01 | `postgres` role (used by `DATABASE_URL`) has `rolbypassrls=true` — confirms why a *new* role was required for real enforcement rather than writing policies against the existing connection | `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles` | **PASS** — confirmed before writing any Wave 1 policy (change log #17) |
+| TC-TEN-02 | A user scoped to org A, querying via the real `app_runtime`/`withTenantContext` path, sees only org A's `compliance_items` — a throwaway second org's 1 item is invisible to org A's session | `SET LOCAL ROLE app_runtime` + GUCs, live query comparison | **PASS** (change log #18) |
+| TC-TEN-03 | An `UPDATE` targeting another org's row, issued while scoped to a different org's context, affects 0 rows (RLS filters the write, not just the read) | Same session as TC-TEN-02, re-read target row unchanged afterward | **PASS** (change log #18) |
+| TC-TEN-04 | `ai_assistants`/`assistant_memories` (Wave 2's User tier) are invisible even to other users in the *same* org, not just other orgs — the strictest visibility rule in the schema | RLS policy inspection + `current_user_id()` scoping (change log #31) | **PASS** — verified via policy definition; live cross-user query test blocked by BUG-002 |
+| TC-TEN-05 | `worker_agents` tier='global' rows are readable by everyone but **not writable** by `app_runtime` under any org/client/user context — only `service_role` can modify platform-managed agents | RLS policy inspection: separate INSERT/UPDATE/DELETE policies explicitly exclude `tier='global'` (change log #33) | **PASS** — verified via policy definition |
+| TC-TEN-06 | Loop 12 (Hierarchy & Secrecy Management) re-runs an automated version of TC-TEN-02 on a schedule against up to 10 real orgs, flagging any row whose `org_id` doesn't match the org it was queried under | `lib/loops/data-separation-audit.ts` via `/api/internal/loops/run` | **BLOCKED by BUG-002** — code deployed and reviewed, but cron execution fails until the pooler issue resolves (returns `{"error":"Loop run failed"}` live) |
+| TC-TEN-07 | `loop_executions`/`data_separation_audit` (which could contain evidence of cross-org data during an audit) have **zero** `app_runtime` RLS policy at all — not even org-scoped — so no customer-facing route can ever read platform audit results | RLS policy inspection: only `service_role_bypass_*` policies exist on these tables (change log #38) | **PASS** — verified via policy definition |
 
 *This file is auto-updated after each test execution.*
