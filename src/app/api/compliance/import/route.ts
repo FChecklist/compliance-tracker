@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, and, like } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
-const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'];
-const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'];
+const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'] as const;
+const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 
 export async function POST(request: NextRequest) {
   const { response, orgId, dbUser } = await requireAuth();
@@ -117,8 +117,8 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const type = (VALID_TYPES as string[]).includes(complianceType) ? complianceType : "OTHER";
-        const priority = (VALID_PRIORITIES as string[]).includes(getData("priority").toLowerCase()) ? getData("priority").toLowerCase() : "medium";
+        const type = (VALID_TYPES as readonly string[]).includes(complianceType) ? complianceType : "OTHER";
+        const priority = (VALID_PRIORITIES as readonly string[]).includes(getData("priority").toLowerCase()) ? getData("priority").toLowerCase() : "medium";
         const recurrenceType = ["none", "monthly", "quarterly", "half_yearly", "annually"].includes(getData("recurrenceType").toLowerCase()) ? getData("recurrenceType").toLowerCase() : "none";
 
         try {

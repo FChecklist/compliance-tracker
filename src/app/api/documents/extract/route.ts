@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
       if (documentId) {
         await db
           .update(documents)
-          .set({ extractedData: extractedData as Record<string, unknown> })
+          .set({ extractedData: extractedData as unknown as Record<string, unknown> })
           .where(eq(documents.id, documentId!));
       }
     });

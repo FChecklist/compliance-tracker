@@ -22,16 +22,6 @@ export async function createClient() {
             // This can be ignored if you have middleware refreshing sessions.
           }
         },
-        remove(cookiesToRemove) {
-          try {
-            cookiesToRemove.forEach(({ name, options }) =>
-              cookieStore.set(name, "", { ...options, maxAge: 0 })
-            )
-          } catch {
-            // The `remove` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing sessions.
-          }
-        },
       },
     }
   )

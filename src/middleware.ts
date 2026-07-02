@@ -25,17 +25,6 @@ export async function middleware(request: NextRequest) {
             supabaseResponse.cookies.set(name, value, options)
           )
         },
-        remove(cookiesToRemove) {
-          cookiesToRemove.forEach(({ name }) =>
-            request.cookies.set(name, "")
-          )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToRemove.forEach(({ name, options }) =>
-            supabaseResponse.cookies.set(name, "", { ...options, maxAge: 0 })
-          )
-        },
       },
     }
   )

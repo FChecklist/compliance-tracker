@@ -1,7 +1,7 @@
 import { notices, departments, auditLogs } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, or, like, asc, sql } from "drizzle-orm";
+import { eq, and, or, like, asc, sql, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['received', 'in_progress', 'replied', 'closed', 'appealed'] as const
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20))
     const offset = (page - 1) * limit
 
-    const conditions = []
+    const conditions: (SQL | undefined)[] = []
     conditions.push(eq(notices.orgId, orgId))
     if (search) {
       conditions.push(or(

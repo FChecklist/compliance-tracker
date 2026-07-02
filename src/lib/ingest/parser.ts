@@ -6,10 +6,6 @@ async function getXlsx() {
   return mod.default ?? mod
 }
 
-async function getPdfParse() {
-  const mod = await import('pdf-parse')
-  return mod.default ?? mod
-}
 
 const EXCEL_MIMES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -78,7 +74,7 @@ function parseCsv(buffer: Buffer): ParseResult {
   const workbook = XLSX.read(text, { type: 'string', raw: false, dateNF: 'yyyy-mm-dd' })
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
-  const rows = XLSX.utils.sheet_to_json<ParsedRow>(sheet, { defval: null, raw: false, blankrows: false })
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false, blankrows: false }) as ParsedRow[]
 
   if (rows.length === 0) throw new Error('CSV file is empty')
 
@@ -90,12 +86,19 @@ function parseCsv(buffer: Buffer): ParseResult {
 }
 
 async function parsePdf(buffer: Buffer): Promise<ParseResult> {
-  const pdfParse = await getPdfParse()
-  let data: { text: string; numpages: number }
+  // pdf-parse's current major version exports a `PDFParse` class (constructor
+  // + async getText()), not the old default-exported callable function this
+  // used to call -- that mismatch meant every PDF ingest threw "pdfParse is
+  // not a function" at runtime. See node_modules/pdf-parse/dist/pdf-parse/esm.
+  const { PDFParse } = await import('pdf-parse')
+  const parser = new PDFParse({ data: buffer })
+  let data: { text: string; total: number }
   try {
-    data = await pdfParse(buffer, { max: 0 }) // max: 0 = all pages
+    data = await parser.getText()
   } catch (err) {
     throw new Error(`PDF parsing failed: ${(err as Error).message}. The file may be password-protected or a scanned image.`)
+  } finally {
+    await parser.destroy()
   }
 
   if (!data.text.trim()) {
@@ -108,6 +111,6 @@ async function parsePdf(buffer: Buffer): Promise<ParseResult> {
     rows: [{ __pdf_text__: data.text }],
     headers: ['__pdf_text__'],
     rawText: data.text,
-    totalRows: data.numpages,
+    totalRows: data.total,
   }
 }

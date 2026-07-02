@@ -340,7 +340,7 @@ function getDefaultActions(
           "This item is overdue by " +
           (payload.daysOverdue || "?") +
           " days. Consider escalating to the department head.",
-        priority: payload.daysOverdue > 30 ? "critical" : "high",
+        priority: Number(payload.daysOverdue) > 30 ? "critical" : "high",
         payload: { entityId },
       });
       if (payload.complianceType) {
@@ -371,10 +371,10 @@ function getDefaultActions(
           type: "set_deadline",
           label: `Reply Deadline: ${payload.daysUntilDeadline} days`,
           description:
-            payload.daysUntilDeadline <= 7
+            Number(payload.daysUntilDeadline) <= 7
               ? "Urgent: Reply deadline is less than a week away!"
               : `You have ${payload.daysUntilDeadline} days to reply to this notice.`,
-          priority: payload.daysUntilDeadline <= 7 ? "critical" : "high",
+          priority: Number(payload.daysUntilDeadline) <= 7 ? "critical" : "high",
           payload: { noticeId: entityId, daysUntilDeadline: payload.daysUntilDeadline },
         });
       }

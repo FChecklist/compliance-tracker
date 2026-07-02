@@ -122,7 +122,7 @@ export default function IngestPage() {
   // ---------------------------------------------------------------------------
   // Item actions
   // ---------------------------------------------------------------------------
-  async function setReviewStatus(itemId: string, status: 'approved' | 'rejected') {
+  async function setReviewStatus(itemId: string, status: 'approved' | 'rejected' | 'pending') {
     if (!batch) return
     setSaving(itemId)
     await fetch(`/api/ingest/${batch.batchId}/items/${itemId}`, {

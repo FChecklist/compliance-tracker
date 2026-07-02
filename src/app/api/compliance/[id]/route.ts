@@ -179,7 +179,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await db.update(complianceItems).set(updateData as any).where(eq(complianceItems.id, id))
 
-      const logEntries = []
+      const logEntries: (typeof auditLogs.$inferInsert)[] = []
       if (status !== undefined && status !== existingItem.status) {
         logEntries.push({ action: 'status_change' as const, entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: `Status changed from ${existingItem.status} to ${status}` })
       }

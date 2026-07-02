@@ -71,7 +71,7 @@ export function DataTable<TData, TValue>({
     if (searchKey) return searchKey;
     // Try to find a column with "title" or "name" accessor
     const firstCol = columns[0] as ColumnDef<TData, TValue> | undefined;
-    if (firstCol && typeof firstCol.accessorKey === "string") {
+    if (firstCol && "accessorKey" in firstCol && typeof firstCol.accessorKey === "string") {
       return firstCol.accessorKey;
     }
     return undefined;

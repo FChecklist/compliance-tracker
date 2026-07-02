@@ -33,10 +33,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const newComment = await db.insert(comments).values({
         id: createId(),
         content: content.trim(),
+        // entityId/entityType are the generic polymorphic reference (NOT
+        // NULL, no default beyond entityType='compliance') -- complianceItemId
+        // is a newer, more specific FK that coexists with it. This insert
+        // previously only set complianceItemId, leaving entityId unset and
+        // throwing a NOT-NULL violation on every real comment.
+        entityId: id,
         complianceItemId: id,
         authorId: dbUser.id,
         createdAt: new Date(),
-        updatedAt: new Date(),
       }).returning()
 
       await db.insert(auditLogs).values({

@@ -146,7 +146,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       await db.update(notices).set(updateData).where(eq(notices.id, id))
 
-      const logEntries = []
+      const logEntries: (typeof auditLogs.$inferInsert)[] = []
       if (status !== undefined && status !== existingItem.status) {
         logEntries.push({
           action: 'status_change' as const,

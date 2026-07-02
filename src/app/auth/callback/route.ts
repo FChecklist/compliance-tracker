@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -6,30 +7,15 @@ export async function GET(request: Request) {
   const next = searchParams.get("next") ?? "/dashboard"
 
   if (code) {
-    const { createClient } = await import("@supabase/ssr")
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            // Parse cookies from the request
-            const cookieHeader = request.headers.get("cookie") ?? ""
-            return cookieHeader.split(";").map((c) => {
-              const [name, ...rest] = c.trim().split("=")
-              return { name: name.trim(), value: rest.join("=") }
-            })
-          },
-          setAll(cookiesToSet) {
-            // We can't set cookies from a route handler directly
-            // The middleware will handle this
-          },
-          remove(cookiesToRemove) {
-            // Handled by middleware
-          },
-        },
-      }
-    )
+    // Reuses the same createClient() as every other server-side auth call
+    // (lib/supabase/server.ts) -- previously this imported a `createClient`
+    // that @supabase/ssr doesn't actually export (only createServerClient/
+    // createBrowserClient), so every magic-link/OAuth callback threw here.
+    // Its own cookies.setAll was also a no-op ("middleware will handle
+    // this"), which wouldn't have persisted the session even if the import
+    // hadn't crashed first -- Route Handlers can write cookies via
+    // next/headers' cookies(), which is exactly what the shared helper does.
+    const supabase = await createClient()
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {

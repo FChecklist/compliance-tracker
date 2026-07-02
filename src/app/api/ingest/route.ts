@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
             missingFields: JSON.stringify(item.missingFields),
             isDuplicate: item.isDuplicate,
             duplicateOfId: item.duplicateOfId,
-            reviewStatus: item.errors.length > 0 ? 'pending' : 'pending',
+            reviewStatus: 'pending' as const,
           }))
         )
       }

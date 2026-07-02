@@ -1,7 +1,7 @@
 import { auditLogs, users } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, gte, lt, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, gte, lt, desc, sql, inArray, type SQL } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       // Scope audit logs to this org by finding all user IDs in the org
       const orgUserIds = (await db.select({ id: users.id }).from(users).where(eq(users.orgId, orgId))).map(u => u.id)
 
-      const conditions = []
+      const conditions: SQL[] = []
       if (orgUserIds.length > 0) conditions.push(inArray(auditLogs.userId, orgUserIds))
       if (userId) conditions.push(eq(auditLogs.userId, userId))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

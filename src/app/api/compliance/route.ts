@@ -1,7 +1,7 @@
 import { complianceItems, departments, auditLogs } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, or, like, asc, sql } from "drizzle-orm";
+import { eq, and, or, like, asc, sql, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     // org_id condition kept here too (belt-and-suspenders with RLS, and
     // needed since RLS alone can't be seen by the query planner for the
     // separate count() call's WHERE clause the same way).
-    const conditions = []
+    const conditions: (SQL | undefined)[] = []
     conditions.push(eq(complianceItems.orgId, orgId))
     if (search) {
       conditions.push(or(
@@ -124,6 +124,14 @@ export async function POST(request: NextRequest) {
     if (!departmentId || typeof departmentId !== "string") {
       return NextResponse.json({ error: "departmentId is required" }, { status: 400 })
     }
+    // dueDate is NOT NULL in the schema -- without this check, an omitted
+    // dueDate silently inserted `null` and threw a raw 500 at the DB layer
+    // instead of a clean 400 here. Same bug class as the passwordHash gap
+    // found earlier this session.
+    const parsedDueDate = dueDate ? new Date(dueDate) : null
+    if (!parsedDueDate || isNaN(parsedDueDate.getTime())) {
+      return NextResponse.json({ error: "A valid dueDate is required" }, { status: 400 })
+    }
 
     const VALID_RECURRENCE = ['none', 'monthly', 'quarterly', 'half_yearly', 'annually'] as const
 
@@ -139,7 +147,7 @@ export async function POST(request: NextRequest) {
         description: description?.trim() || null,
         complianceType: complianceType.trim() as typeof VALID_TYPES[number],
         priority: (VALID_PRIORITIES as readonly string[]).includes(priority) ? priority : 'medium',
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: parsedDueDate,
         departmentId,
         orgId,
         assignedToId: assignedToId || null,
