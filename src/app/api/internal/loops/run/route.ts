@@ -11,6 +11,7 @@ import { runInputQualityAudit } from "@/lib/loops/input-quality-audit";
 import { runLoopEngineeringAudit } from "@/lib/loops/loop-engineering-audit";
 import { runKnowledgeFlowAudit } from "@/lib/loops/knowledge-flow-audit";
 import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit";
+import { runTierIntegrityAudit } from "@/lib/loops/tier-integrity-audit";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -24,9 +25,10 @@ import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit"
  * that's #1 (Loop Engineering), #4 (Knowledge Management), #5 (Process
  * Management), #7 (Input Management), #8 (Output Management), #9
  * (API/Token/URL Management), #10 (User Behaviour Management), #11 (Full
- * Automation Loop), #12 (Hierarchy & Secrecy Management), and #14 (BYO AI
- * Model Loop), all read-only audits. See orchestra_changes.md Wave 5 for
- * why the other 5 are seeded but inactive.
+ * Automation Loop), #12 (Hierarchy & Secrecy Management), #13 (Data/Process
+ * Separation), and #14 (BYO AI Model Loop), all read-only audits. See
+ * orchestra_changes.md Wave 5 for why the remaining 4 are seeded but
+ * inactive.
  *
  * Loop 1 runs last deliberately -- it observes the other loops'
  * loop_executions rows, so running it after them means it can see this
@@ -34,7 +36,7 @@ import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit"
  */
 async function runActiveLoops() {
   const loopRows = await db.query.loopDefinitions.findMany({
-    where: inArray(loopDefinitions.loopNumber, [1, 4, 5, 7, 8, 9, 10, 11, 12, 14]),
+    where: inArray(loopDefinitions.loopNumber, [1, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14]),
   });
   const byNumber = new Map(loopRows.map((l) => [l.loopNumber, l]));
 
@@ -71,6 +73,10 @@ async function runActiveLoops() {
   const loop12 = byNumber.get(12);
   if (loop12?.isActive) {
     results.loop12_dataSeparationAudit = await runDataSeparationAudit(loop12.id);
+  }
+  const loop13 = byNumber.get(13);
+  if (loop13?.isActive) {
+    results.loop13_tierIntegrityAudit = await runTierIntegrityAudit(loop13.id);
   }
   const loop14 = byNumber.get(14);
   if (loop14?.isActive) {

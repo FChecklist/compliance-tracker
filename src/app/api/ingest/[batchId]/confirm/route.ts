@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/supabase/auth-guard'
 import {
   ingestionBatches, ingestionItems,
   complianceItems, auditLogs, departments,
+  tasks, taskChatMessages,
 } from '@/lib/db'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { eq } from 'drizzle-orm'
@@ -130,6 +131,29 @@ export async function POST(req: NextRequest, ctx: Context) {
       confirmedCount: inserted.length,
       confirmedAt: new Date(),
     }).where(eq(ingestionBatches.id, batchId))
+
+    // Bridge into the Wave 4 tasks model -- deliberately additive, not a
+    // replacement of the staging pipeline above. Records a real, visible
+    // task (shows up in /orchestra) summarizing what this batch actually
+    // did, without touching any ingestion_batches/ingestion_items behavior.
+    // Full generalization of ingestion into the tasks model is still
+    // deferred (see orchestra_changes.md) -- this is the safe subset of
+    // that: visibility, not a rewrite.
+    const [importTask] = await db
+      .insert(tasks)
+      .values({
+        orgId,
+        userId: dbUser.id,
+        title: `Import: ${batch.fileName}`,
+        description: `Bulk ingestion of ${toInsert.length} staged item(s) from ${batch.fileName}`,
+        status: inserted.length > 0 ? "completed" : "failed",
+      })
+      .returning();
+    await db.insert(taskChatMessages).values({
+      taskId: importTask.id,
+      role: "system",
+      content: `Imported ${inserted.length} compliance item${inserted.length === 1 ? "" : "s"} from ${batch.fileName}.${failed.length > 0 ? ` ${failed.length} failed.` : ""}`,
+    });
 
     return {
       confirmed: inserted.length,
