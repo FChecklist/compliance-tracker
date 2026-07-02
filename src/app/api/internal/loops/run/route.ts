@@ -6,6 +6,7 @@ import { runDataSeparationAudit } from "@/lib/loops/data-separation-audit";
 import { runByoModelAudit } from "@/lib/loops/byo-model-audit";
 import { runOutputDeliveryAudit } from "@/lib/loops/output-delivery-audit";
 import { runAutomationProgressAudit } from "@/lib/loops/automation-progress-audit";
+import { runUserBehaviourAudit } from "@/lib/loops/user-behaviour-audit";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -16,14 +17,15 @@ import { runAutomationProgressAudit } from "@/lib/loops/automation-progress-audi
  * secret instead of requireAuth().
  *
  * Only runs loops currently marked is_active in loop_definitions -- today
- * that's #8 (Output Management), #9 (API/Token/URL Management), #11 (Full
- * Automation Loop), #12 (Hierarchy & Secrecy Management), and #14 (BYO AI
- * Model Loop), all read-only audits. See orchestra_changes.md Wave 5 for
- * why the other 10 are seeded but inactive.
+ * that's #8 (Output Management), #9 (API/Token/URL Management), #10 (User
+ * Behaviour Management), #11 (Full Automation Loop), #12 (Hierarchy &
+ * Secrecy Management), and #14 (BYO AI Model Loop), all read-only audits.
+ * See orchestra_changes.md Wave 5 for why the other 9 are seeded but
+ * inactive.
  */
 async function runActiveLoops() {
   const loopRows = await db.query.loopDefinitions.findMany({
-    where: inArray(loopDefinitions.loopNumber, [8, 9, 11, 12, 14]),
+    where: inArray(loopDefinitions.loopNumber, [8, 9, 10, 11, 12, 14]),
   });
   const byNumber = new Map(loopRows.map((l) => [l.loopNumber, l]));
 
@@ -36,6 +38,10 @@ async function runActiveLoops() {
   const loop9 = byNumber.get(9);
   if (loop9?.isActive) {
     results.loop9_apiTokenAudit = await runApiTokenAudit(loop9.id);
+  }
+  const loop10 = byNumber.get(10);
+  if (loop10?.isActive) {
+    results.loop10_userBehaviourAudit = await runUserBehaviourAudit(loop10.id);
   }
   const loop11 = byNumber.get(11);
   if (loop11?.isActive) {
