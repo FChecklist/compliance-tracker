@@ -3,6 +3,7 @@ import { db, loopDefinitions } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { runApiTokenAudit } from "@/lib/loops/api-token-audit";
 import { runDataSeparationAudit } from "@/lib/loops/data-separation-audit";
+import { runByoModelAudit } from "@/lib/loops/byo-model-audit";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -13,14 +14,15 @@ import { runDataSeparationAudit } from "@/lib/loops/data-separation-audit";
  * secret instead of requireAuth().
  *
  * Only runs loops currently marked is_active in loop_definitions -- today
- * that's #9 (API/Token/URL Management) and #12 (Hierarchy & Secrecy
- * Management), the two read-only audit/safety loops. See orchestra_changes.md
- * Wave 5 for why the other 13 are seeded but inactive.
+ * that's #9 (API/Token/URL Management), #12 (Hierarchy & Secrecy
+ * Management), and #14 (BYO AI Model Loop), all read-only audits. See
+ * orchestra_changes.md Wave 5 for why the other 12 are seeded but inactive.
  */
 async function runActiveLoops() {
-  const [loop9, loop12] = await Promise.all([
+  const [loop9, loop12, loop14] = await Promise.all([
     db.query.loopDefinitions.findFirst({ where: eq(loopDefinitions.loopNumber, 9) }),
     db.query.loopDefinitions.findFirst({ where: eq(loopDefinitions.loopNumber, 12) }),
+    db.query.loopDefinitions.findFirst({ where: eq(loopDefinitions.loopNumber, 14) }),
   ]);
 
   const results: Record<string, unknown> = {};
@@ -30,6 +32,9 @@ async function runActiveLoops() {
   }
   if (loop12?.isActive) {
     results.loop12_dataSeparationAudit = await runDataSeparationAudit(loop12.id);
+  }
+  if (loop14?.isActive) {
+    results.loop14_byoModelAudit = await runByoModelAudit(loop14.id);
   }
 
   return results;
