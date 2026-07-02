@@ -1,8 +1,9 @@
-import { challans, auditLogs, complianceItems } from "@/lib/db";
+import { challans, complianceItems } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   const { response, orgId } = await requireAuth();
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid amount is required" }, { status: 400 });
     }
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       // RLS-scoped -- returns null if this compliance item belongs to
       // another org, rather than deriving orgId from whatever item is found.
       const complianceItem = await db.query.complianceItems.findFirst({
@@ -91,12 +92,16 @@ export async function POST(request: NextRequest) {
         createdById: dbUser.id,
       }).returning();
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: "create",
         entityType: "Challan",
         entityId: challan.id,
-        userId: dbUser.id,
         details: `Recorded challan payment ₹${amount} for compliance item ${complianceItemId}`,
+        orgId,
+        clientId: complianceItem.clientId,
+        dbUser,
+        request,
       });
 
       return { challan };

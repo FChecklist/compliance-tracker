@@ -1,9 +1,9 @@
-import { auditPoints, auditLogs } from "@/lib/db"
+import { auditPoints } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth } from "@/lib/supabase/auth-guard"
-import { createId } from "@paralleldrive/cuid2"
+import { logActivity } from "@/lib/audit"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -16,7 +16,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const { status } = await request.json()
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       // RLS-scoped via the compliance_items join -- returns null if this
       // audit point belongs to another org's compliance item.
       const ap = await db.query.auditPoints.findFirst({ where: eq(auditPoints.id, id) })
@@ -28,14 +28,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       await db.update(auditPoints).set(updateData as never).where(eq(auditPoints.id, id))
 
-      await db.insert(auditLogs).values({
-        id: createId(),
+      await logActivity({
+        tx: db,
         action: 'status_change',
         entityType: 'AuditPoint',
         entityId: id,
-        userId: dbUser.id,
         details: `Audit point marked ${status}`,
-        createdAt: new Date(),
+        orgId,
+        clientId: ap.clientId,
+        dbUser,
+        request,
       })
 
       return true

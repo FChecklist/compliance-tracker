@@ -41,7 +41,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-function getNavSections(overdueCount: number, docCount: number, noticeCount: number): NavSection[] {
+function getNavSections(overdueCount: number, docCount: number, noticeCount: number, accountType: string): NavSection[] {
   return [
     {
       title: "OVERVIEW",
@@ -57,6 +57,12 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: AlertTriangle,
           badge: overdueCount > 0 ? { count: overdueCount, color: "bg-red-500 text-white" } : undefined,
         },
+        // Only shown for accounts that serve more than one client (CA firm /
+        // legal firm / consultant) -- a plain 'company' account has exactly
+        // one, auto-backfilled "Self" client and no reason to see this.
+        ...(accountType !== "company"
+          ? [{ label: "Clients", href: "/clients", icon: Building2 }]
+          : []),
       ],
     },
     {
@@ -159,9 +165,9 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount }: { overdueCount: number; docCount: number; noticeCount: number }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string }) {
   const pathname = usePathname();
-  const sections = getNavSections(overdueCount, docCount, noticeCount);
+  const sections = getNavSections(overdueCount, docCount, noticeCount, accountType);
 
   return (
     <div className="flex flex-col h-full">
@@ -225,23 +231,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount }: { overdueCount:
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0 }: { overdueCount?: number; docCount?: number; noticeCount?: number }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount }: { overdueCount: number; docCount: number; noticeCount: number }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -259,7 +265,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount }: { overdueCo
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} />
       </SheetContent>
     </Sheet>
   );

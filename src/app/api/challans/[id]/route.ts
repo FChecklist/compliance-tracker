@@ -1,8 +1,9 @@
-import { challans, auditLogs } from "@/lib/db";
+import { challans } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 export async function GET(
   _request: NextRequest,
@@ -51,7 +52,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const existing = await db.query.challans.findFirst({ where: eq(challans.id, id) });
       if (!existing) return null;
 
@@ -69,12 +70,16 @@ export async function PATCH(
         .where(eq(challans.id, id))
         .returning();
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: "update",
         entityType: "Challan",
         entityId: id,
-        userId: dbUser.id,
         details: `Updated challan ${id}`,
+        orgId,
+        clientId: existing.clientId,
+        dbUser,
+        request,
       });
 
       return updated;
@@ -100,7 +105,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { response, orgId, dbUser } = await requireAuth();
@@ -110,18 +115,22 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const existing = await db.query.challans.findFirst({ where: eq(challans.id, id) });
       if (!existing) return false;
 
       await db.delete(challans).where(eq(challans.id, id));
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: "delete",
         entityType: "Challan",
         entityId: id,
-        userId: dbUser.id,
         details: `Deleted challan ${id}`,
+        orgId,
+        clientId: existing.clientId,
+        dbUser,
+        request,
       });
 
       return true;

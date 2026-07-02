@@ -26,7 +26,16 @@ export const organisations = complianceSchemaDB.table('organisations', {
   slug: text('slug').notNull().unique(),
   logo: text('logo'),
   plan: text('plan').notNull().default('free'),
-  entityType: text('entity_type'), // M-08: Pvt Ltd, LLP, OPC, etc.
+  entityType: text('entity_type'), // M-08: Pvt Ltd, LLP, OPC, etc. -- the org's OWN legal form
+  accountType: text('account_type').notNull().default('company'), // Wave 7: 'company' | 'ca_firm' | 'legal_firm' | 'consultant' -- distinct from entityType above; does this account serve one client (itself) or many?
+  // Wave 7: these 4 columns were referenced by PATCH /api/me since before
+  // this session (orgAddress/orgCin/orgGstin/orgPan) but never actually
+  // existed on this table -- every admin settings save that touched org
+  // details was throwing a raw "column does not exist" Postgres error.
+  address: text('address'),
+  cinNumber: text('cin_number'),
+  gstin: text('gstin'),
+  panNumber: text('pan_number'),
   isActive: boolean('is_active').notNull().default(true),
   trialStartsAt: timestamp('trial_starts_at'), // M-17
   trialEndsAt: timestamp('trial_ends_at'),     // M-17
@@ -207,17 +216,101 @@ export const auditPoints = complianceSchemaDB.table('audit_points', {
 })
 
 // ─── Documents ───────────────────────────────────────────────────────────
+// orgId added Wave 7: the old RLS policy only covered rows with
+// complianceItemId set (joining through compliance_items for org scoping),
+// which meant documents attached only to a notice (complianceItemId null)
+// were invisible under RLS -- a real bug, not a hypothetical. A direct
+// orgId column (matching every other table's pattern) fixes that AND makes
+// documents usable as a general evidence store (cost receipts, dispatch
+// proofs) that isn't forced to link to a complianceItem or notice at all.
 export const documents = complianceSchemaDB.table('documents', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),
-  fileUrl: text('file_url').notNull(),
+  fileUrl: text('file_url').notNull(), // storage object path within the private 'compliance-documents' bucket, not a public URL -- always resolved to a signed URL server-side
   fileType: text('file_type'),
   fileSize: integer('file_size'),
   complianceItemId: text('compliance_item_id'),
   noticeId: text('notice_id'),           // M-12: notice documents
   extractedData: jsonb('extracted_data'), // M-02: AI extracted fields
   uploadedById: text('uploaded_by_id').notNull(),
+  orgId: text('org_id').notNull(),
   clientId: text('client_id'), // Wave 1
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── Compliance Costs (Wave 7) ───────────────────────────────────────────
+// Actual money spent EXECUTING a compliance obligation -- government filing
+// fees, consultant/CA/CS fees, other out-of-pocket costs -- each with its
+// own receipt as evidence. Distinct from `complianceItems.amount`, which is
+// the ESTIMATED penalty / cost-of-NON-compliance (risk exposure if this
+// item is missed), not money actually paid. A single item can have several
+// cost rows (e.g. one government fee + one consultant fee), which is why
+// this isn't just another column on complianceItems.
+export const costTypeEnum = complianceSchemaDB.enum('cost_type', ['government_fee', 'consultant_fee', 'penalty_paid', 'other'])
+// 'pending' is deliberately distinct from 'unpaid': pending = invoice/amount
+// not yet finalized or awaiting approval to pay; unpaid = a finalized
+// obligation with zero paid against it. paymentStatus is a stated workflow
+// field, kept honest by amountPaid + the costPayments ledger below rather
+// than trusted blindly -- see the payment-consistency check in the POST
+// route (Part below), which recomputes status from real payment rows.
+export const paymentStatusEnum = complianceSchemaDB.enum('payment_status', ['pending', 'unpaid', 'partially_paid', 'paid'])
+
+export const complianceCosts = complianceSchemaDB.table('compliance_costs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  complianceItemId: text('compliance_item_id'), // cost can attach to a compliance item OR a notice, not necessarily both
+  noticeId: text('notice_id'),
+  costType: costTypeEnum('cost_type').notNull(),
+  description: text('description'), // e.g. "MCA Form MGT-7 filing fee", "Consultant fee -- Sharma & Associates"
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(), // total amount owed
+  amountPaid: numeric('amount_paid', { precision: 14, scale: 2 }).notNull().default('0'), // denormalized running total, recomputed from costPayments on every payment write -- never hand-edited directly
+  paymentStatus: paymentStatusEnum('payment_status').notNull().default('pending'),
+  paidTo: text('paid_to'), // vendor / consultant / government department name
+  dueDate: timestamp('due_date'), // when payment is expected -- lets "unpaid past due date" be queried directly
+  receiptDocumentId: text('receipt_document_id'), // -> documents.id, the primary receipt/invoice evidence
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Append-only payment ledger -- this, not `complianceCosts.paymentStatus`
+// alone, is what actually prevents "we paid this, no you didn't" disputes.
+// Every real payment event is its own row: who recorded it, exactly when,
+// how much, and (optionally) its own receipt -- rows are never edited or
+// deleted, only added, same immutability principle as audit_logs. A
+// "part paid" cost is simply one whose payments sum to less than `amount`.
+export const costPayments = complianceSchemaDB.table('cost_payments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  complianceCostId: text('compliance_cost_id').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  paymentDate: timestamp('payment_date').notNull(),
+  paymentMethod: text('payment_method'), // 'bank_transfer' | 'cheque' | 'cash' | 'upi' | 'other'
+  referenceNumber: text('reference_number'), // transaction ref / cheque number / UTR
+  receiptDocumentId: text('receipt_document_id'), // -> documents.id, this specific payment's own receipt
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(), // when this payment was RECORDED -- the dispute-proof timestamp, distinct from paymentDate (when the payment itself happened)
+})
+
+// ─── Notice Dispatch / Delivery Evidence (Wave 7) ────────────────────────
+// "A reply was filed" is a claim; a courier tracking number + POD scan is
+// proof. A notice can have multiple dispatch events over its life (a reply,
+// then a follow-up submission), so this is its own table, not columns on
+// `notices`.
+export const noticeDispatches = complianceSchemaDB.table('notice_dispatches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  noticeId: text('notice_id').notNull(),
+  dispatchMethod: text('dispatch_method'), // 'courier' | 'speed_post' | 'email' | 'hand_delivery' | 'online_portal'
+  trackingNumber: text('tracking_number'),
+  courierName: text('courier_name'),
+  dispatchDate: timestamp('dispatch_date'),
+  deliveryConfirmedDate: timestamp('delivery_confirmed_date'),
+  proofDocumentId: text('proof_document_id'), // -> documents.id, courier receipt / proof-of-delivery scan
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -243,15 +336,39 @@ export const notifications = complianceSchemaDB.table('notifications', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-// ─── Audit Logs ──────────────────────────────────────────────────────────
+// ─── Audit Logs (Wave 7: unified, immutable activity log) ────────────────
+// `action` is free text, not the old fixed auditActionEnum -- the enum's 10
+// values (create/update/delete/status_change/assign/reassign/login/logout/
+// export/invite) remain a documented convention, but new GRC modules need
+// new verbs (view/approve/reject/publish_request/escalate/...) constantly,
+// and an ALTER TYPE migration per new verb doesn't scale. orgId lets this
+// table be queried/filtered per tenant without a join through users (the
+// old RLS policy joined through users.org_id); clientEntityId is nullable
+// because account-level actions (login, org settings) have no client.
+// actorName/actorRole are DENORMALIZED SNAPSHOTS, captured at write time --
+// if a user is later renamed/deactivated, the historical log must still
+// show who they were AT THE TIME, not a live join that changes retroactively.
+// This table is append-only at the DB level: app_runtime has no UPDATE/
+// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql).
+// `clientId` (not `clientEntityId`) to match the convention every other
+// domain table already established (complianceItems/challans/notices/
+// auditPoints/documents/tasks all scope by `clients.id`, not
+// `client_entities.id` -- client_entities is a detail/enrichment layer
+// under a client, not the primary scoping key. Matching precedent, not
+// introducing a second one.
 export const auditLogs = complianceSchemaDB.table('audit_logs', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  action: auditActionEnum('action').notNull(),
+  action: text('action').notNull(),
   entityType: text('entity_type').notNull(),
   entityId: text('entity_id').notNull(),
   userId: text('user_id').notNull(),
+  actorName: text('actor_name').notNull(),
+  actorRole: text('actor_role').notNull(),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
   details: text('details'),
   ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -647,6 +764,29 @@ export const organisationsRelations = relations(organisations, ({ many }) => ({
   webhooks: many(webhooks),
   aiConfigurations: many(aiConfigurations),
   embeddings: many(embeddings),
+  branches: many(branches),
+  clients: many(clients),
+}))
+
+export const branchesRelations = relations(branches, ({ one, many }) => ({
+  org: one(organisations, { fields: [branches.orgId], references: [organisations.id] }),
+  clients: many(clients),
+}))
+
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+  org: one(organisations, { fields: [clients.orgId], references: [organisations.id] }),
+  branch: one(branches, { fields: [clients.branchId], references: [branches.id] }),
+  entities: many(clientEntities),
+  userAccess: many(userClientAccess),
+}))
+
+export const clientEntitiesRelations = relations(clientEntities, ({ one }) => ({
+  client: one(clients, { fields: [clientEntities.clientId], references: [clients.id] }),
+}))
+
+export const userClientAccessRelations = relations(userClientAccess, ({ one }) => ({
+  user: one(users, { fields: [userClientAccess.userId], references: [users.id] }),
+  client: one(clients, { fields: [userClientAccess.clientId], references: [clients.id] }),
 }))
 
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
@@ -679,6 +819,7 @@ export const complianceItemsRelations = relations(complianceItems, ({ one, many 
   documents: many(documents),
   comments: many(comments),
   challans: many(challans),
+  costs: many(complianceCosts),
 }))
 
 export const challansRelations = relations(challans, ({ one }) => ({
@@ -693,6 +834,8 @@ export const noticesRelations = relations(notices, ({ one, many }) => ({
   org: one(organisations, { fields: [notices.orgId], references: [organisations.id] }),
   complianceItem: one(complianceItems, { fields: [notices.complianceItemId], references: [complianceItems.id] }),
   documents: many(documents),
+  costs: many(complianceCosts),
+  dispatches: many(noticeDispatches),
 }))
 
 export const auditPointsRelations = relations(auditPoints, ({ one }) => ({
@@ -706,6 +849,26 @@ export const documentsRelations = relations(documents, ({ one }) => ({
   uploadedBy: one(users, { fields: [documents.uploadedById], references: [users.id] }),
 }))
 
+export const complianceCostsRelations = relations(complianceCosts, ({ one, many }) => ({
+  complianceItem: one(complianceItems, { fields: [complianceCosts.complianceItemId], references: [complianceItems.id] }),
+  notice: one(notices, { fields: [complianceCosts.noticeId], references: [notices.id] }),
+  receiptDocument: one(documents, { fields: [complianceCosts.receiptDocumentId], references: [documents.id] }),
+  recordedBy: one(users, { fields: [complianceCosts.recordedById], references: [users.id] }),
+  payments: many(costPayments),
+}))
+
+export const costPaymentsRelations = relations(costPayments, ({ one }) => ({
+  cost: one(complianceCosts, { fields: [costPayments.complianceCostId], references: [complianceCosts.id] }),
+  receiptDocument: one(documents, { fields: [costPayments.receiptDocumentId], references: [documents.id] }),
+  recordedBy: one(users, { fields: [costPayments.recordedById], references: [users.id] }),
+}))
+
+export const noticeDispatchesRelations = relations(noticeDispatches, ({ one }) => ({
+  notice: one(notices, { fields: [noticeDispatches.noticeId], references: [notices.id] }),
+  proofDocument: one(documents, { fields: [noticeDispatches.proofDocumentId], references: [documents.id] }),
+  recordedBy: one(users, { fields: [noticeDispatches.recordedById], references: [users.id] }),
+}))
+
 export const commentsRelations = relations(comments, ({ one }) => ({
   author: one(users, { fields: [comments.authorId], references: [users.id] }),
   complianceItem: one(complianceItems, { fields: [comments.complianceItemId], references: [complianceItems.id] }),
@@ -713,6 +876,8 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
+  org: one(organisations, { fields: [auditLogs.orgId], references: [organisations.id] }),
+  client: one(clients, { fields: [auditLogs.clientId], references: [clients.id] }),
 }))
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({

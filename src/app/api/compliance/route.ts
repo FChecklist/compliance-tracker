@@ -1,8 +1,9 @@
-import { complianceItems, departments, auditLogs } from "@/lib/db";
+import { complianceItems, departments } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, or, like, asc, sql, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
     const {
       title, description, complianceType, priority, dueDate, departmentId, assignedToId,
       period, financialYear, acknowledgementNumber, registrationNumber,
-      amount, filedDate, paidDate, recurrenceType,
+      amount, filedDate, paidDate, recurrenceType, clientId,
     } = body
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     const VALID_RECURRENCE = ['none', 'monthly', 'quarterly', 'half_yearly', 'annually'] as const
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       // RLS means this returns null if departmentId belongs to a different
       // org, not just if it doesn't exist at all -- fixes a pre-existing
       // gap where a department id from any org could be referenced here.
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
         dueDate: parsedDueDate,
         departmentId,
         orgId,
+        clientId: typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null,
         assignedToId: assignedToId || null,
         period: typeof period === 'string' && period.trim() ? period.trim() : null,
         financialYear: typeof financialYear === 'string' && financialYear.trim() ? financialYear.trim() : null,
@@ -161,12 +163,16 @@ export async function POST(request: NextRequest) {
         recurrenceType: (VALID_RECURRENCE as readonly string[]).includes(recurrenceType) ? recurrenceType : 'none',
       }).returning()
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: 'create',
         entityType: 'ComplianceItem',
         entityId: item.id,
-        userId: dbUser.id,
         details: `Created compliance item: ${item.title}`,
+        orgId,
+        clientId: item.clientId,
+        dbUser,
+        request,
       })
 
       return { item }

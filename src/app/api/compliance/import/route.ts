@@ -1,8 +1,9 @@
-import { complianceItems, departments, auditLogs } from "@/lib/db";
+import { complianceItems, departments } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, like } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'] as const;
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
       items: [],
     };
 
-    await withTenantContext({ orgId }, async (db) => {
+    await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVLine(lines[i]);
         if (values.length === 0) continue;
@@ -139,12 +140,16 @@ export async function POST(request: NextRequest) {
             isTemplateSuggested: false,
           }).returning();
 
-          await db.insert(auditLogs).values({
+          await logActivity({
+            tx: db,
             action: "create",
             entityType: "ComplianceItem",
             entityId: item.id,
-            userId: dbUser.id,
             details: `Bulk imported: ${item.title}`,
+            orgId,
+            clientId: item.clientId,
+            dbUser,
+            request,
           });
 
           results.success++;

@@ -21,6 +21,7 @@ export async function GET() {
     orgName: org?.name ?? null,
     orgSlug: org?.slug ?? null,
     orgEntityType: org?.entityType ?? null,
+    orgAccountType: org?.accountType ?? "company",
   })
 }
 
@@ -43,15 +44,14 @@ export async function PATCH(request: NextRequest) {
 
       // Update org details (admin only)
       if (dbUser.role === 'admin') {
-        const orgUpdate: Record<string, unknown> = {}
+        const orgUpdate: Partial<typeof organisations.$inferInsert> = {}
         if (orgName && typeof orgName === 'string') orgUpdate.name = orgName.trim()
         if (orgAddress && typeof orgAddress === 'string') orgUpdate.address = orgAddress.trim()
         if (orgCin && typeof orgCin === 'string') orgUpdate.cinNumber = orgCin.trim()
         if (orgGstin && typeof orgGstin === 'string') orgUpdate.gstin = orgGstin.trim()
         if (orgPan && typeof orgPan === 'string') orgUpdate.panNumber = orgPan.trim()
         if (Object.keys(orgUpdate).length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await db.update(organisations).set(orgUpdate as any).where(eq(organisations.id, orgId))
+          await db.update(organisations).set(orgUpdate).where(eq(organisations.id, orgId))
         }
       }
     })

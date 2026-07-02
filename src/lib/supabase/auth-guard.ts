@@ -11,9 +11,24 @@ export type AuthContext = {
   response: NextResponse | null
 }
 
+// The DB enum (schema.ts userRoleEnum) has 10 values: the original 4 plus 6
+// Wave 1 hierarchy roles. This type/ROLE_RANK previously only recognized the
+// original 4 -- any user with one of the 6 newer roles (including
+// veridian_admin, meant to be the MOST privileged) got `ROLE_RANK[role] ??
+// 0`, i.e. rank 0, and failed every requireRole() check including the
+// lowest-bar ones. That's a real, live bug: those 6 roles existed in the DB
+// and were assignable, but were functionally locked out of everything.
 export type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
+  | 'veridian_admin' | 'branch_manager' | 'senior_professional' | 'team_member' | 'client_viewer' | 'external_auditor'
 
-const ROLE_RANK: Record<UserRole, number> = { admin: 4, manager: 3, member: 2, viewer: 1 }
+const ROLE_RANK: Record<UserRole, number> = {
+  viewer: 1, client_viewer: 1, external_auditor: 1,
+  member: 2, team_member: 2,
+  senior_professional: 3, manager: 3,
+  branch_manager: 4,
+  admin: 5,
+  veridian_admin: 6,
+}
 
 export function hasRole(dbUser: typeof users.$inferSelect | null, minimumRole: UserRole): boolean {
   if (!dbUser) return false

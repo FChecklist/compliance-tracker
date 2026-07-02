@@ -3,6 +3,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 import { notifyAssigned } from "@/lib/email";
 
 const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'] as const
@@ -144,7 +145,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const VALID_TYPES = ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'] as const
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const existingItem = await db.query.complianceItems.findFirst({
         where: eq(complianceItems.id, id),
       })
@@ -179,18 +180,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await db.update(complianceItems).set(updateData as any).where(eq(complianceItems.id, id))
 
-      const logEntries: (typeof auditLogs.$inferInsert)[] = []
+      const logChange = (action: string, details: string) => logActivity({
+        tx: db, action, entityType: 'ComplianceItem', entityId: id, details,
+        orgId, clientId: existingItem.clientId, dbUser, request,
+      })
       if (status !== undefined && status !== existingItem.status) {
-        logEntries.push({ action: 'status_change' as const, entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: `Status changed from ${existingItem.status} to ${status}` })
+        await logChange('status_change', `Status changed from ${existingItem.status} to ${status}`)
       }
       if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
-        logEntries.push({ action: (existingItem.assignedToId ? 'reassign' : 'assign') as 'reassign' | 'assign', entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: existingItem.assignedToId ? 'Reassigned from previous user' : `Assigned to user ${assignedToId}` })
+        await logChange(existingItem.assignedToId ? 'reassign' : 'assign', existingItem.assignedToId ? 'Reassigned from previous user' : `Assigned to user ${assignedToId}`)
       }
       if (title !== undefined && title !== existingItem.title) {
-        logEntries.push({ action: 'update' as const, entityType: 'ComplianceItem', entityId: id, userId: dbUser.id, details: 'Title updated' })
-      }
-      if (logEntries.length > 0) {
-        await db.insert(auditLogs).values(logEntries)
+        await logChange('update', 'Title updated')
       }
 
       // Send assignment email when item is (re)assigned
@@ -236,7 +237,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (dbUser?.role === 'viewer' || dbUser?.role === 'member') {
@@ -247,7 +248,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const item = await db.query.complianceItems.findFirst({
         where: and(eq(complianceItems.id, id), eq(complianceItems.orgId, orgId)),
       })
@@ -255,12 +256,16 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
       await db.delete(complianceItems).where(eq(complianceItems.id, id))
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: 'delete',
         entityType: 'ComplianceItem',
         entityId: id,
-        userId: dbUser.id,
         details: `Deleted compliance item: ${item.title}`,
+        orgId,
+        clientId: item.clientId,
+        dbUser,
+        request,
       })
       return true
     })

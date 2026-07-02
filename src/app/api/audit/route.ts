@@ -1,7 +1,7 @@
-import { auditLogs, users } from "@/lib/db";
+import { auditLogs } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and, gte, lt, desc, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, and, gte, lt, desc, sql, type SQL } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 
 export async function GET(request: NextRequest) {
@@ -22,14 +22,11 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit
 
     const [logs, count] = await withTenantContext({ orgId }, async (db) => {
-      // Scope audit logs to this org by finding all user IDs in the org
-      const orgUserIds = (await db.select({ id: users.id }).from(users).where(eq(users.orgId, orgId))).map(u => u.id)
-
-      const conditions: SQL[] = []
-      if (orgUserIds.length > 0) conditions.push(inArray(auditLogs.userId, orgUserIds))
+      // org_id is a direct column now (Wave 7) -- no need to derive scope
+      // via a join through users, and RLS enforces it independently anyway.
+      const conditions: SQL[] = [eq(auditLogs.orgId, orgId)]
       if (userId) conditions.push(eq(auditLogs.userId, userId))
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (action) conditions.push(eq(auditLogs.action, action as any))
+      if (action) conditions.push(eq(auditLogs.action, action))
       if (entityType) conditions.push(eq(auditLogs.entityType, entityType))
       if (startDate) conditions.push(gte(auditLogs.createdAt, new Date(startDate)))
       if (endDate) {
@@ -38,13 +35,11 @@ export async function GET(request: NextRequest) {
         conditions.push(lt(auditLogs.createdAt, end))
       }
 
-      const where = conditions.length > 0 ? and(...conditions) : undefined
+      const where = and(...conditions)
 
       const [fetchedLogs, [{ count: fetchedCount }]] = await Promise.all([
         db.query.auditLogs.findMany({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          where: where as any,
-          with: { user: { columns: { name: true } } },
+          where,
           orderBy: desc(auditLogs.createdAt),
           limit,
           offset,
@@ -62,7 +57,13 @@ export async function GET(request: NextRequest) {
         entityType: log.entityType,
         entityId: log.entityId,
         details: log.details,
-        userName: log.user.name,
+        // actorName/actorRole are denormalized snapshots on the row itself
+        // now -- no join needed, and they reflect who the actor WAS at the
+        // time, not whatever the users table says today.
+        userName: log.actorName,
+        actorRole: log.actorRole,
+        ipAddress: log.ipAddress,
+        userAgent: log.userAgent,
         createdAt: log.createdAt.toISOString(),
       })),
       total: count,

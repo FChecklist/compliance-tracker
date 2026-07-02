@@ -95,6 +95,7 @@ async function seed() {
     fileSize: Math.floor(Math.random() * 500000) + 50000,
     complianceItemId: item.id,
     uploadedById: admin.id,
+    orgId: org.id,
   }))
   await db.insert(schema.documents).values(docValues)
 
@@ -114,14 +115,21 @@ async function seed() {
 
   // 20 audit logs
   const auditActions = ['create', 'update', 'status_change', 'assign'] as const
-  const auditLogValues = Array.from({ length: 20 }, (_, i) => ({
-    action: auditActions[i % auditActions.length],
-    entityType: 'ComplianceItem',
-    entityId: items[i % items.length].id,
-    userId: [admin.id, managerFinance.id, managerLegal.id][i % 3],
-    details: `Action ${auditActions[i % auditActions.length]} performed on ${items[i % items.length].title}`,
-    createdAt: new Date(now.getTime() - i * 3600000),
-  }))
+  const auditActors = [admin, managerFinance, managerLegal]
+  const auditLogValues = Array.from({ length: 20 }, (_, i) => {
+    const actor = auditActors[i % 3]
+    return {
+      action: auditActions[i % auditActions.length],
+      entityType: 'ComplianceItem',
+      entityId: items[i % items.length].id,
+      userId: actor.id,
+      actorName: actor.name,
+      actorRole: actor.role,
+      orgId: org.id,
+      details: `Action ${auditActions[i % auditActions.length]} performed on ${items[i % items.length].title}`,
+      createdAt: new Date(now.getTime() - i * 3600000),
+    }
+  })
   await db.insert(schema.auditLogs).values(auditLogValues)
 
   console.log('Seed complete!')

@@ -8,10 +8,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/supabase/auth-guard'
 import {
   ingestionBatches, ingestionItems,
-  complianceItems, auditLogs, departments,
+  complianceItems, departments,
   tasks, taskChatMessages,
 } from '@/lib/db'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
+import { logActivity } from '@/lib/audit'
 import { eq } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest, ctx: Context) {
   const body = await req.json().catch(() => ({})) as { force_duplicates?: boolean }
   const forceDuplicates = body.force_duplicates === true
 
-  const result = await withTenantContext({ orgId }, async (db) => {
+  const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
     // RLS-scoped -- 404s if this batch belongs to another org.
     const batch = await db.query.ingestionBatches.findFirst({
       where: eq(ingestionBatches.id, batchId),
@@ -108,12 +109,15 @@ export async function POST(req: NextRequest, ctx: Context) {
           orgId,
         })
 
-        await db.insert(auditLogs).values({
+        await logActivity({
+          tx: db,
           action: 'create',
           entityType: 'ComplianceItem',
           entityId: newItemId,
-          userId: dbUser.id,
           details: `Imported from file: ${batch.fileName} (batch ${batchId}, row ${item.sourceRow})`,
+          orgId,
+          dbUser,
+          request: req,
         })
 
         // Mark staging item as confirmed

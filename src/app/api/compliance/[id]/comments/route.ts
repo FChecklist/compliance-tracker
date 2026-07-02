@@ -1,8 +1,9 @@
-import { comments, auditLogs, complianceItems } from "@/lib/db"
+import { comments, complianceItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { logActivity } from "@/lib/audit"
 import { createId } from "@paralleldrive/cuid2"
 import { notifyNewComment } from "@/lib/email"
 
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       // RLS-filtered -- returns null if the item belongs to another org,
       // not just if it doesn't exist (previously commenting on any org's
       // compliance item was possible just by knowing its id).
@@ -44,14 +45,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         createdAt: new Date(),
       }).returning()
 
-      await db.insert(auditLogs).values({
-        id: createId(),
+      await logActivity({
+        tx: db,
         action: 'update',
         entityType: 'ComplianceItem',
         entityId: id,
-        userId: dbUser.id,
         details: 'Comment added',
-        createdAt: new Date(),
+        orgId,
+        clientId: item.clientId,
+        dbUser,
+        request,
       })
 
       if (item.assignedTo?.email && item.assignedTo.email !== dbUser.email) {

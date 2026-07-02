@@ -1,8 +1,9 @@
-import { notices, departments, auditLogs } from "@/lib/db";
+import { notices, departments } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and, or, like, asc, sql, type SQL } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 const VALID_STATUSES = ['received', 'in_progress', 'replied', 'closed', 'appealed'] as const
 
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       departmentId,
       assignedToId,
       complianceItemId,
+      clientId,
     } = body
 
     if (!dateReceived) {
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "departmentId is required" }, { status: 400 })
     }
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const dept = await db.query.departments.findFirst({ where: eq(departments.id, departmentId) })
       if (!dept) return { error: "Department not found", status: 404 as const }
 
@@ -137,16 +139,21 @@ export async function POST(request: NextRequest) {
         description: description?.trim() || null,
         departmentId,
         orgId,
+        clientId: typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null,
         assignedToId: assignedToId || null,
         complianceItemId: complianceItemId || null,
       }).returning()
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: 'create',
         entityType: 'Notice',
         entityId: notice.id,
-        userId: dbUser.id,
         details: `Created notice: ${notice.noticeNumber ?? notice.id} from ${notice.authority ?? 'unknown authority'}`,
+        orgId,
+        clientId: notice.clientId,
+        dbUser,
+        request,
       })
 
       return { notice }

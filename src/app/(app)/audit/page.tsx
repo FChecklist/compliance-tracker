@@ -32,6 +32,9 @@ type AuditLog = {
   entityId: string;
   details: string | null;
   userName: string;
+  actorRole: string;
+  ipAddress: string | null;
+  userAgent: string | null;
   createdAt: string;
 };
 
@@ -46,6 +49,9 @@ const ACTION_BADGE: Record<string, string> = {
   logout: "bg-gray-100 text-gray-600",
   export: "bg-cyan-100 text-cyan-700",
   invite: "bg-ct-accent text-ct-saffron",
+  view: "bg-gray-100 text-gray-500",
+  payment_recorded: "bg-emerald-100 text-emerald-700",
+  dispatch_recorded: "bg-cyan-100 text-cyan-700",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -59,6 +65,9 @@ const ACTION_LABELS: Record<string, string> = {
   logout: "Logout",
   export: "Export",
   invite: "Invite",
+  view: "Viewed",
+  payment_recorded: "Payment Recorded",
+  dispatch_recorded: "Dispatch Recorded",
 };
 
 export default function AuditPage() {
@@ -179,6 +188,7 @@ export default function AuditPage() {
                 <TableHead className="text-xs font-semibold text-ct-navy">Action</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy hidden sm:table-cell">Entity</TableHead>
                 <TableHead className="text-xs font-semibold text-ct-navy hidden md:table-cell">Details</TableHead>
+                <TableHead className="text-xs font-semibold text-ct-navy hidden lg:table-cell">IP / Device</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -194,7 +204,7 @@ export default function AuditPage() {
                   ))
                 : logs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-ct-muted text-sm">
+                    <TableCell colSpan={6} className="h-24 text-center text-ct-muted text-sm">
                       No audit logs found.
                     </TableCell>
                   </TableRow>
@@ -206,6 +216,7 @@ export default function AuditPage() {
                       </TableCell>
                       <TableCell className="text-sm font-medium text-ct-navy">
                         {log.userName}
+                        <span className="block text-[10px] font-normal text-ct-muted">{log.actorRole}</span>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -223,6 +234,10 @@ export default function AuditPage() {
                       </TableCell>
                       <TableCell className="text-xs text-ct-slate max-w-[300px] truncate hidden md:table-cell">
                         {log.details ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-[10px] text-ct-muted hidden lg:table-cell max-w-[160px] truncate">
+                        {log.ipAddress ?? "—"}
+                        {log.userAgent ? <span className="block truncate">{log.userAgent}</span> : null}
                       </TableCell>
                     </TableRow>
                   ))

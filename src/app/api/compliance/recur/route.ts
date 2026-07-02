@@ -1,8 +1,9 @@
-import { complianceItems, auditLogs } from "@/lib/db";
+import { complianceItems } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 import { addMonths } from "date-fns";
 
 const RECURRENCE_MONTHS: Record<string, number> = {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "complianceItemId is required" }, { status: 400 });
     }
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       // RLS-scoped -- returns null if the item belongs to another org, not
       // just if it doesn't exist (previously any org's item id could be used
       // here, and the new recurring item would inherit THAT org's orgId).
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
         departmentId: parent.departmentId,
         assignedToId: parent.assignedToId,
         orgId,
+        clientId: parent.clientId,
         period: newPeriod,
         financialYear: parent.financialYear,
         registrationNumber: parent.registrationNumber,
@@ -82,12 +84,16 @@ export async function POST(request: NextRequest) {
         isTemplateSuggested: false,
       }).returning();
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: "create",
         entityType: "ComplianceItem",
         entityId: newItem.id,
-        userId: dbUser.id,
         details: `Auto-generated recurring compliance: ${newItem.title} (parent: ${parent.id})`,
+        orgId,
+        clientId: newItem.clientId,
+        dbUser,
+        request,
       });
 
       try {

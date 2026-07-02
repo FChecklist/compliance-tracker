@@ -3,6 +3,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 
 const VALID_STATUSES = ['received', 'in_progress', 'replied', 'closed', 'appealed'] as const
 
@@ -114,7 +115,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 })
     }
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const existingItem = await db.query.notices.findFirst({
         where: eq(notices.id, id),
       })
@@ -146,36 +147,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       await db.update(notices).set(updateData).where(eq(notices.id, id))
 
-      const logEntries: (typeof auditLogs.$inferInsert)[] = []
+      const logChange = (action: string, details: string) => logActivity({
+        tx: db, action, entityType: 'Notice', entityId: id, details,
+        orgId, clientId: existingItem.clientId, dbUser, request,
+      })
       if (status !== undefined && status !== existingItem.status) {
-        logEntries.push({
-          action: 'status_change' as const,
-          entityType: 'Notice',
-          entityId: id,
-          userId: dbUser.id,
-          details: `Status changed from ${existingItem.status} to ${status}`,
-        })
+        await logChange('status_change', `Status changed from ${existingItem.status} to ${status}`)
       }
       if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
-        logEntries.push({
-          action: (existingItem.assignedToId ? 'reassign' : 'assign') as 'reassign' | 'assign',
-          entityType: 'Notice',
-          entityId: id,
-          userId: dbUser.id,
-          details: existingItem.assignedToId ? 'Reassigned from previous user' : `Assigned to user ${assignedToId}`,
-        })
+        await logChange(existingItem.assignedToId ? 'reassign' : 'assign', existingItem.assignedToId ? 'Reassigned from previous user' : `Assigned to user ${assignedToId}`)
       }
       if (noticeNumber !== undefined && noticeNumber !== existingItem.noticeNumber) {
-        logEntries.push({
-          action: 'update' as const,
-          entityType: 'Notice',
-          entityId: id,
-          userId: dbUser.id,
-          details: 'Notice number updated',
-        })
-      }
-      if (logEntries.length > 0) {
-        await db.insert(auditLogs).values(logEntries)
+        await logChange('update', 'Notice number updated')
       }
 
       const updated = await db.query.notices.findFirst({
@@ -214,7 +197,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
@@ -222,7 +205,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
 
-    const result = await withTenantContext({ orgId }, async (db) => {
+    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const existingItem = await db.query.notices.findFirst({
         where: eq(notices.id, id),
       })
@@ -230,12 +213,16 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
       await db.delete(notices).where(eq(notices.id, id))
 
-      await db.insert(auditLogs).values({
+      await logActivity({
+        tx: db,
         action: 'delete',
         entityType: 'Notice',
         entityId: id,
-        userId: dbUser.id,
         details: `Deleted notice: ${existingItem.noticeNumber ?? id}`,
+        orgId,
+        clientId: existingItem.clientId,
+        dbUser,
+        request,
       })
       return true
     })

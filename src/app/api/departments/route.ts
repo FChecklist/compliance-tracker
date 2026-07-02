@@ -1,8 +1,9 @@
-import { departments, organisations, users, auditLogs } from "@/lib/db";
+import { departments, organisations } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { eq, asc } from "drizzle-orm";
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { logActivity } from "@/lib/audit";
 import { createId } from "@paralleldrive/cuid2";
 
 export async function GET() {
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
-    const newDept = await withTenantContext({ orgId }, async (db) => {
+    const newDept = await withTenantContext({ orgId, userId: dbUser?.id }, async (db) => {
       const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
       if (!org) return null
 
@@ -67,18 +68,18 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       }).returning()
 
-      const actor = dbUser ?? await db.query.users.findFirst({ where: eq(users.role, 'admin') })
-      if (actor) {
-        await db.insert(auditLogs).values({
-          id: createId(),
-          action: 'create',
-          entityType: 'Department',
-          entityId: inserted[0].id,
-          userId: actor.id,
-          details: `Created department: ${inserted[0].name}`,
-          createdAt: new Date(),
-        })
-      }
+      // dbUser is guaranteed non-null here -- requireRole() above already
+      // returned a 403 if it were null, so no "first admin" fallback needed.
+      await logActivity({
+        tx: db,
+        action: 'create',
+        entityType: 'Department',
+        entityId: inserted[0].id,
+        details: `Created department: ${inserted[0].name}`,
+        orgId,
+        dbUser: dbUser!,
+        request,
+      })
 
       return inserted[0]
     })
