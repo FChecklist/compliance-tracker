@@ -9,6 +9,8 @@ import { runAutomationProgressAudit } from "@/lib/loops/automation-progress-audi
 import { runUserBehaviourAudit } from "@/lib/loops/user-behaviour-audit";
 import { runInputQualityAudit } from "@/lib/loops/input-quality-audit";
 import { runLoopEngineeringAudit } from "@/lib/loops/loop-engineering-audit";
+import { runKnowledgeFlowAudit } from "@/lib/loops/knowledge-flow-audit";
+import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -19,11 +21,12 @@ import { runLoopEngineeringAudit } from "@/lib/loops/loop-engineering-audit";
  * secret instead of requireAuth().
  *
  * Only runs loops currently marked is_active in loop_definitions -- today
- * that's #1 (Loop Engineering), #7 (Input Management), #8 (Output
- * Management), #9 (API/Token/URL Management), #10 (User Behaviour
- * Management), #11 (Full Automation Loop), #12 (Hierarchy & Secrecy
- * Management), and #14 (BYO AI Model Loop), all read-only audits. See
- * orchestra_changes.md Wave 5 for why the other 7 are seeded but inactive.
+ * that's #1 (Loop Engineering), #4 (Knowledge Management), #5 (Process
+ * Management), #7 (Input Management), #8 (Output Management), #9
+ * (API/Token/URL Management), #10 (User Behaviour Management), #11 (Full
+ * Automation Loop), #12 (Hierarchy & Secrecy Management), and #14 (BYO AI
+ * Model Loop), all read-only audits. See orchestra_changes.md Wave 5 for
+ * why the other 5 are seeded but inactive.
  *
  * Loop 1 runs last deliberately -- it observes the other loops'
  * loop_executions rows, so running it after them means it can see this
@@ -31,12 +34,20 @@ import { runLoopEngineeringAudit } from "@/lib/loops/loop-engineering-audit";
  */
 async function runActiveLoops() {
   const loopRows = await db.query.loopDefinitions.findMany({
-    where: inArray(loopDefinitions.loopNumber, [1, 7, 8, 9, 10, 11, 12, 14]),
+    where: inArray(loopDefinitions.loopNumber, [1, 4, 5, 7, 8, 9, 10, 11, 12, 14]),
   });
   const byNumber = new Map(loopRows.map((l) => [l.loopNumber, l]));
 
   const results: Record<string, unknown> = {};
 
+  const loop4 = byNumber.get(4);
+  if (loop4?.isActive) {
+    results.loop4_knowledgeFlowAudit = await runKnowledgeFlowAudit(loop4.id);
+  }
+  const loop5 = byNumber.get(5);
+  if (loop5?.isActive) {
+    results.loop5_processTurnaroundAudit = await runProcessTurnaroundAudit(loop5.id);
+  }
   const loop7 = byNumber.get(7);
   if (loop7?.isActive) {
     results.loop7_inputQualityAudit = await runInputQualityAudit(loop7.id);
