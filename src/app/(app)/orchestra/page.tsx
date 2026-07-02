@@ -1,15 +1,33 @@
-import { Bot, ListChecks, CircleCheck, Clock, Sparkles, Info } from "lucide-react";
-import { AssistantColumn } from "@/components/orchestra/AssistantColumn";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Bot, Sparkles, Info } from "lucide-react";
+import { RealAssistantColumn } from "@/components/orchestra/RealAssistantColumn";
 import { AgentLibrarySheet } from "@/components/orchestra/AgentLibrarySheet";
-import { ASSISTANTS, TIER_COLOR, TIER_LABEL, type AgentTier } from "@/lib/orchestra-mock-data";
+import { TIER_COLOR, TIER_LABEL, type AgentTier } from "@/lib/orchestra-mock-data";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const TIERS: AgentTier[] = ["global", "firm", "client", "user"];
 
+type RealAssistant = {
+  id: string;
+  assistantNumber: number;
+  label: string;
+  status: "idle" | "working";
+};
+
 export default function OrchestraPage() {
-  const totalTasks = ASSISTANTS.reduce((sum, a) => sum + a.tasks.length, 0);
-  const submitted = ASSISTANTS.reduce((sum, a) => sum + a.tasks.filter((t) => t.status === "submitted").length, 0);
-  const inReview = ASSISTANTS.reduce((sum, a) => sum + a.tasks.filter((t) => t.status === "completed").length, 0);
+  const [assistants, setAssistants] = useState<RealAssistant[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/assistants")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setAssistants(data.assistants ?? []))
+      .catch(() => setAssistants([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -18,13 +36,10 @@ export default function OrchestraPage() {
         <div>
           <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
             VERIDIAN AI Orchestra
-            <span className="text-[10px] font-sans font-semibold text-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-              Preview
-            </span>
           </h1>
           <p className="text-sm text-ct-muted mt-1">
-            Where this is headed: 5 AI assistants per user, orchestrating a 4-tier worker agent
-            library across every client you service.
+            Your 5 AI assistants, orchestrating a 4-tier worker agent library across every client
+            you service.
           </p>
         </div>
         <AgentLibrarySheet />
@@ -34,33 +49,21 @@ export default function OrchestraPage() {
       <div className="flex items-start gap-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-3.5 py-3">
         <Info className="size-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
         <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
-          <strong>Mixed real/preview page.</strong> Click <strong>Agent Library</strong> above to see
-          your real worker agents — that data is live from the database (Wave 3), RLS-enforced per
-          tier. The 5 assistant columns below are still example content: your real 5 assistants
-          exist (Wave 2, editable in Settings → AI Assistants) but the tasks and chat shown per
-          column are illustrative, since nothing creates real tasks for them yet. Chat input and
-          task submission stay disabled here rather than faked. See{" "}
-          <span className="font-mono">orchestra_changes.md</span> for exactly what's real vs. planned.
+          <strong>This page is fully live.</strong> The 5 columns below are your real assistants
+          (Wave 2), the Agent Library is your real worker agent roster (Wave 3), and adding a task
+          to a column writes a real row to the <span className="font-mono">tasks</span> table
+          (Wave 4). What&apos;s not built yet: nothing automatically <em>executes</em> a task once
+          created — that's the task execution engine, still ahead. See{" "}
+          <span className="font-mono">orchestra_changes.md</span> for exactly what's built vs.
+          planned.
         </p>
       </div>
 
-      {/* Summary stats */}
+      {/* Tier legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
         <div className="flex items-center gap-1.5 text-xs text-ct-muted">
           <Bot className="size-3.5 text-indigo-600" />
-          <strong className="text-ct-navy font-semibold">{ASSISTANTS.length}</strong> Assistants
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-ct-muted">
-          <ListChecks className="size-3.5 text-amber-600" />
-          <strong className="text-ct-navy font-semibold">{totalTasks}</strong> Tasks
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-ct-muted">
-          <CircleCheck className="size-3.5 text-lime-600" />
-          <strong className="text-ct-navy font-semibold">{submitted}</strong> Done
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-ct-muted">
-          <Clock className="size-3.5 text-rose-600" />
-          <strong className="text-ct-navy font-semibold">{inReview}</strong> Review
+          <strong className="text-ct-navy font-semibold">{assistants.length}</strong> Assistants
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-3 text-[11px] text-ct-muted">
@@ -78,9 +81,19 @@ export default function OrchestraPage() {
 
       {/* Assistant columns */}
       <div className="flex-1 flex gap-3 overflow-x-auto pb-2 min-h-[520px]">
-        {ASSISTANTS.map((assistant) => (
-          <AssistantColumn key={assistant.id} assistant={assistant} />
-        ))}
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="flex-1 min-w-[260px] h-full" />
+          ))
+        ) : assistants.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-sm text-ct-muted">
+            No assistants found. They're auto-provisioned on signup — try refreshing.
+          </div>
+        ) : (
+          assistants.map((assistant) => (
+            <RealAssistantColumn key={assistant.id} assistant={assistant} />
+          ))
+        )}
       </div>
 
       {/* Missing pieces roadmap */}
@@ -90,12 +103,11 @@ export default function OrchestraPage() {
           <span className="text-sm font-semibold text-ct-navy">What's not built yet</span>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-ct-muted">
-          <RoadmapItem wave="Wave 1" label="Real tenant hierarchy (Customer Account → Client → Client Entity) + enforced Row Level Security" />
-          <RoadmapItem wave="Wave 2" label="ai_assistants, assistant_memories tables — assistants shown here don't persist or remember anything yet" />
-          <RoadmapItem wave="Wave 3" label="worker_agents table across 4 tiers — today's 7 real MCP tools become the first Global-tier seed" />
-          <RoadmapItem wave="Wave 4" label="tasks, task_execution_plan, orchestra_layers — real task orchestration and per-layer BYO model routing" />
-          <RoadmapItem wave="Wave 5" label="15 self-improvement loops — starting with audit/safety loops before any generative ones" />
-          <RoadmapItem wave="Wave 6" label="Hardening + launch reconciliation against the existing test suite" />
+          <RoadmapItem wave="Wave 4" label="Task execution engine — created tasks persist but nothing automatically works them yet" />
+          <RoadmapItem wave="Wave 4" label="Generalizing the ingestion pipeline into the tasks model — deliberately deferred, it's a refactor of a live feature" />
+          <RoadmapItem wave="Wave 5" label="12 more self-improvement loops — only the 3 audit/safety loops (#9, #12, #14) are active so far" />
+          <RoadmapItem wave="Wave 5" label="Self-Coding and Prompt Management loops — explicitly deferred until the audit loops have a track record" />
+          <RoadmapItem wave="Wave 6" label="Live load-testing — blocked on a Supabase connection pooler issue, see orchestra_changes.md" />
         </div>
       </div>
     </div>
