@@ -47,8 +47,13 @@ export type TenantDb = Parameters<Parameters<ReturnType<typeof getRawDb>["transa
  * (`app.current_org_id`, `app.current_client_ids`, `app.current_user_id`),
  * read by the `compliance.current_org_id()` / `current_client_ids()` /
  * `current_user_id()` functions that the real RLS policies check.
- * `SET LOCAL` resets automatically at the end of the transaction, so this
- * is safe to reuse across pooled connections.
+ * `SET LOCAL x = $1` is invalid Postgres syntax -- SET does not accept bind
+ * parameters, only literals (empirically confirmed: `PREPARE p(text) AS SET
+ * LOCAL x = $1` throws `42601 syntax error at or near "SET"`). This means
+ * every call through this function was throwing since it was introduced --
+ * `set_config(name, value, is_local)` is the parameterizable equivalent
+ * (third arg `true` == transaction-local, same reset-at-commit behavior as
+ * SET LOCAL). Do not reintroduce the `SET LOCAL ${...}` form.
  *
  * Every query inside `fn` runs as `app_runtime`, which has no RLS bypass --
  * a forgotten `WHERE org_id = ...` in a route still gets filtered correctly.
@@ -63,12 +68,12 @@ export async function withTenantContext<T>(
 ): Promise<T> {
   const db = getRawDb()
   return db.transaction(async (tx) => {
-    await tx.execute(sql`SET LOCAL app.current_org_id = ${context.orgId}`)
+    await tx.execute(sql`SELECT set_config('app.current_org_id', ${context.orgId}, true)`)
     if (context.clientIds && context.clientIds.length > 0) {
-      await tx.execute(sql`SET LOCAL app.current_client_ids = ${context.clientIds.join(",")}`)
+      await tx.execute(sql`SELECT set_config('app.current_client_ids', ${context.clientIds.join(",")}, true)`)
     }
     if (context.userId) {
-      await tx.execute(sql`SET LOCAL app.current_user_id = ${context.userId}`)
+      await tx.execute(sql`SELECT set_config('app.current_user_id', ${context.userId}, true)`)
     }
     return fn(tx)
   })
