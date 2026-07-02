@@ -112,8 +112,8 @@ export function RealAssistantColumn({ assistant }: { assistant: RealAssistant })
           </div>
         ) : tasks.length === 0 ? (
           <p className="text-[11px] text-muted-foreground text-center py-6 px-2">
-            No tasks yet. Add one below to see it persist here — the underlying tasks table
-            (Wave 4) is real, though nothing executes it automatically yet.
+            No tasks yet. Add one below — the assistant plans it against your real worker
+            agent roster and reports back in a few seconds.
           </p>
         ) : (
           tasks.map((task) => {
@@ -154,7 +154,7 @@ export function RealAssistantColumn({ assistant }: { assistant: RealAssistant })
           className="h-7 text-xs"
         />
         <Button size="icon" className="size-7 shrink-0" onClick={createTask} disabled={creating || !newTaskTitle.trim()}>
-          <Send className="size-3" />
+          {creating ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
         </Button>
       </div>
     </Card>

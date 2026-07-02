@@ -51,11 +51,10 @@ export default function OrchestraPage() {
         <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
           <strong>This page is fully live.</strong> The 5 columns below are your real assistants
           (Wave 2), the Agent Library is your real worker agent roster (Wave 3), and adding a task
-          to a column writes a real row to the <span className="font-mono">tasks</span> table
-          (Wave 4). What&apos;s not built yet: nothing automatically <em>executes</em> a task once
-          created — that's the task execution engine, still ahead. See{" "}
-          <span className="font-mono">orchestra_changes.md</span> for exactly what's built vs.
-          planned.
+          to a column plans it against your real agents and reports back (Wave 4's execution
+          engine) — the plan and the assistant&apos;s response are both real rows you can see
+          persist. See <span className="font-mono">orchestra_changes.md</span> for exactly what's
+          built vs. planned.
         </p>
       </div>
 
@@ -103,9 +102,9 @@ export default function OrchestraPage() {
           <span className="text-sm font-semibold text-ct-navy">What's not built yet</span>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-ct-muted">
-          <RoadmapItem wave="Wave 4" label="Task execution engine — created tasks persist but nothing automatically works them yet" />
+          <RoadmapItem wave="Wave 4" label="Worker agent dispatch — the execution engine plans against real agents but doesn't invoke their underlying logic yet, only records the plan" />
           <RoadmapItem wave="Wave 4" label="Generalizing the ingestion pipeline into the tasks model — deliberately deferred, it's a refactor of a live feature" />
-          <RoadmapItem wave="Wave 5" label="12 more self-improvement loops — only the 3 audit/safety loops (#9, #12, #14) are active so far" />
+          <RoadmapItem wave="Wave 5" label="9 more self-improvement loops — 6 audit loops active so far (#8, #9, #10, #11, #12, #14)" />
           <RoadmapItem wave="Wave 5" label="Self-Coding and Prompt Management loops — explicitly deferred until the audit loops have a track record" />
           <RoadmapItem wave="Wave 6" label="Live load-testing — blocked on a Supabase connection pooler issue, see orchestra_changes.md" />
         </div>
