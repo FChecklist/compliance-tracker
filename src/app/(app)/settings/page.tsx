@@ -68,6 +68,8 @@ export default function SettingsPage() {
   const [orgCin, setOrgCin] = useState('');
   const [orgPan, setOrgPan] = useState('');
   const [orgGstin, setOrgGstin] = useState('');
+  const [orgAccountType, setOrgAccountType] = useState('company');
+  const [orgRegulatoryEntityType, setOrgRegulatoryEntityType] = useState('general');
   const [orgSaving, setOrgSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -77,6 +79,8 @@ export default function SettingsPage() {
       setProfileEmail(d.email ?? '');
       setProfileRole(d.role ?? '');
       setOrgName(d.orgName ?? '');
+      setOrgAccountType(d.orgAccountType ?? 'company');
+      setOrgRegulatoryEntityType(d.orgRegulatoryEntityType ?? 'general');
       setIsAdmin(d.role === 'admin');
     }).catch(() => {});
   }, []);
@@ -104,7 +108,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgName, orgAddress, orgCin, orgGstin, orgPan }),
+        body: JSON.stringify({ orgName, orgAddress, orgCin, orgGstin, orgPan, orgAccountType, orgRegulatoryEntityType }),
       });
       if (!res.ok) throw new Error();
       toast.success('Organisation updated');
@@ -235,6 +239,25 @@ export default function SettingsPage() {
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-ct-muted uppercase">GSTIN</Label>
                     <Input value={orgGstin} onChange={e => setOrgGstin(e.target.value)} disabled={!isAdmin} className="h-9" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-ct-muted uppercase">Account Type</Label>
+                    <select value={orgAccountType} onChange={e => setOrgAccountType(e.target.value)} disabled={!isAdmin} className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                      <option value="company">Company (single client)</option>
+                      <option value="ca_firm">CA Firm (serves many clients)</option>
+                      <option value="legal_firm">Legal Firm</option>
+                      <option value="consultant">Consultant</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-ct-muted uppercase">Regulatory Entity Type</Label>
+                    <select value={orgRegulatoryEntityType} onChange={e => setOrgRegulatoryEntityType(e.target.value)} disabled={!isAdmin} className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                      <option value="general">General (unlisted, non-BFSI)</option>
+                      <option value="listed_company">Listed Company (SEBI)</option>
+                      <option value="bank_nbfc">Bank / NBFC (RBI)</option>
+                      <option value="insurer">Insurer (IRDAI)</option>
+                    </select>
+                    <p className="text-[11px] text-ct-muted">Determines which sector regulator (SEBI/RBI/IRDAI) module shows real content.</p>
                   </div>
                 </div>
                 {isAdmin && (

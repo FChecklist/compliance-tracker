@@ -22,6 +22,23 @@ import {
   HelpCircle,
   Bell,
   Upload,
+  Gavel,
+  Scale,
+  Briefcase,
+  ShieldAlert,
+  Landmark,
+  ShieldCheck,
+  Leaf,
+  Siren,
+  UserCheck,
+  FileWarning,
+  Radio,
+  FileSignature,
+  CheckCircle2,
+  Layers,
+  Wallet,
+  Link2,
+  BookOpen,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -96,6 +113,88 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Upload,
         },
       ],
+    },
+    {
+      title: "GOVERNANCE",
+      items: [
+        { label: "Board & Governance", href: "/board", icon: Gavel },
+        { label: "Committees", href: "/committees", icon: Users },
+        { label: "Related Party Transactions", href: "/rpt", icon: ShieldAlert },
+        { label: "Delegation of Authority", href: "/doa", icon: Layers },
+        { label: "Director & KMP Register", href: "/directors", icon: BookOpen },
+        { label: "Board & Director Evaluation", href: "/board-evaluation", icon: CheckCircle2 },
+        { label: "Policy Management", href: "/policies", icon: FileText },
+      ],
+    },
+    {
+      title: "COMPANY SECRETARIAL",
+      items: [
+        { label: "Statutory Registers", href: "/statutory-registers", icon: BookOpen },
+        { label: "Share Capital & Cap Table", href: "/cap-table", icon: Wallet },
+        { label: "Charges (ROC)", href: "/charges", icon: Link2 },
+        { label: "Secretarial Audit", href: "/secretarial-audit", icon: ShieldCheck },
+        { label: "MCA e-Filing", href: "/mca-filings", icon: FileSignature },
+      ],
+    },
+    {
+      title: "LEGAL",
+      items: [
+        { label: "External Counsel & Vendors", href: "/legal-vendors", icon: Scale },
+        { label: "Litigation & Disputes", href: "/litigation", icon: Gavel },
+        { label: "IP Portfolio", href: "/ip-portfolio", icon: BookOpen },
+        { label: "Legal Opinions", href: "/legal-opinions", icon: FileText },
+      ],
+    },
+    {
+      title: "PEOPLE & HR",
+      items: [
+        { label: "Payroll & HR Statutory Compliance", href: "/hr-compliance", icon: Briefcase },
+        { label: "Leave & Holiday Compliance", href: "/leave-holiday", icon: CheckSquare },
+        { label: "POSH Compliance", href: "/posh", icon: UserCheck },
+      ],
+    },
+    {
+      title: "RISK",
+      items: [{ label: "Risk Register", href: "/risks", icon: ShieldAlert }],
+    },
+    {
+      title: "SECTOR REGULATORS",
+      items: [
+        { label: "SEBI (Listed Company)", href: "/sebi", icon: Landmark },
+        { label: "RBI (Bank / NBFC)", href: "/rbi", icon: Landmark },
+        { label: "IRDAI (Insurer)", href: "/irdai", icon: Landmark },
+      ],
+    },
+    {
+      title: "AUDIT",
+      items: [
+        { label: "Controls & Framework Library", href: "/frameworks", icon: ShieldCheck },
+        { label: "Audit Management", href: "/audit-engagements", icon: ClipboardList },
+        { label: "Audit Trail", href: "/audit", icon: History },
+      ],
+    },
+    {
+      title: "THIRD-PARTY & ESG",
+      items: [
+        { label: "Vendor & Third-Party Risk", href: "/vendor-risk", icon: ShieldAlert },
+        { label: "ESG & Sustainability (BRSR)", href: "/esg", icon: Leaf },
+      ],
+    },
+    {
+      title: "INTEGRITY",
+      items: [
+        { label: "Whistleblower & Ethics", href: "/whistleblower", icon: FileWarning },
+        { label: "Business Continuity", href: "/bcm", icon: Radio },
+        { label: "Contract Compliance", href: "/contract-compliance", icon: FileSignature },
+      ],
+    },
+    {
+      title: "INCIDENTS & EVENTS",
+      items: [{ label: "Incident Management", href: "/incidents", icon: Siren }],
+    },
+    {
+      title: "ACCESS & APPROVALS",
+      items: [{ label: "Approval Queue", href: "/approvals", icon: CheckCircle2 }],
     },
     {
       title: "ADMIN",

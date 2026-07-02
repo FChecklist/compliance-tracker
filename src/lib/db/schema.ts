@@ -36,6 +36,11 @@ export const organisations = complianceSchemaDB.table('organisations', {
   cinNumber: text('cin_number'),
   gstin: text('gstin'),
   panNumber: text('pan_number'),
+  // Wave 8: 'listed_company' | 'bank_nbfc' | 'insurer' | 'general' -- drives
+  // which sector-regulator module (SEBI/RBI/IRDAI) shows real content vs an
+  // honest "not applicable" notice. A third, independent axis from
+  // entityType (own legal form) and accountType (single-client vs firm).
+  regulatoryEntityType: text('regulatory_entity_type').notNull().default('general'),
   isActive: boolean('is_active').notNull().default(true),
   trialStartsAt: timestamp('trial_starts_at'), // M-17
   trialEndsAt: timestamp('trial_ends_at'),     // M-17
@@ -1067,4 +1072,574 @@ export const ingestionBatchesRelations = relations(ingestionBatches, ({ one, man
 
 export const ingestionItemsRelations = relations(ingestionItems, ({ one }) => ({
   batch: one(ingestionBatches, { fields: [ingestionItems.batchId], references: [ingestionBatches.id] }),
+}))
+
+// ═══════════════════════════════════════════════════════════════════════
+// Wave 8 — Full GRC module breadth, matching the design-mockup session.
+// All tables follow the Wave 7 conventions: id via createId(), orgId
+// NOT NULL + clientId nullable (scoping precedent from Wave 7), RLS via
+// `org_id = compliance.current_org_id()` applied in the migration, every
+// write logged via src/lib/audit.ts's logActivity(). `classification`
+// columns (text, not enum -- see src/lib/classification.ts) default to the
+// mockup's documented default per module.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─── GOVERNANCE ──────────────────────────────────────────────────────────
+export const boardMeetingTypeEnum = complianceSchemaDB.enum('board_meeting_type', ['board_meeting', 'agm', 'egm', 'committee_meeting'])
+export const boardMeetingStatusEnum = complianceSchemaDB.enum('board_meeting_status', ['scheduled', 'held', 'cancelled'])
+
+export const boardMeetings = complianceSchemaDB.table('board_meetings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  meetingType: boardMeetingTypeEnum('meeting_type').notNull().default('board_meeting'),
+  meetingDate: timestamp('meeting_date').notNull(),
+  status: boardMeetingStatusEnum('status').notNull().default('scheduled'),
+  agenda: jsonb('agenda').notNull().default([]), // string[]
+  attendees: jsonb('attendees').notNull().default([]), // string[] -- names, not FK'd to users (external directors may not be app users)
+  minutes: text('minutes'),
+  minutesHistory: jsonb('minutes_history').notNull().default([]), // { date, amendedBy, text }[] -- amendments append, never overwrite
+  classification: text('classification').notNull().default('board_only'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const boardActionItems = complianceSchemaDB.table('board_action_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  boardMeetingId: text('board_meeting_id').notNull(),
+  item: text('item').notNull(),
+  ownerId: text('owner_id'),
+  dueDate: timestamp('due_date'),
+  status: text('status').notNull().default('open'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const committees = complianceSchemaDB.table('committees', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  charter: text('charter'),
+  chairId: text('chair_id'),
+  cadence: text('cadence'),
+  lastMetDate: timestamp('last_met_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const rptApprovalStatusEnum = complianceSchemaDB.enum('rpt_approval_status', ['pending', 'approved', 'rejected'])
+
+export const relatedPartyTransactions = complianceSchemaDB.table('related_party_transactions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  partyName: text('party_name').notNull(),
+  natureOfTransaction: text('nature_of_transaction'),
+  amount: numeric('amount', { precision: 14, scale: 2 }),
+  approvalStatus: rptApprovalStatusEnum('approval_status').notNull().default('pending'),
+  approvedById: text('approved_by_id'),
+  transactionDate: timestamp('transaction_date'),
+  classification: text('classification').notNull().default('board_only'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const delegationOfAuthority = complianceSchemaDB.table('delegation_of_authority', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  activity: text('activity').notNull(),
+  thresholdDescription: text('threshold_description'),
+  approverRole: text('approver_role'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const directorsKmp = complianceSchemaDB.table('directors_kmp', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  din: text('din'),
+  designation: text('designation'),
+  isIndependent: boolean('is_independent').notNull().default(false),
+  kycStatus: text('kyc_status').default('valid'),
+  kycValidTill: timestamp('kyc_valid_till'),
+  appointedDate: timestamp('appointed_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const boardEvaluations = complianceSchemaDB.table('board_evaluations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  cycle: text('cycle').notNull(),
+  currentStage: text('current_stage').notNull().default('initiated'),
+  scope: jsonb('scope').notNull().default([]),
+  respondents: jsonb('respondents').notNull().default([]), // { name, role, responded }[]
+  actionItems: jsonb('action_items').notNull().default([]), // { item, owner, status }[]
+  history: jsonb('history').notNull().default([]), // { cycle, completedDate, outcome }[]
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const policyStatusEnum = complianceSchemaDB.enum('policy_status', ['draft', 'under_review', 'published'])
+
+export const policies = complianceSchemaDB.table('policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  category: text('category').notNull().default('governance'), // governance|hr|environment|data_privacy|third_party
+  version: text('version').notNull().default('v1.0'),
+  status: policyStatusEnum('status').notNull().default('draft'),
+  attestationRate: integer('attestation_rate').notNull().default(0),
+  history: jsonb('history').notNull().default([]), // { version, date, editedBy, note }[]
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Generic maker-checker used across modules (policy publish, RPT approval,
+// ...) instead of each module inventing its own approval mechanism.
+export const approvalRequestStatusEnum = complianceSchemaDB.enum('approval_request_status', ['pending', 'approved', 'rejected'])
+
+export const approvalRequests = complianceSchemaDB.table('approval_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  requestType: text('request_type').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  description: text('description'),
+  status: approvalRequestStatusEnum('status').notNull().default('pending'),
+  requestedById: text('requested_by_id').notNull(),
+  approvedById: text('approved_by_id'),
+  rejectionReason: text('rejection_reason'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+})
+
+// ─── COMPANY SECRETARIAL ─────────────────────────────────────────────────
+export const capTableEntries = complianceSchemaDB.table('cap_table_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  holderName: text('holder_name').notNull(),
+  shares: integer('shares').notNull(),
+  percent: numeric('percent', { precision: 5, scale: 2 }),
+  shareClass: text('share_class').default('Equity'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const capTableEvents = complianceSchemaDB.table('cap_table_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  eventType: text('event_type').notNull(), // 'allotment' | 'transfer' | 'esop_grant' | 'buyback'
+  description: text('description'),
+  shares: integer('shares'),
+  eventDate: timestamp('event_date'),
+  status: text('status').default('registered'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const companyCharges = complianceSchemaDB.table('company_charges', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  chargeHolder: text('charge_holder').notNull(),
+  chargeType: text('charge_type'),
+  amount: numeric('amount', { precision: 14, scale: 2 }),
+  filingReference: text('filing_reference'),
+  status: text('status').notNull().default('open'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const secretarialAudits = complianceSchemaDB.table('secretarial_audits', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  period: text('period').notNull(),
+  auditorName: text('auditor_name'),
+  status: text('status').notNull().default('in_progress'),
+  dueDate: timestamp('due_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Honest by design (matches the mockup's disclaimer): this tracks
+// preparation/status/SRN of an MCA filing. It does NOT file anything --
+// actual submission requires the Company Secretary's own Digital Signature
+// Certificate on the government MCA portal. No code path here should ever
+// imply otherwise.
+export const mcaFilings = complianceSchemaDB.table('mca_filings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  formType: text('form_type').notNull(),
+  description: text('description'),
+  dueDate: timestamp('due_date'),
+  status: text('status').notNull().default('preparing'), // 'preparing' | 'ready_to_file' | 'filed'
+  srn: text('srn'),
+  filedDate: timestamp('filed_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── LEGAL ───────────────────────────────────────────────────────────────
+export const legalVendors = complianceSchemaDB.table('legal_vendors', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  vendorType: text('vendor_type'), // 'Law Firm' | 'CS Agency' | 'Tax Advisory' | 'Independent Counsel'
+  engagementType: text('engagement_type'), // 'Retainer' | 'Ad-hoc'
+  currentMatter: text('current_matter'),
+  status: text('status').notNull().default('active'),
+  fee: numeric('fee', { precision: 14, scale: 2 }),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const litigationStageEnum = complianceSchemaDB.enum('litigation_stage', ['filed', 'hearing_scheduled', 'judgment_reserved', 'judgment_passed', 'appeal_filed', 'closed'])
+
+export const litigationMatters = complianceSchemaDB.table('litigation_matters', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  matter: text('matter').notNull(),
+  matterType: text('matter_type'),
+  forum: text('forum'),
+  stage: litigationStageEnum('stage').notNull().default('filed'),
+  nextHearingDate: timestamp('next_hearing_date'),
+  counsel: text('counsel'),
+  amount: numeric('amount', { precision: 14, scale: 2 }),
+  linkedNoticeId: text('linked_notice_id'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const ipPortfolio = complianceSchemaDB.table('ip_portfolio', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  mark: text('mark').notNull(),
+  ipType: text('ip_type'), // 'Trademark' | 'Patent' | 'Copyright' | 'Design'
+  status: text('status').notNull().default('application_filed'),
+  renewalDate: timestamp('renewal_date'),
+  classDescription: text('class_description'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const legalOpinions = complianceSchemaDB.table('legal_opinions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  topic: text('topic').notNull(),
+  opinionDate: timestamp('opinion_date'),
+  advisor: text('advisor'),
+  linkedRiskId: text('linked_risk_id'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── PEOPLE & HR ─────────────────────────────────────────────────────────
+export const hrComplianceItems = complianceSchemaDB.table('hr_compliance_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  item: text('item').notNull(),
+  governingLaw: text('governing_law'),
+  state: text('state').notNull().default('All India'),
+  dueDate: timestamp('due_date'),
+  status: text('status').notNull().default('not_due_yet'), // 'filed' | 'overdue' | 'not_due_yet'
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const leavePolicyEntries = complianceSchemaDB.table('leave_policy_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  leaveType: text('leave_type').notNull(),
+  governingLaw: text('governing_law'),
+  entitlement: text('entitlement'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const holidayListFilings = complianceSchemaDB.table('holiday_list_filings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  state: text('state').notNull(),
+  year: text('year').notNull(),
+  status: text('status').notNull().default('pending_filing'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const poshCommittee = complianceSchemaDB.table('posh_committee', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  memberName: text('member_name').notNull(),
+  role: text('role'), // 'Presiding Officer' | 'Member' | 'External Member'
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Case detail is deliberately NOT a column here -- only a case reference,
+// matching the mockup's rule that even the shared activity/audit log never
+// records POSH case content, just that a case was logged. Full case
+// handling stays outside this platform's data model by design.
+export const poshComplaints = complianceSchemaDB.table('posh_complaints', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caseRef: text('case_ref').notNull(),
+  receivedDate: timestamp('received_date').notNull(),
+  status: text('status').notNull().default('under_inquiry'),
+  classification: text('classification').notNull().default('confidential'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const poshAnnualReports = complianceSchemaDB.table('posh_annual_reports', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  year: text('year').notNull(),
+  filedWith: text('filed_with'),
+  status: text('status').notNull().default('pending'),
+  filedDate: timestamp('filed_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── RISK ────────────────────────────────────────────────────────────────
+export const riskCategoryEnum = complianceSchemaDB.enum('risk_category', ['regulatory', 'operational', 'financial', 'strategic', 'reputational', 'cyber'])
+export const riskStatusEnum = complianceSchemaDB.enum('risk_status', ['open', 'mitigating', 'closed'])
+
+export const risks = complianceSchemaDB.table('risks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  category: riskCategoryEnum('category').notNull().default('operational'),
+  likelihood: integer('likelihood').notNull().default(3),
+  impact: integer('impact').notNull().default(3),
+  ownerId: text('owner_id'),
+  ownerDept: text('owner_dept'),
+  status: riskStatusEnum('status').notNull().default('open'),
+  linkedControlIds: jsonb('linked_control_ids').notNull().default([]),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── SECTOR REGULATORS ───────────────────────────────────────────────────
+// Gated by organisations.accountType-adjacent concept: entityType here is
+// per-org 'listed_company' | 'bank_nbfc' | 'insurer' | 'general' -- see the
+// organisations.regulatoryEntityType column below. Not shown as
+// universally applicable, same principle as the mockup's sectorGate().
+export const sebiComplianceItems = complianceSchemaDB.table('sebi_compliance_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  requirement: text('requirement').notNull(),
+  dueDate: timestamp('due_date'),
+  status: text('status').notNull().default('not_due_yet'),
+  linkedModule: text('linked_module'), // 'rpt' | 'esg' -- for UI cross-linking
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const rbiComplianceItems = complianceSchemaDB.table('rbi_compliance_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  circular: text('circular').notNull(),
+  category: text('category'),
+  status: text('status').notNull().default('not_started'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const irdaiComplianceItems = complianceSchemaDB.table('irdai_compliance_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  requirement: text('requirement').notNull(),
+  category: text('category'),
+  status: text('status').notNull().default('not_started'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── AUDIT — Controls & Framework Library, risk-based Audit Management ───
+export const complianceFrameworks = complianceSchemaDB.table('compliance_frameworks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  frameworkKey: text('framework_key').notNull(), // 'iso27001'|'soc2'|'india_statutory'|'dpdp'|'coso'|'nist'|'pcidss'|'hipaa'
+  name: text('name').notNull(),
+  relevanceNote: text('relevance_note'), // set for opt-in frameworks (PCI DSS/HIPAA) -- see mockup's Section 15
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const frameworkControls = complianceSchemaDB.table('framework_controls', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  frameworkId: text('framework_id').notNull(),
+  controlRef: text('control_ref').notNull(),
+  title: text('title').notNull(),
+  status: text('status').notNull().default('not_started'), // 'not_started'|'in_progress'|'implemented'|'verified'
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const auditEngagements = complianceSchemaDB.table('audit_engagements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  auditType: text('audit_type').notNull().default('internal'), // 'internal'|'certification'|'statutory'
+  status: text('status').notNull().default('planned'),
+  coversRiskIds: jsonb('covers_risk_ids').notNull().default([]),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const auditFindings = complianceSchemaDB.table('audit_findings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  auditEngagementId: text('audit_engagement_id').notNull(),
+  title: text('title').notNull(),
+  severity: text('severity').notNull().default('medium'),
+  capaStatus: text('capa_status').notNull().default('open'), // 'open'|'in_progress'|'closed'
+  linkedRiskId: text('linked_risk_id'),
+  ownerId: text('owner_id'),
+  dueDate: timestamp('due_date'),
+  retestResult: text('retest_result').default('not_started'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── THIRD-PARTY & ESG ───────────────────────────────────────────────────
+export const vendorRiskProfiles = complianceSchemaDB.table('vendor_risk_profiles', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  riskTier: text('risk_tier').notNull().default('medium'),
+  certifications: jsonb('certifications').notNull().default([]),
+  lastAssessedDate: timestamp('last_assessed_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// pillar values computed at read time by the ESG API route where possible
+// (POSH resolution rate, policy attestation) -- rows here are the ones with
+// no live equivalent elsewhere (emissions, water, diversity, etc).
+export const esgMetrics = complianceSchemaDB.table('esg_metrics', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  pillar: text('pillar').notNull(), // 'environment'|'social'|'governance'
+  label: text('label').notNull(),
+  valuePercent: integer('value_percent').notNull().default(0),
+  note: text('note'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── INTEGRITY ───────────────────────────────────────────────────────────
+export const whistleblowerCases = complianceSchemaDB.table('whistleblower_cases', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caseRef: text('case_ref').notNull(),
+  category: text('category'),
+  receivedDate: timestamp('received_date').notNull(),
+  status: text('status').notNull().default('open'),
+  classification: text('classification').notNull().default('confidential'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const bcmPlans = complianceSchemaDB.table('bcm_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  planName: text('plan_name').notNull(),
+  lastTestedDate: timestamp('last_tested_date'),
+  status: text('status').notNull().default('not_tested'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const contractComplianceItems = complianceSchemaDB.table('contract_compliance_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  vendorName: text('vendor_name').notNull(),
+  clauseDescription: text('clause_description'),
+  renewalDate: timestamp('renewal_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── INCIDENTS & EVENTS ──────────────────────────────────────────────────
+export const incidentStageEnum = complianceSchemaDB.enum('incident_stage', ['logged', 'triaged', 'investigating', 'contained', 'notified', 'remediated', 'closed'])
+
+export const incidents = complianceSchemaDB.table('incidents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  category: text('category').notNull(), // 'Security / Data Breach' | 'Operational' | 'Safety' | 'Financial'
+  severity: text('severity').notNull().default('medium'),
+  classification: text('classification').notNull().default('department'),
+  stage: incidentStageEnum('stage').notNull().default('logged'),
+  linkedRiskId: text('linked_risk_id'),
+  linkedControlId: text('linked_control_id'),
+  regulatoryNotifyRequired: boolean('regulatory_notify_required').notNull().default(false),
+  notifyDeadline: text('notify_deadline'),
+  notified: boolean('notified').notNull().default(false),
+  capaOwnerId: text('capa_owner_id'),
+  capaDueDate: timestamp('capa_due_date'),
+  closedDate: timestamp('closed_date'),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  reportedById: text('reported_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Relations for the new tables that benefit from Drizzle's `with:` API ─
+export const approvalRequestsRelations = relations(approvalRequests, ({ one }) => ({
+  requestedBy: one(users, { fields: [approvalRequests.requestedById], references: [users.id], relationName: 'approvalRequestedBy' }),
+  approvedBy: one(users, { fields: [approvalRequests.approvedById], references: [users.id], relationName: 'approvalApprovedBy' }),
+}))
+export const boardMeetingsRelations = relations(boardMeetings, ({ many }) => ({
+  actionItems: many(boardActionItems),
+}))
+export const boardActionItemsRelations = relations(boardActionItems, ({ one }) => ({
+  meeting: one(boardMeetings, { fields: [boardActionItems.boardMeetingId], references: [boardMeetings.id] }),
+}))
+export const auditEngagementsRelations = relations(auditEngagements, ({ many }) => ({
+  findings: many(auditFindings),
+}))
+export const auditFindingsRelations = relations(auditFindings, ({ one }) => ({
+  engagement: one(auditEngagements, { fields: [auditFindings.auditEngagementId], references: [auditEngagements.id] }),
+}))
+export const complianceFrameworksRelations = relations(complianceFrameworks, ({ many }) => ({
+  controls: many(frameworkControls),
+}))
+export const frameworkControlsRelations = relations(frameworkControls, ({ one }) => ({
+  framework: one(complianceFrameworks, { fields: [frameworkControls.frameworkId], references: [complianceFrameworks.id] }),
 }))

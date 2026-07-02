@@ -22,6 +22,7 @@ export async function GET() {
     orgSlug: org?.slug ?? null,
     orgEntityType: org?.entityType ?? null,
     orgAccountType: org?.accountType ?? "company",
+    orgRegulatoryEntityType: org?.regulatoryEntityType ?? "general",
   })
 }
 
@@ -32,7 +33,9 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { name, phone, orgName, orgAddress, orgCin, orgGstin, orgPan } = body
+    const { name, phone, orgName, orgAddress, orgCin, orgGstin, orgPan, orgAccountType, orgRegulatoryEntityType } = body
+    const VALID_ACCOUNT_TYPES = ["company", "ca_firm", "legal_firm", "consultant"]
+    const VALID_REGULATORY_TYPES = ["listed_company", "bank_nbfc", "insurer", "general"]
 
     if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
@@ -50,6 +53,8 @@ export async function PATCH(request: NextRequest) {
         if (orgCin && typeof orgCin === 'string') orgUpdate.cinNumber = orgCin.trim()
         if (orgGstin && typeof orgGstin === 'string') orgUpdate.gstin = orgGstin.trim()
         if (orgPan && typeof orgPan === 'string') orgUpdate.panNumber = orgPan.trim()
+        if (orgAccountType && VALID_ACCOUNT_TYPES.includes(orgAccountType)) orgUpdate.accountType = orgAccountType
+        if (orgRegulatoryEntityType && VALID_REGULATORY_TYPES.includes(orgRegulatoryEntityType)) orgUpdate.regulatoryEntityType = orgRegulatoryEntityType
         if (Object.keys(orgUpdate).length > 0) {
           await db.update(organisations).set(orgUpdate).where(eq(organisations.id, orgId))
         }
