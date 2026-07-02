@@ -1,27 +1,69 @@
-import { workerAgents, tasks, taskExecutionPlan, taskChatMessages } from "@/lib/db";
-import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { eq, asc } from "drizzle-orm";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments } from "@/lib/db";
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
+import { eq, and, asc, gte, lte, ne, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
  * freshly-created task, asks the LLM to break it into a short plan against
- * the org's actual worker agent roster, records that plan, posts a
- * one-message summary to the task's chat, and marks the task
- * completed/failed. This is intentionally a single-pass, synchronous
- * planner -- it does not actually invoke worker agents' underlying logic
- * (most global agents' code_reference points at existing MCP tool handlers
- * that operate on a specific compliance item, not a free-text task; wiring
- * that dispatch is future work). What's real here: the plan is grounded in
- * the org's actual available agents, not invented, and every step/message/
- * status change is a persisted row a user can see in /orchestra today.
+ * the org's actual worker agent roster, records that plan, and -- for the
+ * handful of global read-only agents this engine knows how to actually run
+ * (see DISPATCHABLE_TOOLS below) -- executes them for real against the
+ * org's real data and records the output. Posts a one-message summary to
+ * the task's chat and marks the task completed/failed.
  *
- * Failure is handled gracefully -- an LLM/config error marks the task
- * `failed` with an explanatory chat message rather than leaving it silently
- * stuck in `pending` forever or throwing back into the request that
- * created it.
+ * Deliberately read-only: a free-text task's LLM-generated plan is not a
+ * trustworthy source of arguments for a *write* action (create/update a
+ * real compliance item) without a human confirming first, so only the
+ * read-only global agents are auto-dispatched. Plan steps referencing any
+ * other agent (write tools, customer/client/user-tier agents) are still
+ * recorded as a real row in task_execution_plan, just not auto-invoked --
+ * this is disclosed in the /orchestra UI rather than silently faked.
+ *
+ * Failure is handled gracefully at every level -- a failed dispatch marks
+ * that one step failed without failing the whole task, and an LLM/config
+ * error marks the task `failed` with an explanatory chat message rather
+ * than leaving it silently stuck in `pending` forever.
  */
+
+const DISPATCHABLE_TOOLS = new Set(["get_compliance_stats", "get_overdue_items", "list_departments"]);
+
+async function dispatchTool(db: TenantDb, orgId: string, codeReference: string): Promise<unknown> {
+  if (codeReference === "get_compliance_stats") {
+    const now = new Date();
+    const weekEnd = new Date(Date.now() + 7 * 86400000);
+    const [[total], [overdue], [completed], [dueWeek]] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(eq(complianceItems.orgId, orgId)),
+      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(and(eq(complianceItems.orgId, orgId), eq(complianceItems.status, "overdue"))),
+      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(and(eq(complianceItems.orgId, orgId), eq(complianceItems.status, "completed"))),
+      db.select({ count: sql<number>`count(*)` }).from(complianceItems).where(
+        and(eq(complianceItems.orgId, orgId), gte(complianceItems.dueDate, now), lte(complianceItems.dueDate, weekEnd), ne(complianceItems.status, "completed"))
+      ),
+    ]);
+    return { total: Number(total.count), overdue: Number(overdue.count), completed: Number(completed.count), dueThisWeek: Number(dueWeek.count) };
+  }
+
+  if (codeReference === "get_overdue_items") {
+    const items = await db.query.complianceItems.findMany({
+      where: and(eq(complianceItems.orgId, orgId), eq(complianceItems.status, "overdue")),
+      columns: { id: true, title: true, complianceType: true, dueDate: true },
+      orderBy: asc(complianceItems.dueDate),
+      limit: 10,
+    });
+    return items.map((i) => ({ ...i, daysLate: Math.floor((Date.now() - i.dueDate.getTime()) / 86400000) }));
+  }
+
+  if (codeReference === "list_departments") {
+    return db.query.departments.findMany({
+      where: eq(departments.orgId, orgId),
+      columns: { id: true, name: true },
+    });
+  }
+
+  throw new Error(`No dispatcher implemented for ${codeReference}`);
+}
+
 export async function executeTask(
   orgId: string,
   userId: string,
@@ -38,7 +80,7 @@ export async function executeTask(
 
     const agents = await withTenantContext({ orgId, userId }, (db) =>
       db.query.workerAgents.findMany({
-        columns: { id: true, name: true, domain: true, tier: true },
+        columns: { id: true, name: true, domain: true, tier: true, codeReference: true },
         orderBy: asc(workerAgents.name),
         limit: 20,
       })
@@ -61,25 +103,63 @@ export async function executeTask(
       maxTokens: 800,
     });
 
-    const agentByName = new Map(agents.map((a) => [a.name.toLowerCase(), a.id]));
+    const agentByName = new Map(agents.map((a) => [a.name.toLowerCase(), a]));
+    const dispatchNotes: string[] = [];
 
     await withTenantContext({ orgId, userId }, async (db) => {
       const steps = (result.steps ?? []).slice(0, 6);
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
-        await db.insert(taskExecutionPlan).values({
-          taskId,
-          stepNumber: i + 1,
-          workerAgentId: step.agentName ? (agentByName.get(step.agentName.toLowerCase()) ?? null) : null,
-          description: step.description,
-          status: "completed",
-        });
+        const agent = step.agentName ? agentByName.get(step.agentName.toLowerCase()) : undefined;
+
+        const [planRow] = await db
+          .insert(taskExecutionPlan)
+          .values({
+            taskId,
+            stepNumber: i + 1,
+            workerAgentId: agent?.id ?? null,
+            description: step.description,
+            status: "completed",
+          })
+          .returning();
+
+        // Only auto-dispatch global, read-only agents this engine actually
+        // knows how to run for real. Everything else is a recorded plan
+        // step, not a faked execution.
+        if (agent?.tier === "global" && agent.codeReference && DISPATCHABLE_TOOLS.has(agent.codeReference)) {
+          const startedAt = new Date();
+          try {
+            const output = await dispatchTool(db, orgId, agent.codeReference);
+            await db.insert(taskAgentExecutions).values({
+              taskExecutionPlanId: planRow.id,
+              workerAgentId: agent.id,
+              startedAt,
+              completedAt: new Date(),
+              status: "completed",
+              input: {},
+              output: output as object,
+            });
+            dispatchNotes.push(`${agent.name} ran: ${JSON.stringify(output).slice(0, 300)}`);
+          } catch (dispatchErr) {
+            await db.insert(taskAgentExecutions).values({
+              taskExecutionPlanId: planRow.id,
+              workerAgentId: agent.id,
+              startedAt,
+              completedAt: new Date(),
+              status: "failed",
+              input: {},
+              errorMessage: dispatchErr instanceof Error ? dispatchErr.message : "unknown error",
+            });
+          }
+        }
       }
+
+      const summaryWithData = dispatchNotes.length > 0 ? `${result.summary || "Plan generated."}\n\nReal data gathered:\n${dispatchNotes.join("\n")}` : result.summary || "Plan generated.";
 
       await db.insert(taskChatMessages).values({
         taskId,
         role: "assistant",
-        content: result.summary || "Plan generated.",
+        content: summaryWithData,
       });
 
       await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
