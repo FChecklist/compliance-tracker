@@ -7,6 +7,8 @@ import { runByoModelAudit } from "@/lib/loops/byo-model-audit";
 import { runOutputDeliveryAudit } from "@/lib/loops/output-delivery-audit";
 import { runAutomationProgressAudit } from "@/lib/loops/automation-progress-audit";
 import { runUserBehaviourAudit } from "@/lib/loops/user-behaviour-audit";
+import { runInputQualityAudit } from "@/lib/loops/input-quality-audit";
+import { runLoopEngineeringAudit } from "@/lib/loops/loop-engineering-audit";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -17,20 +19,28 @@ import { runUserBehaviourAudit } from "@/lib/loops/user-behaviour-audit";
  * secret instead of requireAuth().
  *
  * Only runs loops currently marked is_active in loop_definitions -- today
- * that's #8 (Output Management), #9 (API/Token/URL Management), #10 (User
- * Behaviour Management), #11 (Full Automation Loop), #12 (Hierarchy &
- * Secrecy Management), and #14 (BYO AI Model Loop), all read-only audits.
- * See orchestra_changes.md Wave 5 for why the other 9 are seeded but
- * inactive.
+ * that's #1 (Loop Engineering), #7 (Input Management), #8 (Output
+ * Management), #9 (API/Token/URL Management), #10 (User Behaviour
+ * Management), #11 (Full Automation Loop), #12 (Hierarchy & Secrecy
+ * Management), and #14 (BYO AI Model Loop), all read-only audits. See
+ * orchestra_changes.md Wave 5 for why the other 7 are seeded but inactive.
+ *
+ * Loop 1 runs last deliberately -- it observes the other loops'
+ * loop_executions rows, so running it after them means it can see this
+ * same run's activity, not just the prior run's.
  */
 async function runActiveLoops() {
   const loopRows = await db.query.loopDefinitions.findMany({
-    where: inArray(loopDefinitions.loopNumber, [8, 9, 10, 11, 12, 14]),
+    where: inArray(loopDefinitions.loopNumber, [1, 7, 8, 9, 10, 11, 12, 14]),
   });
   const byNumber = new Map(loopRows.map((l) => [l.loopNumber, l]));
 
   const results: Record<string, unknown> = {};
 
+  const loop7 = byNumber.get(7);
+  if (loop7?.isActive) {
+    results.loop7_inputQualityAudit = await runInputQualityAudit(loop7.id);
+  }
   const loop8 = byNumber.get(8);
   if (loop8?.isActive) {
     results.loop8_outputDeliveryAudit = await runOutputDeliveryAudit(loop8.id);
@@ -54,6 +64,10 @@ async function runActiveLoops() {
   const loop14 = byNumber.get(14);
   if (loop14?.isActive) {
     results.loop14_byoModelAudit = await runByoModelAudit(loop14.id);
+  }
+  const loop1 = byNumber.get(1);
+  if (loop1?.isActive) {
+    results.loop1_loopEngineeringAudit = await runLoopEngineeringAudit(loop1.id);
   }
 
   return results;
