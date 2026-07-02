@@ -296,3 +296,23 @@ ALTER TABLE compliance.organisations ADD COLUMN IF NOT EXISTS address text;
 ALTER TABLE compliance.organisations ADD COLUMN IF NOT EXISTS cin_number text;
 ALTER TABLE compliance.organisations ADD COLUMN IF NOT EXISTS gstin text;
 ALTER TABLE compliance.organisations ADD COLUMN IF NOT EXISTS pan_number text;
+
+-- Indexes for the new tables' actual query patterns (org_id for every
+-- RLS-scoped query, plus the FK lookups every route performs). The
+-- Supabase performance-advisor tool itself errored on an unrelated
+-- internal query when checked (storage.buckets-related, out of our
+-- control) -- these are added proactively from known query patterns
+-- rather than from that tool's output.
+CREATE INDEX IF NOT EXISTS idx_compliance_costs_org_id ON compliance.compliance_costs(org_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_costs_compliance_item_id ON compliance.compliance_costs(compliance_item_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_costs_notice_id ON compliance.compliance_costs(notice_id);
+CREATE INDEX IF NOT EXISTS idx_cost_payments_org_id ON compliance.cost_payments(org_id);
+CREATE INDEX IF NOT EXISTS idx_cost_payments_compliance_cost_id ON compliance.cost_payments(compliance_cost_id);
+CREATE INDEX IF NOT EXISTS idx_notice_dispatches_org_id ON compliance.notice_dispatches(org_id);
+CREATE INDEX IF NOT EXISTS idx_notice_dispatches_notice_id ON compliance.notice_dispatches(notice_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_org_id ON compliance.audit_logs(org_id);
+CREATE INDEX IF NOT EXISTS idx_documents_org_id ON compliance.documents(org_id);
+CREATE INDEX IF NOT EXISTS idx_clients_org_id ON compliance.clients(org_id);
+CREATE INDEX IF NOT EXISTS idx_client_entities_client_id ON compliance.client_entities(client_id);
+CREATE INDEX IF NOT EXISTS idx_user_client_access_client_id ON compliance.user_client_access(client_id);
+CREATE INDEX IF NOT EXISTS idx_user_client_access_user_id ON compliance.user_client_access(user_id);
