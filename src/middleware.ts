@@ -34,24 +34,28 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes: redirect to login if not authenticated
-  const isAppRoute = request.nextUrl.pathname.startsWith("/dashboard") ||
-    request.nextUrl.pathname.startsWith("/home") ||
-    request.nextUrl.pathname.startsWith("/chat") ||
-    request.nextUrl.pathname.startsWith("/compliance") ||
-    request.nextUrl.pathname.startsWith("/departments") ||
-    request.nextUrl.pathname.startsWith("/users") ||
-    request.nextUrl.pathname.startsWith("/audit") ||
-    request.nextUrl.pathname.startsWith("/settings") ||
-    request.nextUrl.pathname.startsWith("/checklists") ||
-    request.nextUrl.pathname.startsWith("/tasks") ||
-    request.nextUrl.pathname.startsWith("/reports") ||
-    request.nextUrl.pathname.startsWith("/penalties") ||
-    request.nextUrl.pathname.startsWith("/team") ||
-    request.nextUrl.pathname.startsWith("/notices") ||
-    request.nextUrl.pathname.startsWith("/help") ||
-    request.nextUrl.pathname.startsWith("/ingest") ||
-    request.nextUrl.pathname.startsWith("/orchestra")
+  // Protected routes: redirect to login if not authenticated. Kept as an
+  // explicit allowlist mirroring every directory under src/app/(app)/ --
+  // confirmed via a live audit (2026-07-04) that this list had drifted
+  // badly out of sync with that directory over many waves of new GRC
+  // module pages (34 of 51 route groups were missing, including /posh and
+  // /whistleblower -- unauthenticated requests got a real 200 page shell
+  // instead of a redirect; no data actually leaked since every fetch
+  // inside those pages goes through requireAuth()-gated API routes, but
+  // this defense-in-depth layer was silently absent). Any new page added
+  // under src/app/(app)/ must be added here too.
+  const PROTECTED_APP_ROUTE_PREFIXES = [
+    "/approvals", "/audit", "/audit-engagements", "/bcm", "/board", "/board-evaluation",
+    "/cap-table", "/charges", "/chat", "/checklists", "/clients", "/committees",
+    "/compliance", "/contract-compliance", "/dashboard", "/departments", "/directors",
+    "/doa", "/esg", "/frameworks", "/help", "/home", "/hr-compliance", "/incidents",
+    "/ingest", "/ip-portfolio", "/irdai", "/leave-holiday", "/legal-opinions",
+    "/legal-vendors", "/litigation", "/mca-filings", "/notices", "/orchestra",
+    "/penalties", "/pms", "/policies", "/posh", "/rbi", "/reports", "/risks", "/rpt",
+    "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks",
+    "/team", "/users", "/vendor-risk", "/whistleblower",
+  ]
+  const isAppRoute = PROTECTED_APP_ROUTE_PREFIXES.some((prefix) => request.nextUrl.pathname.startsWith(prefix))
 
   if (!user && isAppRoute) {
     const url = request.nextUrl.clone()
