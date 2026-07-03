@@ -2547,3 +2547,92 @@ export const pmsMeetingOutcomesRelations = relations(pmsMeetingOutcomes, ({ one 
 export const pmsMeetingParticipantsRelations = relations(pmsMeetingParticipants, ({ one }) => ({
   meeting: one(pmsMeetings, { fields: [pmsMeetingParticipants.meetingId], references: [pmsMeetings.id] }),
 }))
+
+// ─── Knowledge Base (Wave 29, AppFlowy-inspired page-hierarchy pattern) ──
+// Deliberately NOT a reuse of pms_wiki_pages -- that table's projectId is
+// NOT NULL and every route is requirePmsEnabled()-gated, making it
+// structurally PMS-only despite §14.2's original "reusable outside PMS
+// too" intent. This table is org-wide, core (always available, no
+// enablement toggle), and independent of any product branch. Plain
+// markdown content, no CRDT/blocks/database-grid-views -- same v1 scope
+// line already drawn for pms_wiki_pages, kept consistent here.
+export const knowledgeBasePages = complianceSchemaDB.table('knowledge_base_pages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  parentPageId: text('parent_page_id'), // self-FK -- page tree
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  content: text('content'),
+  version: integer('version').notNull().default(1),
+  updatedById: text('updated_by_id'),
+  isArchived: boolean('is_archived').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one }) => ({
+  parentPage: one(knowledgeBasePages, { fields: [knowledgeBasePages.parentPageId], references: [knowledgeBasePages.id] }),
+}))
+
+// ─── Automation Rules (Wave 30, n8n-inspired trigger→condition→action) ──
+// Deliberately much smaller than n8n itself: single-condition rules, no
+// node-graph, no chained multi-step workflows, no AI/code-execution action
+// type. triggerType/actionType are free text (matches this codebase's
+// post-Wave-4 convention for values still likely to grow, e.g.
+// tasks.status), not a pg enum. triggerConditions is a simple {field,
+// operator, value} jsonb match, not an expression language.
+export const automationRules = complianceSchemaDB.table('automation_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  triggerType: text('trigger_type').notNull(), // e.g. 'notice.status_changed' | 'pms_issue.status_changed' | 'compliance_item.overdue'
+  triggerConditions: jsonb('trigger_conditions').notNull().default({}), // { field, operator: 'equals', value }
+  actionType: text('action_type').notNull(), // 'notify_user' | 'create_task' -- both entity-agnostic (independent of triggerType's source entity), so no per-entity mutation logic is needed in the evaluator
+  actionConfig: jsonb('action_config').notNull().default({}),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Run log -- mirrors orchestra_executions/worker_agent_usage_log's existing
+// "log every automated action" convention rather than inventing a new one.
+export const automationRuleRuns = complianceSchemaDB.table('automation_rule_runs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ruleId: text('rule_id').notNull(),
+  triggeredAt: timestamp('triggered_at').notNull().defaultNow(),
+  triggerPayload: jsonb('trigger_payload').notNull().default({}),
+  status: text('status').notNull(), // 'success' | 'failed'
+  resultSummary: text('result_summary'),
+  errorMessage: text('error_message'),
+})
+
+export const automationRulesRelations = relations(automationRules, ({ many }) => ({
+  runs: many(automationRuleRuns),
+}))
+
+export const automationRuleRunsRelations = relations(automationRuleRuns, ({ one }) => ({
+  rule: one(automationRules, { fields: [automationRuleRuns.ruleId], references: [automationRules.id] }),
+}))
+
+// ─── Custom Reports (Wave 31, Metabase/Superset-inspired saved queries) ──
+// runReport() (service layer) executes a whitelisted Drizzle query per
+// sourceEntity -- never raw SQL. That is the explicit security boundary
+// vs. Metabase/Superset's SQL editors, which this pass deliberately does
+// not adopt. private/shared visibility reuses pms_saved_views' own
+// scope_type='user'-equivalent RLS-branch precedent verbatim.
+export const savedReports = complianceSchemaDB.table('saved_reports', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  ownedById: text('owned_by_id').notNull(),
+  sourceEntity: text('source_entity').notNull(), // 'compliance_items' | 'notices' | 'risks' | 'pms_issues' | 'incidents'
+  filters: jsonb('filters').notNull().default({}),
+  groupByField: text('group_by_field'),
+  chartType: text('chart_type').notNull().default('table'), // 'table' | 'bar' | 'pie' | 'line'
+  visibility: text('visibility').notNull().default('private'), // 'private' | 'shared'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

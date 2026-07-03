@@ -31,6 +31,7 @@ import {
 import { ComplianceChart, type DeptData } from "@/components/ui/compliance-chart";
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
+import CustomReportsSection from "@/components/CustomReportsSection";
 
 type ComplianceItem = {
   id: string;
@@ -455,6 +456,8 @@ export default function ReportsPage() {
           />
         </CardContent>
       </Card>
+
+      <CustomReportsSection />
     </div>
   );
 }

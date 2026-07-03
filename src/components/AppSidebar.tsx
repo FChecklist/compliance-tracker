@@ -41,6 +41,7 @@ import {
   BookOpen,
   MessageSquare,
   Rocket,
+  Zap,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -245,6 +246,16 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           label: "Reports",
           href: "/reports",
           icon: BarChart3,
+        },
+        {
+          label: "Knowledge Base",
+          href: "/knowledge-base",
+          icon: BookOpen,
+        },
+        {
+          label: "Automation",
+          href: "/automation",
+          icon: Zap,
         },
         {
           label: "Penalty Tracker",

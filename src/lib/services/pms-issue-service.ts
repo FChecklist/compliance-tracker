@@ -134,7 +134,7 @@ export type IssuePatch = Partial<{
 }>
 
 export async function updateIssue(ctx: PmsContext, issueId: string, patch: IssuePatch) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const result = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.pmsIssues.findFirst({ where: and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Issue not found", 404)
 
@@ -147,8 +147,20 @@ export async function updateIssue(ctx: PmsContext, issueId: string, patch: Issue
     await syncAssignees(db, issueId, assigneeIds)
     await syncLabels(db, issueId, labelIds)
 
-    return getIssueRow(db, issueId)
+    const row = await getIssueRow(db, issueId)
+    return { row, previousStatusId: existing.statusId }
   })
+
+  // Wave 30: fire-and-forget automation rule evaluation on status change --
+  // never blocks/breaks this update, matching evaluateAndRunRules()'s own
+  // internal error-swallowing contract.
+  if (patch.statusId !== undefined && patch.statusId !== result.previousStatusId) {
+    void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+      evaluateAndRunRules({ orgId: ctx.orgId }, "pms_issue.status_changed", { issueId, previousStatusId: result.previousStatusId, newStatusId: patch.statusId })
+    )
+  }
+
+  return result.row
 }
 
 export async function addIssueRelation(

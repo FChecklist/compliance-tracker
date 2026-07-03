@@ -178,11 +178,21 @@ export async function updateNotice(ctx: ServiceContext, id: string, input: Updat
       where: eq(notices.id, id),
       with: { department: { columns: { name: true } }, assignedTo: { columns: { name: true, avatarUrl: true } } },
     })
-    return { ok: true as const, updated: updated! }
+    return { ok: true as const, updated: updated!, previousStatus: existingItem.status }
   })
 
   if (!result.ok) throw new ServiceError(result.error, 404)
   const item = result.updated
+
+  // Wave 30: fire-and-forget automation rule evaluation on status change --
+  // never blocks/breaks this update, matching evaluateAndRunRules()'s own
+  // internal error-swallowing contract.
+  if (status !== undefined && status !== result.previousStatus) {
+    void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+      evaluateAndRunRules({ orgId }, "notice.status_changed", { noticeId: item.id, previousStatus: result.previousStatus, newStatus: item.status, assignedToId: item.assignedToId })
+    )
+  }
+
   return {
     id: item.id, noticeNumber: item.noticeNumber, authority: item.authority, dateReceived: item.dateReceived.toISOString(),
     demandAmount: item.demandAmount ?? null, replyDeadline: item.replyDeadline?.toISOString() ?? null, status: item.status,
