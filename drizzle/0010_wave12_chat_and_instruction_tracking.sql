@@ -173,3 +173,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   compliance.instruction_commitments,
   compliance.instruction_mismatch_detections
 TO service_role;
+
+-- Found by get_advisors (performance) during Wave 15's final cross-wave
+-- verification pass -- 4 FK columns above were missing a covering index.
+CREATE INDEX IF NOT EXISTS idx_conversations_client_id ON compliance.conversations(client_id);
+CREATE INDEX IF NOT EXISTS idx_instruction_commitments_client_id ON compliance.instruction_commitments(client_id);
+CREATE INDEX IF NOT EXISTS idx_instruction_mismatch_detections_related_task_id ON compliance.instruction_mismatch_detections(related_task_id);
+CREATE INDEX IF NOT EXISTS idx_instruction_mismatch_detections_resolved_by_user_id ON compliance.instruction_mismatch_detections(resolved_by_user_id);
