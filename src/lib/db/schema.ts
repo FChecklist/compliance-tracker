@@ -1654,3 +1654,108 @@ export const complianceFrameworksRelations = relations(complianceFrameworks, ({ 
 export const frameworkControlsRelations = relations(frameworkControls, ({ one }) => ({
   framework: one(complianceFrameworks, { fields: [frameworkControls.frameworkId], references: [complianceFrameworks.id] }),
 }))
+
+// ─── Chat + Instruction Tracking (Wave 12) ───────────────────────────────
+// One `messages` table serves both human threads and each user's private
+// VERIDIAN AI thread (via `conversations.isAiThread`), rather than a fourth
+// parallel messaging table -- `comments` (entity-attached notes) and
+// `taskChatMessages` (task-scoped AI chat) already exist for their own
+// distinct purposes and aren't reused here. A user's AI thread is strictly
+// private, matching the `aiAssistants` precedent (RLS below never lets an
+// org admin read someone else's conversation, AI thread or not).
+//
+// Self-referential RLS on conversation membership (conversation_participants
+// checking conversation_participants) is a known Postgres RLS footgun --
+// naively repeating the same USING clause on the same table can force the
+// planner to keep re-applying the policy to the subquery's own scan of that
+// table. The safe, standard fix (same one Supabase's own docs recommend for
+// this exact "group chat membership" shape) is a SECURITY DEFINER helper
+// function that queries the table directly, bypassing its own RLS for that
+// one internal check -- see `compliance.is_conversation_participant()` in
+// the migration. `conversations`/`messages`/`conversation_participants` all
+// key off that single function so membership logic can't drift across them.
+export const conversations = complianceSchemaDB.table('conversations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  type: text('type').notNull().default('direct'), // 'direct' | 'group' | 'ai'
+  isAiThread: boolean('is_ai_thread').notNull().default(false),
+  title: text('title'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const conversationParticipants = complianceSchemaDB.table('conversation_participants', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  conversationId: text('conversation_id').notNull(),
+  userId: text('user_id').notNull(),
+  lastReadAt: timestamp('last_read_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const messages = complianceSchemaDB.table('messages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  conversationId: text('conversation_id').notNull(),
+  senderId: text('sender_id'), // null == VERIDIAN AI, matches ai_assistants/task_chat_messages' existing "no human sender" convention
+  content: text('content').notNull(),
+  isInstruction: boolean('is_instruction').notNull().default(false), // denormalized for cheap list rendering (Wave 13's status chip); the actual commitment record lives in instruction_commitments
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// One row per instruction: assignee is explicit at send time (a `PATCH
+// /api/conversations/[id]/messages` body with `isInstruction: true` and an
+// explicit `assigneeId`), never NLP-inferred, so a commitment always has an
+// unambiguous owner. `status` is deliberately plain text (not a pg enum),
+// matching this codebase's post-Wave-4 convention (see `tasks.status`) of
+// avoiding ALTER TYPE friction for values still likely to grow.
+export const instructionCommitments = complianceSchemaDB.table('instruction_commitments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  messageId: text('message_id').notNull().unique(), // one message -> at most one commitment
+  assignerId: text('assigner_id').notNull(),
+  assigneeId: text('assignee_id').notNull(),
+  describedAction: text('described_action').notNull(),
+  dueDate: timestamp('due_date'),
+  status: text('status').notNull().default('pending'), // 'pending' | 'done_as_asked' | 'drifted' | 'resolved'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Surfaced ONLY to the person who gave the instruction (the assigner) -- a
+// real DB-level RLS rule (see migration), not just a UI-level filter, since
+// this is exactly the kind of "AI silently judged whether you did what I
+// asked" data that must never leak to the assignee or a third party.
+export const instructionMismatchDetections = complianceSchemaDB.table('instruction_mismatch_detections', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  commitmentId: text('commitment_id').notNull(),
+  detectedAt: timestamp('detected_at').notNull().defaultNow(),
+  comparisonSummary: text('comparison_summary').notNull(),
+  relatedTaskId: text('related_task_id'),
+  resolution: text('resolution').notNull().default('unresolved'), // 'unresolved' | 'nudged' | 'confirmed_fine'
+  resolvedAt: timestamp('resolved_at'),
+  resolvedByUserId: text('resolved_by_user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const conversationsRelations = relations(conversations, ({ many }) => ({
+  participants: many(conversationParticipants),
+  messages: many(messages),
+}))
+export const conversationParticipantsRelations = relations(conversationParticipants, ({ one }) => ({
+  conversation: one(conversations, { fields: [conversationParticipants.conversationId], references: [conversations.id] }),
+  user: one(users, { fields: [conversationParticipants.userId], references: [users.id] }),
+}))
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
+  sender: one(users, { fields: [messages.senderId], references: [users.id] }),
+}))
+export const instructionCommitmentsRelations = relations(instructionCommitments, ({ one }) => ({
+  message: one(messages, { fields: [instructionCommitments.messageId], references: [messages.id] }),
+  assigner: one(users, { fields: [instructionCommitments.assignerId], references: [users.id], relationName: 'instructionAssigner' }),
+  assignee: one(users, { fields: [instructionCommitments.assigneeId], references: [users.id], relationName: 'instructionAssignee' }),
+}))
+export const instructionMismatchDetectionsRelations = relations(instructionMismatchDetections, ({ one }) => ({
+  commitment: one(instructionCommitments, { fields: [instructionMismatchDetections.commitmentId], references: [instructionCommitments.id] }),
+  relatedTask: one(tasks, { fields: [instructionMismatchDetections.relatedTaskId], references: [tasks.id] }),
+}))

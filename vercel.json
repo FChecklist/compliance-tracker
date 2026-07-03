@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "crons": [
-    { "path": "/api/internal/loops/run", "schedule": "0 3 * * *" }
+    { "path": "/api/internal/loops/run", "schedule": "0 3 * * *" },
+    { "path": "/api/internal/instruction-audit/run", "schedule": "0 4 * * *" }
   ]
 }
