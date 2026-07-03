@@ -73,27 +73,45 @@ This last row is why the AI-tiering plan below deliberately does **not** include
 
 ## 5. The AI Orchestra Engine (segment-tiered, cost = outcome in weighting)
 
-This is not a hypothetical 4-layer framework — it is a real, already-built subsystem in the GRC branch, and the platform requirement is that every future product branch runs on the *same engine*, not a reimplementation. Grounding the abstract "layers" in the actual schema:
+This is a real, already-built subsystem in the GRC branch, and the platform requirement is that every future product branch runs on the *same engine*, not a reimplementation. Grounding it in the actual schema — and stating plainly what's genuinely wired up versus what's configured-but-dormant, since that distinction was muddled in an earlier draft of this document:
 
-- **`orchestraLayers`** — 5 seeded layers (Task OA, User Assistant OA, Customer Account OA, Global Intelligence OA, Meta OA), each with its own `defaultModelConfig`.
-- **`customerModelConfig`** — the BYO-model override table, keyed by `orgId` + optional `orchestraLayerId`. This is real, working, org-level BYO-AI.
-- **`workerAgents`** — 4 tiers (global/customer/client/user), the actual units of work each layer dispatches to; `global` tier is platform-managed and immutable, seeded from a fixed tool set.
-- **`aiAssistants`** — 5 numbered assistants auto-provisioned per user (`assistantNumber` 1–5), the user-facing face of the engine.
-- **`loopDefinitions`/`loopExecutions`/`loopImprovements`** — the self-improvement loop system (see below).
+### The 5 Orchestra Layers — 5 seeded, only 1 of 5 has real code invoking it today
 
-| Layer | Purpose | Starter tier (price-led) | Enterprise tier (compliance-gated) |
+`orchestraLayers` (`layer_key`, `layer_order`, each with its own `defaultModelConfig`):
+
+| Order | `layer_key` | Name | Status (verified against the codebase, not assumed) |
 |---|---|---|---|
-| 1 — Task-level Orchestrator Agent | Per-task reasoning | Sonnet 5 | Sonnet 5 |
-| 2 — Customer Account OA | Account-level orchestration | Haiku 4.5 | Haiku 4.5 |
-| 3 — Stats-only self-improvement loops | No real customer content | Free OpenRouter models (Llama 3.3 70B / NVIDIA Nemotron 3 Ultra — **not** DeepSeek/Qwen, see §4) | Llama 3.3 70B / Nemotron |
-| 4 — Real-content loops | Touches actual customer data | Haiku 4.5 | Haiku 4.5, or customer's own BYOB model |
+| 1 | `task_oa` | Task Orchestra Agent | **Active** — the only layer with real call sites: `src/app/api/ai/orchestrate/route.ts` and `src/lib/task-execution-engine.ts` both call `resolveModelConfig(orgId, "task_oa")`. This is what actually plans and dispatches work today. |
+| 2 | `user_assistant_oa` | User Assistant Orchestra Agent | **Seeded, dormant.** No code calls `resolveModelConfig` with this key. This is meant to be the layer behind the 5 per-user `aiAssistants` — but those are themselves dormant (provisioned on signup, `GET`/`PATCH` only, no orchestration hook uses them yet). Building this layer's real invocation path and giving the 5 assistants something to actually do are the same piece of unbuilt work. |
+| 3 | `customer_account_oa` | Customer Account Orchestra Agent | **Seeded, dormant.** No real call site. Intended to be account-level orchestration (cross-task, cross-user reasoning at the org level) — not built. |
+| 4 | `global_intelligence_oa` | Global Intelligence Orchestra Agent | **Seeded, dormant.** No real call site. Intended to be the cross-customer (anonymized) intelligence layer the loop system's "knowledge flows up anonymized" principle depends on — not built. |
+| 5 | `meta_oa` | Meta Orchestra Agent | **Seeded, dormant.** No real call site. Intended to be the layer that reasons about the *other 4 layers'* performance — the AI-OS's self-awareness layer. Not built. |
 
-**Law: every layer is independently model-agnostic.** Any layer, for any product branch, must be pointable at any supported external AI provider (Anthropic/OpenAI/Google/Groq today, via the provider-agnostic `callLLM`/`callLLMJson` in `src/lib/llm-client.ts`) without touching the layers around it. This is what makes BYOB and the "ride the open-source cost curve" thesis (§3) actually work — never hardcode a provider inside a layer's logic.
+**Say this plainly, since it matters for what "build it properly" actually means: the Orchestra Engine today is one working layer (`task_oa`) plus four correctly-modeled, correctly-seeded, but functionally inert placeholders.** That is not a criticism of the architecture — the schema/dispatch shape (`orchestraLayers` + `customerModelConfig` + `resolveModelConfig`) is sound and is exactly what the other 4 layers will plug into once built — but it is the honest current state, and the TODO list below now reflects it as real, sequenced work rather than something to gloss over as "already built."
 
-**BYO-AI exists at three levels, only two of which are built today:**
-1. **Platform default** — built (`orchestraLayers.defaultModelConfig`).
-2. **Customer/org level** — built (`customerModelConfig`, keyed by `orgId`).
-3. **Individual user level** — **not built.** `customerModelConfig` has no `userId` column — a single user bringing their own personal API key (distinct from their org's default) is not possible today. This is a real, confirmed gap (checked directly against the schema), not just a documentation omission — see the TODO list.
+Two more real, working pieces of the engine, distinct from the 5 layers above:
+- **`workerAgents`** — 4 tiers, the actual dispatchable units of work: **`global`** (platform-managed, immutable, available to every customer — "for everyone," in the user's own framing), **`customer`** (scoped to one org/account), **`client`** (scoped to one client/project within an account — this is the "product/project-specific agent" tier), **`user`** (scoped to one individual). Only the `global` tier has real dispatch code today (`DISPATCHABLE_TOOLS` in `task-execution-engine.ts`, read-only tools only); `customer`/`client`/`user`-tier agents can exist as rows but nothing dispatches to them yet.
+- **`aiAssistants`** — 5 numbered assistants auto-provisioned per user (`assistantNumber` 1–5) — real rows, real provisioning on signup, but dormant per the `user_assistant_oa` note above.
+- **`loopDefinitions`/`loopExecutions`/`loopImprovements`** — the self-improvement loop system (see below) — genuinely active, 11 of 15 loops, distinct from and cross-cutting across the 5 orchestra layers (a loop can observe/analyze/act on data flowing through any layer; it is not itself a 6th layer).
+
+### Model tiering (applies once a layer is actually built and invoked)
+
+| Target | Purpose | Starter tier (price-led) | Enterprise tier (compliance-gated) |
+|---|---|---|---|
+| `task_oa` (active today) | Per-task reasoning | Sonnet 5 | Sonnet 5 |
+| `customer_account_oa` (not yet built) | Account-level orchestration | Haiku 4.5 | Haiku 4.5 |
+| Loop system — stats-only loops | No real customer content | Free OpenRouter models (Llama 3.3 70B / NVIDIA Nemotron 3 Ultra — **not** DeepSeek/Qwen, see §4) | Llama 3.3 70B / Nemotron |
+| Loop system — real-content loops | Touches actual customer data | Haiku 4.5 | Haiku 4.5, or customer's own BYOB model |
+
+(The loop system's stats-only/real-content split is a property of *individual loops*, not of `user_assistant_oa`/`global_intelligence_oa`/`meta_oa` — an earlier draft of this table conflated the two, implying a clean 1:1 "layer 3 / layer 4" mapping that doesn't actually exist in the schema.)
+
+**Law: every layer is independently model-agnostic.** Any layer, for any product branch, must be pointable at any supported external AI provider (Anthropic/OpenAI/Google/Groq today, via the provider-agnostic `callLLM`/`callLLMJson` in `src/lib/llm-client.ts`) without touching the layers around it. This is what makes BYOB and the "ride the open-source cost curve" thesis (§3) actually work — never hardcode a provider inside a layer's logic. This law applies equally to `task_oa` today and to the 4 dormant layers once they're built — the model-agnostic dispatch shape doesn't need to be re-invented when they are.
+
+### BYO-AI exists at three levels — one platform option plus two "bring your own," only the org-level one is built today
+
+1. **Take VERIDIAN's own AI (platform default)** — built and is the default for every layer (`orchestraLayers.defaultModelConfig`). A customer or user who does nothing gets this — no setup required, matching the "ease of use" design principle established for the product UI.
+2. **Customer/org brings their own** — built (`customerModelConfig`, keyed by `orgId`, optionally narrowed to one `orchestraLayerId`). An org admin can override the platform default with their own provider/key for the whole account.
+3. **Individual user brings their own** — **not built.** `customerModelConfig` has no `userId` column — a single user overriding *their own* usage with a personal key (distinct from their org's default, and distinct from just using the platform default) is not possible today. This is a real, confirmed gap (checked directly against the schema), not just a documentation omission — see the TODO list.
 
 ### Loop Engineering
 The self-improvement loop system (`loopDefinitions`/`loopExecutions`/`loopImprovements`/`loopHealthMetrics`) is the mechanism by which the platform gets better at its own job over time — observe → analyze → act → measure, with rollback tracked (`rollbackTriggered`) so a bad automated change can be reversed. 11 of 15 spec'd loops are active today (Wave 5). One loop (`loop-engineering-audit.ts`) audits the loop system itself — the engine watches its own health, not just the product's. Every future product branch inherits this loop framework rather than building its own observability from scratch.
@@ -178,6 +196,7 @@ Design laws established, in brief (full rationale in the template's README):
 - [ ] Fix the still-open Supavisor pooler bug (`ENOTFOUND tenant/user ... not found`) — confirmed live via end-to-end test; blocks all authenticated production usage until fixed. Two remediation paths already scoped: contact Supabase support re: `worker_not_found`, or stopgap-switch to the direct non-pooled connection string.
 
 ### Phase B — Platform-native capabilities (the "AI-OS" requirements from §6)
+- [ ] **Wire up the 4 dormant orchestra layers** (`user_assistant_oa`, `customer_account_oa`, `global_intelligence_oa`, `meta_oa`) — today only `task_oa` has any real call site (§5). Sequencing matters: `user_assistant_oa` should come first since it's what would finally give the 5 per-user `aiAssistants` something to do; `meta_oa` (reasoning about the other layers) logically comes last, once there are other layers worth reasoning about.
 - [ ] Generalize `approvalRequests`/maker-checker from Policy-publish-only to arbitrary customer-defined chains, driven by chat-based no-code creation.
 - [ ] Build real speech-to-text / text-to-speech for the compose bar's mic (currently UI-only).
 - [ ] Add business-card/vendor-document extraction path onto the existing `src/lib/ingest/` pipeline.
