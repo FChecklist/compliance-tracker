@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { organisations, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
+import { isPmsEnabledForOrg } from "@/lib/services/pms-enablement-service"
 
 export async function GET() {
   const { response, dbUser, orgId } = await requireAuth()
@@ -11,6 +12,7 @@ export async function GET() {
   const org = orgId
     ? await withTenantContext({ orgId }, (db) => db.query.organisations.findFirst({ where: eq(organisations.id, orgId) }))
     : null
+  const pmsEnabled = orgId ? await isPmsEnabledForOrg(orgId) : false
 
   return NextResponse.json({
     id: dbUser?.id ?? null,
@@ -23,6 +25,7 @@ export async function GET() {
     orgEntityType: org?.entityType ?? null,
     orgAccountType: org?.accountType ?? "company",
     orgRegulatoryEntityType: org?.regulatoryEntityType ?? "general",
+    pmsEnabled,
   })
 }
 
