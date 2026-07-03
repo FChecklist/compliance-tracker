@@ -1,5 +1,7 @@
 import { db, loopDefinitions, loopExecutions } from "@/lib/db";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { resolvePlatformModelConfig } from "@/lib/orchestra-model-resolver";
+import { callLLMJson } from "@/lib/llm-client";
 
 /**
  * Loop 1: Loop Engineering.
@@ -13,6 +15,16 @@ import { eq, and, gte, sql } from "drizzle-orm";
  * to run it). Also reports average execution time per loop as a basic
  * health signal. Read-only, same posture as every other active loop --
  * flags, does not auto-fix.
+ *
+ * Wave 18 (VAIOS Shared AI Resource Pool): this is the real, non-hollow
+ * consumer for the meta_oa Orchestra Layer -- seeded since Wave 4, zero call
+ * sites until now. "Layer 1 needs more capacity to do orchestra" is
+ * literally this: the platform's own meta-loop reasoning about its own
+ * health, via resolvePlatformModelConfig() (never a customer org's key,
+ * structurally -- see orchestra-model-resolver.ts). Degrades gracefully
+ * (logged, not thrown) if neither a platform default nor any eligible
+ * pooled config exists -- the rest of this loop's real, useful SQL
+ * aggregation still runs and gets recorded either way.
  */
 const LOOKBACK_DAYS = 7;
 
@@ -56,13 +68,30 @@ export async function runLoopEngineeringAudit(loopId: string): Promise<{
     }
   }
 
+  let llmSynthesis: string | null = null;
+  try {
+    const modelConfig = await resolvePlatformModelConfig("meta_oa");
+    if (modelConfig) {
+      const result = await callLLMJson<{ synthesis: string }>(
+        modelConfig.provider, modelConfig.model, modelConfig.apiKey,
+        "You are the Meta Orchestra Agent for an AI-native platform. Given per-loop health stats, write a 1-2 sentence " +
+        'plain-language synthesis of overall platform health for a human operator. Respond with ONLY JSON: { "synthesis": string }',
+        `Active loops checked: ${activeLoops.length}. Silent (marked active, zero executions in ${LOOKBACK_DAYS}d): ${silentLoops.length}.\n${JSON.stringify(perLoopStats)}`,
+        { temperature: 0.2, maxTokens: 200 }
+      );
+      llmSynthesis = result.synthesis;
+    }
+  } catch (err) {
+    console.error("Loop 1 meta_oa synthesis failed (non-fatal, rest of the audit still recorded):", err);
+  }
+
   const executionTimeMs = Date.now() - startedAt;
 
   await db.insert(loopExecutions).values({
     loopId,
     triggeredBy: "scheduled",
     observationData: { perLoopStats, lookbackDays: LOOKBACK_DAYS },
-    analysisResult: { activeLoopsChecked: activeLoops.length, silentActiveLoops: silentLoops.length, silentLoops },
+    analysisResult: { activeLoopsChecked: activeLoops.length, silentActiveLoops: silentLoops.length, silentLoops, llmSynthesis },
     actionTaken: {},
     measurementResult: {},
     executionTimeMs,

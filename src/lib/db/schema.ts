@@ -702,8 +702,34 @@ export const customerModelConfig = complianceSchemaDB.table('customer_model_conf
   encryptedApiKey: text('encrypted_api_key'),
   modelName: text('model_name'),
   isActive: boolean('is_active').notNull().default(true),
+  // Wave 18 (VAIOS Shared AI Resource Pool, constitution refinement #10):
+  // explicit, per-config opt-in required on the LENDING side -- this is
+  // real money/API-key usage, even when it's only ever spent on the
+  // platform's OWN internal orchestration work (never another org's
+  // workflow -- see resolvePlatformModelConfig() in
+  // orchestra-model-resolver.ts for the structural guarantee). Default
+  // false: every pre-existing config opts out until an org explicitly
+  // turns this on.
+  sharedPoolEligible: boolean('shared_pool_eligible').notNull().default(false),
+  lastUsedAt: timestamp('last_used_at'), // updated on every real resolution -- "idle" is computed from this, not a second stored flag
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Platform-operational audit table, same posture as loop_executions (Wave
+// 5) -- no app_runtime RLS policy at all, service_role bypass only. A
+// lender org must never see WHO/WHAT else's capacity was borrowed via the
+// normal tenant-scoped app path (that's Layer-1-only visibility); it CAN
+// see its own lending history via a dedicated, deliberately narrow read
+// (GET /api/settings/model-config/pool-usage), for the transparency this
+// wave promises -- "your key was used for platform housekeeping."
+export const sharedPoolAllocations = complianceSchemaDB.table('shared_pool_allocations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  lenderOrgId: text('lender_org_id').notNull(),
+  purpose: text('purpose').notNull(), // e.g. 'meta_oa_loop_synthesis' -- what PLATFORM-internal work consumed it; never another org's id, there is no borrower org
+  customerModelConfigId: text('customer_model_config_id').notNull(),
+  orchestraLayerKey: text('orchestra_layer_key').notNull(),
+  allocatedAt: timestamp('allocated_at').notNull().defaultNow(),
 })
 
 // ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
@@ -1023,8 +1049,13 @@ export const orchestraExecutionsRelations = relations(orchestraExecutions, ({ on
   task: one(tasks, { fields: [orchestraExecutions.taskId], references: [tasks.id] }),
 }))
 
-export const customerModelConfigRelations = relations(customerModelConfig, ({ one }) => ({
+export const customerModelConfigRelations = relations(customerModelConfig, ({ one, many }) => ({
   layer: one(orchestraLayers, { fields: [customerModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
+  poolAllocations: many(sharedPoolAllocations),
+}))
+
+export const sharedPoolAllocationsRelations = relations(sharedPoolAllocations, ({ one }) => ({
+  config: one(customerModelConfig, { fields: [sharedPoolAllocations.customerModelConfigId], references: [customerModelConfig.id] }),
 }))
 
 export const loopDefinitionsRelations = relations(loopDefinitions, ({ many }) => ({

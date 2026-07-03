@@ -35,6 +35,7 @@ export async function GET() {
         modelName: c.modelName,
         hasKey: !!c.encryptedApiKey,
         isActive: c.isActive,
+        sharedPoolEligible: c.sharedPoolEligible,
       })),
     });
   } catch (error) {
@@ -54,12 +55,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { orchestraLayerId, provider, modelName, apiKey, isActive } = body as {
+    const { orchestraLayerId, provider, modelName, apiKey, isActive, sharedPoolEligible } = body as {
       orchestraLayerId?: string | null;
       provider?: string;
       modelName?: string;
       apiKey?: string;
       isActive?: boolean;
+      // Wave 18: explicit, per-config opt-in for lending idle capacity to
+      // the PLATFORM's own internal orchestration work -- never another
+      // org's workflow (see orchestra-model-resolver.ts's
+      // resolvePlatformModelConfig() for the structural guarantee).
+      sharedPoolEligible?: boolean;
     };
 
     if (!provider || !isValidProvider(provider)) {
@@ -85,6 +91,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       };
       if (isActive !== undefined) patch.isActive = isActive;
+      if (sharedPoolEligible !== undefined) patch.sharedPoolEligible = sharedPoolEligible;
       if (apiKey) patch.encryptedApiKey = await encryptApiKey(apiKey);
 
       if (existing) {
@@ -101,6 +108,7 @@ export async function POST(request: NextRequest) {
           orgId,
           orchestraLayerId: layerId,
           isActive: isActive ?? true,
+          sharedPoolEligible: sharedPoolEligible ?? false,
           provider,
           modelName: modelName.trim(),
           encryptedApiKey: patch.encryptedApiKey,
@@ -116,6 +124,7 @@ export async function POST(request: NextRequest) {
       modelName: result.modelName,
       hasKey: !!result.encryptedApiKey,
       isActive: result.isActive,
+      sharedPoolEligible: result.sharedPoolEligible,
     });
   } catch (error) {
     console.error("Failed to save model config:", error);
