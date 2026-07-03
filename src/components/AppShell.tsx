@@ -5,6 +5,7 @@ import { AppTopbar } from "@/components/AppTopbar";
 import { HealthRibbon } from "@/components/HealthRibbon";
 import TrialBanner from "@/components/TrialBanner";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
+import PageAgentInitializer from "@/components/PageAgentInitializer";
 import { useEffect, useState } from "react";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
+      <PageAgentInitializer />
       <AppTopbar />
       <HealthRibbon />
       <div className="flex flex-1 overflow-hidden">
