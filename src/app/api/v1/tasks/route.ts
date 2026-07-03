@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const result = await listTasks({ orgId: ctx.orgId, userId: ctx.dbUser?.id }, { assistantId })
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Tasks list error:", error)
+    console.error("v1 tasks list error:", error)
     return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 })
   }
 }
@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
-  // Task creation dispatches the real task-execution engine on behalf of a
-  // specific person -- requires a real session, not an API key (matches
-  // createTask()'s own guard in the service layer).
   if (!ctx.dbUser) return NextResponse.json({ error: "Task creation requires a real user session, not an API key" }, { status: 400 })
 
   try {
@@ -32,7 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("Task create error:", error)
+    console.error("v1 task create error:", error)
     return NextResponse.json({ error: "Failed to create task" }, { status: 500 })
   }
 }

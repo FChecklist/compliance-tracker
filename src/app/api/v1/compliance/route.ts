@@ -1,25 +1,31 @@
+// Wave 11: /api/v1 is the stable external contract -- same service calls as
+// the legacy src/app/api/compliance/route.ts, so a customer's own AI, a
+// mobile app, or a reseller's white-labeled app gets a versioned path that
+// doesn't move when the internal (app)/ UI's routes are refactored.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listNotices, createNotice, ServiceError } from "@/lib/services/notice-service"
+import { listComplianceItems, createComplianceItem, ServiceError } from "@/lib/services/compliance-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ notices: [], total: 0, page: 1, limit: 20, totalPages: 0 })
+  if (!ctx.orgId) return NextResponse.json({ compliance: [], total: 0, page: 1, limit: 20, totalPages: 0 })
 
   try {
     const { searchParams } = request.nextUrl
-    const result = await listNotices({ orgId: ctx.orgId }, {
+    const result = await listComplianceItems({ orgId: ctx.orgId }, {
       search: searchParams.get("search") ?? undefined,
       status: searchParams.get("status") ?? undefined,
       departmentId: searchParams.get("departmentId") ?? undefined,
+      complianceType: searchParams.get("complianceType") ?? undefined,
+      sortBy: searchParams.get("sort") ?? undefined,
       page: Number(searchParams.get("page")) || undefined,
       limit: Number(searchParams.get("limit")) || undefined,
     })
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Notices list API error:", error)
-    return NextResponse.json({ error: "Failed to fetch notices" }, { status: 500 })
+    console.error("v1 compliance list error:", error)
+    return NextResponse.json({ error: "Failed to fetch compliance items" }, { status: 500 })
   }
 }
 
@@ -32,14 +38,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const result = await createNotice(
+    const result = await createComplianceItem(
       { orgId: ctx.orgId, actor: ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }, request },
       body
     )
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("Notices create API error:", error)
-    return NextResponse.json({ error: "Failed to create notice" }, { status: 500 })
+    console.error("v1 compliance create error:", error)
+    return NextResponse.json({ error: "Failed to create compliance item" }, { status: 500 })
   }
 }

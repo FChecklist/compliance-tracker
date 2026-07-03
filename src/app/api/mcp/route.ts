@@ -45,7 +45,7 @@ function getAdminClient() {
 // Auth — resolve Bearer token (a Settings > API Keys `vk_...` key) to the
 // org it grants access to, plus its read/write scopes.
 // ---------------------------------------------------------------------------
-type ResolvedKey = { orgId: string; scopes: string[] }
+type ResolvedKey = { orgId: string; scopes: string[]; token: string }
 
 async function resolveToken(authHeader: string | null): Promise<ResolvedKey | null> {
   if (!authHeader?.startsWith('Bearer ')) return null
@@ -80,6 +80,7 @@ async function resolveToken(authHeader: string | null): Promise<ResolvedKey | nu
 
   return {
     orgId: data.org_id as string,
+    token,
     scopes: (data.scopes as string).split(',').map((s) => s.trim()).filter(Boolean),
   }
 }
@@ -186,6 +187,33 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  // Wave 11: the first 2 tools routed through the new service layer (via
+  // internal fetch() to /api/v1 -- this Edge route can't import the
+  // service layer directly, see the file header comment) rather than a
+  // third reimplementation of the same query using raw Supabase JS like
+  // the 7 tools above. One read tool per newly-serviced domain.
+  {
+    name: 'list_notices',
+    description: 'List government/regulatory notices for the organisation with optional filters.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['received', 'in_progress', 'replied', 'closed', 'appealed'] },
+        search: { type: 'string' },
+        page: { type: 'number', default: 1 },
+        limit: { type: 'number', default: 20, maximum: 100 },
+      },
+    },
+  },
+  {
+    name: 'get_task_status',
+    description: 'Get the current status of a task by id.',
+    inputSchema: {
+      type: 'object',
+      required: ['id'],
+      properties: { id: { type: 'string' } },
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -249,14 +277,51 @@ function logToolUsage(toolName: string, orgId: string, durationMs: number, succe
 // ---------------------------------------------------------------------------
 const WRITE_TOOLS = new Set(['create_compliance_item', 'update_compliance_status'])
 
+// Wave 11: base URL for internal fetch() calls to /api/v1 -- VERCEL_URL is
+// this exact deployment's own unique domain (set automatically by Vercel),
+// so this works correctly in preview deployments too, not just production.
+function getApiV1BaseUrl(): string {
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}/api/v1`
+  return 'https://veridian-compliance-ai.vercel.app/api/v1'
+}
+
 async function handleTool(
   name: string,
   args: Record<string, unknown>,
   orgId: string,
-  scopes: string[]
+  scopes: string[],
+  bearerToken: string
 ): Promise<unknown> {
   if (WRITE_TOOLS.has(name) && !scopes.includes('write')) {
     throw new Error(`Tool '${name}' requires a write-scoped API key`)
+  }
+
+  // Wave 11: routed through the real service layer via /api/v1, not
+  // reimplemented with raw Supabase JS like the tools below -- this Edge
+  // runtime can't import src/lib/services/* directly (it depends on
+  // withTenantContext's Node-only postgres.js driver), so an internal
+  // fetch() to the Node-runtime /api/v1 route is the documented fallback.
+  if (name === 'list_notices') {
+    const params = new URLSearchParams()
+    if (args.status) params.set('status', String(args.status))
+    if (args.search) params.set('search', String(args.search))
+    if (args.page) params.set('page', String(args.page))
+    if (args.limit) params.set('limit', String(args.limit))
+    const res = await fetch(`${getApiV1BaseUrl()}/notices?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+    })
+    if (!res.ok) throw new Error(`list_notices failed: ${res.status} ${await res.text()}`)
+    return res.json()
+  }
+
+  if (name === 'get_task_status') {
+    const id = String(args.id ?? '')
+    if (!id) throw new Error('id is required')
+    const res = await fetch(`${getApiV1BaseUrl()}/tasks/${encodeURIComponent(id)}/status`, {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+    })
+    if (!res.ok) throw new Error(`get_task_status failed: ${res.status} ${await res.text()}`)
+    return res.json()
   }
 
   const sb = getAdminClient()
@@ -394,7 +459,7 @@ function rpcResult(id: unknown, result: unknown) {
   return { jsonrpc: '2.0', id, result }
 }
 
-async function dispatch(body: Record<string, unknown>, orgId: string, scopes: string[]) {
+async function dispatch(body: Record<string, unknown>, orgId: string, scopes: string[], bearerToken: string) {
   const { id, method, params } = body as {
     id: unknown
     method: string
@@ -426,7 +491,7 @@ async function dispatch(body: Record<string, unknown>, orgId: string, scopes: st
     const toolArgs = (params?.arguments ?? {}) as Record<string, unknown>
     const startedAt = Date.now()
     try {
-      const result = await handleTool(toolName, toolArgs, orgId, scopes)
+      const result = await handleTool(toolName, toolArgs, orgId, scopes, bearerToken)
       logToolUsage(toolName, orgId, Date.now() - startedAt, true)
       return rpcResult(id, {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -459,7 +524,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(rpcError(null, -32700, 'Parse error'), { status: 400 })
   }
 
-  const response = await dispatch(body, resolved.orgId, resolved.scopes)
+  const response = await dispatch(body, resolved.orgId, resolved.scopes, resolved.token)
   if (response === null) return new NextResponse(null, { status: 204 })
 
   return NextResponse.json(response, {

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Notices list API error:", error)
+    console.error("v1 notices list error:", error)
     return NextResponse.json({ error: "Failed to fetch notices" }, { status: 500 })
   }
 }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("Notices create API error:", error)
+    console.error("v1 notices create error:", error)
     return NextResponse.json({ error: "Failed to create notice" }, { status: 500 })
   }
 }

@@ -204,3 +204,24 @@ export function hasScope(ctx: CombinedAuthContext, scope: "read" | "write"): boo
   if (ctx.apiKey) return ctx.apiKey.scopes.includes(scope)
   return false
 }
+
+// The combined-auth equivalent of requireRole(): a route migrated to
+// requireAuthOrApiKey() still needs its original role gate for session
+// users (hasScope() alone would let ANY logged-in user through, including
+// below the route's real minimum role -- a real regression this fixes,
+// not a hypothetical one). API-key callers have no role, only scopes, so
+// they're gated on `writeScope` instead.
+export function requireRoleOrScope(
+  ctx: CombinedAuthContext,
+  minimumRole: UserRole,
+  writeScope: "read" | "write" = "write"
+): NextResponse | null {
+  if (ctx.dbUser) return requireRole(ctx.dbUser, minimumRole)
+  if (ctx.apiKey) {
+    if (!hasScope(ctx, writeScope)) {
+      return NextResponse.json({ error: `This action requires a ${writeScope}-scoped API key` }, { status: 403 })
+    }
+    return null
+  }
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+}

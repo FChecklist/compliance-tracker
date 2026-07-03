@@ -11,13 +11,11 @@ export async function GET(request: NextRequest) {
       byDepartment: [], upcomingDeadlines: [], recentActivity: [],
     })
   }
-
   try {
     const result = await getComplianceStats({ orgId: ctx.orgId })
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Stats API error:", error)
-    const msg = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: "Failed to fetch stats", debug: msg }, { status: 500 })
+    console.error("v1 compliance stats error:", error)
+    return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 })
   }
 }

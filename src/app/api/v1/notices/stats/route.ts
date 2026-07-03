@@ -8,12 +8,11 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) {
     return NextResponse.json({ total: 0, pendingReplies: 0, overdue: 0, replied: 0, closed: 0, appealed: 0, received: 0, inProgress: 0 })
   }
-
   try {
     const result = await getNoticeStats({ orgId: ctx.orgId })
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Notice stats API error:", error)
+    console.error("v1 notice stats error:", error)
     return NextResponse.json({ error: "Failed to fetch notice stats" }, { status: 500 })
   }
 }

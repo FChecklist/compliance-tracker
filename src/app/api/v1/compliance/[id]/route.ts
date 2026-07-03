@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { getNotice, updateNotice, deleteNotice, ServiceError } from "@/lib/services/notice-service"
+import { getComplianceItem, updateComplianceItem, deleteComplianceItem, ServiceError } from "@/lib/services/compliance-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -11,56 +11,54 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const result = await getNotice({ orgId: ctx.orgId }, id)
+    const result = await getComplianceItem({ orgId: ctx.orgId }, id)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("Notice detail API error:", error)
-    return NextResponse.json({ error: "Failed to fetch notice" }, { status: 500 })
+    console.error("v1 compliance detail error:", error)
+    return NextResponse.json({ error: "Failed to fetch compliance item" }, { status: 500 })
   }
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  // Original route had no extra role gate beyond authentication.
-  const roleErr = requireRoleOrScope(ctx, "viewer", "write")
+  const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await context.params
     const body = await request.json()
-    const result = await updateNotice(
+    const result = await updateComplianceItem(
       { orgId: ctx.orgId, actor: ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }, request },
       id, body
     )
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("Notice update API error:", error)
-    return NextResponse.json({ error: "Failed to update notice" }, { status: 500 })
+    console.error("v1 compliance update error:", error)
+    return NextResponse.json({ error: "Failed to update compliance item" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  // Original route had no extra role gate beyond authentication.
-  const roleErr = requireRoleOrScope(ctx, "viewer", "write")
+  const roleErr = requireRoleOrScope(ctx, "manager", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await context.params
-    const result = await deleteNotice(
+    const result = await deleteComplianceItem(
       { orgId: ctx.orgId, actor: ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }, request },
       id
     )
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error("Notice delete API error:", error)
-    return NextResponse.json({ error: "Failed to delete notice" }, { status: 500 })
+    console.error("v1 compliance delete error:", error)
+    return NextResponse.json({ error: "Failed to delete compliance item" }, { status: 500 })
   }
 }
