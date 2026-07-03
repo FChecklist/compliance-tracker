@@ -45,11 +45,11 @@ export async function middleware(request: NextRequest) {
   // this defense-in-depth layer was silently absent). Any new page added
   // under src/app/(app)/ must be added here too.
   const PROTECTED_APP_ROUTE_PREFIXES = [
-    "/approvals", "/audit", "/audit-engagements", "/bcm", "/board", "/board-evaluation",
+    "/approvals", "/audit", "/audit-engagements", "/automation", "/bcm", "/board", "/board-evaluation",
     "/cap-table", "/charges", "/chat", "/checklists", "/clients", "/committees",
     "/compliance", "/contract-compliance", "/dashboard", "/departments", "/directors",
     "/doa", "/esg", "/frameworks", "/help", "/home", "/hr-compliance", "/incidents",
-    "/ingest", "/ip-portfolio", "/irdai", "/leave-holiday", "/legal-opinions",
+    "/ingest", "/ip-portfolio", "/irdai", "/knowledge-base", "/leave-holiday", "/legal-opinions",
     "/legal-vendors", "/litigation", "/mca-filings", "/notices", "/orchestra",
     "/penalties", "/pms", "/policies", "/posh", "/rbi", "/reports", "/risks", "/rpt",
     "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks",
