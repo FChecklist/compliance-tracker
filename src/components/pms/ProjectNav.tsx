@@ -7,6 +7,12 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { id: "issues", label: "Issues" },
   { id: "board", label: "Board" },
+  { id: "sprints", label: "Sprints" },
+  { id: "wiki", label: "Wiki" },
+  { id: "time", label: "Time" },
+  { id: "budgets", label: "Budgets" },
+  { id: "meetings", label: "Meetings" },
+  { id: "roadmap", label: "Roadmap" },
 ];
 
 export default function ProjectNav({ projectId, projectName }: { projectId: string; projectName: string }) {
@@ -22,7 +28,7 @@ export default function ProjectNav({ projectId, projectName }: { projectId: stri
       <div className="flex gap-1 border-b border-ct-border">
         {TABS.map((tab) => {
           const href = `/pms/${projectId}/${tab.id}`;
-          const isActive = pathname === href;
+          const isActive = pathname === href || pathname?.startsWith(`${href}/`);
           return (
             <Link
               key={tab.id}

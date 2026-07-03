@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Clock } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -53,6 +54,10 @@ export default function IssueDetailPanel({
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loggingTime, setLoggingTime] = useState(false);
+  const [logHours, setLogHours] = useState("");
+  const [logSpentOn, setLogSpentOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [submittingTime, setSubmittingTime] = useState(false);
 
   const load = useCallback(async () => {
     if (!issueId) return;
@@ -81,6 +86,26 @@ export default function IssueDetailPanel({
   useEffect(() => {
     load();
   }, [load]);
+
+  const submitLogTime = async () => {
+    if (!issue || !logHours) return;
+    setSubmittingTime(true);
+    try {
+      const res = await fetch("/api/pms/time-entries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issueId: issue.id, hours: logHours, spentOn: logSpentOn }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Time logged");
+      setLoggingTime(false);
+      setLogHours("");
+    } catch {
+      toast.error("Failed to log time");
+    } finally {
+      setSubmittingTime(false);
+    }
+  };
 
   const patch = async (body: Record<string, unknown>) => {
     if (!issue) return;
@@ -187,6 +212,23 @@ export default function IssueDetailPanel({
             <Badge variant="secondary" className="text-xs">
               {types.find((t) => t.id === issue.typeId)?.name ?? "Task"}
             </Badge>
+
+            <Separator />
+            {loggingTime ? (
+              <div className="flex items-center gap-2">
+                <Input type="number" step="0.25" min="0" placeholder="Hours" value={logHours} onChange={(e) => setLogHours(e.target.value)} className="h-8 w-20" />
+                <Input type="date" value={logSpentOn} onChange={(e) => setLogSpentOn(e.target.value)} className="h-8" />
+                <Button size="sm" onClick={submitLogTime} disabled={submittingTime || !logHours}>
+                  {submittingTime ? <Loader2 className="size-3.5 animate-spin" /> : "Log"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setLoggingTime(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setLoggingTime(true)}>
+                <Clock className="size-3.5 mr-1.5" />
+                Log Time
+              </Button>
+            )}
           </div>
         )}
       </SheetContent>

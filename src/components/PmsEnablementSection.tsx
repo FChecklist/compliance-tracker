@@ -2,19 +2,24 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Rocket, Loader2, CheckCircle2 } from "lucide-react";
+import { Rocket, Loader2, CheckCircle2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 type Enablement = { isEnabled: boolean; enabledAt: string | null; disabledAt: string | null };
 type PmsModule = { moduleKey: string; displayName: string; description: string | null };
+type BillableRate = { id: string; userId: string | null; hourlyRate: string; validFrom: string };
 
 export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) {
   const [enablement, setEnablement] = useState<Enablement | null>(null);
   const [modules, setModules] = useState<PmsModule[]>([]);
+  const [rates, setRates] = useState<BillableRate[]>([]);
+  const [newRate, setNewRate] = useState("");
+  const [settingRate, setSettingRate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
 
@@ -24,9 +29,14 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
       const data = await res.json();
       setEnablement(data);
       if (data.isEnabled) {
-        const modRes = await fetch("/api/settings/modules?branch=pms");
+        const [modRes, ratesRes] = await Promise.all([
+          fetch("/api/settings/modules?branch=pms"),
+          fetch("/api/pms/billable-rates"),
+        ]);
         const modData = await modRes.json();
         setModules(modData.modules ?? []);
+        const ratesData = await ratesRes.json();
+        setRates(ratesData.billableRates ?? []);
       }
     } catch {
       // leave enablement null -- render falls back to "not enabled"
@@ -50,6 +60,26 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
       toast.error(`Failed to ${enable ? "enable" : "disable"} VERIDIAN AI PMS`);
     } finally {
       setToggling(false);
+    }
+  };
+
+  const setOrgDefaultRate = async () => {
+    if (!newRate) return;
+    setSettingRate(true);
+    try {
+      const res = await fetch("/api/pms/billable-rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hourlyRate: newRate, validFrom: new Date().toISOString().slice(0, 10) }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Billable rate updated");
+      setNewRate("");
+      await load();
+    } catch {
+      toast.error("Failed to set billable rate");
+    } finally {
+      setSettingRate(false);
     }
   };
 
@@ -99,6 +129,29 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
               </div>
             ))}
           </div>
+
+          {isAdmin && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Billable Rates</Label>
+                <p className="text-xs text-ct-muted">Org default hourly rate, used when time-entry budget actuals have no per-user rate set.</p>
+                {rates.filter((r) => r.userId === null).map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-sm text-ct-navy">
+                    <span>₹{Number(r.hourlyRate).toFixed(2)}/hr</span>
+                    <span className="text-xs text-ct-muted">since {r.validFrom}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 pt-1">
+                  <Input type="number" step="0.01" min="0" placeholder="New default rate" value={newRate} onChange={(e) => setNewRate(e.target.value)} className="h-8 w-40" />
+                  <Button size="sm" onClick={setOrgDefaultRate} disabled={settingRate || !newRate}>
+                    {settingRate ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5 mr-1" />}
+                    Set Rate
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
