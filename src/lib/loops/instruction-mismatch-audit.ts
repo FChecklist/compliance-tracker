@@ -49,7 +49,7 @@ export async function runInstructionMismatchAudit(): Promise<{
     const [assigneeTasks, assigneeAuditLogs] = await Promise.all([
       db.query.tasks.findMany({
         where: and(eq(tasks.orgId, commitment.orgId), eq(tasks.userId, commitment.assigneeId), gte(tasks.createdAt, commitment.createdAt)),
-        columns: { title: true, status: true },
+        columns: { id: true, title: true, status: true },
         limit: 20,
       }),
       db.query.auditLogs.findMany({
@@ -61,21 +61,22 @@ export async function runInstructionMismatchAudit(): Promise<{
 
     const activitySummary =
       [
-        ...assigneeTasks.map((t) => `Task: "${t.title}" (${t.status})`),
+        ...assigneeTasks.map((t, i) => `[${i}] Task: "${t.title}" (${t.status})`),
         ...assigneeAuditLogs.map((a) => `${a.action} on ${a.entityType}`),
       ].join("\n") || "(no recorded activity since the instruction was given)"
 
     const systemPrompt =
       "You judge whether a person's actual recorded activity matches an instruction they were given. " +
-      'Respond with ONLY JSON matching: { "matches": boolean, "summary": string }. ' +
-      "`summary` is 1-2 sentences explaining your judgment, written for the person who gave the instruction."
+      'Respond with ONLY JSON matching: { "matches": boolean, "summary": string, "relatedTaskIndex": number | null }. ' +
+      "`summary` is 1-2 sentences explaining your judgment, written for the person who gave the instruction. " +
+      "`relatedTaskIndex` is the [N] index of the single task (from the list below) that most directly fulfills or relates to the instruction, or null if none of the listed tasks are related."
     const userMessage =
       `Instruction given: "${commitment.describedAction}"\n` +
       (commitment.dueDate ? `Due: ${commitment.dueDate.toISOString()}\n` : "") +
       `\nAssignee's recorded activity since the instruction was given:\n${activitySummary}`
 
     try {
-      const result = await callLLMJson<{ matches: boolean; summary: string }>(
+      const result = await callLLMJson<{ matches: boolean; summary: string; relatedTaskIndex: number | null }>(
         modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
         { temperature: 0.2, maxTokens: 300 }
       )
@@ -85,9 +86,14 @@ export async function runInstructionMismatchAudit(): Promise<{
         markedDone++
       } else {
         await db.update(instructionCommitments).set({ status: "drifted", updatedAt: new Date() }).where(eq(instructionCommitments.id, commitment.id))
+        const relatedTask =
+          typeof result.relatedTaskIndex === "number" && assigneeTasks[result.relatedTaskIndex]
+            ? assigneeTasks[result.relatedTaskIndex]
+            : null
         const [mismatch] = await db.insert(instructionMismatchDetections).values({
           commitmentId: commitment.id,
           comparisonSummary: result.summary,
+          relatedTaskId: relatedTask?.id ?? null,
         }).returning()
 
         // Wave 14: surface this proactively rather than making the assigner

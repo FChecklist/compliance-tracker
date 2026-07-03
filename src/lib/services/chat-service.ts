@@ -4,12 +4,14 @@
 // exists to support the dual session/API-key actor shape those don't need).
 import {
   conversations, conversationParticipants, messages,
-  instructionCommitments, instructionMismatchDetections, users,
+  instructionCommitments, instructionMismatchDetections, users, taskExecutionPlan,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM } from "@/lib/llm-client"
+import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -192,7 +194,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   try {
     const reply = await callLLM(
       modelConfig.provider, modelConfig.model, modelConfig.apiKey,
-      "You are VERIDIAN AI, a helpful assistant embedded in a compliance management platform. Keep replies concise and practical.",
+      `You are VERIDIAN AI, a helpful assistant embedded in a compliance management platform. Keep replies concise and practical. ${buildPurposeClause(DEFAULT_DOMAIN)}`,
       userMessage,
       { temperature: 0.4, maxTokens: 500 }
     )
@@ -346,6 +348,24 @@ export async function resolveInstructionMismatch(ctx: ChatContext, mismatchId: s
           senderId: null,
           content: `Reminder from ${assigner?.name ?? "the assigner"}: checking in on "${commitment.describedAction}"`,
         })
+      }
+    }
+
+    // Wave 16: the Worker Agent Learning Loop's real write site (constitution
+    // refinement #5/#6) -- this is the one "a human validated an AI's work
+    // and it needed correcting" event already in this codebase. If the
+    // mismatch is tied to a task whose plan actually dispatched a worker
+    // agent, that agent's future executions should benefit from the
+    // correction -- fire-and-forget, never blocks the resolve response.
+    if (mismatch.relatedTaskId) {
+      const stepsWithAgent = await db.query.taskExecutionPlan.findMany({
+        where: eq(taskExecutionPlan.taskId, mismatch.relatedTaskId),
+      })
+      const agentIds = [...new Set(stepsWithAgent.map((s) => s.workerAgentId).filter((id): id is string => !!id))]
+      for (const workerAgentId of agentIds) {
+        await recordWorkerAgentLearning(workerAgentId, mismatch.comparisonSummary, {
+          commitmentId: commitment.id, resolution: action === "nudge" ? "nudged" : "confirmed_fine",
+        }).catch((err) => console.error("Failed to record worker agent learning:", err))
       }
     }
 

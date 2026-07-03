@@ -1,4 +1,4 @@
-import { approvalRequests, policies } from "@/lib/db"
+import { approvalRequests, policies, workerAgents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
@@ -25,28 +25,46 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { decision, rejectionReason } = body
     if (decision !== "approve" && decision !== "reject") return NextResponse.json({ error: "decision must be 'approve' or 'reject'" }, { status: 400 })
 
-    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
+    type Outcome = { kind: "ok"; updated: typeof approvalRequests.$inferSelect } | { kind: "not_found" } | { kind: "forbidden" }
+
+    const outcome: Outcome = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const req_ = await db.query.approvalRequests.findFirst({ where: eq(approvalRequests.id, id) })
-      if (!req_ || req_.status !== "pending") return null
+      if (!req_ || req_.status !== "pending") return { kind: "not_found" }
+
+      // Worker Agent Governance (Wave 16, VAIOS constitution §4): "only
+      // Layer 1 may approve" -- veridian_admin is the stricter, in-app
+      // stand-in for that authority, above the blanket 'admin' gate every
+      // other approval type uses.
+      if (req_.requestType === "worker_agent_proposal" && requireRole(dbUser, "veridian_admin")) {
+        return { kind: "forbidden" }
+      }
 
       if (decision === "reject") {
         if (!rejectionReason?.trim()) throw new Error("rejectionReason is required")
         const [updated] = await db.update(approvalRequests).set({ status: "rejected", approvedById: dbUser.id, rejectionReason: rejectionReason.trim(), resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
         await logActivity({ tx: db, action: "reject", entityType: "ApprovalRequest", entityId: id, details: `Rejected — ${req_.requestType}: "${req_.description}" (${rejectionReason.trim()})`, orgId, dbUser, request })
-        return updated
+        return { kind: "ok", updated }
       }
 
       // approve -- apply the real effect for this requestType
       if (req_.requestType === "policy_publish") {
         await db.update(policies).set({ status: "published", updatedAt: new Date() }).where(eq(policies.id, req_.entityId))
       }
+      if (req_.requestType === "worker_agent_proposal") {
+        // Approve only moves proposed -> approved -- publish (making the
+        // agent actually discoverable/dispatchable) is a deliberately
+        // separate, explicit action (PATCH .../publish), matching the
+        // constitution's distinct "approve, publish, version" verbs.
+        await db.update(workerAgents).set({ lifecycleStatus: "approved", updatedAt: new Date() }).where(eq(workerAgents.id, req_.entityId))
+      }
       const [updated] = await db.update(approvalRequests).set({ status: "approved", approvedById: dbUser.id, resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
       await logActivity({ tx: db, action: "approve", entityType: "ApprovalRequest", entityId: id, details: `Approved — ${req_.requestType}: "${req_.description}"`, orgId, dbUser, request })
-      return updated
+      return { kind: "ok", updated }
     })
 
-    if (!result) return NextResponse.json({ error: "Approval request not found or already resolved" }, { status: 404 })
-    return NextResponse.json({ id: result.id, status: result.status })
+    if (outcome.kind === "forbidden") return NextResponse.json({ error: "This action requires veridian_admin role or higher" }, { status: 403 })
+    if (outcome.kind === "not_found") return NextResponse.json({ error: "Approval request not found or already resolved" }, { status: 404 })
+    return NextResponse.json({ id: outcome.updated.id, status: outcome.updated.status })
   } catch (error) {
     console.error("Approval decision error:", error)
     const message = error instanceof Error ? error.message : "Failed to process decision"

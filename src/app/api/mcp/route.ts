@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { hashSHA256 } from '@/lib/api-keys'
+import { DEFAULT_DOMAIN } from '@/lib/purpose-bound-ai'
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (service role — bypasses RLS for token lookup)
@@ -45,7 +46,7 @@ function getAdminClient() {
 // Auth — resolve Bearer token (a Settings > API Keys `vk_...` key) to the
 // org it grants access to, plus its read/write scopes.
 // ---------------------------------------------------------------------------
-type ResolvedKey = { orgId: string; scopes: string[]; token: string }
+type ResolvedKey = { orgId: string; scopes: string[]; token: string; domainScope: string | null }
 
 async function resolveToken(authHeader: string | null): Promise<ResolvedKey | null> {
   if (!authHeader?.startsWith('Bearer ')) return null
@@ -56,7 +57,7 @@ async function resolveToken(authHeader: string | null): Promise<ResolvedKey | nu
   const sb = getAdminClient()
   const { data, error } = await sb
     .from('api_keys')
-    .select('id, org_id, scopes, is_active')
+    .select('id, org_id, scopes, is_active, domain_scope')
     .eq('key_hash', keyHash)
     .single()
 
@@ -82,6 +83,9 @@ async function resolveToken(authHeader: string | null): Promise<ResolvedKey | nu
     orgId: data.org_id as string,
     token,
     scopes: (data.scopes as string).split(',').map((s) => s.trim()).filter(Boolean),
+    // Wave 17 (Purpose-Bound AI): null = unconstrained, preserving every
+    // pre-existing key's behavior with zero migration risk.
+    domainScope: (data.domain_scope as string | null) ?? null,
   }
 }
 
@@ -290,10 +294,28 @@ async function handleTool(
   args: Record<string, unknown>,
   orgId: string,
   scopes: string[],
-  bearerToken: string
+  bearerToken: string,
+  domainScope: string | null
 ): Promise<unknown> {
   if (WRITE_TOOLS.has(name) && !scopes.includes('write')) {
     throw new Error(`Tool '${name}' requires a write-scoped API key`)
+  }
+
+  // Wave 17 (Purpose-Bound AI, constitution §6/refinement #11): if this key
+  // was issued with a domain constraint, reject any tool outside it before
+  // dispatch. `null` domainScope (every pre-existing key) is unconstrained --
+  // zero behavior change unless a key explicitly opts into a domain.
+  if (domainScope) {
+    const sbDomainCheck = getAdminClient()
+    const { data: agentRow } = await sbDomainCheck
+      .from('worker_agents')
+      .select('domain')
+      .eq('code_reference', name)
+      .maybeSingle()
+    const toolDomain = (agentRow?.domain as string | null) ?? DEFAULT_DOMAIN
+    if (toolDomain !== domainScope) {
+      throw new Error(`Tool '${name}' is outside this API key's authorized domain ('${domainScope}')`)
+    }
   }
 
   // Wave 11: routed through the real service layer via /api/v1, not
@@ -459,7 +481,7 @@ function rpcResult(id: unknown, result: unknown) {
   return { jsonrpc: '2.0', id, result }
 }
 
-async function dispatch(body: Record<string, unknown>, orgId: string, scopes: string[], bearerToken: string) {
+async function dispatch(body: Record<string, unknown>, orgId: string, scopes: string[], bearerToken: string, domainScope: string | null) {
   const { id, method, params } = body as {
     id: unknown
     method: string
@@ -491,7 +513,7 @@ async function dispatch(body: Record<string, unknown>, orgId: string, scopes: st
     const toolArgs = (params?.arguments ?? {}) as Record<string, unknown>
     const startedAt = Date.now()
     try {
-      const result = await handleTool(toolName, toolArgs, orgId, scopes, bearerToken)
+      const result = await handleTool(toolName, toolArgs, orgId, scopes, bearerToken, domainScope)
       logToolUsage(toolName, orgId, Date.now() - startedAt, true)
       return rpcResult(id, {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -524,7 +546,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(rpcError(null, -32700, 'Parse error'), { status: 400 })
   }
 
-  const response = await dispatch(body, resolved.orgId, resolved.scopes, resolved.token)
+  const response = await dispatch(body, resolved.orgId, resolved.scopes, resolved.token, resolved.domainScope)
   if (response === null) return new NextResponse(null, { status: 204 })
 
   return NextResponse.json(response, {

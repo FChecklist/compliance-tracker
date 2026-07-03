@@ -1,8 +1,9 @@
 import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
-import { eq, and, asc, gte, lte, ne, sql } from "drizzle-orm";
+import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
+import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
@@ -26,8 +27,6 @@ import { callLLMJson } from "@/lib/llm-client";
  * error marks the task `failed` with an explanatory chat message rather
  * than leaving it silently stuck in `pending` forever.
  */
-
-const DISPATCHABLE_TOOLS = new Set(["get_compliance_stats", "get_overdue_items", "list_departments"]);
 
 async function dispatchTool(db: TenantDb, orgId: string, codeReference: string): Promise<unknown> {
   if (codeReference === "get_compliance_stats") {
@@ -80,6 +79,9 @@ export async function executeTask(
 
     const agents = await withTenantContext({ orgId, userId }, (db) =>
       db.query.workerAgents.findMany({
+        // Wave 16: never plan against a proposed/draft/retired row -- only
+        // approved/published agents are real, dispatchable capabilities.
+        where: inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
         columns: { id: true, name: true, domain: true, tier: true, codeReference: true },
         orderBy: asc(workerAgents.name),
         limit: 20,
@@ -88,7 +90,9 @@ export async function executeTask(
 
     const agentList = agents.map((a) => `- ${a.name} (${a.tier}${a.domain ? `, ${a.domain}` : ""})`).join("\n");
     const systemPrompt =
-      "You are the Task Orchestra Agent for a compliance management platform. Given a task and a list of " +
+      "You are the Task Orchestra Agent for a compliance management platform. " +
+      buildPurposeClause(DEFAULT_DOMAIN) + " " +
+      "Given a task and a list of " +
       "real worker agents available to this organisation, produce a short execution plan (2-4 steps). Each " +
       "step should reference the single most relevant agent by its exact name from the list, or null if none " +
       "fit. Respond with ONLY JSON matching: " +
@@ -105,6 +109,7 @@ export async function executeTask(
 
     const agentByName = new Map(agents.map((a) => [a.name.toLowerCase(), a]));
     const dispatchNotes: string[] = [];
+    let missingCapabilityNoted = false;
 
     await withTenantContext({ orgId, userId }, async (db) => {
       const steps = (result.steps ?? []).slice(0, 6);
@@ -123,10 +128,28 @@ export async function executeTask(
           })
           .returning();
 
+        // Wave 16: Worker Agent Discovery's missing half (constitution
+        // refinement #4) -- the LLM named an agent that doesn't exist among
+        // this org's real, approved/published roster. Never auto-create a
+        // proposal from an unattended background job (that would violate
+        // Scope-Limited Creation, refinement #7 -- a proposal always needs a
+        // real human/layer attributed to it) -- instead surface it as an
+        // actionable note a human can act on.
+        if (step.agentName && !agent && !missingCapabilityNoted) {
+          missingCapabilityNoted = true
+          await db.insert(taskChatMessages).values({
+            taskId,
+            role: "system",
+            content: `No approved worker agent matches "${step.agentName}" for: "${step.description}". A worker agent for this capability can be proposed in Settings -> Worker Agents.`,
+          })
+        }
+
         // Only auto-dispatch global, read-only agents this engine actually
-        // knows how to run for real. Everything else is a recorded plan
-        // step, not a faked execution.
-        if (agent?.tier === "global" && agent.codeReference && DISPATCHABLE_TOOLS.has(agent.codeReference)) {
+        // knows how to run for real, AND only within this agent's declared
+        // purpose/domain (Wave 17: Purpose-Bound AI enforcement -- a hard
+        // allowlist check, not just the system-prompt clause above).
+        // Everything else is a recorded plan step, not a faked execution.
+        if (agent?.tier === "global" && agent.codeReference && isToolAllowedForDomain(agent.domain, agent.codeReference)) {
           const startedAt = new Date();
           try {
             const output = await dispatchTool(db, orgId, agent.codeReference);

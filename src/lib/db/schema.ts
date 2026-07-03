@@ -396,6 +396,10 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   scopes: text('scopes').notNull().default('read'), // comma-separated: read,write
   isActive: boolean('is_active').notNull().default(true),
   lastUsedAt: timestamp('last_used_at'),
+  // Wave 17 (Purpose-Bound AI): null = unconstrained (every pre-existing key's
+  // exact current behavior, zero migration risk). If set, /api/mcp's
+  // handleTool() rejects any tool call outside this domain before dispatch.
+  domainScope: text('domain_scope'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -552,6 +556,18 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   orgId: text('org_id'),
   clientId: text('client_id'),
   userId: text('user_id'),
+  // Wave 16 (VAIOS Worker Agent Governance): the real state machine --
+  // `isImmutable` above stays exactly as-is (a live boolean already read by
+  // task-execution-engine.ts's dispatch gate and GET /api/worker-agents;
+  // redefining it would be a silent breaking change). `lifecycleStatus` is
+  // additive: 'draft' | 'proposed' | 'approved' | 'published' | 'retired'.
+  // Every pre-existing seeded row backfills to 'published' -- correct and
+  // non-lossy, since every one of them has been live/dispatchable already.
+  lifecycleStatus: text('lifecycle_status').notNull().default('published'),
+  // Self-FK for the constitution's "Digital Department" grouping -- a
+  // supervisor agent one or more subordinate agents report to.
+  supervisorWorkerAgentId: text('supervisor_worker_agent_id'),
+  proposedById: text('proposed_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -949,11 +965,15 @@ export const assistantMetricsDailyRelations = relations(assistantMetricsDaily, (
   assistant: one(aiAssistants, { fields: [assistantMetricsDaily.assistantId], references: [aiAssistants.id] }),
 }))
 
-export const workerAgentsRelations = relations(workerAgents, ({ many }) => ({
+export const workerAgentsRelations = relations(workerAgents, ({ one, many }) => ({
   versions: many(workerAgentVersions),
   usageLog: many(workerAgentUsageLog),
   learnings: many(workerAgentLearnings),
   domainIndex: many(workerAgentDomainIndex),
+  // Wave 16: "Digital Department" grouping -- self-referencing, needs
+  // relationName to disambiguate the two directions on the same table.
+  supervisor: one(workerAgents, { fields: [workerAgents.supervisorWorkerAgentId], references: [workerAgents.id], relationName: 'workerAgentSupervisor' }),
+  subordinates: many(workerAgents, { relationName: 'workerAgentSupervisor' }),
 }))
 
 export const workerAgentVersionsRelations = relations(workerAgentVersions, ({ one }) => ({
