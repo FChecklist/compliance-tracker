@@ -54,12 +54,13 @@ async function resolveToken(authHeader: string | null): Promise<ResolvedKey | nu
 
   const keyHash = await hashSHA256(token)
   const sb = getAdminClient()
-  const { data } = await sb
+  const { data, error } = await sb
     .from('api_keys')
     .select('id, org_id, scopes, is_active')
     .eq('key_hash', keyHash)
     .single()
 
+  if (error) console.error('[mcp/resolveToken] Supabase error:', JSON.stringify(error))
   if (!data?.is_active) return null
 
   // Update last_used_at without blocking the response
