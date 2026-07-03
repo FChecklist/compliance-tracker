@@ -600,6 +600,18 @@ All three are registered as **core modules** (`moduleRegistry.isCore = true`) �
 
 NocoBase (low-code/app-builder), Peppermint (ticketing), and Mattermost (team chat) in full — see §15.2 for the specific reasoning per repo. Within the 3 adopted waves: AppFlowy's CRDT/blocks/grid-database-views, n8n's visual node-graph builder and multi-step chained workflows, n8n's and NocoBase's AI-agent features, Metabase/Superset's SQL editors and any BI-engine dependency. Zero code copied from any of the 6 repos at any point — architectural patterns only, independently re-implemented against VERIDIAN's own schema/service/RLS conventions.
 
+### Status update (2026-07-04, after Waves 29-31): all 3 adopted modules built, deployed, and verified — including two real gaps found and fixed along the way
+
+Both design decisions this section flagged (all 3 as `isCore` with no enablement toggle; `knowledge_base_pages` as a genuinely separate table rather than a `pms_wiki_pages` reuse) held up as scoped. All three waves are live:
+
+- **Wave 29 (Knowledge Base) — ✅ built.** `knowledge-base-service.ts` + 3 routes + 2 pages, org-wide page tree independent of PMS, correcting the gap where §14.2's original "reusable outside PMS too" intent for wiki pages never actually shipped.
+- **Wave 30 (Automation Rules) — ✅ built.** `automation-rule-service.ts` with a deterministic `evaluateAndRunRules()`, wired into `notice-service.ts` and `pms-issue-service.ts`'s status-change paths. Deliberately narrower than n8n itself: 2 action types, single-condition matching, no AI, no code execution.
+- **Wave 31 (Custom Reports) — ✅ built.** `custom-report-service.ts`'s `runReport()` is a whitelisted per-entity switch, never raw SQL; folded into the existing `/reports` page via `CustomReportsSection.tsx`, rendered with the already-present `recharts` dependency.
+
+**Verification found two real, live gaps — not just a clean report**: (1) both new pages were initially missing from `middleware.ts`'s route allowlist, the same class of drift Wave 27 fixed elsewhere — found via live curl, fixed immediately, and the full 53-directory allowlist re-audited to an exact match. (2) Even after that fix, both pages kept serving a stale unauthenticated 200 from Vercel's edge cache — Next.js had statically prerendered them at build time, and their first production hit (before the middleware fix shipped) got cached and survived the redeploy. Confirmed isolated to these 2 routes (5 other existing pages checked clean) and fixed with `export const dynamic = "force-dynamic"`. Neither gap ever exposed real data — every fetch inside both pages goes through `requireAuth()`-gated API routes, which correctly `401`'d throughout — but both were real defense-in-depth holes, found and closed before considering this wave done.
+
+RLS cross-org isolation and the `saved_reports` private/shared visibility branch both proven directly against a genuinely-switched `app_runtime` role via Supabase MCP (not `service_role`, which bypasses RLS) — same rigor as every RLS-bearing wave this session. `tsc`/`eslint` clean; local `npm run build` still blocked at the page-data-collection phase by the pre-existing no-`.env` gap noted every wave (confirmed unrelated to this change). Full detail in `orchestra_changes.md` #79.
+
 ---
 
 ## Appendix: Prior mockup iterations (design history, for reference)
