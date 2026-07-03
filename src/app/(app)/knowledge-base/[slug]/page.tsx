@@ -1,5 +1,9 @@
 "use client";
 
+// force-dynamic: see src/app/(app)/knowledge-base/page.tsx for why this is
+// required (prevents static prerendering + CDN-cache bypass of middleware).
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";

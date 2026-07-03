@@ -1,5 +1,14 @@
 "use client";
 
+// force-dynamic: without this, Next.js statically prerenders this page at
+// build time and Vercel's edge cache serves it directly on cache hits,
+// bypassing middleware's auth redirect entirely (confirmed live -- an
+// anonymous request got a cached 200 page shell instead of a 307 to
+// /login, even though middleware.ts's allowlist correctly includes this
+// route). No data actually leaked (all fetches go through requireAuth()
+// API routes, which correctly 401'd throughout), but this closes the gap.
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
