@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         isImmutable: a.isImmutable,
         lifecycleStatus: a.lifecycleStatus,
         supervisorWorkerAgentId: a.supervisorWorkerAgentId,
+        projectId: a.projectId,
         version: a.version,
         usageCount: a.usageCount,
         accuracyScore: a.accuracyScore,

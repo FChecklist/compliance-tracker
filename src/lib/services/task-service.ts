@@ -27,7 +27,7 @@ export async function listTasks(ctx: ReadContext & { userId?: string }, filters:
   }
 }
 
-export async function createTask(ctx: ServiceContext, input: { title: string; description?: string; assistantId?: string }) {
+export async function createTask(ctx: ServiceContext, input: { title: string; description?: string; assistantId?: string; projectId?: string }) {
   const { orgId, actor } = ctx
   if (!actor.dbUser) throw new ServiceError("Task creation requires a real user session, not an API key", 400)
   const dbUser = actor.dbUser
@@ -36,13 +36,14 @@ export async function createTask(ctx: ServiceContext, input: { title: string; de
   if (!title) throw new ServiceError("title is required", 400)
   const description = input.description?.trim() || null
   const assistantId = input.assistantId ?? null
+  const projectId = input.projectId ?? null // Wave 19: optional Product/Project (L2) scope
 
   const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
     if (assistantId) {
       const assistant = await db.query.aiAssistants.findFirst({ where: eq(aiAssistants.id, assistantId) })
       if (!assistant) return null
     }
-    const [created] = await db.insert(tasks).values({ orgId, userId: dbUser.id, assignedById: dbUser.id, assistantId, title, description, status: "in_progress" }).returning()
+    const [created] = await db.insert(tasks).values({ orgId, userId: dbUser.id, assignedById: dbUser.id, assistantId, projectId, title, description, status: "in_progress" }).returning()
     return created
   })
 

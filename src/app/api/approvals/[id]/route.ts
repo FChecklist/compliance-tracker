@@ -1,4 +1,4 @@
-import { approvalRequests, policies, workerAgents } from "@/lib/db"
+import { approvalRequests, policies, workerAgents, codeChangeRequests } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
@@ -41,6 +41,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       if (decision === "reject") {
         if (!rejectionReason?.trim()) throw new Error("rejectionReason is required")
+        if (req_.requestType === "code_change_request") {
+          // Keep the denormalized status field honest -- see this table's
+          // schema.ts comment ("mirrors approval_requests.status").
+          await db.update(codeChangeRequests).set({ status: "rejected" }).where(eq(codeChangeRequests.id, req_.entityId))
+        }
         const [updated] = await db.update(approvalRequests).set({ status: "rejected", approvedById: dbUser.id, rejectionReason: rejectionReason.trim(), resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
         await logActivity({ tx: db, action: "reject", entityType: "ApprovalRequest", entityId: id, details: `Rejected — ${req_.requestType}: "${req_.description}" (${rejectionReason.trim()})`, orgId, dbUser, request })
         return { kind: "ok", updated }
@@ -56,6 +61,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         // separate, explicit action (PATCH .../publish), matching the
         // constitution's distinct "approve, publish, version" verbs.
         await db.update(workerAgents).set({ lifecycleStatus: "approved", updatedAt: new Date() }).where(eq(workerAgents.id, req_.entityId))
+      }
+      if (req_.requestType === "code_change_request") {
+        // Approving ONLY flips this status flag -- it does not, and by
+        // construction cannot, cause any code to change. Implementation
+        // remains a human directing a coding session outside this app (see
+        // code-change-request-service.ts's header note).
+        await db.update(codeChangeRequests).set({ status: "approved" }).where(eq(codeChangeRequests.id, req_.entityId))
       }
       const [updated] = await db.update(approvalRequests).set({ status: "approved", approvedById: dbUser.id, resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
       await logActivity({ tx: db, action: "approve", entityType: "ApprovalRequest", entityId: id, details: `Approved — ${req_.requestType}: "${req_.description}"`, orgId, dbUser, request })

@@ -36,6 +36,7 @@ export async function proposeWorkerAgent(
     description?: string
     promptTemplate?: string
     clientId?: string // required when tier === 'client'
+    projectId?: string // Wave 19: optional Product/Project (L2) scope
   }
 ) {
   if (!PROPOSABLE_TIERS.has(input.tier)) {
@@ -74,6 +75,7 @@ export async function proposeWorkerAgent(
       orgId: input.tier !== "user" ? ctx.orgId : null,
       clientId: input.tier === "client" ? input.clientId : null,
       userId: input.tier === "user" ? ctx.userId : null,
+      projectId: input.projectId || null,
     }).returning()
 
     const [approval] = await db.insert(approvalRequests).values({

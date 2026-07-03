@@ -18,3 +18,7 @@ ALTER TABLE compliance.worker_agents ADD COLUMN IF NOT EXISTS proposed_by_id tex
 
 CREATE INDEX IF NOT EXISTS idx_worker_agents_supervisor ON compliance.worker_agents(supervisor_worker_agent_id);
 CREATE INDEX IF NOT EXISTS idx_worker_agents_lifecycle_status ON compliance.worker_agents(lifecycle_status);
+
+-- Found by get_advisors (performance) during Wave 19's final verification
+-- pass -- proposed_by_id was missing a covering index.
+CREATE INDEX IF NOT EXISTS idx_worker_agents_proposed_by ON compliance.worker_agents(proposed_by_id);

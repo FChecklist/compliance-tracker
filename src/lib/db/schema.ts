@@ -568,6 +568,7 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   // supervisor agent one or more subordinate agents report to.
   supervisorWorkerAgentId: text('supervisor_worker_agent_id'),
   proposedById: text('proposed_by_id'),
+  projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope -- distinct from tier='client' (a broader client-account scope)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -628,6 +629,7 @@ export const tasks = complianceSchemaDB.table('tasks', {
   // every pre-existing row (self-assigned, the only mode that existed
   // before this wave). Nullable because userId itself is nullable.
   assignedById: text('assigned_by_id'),
+  projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -1818,4 +1820,70 @@ export const instructionCommitmentsRelations = relations(instructionCommitments,
 export const instructionMismatchDetectionsRelations = relations(instructionMismatchDetections, ({ one }) => ({
   commitment: one(instructionCommitments, { fields: [instructionMismatchDetections.commitmentId], references: [instructionCommitments.id] }),
   relatedTask: one(tasks, { fields: [instructionMismatchDetections.relatedTaskId], references: [tasks.id] }),
+}))
+
+// ─── Code-Change-Request workflow (Wave 19) ──────────────────────────────
+// Reuses the generic approvalRequests maker-checker (requestType=
+// 'code_change_request') exactly as Wave 8's Policy-publish and Wave 16's
+// worker_agent_proposal flows already do -- entityId points at this
+// satellite table's row rather than a pre-existing entity, since a
+// code-change request has nothing pre-existing to point at.
+//
+// IMPORTANT (stated here and enforced in code, not just documented):
+// approving a code_change_request does NOT cause any code to change.
+// Implementation/Testing/Deployment remain a human directing a coding
+// session outside the running app -- this table is an intake + audit
+// trail, not an automated pipeline.
+export const codeChangeRequests = complianceSchemaDB.table('code_change_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  approvalRequestId: text('approval_request_id').notNull(),
+  originatingLayer: text('originating_layer').notNull(), // 'personal' | 'enterprise' | 'product' -- a human-selected label, not evidence of an autonomous layer (see PLATFORM_STRATEGY.md §11)
+  requestedChange: text('requested_change').notNull(),
+  justification: text('justification'),
+  status: text('status').notNull().default('pending'), // mirrors approval_requests.status, denormalized for query convenience
+  implementedAt: timestamp('implemented_at'),
+  implementationNote: text('implementation_note'),
+  orgId: text('org_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── Product/Project scope layer (Wave 19, VAIOS constitution L2) ────────
+// The missing "Layer 2 Product/Project" scope analog -- distinct from
+// clients/clientEntities (a CA firm's own client companies). A scope/data
+// layer only, NOT an AI actor -- see PLATFORM_STRATEGY.md §11's honesty
+// section for exactly what this does and doesn't establish.
+export const products = complianceSchemaDB.table('products', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const projects = complianceSchemaDB.table('projects', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  productId: text('product_id').notNull(),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // optional: a project can sit under one of the org's existing clients
+  name: text('name').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const codeChangeRequestsRelations = relations(codeChangeRequests, ({ one }) => ({
+  approvalRequest: one(approvalRequests, { fields: [codeChangeRequests.approvalRequestId], references: [approvalRequests.id] }),
+}))
+
+export const productsRelations = relations(products, ({ many }) => ({
+  projects: many(projects),
+}))
+
+export const projectsRelations = relations(projects, ({ one }) => ({
+  product: one(products, { fields: [projects.productId], references: [products.id] }),
+  client: one(clients, { fields: [projects.clientId], references: [clients.id] }),
 }))
