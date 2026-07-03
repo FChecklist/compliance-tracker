@@ -1,40 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth-guard";
-import { complianceItems, notices, orchestraLayers, orchestraExecutions } from "@/lib/db";
+import { complianceItems, notices } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
 import { callLLMJson } from "@/lib/llm-client";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
-
-// Wave 4: this route is the Task Orchestra Agent ('task_oa') layer in
-// practice -- it plans/dispatches actions for a single event. Logging each
-// invocation to orchestra_executions makes that real without changing any
-// existing behavior (model selection is still hardcoded to Groq here; full
-// per-layer BYO model dispatch via customer_model_config is a larger,
-// separate change -- deferred, see orchestra_changes.md Wave 4).
-// Fire-and-forget: never blocks or fails the actual orchestration response.
-function logOrchestraExecution(
-  orgId: string,
-  eventType: string,
-  input: Record<string, unknown>,
-  status: "completed" | "failed",
-  durationMs: number,
-  output?: Record<string, unknown>
-) {
-  withTenantContext({ orgId }, async (db) => {
-    const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, "task_oa") });
-    if (!layer) return;
-    await db.insert(orchestraExecutions).values({
-      orchestraLayerId: layer.id,
-      orgId,
-      eventType,
-      input,
-      output: output ?? null,
-      status,
-      durationMs,
-    });
-  }).catch((err) => console.warn("orchestra_executions logging failed (non-fatal):", err));
-}
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 
 type EventType =
   | "document.uploaded"
@@ -65,54 +37,19 @@ interface OrchestratorResponse {
   actions: OrchestratedAction[];
 }
 
-// Event-specific system prompts
-function getSystemPrompt(eventType: EventType): string {
-  const base = `You are Veridian AI, an intelligent compliance orchestration agent for an Indian compliance management platform.
-You analyze compliance events and suggest actionable next steps.
-You MUST respond with a JSON object containing: { context, actions } where actions is an array of { type, label, description, priority, payload }.
-Keep descriptions concise (1-2 sentences). Priority must be one of: low, medium, high, critical.
-Return ONLY valid JSON, no markdown or extra text.`;
+// Wave 23: event-specific system prompts now come from the Prompt
+// Operating System (prompt_templates/prompt_versions) instead of being
+// hardcoded here -- each seeded 'production' version is a byte-identical
+// copy of what this function used to return inline.
+const EVENT_PROMPT_TEMPLATE_KEYS: Record<EventType, string> = {
+  "document.uploaded": "orchestrate.document_uploaded",
+  "item.overdue": "orchestrate.item_overdue",
+  "notice.received": "orchestrate.notice_received",
+  "deadline.approaching": "orchestrate.deadline_approaching",
+};
 
-  switch (eventType) {
-    case "document.uploaded":
-      return `${base}
-
-When a document is uploaded:
-- Analyze what type of document it might be (GST notice, TDS challan, PF return, etc.)
-- If it looks like a notice or demand, suggest extracting its details
-- If it references a compliance type, suggest creating or linking a compliance item
-- Suggest assigning it to the right team based on the compliance type`;
-
-    case "item.overdue":
-      return `${base}
-
-When a compliance item is overdue:
-- Calculate the potential penalty exposure based on the compliance type and days overdue
-- Suggest an escalation action (notify manager, escalate to leadership)
-- Suggest drafting a reply or filing the compliance ASAP
-- Flag if there are associated notices that need immediate attention
-- Prioritize based on penalty severity`;
-
-    case "notice.received":
-      return `${base}
-
-When a government notice/SCN is received:
-- Suggest extracting all key fields (notice number, authority, demand amount, PAN, GSTIN, period)
-- Calculate the reply deadline (typically 30 days from receipt)
-- Suggest assigning to the compliance team or a specific person
-- Flag the urgency based on demand amount and deadline proximity
-- Suggest creating a compliance item if one doesn't exist`;
-
-    case "deadline.approaching":
-      return `${base}
-
-When a compliance deadline is approaching (within 3-7 days):
-- Suggest sending a reminder notification to the assignee
-- Suggest notifying the department head
-- Calculate if there are any dependencies (e.g., pending approvals, documents needed)
-- Suggest priority actions to complete before the deadline
-- Keep urgency proportional to days remaining`;
-  }
+async function getSystemPrompt(eventType: EventType): Promise<string> {
+  return resolvePromptTemplate(EVENT_PROMPT_TEMPLATE_KEYS[eventType]);
 }
 
 function getUserMessage(
@@ -248,14 +185,17 @@ export async function POST(request: NextRequest) {
     // Resolve which provider/model this org uses for the Task Orchestra
     // Agent layer -- their own BYO customer_model_config if they've set one,
     // else the platform default (Groq). See lib/orchestra-model-resolver.ts.
-    const systemPrompt = getSystemPrompt(typedEvent);
+    const systemPrompt = await getSystemPrompt(typedEvent);
     const userMessage = getUserMessage(typedEvent, entityId, enrichedPayload);
 
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
     if (!modelConfig) {
       // Return sensible defaults without AI
       const defaultActions = getDefaultActions(typedEvent, entityId, enrichedPayload);
-      logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, { actions: defaultActions });
+      recordOrchestraExecution({
+        orgId, layerKey: "task_oa", eventType: typedEvent, input: { entityId, payload: enrichedPayload },
+        status: "completed", durationMs: Date.now() - startedAt, output: { actions: defaultActions },
+      });
       return NextResponse.json({
         eventType: typedEvent,
         entityId,
@@ -265,7 +205,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const result = await callLLMJson<{
+    const { data: result, usage } = await callLLMJson<{
       context: string;
       actions: OrchestratedAction[];
     }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
@@ -287,18 +227,21 @@ export async function POST(request: NextRequest) {
       })),
     };
 
-    logOrchestraExecution(orgId, typedEvent, { entityId, payload: enrichedPayload }, "completed", Date.now() - startedAt, {
-      actions: response.actions,
-      provider: modelConfig.provider,
-      model: modelConfig.model,
-      isCustomerConfigured: modelConfig.isCustomerConfigured,
+    recordOrchestraExecution({
+      orgId, layerKey: "task_oa", eventType: typedEvent, input: { entityId, payload: enrichedPayload },
+      status: "completed", durationMs: Date.now() - startedAt,
+      output: { actions: response.actions, isCustomerConfigured: modelConfig.isCustomerConfigured },
+      provider: modelConfig.provider, model: modelConfig.model, usage,
     });
     return NextResponse.json(response);
   } catch (error) {
     console.error("Orchestrator error:", error);
     const message =
       error instanceof Error ? error.message : "Orchestration failed";
-    logOrchestraExecution(orgId, parsedEventType ?? "unknown", { entityId: parsedEntityId }, "failed", Date.now() - startedAt, { error: message });
+    recordOrchestraExecution({
+      orgId, layerKey: "task_oa", eventType: parsedEventType ?? "unknown", input: { entityId: parsedEntityId },
+      status: "failed", durationMs: Date.now() - startedAt, output: { error: message },
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

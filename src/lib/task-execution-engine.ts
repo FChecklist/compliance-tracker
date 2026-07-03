@@ -4,6 +4,8 @@ import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
 import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
@@ -125,22 +127,23 @@ export async function executeTask(
     const agents = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 20);
 
     const agentList = agents.map((a) => `- ${a.name} (${a.tier}${a.domain ? `, ${a.domain}` : ""})`).join("\n");
-    const systemPrompt =
-      "You are the Task Orchestra Agent for a compliance management platform. " +
-      buildPurposeClause(DEFAULT_DOMAIN) + " " +
-      "Given a task and a list of " +
-      "real worker agents available to this organisation, produce a short execution plan (2-4 steps). Each " +
-      "step should reference the single most relevant agent by its exact name from the list, or null if none " +
-      "fit. Respond with ONLY JSON matching: " +
-      '{ "summary": string, "steps": [{ "agentName": string | null, "description": string }] }';
+    const systemPromptTemplate = await resolvePromptTemplate("task_execution.planning_system");
+    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN));
     const userMessage = `Task: ${title}\n${description ? `Description: ${description}\n` : ""}\nAvailable agents:\n${agentList || "(none configured yet)"}`;
 
-    const result = await callLLMJson<{
+    const planningStartedAt = Date.now();
+    const { data: result, usage } = await callLLMJson<{
       summary: string;
       steps: { agentName: string | null; description: string }[];
     }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
       temperature: 0.3,
       maxTokens: 800,
+    });
+    recordOrchestraExecution({
+      orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.planning",
+      input: { title, description }, output: { summary: result.summary, stepCount: result.steps?.length ?? 0 },
+      status: "completed", durationMs: Date.now() - planningStartedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
     });
 
     const agentByName = new Map(agents.map((a) => [a.name.toLowerCase(), a]));

@@ -11,6 +11,8 @@ import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -191,18 +193,32 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       }).returning()
     )
   }
+  const startedAt = Date.now()
   try {
-    const reply = await callLLM(
+    const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system")
+    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const { content: reply, usage } = await callLLM(
       modelConfig.provider, modelConfig.model, modelConfig.apiKey,
-      `You are VERIDIAN AI, a helpful assistant embedded in a compliance management platform. Keep replies concise and practical. ${buildPurposeClause(DEFAULT_DOMAIN)}`,
+      systemPrompt,
       userMessage,
       { temperature: 0.4, maxTokens: 500 }
     )
+    recordOrchestraExecution({
+      orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
+      input: { conversationId }, output: { replyLength: reply.length },
+      status: "completed", durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    })
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({ conversationId, senderId: null, content: reply }).returning()
     )
   } catch (err) {
     console.error("AI thread reply failed:", err)
+    recordOrchestraExecution({
+      orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
+      input: { conversationId }, status: "failed", durationMs: Date.now() - startedAt,
+      output: { error: err instanceof Error ? err.message : String(err) },
+    })
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({
         conversationId, senderId: null,

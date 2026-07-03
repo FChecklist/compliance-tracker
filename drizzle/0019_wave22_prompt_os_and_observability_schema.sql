@@ -62,6 +62,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.prompt_templates, compliance.
 
 CREATE INDEX IF NOT EXISTS idx_prompt_versions_template_id ON compliance.prompt_versions(prompt_template_id);
 CREATE INDEX IF NOT EXISTS idx_prompt_versions_label ON compliance.prompt_versions(label);
+-- Found by get_advisors (performance) during Wave 23's final verification
+-- pass -- created_by_id was missing a covering index.
+CREATE INDEX IF NOT EXISTS idx_prompt_versions_created_by ON compliance.prompt_versions(created_by_id);
 
 -- ============================================================
 -- Seed: 8 prompt templates, v1='production', verbatim from today's
@@ -161,6 +164,17 @@ When a compliance deadline is approaching (within 3-7 days):
 FROM compliance.prompt_templates WHERE template_key = 'orchestrate.deadline_approaching'
 ON CONFLICT (prompt_template_id, version) DO NOTHING;
 
+-- Wave 23 (Hermes Agent-inspired Loop Engineering deepening): a v2
+-- 'staging' variant of the meta-loop synthesis prompt, asking for a likely
+-- root cause per silent loop instead of only a count. Inert until reviewed
+-- and explicitly promoted to 'production' via prompt-os-service.ts's
+-- createPromptVersion() -- exercises the labeled-version mechanism itself
+-- as part of shipping it, per PLATFORM_STRATEGY.md §13's Hermes findings.
+INSERT INTO compliance.prompt_versions (prompt_template_id, version, content, label)
+SELECT id, 2, $tpl$You are the Meta Orchestra Agent for an AI-native platform. Given per-loop health stats, write a 2-3 sentence plain-language synthesis of overall platform health for a human operator. For any loop marked silent (active but zero executions in the lookback window), suggest the single most likely root cause (e.g. "no cron/trigger wired to run it", "recently disabled upstream", "a dependency it reads from is itself empty") rather than only reporting the count. Respond with ONLY JSON: { "synthesis": string }$tpl$, 'staging'
+FROM compliance.prompt_templates WHERE template_key = 'loop_engineering.meta_synthesis'
+ON CONFLICT (prompt_template_id, version) DO NOTHING;
+
 -- ============================================================
 -- AI Observability: extend orchestra_executions with real, queryable
 -- model/token/cost columns (Langfuse-inspired) -- all nullable/additive.
@@ -186,6 +200,10 @@ ALTER TABLE compliance.assistant_memories ADD COLUMN IF NOT EXISTS valid_until t
 ALTER TABLE compliance.assistant_memories ADD COLUMN IF NOT EXISTS superseded_by_memory_id text REFERENCES compliance.assistant_memories(id);
 
 UPDATE compliance.assistant_memories SET valid_from = created_at WHERE valid_from IS DISTINCT FROM created_at;
+
+-- Found by get_advisors (performance) during Wave 23's final verification
+-- pass -- superseded_by_memory_id was missing a covering index.
+CREATE INDEX IF NOT EXISTS idx_assistant_memories_superseded_by ON compliance.assistant_memories(superseded_by_memory_id);
 
 -- ============================================================
 -- Worker Agent Library: secondary tool-type taxonomy axis on

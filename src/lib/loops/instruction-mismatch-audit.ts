@@ -2,6 +2,8 @@ import { db, instructionCommitments, instructionMismatchDetections, tasks, audit
 import { eq, and, lt, gte } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 
 /**
  * Wave 12: instruction-mismatch audit. A deliberately standalone cron job,
@@ -65,21 +67,24 @@ export async function runInstructionMismatchAudit(): Promise<{
         ...assigneeAuditLogs.map((a) => `${a.action} on ${a.entityType}`),
       ].join("\n") || "(no recorded activity since the instruction was given)"
 
-    const systemPrompt =
-      "You judge whether a person's actual recorded activity matches an instruction they were given. " +
-      'Respond with ONLY JSON matching: { "matches": boolean, "summary": string, "relatedTaskIndex": number | null }. ' +
-      "`summary` is 1-2 sentences explaining your judgment, written for the person who gave the instruction. " +
-      "`relatedTaskIndex` is the [N] index of the single task (from the list below) that most directly fulfills or relates to the instruction, or null if none of the listed tasks are related."
+    const systemPrompt = await resolvePromptTemplate("instruction_mismatch.judgment")
     const userMessage =
       `Instruction given: "${commitment.describedAction}"\n` +
       (commitment.dueDate ? `Due: ${commitment.dueDate.toISOString()}\n` : "") +
       `\nAssignee's recorded activity since the instruction was given:\n${activitySummary}`
 
+    const judgmentStartedAt = Date.now()
     try {
-      const result = await callLLMJson<{ matches: boolean; summary: string; relatedTaskIndex: number | null }>(
+      const { data: result, usage } = await callLLMJson<{ matches: boolean; summary: string; relatedTaskIndex: number | null }>(
         modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
         { temperature: 0.2, maxTokens: 300 }
       )
+      recordOrchestraExecution({
+        orgId: commitment.orgId, layerKey: "user_assistant_oa", eventType: "instruction_mismatch.judgment",
+        input: { commitmentId: commitment.id }, output: { matches: result.matches },
+        status: "completed", durationMs: Date.now() - judgmentStartedAt,
+        provider: modelConfig.provider, model: modelConfig.model, usage,
+      })
 
       if (result.matches) {
         await db.update(instructionCommitments).set({ status: "done_as_asked", updatedAt: new Date() }).where(eq(instructionCommitments.id, commitment.id))
@@ -113,6 +118,11 @@ export async function runInstructionMismatchAudit(): Promise<{
       }
     } catch (err) {
       console.error(`Instruction mismatch audit failed for commitment ${commitment.id}:`, err)
+      recordOrchestraExecution({
+        orgId: commitment.orgId, layerKey: "user_assistant_oa", eventType: "instruction_mismatch.judgment",
+        input: { commitmentId: commitment.id }, status: "failed", durationMs: Date.now() - judgmentStartedAt,
+        output: { error: err instanceof Error ? err.message : String(err) },
+      })
     }
   }
 

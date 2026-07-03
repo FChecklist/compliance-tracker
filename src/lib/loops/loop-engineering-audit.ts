@@ -2,6 +2,7 @@ import { db, loopDefinitions, loopExecutions } from "@/lib/db";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { resolvePlatformModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 
 /**
  * Loop 1: Loop Engineering.
@@ -72,10 +73,22 @@ export async function runLoopEngineeringAudit(loopId: string): Promise<{
   try {
     const modelConfig = await resolvePlatformModelConfig("meta_oa");
     if (modelConfig) {
-      const result = await callLLMJson<{ synthesis: string }>(
+      // Wave 23: prompt now comes from the Prompt Operating System instead
+      // of a hardcoded literal (seeded v1='production' is byte-identical to
+      // what used to be inline here). NOT wired into
+      // recordOrchestraExecution() -- unlike every other real LLM call site
+      // -- because orchestra_executions.org_id is NOT NULL and this is a
+      // genuinely cross-tenant, platform-level call with no single org to
+      // attribute it to; forcing a fit here would mean either violating
+      // that constraint or introducing a fake sentinel-org row, an
+      // anti-pattern this codebase has already rejected elsewhere (see
+      // Wave 6's "first org in the DB" bug fix). loop_executions (below)
+      // remains the correct, already-existing observability record for
+      // this platform-level call.
+      const systemPrompt = await resolvePromptTemplate("loop_engineering.meta_synthesis");
+      const { data: result } = await callLLMJson<{ synthesis: string }>(
         modelConfig.provider, modelConfig.model, modelConfig.apiKey,
-        "You are the Meta Orchestra Agent for an AI-native platform. Given per-loop health stats, write a 1-2 sentence " +
-        'plain-language synthesis of overall platform health for a human operator. Respond with ONLY JSON: { "synthesis": string }',
+        systemPrompt,
         `Active loops checked: ${activeLoops.length}. Silent (marked active, zero executions in ${LOOKBACK_DAYS}d): ${silentLoops.length}.\n${JSON.stringify(perLoopStats)}`,
         { temperature: 0.2, maxTokens: 200 }
       );
