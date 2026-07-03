@@ -12,6 +12,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [noticeCount, setNoticeCount] = useState(0);
   const [accountType, setAccountType] = useState("company");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [pmsEnabled, setPmsEnabled] = useState(false);
 
   useEffect(() => {
     fetch("/api/compliance/stats")
@@ -23,7 +24,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .catch(() => {});
     fetch("/api/me")
       .then((r) => r.json())
-      .then((d) => setAccountType(d.orgAccountType ?? "company"))
+      .then((d) => {
+        setAccountType(d.orgAccountType ?? "company");
+        setPmsEnabled(d.pmsEnabled ?? false);
+      })
       .catch(() => {});
 
     function loadUnreadChat() {
@@ -45,7 +49,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <AppTopbar />
       <HealthRibbon />
       <div className="flex flex-1 overflow-hidden">
-        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
+        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream">
           <OnboardingChecklist />
           <TrialBanner />

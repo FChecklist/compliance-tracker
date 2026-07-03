@@ -50,6 +50,44 @@ export async function listProjects(ctx: { orgId: string }, productId: string) {
   )
 }
 
+/** Org-wide, not scoped to a single product -- the VERIDIAN AI PMS project picker (Wave 27) needs every project regardless of which product it sits under. */
+export async function listAllProjectsForOrg(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
+  )
+}
+
+/**
+ * VERIDIAN AI PMS (Wave 27) creates projects directly, without asking a user
+ * to first understand the Product/Project (L2) hierarchy -- auto-resolves
+ * (or creates once) a hidden "General" default product per org, matching
+ * how Plane/Huly/OpenProject present projects as the top-level PM concept.
+ */
+export async function createProjectDirect(
+  ctx: ProductContext,
+  input: { name: string; description?: string; clientId?: string; issuePrefix?: string; leadUserId?: string; startDate?: string; targetDate?: string }
+) {
+  if (!hasRole(ctx.dbUser, "admin")) throw new ServiceError("Creating a project requires admin role or higher", 403)
+  const name = input.name?.trim()
+  if (!name) throw new ServiceError("name is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    let product = await db.query.products.findFirst({ where: and(eq(products.orgId, ctx.orgId), eq(products.slug, "general")) })
+    if (!product) {
+      const [created] = await db.insert(products).values({ orgId: ctx.orgId, name: "General", slug: "general" }).returning()
+      product = created
+    }
+
+    const [project] = await db.insert(projects).values({
+      productId: product.id, orgId: ctx.orgId, clientId: input.clientId || null,
+      name, description: input.description?.trim() || null,
+      issuePrefix: input.issuePrefix?.trim().toUpperCase() || null,
+      leadUserId: input.leadUserId || null, startDate: input.startDate || null, targetDate: input.targetDate || null,
+    }).returning()
+    return project
+  })
+}
+
 export async function createProject(
   ctx: ProductContext,
   productId: string,

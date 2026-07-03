@@ -15,12 +15,14 @@ import {
   Key,
   Webhook,
   Bot,
+  Rocket,
 } from "lucide-react";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import WebhookSection from "@/components/WebhookSection";
+import PmsEnablementSection from "@/components/PmsEnablementSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,7 @@ const SETTINGS_NAV = [
   { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "ai-assistants", label: "AI Assistants", icon: Bot },
   { id: "preferences", label: "Preferences", icon: Palette },
+  { id: "pms", label: "Project Management", icon: Rocket },
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "about", label: "About", icon: Info },
@@ -380,6 +383,20 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "pms" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Rocket className="size-4" />
+                  Project Management
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <PmsEnablementSection isAdmin={isAdmin} />
               </CardContent>
             </Card>
           )}

@@ -40,6 +40,7 @@ import {
   Link2,
   BookOpen,
   MessageSquare,
+  Rocket,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-function getNavSections(overdueCount: number, docCount: number, noticeCount: number, accountType: string): NavSection[] {
+function getNavSections(overdueCount: number, docCount: number, noticeCount: number, accountType: string, pmsEnabled: boolean): NavSection[] {
   return [
     {
       title: "OVERVIEW",
@@ -78,6 +79,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           : []),
       ],
     },
+    // Only shown once an org enables the separate, opt-in VERIDIAN AI PMS
+    // product branch (Wave 25) -- absent by default for existing GRC orgs.
+    ...(pmsEnabled
+      ? [{ title: "PROJECTS", items: [{ label: "VERIDIAN AI PMS", href: "/pms", icon: Rocket }] }]
+      : []),
     {
       title: "COMPLIANCE",
       items: [
@@ -260,9 +266,9 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, pmsEnabled }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; pmsEnabled: boolean }) {
   const pathname = usePathname();
-  const sections = getNavSections(overdueCount, docCount, noticeCount, accountType);
+  const sections = getNavSections(overdueCount, docCount, noticeCount, accountType, pmsEnabled);
 
   return (
     <div className="flex flex-col h-full">
@@ -358,23 +364,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0 }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, pmsEnabled = false }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; pmsEnabled?: boolean }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, pmsEnabled }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; pmsEnabled: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -392,7 +398,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
       </SheetContent>
     </Sheet>
   );
