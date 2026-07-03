@@ -39,6 +39,7 @@ import {
   Wallet,
   Link2,
   BookOpen,
+  MessageSquare,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -264,7 +265,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number }) {
   const pathname = usePathname();
   const sections = getNavSections(overdueCount, docCount, noticeCount, accountType);
 
@@ -277,6 +278,28 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType }: { 
           Veridian AI
         </span>
       </Link>
+
+      {/* Chat -- top-level, above the collapsible module sections (Wave 13).
+          "Home" will join it here as a paired top-level item in Wave 15. */}
+      <div className="px-3 mb-2">
+        <Link
+          href="/chat"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors relative",
+            pathname.startsWith("/chat")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <MessageSquare className={cn("size-4 shrink-0", pathname.startsWith("/chat") && "text-ct-saffron")} />
+          <span className="flex-1">Chat</span>
+          {unreadChatCount > 0 && (
+            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
+              {unreadChatCount}
+            </Badge>
+          )}
+        </Link>
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
@@ -330,23 +353,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType }: { 
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0 }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -364,7 +387,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType }
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
       </SheetContent>
     </Sheet>
   );

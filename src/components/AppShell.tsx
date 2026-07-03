@@ -11,6 +11,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [overdueCount, setOverdueCount] = useState(0);
   const [noticeCount, setNoticeCount] = useState(0);
   const [accountType, setAccountType] = useState("company");
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/compliance/stats")
@@ -24,6 +25,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .then((r) => r.json())
       .then((d) => setAccountType(d.orgAccountType ?? "company"))
       .catch(() => {});
+
+    function loadUnreadChat() {
+      fetch("/api/conversations")
+        .then((r) => r.json())
+        .then((d) => {
+          const total = (d.conversations ?? []).reduce((sum: number, c: { unreadCount: number }) => sum + c.unreadCount, 0);
+          setUnreadChatCount(total);
+        })
+        .catch(() => {});
+    }
+    loadUnreadChat();
+    const interval = setInterval(loadUnreadChat, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -31,7 +45,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <AppTopbar />
       <HealthRibbon />
       <div className="flex flex-1 overflow-hidden">
-        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} />
+        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} />
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream">
           <OnboardingChecklist />
           <TrialBanner />

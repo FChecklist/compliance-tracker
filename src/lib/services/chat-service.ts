@@ -136,22 +136,39 @@ export async function getMessages(ctx: ChatContext, conversationId: string) {
       where: eq(messages.conversationId, conversationId),
       orderBy: asc(messages.createdAt),
     })
-    const commitmentRows = await db.query.instructionCommitments.findMany({
-      where: inArray(instructionCommitments.messageId, rows.map((m) => m.id).length ? rows.map((m) => m.id) : ["__none__"]),
-    })
+    const messageIds = rows.map((m) => m.id)
+    const commitmentRows = messageIds.length
+      ? await db.query.instructionCommitments.findMany({ where: inArray(instructionCommitments.messageId, messageIds) })
+      : []
     const commitmentByMessage = new Map(commitmentRows.map((c) => [c.messageId, c]))
 
+    // RLS already restricts instruction_mismatch_detections to the assigner
+    // -- a non-assigner querying this simply gets zero rows back, the same
+    // guarantee the DB itself enforces, not just this extra explicit check.
+    const commitmentIds = commitmentRows.map((c) => c.id)
+    const mismatchRows = commitmentIds.length
+      ? await db.query.instructionMismatchDetections.findMany({ where: inArray(instructionMismatchDetections.commitmentId, commitmentIds) })
+      : []
+    const mismatchByCommitment = new Map(mismatchRows.map((m) => [m.commitmentId, m]))
+
     return {
-      messages: rows.map((m) => ({
-        id: m.id,
-        senderId: m.senderId,
-        content: m.content,
-        isInstruction: m.isInstruction,
-        createdAt: m.createdAt.toISOString(),
-        commitment: commitmentByMessage.has(m.id)
-          ? { status: commitmentByMessage.get(m.id)!.status, assigneeId: commitmentByMessage.get(m.id)!.assigneeId, dueDate: commitmentByMessage.get(m.id)!.dueDate?.toISOString() ?? null }
-          : null,
-      })),
+      messages: rows.map((m) => {
+        const commitment = commitmentByMessage.get(m.id)
+        const mismatch = commitment ? mismatchByCommitment.get(commitment.id) : undefined
+        return {
+          id: m.id,
+          senderId: m.senderId,
+          content: m.content,
+          isInstruction: m.isInstruction,
+          createdAt: m.createdAt.toISOString(),
+          commitment: commitment
+            ? { status: commitment.status, assigneeId: commitment.assigneeId, dueDate: commitment.dueDate?.toISOString() ?? null }
+            : null,
+          mismatch: mismatch
+            ? { id: mismatch.id, comparisonSummary: mismatch.comparisonSummary, resolution: mismatch.resolution, detectedAt: mismatch.detectedAt.toISOString() }
+            : null,
+        }
+      }),
     }
   })
 }
