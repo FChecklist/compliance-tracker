@@ -18,9 +18,20 @@ import { SearchTrigger } from "@/components/search-command";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  metadata: { conversationId?: string; mismatchId?: string } | null;
+  createdAt: string;
+};
+
 export function AppTopbar() {
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
@@ -29,7 +40,10 @@ export function AppTopbar() {
   useEffect(() => {
     fetch("/api/notifications")
       .then((r) => r.json())
-      .then((d) => setUnreadCount(d.unreadCount ?? 0))
+      .then((d) => {
+        setUnreadCount(d.unreadCount ?? 0);
+        setNotificationsList(d.notifications ?? []);
+      })
       .catch(() => {});
 
     // Get current user from Supabase
@@ -65,6 +79,19 @@ export function AppTopbar() {
     ? userName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "CT";
 
+  async function handleNotificationClick(n: NotificationItem) {
+    if (!n.isRead) {
+      fetch(`/api/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {});
+      setNotificationsList((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+    if (n.type === "instruction_mismatch" && n.metadata?.conversationId) {
+      router.push(`/chat?conversation=${n.metadata.conversationId}&highlight=${n.metadata.mismatchId ?? ""}`);
+    } else {
+      router.push("/compliance?status=overdue");
+    }
+  }
+
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-4 px-4 md:px-6 bg-gradient-navy shadow-nav sticky top-0 z-30">
       {/* Left: hamburger is handled by AppSidebar (mobile) */}
@@ -86,17 +113,39 @@ export function AppTopbar() {
       {/* Right: notification + user */}
       <div className="flex items-center gap-2">
         {/* Notification bell */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative text-white/80 hover:text-white hover:bg-white/10"
-          onClick={() => router.push("/compliance?status=overdue")}
-        >
-          <Bell className="size-[18px]" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-red-500 ring-2 ring-ct-navy" />
-          )}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative text-white/80 hover:text-white hover:bg-white/10"
+            >
+              <Bell className="size-[18px]" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-red-500 ring-2 ring-ct-navy" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+            {notificationsList.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-ct-muted text-center">No notifications</div>
+            ) : (
+              notificationsList.map((n) => (
+                <DropdownMenuItem
+                  key={n.id}
+                  className="flex-col items-start gap-0.5 whitespace-normal"
+                  onClick={() => handleNotificationClick(n)}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    {!n.isRead && <span className="size-1.5 rounded-full bg-ct-saffron shrink-0" />}
+                    <span className="text-sm font-medium text-ct-navy">{n.title}</span>
+                  </div>
+                  <p className="text-xs text-ct-muted">{n.message}</p>
+                </DropdownMenuItem>
+              ))
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* User avatar dropdown */}
         <DropdownMenu>

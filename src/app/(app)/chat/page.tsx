@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,13 +14,18 @@ const POLL_MS = 8000;
 
 type OrgUser = { id: string; name: string };
 
-export default function ChatPage() {
+function ChatPageInner() {
+  const searchParams = useSearchParams();
+  const linkedConversationId = searchParams.get("conversation");
+  const highlightMismatchId = searchParams.get("highlight");
+
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [pickerUserId, setPickerUserId] = useState<string>("");
   const [showPicker, setShowPicker] = useState(false);
+  const appliedLinkRef = useRef(false);
 
   function loadConversations() {
     fetch("/api/conversations")
@@ -27,7 +33,16 @@ export default function ChatPage() {
       .then((data) => {
         const list: ConversationSummary[] = data.conversations ?? [];
         setConversations(list);
-        setSelectedId((prev) => prev ?? list[0]?.id ?? null);
+        setSelectedId((prev) => {
+          if (prev) return prev;
+          // A notification's click-through wins over the default (pinned
+          // AI thread / most-recent) selection, but only once per page load.
+          if (!appliedLinkRef.current && linkedConversationId && list.some((c) => c.id === linkedConversationId)) {
+            appliedLinkRef.current = true;
+            return linkedConversationId;
+          }
+          return list[0]?.id ?? null;
+        });
       })
       .catch(() => {});
   }
@@ -92,7 +107,12 @@ export default function ChatPage() {
         </div>
         <div className="overflow-hidden">
           {selected && currentUserId ? (
-            <ThreadView key={selected.id} conversation={selected} currentUserId={currentUserId} />
+            <ThreadView
+              key={selected.id}
+              conversation={selected}
+              currentUserId={currentUserId}
+              highlightMismatchId={selected.id === linkedConversationId ? highlightMismatchId : null}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-ct-muted">
               {conversations.length === 0 ? "Loading..." : "Select a conversation"}
@@ -101,5 +121,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-ct-muted">Loading...</div>}>
+      <ChatPageInner />
+    </Suspense>
   );
 }

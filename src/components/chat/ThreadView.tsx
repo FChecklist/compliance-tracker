@@ -29,7 +29,13 @@ type ConversationSummary = {
 
 const POLL_MS = 6000;
 
-export function ThreadView({ conversation, currentUserId }: { conversation: ConversationSummary; currentUserId: string }) {
+export function ThreadView({
+  conversation, currentUserId, highlightMismatchId,
+}: {
+  conversation: ConversationSummary;
+  currentUserId: string;
+  highlightMismatchId?: string | null;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState("");
@@ -37,6 +43,8 @@ export function ThreadView({ conversation, currentUserId }: { conversation: Conv
   const [dueDate, setDueDate] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToHighlight = useRef(false);
 
   function load() {
     fetch(`/api/conversations/${conversation.id}/messages`)
@@ -54,8 +62,15 @@ export function ThreadView({ conversation, currentUserId }: { conversation: Conv
   }, [conversation.id]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+    if (highlightMismatchId && !hasScrolledToHighlight.current && highlightRef.current) {
+      hasScrolledToHighlight.current = true;
+      highlightRef.current.scrollIntoView({ block: "center" });
+      return;
+    }
+    if (!highlightMismatchId) {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [messages.length, highlightMismatchId]);
 
   async function send() {
     const trimmed = content.trim();
@@ -100,7 +115,7 @@ export function ThreadView({ conversation, currentUserId }: { conversation: Conv
           <p className="text-sm text-ct-muted">No messages yet. Say hello.</p>
         ) : (
           messages.map((m) => (
-            <div key={m.id}>
+            <div key={m.id} ref={m.mismatch?.id === highlightMismatchId ? highlightRef : undefined}>
               <MessageBubble message={m} currentUserId={currentUserId} />
               {m.mismatch && (
                 <MismatchBubble

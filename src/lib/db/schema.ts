@@ -12,7 +12,7 @@ export const userRoleEnum = complianceSchemaDB.enum('user_role', [
 export const complianceStatusEnum = complianceSchemaDB.enum('compliance_status', ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'])
 export const priorityEnum = complianceSchemaDB.enum('priority', ['low', 'medium', 'high', 'critical'])
 export const complianceTypeEnum = complianceSchemaDB.enum('compliance_type', ['GST', 'TDS', 'MCA', 'PF', 'ESIC', 'INCOME_TAX', 'ROC', 'LABOUR', 'ENVIRONMENTAL', 'OTHER'])
-export const notificationTypeEnum = complianceSchemaDB.enum('notification_type', ['deadline_reminder', 'assignment', 'status_change', 'comment', 'system', 'mention'])
+export const notificationTypeEnum = complianceSchemaDB.enum('notification_type', ['deadline_reminder', 'assignment', 'status_change', 'comment', 'system', 'mention', 'instruction_mismatch'])
 export const auditActionEnum = complianceSchemaDB.enum('audit_action', ['create', 'update', 'delete', 'status_change', 'assign', 'reassign', 'login', 'logout', 'export', 'invite'])
 export const recurrenceTypeEnum = complianceSchemaDB.enum('recurrence_type', ['none', 'monthly', 'quarterly', 'half_yearly', 'annually'])
 export const noticeStatusEnum = complianceSchemaDB.enum('notice_status', ['received', 'in_progress', 'replied', 'closed', 'appealed'])
@@ -338,6 +338,10 @@ export const notifications = complianceSchemaDB.table('notifications', {
   message: text('message').notNull(),
   type: notificationTypeEnum('type').notNull().default('system'),
   isRead: boolean('is_read').notNull().default(false),
+  // Wave 14: generic type-specific payload (e.g. instruction_mismatch needs
+  // {conversationId, mismatchId} for the topbar's click-through to open the
+  // exact chat thread) -- avoids a bespoke FK column per notification type.
+  metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

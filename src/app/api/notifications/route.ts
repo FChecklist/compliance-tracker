@@ -30,6 +30,7 @@ export async function GET() {
         message: n.message,
         type: n.type,
         isRead: n.isRead,
+        metadata: n.metadata,
         createdAt: n.createdAt.toISOString(),
       })),
       unreadCount: count,

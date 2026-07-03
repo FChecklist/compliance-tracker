@@ -1,4 +1,4 @@
-import { db, instructionCommitments, instructionMismatchDetections, tasks, auditLogs } from "@/lib/db"
+import { db, instructionCommitments, instructionMismatchDetections, tasks, auditLogs, messages, notifications } from "@/lib/db"
 import { eq, and, lt, gte } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
@@ -85,10 +85,24 @@ export async function runInstructionMismatchAudit(): Promise<{
         markedDone++
       } else {
         await db.update(instructionCommitments).set({ status: "drifted", updatedAt: new Date() }).where(eq(instructionCommitments.id, commitment.id))
-        await db.insert(instructionMismatchDetections).values({
+        const [mismatch] = await db.insert(instructionMismatchDetections).values({
           commitmentId: commitment.id,
           comparisonSummary: result.summary,
-        })
+        }).returning()
+
+        // Wave 14: surface this proactively rather than making the assigner
+        // go looking for it. `metadata` carries what the topbar's
+        // click-through needs to open the exact chat thread.
+        const originalMessage = await db.query.messages.findFirst({ where: eq(messages.id, commitment.messageId) })
+        if (originalMessage) {
+          await db.insert(notifications).values({
+            userId: commitment.assignerId,
+            title: "Possible instruction mismatch",
+            message: result.summary,
+            type: "instruction_mismatch",
+            metadata: { conversationId: originalMessage.conversationId, mismatchId: mismatch.id },
+          })
+        }
         markedDrifted++
       }
     } catch (err) {
