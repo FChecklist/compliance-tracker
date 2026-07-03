@@ -60,7 +60,16 @@ async function resolveToken(authHeader: string | null): Promise<ResolvedKey | nu
     .eq('key_hash', keyHash)
     .single()
 
-  if (error) console.error('[mcp/resolveToken] Supabase error:', JSON.stringify(error))
+  // PGRST116 ("no rows" / "multiple rows") from .single() is the normal,
+  // expected shape of an invalid/garbage bearer token -- not worth logging,
+  // it'll fire constantly from routine bad-token probing. Anything else
+  // (e.g. PGRST106 "Invalid schema" -- the schema wasn't exposed via
+  // Supabase's Data API config, the actual root cause the first time this
+  // route was live-tested end-to-end) is a real misconfiguration and should
+  // be visible in production logs, not silently swallowed.
+  if (error && error.code !== 'PGRST116') {
+    console.error('[mcp/resolveToken] unexpected Supabase error:', JSON.stringify(error))
+  }
   if (!data?.is_active) return null
 
   // Update last_used_at without blocking the response
