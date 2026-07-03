@@ -18,6 +18,10 @@
 // instead of a retrofit.
 export const DOMAIN_ALLOWED_TOOLS: Record<string, Set<string>> = {
   compliance: new Set(["get_compliance_stats", "get_overdue_items", "list_departments"]),
+  // VERIDIAN AI PMS (Wave 25): empty allowlist -- no AI tool touches PMS
+  // this pass, per explicit instruction not to use any of the 3 studied
+  // tools' AI or invent a new AI mechanism for this domain.
+  project_management: new Set([]),
 }
 
 export const DEFAULT_DOMAIN = "compliance"

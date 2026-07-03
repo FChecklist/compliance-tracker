@@ -46,6 +46,12 @@ export const organisations = complianceSchemaDB.table('organisations', {
   trialEndsAt: timestamp('trial_ends_at'),     // M-17
   isReadOnly: boolean('is_read_only').notNull().default(false), // M-17: after trial
   subscriptionPlanId: text('subscription_plan_id'), // Wave 1
+  // Wave 24 (PageAgent integration): org-level on/off switch for the
+  // client-side GUI agent -- default true, deployed as default per the
+  // user's explicit instruction. Distinct from whether a model is actually
+  // configured for it (page_agent_oa layer) -- an org can have both a
+  // model configured AND this off, or vice versa.
+  pageAgentEnabled: boolean('page_agent_enabled').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -869,6 +875,32 @@ export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Personal Model Config (Wave 24, PageAgent integration) ──────────────
+// The per-user counterpart to customer_model_config's per-org BYO --
+// resolved BEFORE the org-level config in resolvePageAgentModelConfig()'s
+// most-specific-scope-wins chain (personal -> org -> platform default),
+// same philosophy as every other resolver in this codebase. `provider` is
+// deliberately free text, NOT the ai_provider enum (groq/openai/anthropic/
+// google) -- that enum doesn't cover 'ollama'/'custom' endpoints, which
+// PageAgent's BYO story explicitly needs (local models, self-hosted
+// OpenAI-compatible endpoints), and altering a shared enum used by
+// customer_model_config/ai_configurations is riskier than a new free-text
+// column here, matching module_rule_configs.scope_type's own precedent.
+// One row per user (UNIQUE(user_id)) -- simpler than the per-orchestra-
+// layer shape customer_model_config uses, since page-agent is the only
+// consumer of this table today.
+export const personalModelConfig = complianceSchemaDB.table('personal_model_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().unique(),
+  provider: text('provider').notNull(), // free text: 'groq' | 'openai' | 'ollama' | 'custom' | ...
+  baseUrl: text('base_url'), // required for 'ollama'/'custom'; null for known hosted providers
+  modelName: text('model_name').notNull(),
+  encryptedApiKey: text('encrypted_api_key'), // nullable -- a local Ollama endpoint needs no key
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
 // Platform-operational tables, NOT tenant data -- loop_executions and
 // friends have no app_runtime RLS policy at all (service_role bypass only),
@@ -1219,6 +1251,10 @@ export const promptTemplatesRelations = relations(promptTemplates, ({ many }) =>
 
 export const promptVersionsRelations = relations(promptVersions, ({ one }) => ({
   template: one(promptTemplates, { fields: [promptVersions.promptTemplateId], references: [promptTemplates.id] }),
+}))
+
+export const personalModelConfigRelations = relations(personalModelConfig, ({ one }) => ({
+  user: one(users, { fields: [personalModelConfig.userId], references: [users.id] }),
 }))
 
 export const loopDefinitionsRelations = relations(loopDefinitions, ({ many }) => ({
@@ -2032,6 +2068,18 @@ export const projects = complianceSchemaDB.table('projects', {
   name: text('name').notNull(),
   description: text('description'),
   isActive: boolean('is_active').notNull().default(true),
+  // Wave 25 (VERIDIAN AI PMS): additive PM columns -- reused by any org that
+  // enables the 'pms' product branch, rather than a parallel project table.
+  // Every pre-existing GRC-only project simply leaves these null/default --
+  // no PM behavior is implied until an org actually uses this project for
+  // PMS work.
+  issuePrefix: text('issue_prefix'), // e.g. "ENG" for issue numbers like ENG-123
+  issueSequence: integer('issue_sequence').notNull().default(0), // atomically incremented per issue created
+  leadUserId: text('lead_user_id'),
+  startDate: date('start_date', { mode: 'string' }),
+  targetDate: date('target_date', { mode: 'string' }),
+  healthStatus: text('health_status'), // 'on_track' | 'at_risk' | 'off_track' | null -- free text, not enum, since only PMS-using projects ever set it
+  parentProjectId: text('parent_project_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -2047,4 +2095,455 @@ export const productsRelations = relations(products, ({ many }) => ({
 export const projectsRelations = relations(projects, ({ one }) => ({
   product: one(products, { fields: [projects.productId], references: [products.id] }),
   client: one(clients, { fields: [projects.clientId], references: [clients.id] }),
+}))
+
+// ─── VERIDIAN AI PMS (Wave 25) ────────────────────────────────────────────
+// A brand-new, opt-in product branch (see product_branches seed row,
+// branchKey='pms') -- VERIDIAN's first genuine second productBranches row
+// since 'grc' (Wave 20), validating that architecture's own stated design
+// goal. Adapted from studying Huly/OpenProject/Plane (never their code,
+// never their AI -- see PLATFORM_STRATEGY.md §14 for the full research and
+// every design decision below). Reuses this file's existing conventions
+// throughout: text PK via createId(), orgId-scoped RLS, Drizzle relations.
+
+export const pmsIssuePriorityEnum = complianceSchemaDB.enum('pms_issue_priority', ['no_priority', 'urgent', 'high', 'medium', 'low'])
+// 'triage' absorbs Plane's intake-queue concept -- no separate table needed.
+export const pmsStatusGroupEnum = complianceSchemaDB.enum('pms_status_group', ['backlog', 'unstarted', 'started', 'completed', 'cancelled', 'triage'])
+export const pmsIssueRelationTypeEnum = complianceSchemaDB.enum('pms_issue_relation_type', ['blocks', 'blocked_by', 'duplicates', 'relates_to'])
+export const pmsMilestoneStatusEnum = complianceSchemaDB.enum('pms_milestone_status', ['planned', 'in_progress', 'completed', 'cancelled'])
+export const pmsSprintStatusEnum = complianceSchemaDB.enum('pms_sprint_status', ['planned', 'active', 'completed', 'cancelled'])
+export const pmsViewAccessEnum = complianceSchemaDB.enum('pms_view_access', ['private', 'shared'])
+export const pmsBudgetLineKindEnum = complianceSchemaDB.enum('pms_budget_line_kind', ['labor', 'material'])
+
+// Which orgs have adopted which product branch -- productBranches/
+// productBranchModules (Wave 20) are pure global catalog with no org
+// dimension at all; this is the missing "org adoption" table, resolved
+// during this wave's design pass rather than bending moduleRuleConfigs
+// (Wave 21, shaped for one resolved JSON value per rule) or copying
+// organisations.pageAgentEnabled (Wave 24, a bespoke boolean that doesn't
+// generalize to a 3rd/4th future branch) into service for something it
+// wasn't built for. Explicit row-per-org-branch-pair (not "row absence =
+// disabled") so the audit trail survives a disable-then-reenable cycle.
+export const orgProductBranchEnablements = complianceSchemaDB.table('org_product_branch_enablements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  productBranchId: text('product_branch_id').notNull(),
+  isEnabled: boolean('is_enabled').notNull().default(false),
+  enabledAt: timestamp('enabled_at'),
+  enabledById: text('enabled_by_id'),
+  disabledAt: timestamp('disabled_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Org-wide taxonomy (Task/Bug/Epic/Story) -- isEpic is a flag, not a
+// separate model, matching Plane's is_epic pattern (confirmed the cleanest
+// of the 3 studied tools' approaches). Copy-on-enable: enablePmsForOrg()
+// seeds real, org-owned default rows here rather than resolving from a
+// platform catalog -- every studied tool treats these as per-workspace
+// custom master data, never platform-defaults-with-override.
+export const pmsIssueTypes = complianceSchemaDB.table('pms_issue_types', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  icon: text('icon'),
+  color: text('color'),
+  isEpic: boolean('is_epic').notNull().default(false),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Per-PROJECT customizable (unlike issue types, which are org-wide) --
+// matches Plane's State model exactly: every custom status still maps to
+// one of the 6 semantic groups above for cross-project reporting/board
+// columns.
+export const pmsIssueStatuses = complianceSchemaDB.table('pms_issue_statuses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  group: pmsStatusGroupEnum('group').notNull(),
+  color: text('color'),
+  position: integer('position').notNull().default(0),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Optional per-type/per-role transition constraint (OpenProject's unique
+// contribution) -- absence of a row for a given (type, from, to) pair means
+// the transition is unconstrained. `role` reuses the existing userRoleEnum
+// rather than a FK to a `roles` table, since no such table exists in this
+// schema (confirmed during design) and none is being introduced here.
+// NOTE: each row's fromStatusId/toStatusId are themselves project-scoped
+// (pmsIssueStatuses.projectId), so an "org-level" transition row is only
+// ever meaningfully applicable within whichever single project those two
+// status ids belong to -- a real, self-consistent constraint via the FK
+// targets, not a portable cross-project rule (flagged during design, kept
+// as-is since it works correctly, just worth understanding).
+export const pmsWorkflowTransitions = complianceSchemaDB.table('pms_workflow_transitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  issueTypeId: text('issue_type_id').notNull(),
+  role: userRoleEnum('role'),
+  fromStatusId: text('from_status_id').notNull(),
+  toStatusId: text('to_status_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsIssues = complianceSchemaDB.table('pms_issues', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // nullable -- only meaningful for CA-firm/consultant org types managing client-facing PM work
+  projectId: text('project_id').notNull(),
+  typeId: text('type_id').notNull(),
+  statusId: text('status_id').notNull(),
+  priority: pmsIssuePriorityEnum('priority').notNull().default('no_priority'),
+  number: integer('number').notNull(), // per-project auto-sequence, paired with projects.issueSequence/issuePrefix
+  title: text('title').notNull(),
+  description: text('description'), // plain text/markdown -- no CRDT/collaborative editing this pass
+  // Denormalized "primary assignee" cache, kept in sync by the service
+  // layer on every pmsIssueAssignees mutation (not a DB trigger, matching
+  // this codebase's convention everywhere else) -- pmsIssueAssignees is
+  // the authoritative multi-assignee source.
+  assigneeId: text('assignee_id'),
+  parentIssueId: text('parent_issue_id'), // self-FK -- sub-issues
+  milestoneId: text('milestone_id'),
+  estimatePointId: text('estimate_point_id'),
+  startDate: date('start_date', { mode: 'string' }),
+  dueDate: date('due_date', { mode: 'string' }),
+  position: numeric('position').notNull().default('0'), // manual Kanban ordering (lexicographic rank)
+  isArchived: boolean('is_archived').notNull().default(false),
+  createdById: text('created_by_id'),
+  assignedById: text('assigned_by_id'), // mirrors tasks.assignedById's Wave-15 "assigned to me vs by me" convention
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const pmsIssueAssignees = complianceSchemaDB.table('pms_issue_assignees', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  issueId: text('issue_id').notNull(),
+  userId: text('user_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Typed relations, kept separate from the parent/child hierarchy above --
+// matches Plane's IssueRelation design.
+export const pmsIssueRelations = complianceSchemaDB.table('pms_issue_relations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  issueId: text('issue_id').notNull(),
+  relatedIssueId: text('related_issue_id').notNull(),
+  relationType: pmsIssueRelationTypeEnum('relation_type').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsLabels = complianceSchemaDB.table('pms_labels', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  color: text('color'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsIssueLabels = complianceSchemaDB.table('pms_issue_labels', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  issueId: text('issue_id').notNull(),
+  labelId: text('label_id').notNull(),
+})
+
+// Fully custom per-project estimate values (Plane's design) rather than a
+// hardcoded Fibonacci enum.
+export const pmsEstimateSchemes = complianceSchemaDB.table('pms_estimate_schemes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsEstimatePoints = complianceSchemaDB.table('pms_estimate_points', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  schemeId: text('scheme_id').notNull(),
+  value: text('value').notNull(), // text, not numeric -- schemes can use non-numeric labels (XS/S/M/L/XL) as well as points
+  position: integer('position').notNull().default(0),
+})
+
+// Huly's lightweight, non-issue container -- a milestone is a date-boxed
+// release marker issues optionally link to, not a heavyweight issue type.
+export const pmsMilestones = complianceSchemaDB.table('pms_milestones', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  status: pmsMilestoneStatusEnum('status').notNull().default('planned'),
+  targetDate: date('target_date', { mode: 'string' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Sprints -- named "Sprints" (universal Scrum terminology) rather than
+// Plane's "Cycles" or OpenProject's "Sprint" (same word, kept). Join table
+// (not a raw FK on pmsIssues) mirrors Plane's CycleIssue design, allowing
+// an issue's sprint assignment to be moved/reassigned over time.
+export const pmsSprints = complianceSchemaDB.table('pms_sprints', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  goal: text('goal'),
+  startDate: date('start_date', { mode: 'string' }),
+  endDate: date('end_date', { mode: 'string' }),
+  status: pmsSprintStatusEnum('status').notNull().default('planned'),
+  progressSnapshot: jsonb('progress_snapshot'), // burndown data, written once at sprint close -- never live-computed
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const pmsSprintIssues = complianceSchemaDB.table('pms_sprint_issues', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sprintId: text('sprint_id').notNull(),
+  issueId: text('issue_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Saved filter/sort/display configs -- projectId nullable means
+// workspace-level (spans all of an org's PMS projects). access='private'
+// rows are enforced by a real RLS branch (see migration), not just a
+// service-layer filter, mirroring moduleRuleConfigs' own scope_type='user'
+// policy precedent.
+export const pmsSavedViews = complianceSchemaDB.table('pms_saved_views', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id'),
+  ownedById: text('owned_by_id').notNull(),
+  name: text('name').notNull(),
+  filters: jsonb('filters').notNull().default({}),
+  displayFilters: jsonb('display_filters').notNull().default({}),
+  access: pmsViewAccessEnum('access').notNull().default('private'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Genuinely new, general-purpose wiki -- kept deliberately SEPARATE from
+// the existing `documents` table, which is compliance-coupled
+// (complianceItemId/noticeId FKs) and the wrong shape for this. Plain
+// text/markdown content, no CRDT/collaborative editing (explicit
+// out-of-scope per PLATFORM_STRATEGY.md §14).
+export const pmsWikiPages = complianceSchemaDB.table('pms_wiki_pages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  parentPageId: text('parent_page_id'), // self-FK -- page tree
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  content: text('content'),
+  version: integer('version').notNull().default(1),
+  updatedById: text('updated_by_id'),
+  isArchived: boolean('is_archived').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Time tracking + billable rates (OpenProject's unique contribution among
+// the 3 studied tools). isRunning/startedAt support a live timer, matching
+// OpenProject's TimeEntry.ongoing? concept.
+export const pmsTimeEntries = complianceSchemaDB.table('pms_time_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  issueId: text('issue_id').notNull(),
+  userId: text('user_id').notNull(),
+  hours: numeric('hours').notNull(),
+  spentOn: date('spent_on', { mode: 'string' }).notNull(),
+  activityType: text('activity_type'), // free text -- admin-configurable, not a fixed enum
+  comments: text('comments'),
+  isRunning: boolean('is_running').notNull().default(false),
+  startedAt: timestamp('started_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsBillableRates = complianceSchemaDB.table('pms_billable_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'), // nullable -- null means "org default rate"
+  hourlyRate: numeric('hourly_rate').notNull(),
+  validFrom: date('valid_from', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Project budgeting (OpenProject's unique contribution) -- actuals are
+// computed by summing linked pmsTimeEntries x pmsBillableRates at read
+// time in the service layer, never a duplicated/stored ledger.
+export const pmsBudgets = complianceSchemaDB.table('pms_budgets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  fixedDate: date('fixed_date', { mode: 'string' }),
+  authorId: text('author_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsBudgetLineItems = complianceSchemaDB.table('pms_budget_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  budgetId: text('budget_id').notNull(),
+  kind: pmsBudgetLineKindEnum('kind').notNull(),
+  userId: text('user_id'), // nullable -- only meaningful for kind='labor'
+  description: text('description'),
+  amount: numeric('amount').notNull(),
+  hours: numeric('hours'), // nullable -- only meaningful for kind='labor'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Meeting management (OpenProject's unique contribution) -- project-scoped
+// meetings with structured agenda items and outcomes/minutes.
+export const pmsMeetings = complianceSchemaDB.table('pms_meetings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+  scheduledAt: timestamp('scheduled_at').notNull(),
+  durationMinutes: integer('duration_minutes'),
+  recurrenceRule: text('recurrence_rule'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsMeetingAgendaItems = complianceSchemaDB.table('pms_meeting_agenda_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  meetingId: text('meeting_id').notNull(),
+  position: integer('position').notNull().default(0),
+  title: text('title').notNull(),
+  issueId: text('issue_id'),
+  durationMinutes: integer('duration_minutes'),
+})
+
+export const pmsMeetingOutcomes = complianceSchemaDB.table('pms_meeting_outcomes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  meetingId: text('meeting_id').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsMeetingParticipants = complianceSchemaDB.table('pms_meeting_participants', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  meetingId: text('meeting_id').notNull(),
+  userId: text('user_id').notNull(),
+  responseStatus: text('response_status'), // free text: 'pending' | 'accepted' | 'declined' | 'tentative'
+})
+
+// ─── PMS Relations ────────────────────────────────────────────────────────
+export const orgProductBranchEnablementsRelations = relations(orgProductBranchEnablements, ({ one }) => ({
+  productBranch: one(productBranches, { fields: [orgProductBranchEnablements.productBranchId], references: [productBranches.id] }),
+}))
+
+export const pmsIssueTypesRelations = relations(pmsIssueTypes, ({ many }) => ({
+  issues: many(pmsIssues),
+  workflowTransitions: many(pmsWorkflowTransitions),
+}))
+
+export const pmsIssueStatusesRelations = relations(pmsIssueStatuses, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsIssueStatuses.projectId], references: [projects.id] }),
+  issues: many(pmsIssues),
+}))
+
+export const pmsWorkflowTransitionsRelations = relations(pmsWorkflowTransitions, ({ one }) => ({
+  issueType: one(pmsIssueTypes, { fields: [pmsWorkflowTransitions.issueTypeId], references: [pmsIssueTypes.id] }),
+  fromStatus: one(pmsIssueStatuses, { fields: [pmsWorkflowTransitions.fromStatusId], references: [pmsIssueStatuses.id] }),
+  toStatus: one(pmsIssueStatuses, { fields: [pmsWorkflowTransitions.toStatusId], references: [pmsIssueStatuses.id] }),
+}))
+
+export const pmsIssuesRelations = relations(pmsIssues, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsIssues.projectId], references: [projects.id] }),
+  type: one(pmsIssueTypes, { fields: [pmsIssues.typeId], references: [pmsIssueTypes.id] }),
+  status: one(pmsIssueStatuses, { fields: [pmsIssues.statusId], references: [pmsIssueStatuses.id] }),
+  milestone: one(pmsMilestones, { fields: [pmsIssues.milestoneId], references: [pmsMilestones.id] }),
+  parentIssue: one(pmsIssues, { fields: [pmsIssues.parentIssueId], references: [pmsIssues.id] }),
+  assignees: many(pmsIssueAssignees),
+  labels: many(pmsIssueLabels),
+  relations: many(pmsIssueRelations),
+  sprintIssues: many(pmsSprintIssues),
+  timeEntries: many(pmsTimeEntries),
+}))
+
+export const pmsIssueAssigneesRelations = relations(pmsIssueAssignees, ({ one }) => ({
+  issue: one(pmsIssues, { fields: [pmsIssueAssignees.issueId], references: [pmsIssues.id] }),
+}))
+
+export const pmsIssueRelationsRelations = relations(pmsIssueRelations, ({ one }) => ({
+  issue: one(pmsIssues, { fields: [pmsIssueRelations.issueId], references: [pmsIssues.id] }),
+}))
+
+export const pmsLabelsRelations = relations(pmsLabels, ({ many }) => ({
+  issueLabels: many(pmsIssueLabels),
+}))
+
+export const pmsIssueLabelsRelations = relations(pmsIssueLabels, ({ one }) => ({
+  issue: one(pmsIssues, { fields: [pmsIssueLabels.issueId], references: [pmsIssues.id] }),
+  label: one(pmsLabels, { fields: [pmsIssueLabels.labelId], references: [pmsLabels.id] }),
+}))
+
+export const pmsEstimateSchemesRelations = relations(pmsEstimateSchemes, ({ many }) => ({
+  points: many(pmsEstimatePoints),
+}))
+
+export const pmsEstimatePointsRelations = relations(pmsEstimatePoints, ({ one }) => ({
+  scheme: one(pmsEstimateSchemes, { fields: [pmsEstimatePoints.schemeId], references: [pmsEstimateSchemes.id] }),
+}))
+
+export const pmsMilestonesRelations = relations(pmsMilestones, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsMilestones.projectId], references: [projects.id] }),
+  issues: many(pmsIssues),
+}))
+
+export const pmsSprintsRelations = relations(pmsSprints, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsSprints.projectId], references: [projects.id] }),
+  sprintIssues: many(pmsSprintIssues),
+}))
+
+export const pmsSprintIssuesRelations = relations(pmsSprintIssues, ({ one }) => ({
+  sprint: one(pmsSprints, { fields: [pmsSprintIssues.sprintId], references: [pmsSprints.id] }),
+  issue: one(pmsIssues, { fields: [pmsSprintIssues.issueId], references: [pmsIssues.id] }),
+}))
+
+export const pmsSavedViewsRelations = relations(pmsSavedViews, ({ one }) => ({
+  project: one(projects, { fields: [pmsSavedViews.projectId], references: [projects.id] }),
+}))
+
+export const pmsWikiPagesRelations = relations(pmsWikiPages, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsWikiPages.projectId], references: [projects.id] }),
+  parentPage: one(pmsWikiPages, { fields: [pmsWikiPages.parentPageId], references: [pmsWikiPages.id] }),
+}))
+
+export const pmsTimeEntriesRelations = relations(pmsTimeEntries, ({ one }) => ({
+  issue: one(pmsIssues, { fields: [pmsTimeEntries.issueId], references: [pmsIssues.id] }),
+}))
+
+export const pmsBudgetsRelations = relations(pmsBudgets, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsBudgets.projectId], references: [projects.id] }),
+  lineItems: many(pmsBudgetLineItems),
+}))
+
+export const pmsBudgetLineItemsRelations = relations(pmsBudgetLineItems, ({ one }) => ({
+  budget: one(pmsBudgets, { fields: [pmsBudgetLineItems.budgetId], references: [pmsBudgets.id] }),
+}))
+
+export const pmsMeetingsRelations = relations(pmsMeetings, ({ one, many }) => ({
+  project: one(projects, { fields: [pmsMeetings.projectId], references: [projects.id] }),
+  agendaItems: many(pmsMeetingAgendaItems),
+  outcomes: many(pmsMeetingOutcomes),
+  participants: many(pmsMeetingParticipants),
+}))
+
+export const pmsMeetingAgendaItemsRelations = relations(pmsMeetingAgendaItems, ({ one }) => ({
+  meeting: one(pmsMeetings, { fields: [pmsMeetingAgendaItems.meetingId], references: [pmsMeetings.id] }),
+  issue: one(pmsIssues, { fields: [pmsMeetingAgendaItems.issueId], references: [pmsIssues.id] }),
+}))
+
+export const pmsMeetingOutcomesRelations = relations(pmsMeetingOutcomes, ({ one }) => ({
+  meeting: one(pmsMeetings, { fields: [pmsMeetingOutcomes.meetingId], references: [pmsMeetings.id] }),
+}))
+
+export const pmsMeetingParticipantsRelations = relations(pmsMeetingParticipants, ({ one }) => ({
+  meeting: one(pmsMeetings, { fields: [pmsMeetingParticipants.meetingId], references: [pmsMeetings.id] }),
 }))
