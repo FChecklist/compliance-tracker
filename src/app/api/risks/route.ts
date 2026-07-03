@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { eq, desc } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { resolveModuleRule } from "@/lib/module-rules-resolver"
 
 // Scope filter (mockup's Own/Peer/Department/Region/Company-wide, adapted):
 // manager rank and above see every risk in the org; below that, only risks
@@ -11,18 +12,42 @@ import { logActivity } from "@/lib/audit"
 // using this app's existing role ranks rather than a whole separate column.
 const BROAD_SCOPE_ROLES = ["admin", "veridian_admin", "branch_manager", "senior_professional", "manager"]
 
+type SeverityBand = { min: number; max: number; label: string }
+const DEFAULT_SEVERITY_BANDS: SeverityBand[] = [
+  { min: 1, max: 6, label: "low" }, { min: 7, max: 15, label: "medium" }, { min: 16, max: 25, label: "high" },
+]
+
+// Wave 21: the likelihood x impact -> severity-band mapping is now
+// rule-driven (moduleKey='risks', ruleKey='severity_matrix') instead of
+// left for the UI to compute inline -- an org can tune its own thresholds
+// (e.g. a stricter "high" band starting at 12) without a code change. No
+// override present ⇒ the same 3-band split the seeded platform default
+// uses.
+function severityFromScore(score: number, bands: SeverityBand[]): string {
+  const match = bands.find((b) => score >= b.min && score <= b.max)
+  return match?.label ?? "medium"
+}
+
 export async function GET() {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ risks: [] })
 
-  const rows = await withTenantContext({ orgId }, (db) => db.query.risks.findMany({ orderBy: desc(risks.updatedAt) }))
+  const [rows, resolvedMatrix] = await Promise.all([
+    withTenantContext({ orgId }, (db) => db.query.risks.findMany({ orderBy: desc(risks.updatedAt) })),
+    resolveModuleRule("risks", "severity_matrix", { orgId }),
+  ])
+  const bands = (resolvedMatrix?.value as { bands?: SeverityBand[] } | undefined)?.bands ?? DEFAULT_SEVERITY_BANDS
   const visible = BROAD_SCOPE_ROLES.includes(dbUser.role)
     ? rows
     : rows.filter((r) => r.ownerDept === dbUser.departmentId || r.ownerId === dbUser.id)
 
   return NextResponse.json({
-    risks: visible.map((r) => ({ id: r.id, title: r.title, category: r.category, likelihood: r.likelihood, impact: r.impact, status: r.status, ownerDept: r.ownerDept, linkedControlIds: r.linkedControlIds })),
+    risks: visible.map((r) => ({
+      id: r.id, title: r.title, category: r.category, likelihood: r.likelihood, impact: r.impact,
+      severity: severityFromScore(r.likelihood * r.impact, bands),
+      status: r.status, ownerDept: r.ownerDept, linkedControlIds: r.linkedControlIds,
+    })),
     totalCount: rows.length,
     hiddenByScope: rows.length - visible.length,
   })

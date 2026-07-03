@@ -15,7 +15,7 @@
 // customer/client/user branches), so "only Layer 1 may autonomously create
 // platform agents" is enforced at the database layer already, not just by
 // this service.
-import { db, workerAgents, approvalRequests, userClientAccess, taskExecutionPlan, workerAgentLearnings } from "@/lib/db"
+import { db, workerAgents, approvalRequests, userClientAccess, taskExecutionPlan, workerAgentLearnings, workerAgentDomainIndex } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
@@ -37,6 +37,7 @@ export async function proposeWorkerAgent(
     promptTemplate?: string
     clientId?: string // required when tier === 'client'
     projectId?: string // Wave 19: optional Product/Project (L2) scope
+    domainPaths?: string[] // Wave 21: additional domain paths beyond `domain` itself, for agents serving more than one
   }
 ) {
   if (!PROPOSABLE_TIERS.has(input.tier)) {
@@ -77,6 +78,16 @@ export async function proposeWorkerAgent(
       userId: input.tier === "user" ? ctx.userId : null,
       projectId: input.projectId || null,
     }).returning()
+
+    // Wave 21: index the agent's serviceable domain path(s) -- the domain
+    // it was proposed under is always indexed; domainPaths lets it serve
+    // more than one (worker_agent_domain_index is one-to-many by design,
+    // unlike the single `domain` column). Dormant since Wave 3 -- this is
+    // the first real write site.
+    const domainPaths = new Set([...(input.domain?.trim() ? [input.domain.trim()] : []), ...(input.domainPaths ?? [])])
+    if (domainPaths.size > 0) {
+      await db.insert(workerAgentDomainIndex).values([...domainPaths].map((domainPath) => ({ workerAgentId: agent.id, domainPath })))
+    }
 
     const [approval] = await db.insert(approvalRequests).values({
       requestType: "worker_agent_proposal",

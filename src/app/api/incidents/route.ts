@@ -5,6 +5,30 @@ import { desc } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { canAccess } from "@/lib/classification"
 import { logActivity } from "@/lib/audit"
+import { resolveModuleRule } from "@/lib/module-rules-resolver"
+
+// Wave 21: the auto-trigger condition that decides whether a new incident
+// is classified 'confidential' (vs. 'department') -- the actual gate this
+// module has today, confirmed by reading this route directly, distinct
+// from `regulatoryNotifyRequired` which is plain client-supplied input with
+// no derived logic -- is now rule-driven (moduleKey='incidents',
+// ruleKey='regulatory_notify_triggers') instead of hardcoded. An org can
+// broaden its own trigger set (e.g. a SEBI-governed client also
+// auto-flagging "critical" severity incidents as confidential) without a
+// code change. The seeded platform default's categoryRegex is the exact
+// same pattern this replaces, so behavior is byte-for-byte unchanged until
+// an org/client sets its own override.
+type NotifyTriggers = { categoryRegex?: string; category?: string[]; severity?: string[] }
+
+async function resolveAutoNotify(orgId: string, category: string, severity: string): Promise<boolean> {
+  const resolved = await resolveModuleRule("incidents", "regulatory_notify_triggers", { orgId })
+  const triggers = resolved?.value as NotifyTriggers | undefined
+  if (!triggers) return /security|breach/i.test(category) // no rule resolved at all (shouldn't happen once seeded) -- same fallback as pre-Wave-21
+  const regexMatch = triggers.categoryRegex ? new RegExp(triggers.categoryRegex, "i").test(category) : false
+  const categoryMatch = triggers.category?.some((c) => c.toLowerCase() === category.toLowerCase()) ?? false
+  const severityMatch = triggers.severity?.some((s) => s.toLowerCase() === severity.toLowerCase()) ?? false
+  return regexMatch || categoryMatch || severityMatch
+}
 
 export async function GET() {
   const { response, orgId, dbUser } = await requireAuth()
@@ -37,7 +61,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   if (!body.title?.trim() || !body.category?.trim()) return NextResponse.json({ error: "title and category are required" }, { status: 400 })
 
-  const isSecurityOrBreach = /security|breach/i.test(body.category)
+  const isSecurityOrBreach = await resolveAutoNotify(orgId, body.category, body.severity || "medium")
   const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
     const [incident] = await db.insert(incidents).values({
       title: body.title.trim(), category: body.category.trim(), severity: body.severity || "medium",

@@ -27,7 +27,21 @@ const ROLE_CLEARANCE: Record<UserRole, Classification> = {
   viewer: "public",
 }
 
-export function canAccess(role: UserRole | string, classification: Classification): boolean {
-  const ceiling = ROLE_CLEARANCE[role as UserRole] ?? "public"
+// Wave 21 (module reusability): optional org-level override of the
+// clearance ceiling, resolved once per request via
+// module-rules-resolver.ts's resolveModuleRule('<module>',
+// 'classification_ceiling_override', scope) and passed in here -- backward
+// compatible, since omitting roleOverrides (every call site before this
+// wave) is byte-for-byte identical to the pre-Wave-21 behavior. Kept sync
+// deliberately: the async DB lookup happens once per request at the call
+// site, not per record inside a hot loop.
+export type UserRoleClearanceOverrides = Partial<Record<UserRole, Classification>>
+
+export function canAccess(
+  role: UserRole | string,
+  classification: Classification,
+  roleOverrides?: UserRoleClearanceOverrides
+): boolean {
+  const ceiling = roleOverrides?.[role as UserRole] ?? ROLE_CLEARANCE[role as UserRole] ?? "public"
   return LEVEL_RANK[classification] <= LEVEL_RANK[ceiling]
 }

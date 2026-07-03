@@ -734,6 +734,87 @@ export const sharedPoolAllocations = complianceSchemaDB.table('shared_pool_alloc
   allocatedAt: timestamp('allocated_at').notNull().defaultNow(),
 })
 
+// ─── Module Registry + Product-Branch Enablement (Wave 20) ──────────────
+// The catalog that makes "same module, customized rules per scope" real.
+// Global-read tables (no org scoping), same posture as orchestra_layers --
+// only service_role may write; catalog mutation is a migration-only,
+// Layer-1 action, not something any org/route can do.
+//
+// domain is free text matching purpose-bound-ai.ts's DOMAIN_ALLOWED_TOOLS
+// keys by convention, not a real FK -- there is no `domains` table yet
+// (single-domain platform today, see purpose-bound-ai.ts's own honesty
+// note); promoting this to a real foreign-keyed table is the natural next
+// step once a second real domain (Sales/HR/SCM) actually exists.
+export const moduleRegistry = complianceSchemaDB.table('module_registry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  moduleKey: text('module_key').notNull().unique(), // matches the underlying table name 1:1 today; kept distinct from tableName since a future module's key and table COULD diverge (rename/versioning)
+  displayName: text('display_name').notNull(),
+  tableName: text('table_name').notNull(),
+  domain: text('domain').notNull(),
+  category: text('category'), // GOVERNANCE | COMPANY_SECRETARIAL | LEGAL | HR | RISK | SECTOR_REGULATORS | AUDIT | ESG | INTEGRITY | INCIDENTS -- mirrors this file's own section headers
+  description: text('description'),
+  isCore: boolean('is_core').notNull().default(false), // true only for the 4 pre-Wave-7 original tables (compliance_items/challans/notices/audit_points) -- can never be disabled for any product branch
+  isActive: boolean('is_active').notNull().default(true), // platform kill-switch, distinct from per-branch enablement below
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Exactly one seeded row today: 'grc'. A platform-wide concept -- distinct
+// from Wave 19's org-scoped products/projects (one customer's own internal
+// projects, orgId NOT NULL). This is the future VERIDIAN Sales/HR/SCM
+// branch concept from PLATFORM_STRATEGY.md §2 -- deliberately a separate
+// table, not an overload of Wave 19's products, since a platform branch
+// belongs to no single org and forcing it into an orgId-NOT-NULL table
+// would need either a nullable orgId (breaking that table's existing RLS
+// invariant) or a fake sentinel-org row (an anti-pattern this codebase has
+// explicitly avoided elsewhere, see Wave 6's "first org in the DB" bug fix).
+export const productBranches = complianceSchemaDB.table('product_branches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  branchKey: text('branch_key').notNull().unique(), // 'grc' today; 'sales' | 'hr' | 'scm' | ... in future Phase D branches
+  displayName: text('display_name').notNull(),
+  domain: text('domain').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const productBranchModules = complianceSchemaDB.table('product_branch_modules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  productBranchId: text('product_branch_id').notNull(),
+  moduleKey: text('module_key').notNull(), // FK-by-convention on module_registry.module_key (the stable natural key), not module_registry.id
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── Module Rules Configuration (Wave 21) ────────────────────────────────
+// The generic "same module, customized rules" resolver table. One
+// polymorphic scopeType/scopeId discriminator rather than 5 nullable FK
+// columns -- at 6 resolution levels this scales better than
+// customer_model_config's simpler 2-level nullable-column shape, and makes
+// the resolver's per-level lookup mechanical/symmetric instead of a
+// hand-written 5-branch if-chain. Real FK integrity is only enforced on
+// module_key (always the same table); scope_id is validated at the service
+// layer, the same trade-off approval_requests.entity_id/entity_type
+// already makes in this codebase.
+//
+// Resolution chain (most-specific-first): user -> client -> project -> org
+// -> productBranch -> platform. user scope is supported by the resolver for
+// completeness but has no rule-setting API/UI yet and no seeded rule uses
+// it -- most GRC rules are organizational, not personal; wiring real
+// per-user overrides is deferred, not built blind.
+export const moduleRuleConfigs = complianceSchemaDB.table('module_rule_configs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  moduleKey: text('module_key').notNull(), // FK-by-convention on module_registry.module_key
+  ruleKey: text('rule_key').notNull(),
+  ruleValue: jsonb('rule_value').notNull().default({}),
+  scopeType: text('scope_type').notNull(), // 'platform' | 'product_branch' | 'org' | 'project' | 'client' | 'user'
+  scopeId: text('scope_id'), // NULL only when scopeType='platform'
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'), // nullable -- platform-seeded default rows have no human author
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
 // Platform-operational tables, NOT tenant data -- loop_executions and
 // friends have no app_runtime RLS policy at all (service_role bypass only),
@@ -1058,6 +1139,24 @@ export const customerModelConfigRelations = relations(customerModelConfig, ({ on
 
 export const sharedPoolAllocationsRelations = relations(sharedPoolAllocations, ({ one }) => ({
   config: one(customerModelConfig, { fields: [sharedPoolAllocations.customerModelConfigId], references: [customerModelConfig.id] }),
+}))
+
+export const moduleRegistryRelations = relations(moduleRegistry, ({ many }) => ({
+  branchEnablements: many(productBranchModules),
+  ruleConfigs: many(moduleRuleConfigs),
+}))
+
+export const productBranchesRelations = relations(productBranches, ({ many }) => ({
+  moduleEnablements: many(productBranchModules),
+}))
+
+export const productBranchModulesRelations = relations(productBranchModules, ({ one }) => ({
+  productBranch: one(productBranches, { fields: [productBranchModules.productBranchId], references: [productBranches.id] }),
+  module: one(moduleRegistry, { fields: [productBranchModules.moduleKey], references: [moduleRegistry.moduleKey] }),
+}))
+
+export const moduleRuleConfigsRelations = relations(moduleRuleConfigs, ({ one }) => ({
+  module: one(moduleRegistry, { fields: [moduleRuleConfigs.moduleKey], references: [moduleRegistry.moduleKey] }),
 }))
 
 export const loopDefinitionsRelations = relations(loopDefinitions, ({ many }) => ({

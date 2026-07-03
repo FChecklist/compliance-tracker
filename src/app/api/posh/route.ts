@@ -3,15 +3,27 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { desc } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
-import { canAccess } from "@/lib/classification"
+import { canAccess, type UserRoleClearanceOverrides } from "@/lib/classification"
 import { logActivity } from "@/lib/audit"
+import { resolveModuleRule } from "@/lib/module-rules-resolver"
+
+// Wave 21: an org can raise/lower the classification ceiling for POSH
+// complaints specifically (never the case content itself -- see
+// PLATFORM_STRATEGY.md §3) without a code change. No override present ⇒
+// identical behavior to before this wave.
+async function poshRoleOverrides(orgId: string): Promise<UserRoleClearanceOverrides | undefined> {
+  const resolved = await resolveModuleRule("posh_complaints", "classification_ceiling_override", { orgId })
+  const overrides = (resolved?.value as { role_overrides?: UserRoleClearanceOverrides } | undefined)?.role_overrides
+  return overrides && Object.keys(overrides).length > 0 ? overrides : undefined
+}
 
 // Confidential-gated at the whole-module level, same as Whistleblower.
 export async function GET() {
   const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ restricted: false, committee: [], complaints: [], annualReports: [] })
-  if (!canAccess(dbUser.role, "confidential")) return NextResponse.json({ restricted: true, committee: [], complaints: [], annualReports: [] })
+  const roleOverrides = await poshRoleOverrides(orgId)
+  if (!canAccess(dbUser.role, "confidential", roleOverrides)) return NextResponse.json({ restricted: true, committee: [], complaints: [], annualReports: [] })
 
   const [committee, complaints, annualReports] = await withTenantContext({ orgId }, (db) =>
     Promise.all([db.query.poshCommittee.findMany(), db.query.poshComplaints.findMany({ orderBy: desc(poshComplaints.receivedDate) }), db.query.poshAnnualReports.findMany()])
@@ -33,7 +45,7 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRole(dbUser, "member")
   if (roleErr) return roleErr
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  if (!canAccess(dbUser.role, "confidential")) return NextResponse.json({ error: "Insufficient clearance" }, { status: 403 })
+  if (!canAccess(dbUser.role, "confidential", await poshRoleOverrides(orgId))) return NextResponse.json({ error: "Insufficient clearance" }, { status: 403 })
 
   const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
     const count = await db.query.poshComplaints.findMany()

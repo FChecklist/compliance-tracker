@@ -68,7 +68,8 @@ export async function executeTask(
   userId: string,
   taskId: string,
   title: string,
-  description: string | null
+  description: string | null,
+  projectId?: string | null
 ): Promise<void> {
   try {
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
@@ -77,16 +78,51 @@ export async function executeTask(
       return;
     }
 
-    const agents = await withTenantContext({ orgId, userId }, (db) =>
+    // Wave 21: agent discovery is now project-scoped, instead of
+    // "everything this org has, ≤20 rows, no filter at all". This is part
+    // of the concrete mechanism behind "one worker agent, no forking,
+    // available across every product/project/account/user -- customized to
+    // do work": an agent's optional projectId determines whether it's
+    // project-specific or org-wide, the same most-specific-scope-wins
+    // philosophy as module-rules-resolver.ts.
+    //
+    // NOT filtering by worker_agent_domain_index here, despite wiring it up
+    // this wave (see proposeWorkerAgent()) -- confirmed directly against
+    // live data that workerAgents.domain is a free-text CAPABILITY-PATH
+    // taxonomy ("Cross-Cutting > Data Access", "India Compliance > Penalty
+    // Calculation"), not the same value space as purpose-bound-ai.ts's
+    // single-value DEFAULT_DOMAIN ('compliance'). Filtering discovery by
+    // `domainPath = DEFAULT_DOMAIN` would have matched zero of today's real
+    // agents -- a regression, not an improvement. Real domain-scoped
+    // discovery needs a task-level domain concept that doesn't exist yet;
+    // shipping a filter against the wrong value space to make this wave
+    // look more complete would be worse than being honest that it's
+    // deferred. The domain-index table itself is now genuinely populated
+    // (this wave's real, additive progress) and ready for a future wave to
+    // consume once tasks carry their own domain/capability-path.
+    const candidates = await withTenantContext({ orgId, userId }, (db) =>
       db.query.workerAgents.findMany({
-        // Wave 16: never plan against a proposed/draft/retired row -- only
-        // approved/published agents are real, dispatchable capabilities.
         where: inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
-        columns: { id: true, name: true, domain: true, tier: true, codeReference: true },
+        columns: { id: true, name: true, domain: true, tier: true, codeReference: true, projectId: true },
         orderBy: asc(workerAgents.name),
-        limit: 20,
+        limit: 40, // widened from 20 since project-scoped shadowing can mean 2 rows per name
       })
     );
+
+    // Most-specific-wins: a project-scoped agent shadows an org-wide
+    // (projectId IS NULL) agent of the same name, mirroring
+    // module-rules-resolver.ts's resolution philosophy.
+    const byName = new Map<string, (typeof candidates)[number]>();
+    for (const a of candidates) {
+      const key = a.name.toLowerCase();
+      const existing = byName.get(key);
+      if (!existing) { byName.set(key, a); continue; }
+      const aIsProjectMatch = projectId && a.projectId === projectId;
+      const existingIsProjectMatch = projectId && existing.projectId === projectId;
+      if (aIsProjectMatch && !existingIsProjectMatch) byName.set(key, a);
+      else if (!aIsProjectMatch && !a.projectId && existing.projectId && !existingIsProjectMatch) byName.set(key, a);
+    }
+    const agents = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 20);
 
     const agentList = agents.map((a) => `- ${a.name} (${a.tier}${a.domain ? `, ${a.domain}` : ""})`).join("\n");
     const systemPrompt =
