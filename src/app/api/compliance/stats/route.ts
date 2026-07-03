@@ -108,7 +108,7 @@ export async function GET() {
         action: a.action,
         entityType: a.entityType,
         details: a.details,
-        userName: a.user.name,
+        userName: a.user?.name ?? a.actorName,
         createdAt: a.createdAt.toISOString(),
       })),
     })

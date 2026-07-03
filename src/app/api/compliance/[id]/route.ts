@@ -114,7 +114,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         entityType: log.entityType,
         entityId: log.entityId,
         details: log.details,
-        userName: log.user.name,
+        userName: log.user?.name ?? log.actorName,
         createdAt: log.createdAt.toISOString(),
       })),
     })

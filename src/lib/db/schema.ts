@@ -366,11 +366,16 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   action: text('action').notNull(),
   entityType: text('entity_type').notNull(),
   entityId: text('entity_id').notNull(),
-  userId: text('user_id').notNull(),
+  // Nullable as of Wave 9: an API-key-driven write has no acting human user.
+  // For that case apiKeyId (below) is populated instead -- logActivity()
+  // guarantees exactly one of userId/apiKeyId is set, this is not a DB
+  // CHECK constraint (kept additive rather than a constrained migration).
+  userId: text('user_id'),
   actorName: text('actor_name').notNull(),
   actorRole: text('actor_role').notNull(),
   orgId: text('org_id').notNull(),
   clientId: text('client_id'),
+  apiKeyId: text('api_key_id'),
   details: text('details'),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
@@ -883,6 +888,7 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
   org: one(organisations, { fields: [auditLogs.orgId], references: [organisations.id] }),
   client: one(clients, { fields: [auditLogs.clientId], references: [clients.id] }),
+  apiKey: one(apiKeys, { fields: [auditLogs.apiKeyId], references: [apiKeys.id] }),
 }))
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({

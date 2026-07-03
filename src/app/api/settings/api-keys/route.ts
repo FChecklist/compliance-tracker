@@ -3,23 +3,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
 import { requireAuth } from "@/lib/supabase/auth-guard";
-
-async function hashSHA256(input: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function generateApiKey(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let random = "";
-  for (let i = 0; i < 32; i++) {
-    random += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `vk_${random}`;
-}
+import { hashSHA256, generateApiKey } from "@/lib/api-keys";
 
 export async function GET() {
   const { response, orgId } = await requireAuth();

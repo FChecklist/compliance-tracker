@@ -3,6 +3,7 @@ import { createClient } from "./server"
 import { db, users, organisations, departments, aiAssistants } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
+import { validateApiKey } from "./api-key-auth"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -154,4 +155,52 @@ export async function requireAuth(): Promise<AuthContext> {
   }
 
   return { user, dbUser, orgId: dbUser?.orgId ?? null, response: null }
+}
+
+// ─── Wave 9: unified external credential ────────────────────────────────
+// A route that should be reachable by both the web app (session cookie)
+// AND an external caller (mobile app / ChatGPT / Claude connector / a
+// reseller's white-labeled app) calls this instead of requireAuth() alone.
+// Session wins if both are somehow present. Exactly one of dbUser/apiKey is
+// non-null on success -- callers needing to know "was this a real logged-in
+// person" branch on `dbUser` being non-null, and pass whichever is present
+// into logActivity()'s discriminated dbUser/apiKey params.
+export type CombinedAuthContext = {
+  orgId: string | null
+  dbUser: typeof users.$inferSelect | null
+  apiKey: { id: string; name: string; scopes: string[] } | null
+  response: NextResponse | null
+}
+
+export async function requireAuthOrApiKey(request: Request): Promise<CombinedAuthContext> {
+  const sessionCtx = await requireAuth()
+  if (!sessionCtx.response) {
+    return { orgId: sessionCtx.orgId, dbUser: sessionCtx.dbUser, apiKey: null, response: null }
+  }
+
+  const apiKeyCtx = await validateApiKey(request)
+  if (apiKeyCtx) {
+    return {
+      orgId: apiKeyCtx.orgId,
+      dbUser: null,
+      apiKey: { id: apiKeyCtx.keyId, name: apiKeyCtx.keyName, scopes: apiKeyCtx.scopes },
+      response: null,
+    }
+  }
+
+  return {
+    orgId: null,
+    dbUser: null,
+    apiKey: null,
+    response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+  }
+}
+
+// A real logged-in session always has full access -- scopes are an API-key-
+// only concept (a session's actual permissions are governed by role/rank
+// via hasRole()/requireRole(), a separate axis from read/write scopes).
+export function hasScope(ctx: CombinedAuthContext, scope: "read" | "write"): boolean {
+  if (ctx.dbUser) return true
+  if (ctx.apiKey) return ctx.apiKey.scopes.includes(scope)
+  return false
 }

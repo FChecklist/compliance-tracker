@@ -12,7 +12,7 @@ import type { TenantDb } from "@/lib/db/tenant-scoped"
 // it's logging, so a write and its audit record either both commit or both
 // roll back together -- pass the `tx` from that same withTenantContext call,
 // never a fresh one.
-export type LogActivityParams = {
+type CommonLogActivityParams = {
   tx: TenantDb
   action: string
   entityType: string
@@ -20,9 +20,19 @@ export type LogActivityParams = {
   details?: string
   orgId: string
   clientId?: string | null
-  dbUser: typeof users.$inferSelect
   request?: Request
 }
+
+// Wave 9: a write can now be driven by a real logged-in user OR an external
+// API key (`requireAuthOrApiKey()`) -- exactly one of `dbUser`/`apiKey` must
+// be supplied so every audit row still gets a real actor, never a silent
+// gap. The discriminated union makes it a compile error to pass neither or
+// both, rather than a runtime surprise.
+export type LogActivityParams = CommonLogActivityParams &
+  (
+    | { dbUser: typeof users.$inferSelect; apiKey?: never }
+    | { dbUser?: never; apiKey: { id: string; name: string } }
+  )
 
 function extractIp(request?: Request): string | undefined {
   if (!request) return undefined
@@ -32,27 +42,24 @@ function extractIp(request?: Request): string | undefined {
   return request.headers.get("x-real-ip") ?? undefined
 }
 
-export async function logActivity({
-  tx,
-  action,
-  entityType,
-  entityId,
-  details,
-  orgId,
-  clientId,
-  dbUser,
-  request,
-}: LogActivityParams): Promise<void> {
+export async function logActivity(params: LogActivityParams): Promise<void> {
+  const { tx, action, entityType, entityId, details, orgId, clientId, request } = params
+
+  // Denormalized snapshot, not a live join -- if this user is later renamed
+  // or deactivated, this row must keep showing who they were AT THE TIME of
+  // the action, not whatever the users/api_keys table says today.
+  const actor = params.dbUser
+    ? { userId: params.dbUser.id, actorName: params.dbUser.name, actorRole: params.dbUser.role, apiKeyId: null as string | null }
+    : { userId: null as string | null, actorName: `API Key: ${params.apiKey.name}`, actorRole: "api_key", apiKeyId: params.apiKey.id }
+
   await tx.insert(auditLogs).values({
     action,
     entityType,
     entityId,
-    userId: dbUser.id,
-    // Denormalized snapshot, not a live join -- if this user is later
-    // renamed or deactivated, this row must keep showing who they were AT
-    // THE TIME of the action, not whatever the users table says today.
-    actorName: dbUser.name,
-    actorRole: dbUser.role,
+    userId: actor.userId,
+    actorName: actor.actorName,
+    actorRole: actor.actorRole,
+    apiKeyId: actor.apiKeyId,
     orgId,
     clientId: clientId ?? null,
     details,
