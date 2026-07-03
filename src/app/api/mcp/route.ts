@@ -2,8 +2,15 @@
  * MCP Server 1 — Customer-Facing Compliance Data
  *
  * Edge runtime (Vercel). Speaks JSON-RPC 2.0 (MCP protocol).
- * Auth: Bearer <access_token> → resolves to org_id via mcp_access_codes table.
- * Connects using Supabase JS client (fetch-based — Edge compatible).
+ * Auth (Wave 9/10): Bearer <vk_... key> → the same api_keys table Settings >
+ * API Keys generates from, hashed and looked up here. Previously used a
+ * separate mcp_access_codes token system with no relationship to any other
+ * external-auth path in the app -- unified in Wave 10 so a customer
+ * generates exactly one key that works for MCP, /api/v1 (Wave 11), and any
+ * future non-browser surface, rather than a different token per integration.
+ * Connects using Supabase JS client (fetch-based — Edge compatible); the
+ * hashing helper (hashSHA256, from src/lib/api-keys.ts) uses only Web Crypto
+ * so it works unmodified on the Edge runtime.
  *
  * Tools exposed:
  *   list_compliance_items, get_compliance_stats, get_overdue_items,
@@ -21,6 +28,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { hashSHA256 } from '@/lib/api-keys'
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (service role — bypasses RLS for token lookup)
@@ -34,29 +42,36 @@ function getAdminClient() {
 }
 
 // ---------------------------------------------------------------------------
-// Auth — resolve Bearer token to org_id
+// Auth — resolve Bearer token (a Settings > API Keys `vk_...` key) to the
+// org it grants access to, plus its read/write scopes.
 // ---------------------------------------------------------------------------
-async function resolveToken(authHeader: string | null): Promise<string | null> {
+type ResolvedKey = { orgId: string; scopes: string[] }
+
+async function resolveToken(authHeader: string | null): Promise<ResolvedKey | null> {
   if (!authHeader?.startsWith('Bearer ')) return null
   const token = authHeader.slice(7).trim()
   if (!token) return null
 
+  const keyHash = await hashSHA256(token)
   const sb = getAdminClient()
   const { data } = await sb
-    .from('mcp_access_codes')
-    .select('org_id, is_active')
-    .eq('token', token)
+    .from('api_keys')
+    .select('id, org_id, scopes, is_active')
+    .eq('key_hash', keyHash)
     .single()
 
   if (!data?.is_active) return null
 
   // Update last_used_at without blocking the response
-  sb.from('mcp_access_codes')
+  sb.from('api_keys')
     .update({ last_used_at: new Date().toISOString() })
-    .eq('token', token)
+    .eq('id', data.id)
     .then(() => {})
 
-  return data.org_id
+  return {
+    orgId: data.org_id as string,
+    scopes: (data.scopes as string).split(',').map((s) => s.trim()).filter(Boolean),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -222,11 +237,18 @@ function logToolUsage(toolName: string, orgId: string, durationMs: number, succe
 // ---------------------------------------------------------------------------
 // Tool handlers
 // ---------------------------------------------------------------------------
+const WRITE_TOOLS = new Set(['create_compliance_item', 'update_compliance_status'])
+
 async function handleTool(
   name: string,
   args: Record<string, unknown>,
-  orgId: string
+  orgId: string,
+  scopes: string[]
 ): Promise<unknown> {
+  if (WRITE_TOOLS.has(name) && !scopes.includes('write')) {
+    throw new Error(`Tool '${name}' requires a write-scoped API key`)
+  }
+
   const sb = getAdminClient()
 
   if (name === 'list_compliance_items') {
@@ -362,7 +384,7 @@ function rpcResult(id: unknown, result: unknown) {
   return { jsonrpc: '2.0', id, result }
 }
 
-async function dispatch(body: Record<string, unknown>, orgId: string) {
+async function dispatch(body: Record<string, unknown>, orgId: string, scopes: string[]) {
   const { id, method, params } = body as {
     id: unknown
     method: string
@@ -394,7 +416,7 @@ async function dispatch(body: Record<string, unknown>, orgId: string) {
     const toolArgs = (params?.arguments ?? {}) as Record<string, unknown>
     const startedAt = Date.now()
     try {
-      const result = await handleTool(toolName, toolArgs, orgId)
+      const result = await handleTool(toolName, toolArgs, orgId, scopes)
       logToolUsage(toolName, orgId, Date.now() - startedAt, true)
       return rpcResult(id, {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -412,8 +434,8 @@ async function dispatch(body: Record<string, unknown>, orgId: string) {
 // Route handler
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
-  const orgId = await resolveToken(req.headers.get('authorization'))
-  if (!orgId) {
+  const resolved = await resolveToken(req.headers.get('authorization'))
+  if (!resolved) {
     return NextResponse.json(
       { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Unauthorized — provide a valid Bearer token' } },
       { status: 401 }
@@ -427,7 +449,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(rpcError(null, -32700, 'Parse error'), { status: 400 })
   }
 
-  const response = await dispatch(body, orgId)
+  const response = await dispatch(body, resolved.orgId, resolved.scopes)
   if (response === null) return new NextResponse(null, { status: 204 })
 
   return NextResponse.json(response, {

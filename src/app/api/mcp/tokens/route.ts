@@ -1,13 +1,22 @@
 /**
  * MCP Token Management — admin-only
  *
+ * @deprecated Wave 10: /api/mcp now authenticates against the unified
+ * api_keys table (see resolveToken() in src/app/api/mcp/route.ts), not
+ * mcp_access_codes. POST here is disabled -- it would mint a token /api/mcp
+ * no longer accepts, which is worse than not offering it at all. GET/DELETE
+ * stay functional so any already-existing legacy token can still be viewed
+ * or revoked. New MCP access should be generated via Settings > API Keys
+ * (POST /api/settings/api-keys) instead -- that same key also works for
+ * /api/v1 (Wave 11) and any future non-browser surface, not just MCP.
+ *
  * Node runtime (uses Drizzle + postgres.js).
  * Requires Supabase session auth (requireAuth).
- * Only admin-role users can generate or revoke MCP tokens.
+ * Only admin-role users can view or revoke MCP tokens.
  *
- * GET  /api/mcp/tokens  — list tokens for the org
- * POST /api/mcp/tokens  — generate a new token
- * DELETE /api/mcp/tokens?id=<id> — revoke a token
+ * GET  /api/mcp/tokens  — list legacy tokens for the org
+ * POST /api/mcp/tokens  — disabled, returns 410 pointing to the new path
+ * DELETE /api/mcp/tokens?id=<id> — revoke a legacy token
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -15,12 +24,6 @@ import { mcpAccessCodes } from '@/lib/db'
 import { withTenantContext } from '@/lib/db/tenant-scoped'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, requireRole } from '@/lib/supabase/auth-guard'
-import { createId } from '@paralleldrive/cuid2'
-import { randomBytes } from 'crypto'
-
-function generateToken(): string {
-  return `ct_${randomBytes(32).toString('hex')}`
-}
 
 export async function GET() {
   const { response, orgId, dbUser } = await requireAuth()
@@ -46,36 +49,20 @@ export async function GET() {
   })), userId: dbUser?.id })
 }
 
-export async function POST(req: NextRequest) {
-  const { response, orgId, dbUser } = await requireAuth()
+export async function POST() {
+  const { response, dbUser } = await requireAuth()
   if (response) return response
   const roleErr = requireRole(dbUser, 'admin')
   if (roleErr) return roleErr
-  if (!orgId) return NextResponse.json({ error: 'No organisation on this account' }, { status: 400 })
-
-  const body = await req.json().catch(() => ({}))
-  const name = String(body.name ?? 'API Token').slice(0, 80)
-
-  const token = generateToken()
-  const created = await withTenantContext({ orgId }, (db) =>
-    db.insert(mcpAccessCodes).values({
-      id: createId(),
-      token,
-      orgId,
-      name,
-    }).returning()
-  )
 
   return NextResponse.json({
-    id: created[0].id,
-    name: created[0].name,
-    token,
-    warning: 'Save this token — it will not be shown again.',
-    usage: {
-      endpoint: 'https://veridian-compliance-ai.vercel.app/api/mcp',
-      header: `Authorization: Bearer ${token}`,
+    error: 'This endpoint no longer issues usable MCP tokens.',
+    reason: '/api/mcp now authenticates against Settings > API Keys, not mcp_access_codes.',
+    useInstead: {
+      endpoint: 'POST /api/settings/api-keys',
+      note: 'Generate a key with the "read" or "write" scope you need, then use it as the Bearer token for /api/mcp (and any other external surface).',
     },
-  }, { status: 201 })
+  }, { status: 410 })
 }
 
 export async function DELETE(req: NextRequest) {

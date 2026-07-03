@@ -12,7 +12,7 @@ Veridian AI runs two MCP servers. They serve completely different layers of the 
 |---|---|---|
 | **Name** | Compliance Data MCP | Dev Dispatch MCP |
 | **Host** | Vercel Edge (Next.js) | Supabase Edge Function |
-| **Endpoint** | `https://compliance-tracker-ai.vercel.app/api/mcp` | `https://<project>.supabase.co/functions/v1/mcp-dev` |
+| **Endpoint** | `https://veridian-compliance-ai.vercel.app/api/mcp` | `https://<project>.supabase.co/functions/v1/mcp-dev` |
 | **Auth** | `Authorization: Bearer <access_token>` | `X-Internal-Secret: <secret>` |
 | **Caller** | Customer AI + Groq orchestrator | Groq orchestrator ONLY |
 | **Scope** | Reads + writes compliance data | Fires GitHub dispatch events |
@@ -32,7 +32,7 @@ Veridian AI runs two MCP servers. They serve completely different layers of the 
                         ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  MCP SERVER 1 — Compliance Data                                 │
-│  POST https://compliance-tracker-ai.vercel.app/api/mcp         │
+│  POST https://veridian-compliance-ai.vercel.app/api/mcp         │
 │  Runtime: Vercel Edge | Data: Supabase PostgreSQL              │
 │  Tools: list_compliance_items, get_stats, get_overdue_items,   │
 │         create_compliance_item, update_compliance_status,       │
@@ -91,12 +91,14 @@ When the Groq orchestrator calls `create_claude_task` or `create_zai_task`:
 **Claude Code** gets: architecture decisions, backend/DB changes, security fixes, code reviews  
 **Z.ai** gets: frontend features, UI components, new API routes, full-stack features
 
-### Rule 5 — Auth Token Lifecycle
-MCP access tokens are org-scoped Bearer tokens stored in `compliance.mcp_access_codes`.  
-- Generated via `POST /api/mcp/tokens` (admin-only, requires Supabase session)
-- Token value shown **once** at generation — not retrievable again
-- Revoked via `DELETE /api/mcp/tokens?id=<id>`
+### Rule 5 — Auth Token Lifecycle (Wave 10: unified with the rest of the platform)
+MCP access is via the same org-scoped `vk_...` API keys used everywhere else external, stored (SHA-256 hashed) in `compliance.api_keys`.  
+- Generated via **Settings → API Keys** in the app, or `POST /api/settings/api-keys` (admin-only, requires Supabase session)
+- Choose `read` or `write` scope — MCP's write tools (`create_compliance_item`, `update_compliance_status`) require a `write`-scoped key
+- Key value shown **once** at generation — not retrievable again
+- Revoked by deactivating it in Settings
 - `last_used_at` updated on every MCP call for audit
+- The old `POST /api/mcp/tokens` (a separate `mcp_access_codes` token system) is deprecated and now returns `410` — any already-issued token from that path still works for `GET`/`DELETE` (view/revoke), but `/api/mcp` itself no longer accepts it
 
 ### Rule 6 — MCP Dev Secret Rotation
 `MCP_DEV_SECRET` is stored as:
@@ -122,7 +124,7 @@ The Groq orchestrator must handle errors gracefully — log them, do not retry b
 
 ## MCP Server 1 — Tool Reference
 
-**Endpoint:** `POST https://compliance-tracker-ai.vercel.app/api/mcp`  
+**Endpoint:** `POST https://veridian-compliance-ai.vercel.app/api/mcp`  
 **Auth:** `Authorization: Bearer <access_token>`
 
 ### `list_compliance_items`
@@ -219,19 +221,8 @@ Returns last 5 GitHub Actions workflow runs with status and conclusion.
 
 ## Setup Instructions
 
-### Step 1 — Run the DB migration
-```sql
--- In Supabase SQL editor:
-CREATE TABLE IF NOT EXISTS compliance.mcp_access_codes (
-  id text PRIMARY KEY,
-  token text NOT NULL UNIQUE,
-  org_id text NOT NULL,
-  name text NOT NULL DEFAULT 'Default',
-  is_active boolean NOT NULL DEFAULT true,
-  last_used_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-```
+### Step 1 — No migration needed
+MCP now reuses the `compliance.api_keys` table that already exists for Settings > API Keys — nothing new to create.
 
 ### Step 2 — Set required env vars
 **Vercel** (already set — no new vars needed):
@@ -248,8 +239,8 @@ MCP_DEV_SECRET=<generate with: openssl rand -hex 32>
 
 **Groq orchestrator** (when built):
 ```
-MCP_DATA_URL=https://compliance-tracker-ai.vercel.app/api/mcp
-MCP_DATA_TOKEN=<token generated via /api/mcp/tokens>
+MCP_DATA_URL=https://veridian-compliance-ai.vercel.app/api/mcp
+MCP_DATA_TOKEN=<key generated via Settings > API Keys, write scope>
 MCP_DEV_URL=https://<project>.supabase.co/functions/v1/mcp-dev
 MCP_DEV_SECRET=<same as above>
 ```
@@ -259,14 +250,17 @@ MCP_DEV_SECRET=<same as above>
 supabase functions deploy mcp-dev --project-ref <project-ref>
 ```
 
-### Step 4 — Generate your first MCP access token
+### Step 4 — Generate your first MCP access key
+Via the app: **Settings → API Keys → Generate key**, choose `read` or `write` scope.
+
+Or via API (requires an active session cookie, same as any other admin action):
 ```bash
-curl -X POST https://compliance-tracker-ai.vercel.app/api/mcp/tokens \
+curl -X POST https://veridian-compliance-ai.vercel.app/api/settings/api-keys \
   -H "Cookie: <your session cookie>" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Groq Orchestrator"}'
+  -d '{"name": "Groq Orchestrator", "scopes": "read,write"}'
 ```
-Save the returned token — it will not be shown again.
+Save the returned key — it will not be shown again.
 
 ### Step 5 — Connect your AI client
 **Claude Desktop** (`~/.config/claude/claude_desktop_config.json`):
@@ -274,7 +268,7 @@ Save the returned token — it will not be shown again.
 {
   "mcpServers": {
     "compliancetrack": {
-      "url": "https://compliance-tracker-ai.vercel.app/api/mcp",
+      "url": "https://veridian-compliance-ai.vercel.app/api/mcp",
       "headers": { "Authorization": "Bearer <your_token>" }
     }
   }

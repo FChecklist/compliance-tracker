@@ -451,6 +451,11 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
 })
 
 // ─── MCP Access Codes ────────────────────────────────────────────────────
+// @deprecated Wave 10: /api/mcp now authenticates against the unified
+// api_keys table (see resolveToken() in src/app/api/mcp/route.ts) instead
+// of this table. Left in place, not dropped, in case any already-issued
+// mcp_access_codes token is still held by a caller somewhere -- actual
+// removal is a later, separate cleanup once confirmed nothing still uses it.
 export const mcpAccessCodes = complianceSchemaDB.table('mcp_access_codes', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   token: text('token').notNull().unique(),
