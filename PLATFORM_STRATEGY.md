@@ -483,5 +483,62 @@ Two clusters scored 8/10 and are genuine, evidenced, low-risk, **additive** gaps
 
 ---
 
+## 14. VERIDIAN AI PMS — Project Management System (new product branch)
+
+**Context:** the user asked to study three open-source project-management platforms — `hcengineering/platform` (Huly), `opf/openproject` (OpenProject), `makeplane/plane` (Plane) — extract modules/features VERIDIAN lacks, adapt them (never copy code, never use their AI), avoid duplicating what VERIDIAN already has, and build a new product: **VERIDIAN AI PMS**. This is VERIDIAN's first genuinely new `productBranches` row since `'grc'` (Wave 20) — the architecture built for exactly this ("a future Sales/HR/SCM branch," per `purpose-bound-ai.ts`'s own honesty note) gets its first real second branch.
+
+### 14.1 Research summary (3 parallel deep-research passes, each grounded against VERIDIAN's actual schema)
+
+| Repo | License | Stars | Distinct value-add | AI to exclude |
+|---|---|---|---|---|
+| **Huly** (hcengineering/platform) | EPL-2.0 (OSI, weak copyleft) | ~26.4k | A genuine plugin/module monorepo (`plugins/`+`models/`+`server-plugins/` per feature, composed via a `workbench` into different product SKUs) — directly validates VERIDIAN's own `moduleRegistry`/`productBranch` design. Sub-issues via parent hierarchy, typed relations, Milestone (date-boxed, separate from issues), Component (sub-project grouping w/ lead), Teamspace/Document/DocumentSnapshot (real collaborative wiki), Drive (folders + file versioning). | Hulia assistant, `ai-assistant`/`ai-bot`/`openai` plugins, MCP server |
+| **OpenProject** | GPLv3 | ~15.5k | Traditional enterprise-PM depth: `Type` (admin-configurable, per-type custom fields + per-role `Workflow` transitions), `Budget` (labor/material line items, actuals aggregated from linked work), `TimeEntry` (polymorphic to WorkPackage/Meeting, tied to billable Activity+Rate), `Meeting` (agenda items, outcomes/minutes, participants, recurring), Backlogs/Sprint (goal + burndown), Wiki, Gantt (pure rendering layer over dates + relations, no separate schema). | MCP Server (Professional+, thin protocol layer) |
+| **Plane** | AGPL-3.0 | ~53.8k | The cleanest, most modern issue-tracking core: `State` (per-project customizable, mapped to 6 semantic groups incl. `triage`), `IssueType` with an `is_epic` flag (Epic = flagged type, not a separate model), multi-assignee (M2M), typed `IssueRelation` (blocks/blocked_by/duplicate/relates_to) kept separate from parent/child, fully custom per-project `Estimate`/`EstimatePoint` schemes, `Cycle` (sprint w/ burndown snapshot), `View` (saved filter/sort, private/shared), `Page` (collaborative docs w/ backlinks), per-project feature toggles (`module_view`/`cycle_view`/`is_time_tracking_enabled`/etc. — direct precedent for `moduleRuleConfigs`). | Plane AI/"Pi" assistant, AI agents, MCP server |
+
+**Convergent, cross-verified findings (all 3 agents independently agreed):**
+- VERIDIAN's `tasks` table is flat (5-value hardcoded status string, single assignee, no priority/labels/hierarchy/relations/estimates) — a real, unanimous gap against all three tools.
+- **Do not rebuild**: `comments`/`notifications` (VERIDIAN's generic versions already cover every use case these tools solve with bespoke tables) — reuse via `entityType='pms_issue'` etc.
+- **Do not adopt any AI feature** from any of the three (Huly's Hulia/openai plugins, OpenProject's MCP server, Plane's Pi/AI agents/MCP) — any future AI touch in PMS (issue-priority suggestions, sprint summaries) must be built on VERIDIAN's own `promptTemplates`/`orchestraExecutions`/`workerAgents` stack, never a new mechanism.
+- **A genuine naming collision, flagged by two of the three agents independently**: Plane's "Modules" (a themed grouping of issues spanning cycles) would collide with VERIDIAN's own `moduleRegistry` terminology. Resolution: don't build it as a separate table at all — the Epic issue-type (parent/child hierarchy via `parentIssueId`) already covers the same real-world need (a themed grouping of issues spanning sprints), so building both would be duplication within the new design itself, not just against VERIDIAN's existing schema.
+- **Huly's Chunter (chat) and Contact/CRM/HR/Recruiting modules, and Huly's Drive (folder+file-versioning)**: explicitly out of scope — VERIDIAN already has a chat system (Wave 12) for a different purpose, and full CRM/HR/file-versioning are separate products not requested here.
+- **Collaborative CRDT-based rich-text editing** (Huly's Document, Plane's Page, both binary/Yjs-backed): explicitly out of scope for v1 — a large, separate engineering investment; v1 wiki/descriptions use plain text/markdown.
+
+### 14.2 Proposed module design (VERIDIAN-native, Drizzle conventions — text PK via `createId()`, `orgId` RLS scoping)
+
+**Core issue tracking** (synthesizes Plane's clean core + Huly's hierarchy/relations + OpenProject's per-type workflow):
+- `pmsIssueTypes` (orgId, name, icon, color, isEpic, isDefault) — Plane's is-a-flag pattern, not a separate Epic model.
+- `pmsIssueStatuses` (orgId, projectId, name, group enum: `backlog|unstarted|started|completed|cancelled|triage`, color, position, isDefault) — Plane's per-project customizable states mapped to semantic groups; `triage` group absorbs Plane's intake/triage queue concept with zero new tables.
+- `pmsWorkflowTransitions` (orgId, issueTypeId, roleId nullable, fromStatusId, toStatusId) — OpenProject's per-type/per-role transition constraint, optional (absence = any transition allowed).
+- `pmsIssues` (orgId, clientId, projectId, typeId, statusId, priority enum: `no_priority|urgent|high|medium|low`, number/sequence, title, description [plain text/markdown, not CRDT], assigneeId, parentIssueId self-FK, milestoneId nullable, estimatePointId nullable, startDate, dueDate, position/rank, createdById, assignedById [mirrors `tasks.assignedById`'s Wave-15 "assigned to me vs by me" convention], createdAt/updatedAt).
+- `pmsIssueAssignees` (join table — multi-assignee, Plane's M2M pattern, alongside `pmsIssues.assigneeId` as the primary/default).
+- `pmsIssueRelations` (orgId, issueId, relatedIssueId, relationType enum: `blocks|blocked_by|duplicates|relates_to`) — kept separate from the parent/child hierarchy, per Plane's design.
+- `pmsLabels` + `pmsIssueLabels` join — simple tagging.
+- `pmsEstimateSchemes` + `pmsEstimatePoints` — fully custom per-project estimate values, not a hardcoded Fibonacci enum (Plane's design).
+- `pmsMilestones` (orgId, projectId, name, description, status enum: `planned|in_progress|completed|cancelled`, targetDate) — Huly's lightweight, non-issue container; issues optionally link via `pmsIssues.milestoneId`.
+
+**Sprints**: `pmsSprints` (orgId, projectId, name, goal, startDate, endDate, status, progressSnapshot jsonb for burndown-at-close) + `pmsSprintIssues` join (allows reassignment across sprints, mirrors Plane's `CycleIssue` join rather than a raw FK).
+
+**Saved views**: `pmsSavedViews` (orgId, projectId nullable [workspace-level], ownedById, name, filters jsonb, displayFilters jsonb, access enum: `private|shared`, sortOrder).
+
+**Wiki** (genuinely new, general-purpose — NOT the compliance-coupled `documents` table): `pmsWikiPages` (orgId, projectId, parentPageId self-FK, slug, title, content [plain text/markdown], version, updatedById, isArchived) — registered as its own `moduleRegistry` entry so it's reusable outside PMS too, per Huly's own modular philosophy.
+
+**Time tracking + billable rates** (OpenProject's unique contribution): `pmsTimeEntries` (orgId, issueId, userId, hours, spentOn, activityType, comments, isRunning, startedAt nullable) + `pmsBillableRates` (orgId, userId nullable [null = org default], hourlyRate, validFrom).
+
+**Budgeting** (OpenProject's unique contribution): `pmsBudgets` (orgId, projectId, name, fixedDate, authorId) + `pmsBudgetLineItems` (budgetId, kind enum: `labor|material`, userId nullable, description, amount, hours nullable) — actuals computed by summing linked time entries, never a duplicate ledger.
+
+**Meetings** (OpenProject's unique contribution): `pmsMeetings` (orgId, projectId, title, scheduledAt, durationMinutes, recurrenceRule nullable) + `pmsMeetingAgendaItems` (meetingId, position, title, issueId nullable, durationMinutes) + `pmsMeetingOutcomes` (meetingId, notes) + `pmsMeetingParticipants` (meetingId, userId, responseStatus).
+
+**`projects` table extension** (all 3 agents converged on this — additive columns, not a new table, since Wave 19's `projects` is already the intended scope layer): `issuePrefix`, `issueSequence` (default 0), `leadUserId`, `startDate`, `targetDate`, `healthStatus` enum(`on_track|at_risk|off_track`), `parentProjectId` self-FK.
+
+**No new schema needed for**: Kanban board (a view grouping `pmsIssues` by `statusId`, ordered by `position`) and Gantt/roadmap (a view rendering `startDate`/`dueDate` + `pmsIssueRelations` + `pmsMilestones.targetDate`) — both are purely frontend rendering concerns over data already modeled above, exactly as OpenProject's own Gantt module works.
+
+**Module Registry integration**: new `productBranches` row (`branchKey='pms'`, `domain='project_management'` — VERIDIAN's genuinely first second domain, meaning `purpose-bound-ai.ts`'s `DOMAIN_ALLOWED_TOOLS` map gets a real second key for the first time); each top-level PMS concept (issues, sprints, wiki_pages, time_entries, budgets, meetings, saved_views) registered in `moduleRegistry` and linked via `productBranchModules`.
+
+### 14.3 Explicitly out of scope
+
+Collaborative CRDT rich-text editing (large separate investment). Huly's Drive (folder hierarchy + file versioning) and Chunter (chat) — separate concerns, not requested. Any CRM/HR/Recruiting/Calendar modules. Any AI feature ported from any of the three tools — PMS AI touches, if built later, use VERIDIAN's own Prompt OS/Observability/Worker Agent stack exclusively. A build-scope decision (full PMS in one pass vs. a staged core-issue-tracking-first MVP) is pending the user's direction — see the plan proposed alongside this section.
+
+---
+
 ## Appendix: Prior mockup iterations (design history, for reference)
 `veridian_landing_v2_role_adaptive.html` through `v13_top_nav.html` (and the original `veridian_ui_mockup.html`) were kept under separate filenames through the design process specifically so each round's reasoning could be compared against the last. They are not part of this repo; v14's content is preserved here as `examples/mobile-app-template/veridian-mobile-template.html`. Do not regenerate the earlier rounds' patterns (per-role separate pages, redundant per-task icons, dual permanent compose bars, top-of-screen nav duplicating persona-switching) — each was tried and superseded for a documented reason.
