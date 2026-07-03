@@ -147,22 +147,24 @@ These are the requirements behind "an independent platform with 99% of what most
 
 ## 7. The API/Service-Layer Gap — What Actually Makes "Build Apps On VERIDIAN AI" Possible
 
-This is the concrete technical finding from the architecture review that directly determines whether §1's platform vision is achievable or just aspirational. Full detail below; this is the highest-priority build item in this entire document because *every other multi-surface goal (mobile app, ChatGPT connector, Claude connector, reseller white-label, custom client app) depends on it.*
+This is the concrete technical finding from the architecture review that directly determines whether §1's platform vision is achievable or just aspirational. This was the highest-priority build item in this entire document because *every other multi-surface goal (mobile app, ChatGPT connector, Claude connector, reseller white-label, custom client app) depends on it* — **Waves 9-11 (below) closed it for the 3 highest-traffic domains.** Full original finding preserved below for the historical record; current status follows.
 
-**Current state (verified against the live repo, not assumed):**
-- All 97 API routes are Next.js Route Handlers with business logic written *inline* — there is no service layer a non-web surface could call into directly. An earlier plan for shared `@compliancetrack/types`/`@compliancetrack/db` packages was never actually built; the app is a flat monolith.
-- **95 of 97 routes only accept Supabase session cookies** (`requireAuth()`) — unusable by a mobile app, ChatGPT, or any non-browser client.
-- **Two separate, half-built external-access mechanisms already exist and don't talk to each other:**
-  - `apiKeys` table + Settings UI generates real `vk_...` scoped keys — but **nothing validates one of these keys on an incoming request.** Pure stub.
-  - `mcp_access_codes` table + `/api/mcp` — a hand-coded, separate Bearer-token path using raw Supabase JS (bypassing Drizzle), exposing only the original 7 compliance tools. None of the ~35 modules built since are reachable via MCP/Claude connector today.
+**Original state (verified against the live repo before Waves 9-11, not assumed):**
+- All 97 API routes were Next.js Route Handlers with business logic written *inline* — no service layer a non-web surface could call into directly. An earlier plan for shared `@compliancetrack/types`/`@compliancetrack/db` packages was never actually built; the app was a flat monolith.
+- **95 of 97 routes only accepted Supabase session cookies** (`requireAuth()`) — unusable by a mobile app, ChatGPT, or any non-browser client.
+- **Two separate, half-built external-access mechanisms existed and didn't talk to each other:**
+  - `apiKeys` table + Settings UI generated real `vk_...` scoped keys — but **nothing validated one of these keys on an incoming request.** Pure stub.
+  - `mcp_access_codes` table + `/api/mcp` — a hand-coded, separate Bearer-token path using raw Supabase JS (bypassing Drizzle), exposing only the original 7 compliance tools. None of the ~35 modules built since were reachable via MCP/Claude connector.
 - No versioned public contract (`/api/v1/*`), no OpenAPI spec.
 
-**What "designed from the beginning for this" requires — the fix, additive not a rewrite:**
-1. Extract a service layer (`src/lib/services/*.ts`, one file per domain) — route handlers become thin wrappers: parse request → call service function → format response. This is the one change that lets web app, MCP, a future mobile app, and a future ChatGPT Action all share one real implementation instead of four.
-2. Finish wiring `apiKeys` as the *one* external credential: add `validateApiKey()` alongside `requireAuth()`, retire the separate `mcp_access_codes` table, point MCP at the same key. One key, generated once, works everywhere.
-3. Add `/api/v1/*` as the stable public contract (or version via header) so external surfaces get a contract independent of internal route churn.
-4. Publish an OpenAPI spec generated from the same service layer/zod schemas (zod is already a dependency) — this is the literal artifact a ChatGPT custom GPT Action or a reseller's white-labeled app needs to self-integrate.
-5. Extend MCP tool coverage through the new service layer so all ~40 GRC modules (and every future product branch) are reachable via Claude connector / customer's own AI, not just the original 7.
+**Status as of Waves 9-11 (2026-07-03) — the fix, additive not a rewrite:**
+1. ✅ **Built.** Service layer extracted (`src/lib/services/{compliance,task,notice}-service.ts`) for the 3 highest-traffic domains — route handlers are now thin wrappers: parse request → call service function → format response. Web app, `/api/v1`, and MCP's new tools all share this one real implementation. The other ~37 domains remain on inline logic — deliberately scoped, not an oversight (see Phase A below).
+2. ✅ **Built.** `apiKeys` is now the one external credential (`validateApiKey()`/`requireAuthOrApiKey()`), `mcp_access_codes` retired (marked `@deprecated`, not dropped) and `/api/mcp` repointed at the same key.
+3. ✅ **Built.** `/api/v1/*` live for compliance/tasks/notices, `requireAuthOrApiKey()` on every route.
+4. ✅ **Built.** `GET /api/v1/openapi.json` serves a real OpenAPI 3.1 doc generated from zod schemas via zod v4's native `z.toJSONSchema()` — no extra dependency needed.
+5. 🟡 **Partially built.** MCP gained `list_notices`/`get_task_status` (routed through the real service layer via internal `fetch()` to `/api/v1` — confirmed early that Vercel Edge can't import the service layer directly, since it depends on `postgres.js`'s Node-only driver). Still only 9 of ~40 GRC modules are MCP-reachable; the rest wait on their domains getting a service layer first.
+
+**🔴 Verification is currently incomplete — a live, production-blocking infrastructure issue, not a code defect.** Doing this wave's own required live-functional-proof step (exactly why that step exists) surfaced that the Supavisor pooler bug from earlier this session (`ENOTFOUND tenant/user postgres.pcrjmlpuqsbocqfwoxod not found`) is back and currently blocks **every** Drizzle/`withTenantContext` code path — both the legacy `/api/compliance` route and the new `/api/v1/compliance` route failed with the identical error, which if anything *proves* the refactor itself didn't regress anything. Isolated cleanly: `GET /api/v1/openapi.json` (no DB) and MCP's original tools (raw Supabase-JS via PostgREST, a completely different connection path) both still work live. This means core compliance/tasks/notices functionality is down **app-wide** right now, for every user, not just for Wave 11's new surfaces — see Phase A's pooler item below, now updated with this finding.
 
 ---
 
@@ -187,13 +189,13 @@ Design laws established, in brief (full rationale in the template's README):
 ## 9. Comprehensive TODO List
 
 ### Phase A — Platform foundation (blocks everything else; do first)
-- [ ] Extract `src/lib/services/*.ts` service layer out of the 97 inline route handlers (start with the highest-traffic domains: compliance, tasks, notices).
-- [ ] Build `validateApiKey()` for the existing `apiKeys` table; wire it as an alternate auth path alongside `requireAuth()` on every route.
-- [ ] Retire `mcp_access_codes`; repoint `/api/mcp` to validate against the unified `apiKeys` table.
-- [ ] Add `/api/v1/*` versioned surface (or header-based versioning) as the stable external contract.
-- [ ] Generate and publish an OpenAPI spec from the service layer's zod schemas.
-- [ ] Extend MCP tool coverage to reach all ~40 GRC modules via the new service layer (not just the original 7).
-- [ ] Fix the still-open Supavisor pooler bug (`ENOTFOUND tenant/user ... not found`) — confirmed live via end-to-end test; blocks all authenticated production usage until fixed. Two remediation paths already scoped: contact Supabase support re: `worker_not_found`, or stopgap-switch to the direct non-pooled connection string.
+- [x] Extract `src/lib/services/*.ts` service layer for the 3 highest-traffic domains: compliance, tasks, notices (Wave 11, 2026-07-03). Remaining ~37 domains still inline — deliberately out of scope for this pass, not forgotten.
+- [x] Build `validateApiKey()` for the existing `apiKeys` table; wired as `requireAuthOrApiKey()` alongside `requireAuth()` (Wave 9).
+- [x] Retire `mcp_access_codes`; `/api/mcp` now validates against the unified `apiKeys` table (Wave 10).
+- [x] Add `/api/v1/*` versioned surface for compliance/tasks/notices (Wave 11). Not yet extended to the other ~37 domains.
+- [x] Generate and publish an OpenAPI spec from zod schemas — `GET /api/v1/openapi.json` (Wave 11).
+- [ ] Extend MCP tool coverage to reach all ~40 GRC modules via the new service layer — currently 9 of ~40 (the original 7 + `list_notices`/`get_task_status` added in Wave 11).
+- [ ] **🔴 Fix the still-open Supavisor pooler bug (`ENOTFOUND tenant/user postgres.pcrjmlpuqsbocqfwoxod not found`) — re-confirmed live during Wave 11's verification step (2026-07-03), and now a materially bigger problem than when first flagged:** it is currently blocking **every** Drizzle/`withTenantContext`-based route in production, including the pre-existing legacy compliance/tasks/notices routes, not just Wave 11's new surfaces. Cleanly isolated: routes that go through raw Supabase-JS/PostgREST instead (MCP's original tools, `openapi.json`) are unaffected — the failure is specific to the pooled Postgres connection Drizzle uses. Two remediation paths scoped, neither yet actioned: (a) contact Supabase support re: the pooler's tenant/routing failure, or (b) stopgap-switch `DATABASE_URL`/`APP_RUNTIME_DATABASE_URL` to the direct, non-pooled connection string (`db.pcrjmlpuqsbocqfwoxod.supabase.co:5432`) — trades away connection pooling, so this needs an explicit decision, not a unilateral change. **Wave 11's compliance/tasks/notices service-layer work cannot be considered fully verified until this is resolved and the live-functional-proof steps are re-run.**
 
 ### Phase B — Platform-native capabilities (the "AI-OS" requirements from §6)
 - [ ] **Wire up the 4 dormant orchestra layers** (`user_assistant_oa`, `customer_account_oa`, `global_intelligence_oa`, `meta_oa`) — today only `task_oa` has any real call site (§5). Sequencing matters: `user_assistant_oa` should come first since it's what would finally give the 5 per-user `aiAssistants` something to do; `meta_oa` (reasoning about the other layers) logically comes last, once there are other layers worth reasoning about.
