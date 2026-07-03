@@ -65,11 +65,6 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
       title: "OVERVIEW",
       items: [
         {
-          label: "Dashboard",
-          href: "/dashboard",
-          icon: LayoutDashboard,
-        },
-        {
           label: "Pendency View",
           href: "/compliance?status=overdue",
           icon: AlertTriangle,
@@ -279,9 +274,22 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         </span>
       </Link>
 
-      {/* Chat -- top-level, above the collapsible module sections (Wave 13).
-          "Home" will join it here as a paired top-level item in Wave 15. */}
-      <div className="px-3 mb-2">
+      {/* Home + Chat -- promoted top-level, above the collapsible module
+          sections (Wave 13 added Chat; Wave 15 promotes Home alongside it
+          and folds the old standalone "Dashboard" item into this one). */}
+      <div className="px-3 mb-2 space-y-0.5">
+        <Link
+          href="/home"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors relative",
+            pathname.startsWith("/home")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <LayoutDashboard className={cn("size-4 shrink-0", pathname.startsWith("/home") && "text-ct-saffron")} />
+          <span className="flex-1">Home</span>
+        </Link>
         <Link
           href="/chat"
           className={cn(
@@ -309,10 +317,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
               {section.title}
             </p>
             {section.items.map((item) => {
-              const isActive =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname.startsWith(item.href.split("?")[0]) && item.href !== "/dashboard";
+              const isActive = pathname.startsWith(item.href.split("?")[0]);
 
               return (
                 <Link

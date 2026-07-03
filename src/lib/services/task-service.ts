@@ -2,7 +2,7 @@
 // [id]/route}.ts verbatim (behavior-identical refactor).
 import { tasks, aiAssistants } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { desc, eq, asc } from "drizzle-orm"
+import { desc, eq, asc, and, ne } from "drizzle-orm"
 import { executeTask } from "@/lib/task-execution-engine"
 import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
@@ -42,7 +42,7 @@ export async function createTask(ctx: ServiceContext, input: { title: string; de
       const assistant = await db.query.aiAssistants.findFirst({ where: eq(aiAssistants.id, assistantId) })
       if (!assistant) return null
     }
-    const [created] = await db.insert(tasks).values({ orgId, userId: dbUser.id, assistantId, title, description, status: "in_progress" }).returning()
+    const [created] = await db.insert(tasks).values({ orgId, userId: dbUser.id, assignedById: dbUser.id, assistantId, title, description, status: "in_progress" }).returning()
     return created
   })
 
@@ -117,4 +117,42 @@ export async function getTaskStatus(ctx: ReadContext & { userId?: string }, id: 
   const task = await withTenantContext({ orgId, userId }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, id) }))
   if (!task) throw new ServiceError("Task not found", 404)
   return { id: task.id, title: task.title, status: task.status, updatedAt: task.updatedAt.toISOString() }
+}
+
+// Wave 15: Home Page's "To Do" tab -- tasks genuinely assigned TO this
+// person, distinct from listTasks() (which returns every task in the org
+// tasks RLS lets through, unfiltered by owner).
+export async function listMyTodos(ctx: ReadContext & { userId: string }) {
+  const { orgId, userId } = ctx
+  const result = await withTenantContext({ orgId, userId }, (db) =>
+    db.query.tasks.findMany({
+      where: eq(tasks.userId, userId),
+      orderBy: desc(tasks.createdAt),
+    })
+  )
+  return {
+    tasks: result.map((t) => ({
+      id: t.id, title: t.title, description: t.description, status: t.status,
+      createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
+    })),
+  }
+}
+
+// Tasks this person handed to someone else -- kept separate from
+// listMyTodos() so a manager's own personal to-do list never gets padded
+// out with work they only delegated, per the plan's explicit distinction.
+export async function listAssignedByMe(ctx: ReadContext & { userId: string }) {
+  const { orgId, userId } = ctx
+  const result = await withTenantContext({ orgId, userId }, (db) =>
+    db.query.tasks.findMany({
+      where: and(eq(tasks.assignedById, userId), ne(tasks.userId, userId)),
+      orderBy: desc(tasks.createdAt),
+    })
+  )
+  return {
+    tasks: result.map((t) => ({
+      id: t.id, title: t.title, description: t.description, status: t.status,
+      assigneeId: t.userId, createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
+    })),
+  }
 }

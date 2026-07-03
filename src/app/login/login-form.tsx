@@ -14,7 +14,7 @@ import { toast } from "sonner";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/dashboard";
+  const redirectTo = searchParams.get("redirectTo") || "/home";
   const errorParam = searchParams.get("error");
 
   const [email, setEmail] = useState("");

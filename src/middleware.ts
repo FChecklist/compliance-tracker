@@ -36,6 +36,8 @@ export async function middleware(request: NextRequest) {
 
   // Protected routes: redirect to login if not authenticated
   const isAppRoute = request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/home") ||
+    request.nextUrl.pathname.startsWith("/chat") ||
     request.nextUrl.pathname.startsWith("/compliance") ||
     request.nextUrl.pathname.startsWith("/departments") ||
     request.nextUrl.pathname.startsWith("/users") ||
@@ -58,10 +60,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If user is logged in and tries to access auth pages, redirect to dashboard
+  // If user is logged in and tries to access auth pages, redirect to Home
   if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup")) {
     const url = request.nextUrl.clone()
-    url.pathname = "/dashboard"
+    url.pathname = "/home"
     return NextResponse.redirect(url)
   }
 

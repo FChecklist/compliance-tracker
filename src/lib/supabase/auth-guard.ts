@@ -22,7 +22,7 @@ export type AuthContext = {
 export type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
   | 'veridian_admin' | 'branch_manager' | 'senior_professional' | 'team_member' | 'client_viewer' | 'external_auditor'
 
-const ROLE_RANK: Record<UserRole, number> = {
+export const ROLE_RANK: Record<UserRole, number> = {
   viewer: 1, client_viewer: 1, external_auditor: 1,
   member: 2, team_member: 2,
   senior_professional: 3, manager: 3,

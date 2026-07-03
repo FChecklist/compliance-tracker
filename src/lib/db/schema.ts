@@ -607,6 +607,11 @@ export const tasks = complianceSchemaDB.table('tasks', {
   title: text('title').notNull(),
   description: text('description'),
   status: text('status').notNull().default('pending'), // pending | in_progress | completed | failed | cancelled
+  // Wave 15: distinguishes "assigned to me" from "assigned by me, to someone
+  // else" for Home's To Do tab -- backfilled to assignedById = userId for
+  // every pre-existing row (self-assigned, the only mode that existed
+  // before this wave). Nullable because userId itself is nullable.
+  assignedById: text('assigned_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
