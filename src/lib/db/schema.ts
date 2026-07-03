@@ -509,6 +509,15 @@ export const assistantMemories = complianceSchemaDB.table('assistant_memories', 
   category: text('category').notNull().default('general'),
   content: text('content').notNull(),
   metadata: jsonb('metadata').notNull().default({}),
+  // Wave 22 (MemPalace-inspired temporal versioning): validFrom/validUntil
+  // let a memory be superseded rather than silently overwritten --
+  // validUntil NULL means "still current". No consumer reads these yet
+  // (built ahead of need, per explicit user confirmation) -- every
+  // pre-existing row backfills validFrom=createdAt, validUntil=NULL
+  // (still current), which is the correct, non-lossy default.
+  validFrom: timestamp('valid_from').notNull().defaultNow(),
+  validUntil: timestamp('valid_until'),
+  supersededByMemoryId: text('superseded_by_memory_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -689,6 +698,16 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   output: jsonb('output'),
   status: text('status').notNull().default('pending'),
   durationMs: integer('duration_ms'),
+  // Wave 22/23 (Langfuse-inspired AI Observability): real, queryable
+  // model/token/cost columns -- before this, provider/model were only ever
+  // stuffed into the free-form `output` jsonb (see api/ai/orchestrate's
+  // logOrchestraExecution), not aggregatable. All nullable/additive; only
+  // Wave 23's recordOrchestraExecution() populates them going forward.
+  model: text('model'),
+  provider: text('provider'),
+  promptTokens: integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  costUsd: numeric('cost_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -755,6 +774,12 @@ export const moduleRegistry = complianceSchemaDB.table('module_registry', {
   description: text('description'),
   isCore: boolean('is_core').notNull().default(false), // true only for the 4 pre-Wave-7 original tables (compliance_items/challans/notices/audit_points) -- can never be disabled for any product branch
   isActive: boolean('is_active').notNull().default(true), // platform kill-switch, distinct from per-branch enablement below
+  // Wave 22 (Agent Skills / Awesome LLM Apps-inspired secondary taxonomy
+  // axis): 'data_access' | 'calculation' | 'validation' | 'reporting' |
+  // 'orchestration' -- describes HOW a module operates, orthogonal to
+  // `domain` (WHICH business capability it belongs to), so the Worker
+  // Agent Library / Module Registry can be filtered by both axes.
+  toolType: text('tool_type'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -813,6 +838,35 @@ export const moduleRuleConfigs = complianceSchemaDB.table('module_rule_configs',
   createdById: text('created_by_id'), // nullable -- platform-seeded default rows have no human author
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Prompt Operating System (Wave 22, Langfuse-inspired) ────────────────
+// Before this, every LLM system prompt in the codebase was a hardcoded
+// string literal scattered across chat-service.ts / task-execution-engine.ts
+// / loop-engineering-audit.ts / instruction-mismatch-audit.ts / the
+// orchestrate route -- no versioning, no way to review/change a prompt
+// without a code deploy. Global-read platform catalog, same posture as
+// orchestra_layers/module_registry: only service_role may write; prompt
+// content is a platform-governed asset, not per-org customizable (that's
+// what module_rule_configs is for -- business RULES, not AI prompt text).
+export const promptTemplates = complianceSchemaDB.table('prompt_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  templateKey: text('template_key').notNull().unique(), // stable handle, e.g. 'chat.ai_thread_system', 'task_execution.planning_system'
+  displayName: text('display_name').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const promptVersions = complianceSchemaDB.table('prompt_versions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  promptTemplateId: text('prompt_template_id').notNull(),
+  version: integer('version').notNull(),
+  content: text('content').notNull(),
+  label: text('label'), // 'production' | 'staging' | null -- only one version per template may hold a given label at a time, enforced at the service layer
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'), // nullable -- seeded v1 rows have no human author
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
@@ -1157,6 +1211,14 @@ export const productBranchModulesRelations = relations(productBranchModules, ({ 
 
 export const moduleRuleConfigsRelations = relations(moduleRuleConfigs, ({ one }) => ({
   module: one(moduleRegistry, { fields: [moduleRuleConfigs.moduleKey], references: [moduleRegistry.moduleKey] }),
+}))
+
+export const promptTemplatesRelations = relations(promptTemplates, ({ many }) => ({
+  versions: many(promptVersions),
+}))
+
+export const promptVersionsRelations = relations(promptVersions, ({ one }) => ({
+  template: one(promptTemplates, { fields: [promptVersions.promptTemplateId], references: [promptTemplates.id] }),
 }))
 
 export const loopDefinitionsRelations = relations(loopDefinitions, ({ many }) => ({
