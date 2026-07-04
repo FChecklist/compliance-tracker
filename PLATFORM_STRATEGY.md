@@ -662,7 +662,17 @@ The user defined VERI Chat precisely: a strictly-business AI chat assistant (not
 
 Live audio transcription for meetings (Meetily's category — a real infrastructure investment, not a schema/service addition). Slack permalink→content resolution (schema-ready via `sourcePlatform`/`sourceRef`, but requires a Slack App the user must register in Slack's own admin console — cannot be created from inside this session). Wiring `assistantMemories` as a live consumer of conversation history (still zero consumers, as Wave 22 left it — VERI Chat records `assistantId` per message but does not start reading/writing memories this pass). Huly/Zulip (confirmed via research to already be substantially covered by VERIDIAN's own PMS+chat, or narrower than needed) — no new adoption from either.
 
-### Status update (2026-07-04): analysis complete, all 3 modules built — see `orchestra_changes.md` #80 for full build/verification detail
+### Status update (2026-07-04): all 3 modules built, deployed, and verified — including a real security gap found and fixed along the way
+
+All three waves are live:
+
+- **Wave 32 (VERI Chat) — ✅ built.** `conversations`/`messages` extended with context-linking, attachments, and per-message assistant attribution; the share-out/share-in mechanism designed in §16.2 is live (tokenized public share page + Web Share Target); a Share button on `/chat` generates working `wa.me`/`t.me` links.
+- **Wave 33 (VERI To Do) — ✅ built.** `listVeriTodos()` genuinely unions tasks, pending instruction commitments, and assigned PMS issues at a new `/veri-todo` page — the concrete fix for the gap 16.1 identified.
+- **Wave 34 (VERI Minutes of Meetings) — ✅ built.** General-purpose `veri_meetings` with AI-independent minutes editing, amend-don't-overwrite history, and task-linked action items at `/veri-meetings`.
+
+**A real, previously-latent security gap was found during RLS verification and fixed, not just reported clean**: `compliance.is_conversation_participant()` (Wave 12) checks only `user_id`, never independently verifying `org_id` — proven live by impersonating a real participant under a different org's context and getting back rows that should have been invisible. Not exploitable through this app's own code paths (org context always comes server-side from the authenticated session), but a genuine defense-in-depth hole inherited by Wave 32's new tables and present all along in Wave 12's own `messages`/`conversation_participants` policies. Fixed for all 4 affected tables (migration `0025`) and re-verified clean in both directions.
+
+Also learned directly from Wave 29-31's exact playbook and applied proactively this time: both new pages were added to `middleware.ts`'s allowlist *and* given `export const dynamic = "force-dynamic"` before first deploy, rather than discovering the same class of gap live again. Full verification record in `orchestra_changes.md` #80.
 
 ---
 
