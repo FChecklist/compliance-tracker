@@ -8,6 +8,7 @@
 import { db, tickets, conversations, conversationParticipants, notifications } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, lt, notInArray } from "drizzle-orm"
+import { createId } from "@paralleldrive/cuid2"
 import { createGuestAccess } from "./veri-chat-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -53,14 +54,19 @@ export async function createTicket(
     if (input.assigneeId) participantIds.add(input.assigneeId)
     if (input.requesterUserId) participantIds.add(input.requesterUserId)
 
-    const [convo] = await db.insert(conversations).values({
-      orgId: ctx.orgId, type: participantIds.size > 2 ? "group" : "direct", title: subject,
-    }).returning()
-    await db.insert(conversationParticipants).values([...participantIds].map((userId) => ({ conversationId: convo.id, userId })))
+    // No .returning() on the conversations insert -- see chat-service.ts's
+    // ensureAiThread() comment: RETURNING is filtered through the SELECT
+    // policy, which for conversations requires an already-existing
+    // participant row that can't exist until the next statement.
+    const conversationId = createId()
+    await db.insert(conversations).values({
+      id: conversationId, orgId: ctx.orgId, type: participantIds.size > 2 ? "group" : "direct", title: subject,
+    })
+    await db.insert(conversationParticipants).values([...participantIds].map((userId) => ({ conversationId, userId })))
 
     const slaDeadline = input.slaHours ? new Date(Date.now() + input.slaHours * 60 * 60 * 1000) : null
     const [ticket] = await db.insert(tickets).values({
-      orgId: ctx.orgId, clientId: input.clientId || null, conversationId: convo.id, subject,
+      orgId: ctx.orgId, clientId: input.clientId || null, conversationId, subject,
       category: input.category || null, priority: (input.priority as "low" | "medium" | "high" | "critical") || "medium",
       assigneeId: input.assigneeId || null, requesterUserId: input.requesterUserId || null,
       slaDeadline, createdById: ctx.userId,

@@ -123,11 +123,13 @@ async function ensureSharedInConversation(orgId: string, userId: string): Promis
     })
     if (existing) return existing.id
 
-    const [created] = await db.insert(conversations).values({
-      orgId, type: "direct", title: "Shared In", contextEntityType: "shared_in_inbox", contextEntityId: userId,
-    }).returning()
-    await db.insert(conversationParticipants).values({ conversationId: created.id, userId })
-    return created.id
+    // No .returning() -- see chat-service.ts's ensureAiThread() comment.
+    const id = createId()
+    await db.insert(conversations).values({
+      id, orgId, type: "direct", title: "Shared In", contextEntityType: "shared_in_inbox", contextEntityId: userId,
+    })
+    await db.insert(conversationParticipants).values({ conversationId: id, userId })
+    return id
   })
 }
 

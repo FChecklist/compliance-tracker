@@ -8,6 +8,7 @@ import {
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
+import { createId } from "@paralleldrive/cuid2"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
@@ -33,11 +34,20 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
       if (aiConvo) return aiConvo.id
     }
 
-    const [created] = await db.insert(conversations).values({
-      orgId: ctx.orgId, type: "ai", isAiThread: true, title: "VERIDIAN AI",
-    }).returning()
-    await db.insert(conversationParticipants).values({ conversationId: created.id, userId: ctx.userId })
-    return created.id
+    // Wave 46 testing pass: deliberately NOT .returning() here. Confirmed
+    // live (via a temporary diagnostic route) that RETURNING on this INSERT
+    // fails even with the INSERT policy's WITH CHECK relaxed to `true` --
+    // Postgres filters RETURNING output through the table's SELECT policy
+    // (app_runtime_select_participant, which requires is_conversation_
+    // participant()), and that can never be true for a row whose only
+    // participant is added in the NEXT statement. Generating the id here
+    // instead of reading it back from RETURNING sidesteps that entirely.
+    const newConversationId = createId()
+    await db.insert(conversations).values({
+      id: newConversationId, orgId: ctx.orgId, type: "ai", isAiThread: true, title: "VERIDIAN AI",
+    })
+    await db.insert(conversationParticipants).values({ conversationId: newConversationId, userId: ctx.userId })
+    return newConversationId
   })
 }
 
@@ -115,15 +125,19 @@ export async function createConversation(ctx: ChatContext, input: { participantU
     const validUsers = await db.query.users.findMany({ where: inArray(users.id, participantIds) })
     if (validUsers.length !== participantIds.length) throw new ServiceError("One or more participants not found", 400)
 
-    const [convo] = await db.insert(conversations).values({
-      orgId: ctx.orgId,
-      type: participantIds.length > 2 ? "group" : "direct",
-      title: input.title?.trim() || null,
-    }).returning()
+    // No .returning() -- see ensureAiThread()'s comment: RETURNING on this
+    // INSERT is filtered through the SELECT policy, which requires an
+    // already-existing participant row that can't exist until the next
+    // statement below.
+    const id = createId()
+    const createdAt = new Date()
+    const type = participantIds.length > 2 ? "group" : "direct"
+    const title = input.title?.trim() || null
+    await db.insert(conversations).values({ id, orgId: ctx.orgId, type, title, createdAt })
 
-    await db.insert(conversationParticipants).values(participantIds.map((userId) => ({ conversationId: convo.id, userId })))
+    await db.insert(conversationParticipants).values(participantIds.map((userId) => ({ conversationId: id, userId })))
 
-    return { id: convo.id, type: convo.type, title: convo.title, createdAt: convo.createdAt.toISOString() }
+    return { id, type, title, createdAt: createdAt.toISOString() }
   })
 }
 
