@@ -44,12 +44,15 @@ function ChatPageInner() {
     fetch("/api/conversations")
       .then((r) => r.json())
       .then((data) => {
-        const list: ConversationSummary[] = data.conversations ?? [];
+        // Wave 37: VERI Chat is now human/guest chat only -- the AI thread
+        // has its own dedicated surface at /veri-ai (VERI Chat Intelligence
+        // Engine, PLATFORM_STRATEGY.md §18).
+        const list: ConversationSummary[] = (data.conversations ?? []).filter((c: ConversationSummary) => !c.isAiThread);
         setConversations(list);
         setSelectedId((prev) => {
           if (prev) return prev;
-          // A notification's click-through wins over the default (pinned
-          // AI thread / most-recent) selection, but only once per page load.
+          // A notification's click-through wins over the default (most-
+          // recent) selection, but only once per page load.
           if (!appliedLinkRef.current && linkedConversationId && list.some((c) => c.id === linkedConversationId)) {
             appliedLinkRef.current = true;
             return linkedConversationId;

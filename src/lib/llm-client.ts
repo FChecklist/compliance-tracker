@@ -17,10 +17,18 @@
 
 export type LLMProvider = "groq" | "openai" | "anthropic" | "google";
 
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
 export type CallLLMOptions = {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  // Wave 37 (VERI Chat Intelligence Engine, PLATFORM_STRATEGY.md §18): prior
+  // turns in the conversation, oldest first, NOT including the final
+  // `userMessage` (that's still passed separately, unchanged). Optional and
+  // additive -- every pre-existing call site passes no history and gets the
+  // exact same single-turn request as before.
+  history?: ChatTurn[];
 };
 
 export type LLMUsage = {
@@ -66,6 +74,7 @@ async function callOpenAICompatible(
     model,
     messages: [
       { role: "system", content: systemPrompt },
+      ...(options?.history ?? []).map((h) => ({ role: h.role, content: h.content })),
       { role: "user", content: userMessage },
     ],
     temperature: options?.temperature ?? 0.2,
@@ -112,7 +121,7 @@ async function callAnthropic(
       max_tokens: options?.maxTokens ?? 2048,
       temperature: options?.temperature ?? 0.2,
       system,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [...(options?.history ?? []), { role: "user", content: userMessage }],
     }),
   });
   if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -140,7 +149,11 @@ async function callGoogle(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [
+          // Google uses "model" not "assistant" for the AI's own turns.
+          ...(options?.history ?? []).map((h) => ({ role: h.role === "assistant" ? "model" : "user", parts: [{ text: h.content }] })),
+          { role: "user", parts: [{ text: prompt }] },
+        ],
         generationConfig: {
           temperature: options?.temperature ?? 0.2,
           maxOutputTokens: options?.maxTokens ?? 2048,

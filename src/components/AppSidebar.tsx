@@ -287,7 +287,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, pmsEnabled }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; pmsEnabled: boolean }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean }) {
   const pathname = usePathname();
   const sections = getNavSections(overdueCount, docCount, noticeCount, accountType, pmsEnabled);
 
@@ -301,9 +301,13 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         </span>
       </Link>
 
-      {/* Home + Chat -- promoted top-level, above the collapsible module
-          sections (Wave 13 added Chat; Wave 15 promotes Home alongside it
-          and folds the old standalone "Dashboard" item into this one). */}
+      {/* Home + VERI Chat Intelligence Engine -- promoted top-level, above
+          the collapsible module sections (Wave 13 added Chat; Wave 15
+          promotes Home alongside it; Wave 37 splits the single "VERI Chat"
+          link into its two sub-modules -- VERI AI (user <-> system) and
+          VERI Chat (user <-> people, enterprise Slack/WhatsApp-style) --
+          which used to be conflated as one link with the AI thread just
+          pinned inside the same list. See PLATFORM_STRATEGY.md §18. */}
       <div className="px-3 mb-2 space-y-0.5">
         <Link
           href="/home"
@@ -316,6 +320,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         >
           <LayoutDashboard className={cn("size-4 shrink-0", pathname.startsWith("/home") && "text-ct-saffron")} />
           <span className="flex-1">Home</span>
+        </Link>
+        <Link
+          href="/veri-ai"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors relative",
+            pathname.startsWith("/veri-ai")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <Bot className={cn("size-4 shrink-0", pathname.startsWith("/veri-ai") && "text-ct-saffron")} />
+          <span className="flex-1">VERI AI</span>
+          {unreadAiCount > 0 && (
+            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
+              {unreadAiCount}
+            </Badge>
+          )}
         </Link>
         <Link
           href="/chat"
@@ -385,23 +406,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, pmsEnabled = false }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; pmsEnabled?: boolean }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, pmsEnabled = false }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; pmsEnabled?: boolean }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, pmsEnabled }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; pmsEnabled: boolean }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -419,7 +440,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} />
       </SheetContent>
     </Sheet>
   );

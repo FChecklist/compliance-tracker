@@ -3,13 +3,13 @@
 // lighter context than compliance/tasks/notices' ServiceContext (which
 // exists to support the dual session/API-key actor shape those don't need).
 import {
-  conversations, conversationParticipants, messages,
+  conversations, conversationParticipants, messages, messageAttachments, documents, conversationGuestAccess,
   instructionCommitments, instructionMismatchDetections, users, taskExecutionPlan,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
-import { callLLM } from "@/lib/llm-client"
+import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -155,6 +155,17 @@ export async function getMessages(ctx: ChatContext, conversationId: string) {
       : []
     const mismatchByCommitment = new Map(mismatchRows.map((m) => [m.commitmentId, m]))
 
+    // Wave 37: a guest-authored message (Wave 36) also has senderId === null
+    // (the same convention used for "the AI replied") -- without this, an
+    // internal participant viewing a conversation a guest replied in would
+    // see the guest's message mislabeled as VERIDIAN AI. guestAccessId is
+    // what actually distinguishes the two.
+    const guestAccessIds = [...new Set(rows.map((m) => m.guestAccessId).filter((id): id is string => Boolean(id)))]
+    const guestAccessRows = guestAccessIds.length
+      ? await db.query.conversationGuestAccess.findMany({ where: inArray(conversationGuestAccess.id, guestAccessIds) })
+      : []
+    const guestNameByAccessId = new Map(guestAccessRows.map((g) => [g.id, g.guestName]))
+
     return {
       messages: rows.map((m) => {
         const commitment = commitmentByMessage.get(m.id)
@@ -165,6 +176,8 @@ export async function getMessages(ctx: ChatContext, conversationId: string) {
           content: m.content,
           isInstruction: m.isInstruction,
           createdAt: m.createdAt.toISOString(),
+          isGuestMessage: Boolean(m.guestAccessId),
+          guestName: m.guestAccessId ? (guestNameByAccessId.get(m.guestAccessId) ?? "Guest") : null,
           commitment: commitment
             ? { status: commitment.status, assigneeId: commitment.assigneeId, dueDate: commitment.dueDate?.toISOString() ?? null }
             : null,
@@ -177,7 +190,56 @@ export async function getMessages(ctx: ChatContext, conversationId: string) {
   })
 }
 
-async function generateAiReply(orgId: string, userId: string, conversationId: string, userMessage: string) {
+// Wave 37 (VERI Chat Intelligence Engine, PLATFORM_STRATEGY.md §18): closes
+// a confirmed gap where generateAiReply() only ever saw the single latest
+// message -- no conversation history reached the LLM at all. Also inlines
+// each historical message's attached document's vision-extracted content
+// (documents.extractedData, Wave 35) -- messageAttachments (Wave 32) and
+// extractedData both already existed but were never connected to a chat
+// reply until now.
+const HISTORY_LIMIT = 20
+
+async function buildConversationHistory(
+  orgId: string, userId: string, conversationId: string, excludeMessageId: string
+): Promise<ChatTurn[]> {
+  return withTenantContext({ orgId, userId }, async (db) => {
+    const prior = await db.query.messages.findMany({
+      where: eq(messages.conversationId, conversationId),
+      orderBy: (t, { asc }) => asc(t.createdAt),
+    })
+    const turns = prior.filter((m) => m.id !== excludeMessageId).slice(-HISTORY_LIMIT)
+    if (turns.length === 0) return []
+
+    const attachmentRows = await db.query.messageAttachments.findMany({
+      where: inArray(messageAttachments.messageId, turns.map((t) => t.id)),
+      with: { document: true },
+    })
+    const attachmentsByMessage = new Map<string, typeof attachmentRows>()
+    for (const row of attachmentRows) {
+      const list = attachmentsByMessage.get(row.messageId) ?? []
+      list.push(row)
+      attachmentsByMessage.set(row.messageId, list)
+    }
+
+    return turns.map((m) => {
+      const attached = attachmentsByMessage.get(m.id) ?? []
+      const attachmentContext = attached
+        .map((a) => {
+          if (!a.document) return null
+          const extracted = a.document.extractedData
+          return `[Attached document: ${a.document.name}]${extracted ? `\n${JSON.stringify(extracted).slice(0, 2000)}` : " (not yet processed)"}`
+        })
+        .filter((s): s is string => Boolean(s))
+        .join("\n")
+      return {
+        role: m.senderId === null ? ("assistant" as const) : ("user" as const),
+        content: attachmentContext ? `${m.content}\n${attachmentContext}` : m.content,
+      }
+    })
+  })
+}
+
+async function generateAiReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
   // Wave 12: the first real call site for the User Assistant OA layer --
   // seeded since Wave 4 but dormant until now (no code path invoked it).
   // `userId` here is the human participant, not the AI -- is_conversation_
@@ -197,11 +259,12 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   try {
     const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system")
     const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
     const { content: reply, usage } = await callLLM(
       modelConfig.provider, modelConfig.model, modelConfig.apiKey,
       systemPrompt,
       userMessage,
-      { temperature: 0.4, maxTokens: 500 }
+      { temperature: 0.4, maxTokens: 800, history }
     )
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
@@ -283,11 +346,41 @@ export async function sendMessage(
   }
 
   if (result.isAiThread) {
-    const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, content)
+    const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
   }
 
   return response
+}
+
+// Wave 37: regenerate the AI thread's last reply -- deletes it and re-runs
+// generateAiReply() against the same trigger message. Safe to hard-delete
+// (unlike human messages elsewhere in this codebase, which are never
+// deleted): the AI thread never carries instructionCommitments (see the
+// `!convo.isAiThread` guard above), so there is no audit/legal record tied
+// to an AI-authored message's immutability.
+export async function regenerateAiReply(ctx: ChatContext, conversationId: string) {
+  const { triggerMessageId, triggerContent } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    await assertParticipant(db, conversationId, ctx.userId)
+    const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, conversationId) })
+    if (!convo?.isAiThread) throw new ServiceError("Regenerate is only available in the VERI AI thread", 400)
+
+    const all = await db.query.messages.findMany({
+      where: eq(messages.conversationId, conversationId),
+      orderBy: (t, { asc }) => asc(t.createdAt),
+    })
+    const lastAiIndex = [...all].reverse().findIndex((m) => m.senderId === null)
+    if (lastAiIndex === -1) throw new ServiceError("No AI reply to regenerate yet", 400)
+    const lastAiMessage = all[all.length - 1 - lastAiIndex]
+    const trigger = all.slice(0, all.length - 1 - lastAiIndex).reverse().find((m) => m.senderId !== null)
+    if (!trigger) throw new ServiceError("No prior message to regenerate a reply for", 400)
+
+    await db.delete(messages).where(eq(messages.id, lastAiMessage.id))
+    return { triggerMessageId: trigger.id, triggerContent: trigger.content }
+  })
+
+  const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, triggerMessageId, triggerContent)
+  return { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 }
 
 export async function markConversationRead(ctx: ChatContext, conversationId: string) {

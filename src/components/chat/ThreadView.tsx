@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { MismatchBubble, type MismatchInfo } from "./MismatchBubble";
+import { MessageContent } from "./MessageContent";
 
 type ChatMessage = {
   id: string;
@@ -16,6 +17,8 @@ type ChatMessage = {
   content: string;
   isInstruction: boolean;
   createdAt: string;
+  isGuestMessage?: boolean;
+  guestName?: string | null;
   commitment: { status: string; assigneeId: string; dueDate: string | null } | null;
   mismatch: MismatchInfo | null;
 };
@@ -172,18 +175,24 @@ export function ThreadView({
 
 function MessageBubble({ message, currentUserId }: { message: ChatMessage; currentUserId: string }) {
   const isMe = message.senderId === currentUserId;
-  const isAi = message.senderId === null;
+  // Wave 37: a guest-authored message also has senderId === null (same
+  // convention as "the AI replied") -- guestAccessId/isGuestMessage is what
+  // actually distinguishes the two, so this must be checked first.
+  const isGuest = Boolean(message.isGuestMessage);
+  const isAi = message.senderId === null && !isGuest;
 
   return (
     <div className={cn("flex my-1.5", isMe ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[75%] rounded-xl px-3.5 py-2 text-sm relative",
+          "max-w-[75%] rounded-xl px-3.5 py-2 relative",
           isAi
             ? "bg-ct-teal/10 border border-ct-teal/30 text-ct-navy"
-            : isMe
-              ? "bg-ct-navy text-white"
-              : "bg-ct-cloud text-ct-navy"
+            : isGuest
+              ? "bg-ct-saffron/10 border border-ct-saffron/30 text-ct-navy"
+              : isMe
+                ? "bg-ct-navy text-white"
+                : "bg-ct-cloud text-ct-navy"
         )}
       >
         {isAi && (
@@ -192,7 +201,12 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
             <span className="text-[10px] font-bold uppercase tracking-wide text-ct-teal">VERIDIAN AI</span>
           </div>
         )}
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        {isGuest && (
+          <div className="flex items-center gap-1 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-ct-saffron">{message.guestName || "Guest"} (external)</span>
+          </div>
+        )}
+        <MessageContent content={message.content} />
         {message.isInstruction && message.commitment && (
           <span
             className={cn(

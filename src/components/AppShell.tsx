@@ -13,6 +13,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [noticeCount, setNoticeCount] = useState(0);
   const [accountType, setAccountType] = useState("company");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [unreadAiCount, setUnreadAiCount] = useState(0);
   const [pmsEnabled, setPmsEnabled] = useState(false);
 
   useEffect(() => {
@@ -35,8 +36,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       fetch("/api/conversations")
         .then((r) => r.json())
         .then((d) => {
-          const total = (d.conversations ?? []).reduce((sum: number, c: { unreadCount: number }) => sum + c.unreadCount, 0);
-          setUnreadChatCount(total);
+          // Wave 37: VERI AI and VERI Chat are now separate nav entries, so
+          // their unread badges are computed separately from the same
+          // fetch (PLATFORM_STRATEGY.md §18).
+          const conversations: { unreadCount: number; isAiThread: boolean }[] = d.conversations ?? [];
+          setUnreadAiCount(conversations.filter((c) => c.isAiThread).reduce((sum, c) => sum + c.unreadCount, 0));
+          setUnreadChatCount(conversations.filter((c) => !c.isAiThread).reduce((sum, c) => sum + c.unreadCount, 0));
         })
         .catch(() => {});
     }
@@ -51,7 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <AppTopbar />
       <HealthRibbon />
       <div className="flex flex-1 overflow-hidden">
-        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} pmsEnabled={pmsEnabled} />
+        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} />
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream">
           <OnboardingChecklist />
           <TrialBanner />
