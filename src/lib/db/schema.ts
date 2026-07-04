@@ -2687,6 +2687,58 @@ export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
+// minthcm/erpnext(hrms)/orangehrm were evaluated and rejected as software
+// (PHP/Frappe monoliths, none Vercel-serverless-deployable). Closes the
+// real gap confirmed by reading this schema: `users` has auth fields plus
+// `departmentId`/`reportingToId` (Wave 1) but zero actual employee master
+// data, and `leavePolicyEntries` is POLICY TEXT, not a per-employee
+// request/balance ledger -- there was no way for an employee to actually
+// request leave before this wave. Payroll processing is deliberately out
+// of scope (VERIDIAN tracks payroll *compliance*, `hrComplianceItems`,
+// never runs payroll itself); org chart needs zero new schema at all --
+// it's a read-only tree over the already-existing reportingToId.
+export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().unique(),
+  orgId: text('org_id').notNull(),
+  employeeCode: text('employee_code'),
+  jobTitle: text('job_title'),
+  employmentType: text('employment_type').notNull().default('full_time'), // 'full_time' | 'part_time' | 'contract' | 'intern'
+  dateOfJoining: date('date_of_joining'),
+  dateOfBirth: date('date_of_birth'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const leaveRequests = complianceSchemaDB.table('leave_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  leaveType: text('leave_type').notNull(), // free text, matches leave_policy_entries.leave_type
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  numDays: numeric('num_days').notNull(),
+  reason: text('reason'),
+  status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'rejected' | 'cancelled'
+  approverId: text('approver_id'),
+  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const leaveBalances = complianceSchemaDB.table('leave_balances', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  leaveType: text('leave_type').notNull(),
+  year: integer('year').notNull(),
+  totalDays: numeric('total_days').notNull().default('0'),
+  usedDays: numeric('used_days').notNull().default('0'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── VERIDIAN Ticketing (Wave 39, PLATFORM_STRATEGY.md §21) ──────────────
 // Peppermint/Trudesk/FlowInquiry were evaluated and rejected as software
 // (each needs its own standalone server -- Node+Postgres+Docker,

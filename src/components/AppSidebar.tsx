@@ -155,6 +155,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Payroll & HR Statutory Compliance", href: "/hr-compliance", icon: Briefcase },
         { label: "Leave & Holiday Compliance", href: "/leave-holiday", icon: CheckSquare },
         { label: "POSH Compliance", href: "/posh", icon: UserCheck },
+        { label: "HR (Directory, Leave, Org Chart)", href: "/hr", icon: Users },
       ],
     },
     {
