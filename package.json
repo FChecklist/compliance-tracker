@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "bun src/db/seed.ts"
+    "db:seed": "bun src/db/seed.ts",
+    "test:prompts": "promptfoo eval -c promptfooconfig.yaml"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -97,6 +98,7 @@
     "drizzle-kit": "^0.31.0",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
+    "promptfoo": "^0.121.17",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"

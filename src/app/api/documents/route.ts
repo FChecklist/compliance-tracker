@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
 import { createId } from "@paralleldrive/cuid2"
+import { isVisionExtractable, extractDocumentContent } from "@/lib/services/document-extraction-service"
 
 const BUCKET = "compliance-documents"
 const MAX_SIZE_BYTES = 25 * 1024 * 1024 // matches the bucket's file_size_limit
@@ -90,6 +91,16 @@ export async function POST(request: NextRequest) {
 
       return doc
     })
+
+    // Wave 35 (Document AI): fire-and-forget vision extraction -- never
+    // blocks or fails the upload response. Image types only this pass (see
+    // document-extraction-service.ts for why PDF is deliberately deferred).
+    if (isVisionExtractable(file.type)) {
+      const imageBase64 = Buffer.from(bytes).toString("base64")
+      extractDocumentContent({ orgId, userId: dbUser.id, documentId: result.id, imageBase64, mimeType: file.type }).catch((err) =>
+        console.error("Fire-and-forget document extraction failed to even start:", err)
+      )
+    }
 
     return NextResponse.json({
       id: result.id,

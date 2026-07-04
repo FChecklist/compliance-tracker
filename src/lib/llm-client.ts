@@ -180,6 +180,123 @@ export async function callLLM(
   }
 }
 
+// Wave 35 (Document AI, VOAC evaluation -- PLATFORM_STRATEGY.md §17): a
+// dedicated vision function, not a change to callLLM's existing signature,
+// so every pre-existing call site is completely untouched. Resolves the
+// gap where `documents.extractedData` (M-02) has existed since Wave 7 with
+// zero consumers -- confirmed no OCR/vision pipeline exists anywhere in
+// this codebase. Deliberately NOT built on any external OCR library
+// (Marker/Docling/Unstructured/GLM-OCR/Ollama-OCR) -- all Python, several
+// needing GPU, none fitting a Vercel serverless Next.js deployment. Uses
+// the 4 providers already wired into this file, which all support vision
+// natively via simple HTTP (no new dependency, no new infrastructure).
+async function callVisionOpenAICompatible(
+  baseUrl: string, apiKey: string, model: string, systemPrompt: string,
+  imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
+): Promise<LLMResult> {
+  const body: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: [
+        { type: "text", text: instructionText },
+        { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+      ] },
+    ],
+    temperature: options?.temperature ?? 0.2,
+    max_tokens: options?.maxTokens ?? 2048,
+  };
+  if (options?.jsonMode) body.response_format = { type: "json_object" };
+
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${baseUrl} error ${res.status}: ${await res.text().catch(() => "")}`);
+  const data = await res.json();
+  return {
+    content: data.choices[0].message.content as string,
+    usage: { promptTokens: data.usage?.prompt_tokens ?? 0, completionTokens: data.usage?.completion_tokens ?? 0 },
+  };
+}
+
+async function callVisionAnthropic(
+  apiKey: string, model: string, systemPrompt: string,
+  imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
+): Promise<LLMResult> {
+  const system = options?.jsonMode ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.` : systemPrompt;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_tokens: options?.maxTokens ?? 2048,
+      temperature: options?.temperature ?? 0.2,
+      system,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: mimeType, data: imageBase64 } },
+        { type: "text", text: instructionText },
+      ] }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text().catch(() => "")}`);
+  const data = await res.json();
+  return {
+    content: data.content[0].text as string,
+    usage: { promptTokens: data.usage?.input_tokens ?? 0, completionTokens: data.usage?.output_tokens ?? 0 },
+  };
+}
+
+async function callVisionGoogle(
+  apiKey: string, model: string, systemPrompt: string,
+  imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
+): Promise<LLMResult> {
+  const prompt = options?.jsonMode
+    ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.\n\n${instructionText}`
+    : `${systemPrompt}\n\n${instructionText}`;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ inline_data: { mime_type: mimeType, data: imageBase64 } }, { text: prompt }] }],
+        generationConfig: { temperature: options?.temperature ?? 0.2, maxOutputTokens: options?.maxTokens ?? 2048 },
+      }),
+    }
+  );
+  if (!res.ok) throw new Error(`Google API error ${res.status}: ${await res.text().catch(() => "")}`);
+  const data = await res.json();
+  return {
+    content: data.candidates[0].content.parts[0].text as string,
+    usage: { promptTokens: data.usageMetadata?.promptTokenCount ?? 0, completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0 },
+  };
+}
+
+/** Vision-capable counterpart to callLLM -- imageBase64 has no data: prefix, mimeType is e.g. "image/jpeg". */
+export async function callLLMVision(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  imageBase64: string,
+  mimeType: string,
+  instructionText: string,
+  options?: CallLLMOptions
+): Promise<LLMResult> {
+  switch (provider) {
+    case "groq":
+      return callVisionOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+    case "openai":
+      return callVisionOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+    case "anthropic":
+      return callVisionAnthropic(apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+    case "google":
+      return callVisionGoogle(apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+  }
+}
+
 export async function callLLMJson<T>(
   provider: LLMProvider,
   model: string,

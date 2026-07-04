@@ -676,5 +676,61 @@ Also learned directly from Wave 29-31's exact playbook and applied proactively t
 
 ---
 
+## §17 — VOAC (VERIDIAN Open Source AI Catalog): evaluating ~26 proposed repos for a "VERIDIAN AI OS" (Wave 35)
+
+The user proposed a large shortlist of OSS repos across knowledge/RAG, memory, search, observability, workflow, browser/computer automation, document AI, speech, prompt testing/security, and models/chat — organized as a layered "AI OS." Every repo was checked directly (license file, deployment model, maintenance status), not assumed from the proposal or from training-data familiarity. This section is the first entry in what should be an ongoing catalog (VOAC) rather than a one-time list — future proposals get checked and added here the same way.
+
+### 17.1 The deciding factor, stated once instead of per-row: architecture fit
+
+VERIDIAN is a Next.js/TypeScript/Drizzle/Postgres app deployed on **Vercel serverless** — no Python runtime, no standing server fleet, no GPU host, no budget line for hosted infrastructure (Qdrant Cloud, Neo4j Aura, Langfuse Cloud, etc.) established anywhere in this codebase. The overwhelming majority of the proposed list is Python and/or a standalone service requiring its own persistent hosting — neither installs into a Vercel serverless function. Separately, several categories duplicate what this session already built natively across Waves 2-34: vector search (`src/lib/embeddings.ts`, real pgvector cosine-distance queries directly against the existing Supabase Postgres — confirmed working, zero extra infrastructure), prompt management (`promptTemplates`/`promptVersions`, Wave 22), observability (`orchestraExecutions` with real token/cost capture, Wave 23), memory (`assistantMemories`, Wave 22), workflow automation (Automation Rules, Wave 30 — which already explicitly rejected n8n's node-graph builder for this exact reason), and knowledge base (Wave 29). Adopting an external tool for any of these would be a second, competing implementation of something that already works, not filling a gap.
+
+### 17.2 Full catalog (every repo checked, license verified directly — not assumed)
+
+| Repo | License (verified) | Runtime/Deployment | Verdict | Reasoning |
+|---|---|---|---|---|
+| LlamaIndex | MIT | Python library | ❌ Reject | No Python runtime in this app; RAG/retrieval need not established beyond what `embeddings.ts` already does |
+| Llama Agents / Workflows | MIT | Python + optional server (confusing rename history: llama-agents ↔ llama_deploy ↔ workflows, all active) | ❌ Reject | Python; duplicates VERIDIAN's own Worker Agent runtime (`worker_agents`, task execution engine, Waves 2-19) |
+| LangGraph | MIT | Python library | ❌ Reject | Python; VERIDIAN's own task-execution-engine.ts + Automation Rules already cover orchestration needs |
+| Haystack | Apache-2.0 | Python library | ❌ Reject | Same as LlamaIndex — Python RAG framework, no gap it fills |
+| Mem0 | Apache-2.0 | Python/TS lib; self-hosted mode needs Docker + a vector store | ❌ Reject | Duplicates `assistantMemories` (Wave 22); adds a Docker/vector-store dependency for a solved problem |
+| Graphiti | Apache-2.0 | Python; **requires** a separate graph DB server (Neo4j/FalkorDB/Neptune) | ❌ Reject | Mandatory new database server — a real infra/cost commitment for a capability (temporal knowledge graphs) nothing in VERIDIAN currently needs |
+| OpenSearch | Apache-2.0 | Java, standalone cluster | ❌ Reject | Duplicates pgvector search already working in Supabase; a Java search cluster is a large, unrelated infra addition |
+| Qdrant | Apache-2.0 | Rust, standalone server (Docker) | ❌ Reject | Same — pgvector already does this natively with zero extra infrastructure |
+| Langfuse | MIT core, **proprietary EE license** for enterprise features | TypeScript, standalone service (needs Postgres + Redis + ClickHouse) | ❌ Reject | Duplicates `orchestraExecutions` (Wave 23, already captures cost/tokens/latency/tracing); would add 3 new backing services for something already built |
+| AgentOps | MIT | Python/TS SDK + hosted or self-hosted dashboard | ❌ Reject | Same duplication as Langfuse, narrower (agent-specific) |
+| n8n | **Sustainable Use License (NOT MIT** — corrected from the proposal, re-confirmed this wave) | TypeScript, standalone service | ❌ Reject | Already evaluated and rejected in Wave 30; Automation Rules is the deliberately-smaller native replacement |
+| Temporal | MIT (server), standalone cluster | Go server + client SDKs, needs its own persistent cluster + DB | ❌ Reject | Heavy infra for long-running workflows VERIDIAN doesn't currently have; Automation Rules covers the actual current need |
+| browser-use | MIT | Python, needs a running browser instance | ❌ Reject | Python; needs persistent browser hosting incompatible with serverless functions without a paid third-party browser service |
+| Playwright | Apache-2.0 | Node.js library, but needs a long-lived browser process | ⚠️ Defer | Actually Node/TS-compatible in principle, but genuine browser automation needs a persistent host (Vercel functions have execution-time limits) — a real infra decision, not free; flagged for the user, not silently built |
+| OpenHands | MIT | Python, Docker-sandboxed autonomous coding agent | ❌ Reject | Directly conflicts with VERIDIAN's own governance model — Wave 19's `code_change_requests` explicitly states "approving a code_change_request does NOT cause any code to change... remains a human directing a coding session," the opposite of what OpenHands does |
+| Marker | **GPL-3.0** | Python library/CLI | ❌ Reject on license alone | Copyleft — incompatible with a proprietary SaaS regardless of architecture fit |
+| Docling | MIT | Python library | ❌ Reject | Python; see §17.3 for the actual fix to the gap this would have filled |
+| Unstructured | Apache-2.0 | Python library | ❌ Reject | Same |
+| Ollama OCR | MIT | Python wrapper, **requires** a running Ollama daemon | ❌ Reject | Needs its own GPU-hosted model-serving daemon; also last updated over a year ago |
+| LiteParse | Apache-2.0 | Rust/multi-lang (Node/Python/WASM bindings), local-only | ❌ Reject | Genuinely closer to fitting (has a Node binding, no cloud dependency) but still a native/WASM binary dependency for a gap better closed with an HTTP call VERIDIAN's stack already makes (see §17.3) |
+| GLM-OCR | Apache-2.0 (code) / MIT (model) | Python, self-hosted needs GPU; cloud-API mode exists | ❌ Reject | Self-hosted needs GPU; cloud mode is a third-party API dependency for something the existing LLM providers already do (vision) |
+| faster-whisper | MIT | Python library, GPU optional | ❌ Reject | Python; meeting transcription remains the explicitly-deferred infra decision from Wave 34 (§16.4) |
+| WhisperX | BSD-2-Clause | Python library, GPU recommended | ❌ Reject | Same |
+| Promptfoo | MIT | **TypeScript/Node — CLI + library, zero runtime footprint** | ✅ **Adopt** | The one repo that is genuinely Node-native and dev-time-only (no deployed service, no infra) — fits for regression-testing the `promptTemplates` seed content in CI |
+| Garak | Apache-2.0 | Python CLI scanner | 📋 Note, not adopted | Legitimate LLM security scanning tool; could be run manually/offline against VERIDIAN's provider endpoints as a periodic audit exercise, but that's a decision for the user to schedule, not something to wire into the app |
+| PyRIT | MIT, but **archived** (moved to `microsoft/PyRIT`) | Python framework | 📋 Note, not adopted | Same category as Garak; note the repo move for accuracy if ever revisited |
+| Ollama | MIT | Go, standalone daemon, GPU recommended | ❌ Reject | Standing model-hosting infrastructure; VERIDIAN's existing provider-agnostic `llm-client.ts` already calls 4 hosted providers over HTTP with zero hosting burden |
+| Open WebUI | **NOT MIT** — custom "Open WebUI License" (BSD-3 base + a branding-restriction clause requiring a paid enterprise license past 50 users/30 days) | Python/Svelte, standalone service | ❌ Reject | Not permissively licensed as claimed; also a full chat UI VERIDIAN already has (VERI Chat) |
+| Aider | Apache-2.0 | Python CLI, terminal-interactive | ❌ Reject | A human's own coding-assistant tool, not something to embed in the running app |
+
+### 17.3 The one genuine gap, and how it's actually being closed
+
+`documents.extractedData` (jsonb, added Wave 7 for "AI extracted fields") has had **zero consumers since it was created** — confirmed by grepping the entire codebase. Also confirmed: `llm-client.ts` had zero vision/multimodal handling of any kind before this wave, and the pre-existing `orchestrate.document_uploaded` prompt only ever reasons about a document's *filename*, never its actual content. This is a real, previously-unfilled gap — but every proposed Document AI repo (Marker, Docling, Unstructured, Ollama OCR, LiteParse, GLM-OCR) is a Python (or Rust-with-bindings) library needing its own runtime, several needing GPU. None of that fits a Vercel serverless deployment without standing up new paid infrastructure.
+
+**The fix**: VERIDIAN's own 4 LLM providers (Groq, OpenAI, Anthropic, Google) all support vision natively over plain HTTP — the exact same request pattern `llm-client.ts` already uses for text. Added `callLLMVision()` (a new function, zero changes to any existing call site) plus a new `document-extraction-service.ts` that resolves an org's configured model, **overrides to a known vision-capable model** for the provider (reusing the exact model identifiers already established in `MODEL_PRICING`, Wave 23 — `gpt-4o`, `claude-sonnet-5`, `gemini-2.0-flash` — rather than trusting whatever text model the org configured for a different purpose, or guessing an unverified Groq vision model name), and writes structured extraction results into the pre-existing `extractedData` column. Wired fire-and-forget into the existing document upload route (`/api/documents`), for image uploads only this pass — PDF vision support varies meaningfully by provider and is deferred, not squeezed in to check a box. A new `document.extract_content` prompt template was seeded through the existing Prompt OS (Wave 22), not hardcoded.
+
+### 17.4 Explicitly flagged for the user, not silently decided
+
+**Playwright-based browser automation** and **hosted speech-to-text for VERI Minutes of Meetings** (faster-whisper/WhisperX territory) are both real, legitimate capabilities this catalog confirms are missing — but both require either a persistent browser-hosting service or a GPU/hosted transcription API, i.e., new recurring cost. Neither was silently provisioned. **Garak/PyRIT-style LLM security scanning** is a genuine, worthwhile practice (prompt-injection/jailbreak testing against VERIDIAN's own provider integrations) but is an operational exercise to schedule, not application code to deploy.
+
+### Status update (2026-07-04): Promptfoo adopted for prompt regression testing, vision-based document extraction built, everything else in the list explicitly rejected or flagged — see `orchestra_changes.md` #81
+
+---
+
 ## Appendix: Prior mockup iterations (design history, for reference)
 `veridian_landing_v2_role_adaptive.html` through `v13_top_nav.html` (and the original `veridian_ui_mockup.html`) were kept under separate filenames through the design process specifically so each round's reasoning could be compared against the last. They are not part of this repo; v14's content is preserved here as `examples/mobile-app-template/veridian-mobile-template.html`. Do not regenerate the earlier rounds' patterns (per-role separate pages, redundant per-task icons, dual permanent compose bars, top-of-screen nav duplicating persona-switching) — each was tried and superseded for a documented reason.

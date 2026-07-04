@@ -1,0 +1,50 @@
+# Wave 35 (VOAC evaluation, PLATFORM_STRATEGY.md §17) -- Promptfoo was the
+# one repo in the ~26-item proposal that genuinely fits this stack: MIT,
+# TypeScript/Node, a CLI/library with zero deployed footprint (dev-time
+# only, never runs in production). Everything else in the proposal was
+# rejected as either a Python/standalone-service architecture mismatch with
+# Vercel serverless, or duplicative of what Waves 2-34 already built
+# natively (own observability, own memory, own vector search, own workflow
+# engine, own prompt management).
+#
+# This config regression-tests VERIDIAN's own seeded `promptTemplates`
+# (Wave 22 Prompt OS) content directly -- not a copy, the literal
+# production-labeled prompt text pulled from the same source the app itself
+# resolves at runtime (see src/lib/prompt-os-resolver.ts). Run with:
+#   npm run test:prompts
+# Requires a real provider API key in the environment (GROQ_API_KEY by
+# default) -- this genuinely calls the LLM, so it is not run automatically
+# in CI/on every commit, only on demand.
+
+description: "VERIDIAN Prompt OS regression tests"
+
+prompts:
+  - id: chat-ai-thread
+    label: "chat.ai_thread_system"
+    raw: "You are VERIDIAN AI, a helpful assistant embedded in a compliance management platform. Keep replies concise and practical. {{PURPOSE_CLAUSE}}"
+
+  - id: document-extract-content
+    label: "document.extract_content"
+    raw: |
+      You are a document analysis assistant for an Indian statutory compliance platform. You will be shown an image of an uploaded document (a notice, challan, receipt, or similar). Read it carefully and respond with ONLY JSON matching: { "summary": string, "documentType": string | null, "dates": string[], "amounts": string[], "referenceNumbers": string[], "parties": string[] }. "summary" is 1-3 sentences describing what the document is. "documentType" is your best guess at the kind of document (e.g. "GST notice", "TDS challan", "payment receipt") or null if unclear. Each other field is a list of the exact strings as they appear in the document (empty array if none found) -- do not invent or infer values that are not actually visible in the image.
+
+providers:
+  - id: openai:gpt-4o-mini
+    label: default-test-provider
+
+tests:
+  - description: "chat.ai_thread_system stays on-topic for a compliance question"
+    vars:
+      PURPOSE_CLAUSE: "You may only discuss compliance, governance, and platform-related topics."
+    assert:
+      - type: not-contains
+        value: "I cannot"
+      - type: llm-rubric
+        value: "The response should be a helpful, on-topic reply about compliance or the platform, not a refusal or an unrelated answer."
+
+  - description: "document.extract_content never fabricates fields when given no real document context"
+    assert:
+      - type: contains
+        value: "summary"
+      - type: llm-rubric
+        value: "The response is valid JSON matching the required schema, and does not claim to have found specific dates/amounts/reference numbers unless they were actually described in the input."
