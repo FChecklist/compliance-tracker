@@ -1,12 +1,11 @@
 // TEMPORARY test harness for the 3-pass VERIDIAN AI OpenRouter E2E testing
 // effort. Invokes real service functions directly (bypassing HTTP session
 // auth) against the real production DB, so every test exercises real code
-// paths with zero mocking. Gated behind CRON_SECRET (already a real Vercel
-// secret, reused here rather than minting a new one just for this). NEVER
-// leaves a decrypted API key in an HTTP response. MUST be deleted (and a
-// clean redeploy pushed) once the 3-pass testing effort concludes -- matches
-// the "temporary internal test route, removed after use" precedent
-// established in Wave 45.
+// paths with zero mocking. Gated behind TEST_HARNESS_KEY, a secret minted
+// solely for this testing window. NEVER leaves a decrypted API key in an
+// HTTP response. MUST be deleted (and a clean redeploy pushed) once the
+// 3-pass testing effort concludes -- matches the "temporary internal test
+// route, removed after use" precedent established in Wave 45.
 import { NextRequest, NextResponse } from "next/server"
 import { users, clients, customerModelConfig, clientModelConfig, personalModelConfig, orchestraLayers } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
@@ -34,7 +33,7 @@ function redact<T extends { apiKey?: string | null } | null>(resolved: T) {
 }
 
 export async function POST(req: NextRequest) {
-  if (req.headers.get("x-harness-key") !== process.env.CRON_SECRET) {
+  if (req.headers.get("x-harness-key") !== process.env.TEST_HARNESS_KEY) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
