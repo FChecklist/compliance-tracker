@@ -45,12 +45,12 @@ TC-AU-03, TC-AU-05, TC-DB-01 through TC-RS-04. See test_tasks.md for full list.
 - GitHub PAT: Configured (Secret: GITHUB_PAT)
 - Vercel Token: Configured (Secret: VERCEL_TOKEN) 
 - Supabase Access Token: Configured (Secret: SUPABASE_TOKEN)
-- **New DB user:** ct_app / CTApp2026Secure! (created via Supabase Management API)
+- **New DB user:** ct_app (created via Supabase Management API -- password redacted 2026-07-04, was previously committed in plaintext; see security-audit note in PLATFORM_STRATEGY.md)
 
 ### Key Vercel Env Vars (Updated)
-- `DATABASE_URL` = postgresql://ct_app:CTApp2026Secure!@db.jusqumifsmtcaujqyjuy.supabase.co:5432/postgres
+- `DATABASE_URL` = [REDACTED 2026-07-04 -- previously a real password in plaintext; set the actual value in Vercel's dashboard/env vars, never in this file]
 - `DIRECT_URL` = (same as DATABASE_URL)
-- `NEXT_PUBLIC_SUPABASE_URL` = https://jusqumifsmtcaujqyjuy.supabase.co
+- `NEXT_PUBLIC_SUPABASE_URL` = [REDACTED 2026-07-04 -- was a real project ref; see note above]
 - `DB_SCHEMA` = compliance_tracker (NOTE: not used by code — code hardcodes `compliance` schema)
 
 ### Database State

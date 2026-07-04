@@ -356,7 +356,7 @@ From `Testing/test_execution_log.md` (46 total tests, last updated 2026-06-29T04
 ### Immediate (this week)
 
 **REC-01: Verify BUG-001 fix**
-Call `/api/compliance/stats` on the live Vercel URL and confirm it returns 200 with data. If still 500, check Vercel env vars: `DATABASE_URL` must be `postgresql://ct_app:CTApp2026Secure!@db.jusqumifsmtcaujqyjuy.supabase.co:5432/postgres`
+Call `/api/compliance/stats` on the live Vercel URL and confirm it returns 200 with data. If still 500, check the `DATABASE_URL` Vercel env var (redacted here 2026-07-04 -- this line previously contained a real, live database password committed in plaintext; see PLATFORM_STRATEGY.md's security-audit note. Set the actual value in Vercel's dashboard, never in this file.)
 
 **REC-02: Run seed on production**
 Run `bun db:push` then `bun db:seed` against Supabase production. Verify via Supabase dashboard that `compliance.compliance_items` has 18 rows.
