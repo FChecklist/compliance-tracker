@@ -22,16 +22,25 @@ const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 // llama-3.3-70b-versatile -- a TEXT-ONLY Groq model. Silently sending it an
 // image would look like it "worked" (no error) while never actually seeing
 // the document. Reuses the exact model names already established in
-// llm-client.ts's own MODEL_PRICING table (Wave 23) for the 3 providers
-// with a confirmed-vision-capable entry there -- no new/guessed model name
+// llm-client.ts's own MODEL_PRICING table (Wave 23) for the providers with
+// a confirmed-vision-capable entry there -- no new/guessed model name
 // introduced. Groq has no vision-capable model referenced anywhere in this
 // codebase, so it's deliberately left unmapped: extraction is skipped
 // (logged, not silently wrong) rather than guess a Groq vision model name
 // that might not exist or might already be deprecated by the time this runs.
+//
+// Wave 46 testing pass: Wave 45 switched the platform default provider to
+// OpenRouter, but this map was never updated -- meaning extraction has been
+// silently skipped for every org since Wave 45 shipped (the platform's own
+// default customer_account_oa config resolves to openrouter, which had no
+// entry here, so visionModel was always undefined and every extraction
+// returned early with zero work done). openai/gpt-4o-mini confirmed
+// vision-capable live via https://openrouter.ai/api/v1/models 2026-07-04.
 const VISION_MODEL_OVERRIDES: Partial<Record<LLMProvider, string>> = {
   openai: "gpt-4o",
   anthropic: "claude-sonnet-5",
   google: "gemini-2.0-flash",
+  openrouter: "openai/gpt-4o-mini",
 }
 
 export type ExtractedDocumentData = {

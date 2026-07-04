@@ -65,6 +65,10 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   // table's existing unit. The ":free" variant is $0 and used for testing.
   "meta-llama/llama-3.3-70b-instruct": { promptPer1k: 0.0001, completionPer1k: 0.00032 },
   "meta-llama/llama-3.3-70b-instruct:free": { promptPer1k: 0, completionPer1k: 0 },
+  // Verified live via https://openrouter.ai/api/v1/models 2026-07-04 --
+  // vision-capable (input_modalities includes "image"), used as the
+  // OpenRouter entry in document-extraction-service.ts's VISION_MODEL_OVERRIDES.
+  "openai/gpt-4o-mini": { promptPer1k: 0.00015, completionPer1k: 0.0006 },
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
@@ -333,6 +337,20 @@ export async function callLLMVision(
   }
 }
 
+// Wave 46 testing pass: some models routed through OpenRouter (confirmed
+// live with meta-llama/llama-3.3-70b-instruct, VERI FDE's evaluation call)
+// wrap their JSON output in a markdown code fence even when jsonMode/
+// response_format=json_object is requested -- response_format is passed
+// through best-effort by OpenRouter and isn't uniformly honored by every
+// upstream provider it routes to. Strips a leading/trailing ``` fence
+// (with or without a "json" language tag) before parsing, so a
+// spec-compliant model's untouched output and a fenced one both parse.
+function stripJsonFence(content: string): string {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced ? fenced[1].trim() : trimmed;
+}
+
 export async function callLLMJson<T>(
   provider: LLMProvider,
   model: string,
@@ -342,5 +360,5 @@ export async function callLLMJson<T>(
   options?: CallLLMOptions
 ): Promise<{ data: T; usage: LLMUsage }> {
   const { content, usage } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true });
-  return { data: JSON.parse(content) as T, usage };
+  return { data: JSON.parse(stripJsonFence(content)) as T, usage };
 }

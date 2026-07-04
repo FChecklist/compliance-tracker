@@ -7,7 +7,7 @@
 // 3-pass testing effort concludes -- matches the "temporary internal test
 // route, removed after use" precedent established in Wave 45.
 import { NextRequest, NextResponse } from "next/server"
-import { users, clients, customerModelConfig, clientModelConfig, personalModelConfig, orchestraLayers } from "@/lib/db"
+import { users, clients, documents, customerModelConfig, clientModelConfig, personalModelConfig, orchestraLayers } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { encryptApiKey } from "@/lib/ai-config-crypto"
@@ -18,6 +18,7 @@ import { submitFdeRequest } from "@/lib/services/fde-service"
 import { enforcePolicy, refusalMessageFor, policyDecisionDisplayLabel } from "@/lib/policy-enforcement-engine"
 import { findSimilarCapabilities } from "@/lib/services/capability-registry-service"
 import { callLLM } from "@/lib/llm-client"
+import { extractDocumentContent } from "@/lib/services/document-extraction-service"
 
 const ORG_ID = "org_001"
 
@@ -84,9 +85,25 @@ export async function POST(req: NextRequest) {
       }
 
       case "policyCheck": {
-        const { text, layerKey, eventType } = payload as { text: string; layerKey: string; eventType: string }
-        const decision = enforcePolicy({ orgId: ORG_ID, layerKey, eventType }, text)
+        const { text, layerKey, eventType, domain } = payload as { text: string; layerKey: string; eventType: string; domain?: string }
+        const decision = enforcePolicy({ orgId: ORG_ID, layerKey, eventType, domain }, text)
         return NextResponse.json({ decision, refusal: refusalMessageFor(decision), label: policyDecisionDisplayLabel(decision.category) })
+      }
+
+      case "docExtraction": {
+        const { userId, imageBase64, mimeType } = payload as { userId: string; imageBase64: string; mimeType: string }
+        const [doc] = await withTenantContext({ orgId: ORG_ID, userId }, (db) =>
+          db.insert(documents).values({
+            name: "harness-test-image", fileUrl: "test/harness-image", fileType: mimeType,
+            uploadedById: userId, orgId: ORG_ID,
+          }).returning()
+        )
+        await extractDocumentContent({ orgId: ORG_ID, userId, documentId: doc.id, imageBase64, mimeType })
+        const [after] = await withTenantContext({ orgId: ORG_ID, userId }, (db) =>
+          db.select({ extractedData: documents.extractedData }).from(documents).where(eq(documents.id, doc.id))
+        )
+        await withTenantContext({ orgId: ORG_ID, userId }, (db) => db.delete(documents).where(eq(documents.id, doc.id)))
+        return NextResponse.json({ extractedData: after?.extractedData ?? null })
       }
 
       case "capabilitySearch": {
