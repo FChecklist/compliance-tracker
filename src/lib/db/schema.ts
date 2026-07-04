@@ -2687,6 +2687,47 @@ export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN CRM (Wave 41, PLATFORM_STRATEGY.md §20) ────────────────────
+// Twenty (already rejected in §17.7) and SuiteCRM (AGPL-3.0 PHP monolith)
+// evaluated and rejected as software -- a generic CRM (campaigns, quotes,
+// email marketing) has no product tie-in for VERIDIAN anyway. Deliberately
+// narrow: completes the existing Wave-1 Clients feature with the one thing
+// it was missing -- how a CA firm/legal firm/consultant actually gets a
+// new client, not just manages an existing one. Gated identically to the
+// existing Clients page (accountType !== 'company'). Activity tracking is
+// NOT duplicated here -- a lead/opportunity's call/meeting history reuses
+// the already-existing polymorphic contextEntityType/contextEntityId on
+// `conversations` (VERI Chat, Wave 32) and `veriMeetings` (Wave 34).
+export const crmLeads = complianceSchemaDB.table('crm_leads', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  contactEmail: text('contact_email'),
+  contactPhone: text('contact_phone'),
+  source: text('source'), // free text, e.g. 'referral' | 'website' | 'cold_outreach'
+  status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
+  ownerId: text('owner_id'),
+  convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  leadId: text('lead_id'), // nullable -- an opportunity can originate from a lead...
+  clientId: text('client_id'), // ...or an existing client (e.g. an add-on service) -- at least one of the two is required, enforced in the service layer
+  name: text('name').notNull(),
+  stage: text('stage').notNull().default('prospecting'), // 'prospecting' | 'proposal' | 'negotiation' | 'won' | 'lost'
+  estimatedValue: numeric('estimated_value'),
+  expectedCloseDate: date('expected_close_date'),
+  ownerId: text('owner_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
 // minthcm/erpnext(hrms)/orangehrm were evaluated and rejected as software
 // (PHP/Frappe monoliths, none Vercel-serverless-deployable). Closes the

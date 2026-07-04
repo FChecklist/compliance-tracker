@@ -43,6 +43,7 @@ import {
   Rocket,
   Zap,
   Ticket,
+  TrendingUp,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +78,13 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         // legal firm / consultant) -- a plain 'company' account has exactly
         // one, auto-backfilled "Self" client and no reason to see this.
         ...(accountType !== "company"
-          ? [{ label: "Clients", href: "/clients", icon: Building2 }]
+          ? [
+              { label: "Clients", href: "/clients", icon: Building2 },
+              // Wave 41 (CRM, PLATFORM_STRATEGY.md §20): a lead-to-client
+              // pipeline, gated identically to Clients -- a plain 'company'
+              // account has no clients to prospect for.
+              { label: "CRM (Leads & Opportunities)", href: "/crm", icon: TrendingUp },
+            ]
           : []),
       ],
     },
