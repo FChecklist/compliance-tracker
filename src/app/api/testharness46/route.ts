@@ -91,20 +91,30 @@ export async function POST(req: NextRequest) {
       }
 
       case "debugConversationInsert": {
+        // Deliberately TWO separate withTenantContext calls (two separate
+        // transactions) -- a Postgres transaction that hits an RLS
+        // violation is aborted for its remaining lifetime, so nesting the
+        // guc-read and the insert-attempt in ONE transaction meant the
+        // guc read was discarded too when the insert's abort later failed
+        // the implicit COMMIT, surfacing only the raw DB error with no
+        // diagnostic payload. Splitting them means the guc read's own
+        // transaction commits cleanly regardless of what the second one does.
         const { userId } = payload as { userId: string }
-        const result = await withTenantContext({ orgId: ORG_ID, userId }, async (db) => {
-          const gucRows = await db.execute(sql`select current_setting('app.current_org_id', true) as org, current_setting('app.current_user_id', true) as usr, current_user as db_role`)
-          try {
+        const guc = await withTenantContext({ orgId: ORG_ID, userId }, (db) =>
+          db.execute(sql`select current_setting('app.current_org_id', true) as org, current_setting('app.current_user_id', true) as usr, current_user as db_role`)
+        )
+        try {
+          const insertResult = await withTenantContext({ orgId: ORG_ID, userId }, async (db) => {
             const [row] = await db.insert(conversations).values({
               orgId: ORG_ID, type: "ai", isAiThread: true, title: "DEBUG",
             }).returning()
             await db.delete(conversations).where(eq(conversations.id, row.id))
-            return { guc: gucRows[0], insertOk: true, insertedRow: row }
-          } catch (err) {
-            return { guc: gucRows[0], insertOk: false, error: err instanceof Error ? err.message : String(err) }
-          }
-        })
-        return NextResponse.json(result)
+            return row
+          })
+          return NextResponse.json({ guc: guc[0], insertOk: true, insertedRow: insertResult })
+        } catch (err) {
+          return NextResponse.json({ guc: guc[0], insertOk: false, error: err instanceof Error ? err.message : String(err) })
+        }
       }
 
       case "docExtraction": {
