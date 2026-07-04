@@ -1,0 +1,152 @@
+"use client";
+
+// Wave 48: the persistent, Claude-Desktop-style command bar validated across
+// both the mobile and laptop pastel mockups, brought into production as one
+// real component -- auto-grows with the text (textarea, not <input>), and is
+// mounted once in AppShell so it's present on every authenticated screen on
+// every device. Presentation adapts via pure CSS breakpoints (full-width bar
+// on mobile, centered floating bar offset past the sidebar on desktop) --
+// deliberately not UA-sniffed, since CSS media queries stay correct when a
+// desktop window is resized narrow, which UA detection alone would miss.
+//
+// Hidden on /veri-ai and /chat: those pages already have their own dedicated,
+// full-height composer (Wave 37) -- showing a second one on top would be
+// redundant. Everywhere else, this is the only way to reach VERI AI.
+//
+// Sends always go to the org's pinned AI thread (the same one /veri-ai
+// opens by default) -- routing into whatever specific human conversation a
+// user has open elsewhere would need cross-page state this component
+// doesn't have visibility into; a real follow-up, not faked here.
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { toast } from "sonner";
+import { Send, Loader2 } from "lucide-react";
+
+const HIDDEN_PREFIXES = ["/veri-ai", "/chat", "/login", "/signup"];
+
+export function isDockHiddenForPath(pathname: string | null): boolean {
+  return HIDDEN_PREFIXES.some((p) => pathname?.startsWith(p));
+}
+
+export default function GlobalChatDock() {
+  const pathname = usePathname();
+  const hidden = isDockHiddenForPath(pathname);
+
+  const [aiThreadId, setAiThreadId] = useState<string | null>(null);
+  const [value, setValue] = useState("");
+  const [sending, setSending] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const draftKeyRef = useRef<string | null>(null);
+
+  const resizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  };
+
+  useEffect(() => {
+    // Restore any draft the moment we know who the user is -- namespaced
+    // per user so a shared/kiosk machine never shows one person's draft to
+    // another. Done inside this same fetch callback (not a separate effect
+    // keyed off userId) so the localStorage read stays async-callback-scoped
+    // rather than a synchronous setState-in-effect.
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.id) return;
+        const key = `veridian-dock-draft:${d.id}`;
+        draftKeyRef.current = key;
+        try {
+          const saved = window.localStorage.getItem(key);
+          if (saved) {
+            setValue(saved);
+            requestAnimationFrame(resizeTextarea);
+          }
+        } catch {
+          // localStorage unavailable (private browsing, etc.) -- draft
+          // persistence just silently doesn't happen, nothing else breaks.
+        }
+      })
+      .catch(() => {});
+    fetch("/api/conversations")
+      .then((r) => r.json())
+      .then((d) => {
+        const ai = (d?.conversations ?? []).find((c: { isAiThread: boolean }) => c.isAiThread);
+        if (ai) setAiThreadId(ai.id);
+      })
+      .catch(() => {});
+  }, []);
+
+  const onChange = (next: string) => {
+    setValue(next);
+    resizeTextarea();
+    if (!draftKeyRef.current) return;
+    try {
+      if (next) window.localStorage.setItem(draftKeyRef.current, next);
+      else window.localStorage.removeItem(draftKeyRef.current);
+    } catch {
+      // Same as above -- best-effort only.
+    }
+  };
+
+  const send = async () => {
+    const text = value.trim();
+    if (!text || sending) return;
+    if (!aiThreadId) {
+      toast.error("VERI AI isn't ready yet — try again in a moment");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch(`/api/conversations/${aiThreadId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!res.ok) throw new Error();
+      onChange("");
+      toast.success("Sent to VERI AI");
+    } catch {
+      toast.error("Failed to send — please try again");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (hidden) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 lg:left-[220px] z-40 flex justify-center px-3 pb-3 pt-1 sm:px-6 sm:pb-5 pointer-events-none">
+      <div className="w-full sm:max-w-[700px] pointer-events-auto">
+        <div className="rounded-2xl bg-white border border-ct-border shadow-lg px-3.5 pt-2.5 pb-2">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder="Tell VERIDIAN what to do…"
+            className="w-full bg-transparent text-sm text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[200px] overflow-y-auto"
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[11px] text-ct-muted hidden sm:inline">VERI AI</span>
+            <button
+              type="button"
+              onClick={send}
+              disabled={sending || !value.trim()}
+              className="size-8 rounded-lg bg-ct-saffron hover:bg-ct-saffron-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+            >
+              {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -6,9 +6,14 @@ import { HealthRibbon } from "@/components/HealthRibbon";
 import TrialBanner from "@/components/TrialBanner";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import PageAgentInitializer from "@/components/PageAgentInitializer";
+import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const dockHidden = isDockHiddenForPath(pathname);
   const [overdueCount, setOverdueCount] = useState(0);
   const [noticeCount, setNoticeCount] = useState(0);
   const [accountType, setAccountType] = useState("company");
@@ -57,12 +62,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <HealthRibbon />
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} />
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream">
+        <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream", !dockHidden && "pb-28 md:pb-32")}>
           <OnboardingChecklist />
           <TrialBanner />
           {children}
         </main>
       </div>
+      <GlobalChatDock />
     </div>
   );
 }
