@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 // renderer as VERI Chat (src/components/chat) -- "nearly identical
 // features, only the way it's used differs," per the user's framing.
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Bot, Send, Loader2, RotateCcw, Paperclip } from "lucide-react";
+import Link from "next/link";
+import { Bot, Send, Loader2, RotateCcw, Paperclip, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "@/components/chat/MessageContent";
@@ -127,9 +128,20 @@ export default function VeriAiPage() {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
-        <Bot className="size-5 text-ct-saffron" />
-        <h1 className="font-heading text-xl text-ct-navy">VERI AI</h1>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Bot className="size-5 text-ct-saffron" />
+          <h1 className="font-heading text-xl text-ct-navy">VERI AI</h1>
+        </div>
+        {/* Wave 42 (VERI FDE, PLATFORM_STRATEGY.md §23): VERI AI is where a
+            user already talks to the system -- "I want this functionality"
+            requests are routed to VERI FDE's own page rather than a second
+            conversational entry point invented inside this one. */}
+        <Link href="/fde">
+          <Button size="sm" variant="outline">
+            <Sparkles className="size-3.5 mr-1.5" /> Request a capability
+          </Button>
+        </Link>
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-ct-border bg-white overflow-hidden">

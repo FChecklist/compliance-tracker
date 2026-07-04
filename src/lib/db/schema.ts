@@ -2687,6 +2687,27 @@ export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERI FDE -- Forward Deployed AI (Wave 42, PLATFORM_STRATEGY.md §23) ──
+// Adds NO new creation power over what proposeWorkerAgent() (Wave 16)
+// already allows -- this is a natural-language front-end to that existing
+// role-gated, human-approval-gated pipeline, not a bypass of it. Closes
+// the exact gap §11 already named twice: "if none exists, the governing
+// layer may create a new Worker Agent Proposal" (refinement #4) and "an
+// actual autonomous L2/L3 AI actor... natural next step... not yet
+// scoped or started" (the Wave 19 status note).
+export const fdeRequests = complianceSchemaDB.table('fde_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  requestText: text('request_text').notNull(),
+  status: text('status').notNull().default('matched_existing'), // 'matched_existing' | 'proposed_agent' | 'error'
+  matchedWorkerAgentId: text('matched_worker_agent_id'),
+  matchedLabel: text('matched_label'), // free text -- e.g. a matched module/automation-rule name, when the match isn't a worker agent row
+  createdWorkerAgentId: text('created_worker_agent_id'), // set when a new proposal was drafted
+  responseText: text('response_text').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── VERIDIAN CRM (Wave 41, PLATFORM_STRATEGY.md §20) ────────────────────
 // Twenty (already rejected in §17.7) and SuiteCRM (AGPL-3.0 PHP monolith)
 // evaluated and rejected as software -- a generic CRM (campaigns, quotes,
