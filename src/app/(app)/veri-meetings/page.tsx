@@ -19,7 +19,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Meeting = { id: string; title: string; meetingType: string; scheduledAt: string };
+type Meeting = { id: string; title: string; meetingType: string; scheduledAt: string; status: "draft" | "published"; systemId: string | null };
 
 const MEETING_TYPES = [
   { value: "team", label: "Team" },
@@ -141,8 +141,14 @@ export default function VeriMeetingsPage() {
               <ClipboardList className="size-4 text-ct-teal shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-ct-navy">{m.title}</p>
-                <p className="text-xs text-ct-muted">{new Date(m.scheduledAt).toLocaleString()}</p>
+                <p className="text-xs text-ct-muted">
+                  {new Date(m.scheduledAt).toLocaleString()}
+                  {m.systemId && <span className="font-mono ml-2">{m.systemId}</span>}
+                </p>
               </div>
+              <Badge variant={m.status === "published" ? "secondary" : "outline"} className="text-[10px]">
+                {m.status === "published" ? "Published" : "Draft"}
+              </Badge>
               <Badge variant="secondary" className="text-[10px]">{MEETING_TYPES.find((t) => t.value === m.meetingType)?.label ?? m.meetingType}</Badge>
             </button>
           ))}

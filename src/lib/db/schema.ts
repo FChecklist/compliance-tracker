@@ -645,6 +645,7 @@ export const tasks = complianceSchemaDB.table('tasks', {
   // before this wave). Nullable because userId itself is nullable.
   assignedById: text('assigned_by_id'),
   projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope
+  dueDate: timestamp('due_date'), // Wave 44: generalized from meettrack-v2's per-action-item target_date
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -2892,6 +2893,11 @@ export const conversationGuestAccess = complianceSchemaDB.table('conversation_gu
 // (Wave 8, governance-only) and pms_meetings (Wave 28, PMS-project-scoped)
 // are both real but scope-locked. minutesHistory mirrors board_meetings'
 // own amend-don't-overwrite precedent verbatim.
+// Wave 44 additions (PLATFORM_STRATEGY.md §25): systemId/status/publishedAt/
+// publishedById -- the publish/lock workflow adopted from meettrack-v2,
+// enforced at the service layer (not just a disabled UI input like the
+// source app). Field-level change history reuses the existing audit_logs
+// table via logActivity(), not a new meeting_history table.
 export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -2904,9 +2910,27 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   agenda: jsonb('agenda').notNull().default([]), // string[]
   minutes: text('minutes'),
   minutesHistory: jsonb('minutes_history').notNull().default([]), // { date, amendedBy, text }[]
+  systemId: text('system_id').unique(), // e.g. MOM-2026-4821 -- nullable, pre-existing rows never get one retroactively
+  status: text('status').notNull().default('draft'), // 'draft' | 'published' -- once published, meeting-level fields lock
+  publishedAt: timestamp('published_at'),
+  publishedById: text('published_by_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Wave 44: mirrors conversationShareLinks (Wave 36) exactly -- tokenized,
+// time-limited, individually revocable. Deliberately NOT meettrack-v2's own
+// simpler is_published=true=world-readable-forever RLS policy, which is a
+// materially weaker security model for anything meant to stay revocable.
+export const veriMeetingShareLinks = complianceSchemaDB.table('veri_meeting_share_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  meetingId: text('meeting_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // Action items become real `tasks` rows (which VERI To Do already
@@ -2933,6 +2957,11 @@ export const conversationGuestAccessRelations = relations(conversationGuestAcces
 
 export const veriMeetingsRelations = relations(veriMeetings, ({ many }) => ({
   actionItems: many(veriMeetingActionItems),
+  shareLinks: many(veriMeetingShareLinks),
+}))
+
+export const veriMeetingShareLinksRelations = relations(veriMeetingShareLinks, ({ one }) => ({
+  meeting: one(veriMeetings, { fields: [veriMeetingShareLinks.meetingId], references: [veriMeetings.id] }),
 }))
 
 export const veriMeetingActionItemsRelations = relations(veriMeetingActionItems, ({ one }) => ({

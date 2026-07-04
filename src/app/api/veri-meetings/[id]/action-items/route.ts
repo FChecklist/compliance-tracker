@@ -12,7 +12,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json()
-    const result = await addMeetingActionItem({ orgId, userId: dbUser.id, dbUser }, id, body)
+    const result = await addMeetingActionItem({ orgId, userId: dbUser.id, dbUser }, id, {
+      title: body.title, assigneeUserId: body.assigneeUserId, dueDate: body.dueDate,
+    })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
