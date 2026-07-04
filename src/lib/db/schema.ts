@@ -454,6 +454,13 @@ export const aiConfigurations = complianceSchemaDB.table('ai_configurations', {
 })
 
 // ─── Embeddings (M-01: pgvector) ────────────────────────────────────────
+// `embedding vector(1536)` column intentionally omitted here (Drizzle has no
+// first-class pgvector type; managed via raw SQL, same pattern as
+// task_embedding elsewhere). Wave 45 discovered while testing VERI FDE
+// end-to-end that this column had never actually been created on the live
+// table at all -- despite embeddings.ts depending on it since inception --
+// meaning every storeEmbedding()/findSimilar() call had been silently
+// failing in production. Fixed via migration 0037; see PLATFORM_STRATEGY.md §26.
 export const embeddings = complianceSchemaDB.table('embeddings', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   entityType: text('entity_type').notNull(), // compliance_item, notice, document, knowledge_base
