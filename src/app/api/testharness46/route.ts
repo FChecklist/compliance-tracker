@@ -7,9 +7,9 @@
 // 3-pass testing effort concludes -- matches the "temporary internal test
 // route, removed after use" precedent established in Wave 45.
 import { NextRequest, NextResponse } from "next/server"
-import { users, clients, documents, customerModelConfig, clientModelConfig, personalModelConfig, orchestraLayers } from "@/lib/db"
+import { users, clients, documents, conversations, customerModelConfig, clientModelConfig, personalModelConfig, orchestraLayers } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq, and } from "drizzle-orm"
+import { eq, and, sql } from "drizzle-orm"
 import { encryptApiKey } from "@/lib/ai-config-crypto"
 import { resolveModelConfig, resolveClientModelConfig } from "@/lib/orchestra-model-resolver"
 import { resolvePageAgentModelConfig } from "@/lib/personal-model-resolver"
@@ -88,6 +88,23 @@ export async function POST(req: NextRequest) {
         const { text, layerKey, eventType, domain } = payload as { text: string; layerKey: string; eventType: string; domain?: string }
         const decision = enforcePolicy({ orgId: ORG_ID, layerKey, eventType, domain }, text)
         return NextResponse.json({ decision, refusal: refusalMessageFor(decision), label: policyDecisionDisplayLabel(decision.category) })
+      }
+
+      case "debugConversationInsert": {
+        const { userId } = payload as { userId: string }
+        const result = await withTenantContext({ orgId: ORG_ID, userId }, async (db) => {
+          const gucRows = await db.execute(sql`select current_setting('app.current_org_id', true) as org, current_setting('app.current_user_id', true) as usr, current_user as db_role`)
+          try {
+            const [row] = await db.insert(conversations).values({
+              orgId: ORG_ID, type: "ai", isAiThread: true, title: "DEBUG",
+            }).returning()
+            await db.delete(conversations).where(eq(conversations.id, row.id))
+            return { guc: gucRows[0], insertOk: true, insertedRow: row }
+          } catch (err) {
+            return { guc: gucRows[0], insertOk: false, error: err instanceof Error ? err.message : String(err) }
+          }
+        })
+        return NextResponse.json(result)
       }
 
       case "docExtraction": {
