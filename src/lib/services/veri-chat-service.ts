@@ -9,7 +9,7 @@
 import { createId } from "@paralleldrive/cuid2"
 import {
   db, conversations, conversationParticipants, messages, messageAttachments,
-  conversationShareLinks, documents,
+  conversationShareLinks, conversationGuestAccess, documents,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
@@ -147,4 +147,90 @@ export async function importSharedContent(
     await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId))
     return { conversationId, message }
   })
+}
+
+// ─── Guest access: external customers/vendors participate without a
+// VERIDIAN account (Wave 36, PLATFORM_STRATEGY.md §17.8-17.9) ────────────
+export async function createGuestAccess(
+  ctx: VeriChatContext,
+  conversationId: string,
+  input: { guestName: string; guestEmail?: string },
+  expiresInDays = 7
+) {
+  const guestName = input.guestName?.trim()
+  if (!guestName) throw new ServiceError("guestName is required", 400)
+  await assertParticipant(ctx.orgId, ctx.userId, conversationId)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+    const [access] = await db.insert(conversationGuestAccess).values({
+      conversationId, token: createId(), guestName, guestEmail: input.guestEmail || null,
+      invitedById: ctx.userId, expiresAt,
+    }).returning()
+    return access
+  })
+}
+
+export async function listGuestAccess(ctx: VeriChatContext, conversationId: string) {
+  await assertParticipant(ctx.orgId, ctx.userId, conversationId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.query.conversationGuestAccess.findMany({
+      where: eq(conversationGuestAccess.conversationId, conversationId),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+    })
+  )
+}
+
+export async function revokeGuestAccess(ctx: VeriChatContext, guestAccessId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const access = await db.query.conversationGuestAccess.findFirst({ where: eq(conversationGuestAccess.id, guestAccessId) })
+    if (!access) throw new ServiceError("Guest access not found", 404)
+    await assertParticipant(ctx.orgId, ctx.userId, access.conversationId)
+    const [updated] = await db.update(conversationGuestAccess).set({ revokedAt: new Date() }).where(eq(conversationGuestAccess.id, guestAccessId)).returning()
+    return updated
+  })
+}
+
+async function resolveActiveGuestAccess(token: string) {
+  const access = await db.query.conversationGuestAccess.findFirst({ where: eq(conversationGuestAccess.token, token) })
+  if (!access || access.revokedAt || access.expiresAt < new Date()) throw new ServiceError("This guest link is invalid or has expired", 404)
+  return access
+}
+
+// Public route (no auth) -- same RLS-bypass rationale as getSharedConversation():
+// no session/org context exists for an external guest, so the raw `db`
+// export (postgres role) is the legitimate path, with the token itself as
+// the security boundary. Read-only listing; posting is a separate function.
+export async function getGuestConversation(token: string) {
+  const access = await resolveActiveGuestAccess(token)
+  const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, access.conversationId) })
+  if (!convo) throw new ServiceError("This guest link is invalid or has expired", 404)
+
+  const rows = await db.query.messages.findMany({
+    where: eq(messages.conversationId, access.conversationId),
+    orderBy: (t, { asc }) => asc(t.createdAt),
+  })
+  return {
+    title: convo.title,
+    guestName: access.guestName,
+    messages: rows.map((m) => ({
+      senderId: m.senderId, isGuestMessage: m.guestAccessId === access.id, content: m.content, createdAt: m.createdAt.toISOString(),
+    })),
+  }
+}
+
+// The one write-capable public endpoint in this codebase -- deliberately
+// narrow (content only, no attachments/instructions/context-setting) and
+// rate-limited by the token's own expiry, matching a real customer/vendor
+// correspondence window rather than the 72-hour one-off share links use.
+export async function postGuestMessage(token: string, content: string) {
+  const trimmed = content?.trim()
+  if (!trimmed) throw new ServiceError("content is required", 400)
+  const access = await resolveActiveGuestAccess(token)
+
+  const [message] = await db.insert(messages).values({
+    conversationId: access.conversationId, senderId: null, content: trimmed, guestAccessId: access.id,
+  }).returning()
+  await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, access.conversationId))
+  return { senderId: message.senderId, isGuestMessage: true, content: message.content, createdAt: message.createdAt.toISOString() }
 }

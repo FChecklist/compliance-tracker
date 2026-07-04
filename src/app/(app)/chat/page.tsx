@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Share2, Copy, Loader2 } from "lucide-react";
+import { Plus, Share2, Copy, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -32,6 +33,11 @@ function ChatPageInner() {
   const [shareOpen, setShareOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareLinks, setShareLinks] = useState<{ shareUrl: string; whatsappHref: string; telegramHref: string } | null>(null);
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestLink, setGuestLink] = useState<{ guestUrl: string; whatsappHref: string; telegramHref: string } | null>(null);
   const appliedLinkRef = useRef(false);
 
   function loadConversations() {
@@ -106,15 +112,52 @@ function ChatPageInner() {
     toast.success("Link copied");
   }
 
+  function openGuestDialog() {
+    setGuestName("");
+    setGuestEmail("");
+    setGuestLink(null);
+    setGuestOpen(true);
+  }
+
+  async function inviteGuest() {
+    if (!selectedId || !guestName.trim()) return;
+    setInviting(true);
+    try {
+      const res = await fetch(`/api/veri-chat/conversations/${selectedId}/guest-access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestName: guestName.trim(), guestEmail: guestEmail.trim() || undefined }),
+      });
+      if (!res.ok) throw new Error();
+      const link = await res.json();
+      setGuestLink({ guestUrl: link.guestUrl, whatsappHref: link.whatsappHref, telegramHref: link.telegramHref });
+    } catch {
+      toast.error("Failed to invite guest");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  function copyGuestUrl() {
+    if (!guestLink) return;
+    navigator.clipboard.writeText(guestLink.guestUrl);
+    toast.success("Link copied");
+  }
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <h1 className="font-heading text-xl text-ct-navy">VERI Chat</h1>
         <div className="flex items-center gap-2">
           {selected && !selected.isAiThread && (
-            <Button size="sm" variant="outline" onClick={shareConversation}>
-              <Share2 className="size-4 mr-1" /> Share
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={shareConversation}>
+                <Share2 className="size-4 mr-1" /> Share
+              </Button>
+              <Button size="sm" variant="outline" onClick={openGuestDialog}>
+                <UserPlus className="size-4 mr-1" /> Invite guest
+              </Button>
+            </>
           )}
           <Button size="sm" variant="outline" onClick={() => setShowPicker((s) => !s)}>
             <Plus className="size-4 mr-1" /> New conversation
@@ -148,6 +191,41 @@ function ChatPageInner() {
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={guestOpen} onOpenChange={setGuestOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite an external guest</DialogTitle>
+            <DialogDescription>
+              An external customer or vendor can reply in this conversation without a VERIDIAN account. The link expires in 7 days and can be revoked any time.
+            </DialogDescription>
+          </DialogHeader>
+          {guestLink ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input readOnly value={guestLink.guestUrl} className="flex-1 h-9 px-3 rounded-lg border border-ct-border text-xs text-ct-muted" />
+                <Button size="sm" variant="outline" onClick={copyGuestUrl}><Copy className="size-3.5" /></Button>
+              </div>
+              <div className="flex gap-2">
+                <a href={guestLink.whatsappHref} target="_blank" rel="noopener noreferrer" className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full">WhatsApp</Button>
+                </a>
+                <a href={guestLink.telegramHref} target="_blank" rel="noopener noreferrer" className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full">Telegram</Button>
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Input placeholder="Guest name" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+              <Input placeholder="Guest email (optional)" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
+              <Button size="sm" onClick={inviteGuest} disabled={!guestName.trim() || inviting} className="w-full">
+                {inviting ? <Loader2 className="size-4 animate-spin" /> : "Create invite link"}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

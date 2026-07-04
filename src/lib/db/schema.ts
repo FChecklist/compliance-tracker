@@ -1974,6 +1974,12 @@ export const messages = complianceSchemaDB.table('messages', {
   // register) -- sourceRef just stores the pasted reference text until then.
   sourcePlatform: text('source_platform'), // 'whatsapp' | 'telegram' | 'slack' | null
   sourceRef: text('source_ref'),
+  // Wave 36: set when this message was authored by an external guest (via
+  // conversation_guest_access), not an internal user or the AI. senderId
+  // stays null in that case too -- guestAccessId is what distinguishes
+  // "the AI replied" from "the external guest replied", so the existing
+  // senderId-null-means-AI convention is never overloaded or broken.
+  guestAccessId: text('guest_access_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -2025,6 +2031,7 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
   sender: one(users, { fields: [messages.senderId], references: [users.id] }),
   assistant: one(aiAssistants, { fields: [messages.assistantId], references: [aiAssistants.id] }),
+  guestAccess: one(conversationGuestAccess, { fields: [messages.guestAccessId], references: [conversationGuestAccess.id] }),
 }))
 export const instructionCommitmentsRelations = relations(instructionCommitments, ({ one }) => ({
   message: one(messages, { fields: [instructionCommitments.messageId], references: [messages.id] }),
@@ -2682,6 +2689,28 @@ export const conversationShareLinks = complianceSchemaDB.table('conversation_sha
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── VERI Chat guest access (Wave 36, PLATFORM_STRATEGY.md §17.8-17.9) ───
+// The original VERI Chat spec named "customers, vendors" as chat parties,
+// but conversation_participants.user_id is NOT NULL against the internal
+// users table -- there was no way for an external party without a
+// VERIDIAN account to actually participate. Mattermost/Zulip/Rocket.Chat/
+// Element/Chatwoot were all evaluated and rejected as software (every one
+// needs its own standalone server); Zulip's guest role, Rocket.Chat's
+// Omnichannel, and Chatwoot's entire reason for existing independently
+// confirmed the underlying gap. Same shape as conversation_share_links,
+// but write-capable (posts messages, not just a read-only snapshot).
+export const conversationGuestAccess = complianceSchemaDB.table('conversation_guest_access', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  conversationId: text('conversation_id').notNull(),
+  token: text('token').notNull().unique(),
+  guestName: text('guest_name').notNull(),
+  guestEmail: text('guest_email'),
+  invitedById: text('invited_by_id').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── VERI To Do (Wave 33) ─────────────────────────────────────────────────
 // Deliberately no new table -- this module formalizes a RULE (what counts
 // as "pending work" for a user), fixing task-service.ts's listMyTodos(),
@@ -2727,6 +2756,10 @@ export const messageAttachmentsRelations = relations(messageAttachments, ({ one 
 
 export const conversationShareLinksRelations = relations(conversationShareLinks, ({ one }) => ({
   conversation: one(conversations, { fields: [conversationShareLinks.conversationId], references: [conversations.id] }),
+}))
+
+export const conversationGuestAccessRelations = relations(conversationGuestAccess, ({ one }) => ({
+  conversation: one(conversations, { fields: [conversationGuestAccess.conversationId], references: [conversations.id] }),
 }))
 
 export const veriMeetingsRelations = relations(veriMeetings, ({ many }) => ({

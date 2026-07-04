@@ -770,6 +770,26 @@ Architecture fit isn't the issue here — **domain fit is**. VERIDIAN AI OS's mo
 
 **Nothing was implemented from this batch of 13** — 2 were already adopted (as patterns, in prior waves), 11 were evaluated and rejected, and the honest outcome stands rather than being forced into a build.
 
+### 17.8 5 chat platforms checked for VERI Chat — all rejected as software, but the comparison surfaced a real, confirmed gap worth closing natively
+
+| Repo | License | Deployment | Positioning | Verdict |
+|---|---|---|---|---|
+| Mattermost | AGPL-3.0 (+Apache-2.0 some dirs, +MIT compiled binaries, +commercial) | Go server + own Postgres, standalone | Internal team chat | ❌ Reject — already covered, `conversations`/`messages` (Wave 12) matches its core value, re-confirmed |
+| Zulip | Apache-2.0 (clean, single license) | Python/Django server, standalone | Internal org chat, with a "Guest user" role explicitly documented for "contractors or customers" | ❌ Reject as software (Python, standalone) — but its **guest-role concept validates the gap below** |
+| Rocket.Chat | MIT core + proprietary EE tier | TypeScript/Meteor + MongoDB, standalone | Both internal team chat *and* external customer chat via "Omnichannel" | ❌ Reject as software (Meteor/MongoDB, standalone) — but its **Omnichannel concept validates the gap below** |
+| Element | AGPL-3.0 | TypeScript client **requiring a separate Matrix homeserver** (Synapse/Dendrite/etc.) as its own backend | Federated/cross-organization protocol client | ❌ Reject — heaviest of all 5 (client + a whole separate federation-protocol backend), zero fit for a single-tenant-per-request serverless function |
+| Chatwoot | MIT core + proprietary Enterprise tier | Ruby on Rails + Vue.js + Postgres+pgvector+Redis+Sidekiq workers, standalone multi-container | **Explicitly and fundamentally external customer-facing** — chat widget + omnichannel (WhatsApp/email/social) routed to an internal support team; not internal team chat at all | ❌ Reject as software (Rails, multi-container) — but **directly confirms a real gap** |
+
+**The gap, confirmed by reading VERIDIAN's own schema, not assumed**: `conversationParticipants.userId` (Wave 12) is `NOT NULL` and references the internal `users` table only; `createConversation()` validates every participant against that same internal table. There is no code path anywhere in this codebase for an external customer or vendor — someone without a VERIDIAN account — to actually participate in a VERI Chat conversation. `conversations.clientId` (confirmed by reading `chat-service.ts`) is used exactly once, as a categorization tag copied onto `instructionCommitments` for reporting — it has never let an actual external client into the conversation itself. This is a direct, confirmed miss against the original VERI Chat spec, which explicitly named "customers, vendors" as parties to chat with (§16).
+
+Three of the five repos above (Zulip's guest role, Rocket.Chat's Omnichannel, Chatwoot's entire reason for existing) independently converge on the same real capability: **a restricted external party joins a specific conversation without a full account, and their messages are clearly attributed as external.** None of their code, infrastructure, or licensing is being adopted — the pattern is being adapted VERIDIAN-natively, reusing the exact tokenized-access mechanism already built for `conversationShareLinks` (Wave 32), extended from read-only to write-capable. See §17.9 for the implementation.
+
+### 17.9 Implemented: guest chat access (VERI Chat, Wave 36)
+
+`conversationGuestAccess` (id, conversationId, token unique, guestName, guestEmail, invitedById, expiresAt, revokedAt) — same shape as `conversationShareLinks`, but grants **write** access (posting messages), not just a read-only snapshot. `messages` gains `guestAccessId` (nullable) so a guest-authored message is clearly attributed (distinct from `senderId IS NULL` meaning AI) without touching the existing AI-message convention at all. An internal participant can invite a guest from the existing `/chat` page (a new "Invite external guest" action alongside the existing Share button); the guest gets a link to a new public `/guest-chat/[token]` page (outside `(app)/`, outside the auth allowlist — deliberately, same posture as `/shared/conversation/[token]`) where they can read and post messages without ever creating a VERIDIAN account. RLS on `conversation_guest_access` follows the exact org+participant-scoping fix already applied in Wave 32 (migration `0025`) from the start, not discovered live a third time.
+
+**Status update (2026-07-04): built and deployed — see `orchestra_changes.md` #82 for the full verification record (tsc/eslint, migration + `get_advisors`, RLS proof).**
+
 ---
 
 ## Appendix: Prior mockup iterations (design history, for reference)
