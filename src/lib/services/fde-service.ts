@@ -18,6 +18,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { hasRole } from "@/lib/supabase/auth-guard"
 import { proposeWorkerAgent } from "./worker-agent-service"
 import { findSimilarCapabilities } from "./capability-registry-service"
@@ -57,6 +58,21 @@ function labelFromContent(content: string): string {
 export async function submitFdeRequest(ctx: FdeContext, input: { requestText: string }) {
   const requestText = input.requestText?.trim()
   if (!requestText) throw new ServiceError("requestText is required", 400)
+
+  // Wave 46 (VERIDIAN AI Constitution, Policy Enforcement Engine): gated
+  // before the embedding search even runs -- VERI FDE can propose new
+  // Worker Agents from free text, making it VERIDIAN's highest-stakes
+  // surface for an out-of-scope or injected request to reach.
+  const policyDecision = enforcePolicy(
+    { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request" },
+    requestText
+  )
+  if (!policyDecision.allowed) {
+    return recordFdeRequest(ctx, requestText, {
+      status: "not_part_of_work",
+      responseText: refusalMessageFor(policyDecision),
+    })
+  }
 
   const candidates = await findSimilarCapabilities(requestText, ctx.orgId, CANDIDATE_LIMIT)
   const topMatch = candidates[0]

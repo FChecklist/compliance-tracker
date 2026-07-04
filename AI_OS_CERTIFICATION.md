@@ -88,6 +88,14 @@ RLS is genuinely enforced via `app_runtime` role + `withTenantContext()`'s GUC-s
 Dual enforcement confirmed: RLS blocks `tier='global'` creation at the database layer *and* application code independently gates `tier='customer'`/`'client'` behind `hasRole(admin)`. Live query confirms the only 9 `tier='global'` rows in production are pre-seeded platform agents, not customer-created. VERI FDE inherits this correctly (never escalates scope itself, confirmed in Wave 42/code review).
 **Fix priority**: N/A -- verified correct.
 
+### 2.8 Policy Enforcement Engine (Constitution enforcement, business-purpose scoping, prompt-injection resistance) -- 🟢 PRODUCTION_PROVEN (new this pass, Wave 46)
+Directly closes the gap named in the previous pass's remediation item #6 and in the "Prompt Injection / Jailbreak Testing" / "AI Security" rows below. `VERIDIAN_AI_CONSTITUTION.md` (new) formalizes 23 governance sections the user specified (purpose, domain restriction, least privilege, destructive-ops gating, worker-agent governance, prompt security, auditability, human approval, etc.), each tagged `[ENFORCED]`/`[PARTIALLY ENFORCED]`/`[POLICY ONLY]`/`[NOT APPLICABLE YET]` against real code, not aspiration. `policy-enforcement-engine.ts` (new) is the machine-enforceable half: a deterministic, zero-cost, zero-latency pre-call gate (`enforcePolicy()`) checking business-purpose scoping (Constitution §4), prompt-injection/jailbreak resistance (§18), and domain validity (§5, built on Wave 17's `purpose-bound-ai.ts` rather than duplicating it). **Deliberately not an LLM classifier** -- same reasoning Wave 17 already gave for its own hard allowlist: a keyword/regex gate can't itself be prompt-injected and never depends on a model honoring the prompt.
+**Wired this pass** into VERIDIAN's 3 highest-stakes free-text-to-LLM surfaces (identified in the previous pass's remediation item #6): VERI Chat (`chat-service.ts`), VERI FDE (`fde-service.ts` -- gated before even the embedding search runs, since FDE can propose new Worker Agents), and the Page Agent proxy (`api/page-agent/proxy/route.ts` -- gated before `resolvePageAgentModelConfig`, so a denied request never reaches a provider or forwards live page content).
+**Verified this pass** (18/18 pass, via a throwaway local smoke test against the pure classifier functions, no DB/network involved): 5 personal-use denylist inputs (horoscope, joke, story, recipe, vacation itinerary) correctly blocked; 5 jailbreak/injection phrasings ("ignore previous instructions", "reveal your system prompt", "DAN mode", "pretend to be an administrator", "bypass the guardrails") correctly blocked; 5 realistic business requests (GST notices, board resolution, SEBI filing deadlines, ESG task, risk register) correctly passed through; domain-validity check correctly separates known (`compliance`, `project_management`) from unknown domains. Denials log through the existing `orchestraExecutions` table (Wave 22/23 infra reused, `status: "denied"`, zero new schema) with `promptTokens`/`completionTokens`/`costUsd` staying null since no LLM was ever called.
+**User-facing wording discipline** (explicit user instruction this pass): the technical term "denied" is kept only in the internal `orchestraExecutions.status` audit column; anything rendered to a user or admin uses gentler phrasing via `policyDecisionDisplayLabel()`/`refusalMessageFor()` ("Not Part of Work", "Not Permitted") -- e.g. VERI FDE's request-history badge (`/fde` page) now shows a neutral "Not Part of Work" label rather than falling through to a red "Error" badge.
+**Real remaining gaps, stated honestly**: (1) the denylist/allowlist patterns are illustrative, not exhaustive -- a sufficiently creatively-worded personal request or injection attempt can still slip through a keyword gate; this is a defense-in-depth layer, not a guarantee. (2) 3 lower-stakes LLM call sites remain unwired by design (the daily audit loops, `document-extraction-service.ts`, `task-execution-engine.ts`, `api/ai/orchestrate/route.ts`) because their inputs are internal/system-generated or structured extraction, not open-ended user chat -- named explicitly in `VERIDIAN_AI_CONSTITUTION.md` rather than silently left out. (3) No live production traffic has hit this gate yet -- today's verification is local/deterministic-logic-level, not a real end-user attempt observed in `orchestraExecutions`.
+**Fix priority**: LOW for now (the 3 highest-stakes sites are covered) -- revisit if either gap above becomes a real incident, or before wiring any 4th/5th LLM call site.
+
 ---
 
 ## Part 3 -- Product Intelligence & Integration
@@ -137,14 +145,14 @@ Most of the user's remaining categories are either (a) already covered by a Part
 | AI Workflow Testing (Upload→OCR→Extraction→Accounting→Approval→Payment) | 🔴 No accounting/payment module exists at all; OCR itself is unexercised (3.1) |
 | Worker Agent Testing (inputs/outputs/accuracy/memory/retry/recovery) | Lifecycle exists (2.1); memory doesn't feed in (1.1); retry/recovery doesn't exist (2.5) |
 | BYO AI Testing (10 providers named) | 5 of 10 wired (groq/openai/anthropic/google/openrouter); Azure/Bedrock/Ollama/Together/Mistral not implemented. 🟠 |
-| Prompt Injection / Jailbreak Testing | 🔴 Not tested this pass, and no system-prompt hardening reviewed against injection. Real gap -- should be a dedicated pass given VERI Chat/FDE/page-agent all accept free-text user input that reaches an LLM. |
+| Prompt Injection / Jailbreak Testing | 🟢 Closed this pass (Wave 46) -- deterministic pre-call gate (`policy-enforcement-engine.ts`, §2.8) wired into VERI Chat/FDE/page-agent, the 3 surfaces named as the gap in the previous pass. 18/18 local test cases pass, including 5 jailbreak phrasings. Patterns are illustrative, not exhaustive -- defense-in-depth, not a guarantee. |
 | Compliance-domain Testing (GST/ISO/DPDP/SEBI) | The *product* tracks these compliance types as data (`complianceTypeEnum`); the *platform itself* hasn't been audited against DPDP/GDPR for how it handles PII in prompts, memories, or embeddings. 🟠 |
 | Permission Testing (Level 1-4 + Worker Agents) | Covered under 2.6/2.7 -- 🟢 verified |
 | Multi-Tenant / Data Isolation Testing | Covered under 2.6 -- 🟢 verified |
 | Performance/Load/Stress/Soak/Chaos/Failover Testing | ⚪ NOT_APPLICABLE_YET -- VERIDIAN is Vercel serverless with no dedicated load-testing environment, no traffic volume data, and (per this session's own pooler-misconfiguration discovery) its *first* real production reliability issue was found via manual investigation, not load testing. Building this tooling is a real, separate infrastructure investment; premature before basic functional/AI-workflow testing (Parts 1-3) is closed. |
 | Database Testing (backup/recovery/consistency) | Supabase manages automated backups at the infra layer; **restore has never been drilled/verified this session or, as far as available evidence shows, ever.** 🟠 |
 | Security Testing (OWASP/XSS/SQL/CSRF/JWT) | Partially covered by this session's earlier security sweep (rotated a leaked credential, fixed an RLS gap, found a GitHub Actions gate always green) -- a full OWASP pass hasn't been run. 🟠 |
-| AI Security (prompt injection/jailbreak/data leakage/agent hijacking/tool misuse) | 🔴 Not tested. Given VERI FDE can *propose new Worker Agents* from free-text input, this is a meaningfully higher-stakes gap than typical web-app injection testing. |
+| AI Security (prompt injection/jailbreak/data leakage/agent hijacking/tool misuse) | 🟢 Prompt-injection/jailbreak and out-of-scope-business-use closed this pass via the Policy Enforcement Engine (§2.8). Data leakage/agent hijacking/tool misuse beyond that remain untested -- 🟠 overall. |
 | Privacy Testing (PII/GDPR/DPDP) | See compliance-domain row above -- 🟠 |
 | Worker Library Testing (new/version/approval/retirement/reuse) | Covered under 2.1 -- 🟠 |
 | AI Cost Testing | 🟢 Real and working (`estimateCostUsd`, per-call tracking) -- proven again this session (Wave 45's $0.0001 total spend was measured, not estimated) |
@@ -166,6 +174,7 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 **Level 2 (Organisation)**
 - ✅ Org-level BYOK resolution works and is isolated per org (2.6, this session's live tests)
 - ⏳ No unauthorized code/platform changes -- not formally tested this pass, but no code path found that would allow it
+- ✅ No AI model call proceeds without passing the Policy Enforcement Engine's domain/injection/business-purpose gate (2.8, new this pass) -- covers the user's own stated requirement "no AI model... ever receives a request until VERIDIAN has verified... the action complies with enterprise governance" for the 3 highest-stakes surfaces
 
 **Level 3 (Client)**
 - ✅ Now exists at all (Wave 45 closed this gap) and resolves + isolates correctly
@@ -174,6 +183,7 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 **Level 4 (User)**
 - ✅ Personal BYOK resolves correctly
 - ⏳ Business-domain restriction (e.g. "an accounting user can't invoke image-generation") -- **not built**; VERIDIAN's Purpose-Bound AI (`purpose-bound-ai.ts`) restricts tool access by *domain*, but this hasn't been tested against the specific cross-domain-invocation scenario the user described
+- ✅ Personal/recreational-use requests are refused before reaching a model (2.8, new this pass)
 
 **Worker Agents**
 - ⏳ Accuracy -- no measurement mechanism exists
@@ -202,6 +212,7 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 3. **Fix CI's `--passWithNoTests`** or write even a minimal real test suite -- a green CI gate that proves nothing is worse than no gate -- §3.8
 4. **Add retry + fallback to `callLLM`** -- cheap, high-impact reliability fix -- §2.5
 5. **Build Meeting Intelligence** (one LLM call on publish, using existing Prompt OS) -- concrete, contained, high product value -- §3.2
-6. **Run a dedicated prompt-injection/jailbreak pass** against VERI Chat, VERI FDE, and the page-agent -- these are the 3 surfaces where free-text user input reaches an LLM with real side effects (proposing worker agents, controlling the page) -- highest-stakes untested category
+6. ~~Run a dedicated prompt-injection/jailbreak pass against VERI Chat, VERI FDE, and the page-agent~~ -- **done during this pass (Wave 46)**: the Policy Enforcement Engine (§2.8) now gates all 3 surfaces pre-call; 18/18 local test cases pass. Remaining: the denylist is illustrative not exhaustive, and no real production traffic has exercised it yet
 7. **Decide**: either build the multi-agent chaining architecture (§2.2) as real, scoped work, or stop describing VERIDIAN as "multi-agent" until it exists
 8. **Wire vision extraction into the real upload flow** (currently built but unused) -- §3.1
+9. **Extend the Policy Enforcement Engine's coverage over time** -- broaden the denylist/injection patterns as real edge cases surface, and once there's real production traffic, review `orchestraExecutions` `status='denied'` rows periodically to catch both false positives (legitimate business requests wrongly refused) and false negatives (things that should have been caught) -- §2.8

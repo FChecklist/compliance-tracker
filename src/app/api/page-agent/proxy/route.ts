@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePageAgentModelConfig } from "@/lib/personal-model-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 
 // Wave 25 (PageAgent integration). This is the ONLY place a PageAgent LLM
 // call ever reaches a real provider -- the browser never gets a real key
@@ -39,6 +40,20 @@ const KNOWN_PROVIDER_URLS: Record<string, string> = {
 
 function isRestrictedPath(pathname: string): boolean {
   return pathname.startsWith("/posh") || pathname.startsWith("/whistleblower")
+}
+
+// Best-effort extraction of the latest user turn's text, for the policy
+// gate below -- content is usually a plain string, but the page-agent
+// library can also send structured/multi-part content, hence the fallback.
+function latestUserText(messages: unknown[]): string {
+  const msgs = messages as { role?: string; content?: unknown }[]
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i]?.role === "user") {
+      const content = msgs[i].content
+      return typeof content === "string" ? content : JSON.stringify(content ?? "")
+    }
+  }
+  return ""
 }
 
 function injectPurposeClause(messages: unknown[]): unknown[] {
@@ -83,6 +98,19 @@ export async function POST(request: NextRequest) {
         status: "failed", durationMs: Date.now() - startedAt,
       })
       return NextResponse.json({ error: "PageAgent is disabled on this page" }, { status: 403 })
+    }
+
+    // Wave 46 (VERIDIAN AI Constitution, Policy Enforcement Engine): gated
+    // before resolvePageAgentModelConfig even runs -- Page Agent is the
+    // only surface here where the model receives live page content, so a
+    // denied request never reaches resolvePageAgentModelConfig, a
+    // provider, or any page content forwarding.
+    const policyDecision = enforcePolicy(
+      { orgId, userId: dbUser.id, layerKey: "page_agent_oa", eventType: "page_agent_action" },
+      latestUserText(messages)
+    )
+    if (!policyDecision.allowed) {
+      return NextResponse.json({ error: refusalMessageFor(policyDecision) }, { status: 403 })
     }
 
     const modelConfig = await resolvePageAgentModelConfig(orgId, dbUser.id)

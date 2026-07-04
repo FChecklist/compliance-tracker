@@ -13,6 +13,7 @@ import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -246,6 +247,19 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   // participant() checks the CALLER's membership, not who a message is
   // attributed to (senderId), so it must be a real participant for this
   // INSERT to pass the messages table's RLS check at all.
+  // Wave 46 (VERIDIAN AI Constitution, Policy Enforcement Engine): the hard
+  // pre-call gate -- a denied request never reaches resolveModelConfig or
+  // any provider at all.
+  const policyDecision = enforcePolicy(
+    { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply" },
+    userMessage
+  )
+  if (!policyDecision.allowed) {
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({ conversationId, senderId: null, content: refusalMessageFor(policyDecision) }).returning()
+    )
+  }
+
   const modelConfig = await resolveModelConfig(orgId, "user_assistant_oa")
   if (!modelConfig) {
     return withTenantContext({ orgId, userId }, (db) =>

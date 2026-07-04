@@ -26,6 +26,10 @@ type FdeRequest = {
 const STATUS_META: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
   matched_existing: { label: "Already covered", color: "bg-ct-teal/20 text-ct-teal", icon: CheckCircle2 },
   proposed_agent: { label: "Proposing new agent", color: "bg-ct-saffron/20 text-ct-saffron", icon: Wrench },
+  // Wave 46 (VERIDIAN AI Constitution): the Policy Enforcement Engine
+  // refused this request before it ever reached an AI model -- deliberately
+  // NOT labeled "Denied" in this user-facing badge.
+  not_part_of_work: { label: "Not Part of Work", color: "bg-ct-cloud text-ct-muted", icon: AlertCircle },
   error: { label: "Error", color: "bg-red-100 text-red-700", icon: AlertCircle },
 };
 

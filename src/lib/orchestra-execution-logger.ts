@@ -20,7 +20,10 @@ export type RecordOrchestraExecutionInput = {
   eventType: string;
   input: Record<string, unknown>;
   output?: Record<string, unknown>;
-  status: "completed" | "failed";
+  // Wave 46 (VERIDIAN AI Constitution + Policy Enforcement Engine): "denied"
+  // records a policy-engine refusal -- the request never reached an LLM at
+  // all, so promptTokens/completionTokens/costUsd stay null (zero real cost).
+  status: "completed" | "failed" | "denied";
   durationMs: number;
   provider?: string;
   model?: string;
