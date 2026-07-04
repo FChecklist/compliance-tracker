@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Send, Loader2 } from "lucide-react";
+import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 
 const HIDDEN_PREFIXES = ["/veri-ai", "/chat", "/login", "/signup"];
 
@@ -35,15 +36,8 @@ export default function GlobalChatDock() {
   const [aiThreadId, setAiThreadId] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useAutoGrowTextarea(value, 200);
   const draftKeyRef = useRef<string | null>(null);
-
-  const resizeTextarea = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-  };
 
   useEffect(() => {
     // Restore any draft the moment we know who the user is -- namespaced
@@ -59,10 +53,7 @@ export default function GlobalChatDock() {
         draftKeyRef.current = key;
         try {
           const saved = window.localStorage.getItem(key);
-          if (saved) {
-            setValue(saved);
-            requestAnimationFrame(resizeTextarea);
-          }
+          if (saved) setValue(saved);
         } catch {
           // localStorage unavailable (private browsing, etc.) -- draft
           // persistence just silently doesn't happen, nothing else breaks.
@@ -80,7 +71,6 @@ export default function GlobalChatDock() {
 
   const onChange = (next: string) => {
     setValue(next);
-    resizeTextarea();
     if (!draftKeyRef.current) return;
     try {
       if (next) window.localStorage.setItem(draftKeyRef.current, next);
