@@ -26,6 +26,7 @@ export async function GET() {
     orgAccountType: org?.accountType ?? "company",
     orgRegulatoryEntityType: org?.regulatoryEntityType ?? "general",
     pmsEnabled,
+    pageAgentEnabled: org?.pageAgentEnabled ?? true,
   })
 }
 
@@ -36,7 +37,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { name, phone, orgName, orgAddress, orgCin, orgGstin, orgPan, orgAccountType, orgRegulatoryEntityType } = body
+    const { name, phone, orgName, orgAddress, orgCin, orgGstin, orgPan, orgAccountType, orgRegulatoryEntityType, pageAgentEnabled } = body
     const VALID_ACCOUNT_TYPES = ["company", "ca_firm", "legal_firm", "consultant"]
     const VALID_REGULATORY_TYPES = ["listed_company", "bank_nbfc", "insurer", "general"]
 
@@ -58,6 +59,7 @@ export async function PATCH(request: NextRequest) {
         if (orgPan && typeof orgPan === 'string') orgUpdate.panNumber = orgPan.trim()
         if (orgAccountType && VALID_ACCOUNT_TYPES.includes(orgAccountType)) orgUpdate.accountType = orgAccountType
         if (orgRegulatoryEntityType && VALID_REGULATORY_TYPES.includes(orgRegulatoryEntityType)) orgUpdate.regulatoryEntityType = orgRegulatoryEntityType
+        if (typeof pageAgentEnabled === 'boolean') orgUpdate.pageAgentEnabled = pageAgentEnabled
         if (Object.keys(orgUpdate).length > 0) {
           await db.update(organisations).set(orgUpdate).where(eq(organisations.id, orgId))
         }
