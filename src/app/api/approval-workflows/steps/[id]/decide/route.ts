@@ -1,0 +1,40 @@
+import { NextResponse } from "next/server"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { decideApprovalStep, ServiceError } from "@/lib/services/approval-workflow-service"
+import { markJournalEntrySubmittedFromApproval } from "@/lib/services/erp-accounting-service"
+
+// Entity-specific "on approved" dispatch, kept at the route layer rather
+// than inside the generic engine so approval-workflow-service.ts stays
+// entity-agnostic -- any future module that adopts this engine adds one
+// case here, not a new branch inside the shared service.
+async function onWorkflowApproved(ctx: { orgId: string; userId: string; dbUser: Parameters<typeof markJournalEntrySubmittedFromApproval>[0]['dbUser'] }, entityType: string, entityId: string) {
+  if (entityType === "erp_journal_entry") {
+    await markJournalEntrySubmittedFromApproval(ctx, entityId)
+  }
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  try {
+    const { id } = await params
+    const { decision, comment } = await request.json()
+    if (decision !== "approved" && decision !== "rejected") {
+      return NextResponse.json({ error: "decision must be 'approved' or 'rejected'" }, { status: 400 })
+    }
+
+    const result = await decideApprovalStep({ orgId, userId: dbUser.id, dbUser }, id, decision, comment)
+
+    if (result.instanceStatus === "approved") {
+      await onWorkflowApproved({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId)
+    }
+
+    return NextResponse.json(result)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Approval decision error:", error)
+    return NextResponse.json({ error: "Failed to record approval decision" }, { status: 500 })
+  }
+}

@@ -95,6 +95,18 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     ...(pmsEnabled
       ? [{ title: "PROJECTS", items: [{ label: "VERI PROJECTS AI", href: "/pms", icon: Rocket }] }]
       : []),
+    // Wave 50 (VERI ERP gap-fill): shown unconditionally for now, matching
+    // the GRC modules' own always-visible pattern -- the 'erp' branch has
+    // no enablement-toggle UI built yet (that's PMS-only so far), so
+    // gating this behind a still-unbuilt erpEnabled flag would just hide
+    // real, working pages behind a switch nobody can flip.
+    {
+      title: "FINANCE",
+      items: [
+        { label: "Journal Entries", href: "/erp/journal-entries", icon: FileText },
+        { label: "Financial Reports", href: "/erp/reports", icon: TrendingUp },
+      ],
+    },
     {
       title: "COMPLIANCE",
       items: [

@@ -3605,3 +3605,127 @@ export const erpWarehousesRelations = relations(erpWarehouses, ({ one, many }) =
 export const erpItemsRelations = relations(erpItems, ({ one }) => ({
   itemGroup: one(erpItemGroups, { fields: [erpItems.itemGroupId], references: [erpItemGroups.id] }),
 }))
+
+// ─── VERI ERP Wave 50: Accounting Periods ─────────────────────────────────
+// Per ERP_BENCHMARK_COMPARISON.md Tier 1 #3 -- erpFiscalYears had no
+// month-grain sub-entity at all, so nothing stopped posting into a
+// "closed" year. This is the schema-level lock the financial-report
+// service layer (below) needs to be trustworthy: a period must be 'open'
+// for its date range before a journal entry can be submitted into it.
+export const erpPeriodStatusEnum = complianceSchemaDB.enum('erp_period_status', ['open', 'closed'])
+
+export const erpAccountingPeriods = complianceSchemaDB.table('erp_accounting_periods', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  fiscalYearId: text('fiscal_year_id').notNull(),
+  periodName: text('period_name').notNull(), // e.g. "Apr 2026"
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }).notNull(),
+  status: erpPeriodStatusEnum('status').notNull().default('open'),
+  closedById: text('closed_by_id'),
+  closedAt: timestamp('closed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpAccountingPeriodsRelations = relations(erpAccountingPeriods, ({ one }) => ({
+  fiscalYear: one(erpFiscalYears, { fields: [erpAccountingPeriods.fiscalYearId], references: [erpFiscalYears.id] }),
+}))
+
+// ─── VERI ERP Wave 51: Shared Approval Workflow Engine ────────────────────
+// Per ERP_BENCHMARK_COMPARISON.md Section 7/10 -- the single
+// highest-leverage cross-cutting gap: VERIDIAN already has two
+// non-reusable single-purpose implementations of "needs approval"
+// (approvalRequests -- single-step maker-checker; pmsWorkflowTransitions
+// -- configurable but PMS-issue-only), plus every other module (GRC items,
+// and now ERP journal entries/invoices/POs) hand-rolling its own
+// draft/submitted/cancelled enum. Modeled on frappe/frappe's own
+// Workflow/Workflow Transition/Workflow Action doctypes (read via GitHub
+// for the *shape* only, never code or AI reused): an org can define one
+// workflow per entityType, an ordered list of steps each gated by an
+// approver role and an optional numeric condition (e.g. "grand_total >
+// 100000"), and each step can require more than one approval (a quorum)
+// rather than needing true parallel states -- simpler to reason about
+// than a full state-machine library for what is fundamentally per-org
+// *data*, not code, and this codebase's own hasRole()/logActivity()
+// primitives already cover the role-gating and audit-trail pieces a
+// heavier engine would otherwise have to reinvent.
+export const erpWorkflowInstanceStatusEnum = complianceSchemaDB.enum('approval_workflow_instance_status', ['pending', 'approved', 'rejected', 'cancelled'])
+export const erpWorkflowStepStatusEnum = complianceSchemaDB.enum('approval_workflow_step_status', ['pending', 'approved', 'rejected', 'skipped'])
+export const erpWorkflowConditionOperatorEnum = complianceSchemaDB.enum('approval_workflow_condition_operator', ['gt', 'gte', 'lt', 'lte', 'eq'])
+
+export const approvalWorkflowDefinitions = complianceSchemaDB.table('approval_workflow_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // e.g. 'erp_journal_entry' | 'erp_purchase_order' | 'erp_sales_invoice'
+  name: text('name').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const approvalWorkflowStepDefinitions = complianceSchemaDB.table('approval_workflow_step_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  workflowDefinitionId: text('workflow_definition_id').notNull(),
+  stepOrder: integer('step_order').notNull(),
+  name: text('name').notNull(),
+  approverRole: text('approver_role').notNull(), // matches this codebase's user_role enum values, stored as text (mirrors pmsWorkflowTransitions.role precedent)
+  requiredApprovals: integer('required_approvals').notNull().default(1),
+  conditionField: text('condition_field'), // nullable -- numeric field name on the entity payload, e.g. 'grandTotal'
+  conditionOperator: erpWorkflowConditionOperatorEnum('condition_operator'),
+  conditionValue: numeric('condition_value'),
+})
+
+export const approvalWorkflowInstances = complianceSchemaDB.table('approval_workflow_instances', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  workflowDefinitionId: text('workflow_definition_id').notNull(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  status: erpWorkflowInstanceStatusEnum('status').notNull().default('pending'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
+export const approvalWorkflowStepInstances = complianceSchemaDB.table('approval_workflow_step_instances', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  workflowInstanceId: text('workflow_instance_id').notNull(),
+  stepDefinitionId: text('step_definition_id').notNull(),
+  stepOrder: integer('step_order').notNull(),
+  approverRole: text('approver_role').notNull(),
+  requiredApprovals: integer('required_approvals').notNull().default(1),
+  approvalsReceived: integer('approvals_received').notNull().default(0),
+  status: erpWorkflowStepStatusEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const approvalWorkflowStepApprovals = complianceSchemaDB.table('approval_workflow_step_approvals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  stepInstanceId: text('step_instance_id').notNull(),
+  approvedById: text('approved_by_id').notNull(),
+  decision: text('decision').notNull(), // 'approved' | 'rejected'
+  comment: text('comment'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const approvalWorkflowDefinitionsRelations = relations(approvalWorkflowDefinitions, ({ many }) => ({
+  steps: many(approvalWorkflowStepDefinitions),
+}))
+
+export const approvalWorkflowStepDefinitionsRelations = relations(approvalWorkflowStepDefinitions, ({ one }) => ({
+  workflow: one(approvalWorkflowDefinitions, { fields: [approvalWorkflowStepDefinitions.workflowDefinitionId], references: [approvalWorkflowDefinitions.id] }),
+}))
+
+export const approvalWorkflowInstancesRelations = relations(approvalWorkflowInstances, ({ one, many }) => ({
+  workflow: one(approvalWorkflowDefinitions, { fields: [approvalWorkflowInstances.workflowDefinitionId], references: [approvalWorkflowDefinitions.id] }),
+  steps: many(approvalWorkflowStepInstances),
+}))
+
+export const approvalWorkflowStepInstancesRelations = relations(approvalWorkflowStepInstances, ({ one, many }) => ({
+  instance: one(approvalWorkflowInstances, { fields: [approvalWorkflowStepInstances.workflowInstanceId], references: [approvalWorkflowInstances.id] }),
+  approvals: many(approvalWorkflowStepApprovals),
+}))
+
+export const approvalWorkflowStepApprovalsRelations = relations(approvalWorkflowStepApprovals, ({ one }) => ({
+  step: one(approvalWorkflowStepInstances, { fields: [approvalWorkflowStepApprovals.stepInstanceId], references: [approvalWorkflowStepInstances.id] }),
+}))
