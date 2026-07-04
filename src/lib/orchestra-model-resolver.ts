@@ -1,4 +1,4 @@
-import { db, orchestraLayers, customerModelConfig, sharedPoolAllocations } from "@/lib/db";
+import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPoolAllocations } from "@/lib/db";
 import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
 import type { LLMProvider } from "@/lib/llm-client";
@@ -9,6 +9,20 @@ export type ResolvedModelConfig = {
   apiKey: string;
   isCustomerConfigured: boolean;
 };
+
+// Wave 45: the platform-default path previously hardcoded process.env.GROQ_API_KEY
+// regardless of what layer.defaultModelConfig.provider actually said -- a real
+// bug (silently broken for any layer ever pointed at a non-Groq provider).
+// Picks the right env var for whichever provider is actually configured.
+function platformApiKeyFor(provider: LLMProvider): string | undefined {
+  switch (provider) {
+    case "groq": return process.env.GROQ_API_KEY;
+    case "openrouter": return process.env.OPENROUTER_API_KEY;
+    case "openai": return process.env.OPENAI_API_KEY;
+    case "anthropic": return process.env.ANTHROPIC_API_KEY;
+    case "google": return process.env.GOOGLE_API_KEY;
+  }
+}
 
 /**
  * Resolves which provider/model/key an org should use for a given Orchestra
@@ -64,10 +78,47 @@ export async function resolveModelConfig(orgId: string, layerKey: string): Promi
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
   const provider = (defaultConfig.provider as LLMProvider) ?? "groq";
   const model = defaultConfig.model ?? "llama-3.3-70b-versatile";
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = platformApiKeyFor(provider);
   if (!apiKey) return null;
 
   return { provider, model, apiKey, isCustomerConfigured: false };
+}
+
+/**
+ * Wave 45 (VAIOS Layer 1-4 OpenRouter wiring, PLATFORM_STRATEGY.md §26) --
+ * Layer 3 (client) resolution: a real, confirmed gap. Layers 1/2/4
+ * (platform/org/user) already had a model-resolution mechanism; a client
+ * (e.g. a CA/legal firm's individual end-client under an org) had none.
+ * Most-specific-scope-wins, same pattern as resolvePageAgentModelConfig()'s
+ * user->org->platform chain: a client-specific row wins, else falls back to
+ * the client's own org's resolution (resolveModelConfig), which itself
+ * falls back to the platform default.
+ */
+export async function resolveClientModelConfig(clientId: string, orgId: string, layerKey: string): Promise<ResolvedModelConfig | null> {
+  const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, layerKey) });
+  if (!layer) return null;
+
+  const clientConfig = await db.query.clientModelConfig.findFirst({
+    where: and(
+      eq(clientModelConfig.clientId, clientId),
+      eq(clientModelConfig.isActive, true),
+      or(eq(clientModelConfig.orchestraLayerId, layer.id), isNull(clientModelConfig.orchestraLayerId))
+    ),
+    orderBy: (t, { asc }) => asc(t.orchestraLayerId),
+  });
+
+  if (clientConfig?.encryptedApiKey && clientConfig.modelName) {
+    db.update(clientModelConfig).set({ lastUsedAt: new Date() }).where(eq(clientModelConfig.id, clientConfig.id)).then(() => {});
+    const apiKey = await decryptApiKey(clientConfig.encryptedApiKey);
+    return {
+      provider: clientConfig.provider as LLMProvider,
+      model: clientConfig.modelName,
+      apiKey,
+      isCustomerConfigured: true,
+    };
+  }
+
+  return resolveModelConfig(orgId, layerKey);
 }
 
 const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
@@ -91,7 +142,7 @@ export async function resolvePlatformModelConfig(layerKey: string): Promise<Reso
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
   const provider = (defaultConfig.provider as LLMProvider) ?? "groq";
   const model = defaultConfig.model ?? "llama-3.3-70b-versatile";
-  const platformApiKey = process.env.GROQ_API_KEY;
+  const platformApiKey = platformApiKeyFor(provider);
   if (platformApiKey) {
     return { provider, model, apiKey: platformApiKey, isCustomerConfigured: false };
   }

@@ -16,7 +16,7 @@ export const notificationTypeEnum = complianceSchemaDB.enum('notification_type',
 export const auditActionEnum = complianceSchemaDB.enum('audit_action', ['create', 'update', 'delete', 'status_change', 'assign', 'reassign', 'login', 'logout', 'export', 'invite'])
 export const recurrenceTypeEnum = complianceSchemaDB.enum('recurrence_type', ['none', 'monthly', 'quarterly', 'half_yearly', 'annually'])
 export const noticeStatusEnum = complianceSchemaDB.enum('notice_status', ['received', 'in_progress', 'replied', 'closed', 'appealed'])
-export const aiProviderEnum = complianceSchemaDB.enum('ai_provider', ['groq', 'openai', 'anthropic', 'google'])
+export const aiProviderEnum = complianceSchemaDB.enum('ai_provider', ['groq', 'openai', 'anthropic', 'google', 'openrouter'])
 export const webhookEventEnum = complianceSchemaDB.enum('webhook_event', ['item.created', 'item.completed', 'item.overdue', 'notice.received', 'challan.recorded', 'item.status_changed'])
 
 // ─── Organisations (M-17: trial fields added) ───────────────────────────
@@ -744,6 +744,29 @@ export const customerModelConfig = complianceSchemaDB.table('customer_model_conf
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Client-level (Layer 3) BYO model config (Wave 45) ───────────────────
+// Mirrors customerModelConfig (Layer 2/org) exactly, one level down the
+// tenant hierarchy -- a real, confirmed gap: Layers 1/2/4 (platform/org/
+// user) all already had a model-resolution mechanism; Layer 3 (client, e.g.
+// a CA/legal firm's individual end-client under an org) had none at all.
+// Resolution chain (see resolveClientModelConfig() in
+// orchestra-model-resolver.ts): a client-specific row wins, else the
+// client's own org's customerModelConfig, else the platform default -- same
+// "most-specific-scope-wins, fall back up the hierarchy" pattern
+// resolvePageAgentModelConfig() already established for user->org->platform.
+export const clientModelConfig = complianceSchemaDB.table('client_model_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull(),
+  orchestraLayerId: text('orchestra_layer_id'),
+  provider: aiProviderEnum('provider').notNull(),
+  encryptedApiKey: text('encrypted_api_key'),
+  modelName: text('model_name'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Platform-operational audit table, same posture as loop_executions (Wave
 // 5) -- no app_runtime RLS policy at all, service_role bypass only. A
 // lender org must never see WHO/WHAT else's capacity was borrowed via the
@@ -1222,6 +1245,11 @@ export const orchestraExecutionsRelations = relations(orchestraExecutions, ({ on
 export const customerModelConfigRelations = relations(customerModelConfig, ({ one, many }) => ({
   layer: one(orchestraLayers, { fields: [customerModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
   poolAllocations: many(sharedPoolAllocations),
+}))
+
+export const clientModelConfigRelations = relations(clientModelConfig, ({ one }) => ({
+  client: one(clients, { fields: [clientModelConfig.clientId], references: [clients.id] }),
+  layer: one(orchestraLayers, { fields: [clientModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
 }))
 
 export const sharedPoolAllocationsRelations = relations(sharedPoolAllocations, ({ one }) => ({

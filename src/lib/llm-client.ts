@@ -1,11 +1,13 @@
 /**
- * Provider-agnostic LLM client -- supports the 4 providers in the
- * `ai_provider` enum (groq/openai/anthropic/google), so `customer_model_config`
- * (Wave 4) can actually route requests to whichever provider a customer has
- * configured per Orchestra Layer, not just the platform-default Groq key.
+ * Provider-agnostic LLM client -- supports the 5 providers in the
+ * `ai_provider` enum (groq/openai/anthropic/google/openrouter, the last
+ * added Wave 45), so `customer_model_config` (Wave 4) can actually route
+ * requests to whichever provider a customer has configured per Orchestra
+ * Layer, not just the platform-default Groq key.
  *
- * Groq and OpenAI share the same request/response shape (OpenAI's chat
- * completions API); Anthropic and Google each have their own shape.
+ * Groq, OpenAI, and OpenRouter share the same request/response shape
+ * (OpenAI's chat completions API, which OpenRouter proxies to 340+ models
+ * behind); Anthropic and Google each have their own shape.
  *
  * Wave 23 (AI Observability, Langfuse-inspired): every call now also
  * returns token usage, parsed from each provider's own response shape --
@@ -15,7 +17,11 @@
  * same wave (see orchestra-execution-logger.ts, the shared consumer).
  */
 
-export type LLMProvider = "groq" | "openai" | "anthropic" | "google";
+// Wave 45 (VAIOS Layer 1-4 OpenRouter wiring, PLATFORM_STRATEGY.md §26):
+// OpenRouter is OpenAI-compatible (same chat completions shape as Groq/
+// OpenAI already handled by callOpenAICompatible), so adding it here is a
+// one-branch addition, not a new code path.
+export type LLMProvider = "groq" | "openai" | "anthropic" | "google" | "openrouter";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -54,12 +60,25 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   "claude-sonnet-5": { promptPer1k: 0.003, completionPer1k: 0.015 },
   "claude-haiku-4-5-20251001": { promptPer1k: 0.0008, completionPer1k: 0.004 },
   "gemini-2.0-flash": { promptPer1k: 0.0001, completionPer1k: 0.0004 },
+  // OpenRouter (Wave 45) -- verified live via https://openrouter.ai/api/v1/models
+  // 2026-07-04. Per-token in that API; converted to per-1k here to match this
+  // table's existing unit. The ":free" variant is $0 and used for testing.
+  "meta-llama/llama-3.3-70b-instruct": { promptPer1k: 0.0001, completionPer1k: 0.00032 },
+  "meta-llama/llama-3.3-70b-instruct:free": { promptPer1k: 0, completionPer1k: 0 },
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
   const pricing = MODEL_PRICING[model];
   if (!pricing) return null;
   return (usage.promptTokens / 1000) * pricing.promptPer1k + (usage.completionTokens / 1000) * pricing.completionPer1k;
+}
+
+// Wave 45: OpenRouter recommends (not requires) HTTP-Referer/X-Title for
+// attribution and its own rate-limit/ranking purposes -- added only for the
+// openrouter baseUrl, harmless no-ops for Groq/OpenAI which ignore unknown headers.
+function extraHeadersFor(baseUrl: string): Record<string, string> {
+  if (!baseUrl.includes("openrouter.ai")) return {}
+  return { "HTTP-Referer": "https://veridian-compliance-ai.vercel.app", "X-Title": "VERIDIAN AI OS" }
 }
 
 async function callOpenAICompatible(
@@ -84,7 +103,7 @@ async function callOpenAICompatible(
 
   const res = await fetch(baseUrl, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", ...extraHeadersFor(baseUrl) },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${baseUrl} error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -186,6 +205,8 @@ export async function callLLM(
       return callOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "openai":
       return callOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+    case "openrouter":
+      return callOpenAICompatible("https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "anthropic":
       return callAnthropic(apiKey, model, systemPrompt, userMessage, options);
     case "google":
@@ -303,6 +324,8 @@ export async function callLLMVision(
       return callVisionOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
     case "openai":
       return callVisionOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+    case "openrouter":
+      return callVisionOpenAICompatible("https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
     case "anthropic":
       return callVisionAnthropic(apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
     case "google":
