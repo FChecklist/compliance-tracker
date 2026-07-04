@@ -740,6 +740,14 @@ The user asked specifically through a cost lens this time, not just architecture
 
 **Nothing was implemented from this follow-up check** — the honest, correct outcome of "does this lower cost" being "no" for both.
 
+### 17.6 One more checked: does it fit VERIDIAN AI OS at all? No — wrong domain, not just wrong architecture
+
+**CodeFlow** (`braedonsaunders/codeflow`, confirmed via live check): MIT license, pure client-side (React + D3.js, zero backend, zero infra — genuinely the cleanest possible architecture fit of anything checked so far, already hosted on Vercel). Paste a GitHub URL, get a dependency-graph/architecture visualization of a *source-code repository* — file relationships, import graphs, "blast radius" (what breaks if you change file X).
+
+Architecture fit isn't the issue here — **domain fit is**. VERIDIAN AI OS's modules (VERI Chat, VERI To Do, VERI Minutes of Meetings, Knowledge Base, Automation Rules, Custom Reports, PMS, the GRC module set, Worker Agents, Prompt OS) all serve an enterprise compliance/PMS platform's actual end users — compliance officers, CA/legal firms, company secretaries. CodeFlow visualizes *code architecture* for *developers exploring a codebase*. There is no product module this maps to; it doesn't touch compliance, governance, projects, meetings, chat, or any capability VERIDIAN's users need. Forcing it in would be scope creep with no product tie-in, not a gap being filled.
+
+**One honest distinction worth naming rather than silently ignoring**: this could conceivably be useful as an *internal developer-onboarding aid* for people (or future AI sessions) working on the `compliance-tracker` codebase itself — pointing it at this repo to get a visual dependency map. That is a legitimate but entirely different thing from "a VERIDIAN AI OS module," and wasn't asked for. **Verdict: not adopted, doesn't fit the product** — flagging the dev-tool distinction rather than pretending there's no reasonable secondary use at all.
+
 ---
 
 ## Appendix: Prior mockup iterations (design history, for reference)
