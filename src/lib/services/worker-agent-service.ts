@@ -19,6 +19,7 @@ import { db, workerAgents, approvalRequests, userClientAccess, taskExecutionPlan
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
+import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -38,6 +39,8 @@ export async function proposeWorkerAgent(
     clientId?: string // required when tier === 'client'
     projectId?: string // Wave 19: optional Product/Project (L2) scope
     domainPaths?: string[] // Wave 21: additional domain paths beyond `domain` itself, for agents serving more than one
+    inputSchema?: Record<string, unknown> // Wave 43 (Capability Registry): JSON-Schema-ish contract -- these columns existed since Wave 3 but were never set until now
+    outputSchema?: Record<string, unknown>
   }
 ) {
   if (!PROPOSABLE_TIERS.has(input.tier)) {
@@ -71,6 +74,8 @@ export async function proposeWorkerAgent(
       domain: input.domain?.trim() || null,
       description: input.description?.trim() || null,
       promptTemplate: input.promptTemplate?.trim() || null,
+      inputSchema: input.inputSchema || {},
+      outputSchema: input.outputSchema || {},
       lifecycleStatus: "proposed",
       proposedById: ctx.userId,
       orgId: input.tier !== "user" ? ctx.orgId : null,
@@ -78,6 +83,17 @@ export async function proposeWorkerAgent(
       userId: input.tier === "user" ? ctx.userId : null,
       projectId: input.projectId || null,
     }).returning()
+
+    // Wave 43 (Capability Registry): indexed the moment it's proposed, not
+    // just once approved -- a pending proposal should already be
+    // discoverable so VERI FDE (or a human) doesn't propose a duplicate of
+    // something already awaiting approval. Fire-and-forget, never blocks
+    // the proposal itself on an embedding-API round trip.
+    indexCapability(
+      "worker_agent", agent.id,
+      buildCapabilityContent({ name: agent.name, domain: agent.domain, description: agent.description, inputSchema: agent.inputSchema, outputSchema: agent.outputSchema }),
+      agent.orgId
+    ).catch((err) => console.error("Failed to index worker agent capability:", err))
 
     // Wave 21: index the agent's serviceable domain path(s) -- the domain
     // it was proposed under is always indexed; domainPaths lets it serve

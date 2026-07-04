@@ -152,11 +152,16 @@ export async function findSimilar(
   const client = getRawClient();
 
   if (orgId) {
+    // Wave 43 (Capability Registry): also match org_id IS NULL rows -- e.g.
+    // moduleRegistry entries are platform-wide, not org-scoped, and were
+    // previously silently excluded from every org-scoped search. Zero
+    // behavior change for the existing compliance-item caller (compliance
+    // items are always org-scoped already, never null-org).
     const rows = await client`
       SELECT e.entity_type, e.entity_id, e.content,
              1 - (e.embedding <=> ${vectorStr}::vector) as score
       FROM compliance.embeddings e
-      WHERE e.org_id = ${orgId}
+      WHERE e.org_id = ${orgId} OR e.org_id IS NULL
       ORDER BY e.embedding <=> ${vectorStr}::vector
       LIMIT ${limit}
     `;

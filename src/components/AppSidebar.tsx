@@ -45,6 +45,7 @@ import {
   Ticket,
   TrendingUp,
   Sparkles,
+  Database,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -281,6 +282,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           label: "VERI FDE",
           href: "/fde",
           icon: Sparkles,
+        },
+        {
+          label: "Capability Registry",
+          href: "/capability-registry",
+          icon: Database,
         },
         {
           label: "VERI To Do",

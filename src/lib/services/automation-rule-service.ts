@@ -9,6 +9,7 @@
 import { automationRules, automationRuleRuns, notifications, tasks } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
+import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -53,6 +54,16 @@ export async function createAutomationRule(
       triggerType: input.triggerType, triggerConditions: input.triggerConditions || {},
       actionType: input.actionType, actionConfig: input.actionConfig, createdById: ctx.userId,
     }).returning()
+
+    // Wave 43 (Capability Registry) -- fire-and-forget, mirrors
+    // proposeWorkerAgent()'s own indexing so VERI FDE's duplicate-check
+    // covers automation rules too, not just worker agents.
+    indexCapability(
+      "automation_rule", rule.id,
+      buildCapabilityContent({ name: rule.name, domain: rule.triggerType, description: rule.description }),
+      rule.orgId
+    ).catch((err) => console.error("Failed to index automation rule capability:", err))
+
     return rule
   })
 }
