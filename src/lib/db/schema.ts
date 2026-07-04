@@ -3003,3 +3003,605 @@ export const veriMeetingActionItemsRelations = relations(veriMeetingActionItems,
   meeting: one(veriMeetings, { fields: [veriMeetingActionItems.meetingId], references: [veriMeetings.id] }),
   task: one(tasks, { fields: [veriMeetingActionItems.taskId], references: [tasks.id] }),
 }))
+
+// ─── VERI ERP (Wave 49) ────────────────────────────────────────────────────
+// New 'erp' product branch (see product_branches seed row) -- VERIDIAN's
+// third opt-in branch after 'grc' and 'pms', reusing the existing
+// org_product_branch_enablements table (Wave 25) as-is, since it's already
+// branch-agnostic (keyed by product_branch_id, not hardcoded to one
+// branch). Adapted from studying frappe/erpnext's real doctype shapes
+// (Account, Journal Entry, Sales/Purchase Invoice, Asset) -- never their
+// code, never their AI -- scoped per the user's explicit decision: a
+// "Broader ERP core" (Accounting + Assets + basic Buying/Selling/Stock),
+// deliberately excluding Manufacturing, Quality Management, and the
+// vertical-specific modules (Healthcare/Education/Agriculture/Non-profit),
+// none of which fit a CA firm/legal firm/consultant's own business. This
+// wave is schema-only, per the user's explicit "scaffold every chosen
+// module's schema now, build logic incrementally afterward" build-order
+// decision -- no service layer or UI ships in this pass.
+
+// --- Enums ---
+// root_type is the one field real financial-statement logic must switch on
+// (Balance Sheet vs P&L classification) -- kept as an enum. account_type
+// (bank/receivable/payable/stock/etc) is deliberately free text, matching
+// this codebase's own precedent (pmsTimeEntries.activityType) for
+// admin-extensible classification that doesn't need a schema migration to
+// add a new value.
+export const erpAccountRootTypeEnum = complianceSchemaDB.enum('erp_account_root_type', ['asset', 'liability', 'equity', 'income', 'expense'])
+export const erpJournalEntryStatusEnum = complianceSchemaDB.enum('erp_journal_entry_status', ['draft', 'submitted', 'cancelled'])
+export const erpInvoiceStatusEnum = complianceSchemaDB.enum('erp_invoice_status', ['draft', 'submitted', 'partially_paid', 'paid', 'overdue', 'cancelled'])
+export const erpPaymentTypeEnum = complianceSchemaDB.enum('erp_payment_type', ['receive', 'pay'])
+export const erpPartyTypeEnum = complianceSchemaDB.enum('erp_party_type', ['customer', 'supplier'])
+export const erpAssetStatusEnum = complianceSchemaDB.enum('erp_asset_status', ['draft', 'submitted', 'in_use', 'disposed', 'scrapped'])
+export const erpDepreciationMethodEnum = complianceSchemaDB.enum('erp_depreciation_method', ['straight_line', 'written_down_value'])
+
+// --- Accounting (foundation -- everything else eventually posts a
+// journal entry into this chart of accounts) ---
+
+// Chart of accounts, tree-shaped via parentAccountId self-FK -- matches
+// this codebase's existing pmsIssues.parentIssueId / projects.parentProjectId
+// self-FK convention rather than Frappe's nested-set lft/rgt columns.
+export const erpAccounts = complianceSchemaDB.table('erp_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  accountName: text('account_name').notNull(),
+  accountNumber: text('account_number'),
+  parentAccountId: text('parent_account_id'),
+  rootType: erpAccountRootTypeEnum('root_type').notNull(),
+  accountType: text('account_type'), // free text: 'bank'|'cash'|'receivable'|'payable'|'stock'|'fixed_asset'|'tax'|... -- admin-extensible
+  isGroup: boolean('is_group').notNull().default(false),
+  currencyId: text('currency_id'),
+  isFrozen: boolean('is_frozen').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpFiscalYears = complianceSchemaDB.table('erp_fiscal_years', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  yearName: text('year_name').notNull(),
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }).notNull(),
+  isClosed: boolean('is_closed').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpCurrencies = complianceSchemaDB.table('erp_currencies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  code: text('code').notNull(), // ISO 4217, e.g. 'INR' | 'USD'
+  name: text('name').notNull(),
+  symbol: text('symbol'),
+  isBaseCurrency: boolean('is_base_currency').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpExchangeRates = complianceSchemaDB.table('erp_exchange_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  fromCurrencyId: text('from_currency_id').notNull(),
+  toCurrencyId: text('to_currency_id').notNull(),
+  rate: numeric('rate').notNull(),
+  rateDate: date('rate_date', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpBankAccounts = complianceSchemaDB.table('erp_bank_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  accountName: text('account_name').notNull(),
+  bankName: text('bank_name'),
+  accountNumber: text('account_number'),
+  ifscOrSwift: text('ifsc_or_swift'),
+  currencyId: text('currency_id'),
+  glAccountId: text('gl_account_id'), // links to erp_accounts -- this bank account's balance-sheet account
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpTaxTemplates = complianceSchemaDB.table('erp_tax_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  isSalesTax: boolean('is_sales_tax').notNull().default(false),
+  isPurchaseTax: boolean('is_purchase_tax').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpTaxTemplateItems = complianceSchemaDB.table('erp_tax_template_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taxTemplateId: text('tax_template_id').notNull(),
+  taxAccountId: text('tax_account_id').notNull(), // links to erp_accounts (a liability/tax-payable account)
+  rate: numeric('rate').notNull(), // percentage, e.g. 18 for 18% GST
+  description: text('description'),
+})
+
+export const erpJournalEntries = complianceSchemaDB.table('erp_journal_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entryNumber: integer('entry_number').notNull(), // per-org sequence
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  // Polymorphic source-document link -- 'sales_invoice'|'purchase_invoice'|
+  // 'payment_entry'|'asset_depreciation'|'manual' -- mirrors this codebase's
+  // existing polymorphic contextEntityType/contextEntityId convention
+  // (conversations, veriMeetings) rather than a new junction table per source type.
+  referenceType: text('reference_type'),
+  referenceId: text('reference_id'),
+  userRemark: text('user_remark'),
+  isOpeningEntry: boolean('is_opening_entry').notNull().default(false),
+  status: erpJournalEntryStatusEnum('status').notNull().default('draft'),
+  totalDebit: numeric('total_debit').notNull().default('0'),
+  totalCredit: numeric('total_credit').notNull().default('0'),
+  createdById: text('created_by_id'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpJournalEntryLines = complianceSchemaDB.table('erp_journal_entry_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  journalEntryId: text('journal_entry_id').notNull(),
+  accountId: text('account_id').notNull(),
+  partyType: erpPartyTypeEnum('party_type'),
+  partyId: text('party_id'), // polymorphic -- erp_customers.id or erp_suppliers.id depending on partyType
+  debit: numeric('debit').notNull().default('0'),
+  credit: numeric('credit').notNull().default('0'),
+  costCenter: text('cost_center'),
+  clientId: text('client_id'), // nullable -- client-billable entries link back to VERIDIAN's own clients table
+  remark: text('remark'),
+})
+
+export const erpPaymentEntries = complianceSchemaDB.table('erp_payment_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  paymentType: erpPaymentTypeEnum('payment_type').notNull(),
+  partyType: erpPartyTypeEnum('party_type').notNull(),
+  partyId: text('party_id').notNull(),
+  paidAmount: numeric('paid_amount').notNull().default('0'),
+  receivedAmount: numeric('received_amount').notNull().default('0'),
+  bankAccountId: text('bank_account_id'),
+  referenceNo: text('reference_no'),
+  referenceDate: date('reference_date', { mode: 'string' }),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: erpJournalEntryStatusEnum('status').notNull().default('draft'),
+  journalEntryId: text('journal_entry_id'), // set once posted to the GL
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // nullable link to VERIDIAN's own clients, when this customer is also a compliance client
+  customerId: text('customer_id').notNull(),
+  invoiceNumber: integer('invoice_number').notNull(), // per-org sequence
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  currencyId: text('currency_id'),
+  subtotal: numeric('subtotal').notNull().default('0'),
+  taxAmount: numeric('tax_amount').notNull().default('0'),
+  grandTotal: numeric('grand_total').notNull().default('0'),
+  outstandingAmount: numeric('outstanding_amount').notNull().default('0'),
+  status: erpInvoiceStatusEnum('status').notNull().default('draft'),
+  journalEntryId: text('journal_entry_id'), // set once posted to the GL
+  salesOrderId: text('sales_order_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpSalesInvoiceItems = complianceSchemaDB.table('erp_sales_invoice_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  invoiceId: text('invoice_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+  taxTemplateId: text('tax_template_id'),
+})
+
+export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  invoiceNumber: integer('invoice_number').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  currencyId: text('currency_id'),
+  subtotal: numeric('subtotal').notNull().default('0'),
+  taxAmount: numeric('tax_amount').notNull().default('0'),
+  grandTotal: numeric('grand_total').notNull().default('0'),
+  outstandingAmount: numeric('outstanding_amount').notNull().default('0'),
+  status: erpInvoiceStatusEnum('status').notNull().default('draft'),
+  journalEntryId: text('journal_entry_id'),
+  purchaseOrderId: text('purchase_order_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseInvoiceItems = complianceSchemaDB.table('erp_purchase_invoice_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  invoiceId: text('invoice_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+  taxTemplateId: text('tax_template_id'),
+})
+
+// --- Assets ---
+
+export const erpAssetCategories = complianceSchemaDB.table('erp_asset_categories', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  categoryName: text('category_name').notNull(),
+  defaultDepreciationMethod: erpDepreciationMethodEnum('default_depreciation_method').notNull().default('straight_line'),
+  defaultUsefulLifeMonths: integer('default_useful_life_months'),
+  assetAccountId: text('asset_account_id'),
+  depreciationExpenseAccountId: text('depreciation_expense_account_id'),
+  accumulatedDepreciationAccountId: text('accumulated_depreciation_account_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpFixedAssets = complianceSchemaDB.table('erp_fixed_assets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  assetName: text('asset_name').notNull(),
+  assetCategoryId: text('asset_category_id').notNull(),
+  departmentId: text('department_id'), // nullable link to VERIDIAN's existing departments table
+  custodianUserId: text('custodian_user_id'),
+  location: text('location'),
+  purchaseDate: date('purchase_date', { mode: 'string' }).notNull(),
+  purchaseCost: numeric('purchase_cost').notNull(),
+  depreciationMethod: erpDepreciationMethodEnum('depreciation_method').notNull().default('straight_line'),
+  usefulLifeMonths: integer('useful_life_months'),
+  salvageValue: numeric('salvage_value').notNull().default('0'),
+  status: erpAssetStatusEnum('status').notNull().default('draft'),
+  currentValue: numeric('current_value'),
+  accumulatedDepreciation: numeric('accumulated_depreciation').notNull().default('0'),
+  journalEntryId: text('journal_entry_id'), // the acquisition posting, once submitted
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpDepreciationSchedules = complianceSchemaDB.table('erp_depreciation_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assetId: text('asset_id').notNull(),
+  scheduleDate: date('schedule_date', { mode: 'string' }).notNull(),
+  depreciationAmount: numeric('depreciation_amount').notNull(),
+  accumulatedDepreciationAfter: numeric('accumulated_depreciation_after').notNull(),
+  isPosted: boolean('is_posted').notNull().default(false),
+  journalEntryId: text('journal_entry_id'),
+})
+
+export const erpAssetMovements = complianceSchemaDB.table('erp_asset_movements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assetId: text('asset_id').notNull(),
+  movementDate: date('movement_date', { mode: 'string' }).notNull(),
+  fromLocation: text('from_location'),
+  toLocation: text('to_location'),
+  fromCustodianId: text('from_custodian_id'),
+  toCustodianId: text('to_custodian_id'),
+  purpose: text('purpose'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpAssetDisposals = complianceSchemaDB.table('erp_asset_disposals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assetId: text('asset_id').notNull(),
+  disposalDate: date('disposal_date', { mode: 'string' }).notNull(),
+  disposalType: text('disposal_type').notNull(), // 'sale' | 'scrap'
+  saleValue: numeric('sale_value'),
+  journalEntryId: text('journal_entry_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// --- Buying ---
+
+export const erpSuppliers = complianceSchemaDB.table('erp_suppliers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierName: text('supplier_name').notNull(),
+  supplierType: text('supplier_type'),
+  gstin: text('gstin'),
+  panNumber: text('pan_number'),
+  defaultPaymentTermsDays: integer('default_payment_terms_days'),
+  vendorRiskProfileId: text('vendor_risk_profile_id'), // nullable link to VERIDIAN's existing vendor_risk_profiles (Third-Party & ESG module)
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  poNumber: integer('po_number').notNull(), // per-org sequence
+  orderDate: date('order_date', { mode: 'string' }).notNull(),
+  expectedDeliveryDate: date('expected_delivery_date', { mode: 'string' }),
+  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_received'|'completed'|'cancelled'
+  grandTotal: numeric('grand_total').notNull().default('0'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseOrderItems = complianceSchemaDB.table('erp_purchase_order_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  purchaseOrderId: text('purchase_order_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+  receivedQuantity: numeric('received_quantity').notNull().default('0'),
+})
+
+export const erpPurchaseReceipts = complianceSchemaDB.table('erp_purchase_receipts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  purchaseOrderId: text('purchase_order_id'),
+  receiptNumber: integer('receipt_number').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'cancelled'
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseReceiptItems = complianceSchemaDB.table('erp_purchase_receipt_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  receiptId: text('receipt_id').notNull(),
+  purchaseOrderItemId: text('purchase_order_item_id'),
+  itemId: text('item_id'),
+  quantity: numeric('quantity').notNull().default('1'),
+  warehouseId: text('warehouse_id'),
+})
+
+// --- Selling ---
+
+export const erpCustomers = complianceSchemaDB.table('erp_customers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerName: text('customer_name').notNull(),
+  clientId: text('client_id'), // nullable -- usually the same entity as a compliance client, but not required
+  gstin: text('gstin'),
+  panNumber: text('pan_number'),
+  defaultPaymentTermsDays: integer('default_payment_terms_days'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpQuotations = complianceSchemaDB.table('erp_quotations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerId: text('customer_id'),
+  leadId: text('lead_id'), // nullable link to VERIDIAN's existing crm_leads -- a quotation can precede a formal customer
+  quotationNumber: integer('quotation_number').notNull(),
+  quotationDate: date('quotation_date', { mode: 'string' }).notNull(),
+  validTill: date('valid_till', { mode: 'string' }),
+  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'ordered'|'lost'|'expired'
+  grandTotal: numeric('grand_total').notNull().default('0'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpQuotationItems = complianceSchemaDB.table('erp_quotation_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quotationId: text('quotation_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+})
+
+export const erpSalesOrders = complianceSchemaDB.table('erp_sales_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  opportunityId: text('opportunity_id'), // nullable link to VERIDIAN's existing crm_opportunities -- a "won" opportunity flows into a sales order
+  quotationId: text('quotation_id'),
+  soNumber: integer('so_number').notNull(),
+  orderDate: date('order_date', { mode: 'string' }).notNull(),
+  deliveryDate: date('delivery_date', { mode: 'string' }),
+  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_delivered'|'completed'|'cancelled'
+  grandTotal: numeric('grand_total').notNull().default('0'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpSalesOrderItems = complianceSchemaDB.table('erp_sales_order_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  salesOrderId: text('sales_order_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+  deliveredQuantity: numeric('delivered_quantity').notNull().default('0'),
+})
+
+export const erpDeliveryNotes = complianceSchemaDB.table('erp_delivery_notes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  salesOrderId: text('sales_order_id'),
+  deliveryNumber: integer('delivery_number').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'cancelled'
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpDeliveryNoteItems = complianceSchemaDB.table('erp_delivery_note_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  deliveryNoteId: text('delivery_note_id').notNull(),
+  salesOrderItemId: text('sales_order_item_id'),
+  itemId: text('item_id'),
+  quantity: numeric('quantity').notNull().default('1'),
+  warehouseId: text('warehouse_id'),
+})
+
+// --- Basic Stock/Inventory ---
+
+export const erpWarehouses = complianceSchemaDB.table('erp_warehouses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  warehouseName: text('warehouse_name').notNull(),
+  parentWarehouseId: text('parent_warehouse_id'), // self-FK -- tree, same convention as erp_accounts
+  isGroup: boolean('is_group').notNull().default(false),
+  address: text('address'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpItemGroups = complianceSchemaDB.table('erp_item_groups', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  groupName: text('group_name').notNull(),
+  parentGroupId: text('parent_group_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpItems = complianceSchemaDB.table('erp_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemCode: text('item_code').notNull(),
+  itemName: text('item_name').notNull(),
+  itemGroupId: text('item_group_id'),
+  uom: text('uom'), // unit of measure, free text e.g. 'Nos' | 'Kg' | 'Hour'
+  isStockItem: boolean('is_stock_item').notNull().default(true), // false for pure services -- no stock ledger entries
+  isSalesItem: boolean('is_sales_item').notNull().default(true),
+  isPurchaseItem: boolean('is_purchase_item').notNull().default(true),
+  standardSellingRate: numeric('standard_selling_rate'),
+  standardBuyingRate: numeric('standard_buying_rate'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Append-only, immutable ledger -- matches this codebase's audit-log
+// philosophy (never UPDATE a posted stock movement, only append
+// corrections as new entries).
+export const erpStockLedgerEntries = complianceSchemaDB.table('erp_stock_ledger_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull(),
+  warehouseId: text('warehouse_id').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  voucherType: text('voucher_type').notNull(), // 'purchase_receipt'|'delivery_note'|'stock_reconciliation'
+  voucherId: text('voucher_id').notNull(),
+  quantityChange: numeric('quantity_change').notNull(),
+  valuationRate: numeric('valuation_rate').notNull().default('0'),
+  balanceQty: numeric('balance_qty').notNull(),
+  balanceValue: numeric('balance_value').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpStockReconciliations = complianceSchemaDB.table('erp_stock_reconciliations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  warehouseId: text('warehouse_id').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('draft'), // 'draft'|'submitted'
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpStockReconciliationItems = complianceSchemaDB.table('erp_stock_reconciliation_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  reconciliationId: text('reconciliation_id').notNull(),
+  itemId: text('item_id').notNull(),
+  countedQty: numeric('counted_qty').notNull(),
+  valuationRate: numeric('valuation_rate').notNull().default('0'),
+  systemQty: numeric('system_qty'), // snapshot of the stock ledger balance at the time of reconciliation, for variance reporting
+})
+
+// --- Relations (query ergonomics for the most-traversed tables only,
+// matching this codebase's own precedent of not adding a relations block
+// for every single table) ---
+export const erpAccountsRelations = relations(erpAccounts, ({ one, many }) => ({
+  parentAccount: one(erpAccounts, { fields: [erpAccounts.parentAccountId], references: [erpAccounts.id], relationName: 'erpAccountTree' }),
+  childAccounts: many(erpAccounts, { relationName: 'erpAccountTree' }),
+}))
+
+export const erpJournalEntriesRelations = relations(erpJournalEntries, ({ many }) => ({
+  lines: many(erpJournalEntryLines),
+}))
+
+export const erpJournalEntryLinesRelations = relations(erpJournalEntryLines, ({ one }) => ({
+  journalEntry: one(erpJournalEntries, { fields: [erpJournalEntryLines.journalEntryId], references: [erpJournalEntries.id] }),
+  account: one(erpAccounts, { fields: [erpJournalEntryLines.accountId], references: [erpAccounts.id] }),
+}))
+
+export const erpFixedAssetsRelations = relations(erpFixedAssets, ({ one, many }) => ({
+  category: one(erpAssetCategories, { fields: [erpFixedAssets.assetCategoryId], references: [erpAssetCategories.id] }),
+  depreciationSchedules: many(erpDepreciationSchedules),
+}))
+
+export const erpDepreciationSchedulesRelations = relations(erpDepreciationSchedules, ({ one }) => ({
+  asset: one(erpFixedAssets, { fields: [erpDepreciationSchedules.assetId], references: [erpFixedAssets.id] }),
+}))
+
+export const erpSalesInvoicesRelations = relations(erpSalesInvoices, ({ one, many }) => ({
+  customer: one(erpCustomers, { fields: [erpSalesInvoices.customerId], references: [erpCustomers.id] }),
+  items: many(erpSalesInvoiceItems),
+}))
+
+export const erpSalesInvoiceItemsRelations = relations(erpSalesInvoiceItems, ({ one }) => ({
+  invoice: one(erpSalesInvoices, { fields: [erpSalesInvoiceItems.invoiceId], references: [erpSalesInvoices.id] }),
+}))
+
+export const erpPurchaseInvoicesRelations = relations(erpPurchaseInvoices, ({ one, many }) => ({
+  supplier: one(erpSuppliers, { fields: [erpPurchaseInvoices.supplierId], references: [erpSuppliers.id] }),
+  items: many(erpPurchaseInvoiceItems),
+}))
+
+export const erpPurchaseInvoiceItemsRelations = relations(erpPurchaseInvoiceItems, ({ one }) => ({
+  invoice: one(erpPurchaseInvoices, { fields: [erpPurchaseInvoiceItems.invoiceId], references: [erpPurchaseInvoices.id] }),
+}))
+
+export const erpPurchaseOrdersRelations = relations(erpPurchaseOrders, ({ one, many }) => ({
+  supplier: one(erpSuppliers, { fields: [erpPurchaseOrders.supplierId], references: [erpSuppliers.id] }),
+  items: many(erpPurchaseOrderItems),
+}))
+
+export const erpPurchaseOrderItemsRelations = relations(erpPurchaseOrderItems, ({ one }) => ({
+  purchaseOrder: one(erpPurchaseOrders, { fields: [erpPurchaseOrderItems.purchaseOrderId], references: [erpPurchaseOrders.id] }),
+}))
+
+export const erpSalesOrdersRelations = relations(erpSalesOrders, ({ one, many }) => ({
+  customer: one(erpCustomers, { fields: [erpSalesOrders.customerId], references: [erpCustomers.id] }),
+  opportunity: one(crmOpportunities, { fields: [erpSalesOrders.opportunityId], references: [crmOpportunities.id] }),
+  items: many(erpSalesOrderItems),
+}))
+
+export const erpSalesOrderItemsRelations = relations(erpSalesOrderItems, ({ one }) => ({
+  salesOrder: one(erpSalesOrders, { fields: [erpSalesOrderItems.salesOrderId], references: [erpSalesOrders.id] }),
+}))
+
+export const erpQuotationsRelations = relations(erpQuotations, ({ one, many }) => ({
+  customer: one(erpCustomers, { fields: [erpQuotations.customerId], references: [erpCustomers.id] }),
+  lead: one(crmLeads, { fields: [erpQuotations.leadId], references: [crmLeads.id] }),
+  items: many(erpQuotationItems),
+}))
+
+export const erpQuotationItemsRelations = relations(erpQuotationItems, ({ one }) => ({
+  quotation: one(erpQuotations, { fields: [erpQuotationItems.quotationId], references: [erpQuotations.id] }),
+}))
+
+export const erpSuppliersRelations = relations(erpSuppliers, ({ one }) => ({
+  vendorRiskProfile: one(vendorRiskProfiles, { fields: [erpSuppliers.vendorRiskProfileId], references: [vendorRiskProfiles.id] }),
+}))
+
+export const erpWarehousesRelations = relations(erpWarehouses, ({ one, many }) => ({
+  parentWarehouse: one(erpWarehouses, { fields: [erpWarehouses.parentWarehouseId], references: [erpWarehouses.id], relationName: 'erpWarehouseTree' }),
+  childWarehouses: many(erpWarehouses, { relationName: 'erpWarehouseTree' }),
+}))
+
+export const erpItemsRelations = relations(erpItems, ({ one }) => ({
+  itemGroup: one(erpItemGroups, { fields: [erpItems.itemGroupId], references: [erpItemGroups.id] }),
+}))

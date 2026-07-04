@@ -22,6 +22,9 @@ export const DOMAIN_ALLOWED_TOOLS: Record<string, Set<string>> = {
   // this pass, per explicit instruction not to use any of the 3 studied
   // tools' AI or invent a new AI mechanism for this domain.
   project_management: new Set([]),
+  // VERI ERP (Wave 49): empty allowlist -- schema-only wave, no service
+  // layer or AI tool exists for this domain yet.
+  erp: new Set([]),
 }
 
 export const DEFAULT_DOMAIN = "compliance"
