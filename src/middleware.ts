@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
     "/compliance", "/contract-compliance", "/dashboard", "/departments", "/directors",
     "/doa", "/esg", "/frameworks", "/help", "/home", "/hr-compliance", "/incidents",
     "/ingest", "/ip-portfolio", "/irdai", "/knowledge-base", "/leave-holiday", "/legal-opinions",
-    "/legal-vendors", "/litigation", "/mca-filings", "/notices", "/orchestra",
+    "/legal-vendors", "/litigation", "/mca-filings", "/metric-alerts", "/notices", "/orchestra",
     "/penalties", "/pms", "/policies", "/posh", "/rbi", "/reports", "/risks", "/rpt",
     "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks",
     "/team", "/users", "/vendor-risk", "/veri-ai", "/veri-meetings", "/veri-todo", "/whistleblower",

@@ -258,6 +258,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Zap,
         },
         {
+          label: "Metric Alerts",
+          href: "/metric-alerts",
+          icon: Bell,
+        },
+        {
           label: "VERI To Do",
           href: "/veri-todo",
           icon: CheckSquare,

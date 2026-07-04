@@ -2661,6 +2661,32 @@ export const savedReports = complianceSchemaDB.table('saved_reports', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Metric Alert Rules (Wave 38, Grafana-inspired scheduled threshold
+// alerting, PLATFORM_STRATEGY.md §22) ─────────────────────────────────────
+// Reuses the exact same sourceEntity/filterField whitelist custom-report-
+// service.ts already validates against (see metric-alert-service.ts) --
+// never a new arbitrary-query surface. Evaluated by a Vercel Cron route,
+// not a live-streaming engine like Grafana itself -- see §22.3 for why that
+// distinction was deliberate. Also the mechanism Ticketing (Wave 39, §21)
+// reuses for SLA-deadline breach detection, one scheduled-evaluation
+// mechanism serving two consumers rather than a second cron job.
+export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  sourceEntity: text('source_entity').notNull(), // 'compliance_items' | 'notices' | 'risks' | 'pms_issues' | 'incidents'
+  filterField: text('filter_field'), // e.g. 'status' -- validated against the same whitelist as savedReports.groupByField
+  filterValue: text('filter_value'), // e.g. 'overdue'
+  operator: text('operator').notNull().default('gt'), // 'gt' | 'gte' | 'lt' | 'lte' | 'eq'
+  threshold: integer('threshold').notNull(),
+  notifyUserIds: jsonb('notify_user_ids').notNull().default([]), // string[]
+  isActive: boolean('is_active').notNull().default(true),
+  lastTriggeredAt: timestamp('last_triggered_at'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── VERI Chat (Wave 32) ──────────────────────────────────────────────────
 // Extends Wave 12's conversations/messages -- does not replace them.
 // contextEntityType/contextEntityId is the same polymorphic pattern already

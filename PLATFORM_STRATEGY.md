@@ -828,3 +828,103 @@ All 5 rejected as software for the same reason as every prior chat-platform eval
 - **Real token-by-token SSE streaming** (LibreChat/NextChat/Open WebUI/Lobe Chat all stream): a materially larger architecture change (a streaming-capable route + client-side incremental rendering across 4 providers' different streaming wire formats) for a marginal UX gain on what is an internal enterprise tool, not a consumer chat product where perceived latency is the primary competitive axis. Named explicitly rather than silently dropped.
 - **Memory-across-conversations for VERI AI**: `assistantMemories` (Wave 22) exists but is scoped to the separate, differently-shaped AI Assistants module (keyed by `assistantId`, not a generic per-user/per-thread memory). Wiring it to VERI AI would require inventing a new binding between the generic `user_assistant_oa` layer and a specific `aiAssistants` row with no confirmed need yet — flagged rather than force a shaky mapping.
 - **Edit-and-resubmit, conversation branching/forking, file upload UI inline in chat** (vs. picking an already-uploaded document): all real LibreChat features, all bigger diffs against this codebase's immutable-message-history convention than the scope justified this pass.
+
+## 19. VERIDIAN HR Module -- completing the gap from statutory compliance to real HR (Wave 40)
+
+**Confirmed current state (read from schema, not assumed)**: VERIDIAN's existing "PEOPLE & HR" module group (`hrComplianceItems`, `leavePolicyEntries`, `holidayListFilings`, `poshCommittee`/`poshComplaints`/`poshAnnualReports`) is **100% statutory-compliance tracking** -- "is this filing done," never an actual employee record. There is no employee master data at all beyond `users` (auth/access-control fields: name, email, role, `departmentId`, `reportingToId`). `onboardingSteps` is a per-user **product** onboarding checklist ("profile", "first_compliance", "invite_team") -- not an HR employee-onboarding workflow, a different concept entirely, left untouched. `leavePolicyEntries` is POLICY TEXT (entitlement description), not a per-employee leave request/balance ledger -- there's no way for an employee to actually request leave today.
+
+### 19.1 3 repos evaluated
+
+| Repo | License | Deployment | Core features (OSS repo only) | Verdict |
+|---|---|---|---|---|
+| minthcm/minthcm | AGPL-3.0, single edition, no enterprise carve-out | PHP 8.2 + MySQL + ElasticSearch (SugarCRM/SuiteCRM fork repurposed for HCM) | Recruitment/ATS, onboarding/offboarding, employee profiles, competencies, attendance, leave, performance, org structure, no payroll | Reject as software -- PHP/MySQL/ElasticSearch standalone stack, zero Vercel-serverless fit |
+| frappe/erpnext | GPL-3.0 | Frappe's own Python framework + Redis + bench-based install | **The linked repo itself has no HR/payroll at all** -- it's a general ERP (accounting/inventory/manufacturing). Actual HR lives in the separate `frappe/hrms` repo (also GPL-3.0, 8.1k stars, active): onboarding/exit, leave+attendance (geolocation check-in), expense claims, performance (KRA/appraisals), payroll+taxation, recruitment | Reject as software -- Frappe-framework-locked, no serverless path; flagged to the user that the linked repo itself isn't an HR system |
+| orangehrm/orangehrm | GPL-3.0 (this repo) | PHP/Symfony + MySQL + Apache | Employee directory, PTO/leave, time tracking, recruitment, performance, reports -- **but this is the "Starter" edition; payroll and advanced ATS/performance are a separate paid "Advanced" tier, confirmed open-core, not in this OSS repo at all** | Reject as software, and flagged the open-core gap (don't assume payroll exists just because OrangeHRM is "the" open-source HR tool) |
+
+All 3 rejected as software (PHP/Frappe monoliths, none deployable serverless). No code/AI adopted. The cross-repo feature list (employee directory, leave requests distinct from leave policy, org chart) independently confirms VERIDIAN's real gap, though.
+
+### 19.2 Implemented (Wave 40)
+
+Scoped to the two highest-value, most clearly-justified gaps rather than attempting a full HRMS (no payroll engine -- VERIDIAN deliberately stays in its compliance-tracking lane there, matching its existing `hrComplianceItems` design; no recruitment/ATS or performance reviews -- no confirmed need, named as deferred):
+
+- **Employee Directory**: new `employeeProfiles` table (one row per `users` id -- `employeeCode`, `jobTitle`, `employmentType`, `dateOfJoining`, `dateOfBirth` nullable) extending `users` without duplicating its auth fields.
+- **Leave Requests + Balance**: new `leaveRequests` (employee-submitted, manager-approved, references `leavePolicyEntries.leaveType` as free text) + `leaveBalances` (per employee per leave type per year, incremented on policy assignment, decremented on approval) -- genuinely new, distinct from the pre-existing policy-only table.
+- **Org Chart**: zero new schema -- a read-only tree view over the *already-existing* `users.reportingToId`/`departmentId`, the one clear "already have the data, just needed a UI" finding from this research.
+
+### 19.3 Explicitly deferred
+
+Payroll processing (regulated, error-prone, deliberately out of VERIDIAN's lane -- it tracks payroll *compliance*, never runs payroll itself). Recruitment/ATS, performance reviews/appraisals, attendance/geolocation check-in -- all real features across the 3 repos, none with a confirmed VERIDIAN use case yet, named rather than silently dropped.
+
+## 20. VERIDIAN CRM Module -- lead-to-client pipeline, not a generic sales CRM (Wave 41)
+
+**Confirmed current state**: `clients`/`clientEntities` (Wave 1) is a CA-firm/legal-firm/consultant's client *account* management -- already-onboarded clients, gated to `accountType !== 'company'` orgs. There is no lead/prospect concept, no opportunity/pipeline, no way to track "a potential new client before they're actually a client" at all.
+
+### 20.1 2 repos evaluated
+
+| Repo | License | Deployment | Verdict |
+|---|---|---|---|
+| twentyhq/twenty | AGPL-3.0 + commercial Enterprise carve-out | NestJS/PostgreSQL/Docker/Redis, standalone | Already evaluated and rejected in §17.7 (this batch's repeat) -- wrong category, re-confirmed |
+| SuiteCRM/SuiteCRM | AGPL-3.0 (verified via LICENSE.txt; `composer.json` inconsistently says GPL-3.0, GitHub's authoritative repo-level license is AGPL-3.0) | Pure PHP 8.1+ monolith (Smarty, Composer, OAuth2/SAML/Elasticsearch client) -- traditional LAMP/LEMP stack, cron-dependent | Reject as software -- PHP monolith, zero Vercel-serverless fit. AGPL's network-copyleft terms are a second, independent reason to avoid any code reuse even if the architecture fit were better |
+
+Both rejected as software. Neither's actual code/AI is adopted.
+
+### 20.2 Implemented (Wave 41) -- deliberately narrow scope
+
+VERIDIAN's business isn't a sales-department tool -- a generic CRM (campaigns, quotes/invoices, email marketing, multi-currency) has no product tie-in. What genuinely completes the existing Clients feature is the one thing it's missing: **how a CA firm/legal firm/consultant actually gets a new client**, not just manages an existing one. Gated identically to the existing Clients page (`accountType !== 'company'`):
+
+- **Leads** (`crmLeads`): prospect organisations/contacts not yet a `clients` row -- name, contact info, source, status (`new` to `contacted` to `qualified` to `converted`/`lost`), assigned owner.
+- **Opportunities** (`crmOpportunities`): potential new engagements -- linked to a lead OR an existing client (an existing client can also have a new opportunity, e.g. an add-on service), stage (`prospecting` to `proposal` to `negotiation` to `won`/`lost`), estimated value, expected close date.
+- **Convert-to-client**: a lead reaching `qualified`+won can be one-click converted into a real `clients` row, closing the loop into the existing Wave-1 client-management feature rather than creating a second, disconnected "client" concept.
+- **Activity tracking reused, not duplicated**: both leads and opportunities use the *already-existing* polymorphic `contextEntityType`/`contextEntityId` linking on `conversations` (VERI Chat, Wave 32) and `veriMeetings` (VERI Minutes of Meetings, Wave 34) -- a lead/opportunity's call/meeting history is just those two features pointed at a new entity type, not a third parallel activity-log table.
+
+### 20.3 Explicitly deferred
+
+Campaigns/email marketing, quotes/invoices, multi-currency, a dedicated sales-forecasting dashboard -- none needed for a compliance-service-provider's lead pipeline; named rather than silently dropped.
+
+## 21. VERIDIAN Ticketing Module -- customer-facing support tickets, reusing VERI Chat's messaging substrate (Wave 39)
+
+**Confirmed current state**: VERIDIAN has two internal work-tracking systems already -- `pmsIssues` (Wave 25-28, internal project work) and `incidents` (Wave 8, internal governance/risk incidents) -- but **no external customer/vendor-facing support ticket system** exists. Neither PMS nor Incidents exposes any path for someone outside the org to submit or track something.
+
+### 21.1 3 repos evaluated
+
+| Repo | License | Deployment | Verdict |
+|---|---|---|---|
+| Peppermint-Lab/peppermint | (already evaluated in prior passes) | Node.js/Next.js + Postgres + Docker, standalone | Already rejected -- re-confirmed, not re-researched |
+| polonel/trudesk | Apache-2.0 (confirmed via LICENSE file; GitHub's own classifier under-detects this one) | Node.js + **MongoDB** (NoSQL) + optional Elasticsearch, standalone, Docker or bare-metal | Reject as software -- needs its own Node process + MongoDB instance, no Vercel-serverless path |
+| flowinquiry/flowinquiry | AGPL-3.0 (confirmed via LICENSE file) | Java/Spring Boot + Postgres backend, Next.js **frontend only** -- the Next.js part is not the whole app, still needs a standalone Java server | Reject as software. **Also flagged: not primarily a ticketing tool** -- it's a general Jira-like project/workflow platform where ticketing is one module alongside Kanban/epics/workflow automation, similar in spirit to VERIDIAN's own PMS |
+
+All 3 rejected as software. FlowInquiry's SLA-deadline-escalation + customizable workflow-state pattern is the one genuinely reusable idea, independently common across all 3.
+
+### 21.2 Implemented (Wave 39) -- the key design decision: reuse VERI Chat, don't rebuild messaging
+
+A support ticket is, underneath, a structured status/priority/SLA wrapper around a conversation thread -- and VERIDIAN already has a complete, guest-capable messaging substrate (`conversations`/`messages`/`conversationGuestAccess`, Wave 12/32/36). Rebuilding a second message thread system for tickets would directly violate this catalog's own duplication discipline. Design:
+
+- **`tickets`** (orgId, clientId nullable, conversationId **references the existing `conversations` table**, subject, category, priority, status, assigneeId, requesterUserId nullable, requesterGuestAccessId nullable, slaDeadline, resolvedAt) -- every reply, guest message, markdown rendering, and attachment already works for free via the existing conversation the ticket wraps.
+- **External submission**: reuses Wave 36's `conversationGuestAccess` tokenized pattern exactly -- an external customer/vendor gets a guest link to the ticket's underlying conversation, identical mechanism, zero new public-auth surface invented.
+- **SLA breach detection**: reuses the scheduled-rule-evaluation mechanism built for §22's Reports/Monitoring wave (Wave 38) rather than inventing a second cron job -- a ticket's `slaDeadline` passing is evaluated by the same daily Vercel Cron route, firing the same notification mechanism Automation Rules (Wave 30) already uses.
+
+### 21.3 Explicitly deferred
+
+Knowledge base/macros/canned-responses (VERIDIAN's Knowledge Base, Wave 29, already exists org-wide and could be linked from a ticket later, but building ticket-specific macros is a bigger diff not justified this pass), satisfaction surveys, email-to-ticket ingestion (would need a registered mail-receiving domain, an infra dependency out of scope here, same category of deferral as Slack's permalink API in §16.2).
+
+## 22. VERIDIAN Reports & Operational Monitoring -- scheduled threshold alerting, reusing Custom Reports' query layer (Wave 38)
+
+**Confirmed current state**: `savedReports` (Wave 31, Metabase/Superset-inspired) already covers ad-hoc grouped-count reporting via a whitelisted per-`sourceEntity` query switch. `orchestraExecutions` (Wave 23) already covers AI-observability tracing. Neither covers **scheduled, threshold-crossing alerts** ("notify me when overdue items exceed 20") -- Automation Rules (Wave 30) are event-triggered only (react to a specific record's field changing), not time-based metric evaluation. `vercel.json` already has 2 existing daily Cron jobs (`loops/run`, `instruction-audit/run`) -- a proven, zero-extra-infra scheduling mechanism already in production use.
+
+### 22.1 1 new repo evaluated (Metabase/Superset already covered in §15)
+
+| Repo | License | Deployment | Verdict |
+|---|---|---|---|
+| grafana/grafana | **AGPL-3.0-only** for the actual product (server/dashboarding/alerting) -- confirmed via `LICENSING.md`; a handful of frontend UI-library/SDK packages (`grafana-ui`, `grafana-data`, etc., meant for third-party reuse) are separately Apache-2.0, but the product itself is AGPL. Enterprise tier (SSO/RBAC/reporting) is separate closed-source, not in this repo at all. | Go backend + React frontend, standalone server, own SQL DB (SQLite/Postgres/MySQL) for config + pluggable time-series datasource connectors (it ships no time-series store of its own) -- Docker/Helm/binary distribution, a long-running stateful process | Reject as software -- cannot run as a Vercel function; would need to run as a separate always-on service VERIDIAN would then embed/iframe, which is a real operational-cost and architecture decision far bigger than "add a report," not justified by the actual need here |
+
+Rejected as software (same category as every dashboarding tool checked this session). Its alert-rule + notification-channel *pattern* (evaluated periodically against a data source, firing to Slack/email/webhook on threshold breach) is the one piece worth adapting -- independently, this is also exactly what a ticket's SLA-deadline (§21) needs, so building it once here serves both.
+
+### 22.2 Implemented (Wave 38)
+
+- **`metricAlertRules`** (orgId, name, sourceEntity -- reusing the exact same whitelist `custom-report-service.ts` already validates against, never a new arbitrary-SQL surface -- metricType: count/sum/avg, filters jsonb, operator, threshold, notifyUserIds, isActive).
+- **New Vercel Cron route** `/api/internal/metric-alerts/run`, added to `vercel.json` alongside the 2 existing daily crons, evaluating every active rule via the *already-existing* whitelisted query builder (not a duplicate query engine) and firing the *already-existing* notification mechanism (Wave 14's instruction-mismatch notification pattern) on breach.
+- **Reused by Ticketing (§21.2)** for SLA-deadline breach detection -- one scheduled-evaluation mechanism, two consumers, not two cron jobs.
+
+### 22.3 Explicitly deferred
+
+Live auto-refreshing dashboards (VERIDIAN's existing Reports page + Orchestra dashboard already cover point-in-time visualization; a genuinely live-updating panel is a bigger, differently-shaped feature not justified by the "notify me on threshold" need actually named), arbitrary external datasource plugins (Prometheus/CloudWatch/etc. -- VERIDIAN's metrics are 100% its own Postgres data, there is no external metrics source to plug in), a full alerting-channel abstraction beyond the existing in-app notification (Slack/PagerDuty webhooks -- no confirmed need yet).
