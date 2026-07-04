@@ -1,6 +1,6 @@
 <svg width="100%" viewBox="0 0 1200 1200" role="img" xmlns="http://www.w3.org/2000/svg">
   <title>VERIDIAN AI</title>
-  <desc>VERIDIAN AI mark — a V built from two gradient strokes (emerald to blue) dissolving into pixels</desc>
+  <desc>VERIDIAN AI mark — a V built from two gradient ribbons (emerald to blue) with flat angled tops, sharing one rounded base, dissolving into pixels top-right</desc>
   <defs>
     <linearGradient id="vLeft" x1="0" y1="0" x2="0.6" y2="1">
       <stop offset="0" stop-color="#34D399"/>
@@ -10,10 +10,19 @@
       <stop offset="0" stop-color="#14B8A6"/>
       <stop offset="1" stop-color="#2563EB"/>
     </linearGradient>
+    <clipPath id="clipLeftTop">
+      <rect x="-100" y="345" width="1400" height="900"/>
+    </clipPath>
+    <clipPath id="clipRightTop">
+      <rect x="-100" y="455" width="1400" height="900"/>
+    </clipPath>
   </defs>
 
-  <line x1="235" y1="385" x2="600" y2="970" stroke="url(#vLeft)" stroke-width="190" stroke-linecap="round"/>
-  <line x1="600" y1="970" x2="935" y2="455" stroke="url(#vRight)" stroke-width="190" stroke-linecap="round"/>
+  <!-- Left arm: straight ribbon, flat horizontal top (via clip), rounded shared base -->
+  <line x1="16" y1="34" x2="600" y2="970" stroke="url(#vLeft)" stroke-width="190" stroke-linecap="round" clip-path="url(#clipLeftTop)"/>
+
+  <!-- Right arm: straight ribbon, flat-ish top (via clip) where it meets the pixel dust, rounded shared base -->
+  <line x1="600" y1="970" x2="1136" y2="146" stroke="url(#vRight)" stroke-width="190" stroke-linecap="round" clip-path="url(#clipRightTop)"/>
 
   <g fill="url(#vRight)">
     <rect x="924" y="349" width="92" height="92" rx="18" transform="rotate(-25 970 395)"/>

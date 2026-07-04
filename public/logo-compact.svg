@@ -10,11 +10,17 @@
       <stop offset="0" stop-color="#14B8A6"/>
       <stop offset="1" stop-color="#2563EB"/>
     </linearGradient>
+    <clipPath id="clipLeftTopC">
+      <rect x="-100" y="345" width="1400" height="900"/>
+    </clipPath>
+    <clipPath id="clipRightTopC">
+      <rect x="-100" y="455" width="1400" height="900"/>
+    </clipPath>
   </defs>
 
   <svg x="8" y="8" width="124" height="124" viewBox="0 0 1200 1200">
-    <line x1="235" y1="385" x2="600" y2="970" stroke="url(#vLeftC)" stroke-width="190" stroke-linecap="round"/>
-    <line x1="600" y1="970" x2="935" y2="455" stroke="url(#vRightC)" stroke-width="190" stroke-linecap="round"/>
+    <line x1="16" y1="34" x2="600" y2="970" stroke="url(#vLeftC)" stroke-width="190" stroke-linecap="round" clip-path="url(#clipLeftTopC)"/>
+    <line x1="600" y1="970" x2="1136" y2="146" stroke="url(#vRightC)" stroke-width="190" stroke-linecap="round" clip-path="url(#clipRightTopC)"/>
     <g fill="url(#vRightC)">
       <rect x="924" y="349" width="92" height="92" rx="18" transform="rotate(-25 970 395)"/>
       <rect x="980" y="305" width="70" height="70" rx="14" transform="rotate(15 1015 340)"/>
