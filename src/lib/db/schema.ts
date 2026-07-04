@@ -2687,6 +2687,35 @@ export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN Ticketing (Wave 39, PLATFORM_STRATEGY.md §21) ──────────────
+// Peppermint/Trudesk/FlowInquiry were evaluated and rejected as software
+// (each needs its own standalone server -- Node+Postgres+Docker,
+// Node+MongoDB, Java/Spring+Postgres respectively). A support ticket is,
+// underneath, a structured status/priority/SLA wrapper around a
+// conversation thread -- rather than rebuild a second messaging system,
+// `conversationId` points at the *already-existing* `conversations` table
+// (Wave 12), so every reply, guest message (Wave 36), markdown rendering
+// (Wave 37), and attachment (Wave 32) already works for free. External
+// customer/vendor participation reuses `conversationGuestAccess` exactly
+// as-is -- no new public-facing auth surface invented for this module.
+export const tickets = complianceSchemaDB.table('tickets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // nullable -- links to an existing compliance client if this ticket is theirs
+  conversationId: text('conversation_id').notNull(),
+  subject: text('subject').notNull(),
+  category: text('category'), // free text, e.g. 'technical' | 'billing' | 'general'
+  priority: priorityEnum('priority').notNull().default('medium'),
+  status: text('status').notNull().default('open'), // 'open' | 'in_progress' | 'resolved' | 'closed'
+  assigneeId: text('assignee_id'),
+  requesterUserId: text('requester_user_id'), // nullable -- the internal user this ticket is on behalf of, if any
+  slaDeadline: timestamp('sla_deadline'),
+  resolvedAt: timestamp('resolved_at'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── VERI Chat (Wave 32) ──────────────────────────────────────────────────
 // Extends Wave 12's conversations/messages -- does not replace them.
 // contextEntityType/contextEntityId is the same polymorphic pattern already
