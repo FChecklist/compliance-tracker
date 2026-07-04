@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
     "/legal-vendors", "/litigation", "/mca-filings", "/notices", "/orchestra",
     "/penalties", "/pms", "/policies", "/posh", "/rbi", "/reports", "/risks", "/rpt",
     "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks",
-    "/team", "/users", "/vendor-risk", "/whistleblower",
+    "/team", "/users", "/vendor-risk", "/veri-meetings", "/veri-todo", "/whistleblower",
   ]
   const isAppRoute = PROTECTED_APP_ROUTE_PREFIXES.some((prefix) => request.nextUrl.pathname.startsWith(prefix))
 

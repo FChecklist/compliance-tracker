@@ -258,6 +258,16 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Zap,
         },
         {
+          label: "VERI To Do",
+          href: "/veri-todo",
+          icon: CheckSquare,
+        },
+        {
+          label: "VERI Minutes of Meetings",
+          href: "/veri-meetings",
+          icon: ClipboardList,
+        },
+        {
           label: "Penalty Tracker",
           href: "/penalties",
           icon: AlertCircle,
@@ -317,7 +327,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
           )}
         >
           <MessageSquare className={cn("size-4 shrink-0", pathname.startsWith("/chat") && "text-ct-saffron")} />
-          <span className="flex-1">Chat</span>
+          <span className="flex-1">VERI Chat</span>
           {unreadChatCount > 0 && (
             <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
               {unreadChatCount}

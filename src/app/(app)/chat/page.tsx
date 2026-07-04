@@ -2,11 +2,15 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { Plus, Share2, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { ConversationList, type ConversationSummary } from "@/components/chat/ConversationList";
 import { ThreadView } from "@/components/chat/ThreadView";
 
@@ -25,6 +29,9 @@ function ChatPageInner() {
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [pickerUserId, setPickerUserId] = useState<string>("");
   const [showPicker, setShowPicker] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareLinks, setShareLinks] = useState<{ shareUrl: string; whatsappHref: string; telegramHref: string } | null>(null);
   const appliedLinkRef = useRef(false);
 
   function loadConversations() {
@@ -76,14 +83,73 @@ function ChatPageInner() {
     (u) => u.id !== currentUserId && !conversations.some((c) => c.otherParticipants.some((p) => p.id === u.id))
   );
 
+  async function shareConversation() {
+    if (!selectedId) return;
+    setSharing(true);
+    setShareOpen(true);
+    try {
+      const res = await fetch(`/api/veri-chat/conversations/${selectedId}/share-links`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const link = await res.json();
+      setShareLinks({ shareUrl: link.shareUrl, whatsappHref: link.whatsappHref, telegramHref: link.telegramHref });
+    } catch {
+      toast.error("Failed to create share link");
+      setShareOpen(false);
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  function copyShareUrl() {
+    if (!shareLinks) return;
+    navigator.clipboard.writeText(shareLinks.shareUrl);
+    toast.success("Link copied");
+  }
+
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       <div className="flex items-center justify-between mb-3">
-        <h1 className="font-heading text-xl text-ct-navy">Chat</h1>
-        <Button size="sm" variant="outline" onClick={() => setShowPicker((s) => !s)}>
-          <Plus className="size-4 mr-1" /> New conversation
-        </Button>
+        <h1 className="font-heading text-xl text-ct-navy">VERI Chat</h1>
+        <div className="flex items-center gap-2">
+          {selected && !selected.isAiThread && (
+            <Button size="sm" variant="outline" onClick={shareConversation}>
+              <Share2 className="size-4 mr-1" /> Share
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => setShowPicker((s) => !s)}>
+            <Plus className="size-4 mr-1" /> New conversation
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share this conversation</DialogTitle>
+            <DialogDescription>
+              Anyone with this link can view a read-only copy of this conversation for 72 hours. WhatsApp and Telegram only support composing a new message with this link -- there is no way for either platform to hand over an existing chat directly.
+            </DialogDescription>
+          </DialogHeader>
+          {sharing ? (
+            <div className="flex items-center justify-center py-6"><Loader2 className="size-5 animate-spin text-ct-muted" /></div>
+          ) : shareLinks ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input readOnly value={shareLinks.shareUrl} className="flex-1 h-9 px-3 rounded-lg border border-ct-border text-xs text-ct-muted" />
+                <Button size="sm" variant="outline" onClick={copyShareUrl}><Copy className="size-3.5" /></Button>
+              </div>
+              <div className="flex gap-2">
+                <a href={shareLinks.whatsappHref} target="_blank" rel="noopener noreferrer" className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full">WhatsApp</Button>
+                </a>
+                <a href={shareLinks.telegramHref} target="_blank" rel="noopener noreferrer" className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full">Telegram</Button>
+                </a>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {showPicker && (
         <div className="flex items-center gap-2 mb-3 p-3 rounded-lg border border-ct-border bg-white">

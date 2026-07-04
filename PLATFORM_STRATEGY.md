@@ -614,5 +614,57 @@ RLS cross-org isolation and the `saved_reports` private/shared visibility branch
 
 ---
 
+## §16 — VERI Chat, VERI To Do, VERI Minutes of Meetings (Waves 32-34)
+
+The user defined VERI Chat precisely: a strictly-business AI chat assistant (not a WhatsApp-style personal messenger) that connects to every module a user touches — users, company/department/policies/MoM/workflow, products/projects, permissions/responsibilities/to-do/pending, worker agents, memory, documents/data, tickets — plus the ability to share a conversation out via a WhatsApp/Telegram/Slack link, and receive a shared chat from those platforms back into VERI Chat. Two companion modules were also requested: VERI To Do and VERI Minutes of Meetings.
+
+### 16.1 Gap analysis: what Wave 12's existing chat system (`conversations`/`messages`) actually covers
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| User (participants, direct/group/AI) | ✅ Have | `conversations.type` (`direct`\|`group`\|`ai`), `conversationParticipants`, `messages.senderId` (null = AI) |
+| Company/Department/Policies/MoM/Workflow context | ❌ **Missing** | `conversations` has no entity-link column at all — a chat cannot be "about" a specific policy, department, or meeting |
+| Product/Project context | ❌ **Missing** | Same — no link to `projects`/`pmsIssues` |
+| Permissions/Responsibilities/To Do/Pending/Workflow | ⚠️ **Partial** | `instructionCommitments` lets a message become an assigned, tracked commitment — but nothing links a conversation to a `pmsIssue`, and `listMyTodos()` (confirmed by reading `task-service.ts`) only queries the bare `tasks` table, not `instructionCommitments` or `pmsIssues` — Wave 15's own "universal To Do" intent was never fully realized, the same unfulfilled-scope pattern §14/§15 already found twice (PMS wiki, product-branch enablement) |
+| Worker Agents | ⚠️ **Partial** | `conversations.isAiThread` exists at the conversation level, but no per-message attribution of *which* of the 5 Orchestra assistants answered |
+| Memory | ⚠️ **Partial** | `assistantMemories` exists (Wave 22) but has zero consumers and zero link to `conversations`/`messages` — confirmed still true, not something this pass silently ignores |
+| Documents/Data | ❌ **Missing** | No attachment mechanism on `messages` at all |
+| Tickets | N/A by design | §15.2 already found `pmsIssues`+`instructionCommitments` cover this ground; no separate ticket system exists or is being (re)built |
+| All modules for that user | ❌ **Missing** | `search-command.tsx` (⌘K) only searches `compliance_items`/`notices`/`documents` — 3 of VERIDIAN's ~50 modules, confirmed by reading the file |
+| Checks email | ❌ **Missing entirely** | `email.ts` (confirmed by reading it) is send-only via Resend — zero inbound/IMAP capability of any kind |
+| Checks Minutes of Meetings | ⚠️ **Split, not unified** | Two separate, narrower systems exist: `boardMeetings` (Wave 8, GOVERNANCE-only, `classification: 'board_only'`) and `pmsMeetings` (Wave 28, PMS-project-scoped only) — no general-purpose "any meeting" module, the same gap pattern Wave 29 found and fixed for wiki |
+| Checks pendency | ⚠️ **Partial** | Same `listMyTodos()` gap above — pendency today means "rows in `tasks`," not a real union across `instructionCommitments`/`pmsIssues` |
+| Share conversation → WhatsApp/Telegram | ❌ **Missing, and technically constrained** | See 16.2 — confirmed via live research that no web link can extract an *existing* WhatsApp/Telegram conversation; only a "compose new message" link is possible |
+| Receive a shared chat from WhatsApp/Telegram/Slack | ❌ **Missing, buildable via Web Share Target** | See 16.2 |
+
+### 16.2 Research summary: what's actually technically possible (confirmed via live search, not assumed)
+
+- **WhatsApp**: `wa.me`/`api.whatsapp.com` "Click to Chat" links only **pre-fill a new outgoing message** for the user to send — they cannot read or export an existing conversation. The only documented way content leaves WhatsApp is the native **"Export Chat"** feature (per-conversation, produces a `.txt`/`.zip`) which then hands off to the OS's native Share Sheet (Android `ACTION_SEND` / iOS Share Extension) — a **web app can register as a destination for that share sheet** (a PWA `share_target` manifest entry), but cannot initiate the export itself.
+- **Telegram**: identical one-way `t.me` compose-link pattern; native "Forward" is in-app only, not URL-drivable.
+- **Slack**: genuinely different and more capable — "Share message" produces a real permalink (`chat.getPermalink`) that an app holding proper OAuth scopes can resolve back to the actual message content via `conversations.history`. This is the one platform where a real round-trip import is possible — **but it requires a registered Slack App (client ID/secret) that only the user can create in Slack's admin console**, which doesn't exist in this codebase today.
+- **Conclusion driving the design below**: (1) VERI Chat can generate a `wa.me`/`t.me` link whose prefilled text is a pointer to a VERIDIAN-hosted read-only share page — never raw chat content in a URL, which would also blow past practical URL-length limits for anything but a one-line message. (2) VERI Chat can receive shared content from *any* app (WhatsApp, Telegram, or otherwise) via a standard **Web Share Target**, since that's an OS-level mechanism, not platform-specific. (3) Slack permalink resolution is designed for and schema-ready, but marked explicitly deferred pending the user registering a Slack App — not silently skipped, not faked.
+
+### 16.3 Proposed module design
+
+**VERI Chat** (extends Wave 12's `conversations`/`messages`, does not replace them):
+- `conversations` gains `contextEntityType`/`contextEntityId` (nullable) — the same polymorphic pattern already used by `embeddings`, `approval_requests`, and `audit_logs` in this codebase, not a new mechanism. Lets a conversation be "about" a policy, a `pmsIssue`, a `boardMeeting`, a product/project, etc.
+- `messages` gains `assistantId` (nullable — which of the 5 Orchestra assistants answered, when AI) and a new `messageAttachments` join table (`messageId`, `documentId`) reusing the existing `documents` table rather than a new file-storage path.
+- `conversationShareLinks` (id, conversationId, token, createdById, expiresAt, revokedAt) — a tokenized, time-limited, read-only public share page (`/shared/conversation/[token]`), the safe mechanism 16.2 concluded is the only sound way to put a conversation "into" a `wa.me`/`t.me` link.
+- `messages` gains `sourcePlatform`/`sourceRef` (nullable free text) so a message imported via Web Share Target or a pasted Slack permalink records where it came from — Slack's actual API resolution is **explicitly deferred** (needs a Slack App the user must register) but the column exists so nothing needs a later migration to add it.
+- A PWA `share_target` manifest entry + `/api/veri-chat/share-target` route — lets any OS share sheet (including one triggered by WhatsApp's own "Export Chat") deliver text/files directly into a per-user "Shared In" conversation.
+- Global search (⌘K) extended to the entity types VERI Chat now needs to reference (policies, PMS issues, meetings) using the existing `embeddings` table's already-generic `entityType`/`entityId` shape — not a new search mechanism.
+
+**VERI To Do** (formalizes and fixes Wave 15's own stated-but-unrealized "universal To Do"): `listMyTodos()` extended to genuinely union `tasks` + pending `instructionCommitments` assigned to the user + `pmsIssues` assigned to the user (via `pmsIssueAssignees`) whose status isn't in the `completed`/`cancelled` group — the concrete, evidence-based fix 16.1 identified. Registered as its own core module so the rule (what counts as "pending work" for a user) has one documented, versioned home instead of being implicit in one route.
+
+**VERI Minutes of Meetings** (new, general-purpose — the same "genuinely new, standalone" call already made for Knowledge Base in Wave 29, for the same reason: `boardMeetings` and `pmsMeetings` are both real but scope-locked to governance and PMS respectively): `veriMeetings` (orgId, `contextEntityType`/`contextEntityId` nullable, title, meetingType free text, scheduledAt, attendees jsonb, agenda jsonb, minutes text, minutesHistory jsonb — mirroring `boardMeetings`' own amend-don't-overwrite precedent) + `veriMeetingActionItems` (meetingId, taskId) — action items become real `tasks` rows (which VERI To Do already surfaces), not a parallel tracking mechanism. AI-assisted minutes structuring (paste rough notes → agenda/decisions/action-items) reuses the existing Prompt OS + `llm-client.ts` with one new `promptTemplates` row — **not** a new AI mechanism, and explicitly **not** live audio transcription (Meetily's category, MIT-licensed, confirmed via research — genuinely useful pattern but a real self-hosted-Whisper infrastructure investment, deferred).
+
+### 16.4 Explicitly out of scope / deferred (and why)
+
+Live audio transcription for meetings (Meetily's category — a real infrastructure investment, not a schema/service addition). Slack permalink→content resolution (schema-ready via `sourcePlatform`/`sourceRef`, but requires a Slack App the user must register in Slack's own admin console — cannot be created from inside this session). Wiring `assistantMemories` as a live consumer of conversation history (still zero consumers, as Wave 22 left it — VERI Chat records `assistantId` per message but does not start reading/writing memories this pass). Huly/Zulip (confirmed via research to already be substantially covered by VERIDIAN's own PMS+chat, or narrower than needed) — no new adoption from either.
+
+### Status update (2026-07-04): analysis complete, all 3 modules built — see `orchestra_changes.md` #80 for full build/verification detail
+
+---
+
 ## Appendix: Prior mockup iterations (design history, for reference)
 `veridian_landing_v2_role_adaptive.html` through `v13_top_nav.html` (and the original `veridian_ui_mockup.html`) were kept under separate filenames through the design process specifically so each round's reasoning could be compared against the last. They are not part of this repo; v14's content is preserved here as `examples/mobile-app-template/veridian-mobile-template.html`. Do not regenerate the earlier rounds' patterns (per-role separate pages, redundant per-task icons, dual permanent compose bars, top-of-screen nav duplicating persona-switching) — each was tried and superseded for a documented reason.

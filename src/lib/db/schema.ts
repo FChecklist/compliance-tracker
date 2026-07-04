@@ -1940,6 +1940,11 @@ export const conversations = complianceSchemaDB.table('conversations', {
   type: text('type').notNull().default('direct'), // 'direct' | 'group' | 'ai'
   isAiThread: boolean('is_ai_thread').notNull().default(false),
   title: text('title'),
+  // Wave 32 (VERI Chat): what this conversation is "about" -- a policy, a
+  // pms_issue, a project, a veri_meeting, etc. Nullable: most existing
+  // conversations (Wave 12-13) have no context and stay that way.
+  contextEntityType: text('context_entity_type'),
+  contextEntityId: text('context_entity_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -1958,6 +1963,17 @@ export const messages = complianceSchemaDB.table('messages', {
   senderId: text('sender_id'), // null == VERIDIAN AI, matches ai_assistants/task_chat_messages' existing "no human sender" convention
   content: text('content').notNull(),
   isInstruction: boolean('is_instruction').notNull().default(false), // denormalized for cheap list rendering (Wave 13's status chip); the actual commitment record lives in instruction_commitments
+  // Wave 32 (VERI Chat): which of the 5 Orchestra assistants answered, when
+  // senderId is null (AI). Nullable -- pre-existing AI messages have no
+  // per-message attribution and stay that way.
+  assistantId: text('assistant_id'),
+  // Wave 32: where this message came from, when imported via the Web Share
+  // Target (see conversation_share_links) or a pasted Slack permalink.
+  // Null for every normal in-app message. Slack's actual permalink->content
+  // API resolution is explicitly deferred (needs a Slack App the user must
+  // register) -- sourceRef just stores the pasted reference text until then.
+  sourcePlatform: text('source_platform'), // 'whatsapp' | 'telegram' | 'slack' | null
+  sourceRef: text('source_ref'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -2008,6 +2024,7 @@ export const conversationParticipantsRelations = relations(conversationParticipa
 export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
   sender: one(users, { fields: [messages.senderId], references: [users.id] }),
+  assistant: one(aiAssistants, { fields: [messages.assistantId], references: [aiAssistants.id] }),
 }))
 export const instructionCommitmentsRelations = relations(instructionCommitments, ({ one }) => ({
   message: one(messages, { fields: [instructionCommitments.messageId], references: [messages.id] }),
@@ -2636,3 +2653,87 @@ export const savedReports = complianceSchemaDB.table('saved_reports', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── VERI Chat (Wave 32) ──────────────────────────────────────────────────
+// Extends Wave 12's conversations/messages -- does not replace them.
+// contextEntityType/contextEntityId is the same polymorphic pattern already
+// used by embeddings/approval_requests/audit_logs, reused here rather than
+// invented fresh, per PLATFORM_STRATEGY.md §16.
+export const messageAttachments = complianceSchemaDB.table('message_attachments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  messageId: text('message_id').notNull(),
+  documentId: text('document_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Tokenized, time-limited, read-only public share page -- the only safe way
+// to put a conversation "into" a wa.me/t.me link, per §16.2's research
+// finding that no web link can extract an existing chat, and that raw chat
+// content must never sit in a URL bar/history. Revoked/expired links simply
+// 404 on the public share route -- no separate "is this valid" boolean
+// needed beyond checking those two columns at read time.
+export const conversationShareLinks = complianceSchemaDB.table('conversation_share_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  conversationId: text('conversation_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── VERI To Do (Wave 33) ─────────────────────────────────────────────────
+// Deliberately no new table -- this module formalizes a RULE (what counts
+// as "pending work" for a user), fixing task-service.ts's listMyTodos(),
+// which Wave 15 intended to be a universal union but which, confirmed by
+// reading it, only ever queried the bare `tasks` table. See §16.3.
+
+// ─── VERI Minutes of Meetings (Wave 34) ──────────────────────────────────
+// Genuinely new and general-purpose, the same call already made for
+// Knowledge Base in Wave 29 and for the same reason: board_meetings
+// (Wave 8, governance-only) and pms_meetings (Wave 28, PMS-project-scoped)
+// are both real but scope-locked. minutesHistory mirrors board_meetings'
+// own amend-don't-overwrite precedent verbatim.
+export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  contextEntityType: text('context_entity_type'), // nullable -- 'project' | 'client' | 'department' | null (general meeting)
+  contextEntityId: text('context_entity_id'),
+  title: text('title').notNull(),
+  meetingType: text('meeting_type').notNull().default('team'), // 'team' | 'client' | 'vendor' | 'one_on_one' | 'other'
+  scheduledAt: timestamp('scheduled_at').notNull(),
+  attendees: jsonb('attendees').notNull().default([]), // string[] -- names, not FK'd (external attendees may not be app users)
+  agenda: jsonb('agenda').notNull().default([]), // string[]
+  minutes: text('minutes'),
+  minutesHistory: jsonb('minutes_history').notNull().default([]), // { date, amendedBy, text }[]
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Action items become real `tasks` rows (which VERI To Do already
+// surfaces) -- this is a pure join, not a parallel tracking mechanism.
+export const veriMeetingActionItems = complianceSchemaDB.table('veri_meeting_action_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  meetingId: text('meeting_id').notNull(),
+  taskId: text('task_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const messageAttachmentsRelations = relations(messageAttachments, ({ one }) => ({
+  message: one(messages, { fields: [messageAttachments.messageId], references: [messages.id] }),
+  document: one(documents, { fields: [messageAttachments.documentId], references: [documents.id] }),
+}))
+
+export const conversationShareLinksRelations = relations(conversationShareLinks, ({ one }) => ({
+  conversation: one(conversations, { fields: [conversationShareLinks.conversationId], references: [conversations.id] }),
+}))
+
+export const veriMeetingsRelations = relations(veriMeetings, ({ many }) => ({
+  actionItems: many(veriMeetingActionItems),
+}))
+
+export const veriMeetingActionItemsRelations = relations(veriMeetingActionItems, ({ one }) => ({
+  meeting: one(veriMeetings, { fields: [veriMeetingActionItems.meetingId], references: [veriMeetings.id] }),
+  task: one(tasks, { fields: [veriMeetingActionItems.taskId], references: [tasks.id] }),
+}))
