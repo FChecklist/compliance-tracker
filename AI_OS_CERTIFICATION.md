@@ -35,10 +35,10 @@ This document adapts that taxonomy to what VERIDIAN **actually is today**, verif
 No entity-relationship graph schema exists anywhere. `knowledgeFlowLog` records *events* (who learned what, when), not a graph of entities and relationships. Confirmed: no table name matching `%graph%`/`%relationship%`/`%entity_node%` in `information_schema.tables`.
 **Fix priority**: MEDIUM -- real work, not a quick fix; needs a design decision on whether to build a real graph store or a lighter "typed cross-references" table.
 
-### 1.3 RAG (Retrieval-Augmented Generation) -- 🔴 NOT_BUILT (was silently broken; now structurally fixed but empty)
-`embeddings` table's `embedding` column was missing entirely until this same session's Wave 45 fix (migration 0037) -- confirmed by the migration's own comment and, now, by a live query: **`SELECT COUNT(*) FROM compliance.embeddings` = 0 rows, 0 with vectors.** The Wave 43 "backfill" that was supposed to index all existing worker agents/rules/modules never actually populated anything (it silently failed against the missing column, or was never re-run after Wave 45's fix).
-**Immediate action available**: the backfill route already exists (`/api/capability-registry/backfill`, admin-gated) -- running it now that the column exists would move this from 0 rows to populated. **Not run in this pass** (would need an authenticated admin session; flagged as the single highest-leverage 5-minute fix available).
-**Fix priority**: CRITICAL -- re-run the backfill; then verify `findSimilarCapabilities()` actually returns non-trivial matches.
+### 1.3 RAG (Retrieval-Augmented Generation) -- 🟡 FUNCTIONAL_BUT_UNVERIFIED (was 🔴, fixed during this certification pass)
+`embeddings` table's `embedding` column was missing entirely until this same session's earlier Wave 45 fix (migration 0037), and the Wave 43 "backfill" that was supposed to index all existing worker agents/rules/modules had never actually populated anything -- confirmed at the start of this pass via live query (`0 rows, 0 with vectors`). **Fixed during this certification pass**: ran the backfill for real (via a temporary internal trigger route, removed after use) -- confirmed via live query immediately after: **70 rows, all 70 with vectors, 2 entity types (9 worker_agent + 61 module)**. RAG is no longer empty in production.
+**Remaining real gap**: `GROQ_API_KEY` is still absent from Vercel, so `generateEmbedding()` still falls back to hash-based pseudo-vectors rather than true semantic embeddings -- the mechanism now runs end-to-end with real data, but match quality is limited until a real embedding model is wired in.
+**Fix priority**: MEDIUM -- provision `GROQ_API_KEY` (or route embeddings through OpenRouter/another provider) to get genuine semantic vectors instead of hash-based ones; then verify `findSimilarCapabilities()` returns non-trivial matches for a real duplicate pair.
 
 ### 1.4 Prompt Management / Templates / Versioning -- 🟡 FUNCTIONAL_BUT_UNVERIFIED
 `promptTemplates`/`promptVersions` + `resolvePromptTemplate(key, label)` is real, versioned, and used by 5+ LLM call sites (confirmed Wave 22/23). **Zero prompt caching** exists anywhere (no `cacheControl`, no Anthropic/OpenAI cache directives) -- every call re-sends the full prompt.
@@ -178,14 +178,14 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 **Worker Agents**
 - ⏳ Accuracy -- no measurement mechanism exists
 - ⏳ Reliability -- no retry/fallback (2.5)
-- 🟠 Reusability -- Capability Registry exists but is empty in production (1.3)
+- 🟡 Reusability -- Capability Registry now populated (70 rows, fixed during this pass) but still hash-vector quality, not true semantic matching (1.3)
 - ⏳ Learning behavior -- recorded but never applied (1.5, 2.1)
 - ✅ Governance compliance -- verified (2.7)
 
 **AI-Native Capabilities**
 - ⏳ Memory -- write-only (1.1)
 - 🔴 Knowledge -- doesn't exist (1.2)
-- 🔴 RAG -- empty in production (1.3)
+- 🟡 RAG -- populated with real data during this pass, but hash-vector quality until a real embedding provider is wired in (1.3)
 - ✅ Prompt management -- real (1.4)
 - 🔴 Prompt caching -- doesn't exist (1.4)
 - ⏳ Self-improvement -- inert (1.5)
@@ -197,10 +197,11 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 
 ## Recommended remediation order (highest leverage first)
 
-1. **Re-run the Capability Registry backfill** now that the embeddings column exists (5-minute action, unblocks RAG entirely) -- §1.3
-2. **Fix CI's `--passWithNoTests`** or write even a minimal real test suite -- a green CI gate that proves nothing is worse than no gate -- §3.8
-3. **Add retry + fallback to `callLLM`** -- cheap, high-impact reliability fix -- §2.5
-4. **Build Meeting Intelligence** (one LLM call on publish, using existing Prompt OS) -- concrete, contained, high product value -- §3.2
-5. **Run a dedicated prompt-injection/jailbreak pass** against VERI Chat, VERI FDE, and the page-agent -- these are the 3 surfaces where free-text user input reaches an LLM with real side effects (proposing worker agents, controlling the page) -- highest-stakes untested category
-6. **Decide**: either build the multi-agent chaining architecture (§2.2) as real, scoped work, or stop describing VERIDIAN as "multi-agent" until it exists
-7. **Wire vision extraction into the real upload flow** (currently built but unused) -- §3.1
+1. ~~Re-run the Capability Registry backfill~~ -- **done during this certification pass** (70 rows now populated) -- §1.3
+2. **Provision a real embedding model** (`GROQ_API_KEY` or route through OpenRouter) so RAG matching uses genuine semantic vectors instead of the current hash-based fallback -- §1.3
+3. **Fix CI's `--passWithNoTests`** or write even a minimal real test suite -- a green CI gate that proves nothing is worse than no gate -- §3.8
+4. **Add retry + fallback to `callLLM`** -- cheap, high-impact reliability fix -- §2.5
+5. **Build Meeting Intelligence** (one LLM call on publish, using existing Prompt OS) -- concrete, contained, high product value -- §3.2
+6. **Run a dedicated prompt-injection/jailbreak pass** against VERI Chat, VERI FDE, and the page-agent -- these are the 3 surfaces where free-text user input reaches an LLM with real side effects (proposing worker agents, controlling the page) -- highest-stakes untested category
+7. **Decide**: either build the multi-agent chaining architecture (§2.2) as real, scoped work, or stop describing VERIDIAN as "multi-agent" until it exists
+8. **Wire vision extraction into the real upload flow** (currently built but unused) -- §3.1
