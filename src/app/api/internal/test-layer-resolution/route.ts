@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { resolveModelConfig, resolveClientModelConfig, resolvePlatformModelConfig } from "@/lib/orchestra-model-resolver"
 import { resolvePageAgentModelConfig } from "@/lib/personal-model-resolver"
 import { callLLM, estimateCostUsd } from "@/lib/llm-client"
+import { db, users } from "@/lib/db"
+import { eq } from "drizzle-orm"
+import { submitFdeRequest } from "@/lib/services/fde-service"
 
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.INTERNAL_TEST_SECRET
@@ -66,6 +69,19 @@ export async function POST(request: NextRequest) {
     results.layer4_user = { provider: cfg.provider, model: cfg.model, source: cfg.source, reply: content, usage, costUsd: estimateCostUsd(cfg.model, usage) }
   } catch (e) {
     results.layer4_user = { error: String(e) }
+  }
+
+  // Real product feature end-to-end: VERI FDE's submitFdeRequest, which
+  // internally resolves via resolveModelConfig("task_oa") -- proves the new
+  // provider works through an actual existing call site, not just the
+  // resolvers in isolation.
+  try {
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) })
+    if (!dbUser) throw new Error("test user not found")
+    const fdeResult = await submitFdeRequest({ orgId, userId, dbUser }, { requestText: "Can VERIDIAN send me a reminder email before a compliance deadline?" })
+    results.real_feature_veri_fde = fdeResult
+  } catch (e) {
+    results.real_feature_veri_fde = { error: String(e) }
   }
 
   return NextResponse.json(results)
