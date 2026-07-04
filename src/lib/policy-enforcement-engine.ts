@@ -33,7 +33,7 @@ export type PolicyDecision = {
 const PERSONAL_USE_PATTERNS: RegExp[] = [
   /\bhoroscopes?\b/i, /\bastrology\b/i, /\btarot\b/i, /\bdream interpretation\b/i,
   /\btell (me |us )?a joke\b/i, /\bmake me laugh\b/i,
-  /\bwrite (me |us )?a (short )?story\b/i, /\bwrite (a )?poem\b/i,
+  /\bwrite (me |us )?a (short )?story\b/i, /\bwrite (me |us )?(a )?poem\b/i,
   /\b(flipkart|amazon\.(com|in))\b/i, /\bbuy me\b/i, /\bshopping list\b/i, /\badd to (my )?cart\b/i,
   /\bholiday (plan|itinerary|planning)\b/i, /\bvacation (plan|itinerary)\b/i,
   /\bdating (app|advice|profile)\b/i, /\btinder\b/i, /\bhinge\b/i,
