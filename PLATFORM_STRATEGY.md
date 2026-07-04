@@ -730,6 +730,16 @@ VERIDIAN is a Next.js/TypeScript/Drizzle/Postgres app deployed on **Vercel serve
 
 ### Status update (2026-07-04): Promptfoo adopted for prompt regression testing, vision-based document extraction built, everything else in the list explicitly rejected or flagged — see `orchestra_changes.md` #81
 
+### 17.5 Two more checked (Wave 35 follow-up): does either lower cost? No — both would raise it
+
+The user asked specifically through a cost lens this time, not just architecture fit — a genuinely different, worthwhile question, answered with real numbers rather than repeating the earlier architecture verdict.
+
+**Ollama OCR** (`imanoop7/Ollama-OCR`) was already in the original ~26-item catalog (§17.2, rejected on architecture grounds). Re-evaluated specifically for cost: it wraps a self-hosted **Ollama daemon** — Ollama itself needs its own persistent GPU-hosted server (Waves 2-35 confirmed Vercel has none). A GPU instance capable of running a vision model at usable speed (RTX 4090-class or better, 16GB+ VRAM) realistically costs **~$220-500+/month** run continuously (RunPod/Vast.ai spot pricing) up to **~$700-900/month** on-demand cloud GPU (AWS g5.xlarge), before any engineering time to build, monitor, and keep it patched. Against that: Wave 35's already-implemented vision extraction uses Gemini 2.0 Flash at $0.0001/1k prompt tokens + $0.0004/1k completion tokens (already in `MODEL_PRICING`) — roughly **$0.0002-0.0005 per document** extracted. Break-even against a $300/month dedicated GPU server would need roughly **600,000-1,500,000 documents/month** — nowhere near a compliance SaaS's realistic per-org upload volume (notices, challans, receipts — tens to low hundreds per org per month, not millions). **Verdict: would increase cost, not lower it, at any volume VERIDIAN is likely to see.** Revisit only if actual usage data ever approaches that scale.
+
+**opik-openclaw** (`comet-ml/opik-openclaw`, confirmed via live check): this is specifically a plugin that exports agent traces **from OpenClaw** (a separate, unrelated third-party agent-gateway product, Node.js ≥22.12.0, its own runtime) **into Opik** (Comet's LLM observability platform). VERIDIAN does not run OpenClaw — it has its own natively-built Worker Agent runtime (Waves 2-19) — so this specific plugin has no integration point to attach to at all. Looking past that mismatch to Opik itself (Apache-2.0, the underlying platform): it is the same category already evaluated and rejected for Langfuse in §17.2 — a standalone service needing its own Docker/Kubernetes-hosted backend (self-hosted) or a paid Comet Cloud subscription (hosted), duplicating `orchestraExecutions` (Wave 23), which already captures cost/tokens/latency/tracing natively in the same Postgres database VERIDIAN already pays for. **Verdict: would add a new hosting cost (or a new SaaS subscription) to replace something already working for free. Not adopted.**
+
+**Nothing was implemented from this follow-up check** — the honest, correct outcome of "does this lower cost" being "no" for both.
+
 ---
 
 ## Appendix: Prior mockup iterations (design history, for reference)
