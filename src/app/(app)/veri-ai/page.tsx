@@ -17,6 +17,7 @@ import { Bot, Send, Loader2, RotateCcw, Paperclip, Sparkles } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "@/components/chat/MessageContent";
+import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 6000;
@@ -33,6 +34,7 @@ export default function VeriAiPage() {
   const [attaching, setAttaching] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useAutoGrowTextarea(content, 200);
 
   const loadMessages = useCallback((convoId: string) => {
     fetch(`/api/conversations/${convoId}/messages`)
@@ -182,6 +184,7 @@ export default function VeriAiPage() {
               {attaching ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
             </Button>
             <Textarea
+              ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={(e) => {
@@ -191,7 +194,8 @@ export default function VeriAiPage() {
                 }
               }}
               placeholder="Message VERI AI..."
-              className="min-h-[44px] max-h-[120px] resize-none text-sm"
+              rows={1}
+              className="min-h-[44px] max-h-[200px] resize-none text-sm overflow-y-auto"
             />
             <Button onClick={() => send()} disabled={sending || !content.trim()} size="icon" className="shrink-0">
               {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

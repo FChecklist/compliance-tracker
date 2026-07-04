@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { cn } from "@/lib/utils";
 import { MismatchBubble, type MismatchInfo } from "./MismatchBubble";
 import { MessageContent } from "./MessageContent";
@@ -42,6 +43,7 @@ export function ThreadView({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState("");
+  const textareaRef = useAutoGrowTextarea(content, 200);
   const [isInstruction, setIsInstruction] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [sending, setSending] = useState(false);
@@ -153,6 +155,7 @@ export function ThreadView({
         )}
         <div className="flex gap-2">
           <Textarea
+            ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={(e) => {
@@ -162,7 +165,8 @@ export function ThreadView({
               }
             }}
             placeholder={isInstruction ? "Describe the instruction..." : "Type a message..."}
-            className="min-h-[44px] max-h-[120px] resize-none text-sm"
+            rows={1}
+            className="min-h-[44px] max-h-[200px] resize-none text-sm overflow-y-auto"
           />
           <Button onClick={send} disabled={sending || !content.trim()} size="icon" className="shrink-0">
             <Send className="size-4" />

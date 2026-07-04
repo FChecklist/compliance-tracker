@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { Loader2, Send } from "lucide-react";
+import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 
 const POLL_MS = 5000;
 
@@ -23,6 +24,7 @@ export default function GuestChatPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useAutoGrowTextarea(draft, 160);
 
   const load = useCallback(async () => {
     try {
@@ -74,7 +76,7 @@ export default function GuestChatPage() {
     <div className="min-h-screen bg-ct-cream flex items-center justify-center p-6">
       <div className="w-full max-w-lg rounded-xl border border-ct-border bg-white shadow-card overflow-hidden flex flex-col h-[80vh]">
         <div className="bg-gradient-navy px-5 py-4 flex items-center gap-3">
-          <Image src="/logo-mark.svg" alt="Veridian AI" width={28} height={28} unoptimized />
+          <Image src="/logo-mark.svg" alt="VERIDIAN AI" width={28} height={28} unoptimized />
           <div>
             <p className="text-white text-sm font-semibold">{data?.title || "Guest Conversation"}</p>
             <p className="text-white/60 text-[11px]">
@@ -101,13 +103,20 @@ export default function GuestChatPage() {
           )}
         </div>
         {!error && !loading && (
-          <div className="border-t border-ct-border p-3 flex items-center gap-2">
-            <input
+          <div className="border-t border-ct-border p-3 flex items-end gap-2">
+            <textarea
+              ref={textareaRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
               placeholder="Type a message..."
-              className="flex-1 h-9 px-3 rounded-lg border border-ct-border text-sm"
+              rows={1}
+              className="flex-1 min-h-[36px] max-h-[160px] py-2 px-3 rounded-lg border border-ct-border text-sm resize-none overflow-y-auto"
             />
             <button
               onClick={send}

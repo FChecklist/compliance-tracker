@@ -366,7 +366,7 @@ export default function AiConfigSection() {
                 Use Platform AI (Groq Free)
               </Label>
               <p className="text-xs text-ct-muted">
-                Fall back to Veridian AI&apos;s built-in AI when no provider key is configured
+                Fall back to VERIDIAN AI&apos;s built-in AI when no provider key is configured
               </p>
             </div>
           </div>

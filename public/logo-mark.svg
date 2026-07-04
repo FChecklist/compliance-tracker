@@ -1,14 +1,24 @@
-<svg width="100%" viewBox="0 0 200 200" role="img" xmlns="http://www.w3.org/2000/svg">
-  <title>Veridian AI Monogram</title>
-  <desc>V in teal, AI in gold — compact monogram</desc>
+<svg width="100%" viewBox="0 0 1200 1200" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>VERIDIAN AI</title>
+  <desc>VERIDIAN AI mark — a V built from two gradient strokes (emerald to blue) dissolving into pixels</desc>
+  <defs>
+    <linearGradient id="vLeft" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="vRight" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
 
-  <text x="20" y="148"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="130" font-weight="700" letter-spacing="-2"
-        fill="#0F6E56">V</text>
+  <line x1="235" y1="385" x2="600" y2="970" stroke="url(#vLeft)" stroke-width="190" stroke-linecap="round"/>
+  <line x1="600" y1="970" x2="935" y2="455" stroke="url(#vRight)" stroke-width="190" stroke-linecap="round"/>
 
-  <text x="108" y="148"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="72" font-weight="700" letter-spacing="-1"
-        fill="#F4A922">AI</text>
+  <g fill="url(#vRight)">
+    <rect x="924" y="349" width="92" height="92" rx="18" transform="rotate(-25 970 395)"/>
+    <rect x="980" y="305" width="70" height="70" rx="14" transform="rotate(15 1015 340)"/>
+    <rect x="1024" y="264" width="52" height="52" rx="11" transform="rotate(-10 1050 290)"/>
+    <rect x="1056" y="226" width="38" height="38" rx="8" transform="rotate(20 1075 245)"/>
+  </g>
 </svg>

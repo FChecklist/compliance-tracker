@@ -492,7 +492,7 @@ async function dispatch(body: Record<string, unknown>, orgId: string, scopes: st
     return rpcResult(id, {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'Veridian AI MCP', version: '1.0.0' },
+      serverInfo: { name: 'VERIDIAN AI MCP', version: '1.0.0' },
     })
   }
 
@@ -558,7 +558,7 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   const tools = await getToolDefinitions()
   return NextResponse.json({
-    name: 'Veridian AI MCP Server',
+    name: 'VERIDIAN AI MCP Server',
     version: '1.0.0',
     protocol: 'MCP 2024-11-05',
     transport: 'HTTP JSON-RPC 2.0',

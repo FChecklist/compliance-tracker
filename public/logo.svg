@@ -1,41 +1,39 @@
-<svg width="100%" viewBox="0 0 700 220" role="img" xmlns="http://www.w3.org/2000/svg">
-  <title>Veridian AI — One Truth.</title>
-  <desc>Veridian AI logo: VERI in teal, DIAN in navy, AI in gold</desc>
-  <style>
-    .subtitle { display: block; }
-    @media (max-width: 300px) { .wordmark-dian { display: none; } .subtitle { display: none; } }
-  </style>
+<svg width="100%" viewBox="0 0 900 260" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>VERIDIAN AI — One Portal. One Truth.</title>
+  <desc>VERIDIAN AI full logo lockup for light backgrounds</desc>
+  <defs>
+    <linearGradient id="vLeftL" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="vRightL" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
 
-  <!-- VERI in deep teal -->
-  <text x="50" y="118"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#0F6E56">VERI<tspan fill="#0F6E56">_</tspan></text>
+  <svg x="20" y="35" width="190" height="190" viewBox="0 0 1200 1200">
+    <line x1="235" y1="385" x2="600" y2="970" stroke="url(#vLeftL)" stroke-width="190" stroke-linecap="round"/>
+    <line x1="600" y1="970" x2="935" y2="455" stroke="url(#vRightL)" stroke-width="190" stroke-linecap="round"/>
+    <g fill="url(#vRightL)">
+      <rect x="924" y="349" width="92" height="92" rx="18" transform="rotate(-25 970 395)"/>
+      <rect x="980" y="305" width="70" height="70" rx="14" transform="rotate(15 1015 340)"/>
+      <rect x="1024" y="264" width="52" height="52" rx="11" transform="rotate(-10 1050 290)"/>
+      <rect x="1056" y="226" width="38" height="38" rx="8" transform="rotate(20 1075 245)"/>
+    </g>
+  </svg>
 
-  <!-- DIAN in midnight navy -->
-  <text x="277" y="118"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#1C2B3A">DIAN<tspan fill="#F4A922">__</tspan></text>
+  <text x="232" y="148" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="88" font-weight="800" letter-spacing="-1.5">
+    <tspan fill="#1C2B3A">VERIDIAN </tspan><tspan fill="#2563EB">AI</tspan>
+  </text>
 
-  <!-- AI in gold -->
-  <text x="537" y="118"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#F4A922">AI</text>
+  <line x1="234" y1="170" x2="860" y2="170" stroke="#14B8A6" stroke-width="1" opacity="0.35"/>
 
-  <!-- Divider -->
-  <line x1="50" y1="133" x2="638" y2="133" stroke="#1D9E75" stroke-width="0.8" opacity="0.4"/>
+  <text x="234" y="200" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="500" letter-spacing="2.2" fill="#5F5E5A">
+    GOVERNANCE · COMPLIANCE · OPERATIONS · AI ENGINE
+  </text>
 
-  <!-- Full form -->
-  <text x="50" y="162"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="11" font-weight="400" letter-spacing="2.2"
-        fill="#5F5E5A">GOVERNANCE  |  REGULATORY  |  COMPLIANCE  |  AI ENGINE</text>
-
-  <!-- Tagline -->
-  <text x="50" y="192"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="13" font-weight="500" letter-spacing="5"
-        fill="#0F6E56">ONE TRUTH.</text>
+  <text x="234" y="230" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="4" fill="#0F6E56">
+    ONE PORTAL. ONE TRUTH.
+  </text>
 </svg>

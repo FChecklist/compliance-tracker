@@ -8,8 +8,8 @@ import type { MetadataRoute } from "next"
 // existing chat out on its own.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Veridian AI",
-    short_name: "Veridian AI",
+    name: "VERIDIAN AI",
+    short_name: "VERIDIAN AI",
     description: "One Portal. One Truth.",
     start_url: "/home",
     display: "standalone",

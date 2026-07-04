@@ -97,7 +97,7 @@ export default function OnboardingChecklist() {
               Congratulations! 🎉
             </h3>
             <p className="text-sm text-ct-muted mt-2">
-              You&apos;ve completed all onboarding steps. You&apos;re all set to use Veridian AI!
+              You&apos;ve completed all onboarding steps. You&apos;re all set to use VERIDIAN AI!
             </p>
             <Button
               variant="ghost"
@@ -123,7 +123,7 @@ export default function OnboardingChecklist() {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-ct-navy">
-                Get Started with Veridian AI
+                Get Started with VERIDIAN AI
               </h3>
               <p className="text-xs text-ct-muted">
                 {completed.size} of {STEPS.length} steps completed

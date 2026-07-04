@@ -45,7 +45,7 @@ export default function MomSharePage() {
     <div className="min-h-screen bg-ct-cream flex items-start justify-center p-6">
       <div className="w-full max-w-2xl rounded-xl border border-ct-border bg-white shadow-card overflow-hidden">
         <div className="bg-gradient-navy px-6 py-4 flex items-center gap-3">
-          <Image src="/logo-mark.svg" alt="Veridian AI" width={28} height={28} unoptimized />
+          <Image src="/logo-mark.svg" alt="VERIDIAN AI" width={28} height={28} unoptimized />
           <div>
             <p className="text-white text-sm font-semibold">{data?.title || "Minutes of Meeting"}</p>
             <p className="text-white/60 text-[11px]">{data?.systemId || "Shared via VERI Minutes of Meetings"}</p>

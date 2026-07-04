@@ -178,7 +178,7 @@ function Navbar() {
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <a href="/" className="flex items-center">
-          <Image src="/logo-compact-dark.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto" priority unoptimized />
+          <Image src="/logo-compact-dark.svg" alt="VERIDIAN AI" width={140} height={28} className="h-7 w-auto" priority unoptimized />
         </a>
 
         {/* Desktop links */}
@@ -1160,7 +1160,7 @@ function OpenPlatformSection() {
                   },
                   { label: "↓  Ingest (CSV, PDF, API, Webhook)", color: "border-white/10" },
                   {
-                    label: "Veridian AI Engine",
+                    label: "VERIDIAN AI Engine",
                     sub: "Groq Orchestrator • pgvector • BYOK AI",
                     color: "bg-ct-saffron/20 border-ct-saffron/40",
                   },
@@ -1269,7 +1269,7 @@ function Footer() {
           <div>
             <div className="mb-4">
               <a href="/" className="flex items-center">
-                <Image src="/logo-compact-dark.svg" alt="Veridian AI" width={140} height={28} className="h-7 w-auto" unoptimized />
+                <Image src="/logo-compact-dark.svg" alt="VERIDIAN AI" width={140} height={28} className="h-7 w-auto" unoptimized />
               </a>
             </div>
             <p className="text-sm text-white/50 leading-relaxed">
@@ -1353,7 +1353,7 @@ function Footer() {
 
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs text-white/30">
-            &copy; {new Date().getFullYear()} Veridian AI. All rights
+            &copy; {new Date().getFullYear()} VERIDIAN AI. All rights
             reserved.
           </p>
           <p className="text-xs text-white/30">

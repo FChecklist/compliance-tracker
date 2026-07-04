@@ -18,11 +18,11 @@ const dmSerifDisplay = DM_Serif_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Veridian AI — AI-Native Compliance & Audit Operating System",
+  title: "VERIDIAN AI — AI-Native Compliance & Audit Operating System",
   description:
     "Never miss a compliance deadline. AI extracts data from your notice PDFs, tracks filings, and calculates penalties in seconds. The single source of truth for Indian compliance.",
   keywords: [
-    "Veridian AI",
+    "VERIDIAN AI",
     "compliance",
     "GST",
     "TDS",

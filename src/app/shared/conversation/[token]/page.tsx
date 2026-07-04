@@ -41,7 +41,7 @@ export default function SharedConversationPage() {
     <div className="min-h-screen bg-ct-cream flex items-center justify-center p-6">
       <div className="w-full max-w-lg rounded-xl border border-ct-border bg-white shadow-card overflow-hidden">
         <div className="bg-gradient-navy px-5 py-4 flex items-center gap-3">
-          <Image src="/logo-mark.svg" alt="Veridian AI" width={28} height={28} unoptimized />
+          <Image src="/logo-mark.svg" alt="VERIDIAN AI" width={28} height={28} unoptimized />
           <div>
             <p className="text-white text-sm font-semibold">{data?.title || "Shared Conversation"}</p>
             <p className="text-white/60 text-[11px]">Read-only, shared from VERI Chat</p>

@@ -65,9 +65,9 @@ export default function SignupPage() {
           <div className="relative w-full max-w-md px-4">
             <div className="text-center mb-8">
               <div className="inline-flex items-center gap-3 mb-4">
-                <img src="/logo-mark.svg" alt="Veridian AI" className="size-11 rounded-xl" />
+                <img src="/logo-mark.svg" alt="VERIDIAN AI" className="size-11 rounded-xl" />
                 <span className="font-heading text-2xl text-white">
-                  Veridian AI
+                  VERIDIAN AI
                 </span>
               </div>
             </div>
@@ -113,9 +113,9 @@ export default function SignupPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
-              <img src="/logo-mark.svg" alt="Veridian AI" className="size-11 rounded-xl" />
+              <img src="/logo-mark.svg" alt="VERIDIAN AI" className="size-11 rounded-xl" />
               <span className="font-heading text-2xl text-white">
-                Veridian AI
+                VERIDIAN AI
               </span>
             </div>
             <p className="text-white/60 text-sm">

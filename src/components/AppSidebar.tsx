@@ -81,11 +81,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         // one, auto-backfilled "Self" client and no reason to see this.
         ...(accountType !== "company"
           ? [
-              { label: "Clients", href: "/clients", icon: Building2 },
+              { label: "VERI CUSTOMERS AI", href: "/clients", icon: Building2 },
               // Wave 41 (CRM, PLATFORM_STRATEGY.md §20): a lead-to-client
               // pipeline, gated identically to Clients -- a plain 'company'
               // account has no clients to prospect for.
-              { label: "CRM (Leads & Opportunities)", href: "/crm", icon: TrendingUp },
+              { label: "VERI CRM AI", href: "/crm", icon: TrendingUp },
             ]
           : []),
       ],
@@ -93,7 +93,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     // Only shown once an org enables the separate, opt-in VERIDIAN AI PMS
     // product branch (Wave 25) -- absent by default for existing GRC orgs.
     ...(pmsEnabled
-      ? [{ title: "PROJECTS", items: [{ label: "VERIDIAN AI PMS", href: "/pms", icon: Rocket }] }]
+      ? [{ title: "PROJECTS", items: [{ label: "VERI PROJECTS AI", href: "/pms", icon: Rocket }] }]
       : []),
     {
       title: "COMPLIANCE",
@@ -164,7 +164,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Payroll & HR Statutory Compliance", href: "/hr-compliance", icon: Briefcase },
         { label: "Leave & Holiday Compliance", href: "/leave-holiday", icon: CheckSquare },
         { label: "POSH Compliance", href: "/posh", icon: UserCheck },
-        { label: "HR (Directory, Leave, Org Chart)", href: "/hr", icon: Users },
+        { label: "VERI HR AI", href: "/hr", icon: Users },
       ],
     },
     {
@@ -239,7 +239,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
       title: "TOOLS",
       items: [
         {
-          label: "AI Orchestra",
+          label: "VERI OPERATIONS AI",
           href: "/orchestra",
           icon: Bot,
         },
@@ -254,7 +254,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: ListTodo,
         },
         {
-          label: "Reports",
+          label: "VERI REPORTS AI",
           href: "/reports",
           icon: BarChart3,
         },
@@ -289,12 +289,12 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Database,
         },
         {
-          label: "VERI To Do",
+          label: "VERI TO DO AI",
           href: "/veri-todo",
           icon: CheckSquare,
         },
         {
-          label: "VERI Minutes of Meetings",
+          label: "VERI MOM AI",
           href: "/veri-meetings",
           icon: ClipboardList,
         },
@@ -326,9 +326,9 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
     <div className="flex flex-col h-full">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-3 px-5 py-5">
-        <Image src="/logo-mark.svg" alt="Veridian AI" width={34} height={34} className="size-[34px]" unoptimized />
+        <Image src="/logo-mark.svg" alt="VERIDIAN AI" width={34} height={34} className="size-[34px]" unoptimized />
         <span className="font-heading text-lg text-ct-navy tracking-tight">
-          Veridian AI
+          VERIDIAN AI
         </span>
       </Link>
 

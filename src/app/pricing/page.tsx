@@ -122,7 +122,7 @@ const FAQS = [
     a: "When your Professional trial ends, your account automatically switches to the free Starter plan. None of your data is lost — your compliance items, documents, and team members remain intact. You can upgrade to Professional at any time to regain access to AI features, advanced reports, and API access.",
   },
   {
-    q: "Is my data secure on Veridian AI?",
+    q: "Is my data secure on VERIDIAN AI?",
     a: "Yes. All data is encrypted at rest (AES-256) and in transit (TLS 1.3). We are SOC 2 Type II compliant and host our infrastructure on AWS with data centres in Mumbai. Your AI keys (if using BYOK) are encrypted separately and never shared with any third party. We conduct regular security audits and penetration testing.",
   },
   {
@@ -160,7 +160,7 @@ export default function PricingPage() {
             <div className="size-8 rounded-lg bg-ct-saffron flex items-center justify-center">
               <span className="text-white font-bold text-sm">V</span>
             </div>
-            <span className="font-heading text-xl text-ct-navy">Veridian AI</span>
+            <span className="font-heading text-xl text-ct-navy">VERIDIAN AI</span>
           </Link>
           <div className="flex items-center gap-3">
             <Link href="/login">
@@ -486,7 +486,7 @@ export default function PricingPage() {
               Ready to streamline your compliance?
             </h2>
             <p className="text-ct-cloud2 mt-4 text-sm sm:text-base max-w-lg mx-auto text-balance">
-              Join thousands of Indian businesses that trust Veridian AI to never miss a deadline.
+              Join thousands of Indian businesses that trust VERIDIAN AI to never miss a deadline.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
               <Link href="/signup">
@@ -511,7 +511,7 @@ export default function PricingPage() {
       {/* ── Footer ── */}
       <footer className="border-t border-ct-border py-8 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-ct-muted">
-          <p>&copy; {new Date().getFullYear()} Veridian AI. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} VERIDIAN AI. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link href="/" className="hover:text-ct-navy transition-colors">
               Home

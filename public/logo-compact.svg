@@ -1,22 +1,29 @@
 <svg width="100%" viewBox="0 0 700 140" role="img" xmlns="http://www.w3.org/2000/svg">
-  <title>Veridian AI — Compact</title>
-  <desc>Compact wordmark for navbars and headers</desc>
+  <title>VERIDIAN AI — Compact</title>
+  <desc>Compact wordmark for light navbars and headers</desc>
+  <defs>
+    <linearGradient id="vLeftC" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="vRightC" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
 
-  <!-- VERI in teal -->
-  <text x="50" y="110"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#0F6E56">VERI<tspan fill="#0F6E56">_</tspan></text>
+  <svg x="8" y="8" width="124" height="124" viewBox="0 0 1200 1200">
+    <line x1="235" y1="385" x2="600" y2="970" stroke="url(#vLeftC)" stroke-width="190" stroke-linecap="round"/>
+    <line x1="600" y1="970" x2="935" y2="455" stroke="url(#vRightC)" stroke-width="190" stroke-linecap="round"/>
+    <g fill="url(#vRightC)">
+      <rect x="924" y="349" width="92" height="92" rx="18" transform="rotate(-25 970 395)"/>
+      <rect x="980" y="305" width="70" height="70" rx="14" transform="rotate(15 1015 340)"/>
+      <rect x="1024" y="264" width="52" height="52" rx="11" transform="rotate(-10 1050 290)"/>
+      <rect x="1056" y="226" width="38" height="38" rx="8" transform="rotate(20 1075 245)"/>
+    </g>
+  </svg>
 
-  <!-- DIAN in dark navy (visible on light bg) -->
-  <text x="277" y="110"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#1C2B3A">DIAN<tspan fill="#F4A922">__</tspan></text>
-
-  <!-- AI in gold -->
-  <text x="537" y="110"
-        font-family="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        font-size="76" font-weight="700" letter-spacing="-1"
-        fill="#F4A922">AI</text>
+  <text x="152" y="90" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="66" font-weight="800" letter-spacing="-1">
+    <tspan fill="#1C2B3A">VERIDIAN </tspan><tspan fill="#2563EB">AI</tspan>
+  </text>
 </svg>
