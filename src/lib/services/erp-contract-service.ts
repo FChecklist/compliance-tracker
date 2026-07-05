@@ -7,6 +7,7 @@
 import {
   erpContracts, erpContractAmendments, erpContractBillingSchedules, erpContractRevenueSchedules,
   erpContractObligations, erpSubscriptionPlans, erpSubscriptions, erpCustomers, users,
+  clmClauses, clmContractTemplates, clmTemplateClauses, erpContractNegotiationRounds,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
@@ -41,13 +42,14 @@ export async function getContract(ctx: { orgId: string }, contractId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Contract not found", 404)
-    const [amendments, billingSchedules, revenueSchedules, obligations] = await Promise.all([
+    const [amendments, billingSchedules, revenueSchedules, obligations, negotiationRounds] = await Promise.all([
       db.query.erpContractAmendments.findMany({ where: eq(erpContractAmendments.contractId, contractId), orderBy: (t, { desc }) => desc(t.amendmentNumber) }),
       db.query.erpContractBillingSchedules.findMany({ where: eq(erpContractBillingSchedules.contractId, contractId), orderBy: (t, { asc }) => asc(t.nextBillingDate) }),
       db.query.erpContractRevenueSchedules.findMany({ where: eq(erpContractRevenueSchedules.contractId, contractId), orderBy: (t, { asc }) => asc(t.periodStart) }),
       db.query.erpContractObligations.findMany({ where: eq(erpContractObligations.contractId, contractId), orderBy: (t, { asc }) => asc(t.dueDate) }),
+      db.query.erpContractNegotiationRounds.findMany({ where: eq(erpContractNegotiationRounds.contractId, contractId), orderBy: (t, { asc }) => asc(t.roundNumber) }),
     ])
-    return { ...contract, amendments, billingSchedules, revenueSchedules, obligations }
+    return { ...contract, amendments, billingSchedules, revenueSchedules, obligations, negotiationRounds }
   })
 }
 
@@ -272,4 +274,156 @@ export async function updateSubscriptionStatus(ctx: { orgId: string }, subscript
     const [updated] = await db.update(erpSubscriptions).set(updates).where(eq(erpSubscriptions.id, subscriptionId)).returning()
     return updated
   })
+}
+
+// ─── Wave 88: Clause Library (CLM003) ─────────────────────────────────────
+
+export type ClauseInput = { title: string; category?: string; bodyText: string; riskLevel?: string; isStandard?: boolean }
+
+export async function listClauses(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.clmClauses.findMany({ where: eq(clmClauses.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.title) })
+  )
+}
+
+export async function createClause(ctx: { orgId: string; userId: string }, input: ClauseInput) {
+  if (!input.title?.trim()) throw new ServiceError("title is required", 400)
+  if (!input.bodyText?.trim()) throw new ServiceError("bodyText is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [clause] = await db.insert(clmClauses).values({
+      orgId: ctx.orgId, title: input.title, category: input.category, bodyText: input.bodyText,
+      riskLevel: input.riskLevel, isStandard: input.isStandard ?? true, createdById: ctx.userId,
+    }).returning()
+    return clause
+  })
+}
+
+export async function updateClause(ctx: { orgId: string }, clauseId: string, input: Partial<ClauseInput>) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const clause = await db.query.clmClauses.findFirst({ where: and(eq(clmClauses.id, clauseId), eq(clmClauses.orgId, ctx.orgId)) })
+    if (!clause) throw new ServiceError("Clause not found", 404)
+    const [updated] = await db.update(clmClauses).set({
+      ...input, version: sql`${clmClauses.version} + 1`, updatedAt: new Date(),
+    }).where(eq(clmClauses.id, clauseId)).returning()
+    return updated
+  })
+}
+
+// ─── Wave 88: Contract Templates (CLM002) ─────────────────────────────────
+
+export type TemplateInput = { name: string; contractType?: string; description?: string }
+
+export async function listContractTemplates(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.clmContractTemplates.findMany({ where: eq(clmContractTemplates.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
+  )
+}
+
+export async function createContractTemplate(ctx: { orgId: string; userId: string }, input: TemplateInput) {
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [template] = await db.insert(clmContractTemplates).values({
+      orgId: ctx.orgId, name: input.name, contractType: input.contractType, description: input.description, createdById: ctx.userId,
+    }).returning()
+    return template
+  })
+}
+
+export async function getContractTemplate(ctx: { orgId: string }, templateId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const template = await db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) })
+    if (!template) throw new ServiceError("Template not found", 404)
+    const templateClauses = await db.query.clmTemplateClauses.findMany({
+      where: eq(clmTemplateClauses.templateId, templateId), orderBy: (t, { asc }) => asc(t.position), with: { clause: true },
+    })
+    return { ...template, clauses: templateClauses }
+  })
+}
+
+export async function addClauseToTemplate(ctx: { orgId: string }, templateId: string, clauseId: string, isOptional?: boolean) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [template, clause] = await Promise.all([
+      db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) }),
+      db.query.clmClauses.findFirst({ where: and(eq(clmClauses.id, clauseId), eq(clmClauses.orgId, ctx.orgId)) }),
+    ])
+    if (!template) throw new ServiceError("Template not found", 404)
+    if (!clause) throw new ServiceError("Clause not found", 404)
+
+    const existing = await db.query.clmTemplateClauses.findMany({ where: eq(clmTemplateClauses.templateId, templateId) })
+    const [row] = await db.insert(clmTemplateClauses).values({
+      templateId, clauseId, position: existing.length + 1, isOptional: isOptional ?? false,
+    }).returning()
+    return row
+  })
+}
+
+export async function removeClauseFromTemplate(ctx: { orgId: string }, templateId: string, templateClauseId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const template = await db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) })
+    if (!template) throw new ServiceError("Template not found", 404)
+    await db.delete(clmTemplateClauses).where(and(eq(clmTemplateClauses.id, templateClauseId), eq(clmTemplateClauses.templateId, templateId)))
+    return { success: true }
+  })
+}
+
+// Plain token substitution ({{customerName}}/{{contractTitle}}/{{contractValue}}/
+// {{startDate}}/{{endDate}}) over the template's ordered, non-optional
+// clauses -- deliberately NOT generative/AI authoring (that's CLM004,
+// explicitly out of scope this wave).
+export async function generateContractFromTemplate(ctx: ErpContractContext, contractId: string, templateId: string, includeOptionalClauseIds?: string[]) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)), with: { customer: true } })
+    if (!contract) throw new ServiceError("Contract not found", 404)
+    const template = await db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) })
+    if (!template) throw new ServiceError("Template not found", 404)
+
+    const templateClauses = await db.query.clmTemplateClauses.findMany({
+      where: eq(clmTemplateClauses.templateId, templateId), orderBy: (t, { asc }) => asc(t.position), with: { clause: true },
+    })
+    const included = templateClauses.filter((tc) => !tc.isOptional || includeOptionalClauseIds?.includes(tc.clauseId))
+
+    const tokens: Record<string, string> = {
+      customerName: contract.customer?.customerName ?? "",
+      contractTitle: contract.title,
+      contractValue: contract.contractValue,
+      startDate: contract.startDate,
+      endDate: contract.endDate ?? "",
+    }
+    const bodyText = included.map((tc) => {
+      let text = `## ${tc.clause.title}\n\n${tc.clause.bodyText}`
+      for (const [key, value] of Object.entries(tokens)) text = text.replaceAll(`{{${key}}}`, value)
+      return text
+    }).join("\n\n")
+
+    const [updated] = await db.update(erpContracts).set({ templateId, bodyText, updatedAt: new Date() }).where(eq(erpContracts.id, contractId)).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_contract.generated_from_template", entityType: "erp_contract", entityId: contractId, details: JSON.stringify({ templateId }) })
+    return updated
+  })
+}
+
+// ─── Wave 88: Negotiation Log (CLM005) ────────────────────────────────────
+// Mirrors Wave 83's erp_rfq_negotiation_rounds pattern exactly, scoped to
+// contracts instead of quotations.
+
+export async function addContractNegotiationRound(ctx: { orgId: string; userId: string }, contractId: string, input: { proposedValue?: number; notes?: string }) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
+    if (!contract) throw new ServiceError("Contract not found", 404)
+
+    const existing = await db.query.erpContractNegotiationRounds.findMany({ where: eq(erpContractNegotiationRounds.contractId, contractId) })
+    const [round] = await db.insert(erpContractNegotiationRounds).values({
+      orgId: ctx.orgId, contractId, roundNumber: existing.length + 1,
+      proposedValue: input.proposedValue !== undefined ? String(input.proposedValue) : undefined, notes: input.notes ?? null, createdById: ctx.userId,
+    }).returning()
+    return round
+  })
+}
+
+export async function listContractNegotiationRounds(ctx: { orgId: string }, contractId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.erpContractNegotiationRounds.findMany({
+      where: and(eq(erpContractNegotiationRounds.orgId, ctx.orgId), eq(erpContractNegotiationRounds.contractId, contractId)),
+      orderBy: (t, { asc }) => asc(t.roundNumber),
+    })
+  )
 }

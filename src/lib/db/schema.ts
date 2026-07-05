@@ -4433,6 +4433,75 @@ export const erpCycleCountLinesRelations = relations(erpCycleCountLines, ({ one 
   item: one(erpItems, { fields: [erpCycleCountLines.itemId], references: [erpItems.id] }),
 }))
 
+// ─── Wave 88 (Comparison CSV 2 gap analysis: CLM002 "Template Management" +
+// CLM003 "Clause Library" + CLM005 "Negotiation Tracking") ─────────────────
+// Clause library is reusable clause text, categorized/risk-rated. Contract
+// templates reference clauses via an ordered join table rather than
+// duplicating clause text into the template. "Generate from template"
+// (clm-service.ts) does plain token substitution ({{customerName}} etc.)
+// into erpContracts.bodyText -- deliberately NOT generative/AI authoring
+// (that's CLM004, explicitly out of scope this wave). Negotiation rounds
+// mirror Wave 83's erp_rfq_negotiation_rounds pattern exactly, scoped to
+// contracts instead of quotations.
+export const clmClauses = complianceSchemaDB.table('clm_clauses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  title: text('title').notNull(),
+  category: text('category'), // free text: 'liability'|'termination'|'confidentiality'|... -- admin-extensible
+  bodyText: text('body_text').notNull(),
+  riskLevel: text('risk_level'), // 'low'|'medium'|'high'
+  isStandard: boolean('is_standard').notNull().default(true), // false = requires legal review before use
+  version: integer('version').notNull().default(1),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const clmContractTemplates = complianceSchemaDB.table('clm_contract_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  contractType: text('contract_type'), // matches erp_contracts.contract_type free-text convention
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const clmTemplateClauses = complianceSchemaDB.table('clm_template_clauses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  templateId: text('template_id').notNull(),
+  clauseId: text('clause_id').notNull(),
+  position: integer('position').notNull(),
+  isOptional: boolean('is_optional').notNull().default(false),
+})
+
+export const erpContractNegotiationRounds = complianceSchemaDB.table('erp_contract_negotiation_rounds', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  contractId: text('contract_id').notNull(),
+  roundNumber: integer('round_number').notNull(),
+  proposedValue: numeric('proposed_value'),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const clmClausesRelations = relations(clmClauses, ({ many }) => ({
+  templateClauses: many(clmTemplateClauses),
+}))
+export const clmContractTemplatesRelations = relations(clmContractTemplates, ({ many }) => ({
+  templateClauses: many(clmTemplateClauses),
+}))
+export const clmTemplateClausesRelations = relations(clmTemplateClauses, ({ one }) => ({
+  template: one(clmContractTemplates, { fields: [clmTemplateClauses.templateId], references: [clmContractTemplates.id] }),
+  clause: one(clmClauses, { fields: [clmTemplateClauses.clauseId], references: [clmClauses.id] }),
+}))
+export const erpContractNegotiationRoundsRelations = relations(erpContractNegotiationRounds, ({ one }) => ({
+  contract: one(erpContracts, { fields: [erpContractNegotiationRounds.contractId], references: [erpContracts.id] }),
+}))
+
 // ─── VERI ERP Wave 54: Bank Statement Import & Reconciliation ─────────────
 // Per ERP_BENCHMARK_COMPARISON.md Tier 3 #9 -- entirely unbuilt before
 // this wave. Reuses this codebase's own existing generic file parser
@@ -5210,6 +5279,8 @@ export const erpContracts = complianceSchemaDB.table('erp_contracts', {
   slaResolutionHours: numeric('sla_resolution_hours'),
   ownerId: text('owner_id'), // account manager, users.id
   status: erpContractStatusEnum('status').notNull().default('draft'),
+  templateId: text('template_id'), // nullable -- which clm_contract_template (if any) generated bodyText
+  bodyText: text('body_text'), // generated contract document text (token-substituted from a template's clauses); null until "Generate from Template" is run
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -5296,10 +5367,12 @@ export const erpSubscriptions = complianceSchemaDB.table('erp_subscriptions', {
 
 export const erpContractsRelations = relations(erpContracts, ({ one, many }) => ({
   customer: one(erpCustomers, { fields: [erpContracts.customerId], references: [erpCustomers.id] }),
+  template: one(clmContractTemplates, { fields: [erpContracts.templateId], references: [clmContractTemplates.id] }),
   amendments: many(erpContractAmendments),
   billingSchedules: many(erpContractBillingSchedules),
   revenueSchedules: many(erpContractRevenueSchedules),
   obligations: many(erpContractObligations),
+  negotiationRounds: many(erpContractNegotiationRounds),
 }))
 export const erpContractAmendmentsRelations = relations(erpContractAmendments, ({ one }) => ({
   contract: one(erpContracts, { fields: [erpContractAmendments.contractId], references: [erpContracts.id] }),

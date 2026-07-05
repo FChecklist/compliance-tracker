@@ -21,13 +21,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RequestSignatureButton } from "@/components/esignature/RequestSignatureButton";
 
 type Customer = { id: string; customerName: string };
-type Contract = { id: string; contractNumber: number; title: string; customerId: string; status: string; startDate: string; endDate: string | null; contractValue: string; autoRenew: boolean };
+type Contract = { id: string; contractNumber: number; title: string; customerId: string; status: string; startDate: string; endDate: string | null; contractValue: string; autoRenew: boolean; bodyText: string | null };
 type Amendment = { id: string; amendmentNumber: number; description: string; status: string; effectiveDate: string };
 type Obligation = { id: string; description: string; dueDate: string; status: string };
 type BillingSchedule = { id: string; billingFrequency: string; nextBillingDate: string; amount: string };
-type ContractDetail = Contract & { amendments: Amendment[]; obligations: Obligation[]; billingSchedules: BillingSchedule[] };
+type NegotiationRound = { id: string; roundNumber: number; proposedValue: string | null; notes: string | null };
+type ContractDetail = Contract & { amendments: Amendment[]; obligations: Obligation[]; billingSchedules: BillingSchedule[]; negotiationRounds: NegotiationRound[] };
 type SubscriptionPlan = { id: string; name: string; billingFrequency: string; price: string };
 type Subscription = { id: string; customerId: string; planId: string; status: string; startDate: string; nextRenewalDate: string | null };
+type ClmTemplate = { id: string; name: string };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   draft: "outline", active: "default", expired: "secondary", terminated: "secondary", renewed: "default",
@@ -40,7 +42,13 @@ export default function ErpContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [templates, setTemplates] = useState<ClmTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [negotiationValue, setNegotiationValue] = useState("");
+  const [negotiationNotes, setNegotiationNotes] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ContractDetail | null>(null);
@@ -63,16 +71,18 @@ export default function ErpContractsPage() {
   const [creatingPlan, setCreatingPlan] = useState(false);
 
   const load = useCallback(async () => {
-    const [custRes, contractRes, planRes, subRes] = await Promise.all([
+    const [custRes, contractRes, planRes, subRes, templateRes] = await Promise.all([
       fetch("/api/erp/selling/customers").catch(() => null),
       fetch("/api/erp/contracts"),
       fetch("/api/erp/subscription-plans"),
       fetch("/api/erp/subscriptions"),
+      fetch("/api/clm/templates"),
     ]);
     setCustomers(custRes ? (await custRes.json()).customers ?? [] : []);
     setContracts((await contractRes.json()).contracts ?? []);
     setPlans((await planRes.json()).plans ?? []);
     setSubscriptions((await subRes.json()).subscriptions ?? []);
+    setTemplates((await templateRes.json()).templates ?? []);
     setLoading(false);
   }, []);
 
@@ -112,6 +122,29 @@ export default function ErpContractsPage() {
     const res = await fetch(`/api/erp/contracts/${selectedId}/obligations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: obligationDesc, dueDate: obligationDue }) });
     if (!res.ok) { toast.error((await res.json()).error ?? "Failed to add obligation"); return; }
     setObligationDesc(""); setObligationDue("");
+    loadDetail(selectedId);
+  }
+
+  async function generateFromTemplate() {
+    if (!selectedId || !selectedTemplateId) { toast.error("Select a template first"); return; }
+    setGenerating(true);
+    const res = await fetch(`/api/erp/contracts/${selectedId}/generate-from-template`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: selectedTemplateId }),
+    });
+    setGenerating(false);
+    if (!res.ok) { toast.error((await res.json()).error ?? "Failed to generate contract"); return; }
+    toast.success("Contract text generated from template");
+    loadDetail(selectedId);
+  }
+
+  async function addNegotiationRound() {
+    if (!selectedId || (!negotiationValue && !negotiationNotes.trim())) { toast.error("Enter a proposed value or notes"); return; }
+    const res = await fetch(`/api/erp/contracts/${selectedId}/negotiation-rounds`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposedValue: negotiationValue ? Number(negotiationValue) : undefined, notes: negotiationNotes || undefined }),
+    });
+    if (!res.ok) { toast.error((await res.json()).error ?? "Failed to add negotiation round"); return; }
+    setNegotiationValue(""); setNegotiationNotes("");
     loadDetail(selectedId);
   }
 
@@ -213,6 +246,34 @@ export default function ErpContractsPage() {
                           {(detail.status === "draft" || detail.status === "active" || detail.status === "renewed") && <Button size="sm" variant="outline" onClick={() => transitionContract(detail.id, "terminated")}>Terminate</Button>}
                           <RequestSignatureButton linkedEntityType="erp_contract" linkedEntityId={detail.id} defaultTitle={detail.title} />
                         </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-medium text-ct-muted mb-1">Generate from Template</h4>
+                        <div className="flex gap-2">
+                          <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Select a CLM template" /></SelectTrigger>
+                            <SelectContent>{templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <Button size="sm" variant="outline" onClick={generateFromTemplate} disabled={generating || !selectedTemplateId}>
+                            {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : "Generate"}
+                          </Button>
+                        </div>
+                        {detail.bodyText && <p className="text-xs text-ct-muted whitespace-pre-wrap mt-2 max-h-32 overflow-y-auto border border-ct-border rounded p-2">{detail.bodyText}</p>}
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-medium text-ct-muted mb-1">Negotiation Log</h4>
+                        <div className="flex gap-2 mb-2">
+                          <Input type="number" placeholder="Proposed value" value={negotiationValue} onChange={(e) => setNegotiationValue(e.target.value)} className="w-32" />
+                          <Input placeholder="Notes" value={negotiationNotes} onChange={(e) => setNegotiationNotes(e.target.value)} className="flex-1" />
+                          <Button size="sm" onClick={addNegotiationRound}><Plus className="w-3 h-3" /></Button>
+                        </div>
+                        <ul className="space-y-1 text-xs">
+                          {detail.negotiationRounds.length === 0 ? <li className="text-ct-muted">No negotiation rounds yet.</li> : detail.negotiationRounds.map((r) => (
+                            <li key={r.id}>Round {r.roundNumber}{r.proposedValue ? ` — ${fmt(r.proposedValue)}` : ""}{r.notes ? ` — ${r.notes}` : ""}</li>
+                          ))}
+                        </ul>
                       </div>
 
                       <div>
