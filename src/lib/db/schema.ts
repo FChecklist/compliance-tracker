@@ -4361,6 +4361,78 @@ export const erpStockValuationLayersRelations = relations(erpStockValuationLayer
   warehouse: one(erpWarehouses, { fields: [erpStockValuationLayers.warehouseId], references: [erpWarehouses.id] }),
 }))
 
+// ─── Wave 87 (Comparison CSV 2 gap analysis: REP001-004 "Replenishment" +
+// CC001-006 "Inventory Control/Cycle Count/ABC") ───────────────────────────
+// Reorder policy per item+warehouse (warehouseId nullable = an org-wide
+// default). Reorder suggestions are a read-time computation against the
+// existing FIFO stock ledger (erp-inventory-service.ts's getItemValuation),
+// never a duplicated balance.
+export const erpReorderLevels = complianceSchemaDB.table('erp_reorder_levels', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull(),
+  warehouseId: text('warehouse_id'), // nullable -- an org-wide default policy when unset
+  reorderPoint: numeric('reorder_point').notNull(),
+  reorderQty: numeric('reorder_qty').notNull(),
+  safetyStock: numeric('safety_stock'),
+  minLevel: numeric('min_level'),
+  maxLevel: numeric('max_level'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ABC classification is a cached/recomputed snapshot (Pareto analysis over
+// real stock-ledger consumption value), not a live-computed value on every
+// read -- matching Wave 64's vendor-scorecard precedent of caching an
+// analytics result rather than recalculating a heavy aggregate per request.
+export const erpAbcClassifications = complianceSchemaDB.table('erp_abc_classifications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull(),
+  classification: text('classification').notNull(), // 'A'|'B'|'C'
+  consumptionValue: numeric('consumption_value').notNull(),
+  computedAt: timestamp('computed_at').notNull().defaultNow(),
+})
+
+export const erpCycleCountPlans = complianceSchemaDB.table('erp_cycle_count_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  warehouseId: text('warehouse_id').notNull(),
+  name: text('name').notNull(),
+  status: text('status').notNull().default('draft'), // 'draft'|'active'|'completed'
+  scheduledDate: date('scheduled_date', { mode: 'string' }),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpCycleCountLines = complianceSchemaDB.table('erp_cycle_count_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  planId: text('plan_id').notNull(),
+  itemId: text('item_id').notNull(),
+  // Snapshotted from the FIFO stock ledger at plan-creation time -- the
+  // count sheet compares a physical count against this frozen baseline,
+  // never a live-refetched balance (the point of a cycle count is to
+  // catch drift since that snapshot).
+  systemQty: numeric('system_qty').notNull(),
+  countedQty: numeric('counted_qty'),
+  status: text('status').notNull().default('pending'), // 'pending'|'counted'|'adjusted'
+  countedById: text('counted_by_id'),
+  countedAt: timestamp('counted_at'),
+})
+
+export const erpReorderLevelsRelations = relations(erpReorderLevels, ({ one }) => ({
+  item: one(erpItems, { fields: [erpReorderLevels.itemId], references: [erpItems.id] }),
+  warehouse: one(erpWarehouses, { fields: [erpReorderLevels.warehouseId], references: [erpWarehouses.id] }),
+}))
+export const erpCycleCountPlansRelations = relations(erpCycleCountPlans, ({ one, many }) => ({
+  warehouse: one(erpWarehouses, { fields: [erpCycleCountPlans.warehouseId], references: [erpWarehouses.id] }),
+  lines: many(erpCycleCountLines),
+}))
+export const erpCycleCountLinesRelations = relations(erpCycleCountLines, ({ one }) => ({
+  plan: one(erpCycleCountPlans, { fields: [erpCycleCountLines.planId], references: [erpCycleCountPlans.id] }),
+  item: one(erpItems, { fields: [erpCycleCountLines.itemId], references: [erpItems.id] }),
+}))
+
 // ─── VERI ERP Wave 54: Bank Statement Import & Reconciliation ─────────────
 // Per ERP_BENCHMARK_COMPARISON.md Tier 3 #9 -- entirely unbuilt before
 // this wave. Reuses this codebase's own existing generic file parser
