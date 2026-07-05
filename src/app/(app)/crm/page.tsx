@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // sales CRM.
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles } from "lucide-react";
+import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,7 @@ export default function CrmPage() {
   const [oppValue, setOppValue] = useState("");
   const [creatingOpp, setCreatingOpp] = useState(false);
   const [scoringId, setScoringId] = useState<string | null>(null);
+  const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [leadRes, oppRes] = await Promise.all([fetch("/api/crm/leads"), fetch("/api/crm/opportunities")]);
@@ -173,6 +174,23 @@ export default function CrmPage() {
     }
   };
 
+  // Wave 78 (Multi-Agent Chaining): turns a lead/opportunity's AI-recommended
+  // action into a real task, which itself runs through task-execution-
+  // engine's own AI planning pass -- one module's AI output becoming another
+  // module's AI input, per AI_OS_CERTIFICATION.md §2.2.
+  const createFollowUpTask = async (kind: "leads" | "opportunities", id: string) => {
+    setCreatingTaskId(id);
+    try {
+      const res = await fetch(`/api/crm/${kind}/${id}/follow-up-task`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Follow-up task created and dispatched to VERI To Do");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create follow-up task");
+    } finally {
+      setCreatingTaskId(null);
+    }
+  };
+
   const updateOpportunityStage = async (opportunityId: string, stage: string) => {
     try {
       const res = await fetch(`/api/crm/opportunities/${opportunityId}`, {
@@ -272,7 +290,13 @@ export default function CrmPage() {
                     </Button>
                   </div>
                   {lead.aiRecommendedAction && (
-                    <p className="text-xs text-ct-muted pl-0">AI suggests: {lead.aiRecommendedAction}</p>
+                    <p className="text-xs text-ct-muted pl-0 flex items-center gap-2">
+                      <span>AI suggests: {lead.aiRecommendedAction}</span>
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => createFollowUpTask("leads", lead.id)} disabled={creatingTaskId === lead.id}>
+                        {creatingTaskId === lead.id ? <Loader2 className="size-3 animate-spin mr-1" /> : <ListChecks className="size-3 mr-1" />}
+                        Create Task
+                      </Button>
+                    </p>
                   )}
                 </div>
               ))}
@@ -352,9 +376,17 @@ export default function CrmPage() {
                     </Button>
                   </div>
                   {(opp.aiRecommendedAction || opp.aiRiskFactors?.length > 0) && (
-                    <p className="text-xs text-ct-muted">
-                      {opp.aiRiskFactors?.length > 0 && <>Risks: {opp.aiRiskFactors.join(", ")}. </>}
-                      {opp.aiRecommendedAction && <>AI suggests: {opp.aiRecommendedAction}</>}
+                    <p className="text-xs text-ct-muted flex items-center gap-2 flex-wrap">
+                      <span>
+                        {opp.aiRiskFactors?.length > 0 && <>Risks: {opp.aiRiskFactors.join(", ")}. </>}
+                        {opp.aiRecommendedAction && <>AI suggests: {opp.aiRecommendedAction}</>}
+                      </span>
+                      {opp.aiRecommendedAction && (
+                        <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => createFollowUpTask("opportunities", opp.id)} disabled={creatingTaskId === opp.id}>
+                          {creatingTaskId === opp.id ? <Loader2 className="size-3 animate-spin mr-1" /> : <ListChecks className="size-3 mr-1" />}
+                          Create Task
+                        </Button>
+                      )}
                     </p>
                   )}
                 </div>

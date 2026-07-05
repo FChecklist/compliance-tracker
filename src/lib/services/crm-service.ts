@@ -5,13 +5,14 @@
 // needed for a compliance-service-provider's business). Gated identically
 // to the existing Clients page (accountType !== 'company') at the UI
 // layer, matching that page's own precedent.
-import { crmLeads, crmOpportunities, clients } from "@/lib/db"
+import { crmLeads, crmOpportunities, clients, tasks } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { executeTask } from "@/lib/task-execution-engine"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -174,4 +175,40 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
     }).where(eq(crmOpportunities.id, opportunityId)).returning()
     return updated
   })
+}
+
+// ─── Wave 78 (Multi-Agent Chaining, AI_OS_CERTIFICATION.md §2.2 NOT_BUILT) ─
+// scoreLead/analyzeOpportunity's aiRecommendedAction was a read-only
+// suggestion nothing ever acted on. This turns it into literal input to a
+// second, independent AI call -- task-execution-engine.ts's own planning
+// pass (worker-agent dispatch + Wave 77 memory read-back) -- rather than a
+// generic event bus. Still human-gated by the explicit call here, matching
+// task-execution-engine's own "no unattended write action" doctrine.
+async function createChainedTask(ctx: CrmContext, title: string, description: string) {
+  const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [task] = await db.insert(tasks).values({
+      orgId: ctx.orgId, userId: ctx.userId, assignedById: ctx.userId, title, description, status: "in_progress",
+    }).returning()
+    return task
+  })
+  await executeTask(ctx.orgId, ctx.userId, created.id, created.title, created.description, null, null)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, created.id) }))
+}
+
+export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string) {
+  const lead = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
+  )
+  if (!lead) throw new ServiceError("Lead not found", 404)
+  if (!lead.aiRecommendedAction) throw new ServiceError("Score this lead first to get an AI-recommended action", 400)
+  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction)
+}
+
+export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string) {
+  const opp = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+  )
+  if (!opp) throw new ServiceError("Opportunity not found", 404)
+  if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
+  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction)
 }

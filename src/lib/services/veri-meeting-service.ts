@@ -23,6 +23,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { executeTask } from "@/lib/task-execution-engine"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -219,6 +220,16 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 // already surfaces it, no separate tracking table. Deliberately NOT gated by
 // meeting.status -- ongoing task work must continue after the meeting record
 // itself is published/locked.
+//
+// Wave 78 (Multi-Agent Chaining, AI_OS_CERTIFICATION.md §2.2 NOT_BUILT): the
+// task this creates now runs through executeTask() -- the same real AI
+// planning/dispatch pass (plus Wave 77's memory read-back) every other task
+// gets, instead of sitting as a bare `pending` row nothing ever processes.
+// Meeting Intelligence's structured output (the suggested action item text
+// a human is choosing to promote here) becomes literal input to a second,
+// independent AI call. Still human-gated by this function's own explicit
+// invocation -- no unattended write action, matching task-execution-engine's
+// own doctrine.
 export async function addMeetingActionItem(
   ctx: VeriMeetingContext,
   meetingId: string,
@@ -227,13 +238,14 @@ export async function addMeetingActionItem(
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
 
+    const description = `Action item from meeting: ${meeting.title}`
     const [task] = await db.insert(tasks).values({
       orgId: ctx.orgId, userId: input.assigneeUserId || ctx.userId, assignedById: ctx.userId,
-      title, description: `Action item from meeting: ${meeting.title}`, status: "pending",
+      title, description, status: "in_progress",
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
     }).returning()
 
@@ -243,8 +255,14 @@ export async function addMeetingActionItem(
       tx: db, action: "veri_meeting.action_item_added", entityType: "veri_meeting", entityId: meetingId,
       details: `Action item added: "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
     })
-    return { ...actionItem, task }
+    return { actionItem, task: task! }
   })
+
+  await executeTask(ctx.orgId, ctx.userId, created.task.id, created.task.title, created.task.description, null, null)
+  const finalTask = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.query.tasks.findFirst({ where: eq(tasks.id, created.task.id) })
+  )
+  return { ...created.actionItem, task: finalTask ?? created.task }
 }
 
 // Field-level change history -- reuses the platform's real audit_logs table
