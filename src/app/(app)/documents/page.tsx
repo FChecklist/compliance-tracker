@@ -27,6 +27,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { RequestSignatureButton } from "@/components/esignature/RequestSignatureButton";
 
 type Document = {
   id: string;
@@ -267,6 +268,7 @@ export default function DocumentsPage() {
               <Button variant="ghost" size="sm" onClick={() => download(doc)} title="Download">
                 <Download className="size-3.5 text-ct-navy" />
               </Button>
+              <RequestSignatureButton linkedEntityType="document" linkedEntityId={doc.id} defaultTitle={doc.name} />
             </div>
           ))}
         </div>

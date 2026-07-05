@@ -5246,3 +5246,64 @@ export const erpSubscriptionsRelations = relations(erpSubscriptions, ({ one }) =
   customer: one(erpCustomers, { fields: [erpSubscriptions.customerId], references: [erpCustomers.id] }),
   plan: one(erpSubscriptionPlans, { fields: [erpSubscriptions.planId], references: [erpSubscriptionPlans.id] }),
 }))
+
+// ─── Wave 86 (Comparison CSV 2 gap analysis: CLM007 + DMS012) ──────────────
+// eSignature: closes both "Electronic Contract Signing" (CLM) and "Digital
+// Signature Management" (DMS) in one build -- neither `documents` nor
+// `erp_contracts` had any signing capability before this wave. No paid
+// e-signature provider integration (none available in this environment) --
+// this is a real, first-party signing workflow with a tamper-evident audit
+// trail, not a DocuSign/Documenso API wrapper. `linkedEntityType`/Id follow
+// the same polymorphic convention as `documents.linkedEntityType` (Wave 61).
+export const esignatureRequests = complianceSchemaDB.table('esignature_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  linkedEntityType: text('linked_entity_type').notNull(), // 'document'|'erp_contract'
+  linkedEntityId: text('linked_entity_id').notNull(),
+  title: text('title').notNull(),
+  // For 'document': SHA-256 of the actual file bytes in storage at request
+  // creation time. For 'erp_contract' (no file, a DB record): SHA-256 of a
+  // canonical JSON snapshot of the contract's key terms -- see
+  // esignature-service.ts's computeDocumentHash for exactly what's hashed.
+  // Either way, comparing this baseline against each signer's own
+  // documentHashAtSigning is what makes tampering detectable.
+  documentHash: text('document_hash').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending'|'partially_signed'|'completed'|'declined'|'voided'
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
+export const esignatureSigners = complianceSchemaDB.table('esignature_signers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  requestId: text('request_id').notNull(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  signOrder: integer('sign_order'), // nullable -- null means parallel signing, no ordering enforced
+  status: text('status').notNull().default('pending'), // 'pending'|'signed'|'declined'
+  userId: text('user_id'), // nullable -- set if the signer is an internal VERIDIAN user, matching conversationGuestAccess's own internal-vs-external precedent
+  // Tokenized external access, same shape as erpSupplierPortalLinks (Wave 80)
+  // and conversationShareLinks (Wave 36) -- no separate invite mechanism.
+  accessToken: text('access_token').notNull().unique(),
+  tokenExpiresAt: timestamp('token_expires_at').notNull(),
+  // Populated only once this signer actually signs -- one signer signs at
+  // most once, so this is folded into the signer row rather than a separate
+  // append-only signatures table (there's nothing else to append).
+  signatureImageData: text('signature_image_data'), // base64 PNG (drawn) or plain text (typed name fallback)
+  signatureMethod: text('signature_method'), // 'drawn'|'typed'
+  signedAt: timestamp('signed_at'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  documentHashAtSigning: text('document_hash_at_signing'),
+  declinedAt: timestamp('declined_at'),
+  declineReason: text('decline_reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const esignatureRequestsRelations = relations(esignatureRequests, ({ many }) => ({
+  signers: many(esignatureSigners),
+}))
+export const esignatureSignersRelations = relations(esignatureSigners, ({ one }) => ({
+  request: one(esignatureRequests, { fields: [esignatureSigners.requestId], references: [esignatureRequests.id] }),
+}))

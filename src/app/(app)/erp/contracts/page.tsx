@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RequestSignatureButton } from "@/components/esignature/RequestSignatureButton";
 
 type Customer = { id: string; customerName: string };
 type Contract = { id: string; contractNumber: number; title: string; customerId: string; status: string; startDate: string; endDate: string | null; contractValue: string; autoRenew: boolean };
@@ -206,10 +207,11 @@ export default function ErpContractsPage() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-medium text-ct-navy">{detail.title}</h3>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           {detail.status === "draft" && <Button size="sm" onClick={() => transitionContract(detail.id, "active")}>Activate</Button>}
                           {detail.status === "active" && <Button size="sm" variant="outline" onClick={() => transitionContract(detail.id, "renewed")}>Renew</Button>}
                           {(detail.status === "draft" || detail.status === "active" || detail.status === "renewed") && <Button size="sm" variant="outline" onClick={() => transitionContract(detail.id, "terminated")}>Terminate</Button>}
+                          <RequestSignatureButton linkedEntityType="erp_contract" linkedEntityId={detail.id} defaultTitle={detail.title} />
                         </div>
                       </div>
 
