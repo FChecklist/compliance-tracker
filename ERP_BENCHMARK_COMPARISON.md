@@ -541,3 +541,36 @@ single fix closes at once.
 
 ### What this ranking deliberately does NOT do
 It does not recommend starting the ERP service-layer build broadly. Per the user's own build-order decision for Wave 49 ("scaffold now, build incrementally") and the "research first" instruction for this pass, nothing above should be started without the user picking a specific Tier 1 item to build next — this document is the map, not the build order commitment.
+
+---
+
+## Section 11: Large-Company Completeness (Rs 1000cr turnover / 500 employees, India or UAE)
+
+Section 10's ranking was scoped to the original mid-size-CA-firm-tenant benchmark. This
+section is a separate, later gap-list surfaced by a direct question ("what all is
+remaining for completing this ERP end to end for a Rs 1000 crore turnover, 500 employee
+company in India or in UAE") and answered via a codebase audit, not assumption. It
+governs Waves 65-69, explicitly instructed as: "check ERPNext repository on GitHub, we
+don't need to recreate, copy what is required, fit it into VERIDIAN AI OS" — ERPNext
+(GPL-3.0) is research/reference material only (doctype field shapes, conceptual
+approach), never copied source, always re-implemented independently in VERIDIAN's own
+TypeScript/Drizzle stack.
+
+**India-side gaps found**: HSN/SAC codes missing (mandatory GST classification above
+the notified turnover threshold), multi-currency schema present but completely unwired
+(zero consumers of `erpCurrencies`/`erpExchangeRates`), no multi-entity/Company concept
+(a Rs 1000cr group almost certainly has subsidiaries needing consolidated reporting),
+TDS deliberately left manual (Wave 56 scope boundary, still open), no e-invoicing (IRN)
+data model.
+
+**UAE-side gaps found**: confirmed via exhaustive grep — ZERO UAE-specific work exists
+anywhere (no VAT, no WPS/payroll-wage-protection, no UAE Corporate Tax, no Arabic/RTL
+considerations). Out of scope for Waves 65-69 (which are India-focused per the
+research); a future dedicated UAE wave would need its own gap analysis.
+
+### Status
+1. ✅ **DONE (Wave 65, commit `5ebf2ed`, migration `wave65_hsn_sac_codes`)** — **HSN/SAC codes.** Free-text `hsnSacCode` on `erp_items` (master data) plus `erp_sales_invoice_items`/`erp_purchase_invoice_items` (snapshotted at invoice-line-creation time, never looked up live — matching ERPNext's own copy-at-transaction-time convention). Deliberately simpler than ERPNext's actual current architecture (a separate pluggable `india-compliance` community-app doctype with custom-field injection) since VERIDIAN has no plugin/custom-field system — a single native column is functionally equivalent for VERIDIAN's needs.
+2. **IN PROGRESS (Wave 66)** — **Multi-currency wiring into GL/invoices.** Wiring the already-existing-but-unused `erpCurrencies`/`erpExchangeRates` tables into `erpJournalEntryLines`/`erpSalesInvoices`/`erpPurchaseInvoices`. Design: a two-tier model (base-currency `debit`/`credit`, already existing and remaining the single source of truth for all reports, plus a transaction-currency tier), deliberately simpler than ERPNext's actual three-tier model (which adds a third "reporting currency" tier for group consolidation) — that third tier is deferred to Wave 67, since it only makes sense once a Company/group concept exists to report into.
+3. **NOT STARTED (Wave 67)** — **Multi-entity/Company support + consolidation.** Modeled on ERPNext's Company doctype (`is_group`, `parent_company` nested-set tree, `default_currency` vs. separate `reporting_currency`, `abbr`). Consolidation computed at report-runtime by walking the company tree, never a stored "group GL" — matching ERPNext's own approach.
+4. **NOT STARTED (Wave 68)** — **TDS auto-computation.** Payroll TDS via an Income-Tax-Slab-engine (old/new regime as two separate slab records, not a regime flag) plus exemption declarations; vendor-payment TDS via a Tax Withholding Category mechanism (rate/threshold-based, modeled on ERPNext's `Tax Withholding Category`/`Rate` shape).
+5. **NOT STARTED (Wave 69)** — **E-invoicing (IRN) data model.** A separate `erp_e_invoice_log`-style table (per ERPNext's own separate-log-doctype pattern, not fields bolted onto Sales Invoice) storing IRN/ack details/JSON payload/signed response, plus IRP-schema JSON payload generation. Real submission to the government IRP requires GSP credentials the user would need to supply — same verification-boundary honesty as Wave 59's SSO: build and prove the generation logic, real IRP submission is untestable without real credentials.
