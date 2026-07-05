@@ -7,7 +7,7 @@
 // discriminators instead of a per-module FK.
 import { documents } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, isNotNull, lte } from "drizzle-orm"
+import { and, eq, isNotNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -101,4 +101,83 @@ export async function markSupersededVersion(db: TenantDb, orgId: string, previou
 
   await db.update(documents).set({ isLatestVersion: false }).where(eq(documents.id, previousDocumentId))
   return previous
+}
+
+// ─── Wave 91: Retention & Disposal (DMS008) ───────────────────────────────
+
+export async function setRetentionPolicy(ctx: { orgId: string }, documentId: string, retentionPeriodDays: number) {
+  if (retentionPeriodDays <= 0) throw new ServiceError("retentionPeriodDays must be positive", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const doc = await db.query.documents.findFirst({ where: and(eq(documents.id, documentId), eq(documents.orgId, ctx.orgId)) })
+    if (!doc) throw new ServiceError("Document not found", 404)
+
+    const disposalDate = new Date(doc.createdAt)
+    disposalDate.setDate(disposalDate.getDate() + retentionPeriodDays)
+
+    const [updated] = await db.update(documents).set({
+      retentionPeriodDays, disposalDate: disposalDate.toISOString().slice(0, 10),
+    }).where(eq(documents.id, documentId)).returning()
+    return updated
+  })
+}
+
+export async function setLegalHold(ctx: { orgId: string }, documentId: string, legalHold: boolean) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const doc = await db.query.documents.findFirst({ where: and(eq(documents.id, documentId), eq(documents.orgId, ctx.orgId)) })
+    if (!doc) throw new ServiceError("Document not found", 404)
+    const [updated] = await db.update(documents).set({ legalHold }).where(eq(documents.id, documentId)).returning()
+    return updated
+  })
+}
+
+// Documents whose retention period has lapsed and are eligible for
+// disposal -- excludes anything already disposed or under legal hold, so
+// this list is exactly "what a records manager should act on today."
+export async function listPendingDisposal(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const today = new Date().toISOString().slice(0, 10)
+    return db.query.documents.findMany({
+      where: and(
+        eq(documents.orgId, ctx.orgId), eq(documents.isDisposed, false), eq(documents.legalHold, false),
+        isNotNull(documents.disposalDate), lte(documents.disposalDate, today),
+      ),
+      orderBy: (d, { asc }) => asc(d.disposalDate),
+    })
+  })
+}
+
+/** A real gate, not a UI-only checkbox: refuses to dispose a document that isn't past its disposal date or is under legal hold, matching Wave 82's period-closing precedent. */
+export async function disposeDocument(ctx: { orgId: string; userId: string }, documentId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const doc = await db.query.documents.findFirst({ where: and(eq(documents.id, documentId), eq(documents.orgId, ctx.orgId)) })
+    if (!doc) throw new ServiceError("Document not found", 404)
+    if (doc.isDisposed) throw new ServiceError("Document has already been disposed", 409)
+    if (doc.legalHold) throw new ServiceError("Document is under legal hold and cannot be disposed", 409)
+    if (!doc.disposalDate) throw new ServiceError("Document has no retention policy set", 400)
+    if (doc.disposalDate > new Date().toISOString().slice(0, 10)) throw new ServiceError("Document has not yet reached its disposal date", 409)
+
+    const [updated] = await db.update(documents).set({
+      isDisposed: true, disposedAt: new Date(), disposedById: ctx.userId,
+    }).where(eq(documents.id, documentId)).returning()
+    return updated
+  })
+}
+
+// ─── Wave 91: Full-text search (DMS006) ───────────────────────────────────
+// Real content search over name + the vision-extraction summary (Wave 35/76),
+// not the metadata/category filtering listDocuments() already provides.
+// Computed at query time against the functional GIN index from the Wave 91
+// migration -- no stored tsvector column to keep in sync.
+export async function searchDocuments(ctx: { orgId: string }, query: string) {
+  if (!query?.trim()) return []
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.select().from(documents).where(
+      sql`${documents.orgId} = ${ctx.orgId} AND ${documents.isLatestVersion} = true AND
+        to_tsvector('english', coalesce(${documents.name}, '') || ' ' || coalesce(${documents.extractedData}->>'summary', ''))
+        @@ plainto_tsquery('english', ${query})`
+    ).orderBy(sql`ts_rank(
+      to_tsvector('english', coalesce(${documents.name}, '') || ' ' || coalesce(${documents.extractedData}->>'summary', '')),
+      plainto_tsquery('english', ${query})
+    ) DESC`)
+  })
 }

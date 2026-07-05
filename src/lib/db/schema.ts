@@ -262,6 +262,17 @@ export const documents = complianceSchemaDB.table('documents', {
   parentDocumentId: text('parent_document_id'), // self-FK: previous version of this same logical document
   versionNumber: integer('version_number').notNull().default(1),
   isLatestVersion: boolean('is_latest_version').notNull().default(true), // maintained by document-service.ts on every new-version insert, not a DB trigger -- matches this codebase's assigneeId-cache convention elsewhere
+  // Wave 91 (Comparison CSV 2 gap analysis: DMS008 Retention & Disposal).
+  // disposalDate is computed at set-retention time (createdAt + retentionPeriodDays),
+  // not recomputed live -- a records-retention schedule is a point-in-time
+  // decision, not a moving target. legalHold blocks disposal even past
+  // disposalDate (standard records-management concept: litigation/audit hold).
+  retentionPeriodDays: integer('retention_period_days'),
+  disposalDate: date('disposal_date', { mode: 'string' }),
+  legalHold: boolean('legal_hold').notNull().default(false),
+  isDisposed: boolean('is_disposed').notNull().default(false),
+  disposedAt: timestamp('disposed_at'),
+  disposedById: text('disposed_by_id'),
 })
 
 // ─── Compliance Costs (Wave 7) ───────────────────────────────────────────
