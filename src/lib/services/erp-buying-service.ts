@@ -1,12 +1,78 @@
 // Minimal list-only service backing the Wave 52 Credit Notes UI's supplier
 // picker -- erpSuppliers has existed since Wave 49 but had no service layer
 // consumer until now.
-import { erpSuppliers } from "@/lib/db"
+import { erpSuppliers, erpPurchaseOrders, erpPurchaseReceipts, erpPurchaseReturns } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq } from "drizzle-orm"
+import { eq, and, ne } from "drizzle-orm"
+import { ServiceError } from "./compliance-service"
+export { ServiceError }
 
 export async function listSuppliers(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSuppliers.findMany({ where: eq(erpSuppliers.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.supplierName) })
   })
+}
+
+// Wave 64 (Vendor Scorecarding, ERP benchmark Tier 4 #19). Read-time
+// aggregation over existing purchase order/receipt/return data -- matching
+// the same discipline as Wave 50/51's financial reports and Wave 28's
+// budget-actuals view: never a duplicated ledger, always computed live off
+// the transactional tables that are the actual source of truth.
+export type SupplierScorecard = {
+  supplierId: string
+  totalOrders: number
+  totalSpend: number
+  onTimeDeliveryRate: number | null // null when there's no dated PO to measure against
+  returnRate: number | null // returns per receipt
+}
+
+export async function getSupplierScorecard(ctx: { orgId: string }, supplierId: string): Promise<SupplierScorecard> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+    if (!supplier) throw new ServiceError("Supplier not found", 404)
+
+    const orders = await db.query.erpPurchaseOrders.findMany({
+      where: and(eq(erpPurchaseOrders.orgId, ctx.orgId), eq(erpPurchaseOrders.supplierId, supplierId), ne(erpPurchaseOrders.status, "draft"), ne(erpPurchaseOrders.status, "cancelled")),
+    })
+    const receipts = await db.query.erpPurchaseReceipts.findMany({
+      where: and(eq(erpPurchaseReceipts.orgId, ctx.orgId), eq(erpPurchaseReceipts.supplierId, supplierId), eq(erpPurchaseReceipts.status, "submitted")),
+    })
+    const returns = await db.query.erpPurchaseReturns.findMany({
+      where: and(eq(erpPurchaseReturns.orgId, ctx.orgId), eq(erpPurchaseReturns.supplierId, supplierId)),
+    })
+
+    const totalSpend = orders.reduce((sum, o) => sum + Number(o.grandTotal), 0)
+
+    // On-time delivery: for each receipt linked to a PO with an expected
+    // delivery date, compare the receipt's posting date against it.
+    const ordersById = new Map(orders.map((o) => [o.id, o]))
+    let measurable = 0
+    let onTime = 0
+    for (const receipt of receipts) {
+      const po = receipt.purchaseOrderId ? ordersById.get(receipt.purchaseOrderId) : undefined
+      if (!po?.expectedDeliveryDate) continue
+      measurable++
+      if (receipt.postingDate <= po.expectedDeliveryDate) onTime++
+    }
+
+    const dispatchedOrRejectedReturns = returns.length
+    const returnRate = receipts.length > 0 ? dispatchedOrRejectedReturns / receipts.length : null
+
+    return {
+      supplierId,
+      totalOrders: orders.length,
+      totalSpend,
+      onTimeDeliveryRate: measurable > 0 ? onTime / measurable : null,
+      returnRate,
+    }
+  })
+}
+
+export async function listSupplierScorecards(ctx: { orgId: string }): Promise<SupplierScorecard[]> {
+  const suppliers = await listSuppliers(ctx)
+  const scorecards: SupplierScorecard[] = []
+  for (const s of suppliers) {
+    scorecards.push(await getSupplierScorecard(ctx, s.id))
+  }
+  return scorecards
 }
