@@ -19,7 +19,7 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | Finance > Fixed Assets (FA001-020) | PRESENT | `erpAssetCategories`, `erpFixedAssets`, `erpDepreciationSchedules`, `erpAssetMovements`, `erpAssetDisposals` (Wave 66/prior) | |
 | Finance > Taxation (TAX001-018) | PRESENT | `erpTaxTemplates`/Items, `erpTaxWithholdingCategories`/Rates (Wave 68 TDS), HSN/SAC on items (Wave 65) | |
 | Finance > Financial Reporting (FS001-018) | PARTIAL | `erp-financial-report-service.ts`: `trialBalance`, `profitAndLoss`, `balanceSheet` | Missing: Statement of Cash Flows. Added in Wave 70 (small addendum, reuses same service file) |
-| Finance > Period Closing (CL001-020) | PARTIAL | `erpAccountingPeriods` + `closePeriod`/`reopenPeriod`/`generatePeriodsForFiscalYear` | Missing: formal closing-checklist/task workflow (accruals, provisions, sign-off steps) — basic open/close only. Backlogged (see below) |
+| Finance > Period Closing (CL001-020) | PRESENT (Wave 82) | `erpAccountingPeriods` + `closePeriod`/`reopenPeriod`/`generatePeriodsForFiscalYear` + Wave 82: `erpPeriodClosingChecklistItems` (seeded accrual/provision/reconciliation/review tasks) + `signOffPeriod()` -- `closePeriod()` now REQUIRES the checklist complete + sign-off before it will close, a real gate not a cosmetic list. New `/erp/periods` page (first UI for periods at all). | |
 | CRM > Customer Master (CRM001-018) | PARTIAL | `erpCustomers` (name, GSTIN, PAN, payment terms) | Missing: multiple addresses/contacts, credit limit. Minor — backlogged |
 | CRM > Lead Management (LEAD001-018) | PRESENT | `crmLeads` (Wave 41) | |
 | CRM > Opportunity Management (OPP001-018) | PRESENT | `crmOpportunities` (Wave 41) | |
@@ -53,7 +53,7 @@ Everything marked PARTIAL above is an *enhancement* to an already-shipped module
 ### Backlog (future waves, not built this pass)
 1. ~~Vendor Master: KYC document tracking, banking details table, qualification workflow, sanction/blacklist screening, vendor self-service portal.~~ DONE (Wave 80).
 2. ~~Customer Service: Knowledge Base articles + search, CSAT/NPS post-ticket surveys, installed-product/warranty tracking, field-service dispatch, problem management/RCA grouping.~~ DONE (Wave 81).
-3. Period Closing: formal closing-checklist workflow (accrual/provision tasks, sign-off steps) beyond today's simple open/closed period flag.
+3. ~~Period Closing: formal closing-checklist workflow (accrual/provision tasks, sign-off steps) beyond today's simple open/closed period flag.~~ DONE (Wave 82).
 4. RFQ Management: reverse auction, formal weighted vendor scoring, structured negotiation-round log.
 5. Customer/Vendor Master: multiple addresses/contacts per record, credit limits.
 6. Goods Receipt: three-way-match (PO/GRN/Invoice) report, landed-cost allocation, putaway/bin assignment.

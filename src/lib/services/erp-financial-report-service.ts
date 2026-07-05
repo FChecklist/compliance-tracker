@@ -7,12 +7,27 @@
 // aggregation, not new tables. Also owns isPeriodOpenForDate(), the
 // Tier 1 #3 fix (erp_accounting_periods) that gates journal-entry
 // posting so these reports stay trustworthy in production.
-import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears } from "@/lib/db"
+import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, lte, gte, sql, inArray } from "drizzle-orm"
+import { and, eq, lte, gte, sql, inArray, ne } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { getCompanyDescendantIds } from "./erp-company-service"
+
+// Wave 82 (Period Closing checklist workflow, COMPARISON_CSV_GAP_ANALYSIS.md
+// backlog #3): a real month-end close always needs the same handful of
+// tasks -- seeded once per period on first checklist access, an org then
+// edits/adds freely on top. Grounded in standard month-end-close practice
+// (accrual/provision/reconciliation/review), not copied from any specific
+// tool.
+const DEFAULT_CHECKLIST_ITEMS: { title: string; taskType: string }[] = [
+  { title: "Post accrued expenses", taskType: "accrual" },
+  { title: "Post accrued revenue", taskType: "accrual" },
+  { title: "Review and post provisions (bad debt, warranty, etc.)", taskType: "provision" },
+  { title: "Reconcile bank accounts", taskType: "reconciliation" },
+  { title: "Reconcile AR/AP subledgers to the GL", taskType: "reconciliation" },
+  { title: "Review trial balance for unusual entries", taskType: "review" },
+]
 
 /** Generates one open period per calendar month spanning the fiscal year -- the concrete, usable starting point an org needs before any period-lock control means anything. */
 export async function generatePeriodsForFiscalYear(ctx: { orgId: string }, fiscalYearId: string) {
@@ -75,11 +90,85 @@ export async function listPeriods(ctx: { orgId: string }, fiscalYearId?: string)
   })
 }
 
+// Wave 82: closing gate -- both the checklist AND sign-off must be done
+// before a period can close. Seeds the checklist on first access if none
+// exists, so this never blocks an org that hasn't opted into using it yet
+// on a period with zero items (empty checklist = vacuously "all complete").
+export async function listChecklistItems(ctx: { orgId: string }, periodId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
+    if (!period) throw new ServiceError("Period not found", 404)
+
+    const existing = await db.query.erpPeriodClosingChecklistItems.findMany({
+      where: eq(erpPeriodClosingChecklistItems.periodId, periodId),
+      orderBy: (t, { asc }) => asc(t.sortOrder),
+    })
+    if (existing.length > 0) return existing
+
+    const seeded = await db.insert(erpPeriodClosingChecklistItems).values(
+      DEFAULT_CHECKLIST_ITEMS.map((item, i) => ({ orgId: ctx.orgId, periodId, title: item.title, taskType: item.taskType, sortOrder: i }))
+    ).returning()
+    return seeded
+  })
+}
+
+export async function addChecklistItem(ctx: { orgId: string; userId: string }, periodId: string, input: { title: string; taskType?: string; assignedToId?: string }) {
+  const title = input.title?.trim()
+  if (!title) throw new ServiceError("title is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
+    if (!period) throw new ServiceError("Period not found", 404)
+
+    const existing = await db.query.erpPeriodClosingChecklistItems.findMany({ where: eq(erpPeriodClosingChecklistItems.periodId, periodId) })
+    const [item] = await db.insert(erpPeriodClosingChecklistItems).values({
+      orgId: ctx.orgId, periodId, title, taskType: input.taskType || "other",
+      assignedToId: input.assignedToId || null, sortOrder: existing.length,
+    }).returning()
+    return item
+  })
+}
+
+export async function completeChecklistItem(ctx: { orgId: string; userId: string }, itemId: string, notes?: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const item = await db.query.erpPeriodClosingChecklistItems.findFirst({ where: and(eq(erpPeriodClosingChecklistItems.id, itemId), eq(erpPeriodClosingChecklistItems.orgId, ctx.orgId)) })
+    if (!item) throw new ServiceError("Checklist item not found", 404)
+    const [updated] = await db.update(erpPeriodClosingChecklistItems)
+      .set({ status: "completed", completedById: ctx.userId, completedAt: new Date(), notes: notes ?? item.notes })
+      .where(eq(erpPeriodClosingChecklistItems.id, itemId)).returning()
+    return updated
+  })
+}
+
+async function assertChecklistComplete(db: Parameters<Parameters<typeof withTenantContext>[1]>[0], periodId: string) {
+  const incomplete = await db.query.erpPeriodClosingChecklistItems.findFirst({
+    where: and(eq(erpPeriodClosingChecklistItems.periodId, periodId), ne(erpPeriodClosingChecklistItems.status, "completed")),
+  })
+  if (incomplete) throw new ServiceError(`Checklist item "${incomplete.title}" is still pending -- complete it before closing`, 409)
+}
+
+export async function signOffPeriod(ctx: { orgId: string; userId: string }, periodId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
+    if (!period) throw new ServiceError("Period not found", 404)
+    if (period.status === "closed") throw new ServiceError("Period is already closed", 409)
+
+    await assertChecklistComplete(db, periodId)
+
+    const [updated] = await db.update(erpAccountingPeriods).set({ signedOffById: ctx.userId, signedOffAt: new Date() }).where(eq(erpAccountingPeriods.id, periodId)).returning()
+    return updated
+  })
+}
+
 export async function closePeriod(ctx: { orgId: string; userId: string }, periodId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
     if (!period) throw new ServiceError("Period not found", 404)
     if (period.status === "closed") throw new ServiceError("Period is already closed", 409)
+
+    await assertChecklistComplete(db, periodId)
+    if (!period.signedOffAt) throw new ServiceError("This period needs a formal sign-off before it can be closed", 409)
+
     const [updated] = await db.update(erpAccountingPeriods).set({ status: "closed", closedById: ctx.userId, closedAt: new Date() }).where(eq(erpAccountingPeriods.id, periodId)).returning()
     return updated
   })
@@ -89,7 +178,12 @@ export async function reopenPeriod(ctx: { orgId: string; userId: string }, perio
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
     if (!period) throw new ServiceError("Period not found", 404)
-    const [updated] = await db.update(erpAccountingPeriods).set({ status: "open", closedById: null, closedAt: null }).where(eq(erpAccountingPeriods.id, periodId)).returning()
+    // Reopening also clears sign-off -- a reopened period genuinely needs a
+    // fresh review/sign-off before it can close again, not a stale approval
+    // carried over from before whatever prompted the reopen.
+    const [updated] = await db.update(erpAccountingPeriods)
+      .set({ status: "open", closedById: null, closedAt: null, signedOffById: null, signedOffAt: null })
+      .where(eq(erpAccountingPeriods.id, periodId)).returning()
     return updated
   })
 }

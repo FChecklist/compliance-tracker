@@ -7,11 +7,13 @@ export const dynamic = "force-dynamic";
 // whole platform (closes Finance's #1 gap and Reporting & BI's #1 gap
 // simultaneously). Plain tables, not charts -- correctness first.
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type AccountRow = { accountId: string; accountName: string; accountNumber: string | null; totalDebit: number; totalCredit: number; netBalance: number };
@@ -74,9 +76,12 @@ export default function ErpReportsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Financial Reports</h1>
-        <p className="text-sm text-ct-muted mt-1">Trial Balance, Profit &amp; Loss, Balance Sheet — computed live from posted journal entries</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Financial Reports</h1>
+          <p className="text-sm text-ct-muted mt-1">Trial Balance, Profit &amp; Loss, Balance Sheet — computed live from posted journal entries</p>
+        </div>
+        <Link href="/erp/periods"><Button variant="outline">Period Closing</Button></Link>
       </div>
 
       <div className="flex gap-4 items-end flex-wrap">

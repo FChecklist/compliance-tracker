@@ -3926,10 +3926,41 @@ export const erpAccountingPeriods = complianceSchemaDB.table('erp_accounting_per
   closedById: text('closed_by_id'),
   closedAt: timestamp('closed_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Wave 82 (Period Closing checklist workflow, COMPARISON_CSV_GAP_ANALYSIS.md
+  // backlog #3): the formal sign-off step, distinct from closedAt/closedById --
+  // a controller/CFO signs off once every checklist item is done, and
+  // closePeriod() (erp-financial-report-service.ts) now REQUIRES both the
+  // checklist to be fully completed and sign-off to have happened, turning
+  // "closed" from a bare flag into the end of a real gated workflow.
+  signedOffById: text('signed_off_by_id'),
+  signedOffAt: timestamp('signed_off_at'),
 })
 
 export const erpAccountingPeriodsRelations = relations(erpAccountingPeriods, ({ one }) => ({
   fiscalYear: one(erpFiscalYears, { fields: [erpAccountingPeriods.fiscalYearId], references: [erpFiscalYears.id] }),
+}))
+
+// Per-period closing checklist -- accrual/provision/reconciliation/review
+// tasks a real month-end close requires. A default set is seeded when a
+// period is first accessed via the checklist API (seedDefaultChecklist()),
+// and an org can add/remove items freely on top of that.
+export const erpPeriodClosingChecklistItems = complianceSchemaDB.table('erp_period_closing_checklist_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  periodId: text('period_id').notNull(),
+  title: text('title').notNull(),
+  taskType: text('task_type').notNull().default('other'), // 'accrual'|'provision'|'reconciliation'|'review'|'other'
+  status: text('status').notNull().default('pending'), // 'pending'|'completed'
+  assignedToId: text('assigned_to_id'),
+  completedById: text('completed_by_id'),
+  completedAt: timestamp('completed_at'),
+  notes: text('notes'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPeriodClosingChecklistItemsRelations = relations(erpPeriodClosingChecklistItems, ({ one }) => ({
+  period: one(erpAccountingPeriods, { fields: [erpPeriodClosingChecklistItems.periodId], references: [erpAccountingPeriods.id] }),
 }))
 
 // ─── VERI ERP Wave 51: Shared Approval Workflow Engine ────────────────────
