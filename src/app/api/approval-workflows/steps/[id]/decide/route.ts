@@ -2,14 +2,18 @@ import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { decideApprovalStep, ServiceError } from "@/lib/services/approval-workflow-service"
 import { markJournalEntrySubmittedFromApproval } from "@/lib/services/erp-accounting-service"
+import { markPurchaseRequisitionApprovedFromApproval } from "@/lib/services/erp-procurement-workflow-service"
 
 // Entity-specific "on approved" dispatch, kept at the route layer rather
 // than inside the generic engine so approval-workflow-service.ts stays
 // entity-agnostic -- any future module that adopts this engine adds one
-// case here, not a new branch inside the shared service.
+// case here, not a new branch inside the shared service. Wave 55 added the
+// second real consumer (erp_purchase_requisition) to prove this generalizes.
 async function onWorkflowApproved(ctx: { orgId: string; userId: string; dbUser: Parameters<typeof markJournalEntrySubmittedFromApproval>[0]['dbUser'] }, entityType: string, entityId: string) {
   if (entityType === "erp_journal_entry") {
     await markJournalEntrySubmittedFromApproval(ctx, entityId)
+  } else if (entityType === "erp_purchase_requisition") {
+    await markPurchaseRequisitionApprovedFromApproval(ctx, entityId)
   }
 }
 

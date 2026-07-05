@@ -3929,3 +3929,116 @@ export const erpBankStatementImportsRelations = relations(erpBankStatementImport
 export const erpBankStatementLinesRelations = relations(erpBankStatementLines, ({ one }) => ({
   import: one(erpBankStatementImports, { fields: [erpBankStatementLines.importId], references: [erpBankStatementImports.id] }),
 }))
+
+// ─── VERI ERP Wave 55: Procurement Workflow (Requisition + RFQ) ───────────
+// Per ERP_BENCHMARK_COMPARISON.md Tier 3 #10 -- no requisition/RFQ layer
+// existed above the PO before this wave (every PO was a standalone
+// document with no upstream authorization trail). Purchase Requisition
+// submission is also the second real consumer of the Wave 51 shared
+// Approval Workflow Engine (after erp_journal_entry), proving that
+// engine's "entity-agnostic" design claim rather than leaving it a
+// single-consumer abstraction.
+export const erpRequisitionStatusEnum = complianceSchemaDB.enum('erp_requisition_status', ['draft', 'submitted', 'approved', 'rejected', 'converted'])
+export const erpRfqStatusEnum = complianceSchemaDB.enum('erp_rfq_status', ['draft', 'sent', 'closed'])
+export const erpSupplierQuotationStatusEnum = complianceSchemaDB.enum('erp_supplier_quotation_status', ['draft', 'submitted'])
+
+export const erpPurchaseRequisitions = complianceSchemaDB.table('erp_purchase_requisitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  requisitionNumber: integer('requisition_number').notNull(),
+  requestedById: text('requested_by_id'),
+  departmentId: text('department_id'), // nullable link to VERIDIAN's existing departments table
+  purpose: text('purpose'),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: erpRequisitionStatusEnum('status').notNull().default('draft'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseRequisitionItems = complianceSchemaDB.table('erp_purchase_requisition_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  requisitionId: text('requisition_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  estimatedRate: numeric('estimated_rate'),
+})
+
+export const erpRfqs = complianceSchemaDB.table('erp_rfqs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  rfqNumber: integer('rfq_number').notNull(),
+  requisitionId: text('requisition_id'), // nullable -- an RFQ can be raised directly, not only from a requisition
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: erpRfqStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpRfqItems = complianceSchemaDB.table('erp_rfq_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  rfqId: text('rfq_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+})
+
+export const erpRfqSuppliers = complianceSchemaDB.table('erp_rfq_suppliers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  rfqId: text('rfq_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+})
+
+export const erpSupplierQuotations = complianceSchemaDB.table('erp_supplier_quotations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  rfqId: text('rfq_id'), // nullable -- a quotation can be logged even without a formal RFQ
+  supplierId: text('supplier_id').notNull(),
+  quotationNumber: integer('quotation_number').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  validTill: date('valid_till', { mode: 'string' }),
+  status: erpSupplierQuotationStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSupplierQuotationItems = complianceSchemaDB.table('erp_supplier_quotation_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quotationId: text('quotation_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+})
+
+export const erpPurchaseRequisitionsRelations = relations(erpPurchaseRequisitions, ({ many }) => ({
+  items: many(erpPurchaseRequisitionItems),
+}))
+
+export const erpPurchaseRequisitionItemsRelations = relations(erpPurchaseRequisitionItems, ({ one }) => ({
+  requisition: one(erpPurchaseRequisitions, { fields: [erpPurchaseRequisitionItems.requisitionId], references: [erpPurchaseRequisitions.id] }),
+}))
+
+export const erpRfqsRelations = relations(erpRfqs, ({ one, many }) => ({
+  requisition: one(erpPurchaseRequisitions, { fields: [erpRfqs.requisitionId], references: [erpPurchaseRequisitions.id] }),
+  items: many(erpRfqItems),
+  suppliers: many(erpRfqSuppliers),
+}))
+
+export const erpRfqItemsRelations = relations(erpRfqItems, ({ one }) => ({
+  rfq: one(erpRfqs, { fields: [erpRfqItems.rfqId], references: [erpRfqs.id] }),
+}))
+
+export const erpRfqSuppliersRelations = relations(erpRfqSuppliers, ({ one }) => ({
+  rfq: one(erpRfqs, { fields: [erpRfqSuppliers.rfqId], references: [erpRfqs.id] }),
+  supplier: one(erpSuppliers, { fields: [erpRfqSuppliers.supplierId], references: [erpSuppliers.id] }),
+}))
+
+export const erpSupplierQuotationsRelations = relations(erpSupplierQuotations, ({ one, many }) => ({
+  rfq: one(erpRfqs, { fields: [erpSupplierQuotations.rfqId], references: [erpRfqs.id] }),
+  supplier: one(erpSuppliers, { fields: [erpSupplierQuotations.supplierId], references: [erpSuppliers.id] }),
+  items: many(erpSupplierQuotationItems),
+}))
+
+export const erpSupplierQuotationItemsRelations = relations(erpSupplierQuotationItems, ({ one }) => ({
+  quotation: one(erpSupplierQuotations, { fields: [erpSupplierQuotationItems.quotationId], references: [erpSupplierQuotations.id] }),
+}))

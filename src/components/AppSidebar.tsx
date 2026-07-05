@@ -112,6 +112,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Credit Notes", href: "/erp/credit-notes", icon: FileMinus },
         { label: "Inventory", href: "/erp/inventory", icon: Database },
         { label: "Bank Reconciliation", href: "/erp/bank-reconciliation", icon: ArrowRightLeft },
+        { label: "Procurement Workflow", href: "/erp/procurement", icon: ClipboardList },
       ],
     },
     {
