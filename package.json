@@ -20,6 +20,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.1.1",
     "@mdxeditor/editor": "^3.39.1",
+    "@node-saml/node-saml": "^5.1.0",
     "@paralleldrive/cuid2": "^2.2.2",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -107,6 +108,14 @@
     "js-yaml": "^4.2.0",
     "postcss": "^8.5.10",
     "prismjs": "^1.30.0",
-    "esbuild": "^0.25.12"
+    "esbuild": "^0.25.12",
+    "@opentelemetry/core": "2.9.0",
+    "@opentelemetry/resources": "2.9.0",
+    "@opentelemetry/sdk-trace-base": "2.9.0",
+    "@opentelemetry/sdk-metrics": "2.9.0",
+    "@opentelemetry/sdk-logs": "0.220.0",
+    "@opentelemetry/otlp-exporter-base": "0.220.0",
+    "@opentelemetry/otlp-transformer": "0.220.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.220.0"
   }
 }

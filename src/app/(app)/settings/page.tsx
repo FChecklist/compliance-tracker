@@ -17,6 +17,7 @@ import {
   Bot,
   Rocket,
   Cpu,
+  ShieldAlert,
 } from "lucide-react";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
@@ -25,6 +26,7 @@ import PersonalAiConfigSection from "@/components/PersonalAiConfigSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
+import SsoSection from "@/components/SsoSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,7 @@ const SETTINGS_NAV = [
   { id: "pms", label: "Project Management", icon: Rocket },
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
+  { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
   { id: "about", label: "About", icon: Info },
 ];
 
@@ -486,6 +489,20 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <WebhookSection />
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "sso" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <ShieldAlert className="size-4" />
+                  SSO (SAML)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SsoSection />
               </CardContent>
             </Card>
           )}

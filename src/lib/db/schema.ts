@@ -4239,3 +4239,30 @@ export const erpItemSerialsRelations = relations(erpItemSerials, ({ one }) => ({
   item: one(erpItems, { fields: [erpItemSerials.itemId], references: [erpItems.id] }),
   warehouse: one(erpWarehouses, { fields: [erpItemSerials.warehouseId], references: [erpWarehouses.id] }),
 }))
+
+// ─── Wave 59: SAML SSO (M-17) ─────────────────────────────────────────────
+// The other half of Tier 3 #13. Service-Provider-side SAML 2.0 via
+// @node-saml/node-saml (MIT, signature/replay validation handled by the
+// library, not hand-rolled). One config per org for this pass -- multiple
+// IdPs per org is a real future extension, not needed for a first SSO
+// integration. Session establishment reuses the EXISTING Supabase magic-link
+// + /auth/callback code-exchange flow (Wave-independent, already in
+// production) rather than inventing a second session mechanism: the ACS
+// handler validates the assertion, then mints a Supabase admin magic link
+// for the matched user's email and redirects the browser through it.
+// SAML login only authenticates a user who already exists in this org --
+// it deliberately does NOT auto-provision new users from IdP assertions,
+// since that's a distinct, higher-risk decision an admin should opt into
+// separately, not something to default to silently.
+export const ssoConfigurations = complianceSchemaDB.table('sso_configurations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull().unique(),
+  idpEntryPoint: text('idp_entry_point').notNull(), // the IdP's SSO redirect URL
+  idpIssuer: text('idp_issuer').notNull(), // the IdP's entity ID
+  idpCert: text('idp_cert').notNull(), // the IdP's X.509 signing certificate (PEM) -- used to validate assertion signatures
+  spEntityId: text('sp_entity_id').notNull(), // our own SP entity ID, given to the IdP when configuring the integration
+  isEnabled: boolean('is_enabled').notNull().default(false),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

@@ -20,6 +20,20 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showSso, setShowSso] = useState(false);
+  const [ssoOrgSlug, setSsoOrgSlug] = useState("");
+
+  // Wave 59: SAML SSO entry point. Multi-tenant SSO needs to know which
+  // org's IdP to redirect to before any credentials exist -- asking for
+  // the org's slug here (matching this app's own existing use of `slug`
+  // as the public org identifier) is the simplest honest discovery step,
+  // rather than inferring it from an email domain this app doesn't map
+  // to an org today.
+  const handleSsoLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ssoOrgSlug.trim()) return;
+    window.location.href = `/api/auth/sso/${encodeURIComponent(ssoOrgSlug.trim())}/login`;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +182,33 @@ export function LoginForm() {
                   <span className="bg-white px-2 text-ct-muted">or</span>
                 </div>
               </div>
+
+              {/* SSO entry point */}
+              {showSso ? (
+                <form onSubmit={handleSsoLogin} className="space-y-2">
+                  <Label htmlFor="ssoOrgSlug" className="text-xs font-semibold text-ct-muted uppercase">
+                    Company ID
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="ssoOrgSlug"
+                      placeholder="your-company"
+                      value={ssoOrgSlug}
+                      onChange={(e) => setSsoOrgSlug(e.target.value)}
+                      className="h-10"
+                    />
+                    <Button type="submit" variant="outline" className="h-10 shrink-0">Continue</Button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full text-center text-sm text-ct-muted hover:text-ct-navy hover:underline"
+                  onClick={() => setShowSso(true)}
+                >
+                  Sign in with company SSO
+                </button>
+              )}
 
               {/* Signup CTA */}
               <p className="text-center text-sm text-ct-muted">

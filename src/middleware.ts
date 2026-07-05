@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
   // under src/app/(app)/ must be added here too.
   const PROTECTED_APP_ROUTE_PREFIXES = [
     "/approvals", "/audit", "/audit-engagements", "/automation", "/bcm", "/board", "/board-evaluation",
-    "/cap-table", "/capability-registry", "/charges", "/chat", "/checklists", "/clients", "/committees", "/crm", "/fde", "/hr",
+    "/cap-table", "/capability-registry", "/charges", "/chat", "/checklists", "/clients", "/committees", "/crm", "/erp", "/fde", "/hr",
     "/compliance", "/contract-compliance", "/dashboard", "/departments", "/directors",
     "/doa", "/esg", "/frameworks", "/help", "/home", "/hr-compliance", "/incidents",
     "/ingest", "/ip-portfolio", "/irdai", "/knowledge-base", "/leave-holiday", "/legal-opinions",
