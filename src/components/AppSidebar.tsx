@@ -120,6 +120,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Inventory", href: "/erp/inventory", icon: Database },
         { label: "Bank Reconciliation", href: "/erp/bank-reconciliation", icon: ArrowRightLeft },
         { label: "Procurement Workflow", href: "/erp/procurement", icon: ClipboardList },
+        { label: "Goods Receipt", href: "/erp/goods-receipt", icon: Database },
         { label: "Statutory Payroll", href: "/erp/payroll", icon: IndianRupee },
         { label: "Invoicing", href: "/erp/invoicing", icon: Receipt },
         { label: "Returns (RMA)", href: "/erp/returns", icon: Undo2 },

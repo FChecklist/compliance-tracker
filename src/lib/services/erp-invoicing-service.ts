@@ -346,7 +346,7 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
 // Purchase Invoices
 // ============================================================
 
-export type PurchaseInvoiceItemInput = { itemId?: string; description: string; quantity?: number; rate: number; taxTemplateId?: string }
+export type PurchaseInvoiceItemInput = { itemId?: string; description: string; quantity?: number; rate: number; taxTemplateId?: string; purchaseOrderItemId?: string }
 
 export async function listPurchaseInvoices(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -354,7 +354,12 @@ export async function listPurchaseInvoices(ctx: { orgId: string }) {
   })
 }
 
-export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: PurchaseInvoiceItemInput[] }) {
+// Wave 85: purchaseOrderId/each item's purchaseOrderItemId are nullable --
+// a purchase invoice can still be logged standalone, unchanged behavior for
+// every invoice created before this wave. Linking them is what lets
+// erp-goods-receipt-service.ts's getThreeWayMatchReport compare this
+// invoice's lines against the same PO's receipt lines.
+export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; purchaseOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: PurchaseInvoiceItemInput[] }) {
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -373,14 +378,14 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpPurchaseInvoices.invoiceNumber}), 0)` }).from(erpPurchaseInvoices).where(eq(erpPurchaseInvoices.orgId, ctx.orgId))
 
     const [invoice] = await db.insert(erpPurchaseInvoices).values({
-      orgId: ctx.orgId, supplierId: input.supplierId, invoiceNumber: Number(maxNumber) + 1,
+      orgId: ctx.orgId, supplierId: input.supplierId, purchaseOrderId: input.purchaseOrderId, invoiceNumber: Number(maxNumber) + 1,
       postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(), companyId,
       subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
       createdById: ctx.userId,
     }).returning()
 
     await db.insert(erpPurchaseInvoiceItems).values(
-      resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId, hsnSacCode: i.hsnSacCode }))
+      resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId, hsnSacCode: i.hsnSacCode, purchaseOrderItemId: i.purchaseOrderItemId }))
     )
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.created", entityType: "erp_purchase_invoice", entityId: invoice.id })

@@ -3410,6 +3410,10 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   outstandingAmount: numeric('outstanding_amount').notNull().default('0'),
   status: erpInvoiceStatusEnum('status').notNull().default('draft'),
   journalEntryId: text('journal_entry_id'),
+  // Wave 85 (COMPARISON_CSV_GAP_ANALYSIS.md backlog #6): pre-existed since
+  // an earlier wave but had zero writer (createPurchaseInvoice never set
+  // it) until now -- when set, enables the three-way-match report against
+  // the same PO's own items and receipts.
   purchaseOrderId: text('purchase_order_id'),
   companyId: text('company_id'), // see erpSalesInvoices' identical Wave 67 comment
   // Wave 68: computed and snapshotted at submit time (never re-derived
@@ -3432,6 +3436,7 @@ export const erpPurchaseInvoiceItems = complianceSchemaDB.table('erp_purchase_in
   amount: numeric('amount').notNull().default('0'),
   taxTemplateId: text('tax_template_id'),
   hsnSacCode: text('hsn_sac_code'), // Wave 65 -- see erp_sales_invoice_items' identical field for the snapshotting rationale
+  purchaseOrderItemId: text('purchase_order_item_id'), // Wave 85 -- nullable, see erp_purchase_invoices.purchaseOrderId
 })
 
 // --- Assets ---
@@ -3631,6 +3636,13 @@ export const erpPurchaseReceipts = complianceSchemaDB.table('erp_purchase_receip
   receiptNumber: integer('receipt_number').notNull(),
   postingDate: date('posting_date', { mode: 'string' }).notNull(),
   status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'cancelled'
+  // Wave 85 (COMPARISON_CSV_GAP_ANALYSIS.md backlog #6): putaway is a
+  // separate confirmation step after physical receipt -- goods land at a
+  // receiving dock (the warehouse set on each item at receipt time), then
+  // get moved to their final bin. Bins are leaf nodes in the existing
+  // erp_warehouses tree (parentWarehouseId), matching ERPNext's own
+  // warehouse-as-location convention -- no separate Bin table.
+  putawayStatus: text('putaway_status').notNull().default('pending'), // 'pending'|'completed'
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -3642,6 +3654,44 @@ export const erpPurchaseReceiptItems = complianceSchemaDB.table('erp_purchase_re
   itemId: text('item_id'),
   quantity: numeric('quantity').notNull().default('1'),
   warehouseId: text('warehouse_id'),
+  // Wave 85: nullable -- falls back to the linked PO item's rate when
+  // submitted (see submitPurchaseReceipt), only needed here for a receipt
+  // line with no PO reference at all.
+  rate: numeric('rate'),
+})
+
+// ─── Wave 85 (COMPARISON_CSV_GAP_ANALYSIS.md backlog #6): landed cost ──────
+// allocation. Additional charges (freight/customs/insurance/handling) on a
+// submitted purchase receipt are allocated across its line items by
+// received value (ERPNext's own default allocation method) and bumped into
+// each item's FIFO valuation layer rate -- future stock issues draw the
+// true landed cost. Does NOT retroactively rewrite erp_stock_ledger_entries'
+// running balanceValue history (a full revaluation cascade, out of scope
+// for this pass) -- an explicit, disclosed boundary, not a silent gap.
+export const erpLandedCostVouchers = complianceSchemaDB.table('erp_landed_cost_vouchers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  purchaseReceiptId: text('purchase_receipt_id').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpLandedCostCharges = complianceSchemaDB.table('erp_landed_cost_charges', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  voucherId: text('voucher_id').notNull(),
+  expenseType: text('expense_type').notNull(), // 'freight'|'customs'|'insurance'|'handling'|'other'
+  amount: numeric('amount').notNull(),
+  description: text('description'),
+})
+
+export const erpLandedCostAllocations = complianceSchemaDB.table('erp_landed_cost_allocations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  voucherId: text('voucher_id').notNull(),
+  receiptItemId: text('receipt_item_id').notNull(),
+  allocatedAmount: numeric('allocated_amount').notNull(),
 })
 
 // --- Selling ---
@@ -3914,6 +3964,34 @@ export const erpPurchaseOrdersRelations = relations(erpPurchaseOrders, ({ one, m
 
 export const erpPurchaseOrderItemsRelations = relations(erpPurchaseOrderItems, ({ one }) => ({
   purchaseOrder: one(erpPurchaseOrders, { fields: [erpPurchaseOrderItems.purchaseOrderId], references: [erpPurchaseOrders.id] }),
+}))
+
+// Wave 85: erp_purchase_receipts has existed since Wave 49 with no relations
+// block at all (no prior service ever used Drizzle's relational `with:` on it).
+export const erpPurchaseReceiptsRelations = relations(erpPurchaseReceipts, ({ one, many }) => ({
+  supplier: one(erpSuppliers, { fields: [erpPurchaseReceipts.supplierId], references: [erpSuppliers.id] }),
+  purchaseOrder: one(erpPurchaseOrders, { fields: [erpPurchaseReceipts.purchaseOrderId], references: [erpPurchaseOrders.id] }),
+  items: many(erpPurchaseReceiptItems),
+}))
+
+export const erpPurchaseReceiptItemsRelations = relations(erpPurchaseReceiptItems, ({ one }) => ({
+  receipt: one(erpPurchaseReceipts, { fields: [erpPurchaseReceiptItems.receiptId], references: [erpPurchaseReceipts.id] }),
+  purchaseOrderItem: one(erpPurchaseOrderItems, { fields: [erpPurchaseReceiptItems.purchaseOrderItemId], references: [erpPurchaseOrderItems.id] }),
+}))
+
+export const erpLandedCostVouchersRelations = relations(erpLandedCostVouchers, ({ one, many }) => ({
+  purchaseReceipt: one(erpPurchaseReceipts, { fields: [erpLandedCostVouchers.purchaseReceiptId], references: [erpPurchaseReceipts.id] }),
+  charges: many(erpLandedCostCharges),
+  allocations: many(erpLandedCostAllocations),
+}))
+
+export const erpLandedCostChargesRelations = relations(erpLandedCostCharges, ({ one }) => ({
+  voucher: one(erpLandedCostVouchers, { fields: [erpLandedCostCharges.voucherId], references: [erpLandedCostVouchers.id] }),
+}))
+
+export const erpLandedCostAllocationsRelations = relations(erpLandedCostAllocations, ({ one }) => ({
+  voucher: one(erpLandedCostVouchers, { fields: [erpLandedCostAllocations.voucherId], references: [erpLandedCostVouchers.id] }),
+  receiptItem: one(erpPurchaseReceiptItems, { fields: [erpLandedCostAllocations.receiptItemId], references: [erpPurchaseReceiptItems.id] }),
 }))
 
 export const erpSalesOrdersRelations = relations(erpSalesOrders, ({ one, many }) => ({
