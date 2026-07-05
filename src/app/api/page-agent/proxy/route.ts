@@ -29,13 +29,31 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 // regardless of what the client sends or omits.
 //
 // Known-provider baseURLs mirror llm-client.ts's own callLLM() switch
-// (groq/openai only -- Anthropic/Google are NOT OpenAI-chat-completions-
+// (groq/openai/openrouter -- Anthropic/Google are NOT OpenAI-chat-completions-
 // shaped, so are explicitly out of scope for this proxy in v1; the
-// realistic BYOAI/local-model story is Groq/OpenAI/Ollama/any
+// realistic BYOAI/local-model story is Groq/OpenAI/OpenRouter/Ollama/any
 // OpenAI-compatible custom endpoint).
+//
+// Wave 101 (end-to-end testing pass): 'openrouter' was missing here entirely
+// -- confirmed via a live test that every one of resolvePageAgentModelConfig's
+// 4 fallback layers currently resolves to the platform's own openrouter
+// default (Wave 45's Layer 1 change), which means every real PageAgent
+// request was hitting `KNOWN_PROVIDER_URLS['openrouter'] ?? modelConfig.baseUrl`
+// -- both undefined/null -- and failing with a 503 on every single call.
+// PageAgent has been completely non-functional in production since Wave 45
+// changed the platform default away from Groq. Fixed by adding the same
+// openrouter.ai endpoint llm-client.ts's dispatchLLM already uses.
 const KNOWN_PROVIDER_URLS: Record<string, string> = {
   groq: "https://api.groq.com/openai/v1/chat/completions",
   openai: "https://api.openai.com/v1/chat/completions",
+  openrouter: "https://openrouter.ai/api/v1/chat/completions",
+}
+
+// Matches llm-client.ts's extraHeadersFor() -- OpenRouter-specific
+// attribution headers, harmless no-ops for other providers.
+function extraHeadersFor(targetUrl: string): Record<string, string> {
+  if (!targetUrl.includes("openrouter.ai")) return {}
+  return { "HTTP-Referer": "https://veridian-compliance-ai.vercel.app", "X-Title": "VERIDIAN AI OS" }
 }
 
 function isRestrictedPath(pathname: string): boolean {
@@ -130,6 +148,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         ...(modelConfig.apiKey ? { Authorization: `Bearer ${modelConfig.apiKey}` } : {}),
+        ...extraHeadersFor(targetUrl),
       },
       body: JSON.stringify({ ...body, messages: forwardedMessages, model: modelConfig.model, stream: false }),
     })
