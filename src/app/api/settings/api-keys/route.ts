@@ -25,6 +25,7 @@ export async function GET() {
         keyPrefix: k.keyPrefix,
         scopes: k.scopes,
         isActive: k.isActive,
+        rateLimitPerMinute: k.rateLimitPerMinute,
         lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
         createdAt: k.createdAt.toISOString(),
       })),

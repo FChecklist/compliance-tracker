@@ -24,8 +24,16 @@ type ApiKey = {
   keyPrefix: string;
   scopes: string;
   isActive: boolean;
+  rateLimitPerMinute: number | null;
   lastUsedAt: string | null;
   createdAt: string;
+};
+
+type ApiUsage = {
+  totalRequests: number;
+  rateLimitedRequests: number;
+  rateLimitedRate: number;
+  topRoutes: { route: string; method: string; count: number }[];
 };
 
 interface ApiKeySectionProps {
@@ -41,6 +49,15 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
   const [newKeyScopes, setNewKeyScopes] = useState<string[]>(["read"]);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [usage, setUsage] = useState<ApiUsage | null>(null);
+  const [rateLimitDrafts, setRateLimitDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/settings/api-keys/usage")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setUsage(data))
+      .catch(() => setUsage(null));
+  }, []);
 
   const fetchKeys = useCallback(() => {
     setLoading(true);
@@ -106,6 +123,27 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
       fetchKeys();
     } catch {
       toast.error("Failed to update key");
+    }
+  };
+
+  const handleSetRateLimit = async (id: string) => {
+    const raw = rateLimitDrafts[id];
+    const rateLimitPerMinute = raw === undefined || raw.trim() === "" ? null : Number(raw);
+    if (rateLimitPerMinute !== null && (!Number.isInteger(rateLimitPerMinute) || rateLimitPerMinute <= 0)) {
+      toast.error("Rate limit must be a positive whole number, or blank for unlimited");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/settings/api-keys/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rateLimitPerMinute }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(rateLimitPerMinute === null ? "Rate limit removed" : `Rate limit set to ${rateLimitPerMinute}/min`);
+      fetchKeys();
+    } catch {
+      toast.error("Failed to update rate limit");
     }
   };
 
@@ -291,6 +329,20 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
                     </span>
                   )}
                 </div>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Unlimited"
+                    className="h-6 w-24 text-[11px]"
+                    value={rateLimitDrafts[k.id] ?? (k.rateLimitPerMinute ?? "")}
+                    onChange={(e) => setRateLimitDrafts((prev) => ({ ...prev, [k.id]: e.target.value }))}
+                  />
+                  <span className="text-[10px] text-ct-muted">req/min</span>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" onClick={() => handleSetRateLimit(k.id)}>
+                    Save
+                  </Button>
+                </div>
               </div>
               <Switch
                 checked={k.isActive}
@@ -307,6 +359,26 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
               </Button>
             </div>
           ))}
+        </div>
+      )}
+
+      {usage && usage.totalRequests > 0 && (
+        <div className="space-y-2 pt-2 border-t border-ct-border">
+          <h4 className="text-xs font-semibold text-ct-muted uppercase">Usage (last 30 days)</h4>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="p-2 rounded-lg bg-ct-cloud">
+              <p className="text-ct-muted">Requests</p>
+              <p className="font-semibold text-ct-navy">{usage.totalRequests.toLocaleString()}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-ct-cloud">
+              <p className="text-ct-muted">Rate-limited</p>
+              <p className="font-semibold text-ct-navy">{(usage.rateLimitedRate * 100).toFixed(1)}%</p>
+            </div>
+            <div className="p-2 rounded-lg bg-ct-cloud">
+              <p className="text-ct-muted">Top endpoint</p>
+              <p className="font-semibold text-ct-navy truncate">{usage.topRoutes[0]?.route ?? "—"}</p>
+            </div>
+          </div>
         </div>
       )}
     </div>

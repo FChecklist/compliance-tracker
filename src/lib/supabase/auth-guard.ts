@@ -178,13 +178,25 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
     return { orgId: sessionCtx.orgId, dbUser: sessionCtx.dbUser, apiKey: null, response: null }
   }
 
-  const apiKeyCtx = await validateApiKey(request)
-  if (apiKeyCtx) {
+  const apiKeyResult = await validateApiKey(request)
+  if (apiKeyResult.status === "ok") {
+    const { context } = apiKeyResult
     return {
-      orgId: apiKeyCtx.orgId,
+      orgId: context.orgId,
       dbUser: null,
-      apiKey: { id: apiKeyCtx.keyId, name: apiKeyCtx.keyName, scopes: apiKeyCtx.scopes },
+      apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
       response: null,
+    }
+  }
+  if (apiKeyResult.status === "rate_limited") {
+    return {
+      orgId: null,
+      dbUser: null,
+      apiKey: null,
+      response: NextResponse.json(
+        { error: "Rate limit exceeded for this API key" },
+        { status: 429, headers: { "Retry-After": String(apiKeyResult.retryAfterSeconds) } }
+      ),
     }
   }
 

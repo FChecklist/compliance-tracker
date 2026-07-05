@@ -39,6 +39,12 @@ export async function PATCH(
       if (body.isActive !== undefined) {
         updates.isActive = Boolean(body.isActive);
       }
+      if (body.rateLimitPerMinute !== undefined) {
+        if (body.rateLimitPerMinute !== null && (!Number.isInteger(body.rateLimitPerMinute) || body.rateLimitPerMinute <= 0)) {
+          return { error: "rateLimitPerMinute must be a positive integer or null", status: 400 as const };
+        }
+        updates.rateLimitPerMinute = body.rateLimitPerMinute;
+      }
 
       const [updated] = await db
         .update(apiKeys)
@@ -59,6 +65,7 @@ export async function PATCH(
       keyPrefix: updated.keyPrefix,
       scopes: updated.scopes,
       isActive: updated.isActive,
+      rateLimitPerMinute: updated.rateLimitPerMinute,
       lastUsedAt: updated.lastUsedAt?.toISOString() ?? null,
       createdAt: updated.createdAt.toISOString(),
     });

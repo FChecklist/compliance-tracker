@@ -432,8 +432,33 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   // exact current behavior, zero migration risk). If set, /api/mcp's
   // handleTool() rejects any tool call outside this domain before dispatch.
   domainScope: text('domain_scope'),
+  // Wave 96 (Comparison CSV 3 gap analysis: API002/API009 "Rate Limiting +
+  // Usage Analytics"): null = unlimited (every pre-existing key's exact
+  // current behavior, zero migration risk, same "null = unconstrained"
+  // convention as domainScope above). When set, validateApiKey() rejects a
+  // request with 429 once api_key_request_log shows this many requests for
+  // the key in the trailing 60 seconds.
+  rateLimitPerMinute: integer('rate_limit_per_minute'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Wave 96: real per-request log backing both rate-limit enforcement (count
+// of rows in the trailing 60s) and the usage-analytics dashboard (requests
+// over time, top endpoints, rate-limited fraction). Deliberately does NOT
+// capture the eventual response status code -- that's decided deep inside
+// each route handler, and threading it back through every /api/v1 and
+// /api/mcp call site would be a scope expansion this wave doesn't need;
+// wasRateLimited is known at log time (validateApiKey itself makes that
+// call) and is the one status signal the usage dashboard actually needs.
+export const apiKeyRequestLog = complianceSchemaDB.table('api_key_request_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  apiKeyId: text('api_key_id').notNull(),
+  orgId: text('org_id').notNull(),
+  route: text('route').notNull(),
+  method: text('method').notNull(),
+  wasRateLimited: boolean('was_rate_limited').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // ─── Webhooks (M-16: Outbound) ──────────────────────────────────────────
@@ -1213,8 +1238,13 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   apiKey: one(apiKeys, { fields: [auditLogs.apiKeyId], references: [apiKeys.id] }),
 }))
 
-export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
   org: one(organisations, { fields: [apiKeys.orgId], references: [organisations.id] }),
+  requestLog: many(apiKeyRequestLog),
+}))
+
+export const apiKeyRequestLogRelations = relations(apiKeyRequestLog, ({ one }) => ({
+  apiKey: one(apiKeys, { fields: [apiKeyRequestLog.apiKeyId], references: [apiKeys.id] }),
 }))
 
 export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
