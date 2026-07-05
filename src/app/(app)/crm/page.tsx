@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // sales CRM.
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Target, ArrowRightCircle } from "lucide-react";
+import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,14 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Lead = { id: string; name: string; contactEmail: string | null; source: string | null; status: string; convertedClientId: string | null };
-type Opportunity = { id: string; name: string; leadId: string | null; clientId: string | null; stage: string; estimatedValue: string | null; expectedCloseDate: string | null };
+type Lead = {
+  id: string; name: string; contactEmail: string | null; source: string | null; status: string; convertedClientId: string | null;
+  aiScore: number | null; aiRecommendedAction: string | null;
+};
+type Opportunity = {
+  id: string; name: string; leadId: string | null; clientId: string | null; stage: string; estimatedValue: string | null; expectedCloseDate: string | null;
+  aiWinProbability: number | null; aiRiskFactors: string[]; aiRecommendedAction: string | null;
+};
 
 const LEAD_STATUS_COLORS: Record<string, string> = {
   new: "bg-ct-cloud text-ct-muted",
@@ -58,6 +64,7 @@ export default function CrmPage() {
   const [oppLeadId, setOppLeadId] = useState("");
   const [oppValue, setOppValue] = useState("");
   const [creatingOpp, setCreatingOpp] = useState(false);
+  const [scoringId, setScoringId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [leadRes, oppRes] = await Promise.all([fetch("/api/crm/leads"), fetch("/api/crm/opportunities")]);
@@ -138,6 +145,34 @@ export default function CrmPage() {
     }
   };
 
+  const scoreLead = async (leadId: string) => {
+    setScoringId(leadId);
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}/score`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Lead scored");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to score lead");
+    } finally {
+      setScoringId(null);
+    }
+  };
+
+  const analyzeOpportunity = async (opportunityId: string) => {
+    setScoringId(opportunityId);
+    try {
+      const res = await fetch(`/api/crm/opportunities/${opportunityId}/analyze`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Opportunity analyzed");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to analyze opportunity");
+    } finally {
+      setScoringId(null);
+    }
+  };
+
   const updateOpportunityStage = async (opportunityId: string, stage: string) => {
     try {
       const res = await fetch(`/api/crm/opportunities/${opportunityId}`, {
@@ -204,27 +239,40 @@ export default function CrmPage() {
           ) : (
             <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
               {leads.map((lead) => (
-                <div key={lead.id} className="px-4 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-ct-navy">{lead.name}</p>
-                    <p className="text-xs text-ct-muted">{lead.contactEmail || "No contact"} {lead.source ? `· ${lead.source}` : ""}</p>
+                <div key={lead.id} className="px-4 py-3 space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ct-navy">{lead.name}</p>
+                      <p className="text-xs text-ct-muted">{lead.contactEmail || "No contact"} {lead.source ? `· ${lead.source}` : ""}</p>
+                    </div>
+                    {lead.aiScore != null && (
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Sparkles className="size-3 text-ct-saffron" /> {lead.aiScore}
+                      </Badge>
+                    )}
+                    <Badge className={`text-xs border-0 ${LEAD_STATUS_COLORS[lead.status] ?? "bg-ct-cloud text-ct-muted"}`}>{lead.status}</Badge>
+                    {!lead.convertedClientId && lead.status !== "lost" && lead.status !== "converted" && (
+                      <>
+                        <Select value={lead.status} onValueChange={(v) => updateLeadStatus(lead.id, v)}>
+                          <SelectTrigger className="w-[110px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="new">New</SelectItem>
+                            <SelectItem value="contacted">Contacted</SelectItem>
+                            <SelectItem value="qualified">Qualified</SelectItem>
+                            <SelectItem value="lost">Lost</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" variant="outline" onClick={() => convertLead(lead.id)}>
+                          <ArrowRightCircle className="size-3.5 mr-1" /> Convert
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => scoreLead(lead.id)} disabled={scoringId === lead.id}>
+                      {scoringId === lead.id ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                    </Button>
                   </div>
-                  <Badge className={`text-xs border-0 ${LEAD_STATUS_COLORS[lead.status] ?? "bg-ct-cloud text-ct-muted"}`}>{lead.status}</Badge>
-                  {!lead.convertedClientId && lead.status !== "lost" && lead.status !== "converted" && (
-                    <>
-                      <Select value={lead.status} onValueChange={(v) => updateLeadStatus(lead.id, v)}>
-                        <SelectTrigger className="w-[110px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="new">New</SelectItem>
-                          <SelectItem value="contacted">Contacted</SelectItem>
-                          <SelectItem value="qualified">Qualified</SelectItem>
-                          <SelectItem value="lost">Lost</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button size="sm" variant="outline" onClick={() => convertLead(lead.id)}>
-                        <ArrowRightCircle className="size-3.5 mr-1" /> Convert
-                      </Button>
-                    </>
+                  {lead.aiRecommendedAction && (
+                    <p className="text-xs text-ct-muted pl-0">AI suggests: {lead.aiRecommendedAction}</p>
                   )}
                 </div>
               ))}
@@ -274,25 +322,41 @@ export default function CrmPage() {
           ) : (
             <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
               {opportunities.map((opp) => (
-                <div key={opp.id} className="px-4 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-ct-navy">{opp.name}</p>
-                    <p className="text-xs text-ct-muted">
-                      {opp.estimatedValue ? `₹${Number(opp.estimatedValue).toLocaleString()}` : "No value set"}
-                      {opp.expectedCloseDate ? ` · closes ${new Date(opp.expectedCloseDate).toLocaleDateString()}` : ""}
-                    </p>
+                <div key={opp.id} className="px-4 py-3 space-y-1.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ct-navy">{opp.name}</p>
+                      <p className="text-xs text-ct-muted">
+                        {opp.estimatedValue ? `₹${Number(opp.estimatedValue).toLocaleString()}` : "No value set"}
+                        {opp.expectedCloseDate ? ` · closes ${new Date(opp.expectedCloseDate).toLocaleDateString()}` : ""}
+                      </p>
+                    </div>
+                    {opp.aiWinProbability != null && (
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Sparkles className="size-3 text-ct-saffron" /> {opp.aiWinProbability}% win
+                      </Badge>
+                    )}
+                    <Badge className={`text-xs border-0 ${OPP_STAGE_COLORS[opp.stage] ?? "bg-ct-cloud text-ct-muted"}`}>{opp.stage}</Badge>
+                    <Select value={opp.stage} onValueChange={(v) => updateOpportunityStage(opp.id, v)}>
+                      <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prospecting">Prospecting</SelectItem>
+                        <SelectItem value="proposal">Proposal</SelectItem>
+                        <SelectItem value="negotiation">Negotiation</SelectItem>
+                        <SelectItem value="won">Won</SelectItem>
+                        <SelectItem value="lost">Lost</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="ghost" onClick={() => analyzeOpportunity(opp.id)} disabled={scoringId === opp.id}>
+                      {scoringId === opp.id ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                    </Button>
                   </div>
-                  <Badge className={`text-xs border-0 ${OPP_STAGE_COLORS[opp.stage] ?? "bg-ct-cloud text-ct-muted"}`}>{opp.stage}</Badge>
-                  <Select value={opp.stage} onValueChange={(v) => updateOpportunityStage(opp.id, v)}>
-                    <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prospecting">Prospecting</SelectItem>
-                      <SelectItem value="proposal">Proposal</SelectItem>
-                      <SelectItem value="negotiation">Negotiation</SelectItem>
-                      <SelectItem value="won">Won</SelectItem>
-                      <SelectItem value="lost">Lost</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {(opp.aiRecommendedAction || opp.aiRiskFactors?.length > 0) && (
+                    <p className="text-xs text-ct-muted">
+                      {opp.aiRiskFactors?.length > 0 && <>Risks: {opp.aiRiskFactors.join(", ")}. </>}
+                      {opp.aiRecommendedAction && <>AI suggests: {opp.aiRecommendedAction}</>}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

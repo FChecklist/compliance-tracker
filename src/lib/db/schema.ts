@@ -2781,6 +2781,14 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
   ownerId: text('owner_id'),
   convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
+  // Wave 75 (CRM Intelligence, AI_OS_CERTIFICATION.md §3.3 NOT_BUILT):
+  // additive AI enrichment over this lead's own structured fields (source/
+  // status/contact completeness/age) -- all nullable, a lead never scored
+  // just shows nothing, same pattern as Wave 74's meeting AI columns.
+  aiScore: integer('ai_score'), // 0-100
+  aiScoreReasoning: text('ai_score_reasoning'),
+  aiRecommendedAction: text('ai_recommended_action'),
+  aiScoredAt: timestamp('ai_scored_at'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2796,6 +2804,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   estimatedValue: numeric('estimated_value'),
   expectedCloseDate: date('expected_close_date'),
   ownerId: text('owner_id'),
+  // Wave 75 (CRM Intelligence): same pattern as crmLeads above.
+  aiWinProbability: integer('ai_win_probability'), // 0-100
+  aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]), // string[]
+  aiRecommendedAction: text('ai_recommended_action'),
+  aiAnalyzedAt: timestamp('ai_analyzed_at'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
