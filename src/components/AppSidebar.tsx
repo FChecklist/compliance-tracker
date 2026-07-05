@@ -50,6 +50,7 @@ import {
   FileMinus,
   ArrowRightLeft,
   IndianRupee,
+  Receipt,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +116,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Bank Reconciliation", href: "/erp/bank-reconciliation", icon: ArrowRightLeft },
         { label: "Procurement Workflow", href: "/erp/procurement", icon: ClipboardList },
         { label: "Statutory Payroll", href: "/erp/payroll", icon: IndianRupee },
+        { label: "Invoicing", href: "/erp/invoicing", icon: Receipt },
       ],
     },
     {

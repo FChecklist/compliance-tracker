@@ -41,6 +41,11 @@ const WEBHOOK_EVENTS = [
   { id: "erp_cash_voucher.posted", label: "ERP: Cash Voucher Posted" },
   { id: "erp_payslip.finalized", label: "ERP: Payslip Finalized" },
   { id: "erp_purchase_requisition.approved", label: "ERP: Purchase Requisition Approved" },
+  // Wave 60: kept in this same list AND in /api/settings/webhooks/route.ts's
+  // VALID_EVENTS at the same time this time, after Wave 58 shipped the two
+  // out of sync.
+  { id: "erp_sales_invoice.submitted", label: "ERP: Sales Invoice Submitted" },
+  { id: "erp_purchase_invoice.submitted", label: "ERP: Purchase Invoice Submitted" },
 ] as const;
 
 type WebhookEvent = (typeof WEBHOOK_EVENTS)[number]["id"];

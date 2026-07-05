@@ -4266,3 +4266,31 @@ export const ssoConfigurations = complianceSchemaDB.table('sso_configurations', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── Wave 60: Sales/Purchase Invoicing + Pricing Rules ───────────────────
+// Tier 3 #11 remainder (pricing rules -- credit notes were closed in Wave
+// 52) and the real Buying/Selling document flow itself: erp_sales_invoices/
+// erp_purchase_invoices have existed since Wave 49 with zero service-layer
+// consumer until now -- a bigger, more fundamental gap than pricing rules
+// alone. Pricing rules are deliberately narrow (all/customer/item, not
+// customer_group/item_group -- those aren't wired to anything meaningful
+// yet) rather than reaching for json-rules-engine for three comparisons.
+export const erpPricingAppliesToEnum = complianceSchemaDB.enum('erp_pricing_applies_to', ['all', 'customer', 'item'])
+export const erpPricingDiscountTypeEnum = complianceSchemaDB.enum('erp_pricing_discount_type', ['percentage', 'flat'])
+
+export const erpPricingRules = complianceSchemaDB.table('erp_pricing_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  appliesTo: erpPricingAppliesToEnum('applies_to').notNull().default('all'),
+  targetId: text('target_id'), // erpCustomers.id or erpItems.id depending on appliesTo; null when appliesTo='all'
+  discountType: erpPricingDiscountTypeEnum('discount_type').notNull().default('percentage'),
+  discountValue: numeric('discount_value').notNull(),
+  minQty: numeric('min_qty').notNull().default('0'),
+  validFrom: date('valid_from', { mode: 'string' }).notNull(),
+  validTo: date('valid_to', { mode: 'string' }),
+  priority: integer('priority').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

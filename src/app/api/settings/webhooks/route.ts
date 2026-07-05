@@ -15,6 +15,8 @@ const VALID_EVENTS = [
   "erp_cash_voucher.posted",
   "erp_payslip.finalized",
   "erp_purchase_requisition.approved",
+  "erp_sales_invoice.submitted",
+  "erp_purchase_invoice.submitted",
 ];
 
 function generateSecret(): string {
