@@ -1,0 +1,87 @@
+# Comparison CSV 3 — Gap Analysis (AI Platform / Digital Twin / MDM / API Platform / Observability / Identity & Security / GRC / Developer Platform / Analytics)
+
+## Method
+
+Source: `comparison_csv_3_ai_platform_benchmark.csv` (135 features, 9 modules, 15 each). Benchmarked against hyperscale platforms — Microsoft Copilot Studio, Google Vertex AI Agent Builder, Salesforce Agentforce, ServiceNow AI Platform, Siemens Digital Twin, PTC ThingWorx, Azure Digital Twins, Informatica MDM, Reltio, Kong, Apigee, MuleSoft, Datadog, Dynatrace, New Relic, Microsoft Entra ID, Okta, Ping Identity, MetricStream, RSA Archer, SAP GRC, GitHub Enterprise, GitLab, Azure DevOps, Power BI, Tableau, Qlik Sense, Looker.
+
+**This CSV is fundamentally different in kind from Comparison CSVs 1 and 2.** Those benchmarked GRC/ERP *features* — each gap was buildable as a table + service + API route + UI page inside the existing Next.js monolith. This CSV largely describes **entire separate infrastructure platforms**: a Kubernetes control plane, a Git hosting service, an API gateway/reverse-proxy, a Datadog-style observability stack watching servers/containers/Kubernetes, a Siemens-style IoT digital-twin simulation engine, and a full enterprise SSO/Zero-Trust/PAM system. VERIDIAN is a Next.js/Drizzle/Supabase/Vercel serverless application — it has no Kubernetes cluster, no fleet of servers, no IoT sensors, no external developer ecosystem consuming its APIs, and no legitimate reason to rebuild what Supabase Auth and GitHub Actions + Vercel already provide for it. Building "digital twins" or "a Kubernetes platform" here would mean hollow, unbacked infrastructure — exactly the kind of placeholder feature this session's entire discipline has refused to build.
+
+A second strong signal: every one of the 9 modules' final feature (`*015` — "AI Operating System", "Enterprise Digital Twin Copilot", "AI Master Data Copilot", "AI Integration Platform", "AI Operations Copilot", "AI Identity & Zero Trust Copilot", "AI GRC Copilot", "AI Software Engineering Copilot", "AI Decision Intelligence Copilot") is rated `Pilot` stage even for the *reference* systems (Microsoft/Google/Salesforce/ServiceNow/Siemens/etc.), at `Extreme` complexity. The benchmark's own authors are describing moonshot visions, not shipped capabilities to catch up to.
+
+Research method: dispatched a dedicated Explore pass across `schema.ts`, every relevant service file, API routes, and UI pages to establish ground truth per module (not guessed from memory) before writing this analysis.
+
+## Module-by-module analysis
+
+### AI Platform (15 features) — PRESENT/PARTIAL, substantial
+
+This module maps almost entirely onto capabilities already built across this session's ~90 prior waves — VERIDIAN's own AI-OS architecture. `AI001` Agent Registry → `workerAgents`/`workerAgentVersions` + lifecycle state machine (draft→proposed→approved→published→retired) + `/capability-registry` UI (Wave 16, 43) — PRESENT. `AI002` Agent Builder → `proposeWorkerAgent()` with tiered governance — PARTIAL (programmatic, not a visual no-code builder — reasonable given no legitimate non-technical agent-authoring audience). `AI003` Prompt Management → `promptTemplates`/`promptVersions` with production/staging labels (Wave 22) — PRESENT, though no evaluation-dataset column. `AI004` Memory → `assistantMemories` with pgvector + temporal versioning (Wave 22/77) — PRESENT (vector+relational; no graph memory, reasonable gap). `AI005` RAG → `embeddings` table + cosine-similarity retrieval across compliance items/notices/documents/KB (Wave 43/73) — PRESENT. `AI006` Multi-Agent Collaboration → `task-execution-engine.ts` plans against the worker-agent roster with memory injection (Wave 77/78) — PARTIAL (batch-planned, not live reactive chaining — deferred, real-time agent-to-agent handoff is a large lift with thin payoff at current scale). `AI007` Tool Calling → `isToolAllowedForDomain()` pre-call gate + hardcoded 3-tool dispatch — PARTIAL. `AI008` AI Governance → `policy-enforcement-engine.ts` + `VERIDIAN_AI_CONSTITUTION.md` (personal-use/prompt-injection/domain-validity gates, Wave 46) — PRESENT. `AI009` Model Router → 4-layer resolution (platform/org/client/personal) + OpenRouter (Wave 24-26/45) — PRESENT. `AI010` Observability → `orchestraExecutions` captures model/tokens/cost/duration/status per call (Wave 23) — PARTIAL (data exists, **no dashboard UI** — a real, bounded, cheap-to-close gap). `AI011` Evaluation Framework → only ad-hoc unit tests (Wave 79), **no automated prompt/model benchmarking harness** — genuine gap. `AI012` Continuous Learning → memory read-back (Wave 77) is a narrow instance; full reinforcement-learning loop — out of scope (no training infrastructure, no legitimate ROI at current data volume). `AI013` AI Security → RLS + policy engine cover the realistic subset — PRESENT. `AI014` Audit → `orchestraExecutions` + `logActivity()` — PRESENT. `AI015` AI Operating System → this is literally the sum of everything else in the CSV; not a single buildable feature, and rated Pilot/Extreme even for the benchmark's reference systems — OUT OF SCOPE as a standalone feature.
+
+**Genuine bounded gaps to close**: AI010 (Orchestra Analytics Dashboard over existing data), AI011 (real automated prompt/model evaluation harness).
+
+### Digital Twin (15 features) — OUT OF SCOPE (entire module)
+
+Every feature in this module (asset twins from IoT sensor data, factory/manufacturing twins, supply-chain network twins, 3D visualization, physics-based simulation) requires real IoT telemetry, manufacturing floor equipment, or a simulation/3D engine — none of which VERIDIAN has, produces, or has any near-term reason to acquire. VERIDIAN is a compliance/GRC/ERP SaaS, not a manufacturer or IoT operator. Building "digital twins" here would be exactly the hollow-placeholder anti-pattern this session has refused throughout: a UI showing simulated numbers with no real sensor/asset data behind them. Explicitly out of scope, no exceptions.
+
+### Master Data Management (15 features) — PARTIAL
+
+Customer/Supplier/Product/Employee master tables (`erpCustomers`, `erpSuppliers`, `erpItems`, `employeeProfiles`) all exist and are actively used (Wave 49+, 62, 80, 84) — `MDM002/003/004/005` PRESENT. Reference Data (`MDM006` — currencies, tax codes, UOM, GL codes) exists via Wave 65/66's HSN/tax-template/multi-currency work — PRESENT. Genuine gap: `MDM007` Data Quality Engine and `MDM008` Golden Record — **zero duplicate-detection or data-quality scoring exists anywhere** across these masters; each is plain CRUD with no cross-record consolidation logic. `MDM009` Governance/Stewardship, `MDM010` Metadata Repository, `MDM011` Lineage, `MDM012` Privacy/Consent — these describe a dedicated enterprise metadata-catalog product; PARTIAL-to-deferred (RLS + `logActivity()` already give a real access/change trail, which covers the realistic compliance-relevant subset of MDM012). `MDM013` Synchronization — N/A, single database, no external system sync needed. `MDM014` Audit — PRESENT via existing audit infrastructure. `MDM015` AI Copilot — Pilot/Extreme, out of scope.
+
+**Genuine bounded gap to close**: MDM007/008 — a real Master Data Quality service: similarity-based duplicate detection (name/tax-ID/email fuzzy match) across Customers and Suppliers, a quality score, and a genuine merge workflow for confirmed duplicates.
+
+### API Platform (15 features) — PRESENT/PARTIAL
+
+`API001` Registry → OpenAPI spec generation (Wave 11) — PRESENT. `API004` Security → `apiKeys` with scopes + `requireAuthOrApiKey()` — PRESENT. `API005` Lifecycle → versioned `/api/v1` — PRESENT. `API014` Audit → PRESENT. Genuine gap: `API002` Gateway explicitly calls out "throttling caching rate limiting" — **VERIDIAN has zero rate limiting on API keys today**, a real reliability/security gap, not an infra-platform ask (this is a bounded, in-app feature: track requests per key per window, reject over a configured limit). `API003` Developer Portal, `API006` Integration Bus, `API007` Event Streaming, `API011` Marketplace, `API012` Hybrid Integration — these describe a public developer ecosystem and enterprise service bus VERIDIAN has no external customers or legacy-system-integration mandate for — OUT OF SCOPE. `API009` Monitoring — the API-key `lastUsedAt` field is a start; a small usage-analytics view over existing `orchestraExecutions`-style logging is a reasonable bounded extension bundled with the rate-limit wave.
+
+**Genuine bounded gap to close**: API002/API009 — rate limiting per API key + a usage dashboard.
+
+### Observability (15 features) — OUT OF SCOPE (entire module, as literally specified)
+
+This module describes monitoring **infrastructure**: servers, Kubernetes clusters, containers, cloud VMs, distributed traces across microservices. VERIDIAN runs as Vercel serverless functions with no persistent servers, no Kubernetes, no container fleet, no microservices topology to trace — there is nothing here to observe. Building a "Datadog competitor" with no infrastructure behind it would be a hollow dashboard. The one piece of this module that has real, legitimate substance for VERIDIAN — AI-operations telemetry (latency, cost, failures per LLM call) — already exists as `orchestraExecutions` and is properly scoped under **AI Platform's AI010**, not rebuilt again here. The rest of this module (APM, infrastructure monitoring, capacity planning, distributed tracing, AIOps) is explicitly out of scope.
+
+### Identity & Security (15 features) — PRESENT, with 2 genuine bounded gaps
+
+Supabase Auth + `@supabase/ssr` middleware, RLS via `app_runtime` + `withTenantContext()` (certified production-proven), 8-role RBAC via `requireRole()`, and SAML 2.0 SSO (Wave 59) already cover `IAM001/002/004/006/013/014` — PRESENT. Genuine gaps that are real, bounded, and legitimate to build (not infra rebuilding — Supabase already provides the underlying mechanism, VERIDIAN just needs to wire it): `IAM003` MFA — Supabase Auth supports TOTP MFA natively; VERIDIAN has never enabled or surfaced it. `IAM010` Access Review/IGA — no periodic access-certification workflow exists despite RBAC being in place. `IAM005` ABAC, `IAM007` PAM, `IAM008` Zero Trust, `IAM009` Federation, `IAM011` Secrets Vault — these describe rebuilding enterprise identity infrastructure that either has no legitimate use case at VERIDIAN's current scale (PAM — no privileged shared-credential fleet to vault) or is already correctly delegated to Supabase/Vercel's own secret management — OUT OF SCOPE.
+
+**Genuine bounded gaps to close**: IAM003 (MFA enrollment via Supabase's native TOTP) + IAM010 (periodic access review/certification).
+
+### GRC (15 features) — PRESENT, 10/13 core modules, 2 genuine gaps
+
+This is VERIDIAN's own core identity. Risk Register (`GRC001`), Risk Assessment (`GRC002`), Internal Controls (`GRC003`), Compliance Obligation Management (`GRC004`), Policy Management (`GRC005`), Internal Audit (`GRC006`), CAPA (`GRC007`, via audit findings), Vendor/Third-Party Risk (`GRC010`), ESG Governance (`GRC011`), Board Governance (`GRC013`), Audit Trail (`GRC014`) are all PRESENT with real tables/services/UI built across Waves 27-89. Genuine gaps: `GRC012` Fraud Management — **zero fraud-detection/case-tracking capability exists anywhere in the codebase**, confirmed by the research pass. `GRC009` Disaster Recovery — Wave 89's BCM (`bcmPlans`/BIA/recovery-procedures/exercises) models generic business-process recovery, not IT-system-specific recovery (RTO/RPO per system, backup verification, failover test log) — a real, distinct gap from BCM.
+
+**Genuine bounded gaps to close**: GRC012 (Fraud Case Management) + GRC009 (IT Disaster Recovery register, distinct from BCM).
+
+### Developer Platform (15 features) — OUT OF SCOPE (entire module)
+
+This module describes building a competitor to GitHub Enterprise/GitLab/Azure DevOps/Harness — Git hosting, Kubernetes cluster management, container registries, Infrastructure-as-Code, an internal developer self-service platform. VERIDIAN already uses GitHub (source control, Actions CI/CD) and Vercel (deployment, cron) for its own actual engineering — these are the *right* tools for a team this size, not gaps. Rebuilding "an internal developer platform" inside the compliance-tracker application itself, for an audience of zero external platform customers, would be pure infrastructure-tooling busywork with no product value. Explicitly out of scope, no exceptions.
+
+### Analytics Platform / BI (15 features) — PARTIAL
+
+Compliance dashboards, ERP reports, and the AI Orchestra observability page (`/home`, `/erp/reports`, `/orchestra`) already exist as bespoke, per-module reports — a reasonable, real reporting layer (`BI005/BI007` PARTIAL-to-PRESENT). Genuine gap: `BI005`/`BI010` — **no cross-module executive KPI scorecard exists** consolidating the real metrics VERIDIAN already computes (compliance completion rate, risk exposure, AR/AP aging, ticket SLA compliance, AI operations cost) into one view. `BI001` Data Warehouse, `BI002` Data Lake, `BI004` Semantic Layer, `BI011` Streaming Analytics, `BI012` Data Catalog — these describe standing up a separate analytical data platform (dbt/Cube.js/Kafka-style infrastructure) layered over the same operational Postgres database VERIDIAN already queries directly; there is no real analytical need at current scale to justify the operational overhead of a parallel warehouse — OUT OF SCOPE. `BI008` Forecasting/`BI009` Decision Intelligence — Pilot/Extreme-rated moonshots even for the benchmark's own reference vendors — deferred.
+
+**Genuine bounded gap to close**: BI005/BI010 — an Enterprise KPI Hub, a real cross-module executive scorecard over existing computed metrics (no fabricated numbers).
+
+## Decision (the "boss" call)
+
+Building on this session's established discipline (real, bounded, verified extensions — never hollow placeholder features), this pass builds:
+
+- **Wave 92 — GRC: Fraud Case Management + IT Disaster Recovery** (closes `GRC012` + `GRC009`): a fraud-case register (detection source, type, financial exposure, investigation status, resolution) and an IT-system-specific DR register (RTO/RPO per system, backup verification log, failover test history) distinct from Wave 89's generic BCM.
+- **Wave 93 — MDM: Master Data Quality Engine** (closes `MDM007`/`MDM008` core): real similarity-based duplicate detection across `erpCustomers`/`erpSuppliers` (name/tax-ID/email fuzzy matching), a quality score, and a genuine merge workflow for confirmed duplicates — no fabricated matching, real string-similarity computation.
+- **Wave 94 — AI Platform: Prompt/Model Evaluation Framework** (closes `AI011`): a real automated evaluation harness — test cases with expected outputs run against the current resolved model config, scored, and tracked over time per prompt template version.
+- **Wave 95 — AI Platform: Orchestra Analytics Dashboard** (closes `AI010`'s dashboard gap): a real dashboard over the existing `orchestraExecutions` data — cost by model/provider, latency percentiles, denial rate, failure rate — no new telemetry, just surfacing what's already captured.
+- **Wave 96 — API Platform: Rate Limiting + Usage Analytics** (closes part of `API002`/`API009`): per-API-key request throttling with a configurable window/limit, and a usage dashboard.
+- **Wave 97 — Identity & Security: MFA Enrollment + Access Review** (closes `IAM003` + `IAM010`): wire Supabase Auth's native TOTP MFA (enrollment + verification UI), and a periodic access-certification workflow over existing RBAC assignments.
+- **Wave 98 — Analytics: Enterprise KPI Hub** (closes `BI005`/`BI010`): a real cross-module executive scorecard computed live from existing compliance/risk/ERP/ticket/AI-ops data.
+
+Explicitly NOT built this pass (documented above with reasoning, not silently skipped): the entire Digital Twin module, the entire Developer Platform module, the entire Observability module (its one legitimate piece — AI telemetry — is Wave 95, correctly scoped under AI Platform instead), API Developer Portal/Marketplace/Event-Streaming/Hybrid-Integration, full enterprise IAM (ABAC/PAM/Zero-Trust/Federation/Secrets-Vault), full MDM metadata-catalog/lineage/governance-workflow tooling, and the standalone Data Warehouse/Data Lake/Semantic-Layer/Streaming-Analytics infrastructure under Analytics. Every `*015` "AI Copilot"/"AI Operating System" mega-feature across all 9 modules is deferred as a moonshot (Pilot/Extreme even for the benchmark's own reference vendors), not a gap to close.
+
+## Status
+
+- Wave 92: pending
+- Wave 93: pending
+- Wave 94: pending
+- Wave 95: pending
+- Wave 96: pending
+- Wave 97: pending
+- Wave 98: pending
+
+(Updated as each wave ships, same convention as `COMPARISON_CSV_GAP_ANALYSIS.md` and `COMPARISON_CSV_2_GAP_ANALYSIS.md`.)
