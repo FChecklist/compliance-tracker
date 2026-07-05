@@ -3860,3 +3860,29 @@ export const erpPurchaseCreditNotesRelations = relations(erpPurchaseCreditNotes,
 export const erpPurchaseCreditNoteItemsRelations = relations(erpPurchaseCreditNoteItems, ({ one }) => ({
   creditNote: one(erpPurchaseCreditNotes, { fields: [erpPurchaseCreditNoteItems.creditNoteId], references: [erpPurchaseCreditNotes.id] }),
 }))
+
+// ─── VERI ERP Wave 53: Inventory FIFO Valuation Engine ────────────────────
+// Per ERP_BENCHMARK_COMPARISON.md Tier 1 #4 -- the highest-severity
+// remaining gap: erpStockLedgerEntries.valuationRate (Wave 49) was a raw
+// stored number with no FIFO layer/queue logic behind it, so COGS and
+// inventory value on the balance sheet weren't trustworthy. Modeled on
+// ERPNext's own approach (a FIFO queue of [qty, rate] tuples consumed
+// oldest-first) but as a real per-receipt layer table rather than a JSON
+// blob column, matching this codebase's relational-table convention.
+export const erpStockValuationLayers = complianceSchemaDB.table('erp_stock_valuation_layers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull(),
+  warehouseId: text('warehouse_id').notNull(),
+  stockLedgerEntryId: text('stock_ledger_entry_id').notNull(), // the receipt that created this layer
+  receiptDate: date('receipt_date', { mode: 'string' }).notNull(),
+  originalQty: numeric('original_qty').notNull(),
+  remainingQty: numeric('remaining_qty').notNull(),
+  rate: numeric('rate').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpStockValuationLayersRelations = relations(erpStockValuationLayers, ({ one }) => ({
+  item: one(erpItems, { fields: [erpStockValuationLayers.itemId], references: [erpItems.id] }),
+  warehouse: one(erpWarehouses, { fields: [erpStockValuationLayers.warehouseId], references: [erpWarehouses.id] }),
+}))
