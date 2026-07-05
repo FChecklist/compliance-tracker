@@ -536,7 +536,7 @@ single fix closes at once.
 16. Lead scoring, sales commission tracking, CPQ, campaign management (M02/M03) — CA-firm/consultant tenants have low urgency here versus product-reselling tenants.
 17. Cross-project resource/capacity planning, client-facing project portal, first-class milestones (M10) — narrow gaps in an otherwise-strong module.
 18. Knowledge base, CSAT surveys, multi-channel ticket intake, automated routing rules (M11) — `frappe/helpdesk` (MIT) is the best single reference if a light adaptation is wanted.
-19. Vendor scorecarding, landed cost, barcode/QR generation (M04/M05) — `bwip-js` (MIT) covers barcode generation directly, no reinvention needed.
+19. **PARTIAL** — **Vendor scorecarding** ✅ **DONE (Wave 64, commit `b6c04a8`)** — `getSupplierScorecard()`, a pure read-time aggregation (on-time delivery rate, return rate, total spend) over existing PO/receipt/return data, zero new schema. New `/erp/suppliers` page, the first dedicated supplier list view. **Landed cost and barcode/QR generation remain NOT STARTED** (M04/M05) — `bwip-js` (MIT) covers barcode generation directly, no reinvention needed; landed cost needs its own allocation-methodology design.
 20. Rate limiting/API versioning policy, data import/export tooling, integration marketplace (M17) — sequence after webhooks/SSO land.
 
 ### What this ranking deliberately does NOT do
