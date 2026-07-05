@@ -102,9 +102,9 @@ Directly closes the gap named in the previous pass's remediation item #6 and in 
 
 ## Part 3 -- Product Intelligence & Integration
 
-### 3.1 OCR / Vision / Document AI -- 🟠 PARTIALLY_BUILT, never actually exercised
-`callLLMVision` correctly wires 3 vision-capable providers. **But the real upload flow (`/api/documents/extract`) uses Groq's text-only model, never calls the vision function at all.** `extractedData` sat unused for the module's entire history until Wave 35.
-**Fix priority**: HIGH if document extraction is a customer-facing promise -- currently the "OCR" feature doesn't use vision models in its actual live path.
+### 3.1 OCR / Vision / Document AI -- 🟢 PRODUCTION_PROVEN (re-verified during Wave 76, correcting a stale finding)
+Re-checked against current code rather than trusting this doc's own prior claim: `POST /api/documents` (the real, only upload route -- there is no separate `/api/documents/extract`) already calls `extractDocumentContent()` fire-and-forget for every upload where `isVisionExtractable(file.type)` is true, which itself calls the real `callLLMVision()`. This was wired sometime around Wave 61 (Document Management), after this certification doc's original pass was written, and the doc was simply never updated -- the gap described above no longer exists in the codebase.
+**Fix priority**: NONE -- this entry was corrected, not re-fixed.
 
 ### 3.2 Meeting Intelligence -- 🔴 NOT_BUILT
 Despite VERI Minutes of Meetings having a rich publish/lock/audit-trail workflow (Wave 44), **zero AI extraction of decisions/risks/owners/deadlines from meeting minutes exists.** Minutes and action items are 100% manually typed.
@@ -216,5 +216,5 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 5. **Build Meeting Intelligence** (one LLM call on publish, using existing Prompt OS) -- concrete, contained, high product value -- §3.2
 6. ~~Run a dedicated prompt-injection/jailbreak pass against VERI Chat, VERI FDE, and the page-agent~~ -- **done during this pass (Wave 46)**: the Policy Enforcement Engine (§2.8) now gates all 3 surfaces pre-call; 18/18 local test cases pass. Remaining: the denylist is illustrative not exhaustive, and no real production traffic has exercised it yet
 7. **Decide**: either build the multi-agent chaining architecture (§2.2) as real, scoped work, or stop describing VERIDIAN as "multi-agent" until it exists
-8. **Wire vision extraction into the real upload flow** (currently built but unused) -- §3.1
+8. ~~Wire vision extraction into the real upload flow~~ -- **re-verified during Wave 76: already wired** (this doc's own §3.1 was stale, not the code) -- §3.1
 9. **Extend the Policy Enforcement Engine's coverage over time** -- broaden the denylist/injection patterns as real edge cases surface, and once there's real production traffic, review `orchestraExecutions` `status='denied'` rows periodically to catch both false positives (legitimate business requests wrongly refused) and false negatives (things that should have been caught) -- §2.8
