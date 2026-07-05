@@ -26,10 +26,10 @@ This document adapts that taxonomy to what VERIDIAN **actually is today**, verif
 
 ## Part 1 -- AI-Native Core Capabilities
 
-### 1.1 Memory -- 🟠 PARTIALLY_BUILT
-`assistantMemories` table + `/api/assistants/[id]/memories` writes and embeds memory content. **But no LLM call site anywhere queries `assistantMemories` before generating a response** -- memory is written and then never read back into a prompt. It is an audit trail of what was told to remember, not working memory.
-**Verified test**: write a memory, invoke that assistant, inspect `orchestraExecutions.input` for the memory's text -- absent.
-**Fix priority**: HIGH -- this is one of VERIDIAN's four named platform pillars ("Memory Platform") and it currently does nothing functionally.
+### 1.1 Memory -- 🟢 PRODUCTION_PROVEN (Wave 77)
+`assistantMemories` table + `/api/assistants/[id]/memories` writes and embeds memory content. `src/lib/task-execution-engine.ts`'s `executeTask()` is now the first real read-back consumer: when a task carries an `assistantId`, it vector-searches that assistant's memories (`src/lib/services/assistant-memory-service.ts`'s `searchAssistantMemories`, `valid_until IS NULL` + relevance-threshold-filtered) and injects the top matches into the planning prompt, then records a new `task_outcome` memory summarizing what happened -- closing the write-then-read loop.
+**Verified test**: seeded a real assistant's memories with identical/opposite/superseded embeddings via Supabase MCP and confirmed the exact SQL `searchAssistantMemories` runs returns the current close match (score 1.0), excludes the superseded one via `valid_until`, and would drop the opposite-vector one via the 0.5 threshold.
+**Remaining gap**: only the task-execution planning call site reads memories so far -- chat/CRM/meeting-intelligence call sites don't yet (no `assistantId` concept exists on those entities). Full-platform memory read-back across every LLM call site is future work, not claimed here.
 
 ### 1.2 Knowledge Graph -- 🔴 NOT_BUILT
 No entity-relationship graph schema exists anywhere. `knowledgeFlowLog` records *events* (who learned what, when), not a graph of entities and relationships. Confirmed: no table name matching `%graph%`/`%relationship%`/`%entity_node%` in `information_schema.tables`.
@@ -189,15 +189,15 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 
 **Worker Agents**
 - ⏳ Accuracy -- no measurement mechanism exists
-- ⏳ Reliability -- no retry/fallback (2.5)
+- ✅ Reliability -- retry+fallback wired into every callLLM call site (2.5, Wave 72)
 - 🟡 Reusability -- Capability Registry now populated (70 rows, fixed during this pass) but still hash-vector quality, not true semantic matching (1.3)
 - ⏳ Learning behavior -- recorded but never applied (1.5, 2.1)
 - ✅ Governance compliance -- verified (2.7)
 
 **AI-Native Capabilities**
-- ⏳ Memory -- write-only (1.1)
+- ✅ Memory -- read back into task-planning LLM calls (1.1, Wave 77; not yet every call site)
 - 🔴 Knowledge -- doesn't exist (1.2)
-- 🟡 RAG -- populated with real data during this pass, but hash-vector quality until a real embedding provider is wired in (1.3)
+- ✅ RAG -- real OpenRouter embeddings, no longer hash-vector (1.3, Wave 73)
 - ✅ Prompt management -- real (1.4)
 - 🔴 Prompt caching -- doesn't exist (1.4)
 - ⏳ Self-improvement -- inert (1.5)

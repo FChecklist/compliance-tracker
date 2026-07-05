@@ -6,6 +6,7 @@ import { callLLMJson } from "@/lib/llm-client";
 import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
+import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
@@ -28,6 +29,12 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
  * that one step failed without failing the whole task, and an LLM/config
  * error marks the task `failed` with an explanatory chat message rather
  * than leaving it silently stuck in `pending` forever.
+ *
+ * Wave 77 (AI_OS_CERTIFICATION.md §1.1): when the task carries an
+ * assistantId, this is now the first real consumer of assistant_memories --
+ * relevant memories are vector-searched and injected into the planning
+ * prompt, and a new memory is recorded summarizing the outcome, closing the
+ * write-then-read loop for that assistant's future tasks.
  */
 
 async function dispatchTool(db: TenantDb, orgId: string, codeReference: string): Promise<unknown> {
@@ -71,7 +78,8 @@ export async function executeTask(
   taskId: string,
   title: string,
   description: string | null,
-  projectId?: string | null
+  projectId?: string | null,
+  assistantId?: string | null
 ): Promise<void> {
   try {
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
@@ -102,14 +110,18 @@ export async function executeTask(
     // deferred. The domain-index table itself is now genuinely populated
     // (this wave's real, additive progress) and ready for a future wave to
     // consume once tasks carry their own domain/capability-path.
-    const candidates = await withTenantContext({ orgId, userId }, (db) =>
-      db.query.workerAgents.findMany({
+    const { candidates, memories } = await withTenantContext({ orgId, userId }, async (db) => {
+      const candidates = await db.query.workerAgents.findMany({
         where: inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
         columns: { id: true, name: true, domain: true, tier: true, codeReference: true, projectId: true },
         orderBy: asc(workerAgents.name),
         limit: 40, // widened from 20 since project-scoped shadowing can mean 2 rows per name
-      })
-    );
+      });
+      const memories = assistantId
+        ? await searchAssistantMemories(db, assistantId, `${title}\n${description ?? ""}`)
+        : [];
+      return { candidates, memories };
+    });
 
     // Most-specific-wins: a project-scoped agent shadows an org-wide
     // (projectId IS NULL) agent of the same name, mirroring
@@ -129,7 +141,10 @@ export async function executeTask(
     const agentList = agents.map((a) => `- ${a.name} (${a.tier}${a.domain ? `, ${a.domain}` : ""})`).join("\n");
     const systemPromptTemplate = await resolvePromptTemplate("task_execution.planning_system");
     const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN));
-    const userMessage = `Task: ${title}\n${description ? `Description: ${description}\n` : ""}\nAvailable agents:\n${agentList || "(none configured yet)"}`;
+    const memoryBlock = memories.length > 0
+      ? `\n\nRelevant memories from this assistant's past work (may or may not apply here):\n${memories.map((m) => `- [${m.category}] ${m.content}`).join("\n")}`
+      : "";
+    const userMessage = `Task: ${title}\n${description ? `Description: ${description}\n` : ""}\nAvailable agents:\n${agentList || "(none configured yet)"}${memoryBlock}`;
 
     const planningStartedAt = Date.now();
     const { data: result, usage } = await callLLMJson<{
@@ -225,6 +240,10 @@ export async function executeTask(
       });
 
       await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+
+      if (assistantId) {
+        await recordAssistantMemory(db, assistantId, "task_outcome", `Task "${title}": ${result.summary || "Plan generated."}`);
+      }
     });
   } catch (err) {
     console.error("Task execution failed:", err);

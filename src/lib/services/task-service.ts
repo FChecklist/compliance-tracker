@@ -49,7 +49,7 @@ export async function createTask(ctx: ServiceContext, input: { title: string; de
 
   if (!result) throw new ServiceError("Assistant not found", 404)
 
-  await executeTask(orgId, dbUser.id, result.id, result.title, result.description, result.projectId)
+  await executeTask(orgId, dbUser.id, result.id, result.title, result.description, result.projectId, result.assistantId)
   const final = await withTenantContext({ orgId, userId: dbUser.id }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, result.id) }))
 
   return {
