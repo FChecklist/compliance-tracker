@@ -190,6 +190,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     {
       title: "LEGAL",
       items: [
+        { label: "Legal Matters", href: "/legal-matters", icon: Scale },
         { label: "External Counsel & Vendors", href: "/legal-vendors", icon: Scale },
         { label: "Litigation & Disputes", href: "/litigation", icon: Gavel },
         { label: "IP Portfolio", href: "/ip-portfolio", icon: BookOpen },

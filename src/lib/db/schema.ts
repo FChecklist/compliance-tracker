@@ -1645,6 +1645,7 @@ export const litigationMatters = complianceSchemaDB.table('litigation_matters', 
   counsel: text('counsel'),
   amount: numeric('amount', { precision: 14, scale: 2 }),
   linkedNoticeId: text('linked_notice_id'),
+  matterId: text('matter_id'), // Wave 90: nullable link into legal_matters, the unifying register
   orgId: text('org_id').notNull(),
   clientId: text('client_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1658,6 +1659,7 @@ export const ipPortfolio = complianceSchemaDB.table('ip_portfolio', {
   status: text('status').notNull().default('application_filed'),
   renewalDate: timestamp('renewal_date'),
   classDescription: text('class_description'),
+  matterId: text('matter_id'), // Wave 90
   orgId: text('org_id').notNull(),
   clientId: text('client_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1670,10 +1672,79 @@ export const legalOpinions = complianceSchemaDB.table('legal_opinions', {
   opinionDate: timestamp('opinion_date'),
   advisor: text('advisor'),
   linkedRiskId: text('linked_risk_id'),
+  matterId: text('matter_id'), // Wave 90
   orgId: text('org_id').notNull(),
   clientId: text('client_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Wave 90 (Comparison CSV 2 gap analysis: LEGAL001/002 "unified Matter
+// register" + LEGAL004 "Arbitration & Mediation" + LEGAL009 "Legal Spend") ──
+// litigation_matters/ip_portfolio/legal_opinions each lived in their own
+// table with no cross-cutting concept -- legal_matters is that register,
+// linked via the nullable matter_id columns just added above (additive
+// columns, not a new join table, matching this schema's own convention for
+// linking pre-existing rows into a new unifying concept). Arbitration is a
+// genuinely new tracking table (no dedicated arbitration/mediation tracking
+// existed at all, only court litigation). Legal spend is matter-scoped cost
+// tracking, distinct from the early-wave compliance-obligation-scoped cost
+// tracking. LEGAL012 (Evidence Repository) needs no new schema -- it reuses
+// the existing polymorphic `documents` table with
+// linkedEntityType='legal_matter' (Wave 61 convention).
+export const legalMatters = complianceSchemaDB.table('legal_matters', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  matterNumber: integer('matter_number').notNull(), // per-org sequence, matching erp_contracts.contract_number convention
+  title: text('title').notNull(),
+  matterType: text('matter_type').notNull().default('general'), // 'litigation'|'ip'|'opinion'|'arbitration'|'general'
+  status: text('status').notNull().default('open'), // 'open'|'closed'
+  description: text('description'),
+  responsibleUserId: text('responsible_user_id'),
+  openedDate: date('opened_date', { mode: 'string' }).notNull(),
+  closedDate: date('closed_date', { mode: 'string' }),
+  clientId: text('client_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const legalArbitrationCases = complianceSchemaDB.table('legal_arbitration_cases', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  matterId: text('matter_id').notNull(),
+  caseTitle: text('case_title').notNull(),
+  arbitrationInstitution: text('arbitration_institution'),
+  arbitrator: text('arbitrator'),
+  status: text('status').notNull().default('filed'), // 'filed'|'ongoing'|'award_passed'|'closed'
+  filingDate: date('filing_date', { mode: 'string' }),
+  awardDate: date('award_date', { mode: 'string' }),
+  claimAmount: numeric('claim_amount'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const legalSpendEntries = complianceSchemaDB.table('legal_spend_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  matterId: text('matter_id').notNull(),
+  description: text('description').notNull(),
+  category: text('category').notNull().default('legal_fees'), // 'legal_fees'|'court_fees'|'expert_fees'|'other'
+  amount: numeric('amount').notNull(),
+  spendDate: date('spend_date', { mode: 'string' }).notNull(),
+  vendorId: text('vendor_id'), // nullable link to legal_vendors
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const legalMattersRelations = relations(legalMatters, ({ many }) => ({
+  arbitrationCases: many(legalArbitrationCases),
+  spendEntries: many(legalSpendEntries),
+}))
+export const legalArbitrationCasesRelations = relations(legalArbitrationCases, ({ one }) => ({
+  matter: one(legalMatters, { fields: [legalArbitrationCases.matterId], references: [legalMatters.id] }),
+}))
+export const legalSpendEntriesRelations = relations(legalSpendEntries, ({ one }) => ({
+  matter: one(legalMatters, { fields: [legalSpendEntries.matterId], references: [legalMatters.id] }),
+  vendor: one(legalVendors, { fields: [legalSpendEntries.vendorId], references: [legalVendors.id] }),
+}))
 
 // ─── PEOPLE & HR ─────────────────────────────────────────────────────────
 export const hrComplianceItems = complianceSchemaDB.table('hr_compliance_items', {
