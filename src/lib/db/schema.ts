@@ -4364,6 +4364,75 @@ export const erpSupplierQuotationItems = complianceSchemaDB.table('erp_supplier_
   rate: numeric('rate').notNull().default('0'),
 })
 
+// ─── Wave 83 (RFQ enhancements, COMPARISON_CSV_GAP_ANALYSIS.md backlog #4) ─
+// Formal weighted scoring -- criteria are per-RFQ (a "Delivery Time"
+// criterion means something different for a stationery RFQ vs a capital
+// equipment RFQ), scores are per-quotation-per-criterion so every reviewer
+// vote is individually auditable rather than collapsed into one number
+// immediately.
+export const erpRfqScoringCriteria = complianceSchemaDB.table('erp_rfq_scoring_criteria', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  rfqId: text('rfq_id').notNull(),
+  name: text('name').notNull(),
+  weight: numeric('weight').notNull().default('1'), // relative weight, e.g. Price=40, Quality=30, Delivery=30
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpRfqQuotationScores = complianceSchemaDB.table('erp_rfq_quotation_scores', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  quotationId: text('quotation_id').notNull(),
+  criterionId: text('criterion_id').notNull(),
+  score: numeric('score').notNull(), // 0-10
+  scoredById: text('scored_by_id'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Structured negotiation-round log -- a real back-and-forth history against
+// a specific quotation, instead of only the final accepted rate.
+export const erpRfqNegotiationRounds = complianceSchemaDB.table('erp_rfq_negotiation_rounds', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  quotationId: text('quotation_id').notNull(),
+  roundNumber: integer('round_number').notNull(),
+  proposedRate: numeric('proposed_rate').notNull(),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Reverse auction -- suppliers see the current lowest bid and can undercut
+// it; each new bid is server-enforced to actually be lower than the
+// current lowest (never just recorded blindly). Closing the auction picks
+// the lowest bid as the winner. Polling-based, matching this codebase's
+// existing guest-facing pattern (guest-chat) rather than a new websocket
+// mechanism.
+export const erpRfqReverseAuctions = complianceSchemaDB.table('erp_rfq_reverse_auctions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  rfqId: text('rfq_id').notNull(),
+  startAt: timestamp('start_at').notNull(),
+  endAt: timestamp('end_at').notNull(),
+  status: text('status').notNull().default('scheduled'), // 'scheduled'|'active'|'closed'
+  currentLowestBid: numeric('current_lowest_bid'),
+  currentLeaderSupplierId: text('current_leader_supplier_id'),
+  winningSupplierId: text('winning_supplier_id'),
+  closedAt: timestamp('closed_at'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpRfqAuctionBids = complianceSchemaDB.table('erp_rfq_auction_bids', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  auctionId: text('auction_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  bidAmount: numeric('bid_amount').notNull(),
+  submittedAt: timestamp('submitted_at').notNull().defaultNow(),
+})
+
 export const erpPurchaseRequisitionsRelations = relations(erpPurchaseRequisitions, ({ many }) => ({
   items: many(erpPurchaseRequisitionItems),
 }))

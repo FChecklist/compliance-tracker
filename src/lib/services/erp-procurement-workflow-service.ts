@@ -9,7 +9,9 @@ import {
   erpPurchaseRequisitions, erpPurchaseRequisitionItems,
   erpRfqs, erpRfqItems, erpRfqSuppliers,
   erpSupplierQuotations, erpSupplierQuotationItems,
-  erpSuppliers, users,
+  erpRfqScoringCriteria, erpRfqQuotationScores, erpRfqNegotiationRounds,
+  erpRfqReverseAuctions, erpRfqAuctionBids, erpSupplierPortalLinks,
+  erpSuppliers, users, db as rawDb,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
@@ -220,10 +222,193 @@ export async function createSupplierQuotation(
 /** Side-by-side comparison of all quotations received against one RFQ, ranked by total. */
 export async function compareQuotationsForRfq(ctx: { orgId: string }, rfqId: string) {
   const quotations = await listSupplierQuotations(ctx, rfqId)
+  const weighted = await getWeightedScoresForRfq(ctx, rfqId)
   return quotations
     .map((q) => ({
       ...q,
       total: q.items.reduce((sum, i) => sum + Number(i.quantity) * Number(i.rate), 0),
+      weightedScore: weighted.get(q.id) ?? null,
     }))
     .sort((a, b) => a.total - b.total)
+}
+
+// ============================================================
+// Wave 83 (RFQ enhancements, COMPARISON_CSV_GAP_ANALYSIS.md backlog #4):
+// weighted scoring, negotiation-round log, reverse auction.
+// ============================================================
+
+export async function addScoringCriterion(ctx: { orgId: string; userId: string }, rfqId: string, input: { name: string; weight: number }) {
+  const name = input.name?.trim()
+  if (!name) throw new ServiceError("name is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const rfq = await db.query.erpRfqs.findFirst({ where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)) })
+    if (!rfq) throw new ServiceError("RFQ not found", 404)
+    const [criterion] = await db.insert(erpRfqScoringCriteria).values({ orgId: ctx.orgId, rfqId, name, weight: input.weight.toString() }).returning()
+    return criterion
+  })
+}
+
+export async function listScoringCriteria(ctx: { orgId: string }, rfqId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.erpRfqScoringCriteria.findMany({ where: and(eq(erpRfqScoringCriteria.orgId, ctx.orgId), eq(erpRfqScoringCriteria.rfqId, rfqId)) })
+  )
+}
+
+export async function scoreQuotation(ctx: { orgId: string; userId: string }, quotationId: string, criterionId: string, score: number, notes?: string) {
+  if (score < 0 || score > 10) throw new ServiceError("score must be between 0 and 10", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const quotation = await db.query.erpSupplierQuotations.findFirst({ where: and(eq(erpSupplierQuotations.id, quotationId), eq(erpSupplierQuotations.orgId, ctx.orgId)) })
+    if (!quotation) throw new ServiceError("Quotation not found", 404)
+    const criterion = await db.query.erpRfqScoringCriteria.findFirst({ where: and(eq(erpRfqScoringCriteria.id, criterionId), eq(erpRfqScoringCriteria.orgId, ctx.orgId)) })
+    if (!criterion) throw new ServiceError("Scoring criterion not found", 404)
+
+    const [entry] = await db.insert(erpRfqQuotationScores).values({
+      orgId: ctx.orgId, quotationId, criterionId, score: score.toString(), scoredById: ctx.userId, notes: notes ?? null,
+    }).returning()
+    return entry
+  })
+}
+
+/** Weighted-average score (0-10 scale) per quotation for an RFQ, keyed by quotationId. Returns an empty map if no criteria/scores exist yet -- never fabricates a score. */
+async function getWeightedScoresForRfq(ctx: { orgId: string }, rfqId: string): Promise<Map<string, number>> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const criteria = await db.query.erpRfqScoringCriteria.findMany({ where: and(eq(erpRfqScoringCriteria.orgId, ctx.orgId), eq(erpRfqScoringCriteria.rfqId, rfqId)) })
+    if (criteria.length === 0) return new Map()
+    const criterionWeights = new Map(criteria.map((c) => [c.id, Number(c.weight)]))
+    const totalWeight = criteria.reduce((sum, c) => sum + Number(c.weight), 0)
+
+    const quotations = await db.query.erpSupplierQuotations.findMany({ where: and(eq(erpSupplierQuotations.orgId, ctx.orgId), eq(erpSupplierQuotations.rfqId, rfqId)) })
+    const result = new Map<string, number>()
+    for (const q of quotations) {
+      const scores = await db.query.erpRfqQuotationScores.findMany({ where: and(eq(erpRfqQuotationScores.orgId, ctx.orgId), eq(erpRfqQuotationScores.quotationId, q.id)) })
+      if (scores.length === 0 || totalWeight === 0) continue
+      const weightedSum = scores.reduce((sum, s) => sum + Number(s.score) * (criterionWeights.get(s.criterionId) ?? 0), 0)
+      result.set(q.id, weightedSum / totalWeight)
+    }
+    return result
+  })
+}
+
+export async function listQuotationScores(ctx: { orgId: string }, quotationId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.erpRfqQuotationScores.findMany({ where: and(eq(erpRfqQuotationScores.orgId, ctx.orgId), eq(erpRfqQuotationScores.quotationId, quotationId)) })
+  )
+}
+
+// ─── Negotiation-round log ─────────────────────────────────────────────
+export async function addNegotiationRound(ctx: { orgId: string; userId: string }, quotationId: string, input: { proposedRate: number; notes?: string }) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const quotation = await db.query.erpSupplierQuotations.findFirst({ where: and(eq(erpSupplierQuotations.id, quotationId), eq(erpSupplierQuotations.orgId, ctx.orgId)) })
+    if (!quotation) throw new ServiceError("Quotation not found", 404)
+
+    const existing = await db.query.erpRfqNegotiationRounds.findMany({ where: eq(erpRfqNegotiationRounds.quotationId, quotationId) })
+    const [round] = await db.insert(erpRfqNegotiationRounds).values({
+      orgId: ctx.orgId, quotationId, roundNumber: existing.length + 1,
+      proposedRate: input.proposedRate.toString(), notes: input.notes ?? null, createdById: ctx.userId,
+    }).returning()
+    return round
+  })
+}
+
+export async function listNegotiationRounds(ctx: { orgId: string }, quotationId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.erpRfqNegotiationRounds.findMany({
+      where: and(eq(erpRfqNegotiationRounds.orgId, ctx.orgId), eq(erpRfqNegotiationRounds.quotationId, quotationId)),
+      orderBy: (t, { asc }) => asc(t.roundNumber),
+    })
+  )
+}
+
+// ─── Reverse auction ────────────────────────────────────────────────────
+// Suppliers bid via their existing vendor-portal token (Wave 80) -- no
+// second invite/token mechanism. Each bid is server-enforced to actually
+// undercut the current lowest; the auction's currentLowestBid/
+// currentLeaderSupplierId are updated atomically with the bid insert.
+export async function createReverseAuction(ctx: { orgId: string; userId: string }, rfqId: string, input: { startAt: string; endAt: string }) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const rfq = await db.query.erpRfqs.findFirst({ where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)) })
+    if (!rfq) throw new ServiceError("RFQ not found", 404)
+    const [auction] = await db.insert(erpRfqReverseAuctions).values({
+      orgId: ctx.orgId, rfqId, startAt: new Date(input.startAt), endAt: new Date(input.endAt), status: "active", createdById: ctx.userId,
+    }).returning()
+    return auction
+  })
+}
+
+export async function listReverseAuctions(ctx: { orgId: string }, rfqId?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.erpRfqReverseAuctions.findMany({
+      where: rfqId ? and(eq(erpRfqReverseAuctions.orgId, ctx.orgId), eq(erpRfqReverseAuctions.rfqId, rfqId)) : eq(erpRfqReverseAuctions.orgId, ctx.orgId),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+    })
+  )
+}
+
+export async function closeReverseAuction(ctx: { orgId: string; userId: string }, auctionId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const auction = await db.query.erpRfqReverseAuctions.findFirst({ where: and(eq(erpRfqReverseAuctions.id, auctionId), eq(erpRfqReverseAuctions.orgId, ctx.orgId)) })
+    if (!auction) throw new ServiceError("Auction not found", 404)
+    if (auction.status === "closed") throw new ServiceError("Auction is already closed", 409)
+    const [updated] = await db.update(erpRfqReverseAuctions)
+      .set({ status: "closed", closedAt: new Date(), winningSupplierId: auction.currentLeaderSupplierId })
+      .where(eq(erpRfqReverseAuctions.id, auctionId)).returning()
+    return updated
+  })
+}
+
+export async function listAuctionBids(ctx: { orgId: string }, auctionId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.erpRfqAuctionBids.findMany({
+      where: and(eq(erpRfqAuctionBids.orgId, ctx.orgId), eq(erpRfqAuctionBids.auctionId, auctionId)),
+      orderBy: (t, { asc }) => asc(t.submittedAt),
+    })
+  )
+}
+
+// Public (no auth) -- resolves the supplier's existing vendor-portal token,
+// same RLS-bypass rationale as getSupplierPortalData()/getGuestConversation().
+async function resolveSupplierFromPortalToken(token: string) {
+  const link = await rawDb.query.erpSupplierPortalLinks.findFirst({ where: eq(erpSupplierPortalLinks.token, token) })
+  if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This vendor portal link is invalid or has expired", 404)
+  return link.supplierId
+}
+
+export async function getActiveAuctionsForSupplierPortal(token: string) {
+  const supplierId = await resolveSupplierFromPortalToken(token)
+  const invitedRfqs = await rawDb.query.erpRfqSuppliers.findMany({ where: eq(erpRfqSuppliers.supplierId, supplierId) })
+  const rfqIds = invitedRfqs.map((r) => r.rfqId)
+  if (rfqIds.length === 0) return []
+
+  const auctions = await rawDb.query.erpRfqReverseAuctions.findMany({ where: eq(erpRfqReverseAuctions.status, "active") })
+  return auctions
+    .filter((a) => rfqIds.includes(a.rfqId))
+    .map((a) => ({
+      id: a.id, rfqId: a.rfqId, startAt: a.startAt, endAt: a.endAt,
+      currentLowestBid: a.currentLowestBid, isCurrentLeader: a.currentLeaderSupplierId === supplierId,
+    }))
+}
+
+export async function submitAuctionBid(token: string, auctionId: string, bidAmount: number) {
+  const supplierId = await resolveSupplierFromPortalToken(token)
+  if (!(bidAmount > 0)) throw new ServiceError("bidAmount must be a positive number", 400)
+
+  const auction = await rawDb.query.erpRfqReverseAuctions.findFirst({ where: eq(erpRfqReverseAuctions.id, auctionId) })
+  if (!auction) throw new ServiceError("Auction not found", 404)
+  if (auction.status !== "active" || auction.endAt < new Date()) throw new ServiceError("This auction is not currently accepting bids", 409)
+
+  const invited = await rawDb.query.erpRfqSuppliers.findFirst({ where: and(eq(erpRfqSuppliers.rfqId, auction.rfqId), eq(erpRfqSuppliers.supplierId, supplierId)) })
+  if (!invited) throw new ServiceError("This supplier is not invited to the underlying RFQ", 403)
+
+  if (auction.currentLowestBid != null && bidAmount >= Number(auction.currentLowestBid)) {
+    throw new ServiceError(`Your bid must be lower than the current lowest bid (${auction.currentLowestBid})`, 409)
+  }
+
+  const [bid] = await rawDb.insert(erpRfqAuctionBids).values({
+    orgId: auction.orgId, auctionId, supplierId, bidAmount: bidAmount.toString(),
+  }).returning()
+  await rawDb.update(erpRfqReverseAuctions)
+    .set({ currentLowestBid: bidAmount.toString(), currentLeaderSupplierId: supplierId })
+    .where(eq(erpRfqReverseAuctions.id, auctionId))
+
+  return bid
 }

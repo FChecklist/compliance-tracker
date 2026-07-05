@@ -6,7 +6,7 @@
 // this under (app)/.
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, ShieldCheck, ShieldAlert, Landmark, FileText } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, Landmark, FileText, Gavel } from "lucide-react";
 
 type BankAccount = { id: string; accountHolderName: string; bankName: string; accountNumberMasked: string; ifscCode: string | null };
 type KycDoc = { id: string; name: string; category: string | null; expiryDate: string | null };
@@ -14,6 +14,10 @@ type PortalData = {
   supplierName: string; qualificationStatus: string; sanctionScreeningStatus: string;
   bankAccounts: BankAccount[]; kycDocuments: KycDoc[];
 };
+
+// Wave 83 (RFQ enhancements): reverse auction bidding, reusing this same
+// portal token -- no second invite mechanism for suppliers.
+type ActiveAuction = { id: string; rfqId: string; endAt: string; currentLowestBid: string | null; isCurrentLeader: boolean };
 
 export default function VendorPortalPage() {
   const params = useParams<{ token: string }>();
@@ -27,6 +31,11 @@ export default function VendorPortalPage() {
   const [ifsc, setIfsc] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+
+  const [auctions, setAuctions] = useState<ActiveAuction[]>([]);
+  const [bidAmounts, setBidAmounts] = useState<Record<string, string>>({});
+  const [biddingId, setBiddingId] = useState<string | null>(null);
+  const [bidMessage, setBidMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +54,35 @@ export default function VendorPortalPage() {
     }
   }, [params.token]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadAuctions = useCallback(async () => {
+    const res = await fetch(`/api/vendor-portal/${params.token}/auctions`);
+    if (res.ok) {
+      const d = await res.json();
+      setAuctions(d.auctions ?? []);
+    }
+  }, [params.token]);
+
+  useEffect(() => { load(); loadAuctions(); }, [load, loadAuctions]);
+
+  const submitBid = async (auctionId: string) => {
+    const amount = bidAmounts[auctionId];
+    if (!amount) return;
+    setBiddingId(auctionId);
+    setBidMessage(null);
+    try {
+      const res = await fetch(`/api/vendor-portal/${params.token}/auctions/${auctionId}/bid`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bidAmount: Number(amount) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to submit bid");
+      setBidMessage("Bid submitted -- you're now the leader.");
+      setBidAmounts((prev) => ({ ...prev, [auctionId]: "" }));
+      loadAuctions();
+    } catch (err) {
+      setBidMessage(err instanceof Error ? err.message : "Failed to submit bid");
+    } finally {
+      setBiddingId(null);
+    }
+  };
 
   const submitBankAccount = async () => {
     setSubmitting(true);
@@ -81,6 +118,38 @@ export default function VendorPortalPage() {
           <div className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-ct-teal" /> Qualification status: <span className="font-medium">{data.qualificationStatus.replace("_", " ")}</span></div>
           <div className="flex items-center gap-2 text-sm"><ShieldAlert className="size-4 text-ct-teal" /> Sanction screening status: <span className="font-medium">{data.sanctionScreeningStatus.replace("_", " ")}</span></div>
         </div>
+
+        {auctions.length > 0 && (
+          <div className="bg-white rounded-xl border border-ct-border p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-ct-navy flex items-center gap-2"><Gavel className="size-4 text-ct-teal" /> Active Reverse Auctions</h2>
+            {auctions.map((a) => (
+              <div key={a.id} className="border border-ct-border rounded-lg p-3 space-y-2">
+                <p className="text-xs text-ct-muted">Ends {new Date(a.endAt).toLocaleString()}</p>
+                <p className="text-sm text-ct-navy">
+                  Current lowest bid: <span className="font-medium">{a.currentLowestBid ?? "No bids yet"}</span>
+                  {a.isCurrentLeader && <span className="text-ct-teal ml-2">(You're leading)</span>}
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={bidAmounts[a.id] ?? ""}
+                    onChange={(e) => setBidAmounts((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                    placeholder="Your bid (must undercut current lowest)"
+                    className="flex-1 h-9 text-sm rounded-md border border-ct-border px-3"
+                  />
+                  <button
+                    onClick={() => submitBid(a.id)}
+                    disabled={!bidAmounts[a.id] || biddingId === a.id}
+                    className="h-9 px-3 rounded-md bg-ct-saffron text-white text-sm font-medium disabled:opacity-50"
+                  >
+                    {biddingId === a.id ? <Loader2 className="size-4 animate-spin" /> : "Bid"}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {bidMessage && <p className="text-xs text-ct-muted">{bidMessage}</p>}
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-ct-border p-4 space-y-2">
           <h2 className="text-sm font-semibold text-ct-navy flex items-center gap-2"><FileText className="size-4 text-ct-teal" /> KYC Documents on File</h2>
