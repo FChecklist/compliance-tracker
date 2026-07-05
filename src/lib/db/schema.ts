@@ -4042,3 +4042,134 @@ export const erpSupplierQuotationsRelations = relations(erpSupplierQuotations, (
 export const erpSupplierQuotationItemsRelations = relations(erpSupplierQuotationItems, ({ one }) => ({
   quotation: one(erpSupplierQuotations, { fields: [erpSupplierQuotationItems.quotationId], references: [erpSupplierQuotations.id] }),
 }))
+
+// ─── Wave 56: Indian Statutory Payroll (PF/ESI/Professional Tax) ─────────
+// Tier 2 #5/#6 on ERP_BENCHMARK_COMPARISON.md's ranking, deliberately
+// scoped narrower than the ranking's own full ask: PF, ESI, and
+// Professional Tax are built as a real, configurable rule engine (rates/
+// ceilings/slabs live in erpStatutoryRules as admin-editable master data,
+// never hardcoded in code -- these change via periodic government
+// notification). TDS (income tax) is explicitly NOT auto-computed here --
+// correct TDS depends on regime choice (old/new), Section 80C/HRA
+// exemptions, and annual slab projection, none of which can be safely
+// approximated without real risk of an incorrect statutory deduction.
+// Every payslip carries a TDS line the payroll preparer enters manually
+// (defaulting to 0), clearly surfaced in the UI as "not auto-calculated."
+export const erpSalaryComponentTypeEnum = complianceSchemaDB.enum('erp_salary_component_type', ['earning', 'deduction'])
+export const erpComponentCalcTypeEnum = complianceSchemaDB.enum('erp_component_calc_type', ['flat', 'percentage_of_basic', 'percentage_of_gross'])
+export const erpStatutoryRuleTypeEnum = complianceSchemaDB.enum('erp_statutory_rule_type', ['pf', 'esi', 'professional_tax'])
+export const erpPayrollRunStatusEnum = complianceSchemaDB.enum('erp_payroll_run_status', ['draft', 'processed', 'paid', 'cancelled'])
+export const erpPayslipLineTypeEnum = complianceSchemaDB.enum('erp_payslip_line_type', ['earning', 'deduction'])
+
+export const erpSalaryComponents = complianceSchemaDB.table('erp_salary_components', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  componentType: erpSalaryComponentTypeEnum('component_type').notNull(),
+  calculationType: erpComponentCalcTypeEnum('calculation_type').notNull().default('flat'),
+  defaultPercentage: numeric('default_percentage'),
+  defaultAmount: numeric('default_amount'),
+  isStatutory: boolean('is_statutory').notNull().default(false),
+  // Marks earning components counted toward PF wage (typically Basic + DA
+  // only, per EPFO rules -- not the full gross).
+  includeInPfWage: boolean('include_in_pf_wage').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSalaryStructures = complianceSchemaDB.table('erp_salary_structures', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  employeeId: text('employee_id').notNull().references(() => employeeProfiles.id),
+  effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+  ctcAnnual: numeric('ctc_annual').notNull(),
+  // State of employment for Professional Tax slab lookup -- a payroll
+  // attribute, not a general HR field, since PT depends on work location.
+  state: text('state'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSalaryStructureComponents = complianceSchemaDB.table('erp_salary_structure_components', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  structureId: text('structure_id').notNull().references(() => erpSalaryStructures.id, { onDelete: 'cascade' }),
+  componentId: text('component_id').notNull().references(() => erpSalaryComponents.id),
+  amount: numeric('amount'),
+  percentage: numeric('percentage'),
+})
+
+// Admin-editable master data -- the entire point of this table is that PF/
+// ESI/PT rates, wage ceilings, and PT slabs are NEVER hardcoded in code.
+// `slabs` (PT only) is an array of { uptoAmount, taxAmount } monthly-gross
+// bands, since Indian states each set their own PT slab structure.
+export const erpStatutoryRules = complianceSchemaDB.table('erp_statutory_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ruleType: erpStatutoryRuleTypeEnum('rule_type').notNull(),
+  state: text('state'), // nullable -- PF/ESI are national; Professional Tax is state-specific
+  effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+  effectiveTo: date('effective_to', { mode: 'string' }),
+  employeeRate: numeric('employee_rate'), // percentage, e.g. 12.00 for PF
+  employerRate: numeric('employer_rate'),
+  wageCeiling: numeric('wage_ceiling'), // e.g. 15000 for PF, 21000 for ESI
+  slabs: jsonb('slabs').$type<{ uptoAmount: number; taxAmount: number }[]>(),
+  notes: text('notes'), // e.g. citation of the government notification this rate comes from
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpPayrollRuns = complianceSchemaDB.table('erp_payroll_runs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  month: integer('month').notNull(),
+  year: integer('year').notNull(),
+  status: erpPayrollRunStatusEnum('status').notNull().default('draft'),
+  processedAt: timestamp('processed_at'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPayslips = complianceSchemaDB.table('erp_payslips', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  payrollRunId: text('payroll_run_id').notNull().references(() => erpPayrollRuns.id, { onDelete: 'cascade' }),
+  employeeId: text('employee_id').notNull().references(() => employeeProfiles.id),
+  grossEarnings: numeric('gross_earnings').notNull().default('0'),
+  totalDeductions: numeric('total_deductions').notNull().default('0'),
+  netPay: numeric('net_pay').notNull().default('0'),
+  status: text('status').notNull().default('draft'), // 'draft' | 'finalized'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPayslipLines = complianceSchemaDB.table('erp_payslip_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  payslipId: text('payslip_id').notNull().references(() => erpPayslips.id, { onDelete: 'cascade' }),
+  componentId: text('component_id').references(() => erpSalaryComponents.id), // nullable -- statutory/manual lines (e.g. TDS) have no structure component
+  label: text('label').notNull(),
+  lineType: erpPayslipLineTypeEnum('line_type').notNull(),
+  amount: numeric('amount').notNull().default('0'),
+})
+
+export const erpSalaryStructuresRelations = relations(erpSalaryStructures, ({ one, many }) => ({
+  employee: one(employeeProfiles, { fields: [erpSalaryStructures.employeeId], references: [employeeProfiles.id] }),
+  components: many(erpSalaryStructureComponents),
+}))
+
+export const erpSalaryStructureComponentsRelations = relations(erpSalaryStructureComponents, ({ one }) => ({
+  structure: one(erpSalaryStructures, { fields: [erpSalaryStructureComponents.structureId], references: [erpSalaryStructures.id] }),
+  component: one(erpSalaryComponents, { fields: [erpSalaryStructureComponents.componentId], references: [erpSalaryComponents.id] }),
+}))
+
+export const erpPayrollRunsRelations = relations(erpPayrollRuns, ({ many }) => ({
+  payslips: many(erpPayslips),
+}))
+
+export const erpPayslipsRelations = relations(erpPayslips, ({ one, many }) => ({
+  payrollRun: one(erpPayrollRuns, { fields: [erpPayslips.payrollRunId], references: [erpPayrollRuns.id] }),
+  employee: one(employeeProfiles, { fields: [erpPayslips.employeeId], references: [employeeProfiles.id] }),
+  lines: many(erpPayslipLines),
+}))
+
+export const erpPayslipLinesRelations = relations(erpPayslipLines, ({ one }) => ({
+  payslip: one(erpPayslips, { fields: [erpPayslipLines.payslipId], references: [erpPayslips.id] }),
+  component: one(erpSalaryComponents, { fields: [erpPayslipLines.componentId], references: [erpSalaryComponents.id] }),
+}))
