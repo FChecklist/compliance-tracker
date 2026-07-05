@@ -154,6 +154,15 @@ export async function requireAuth(): Promise<AuthContext> {
     dbUser = await autoProvisionUser(user)
   }
 
+  // Wave 97 (Comparison CSV 3 gap analysis: IAM010 "Access Review"): before
+  // this check, deactivating a user (isActive=false, e.g. via an access
+  // review's "revoke" decision) had zero enforcement here -- the Supabase
+  // Auth session alone still granted full access. A real revoke has to
+  // actually cut off access, not just flip a display flag.
+  if (dbUser && !dbUser.isActive) {
+    return { user, dbUser: null, orgId: null, response: NextResponse.json({ error: "This account has been deactivated" }, { status: 401 }) }
+  }
+
   return { user, dbUser, orgId: dbUser?.orgId ?? null, response: null }
 }
 

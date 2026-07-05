@@ -1247,6 +1247,45 @@ export const apiKeyRequestLogRelations = relations(apiKeyRequestLog, ({ one }) =
   apiKey: one(apiKeys, { fields: [apiKeyRequestLog.apiKeyId], references: [apiKeys.id] }),
 }))
 
+// ─── Wave 97 (Comparison CSV 3 gap analysis: IAM010 "Access Review") ──────
+// A real periodic access-certification cycle over the existing RBAC
+// assignments (users.role) -- not a report, an actual workflow: opening a
+// cycle snapshots every active user's current role into a pending
+// certification row; an admin then confirms or revokes each one.
+// "Revoked" has real teeth -- access-review-service.ts flips users.isActive
+// to false, and requireAuth() (Wave 97, same pass) now actually enforces
+// isActive, closing a pre-existing gap where deactivation had zero effect.
+export const accessReviewCycles = complianceSchemaDB.table('access_review_cycles', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  status: text('status').notNull().default('open'), // 'open'|'completed'
+  createdById: text('created_by_id').notNull(),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const accessReviewCertifications = complianceSchemaDB.table('access_review_certifications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  cycleId: text('cycle_id').notNull(),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  reviewedRole: text('reviewed_role').notNull(), // snapshot of the role AT REVIEW TIME -- never a live join, so a later role change doesn't rewrite history
+  decision: text('decision').notNull().default('pending'), // 'pending'|'confirmed'|'revoked'
+  reviewedById: text('reviewed_by_id'),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const accessReviewCyclesRelations = relations(accessReviewCycles, ({ many }) => ({
+  certifications: many(accessReviewCertifications),
+}))
+export const accessReviewCertificationsRelations = relations(accessReviewCertifications, ({ one }) => ({
+  cycle: one(accessReviewCycles, { fields: [accessReviewCertifications.cycleId], references: [accessReviewCycles.id] }),
+  user: one(users, { fields: [accessReviewCertifications.userId], references: [users.id] }),
+}))
+
 export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
   org: one(organisations, { fields: [webhooks.orgId], references: [organisations.id] }),
   deliveries: many(webhookDeliveries),

@@ -24,6 +24,7 @@ import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSectio
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import PersonalAiConfigSection from "@/components/PersonalAiConfigSection";
 import ApiKeySection from "@/components/ApiKeySection";
+import MfaSection from "@/components/MfaSection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
 import SsoSection from "@/components/SsoSection";
@@ -55,6 +56,7 @@ const SETTINGS_NAV = [
   { id: "my-ai", label: "My AI", icon: Cpu },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "pms", label: "Project Management", icon: Rocket },
+  { id: "security", label: "Security (MFA)", icon: ShieldCheck },
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
@@ -461,6 +463,20 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <PmsEnablementSection isAdmin={isAdmin} />
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "security" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <ShieldCheck className="size-4" />
+                  Two-Factor Authentication
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MfaSection />
               </CardContent>
             </Card>
           )}

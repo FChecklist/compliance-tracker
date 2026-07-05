@@ -272,6 +272,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Building2,
         },
         {
+          label: "Access Review",
+          href: "/access-review",
+          icon: ClipboardCheck,
+        },
+        {
           label: "Settings",
           href: "/settings",
           icon: Settings,
