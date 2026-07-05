@@ -29,16 +29,53 @@ function getRawClient() {
   return rawClient;
 }
 
+// Wave 73 (AI_OS_CERTIFICATION.md §1.3, "provision a real embedding model"):
+// GROQ_API_KEY has never been set in Vercel (confirmed in the 2026-07-04
+// security sweep -- it exists in GitHub Secrets only, and nobody has the raw
+// value to add it), so the Groq path below has been dead code in production
+// since Wave 43 first wrote it: every real request has always silently
+// fallen through to the hash-based pseudo-vector. OPENROUTER_API_KEY, by
+// contrast, is genuinely live in Vercel (Wave 45+, used by every callLLM
+// site in production today) and OpenRouter does expose a real
+// POST /api/v1/embeddings endpoint (confirmed live via `curl` -- returns 401
+// Missing Authentication, not 404, proving the route exists) proxying
+// OpenAI's text-embedding-3-small (1536-dim, matching this table's existing
+// `vector(1536)` column with zero schema change). Tried first now, ahead of
+// the Groq path, which is kept only for the case a BYOK caller explicitly
+// passes a Groq key.
+async function tryOpenRouterEmbedding(text: string): Promise<number[] | null> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 8000) }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.data[0].embedding as number[];
+    }
+    console.warn("OpenRouter embedding API returned", res.status, "— trying next fallback");
+  } catch (err) {
+    console.warn("OpenRouter embedding fetch failed:", err, "— trying next fallback");
+  }
+  return null;
+}
+
 /**
- * Generate an embedding vector using Groq's nomic-embed-text model.
- * Falls back to a deterministic hash-based vector if Groq is unavailable.
+ * Generate an embedding vector, preferring OpenRouter (platform-wide,
+ * genuinely configured) over Groq (BYOK-only in practice -- see comment
+ * above) over a deterministic hash-based pseudo-vector as the last resort.
  */
 export async function generateEmbedding(
   text: string,
   apiKey?: string
 ): Promise<number[]> {
-  const key = apiKey || process.env.GROQ_API_KEY;
+  const openRouterResult = await tryOpenRouterEmbedding(text);
+  if (openRouterResult) return openRouterResult;
 
+  const key = apiKey || process.env.GROQ_API_KEY;
   if (key) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/embeddings", {
@@ -63,7 +100,8 @@ export async function generateEmbedding(
     }
   }
 
-  // Fallback: deterministic hash-based pseudo-embedding (1536 dimensions)
+  // Last resort: deterministic hash-based pseudo-embedding (1536 dimensions)
+  console.warn("No real embedding provider available (OpenRouter and Groq both unavailable) — using hash-based pseudo-vector. Semantic search quality will be degraded.");
   return hashToVector(text, 1536);
 }
 
