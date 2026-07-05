@@ -31,6 +31,8 @@ import {
   ShieldCheck,
   Leaf,
   Siren,
+  AlertOctagon,
+  ServerCrash,
   UserCheck,
   FileWarning,
   Radio,
@@ -240,6 +242,8 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
       items: [
         { label: "Whistleblower & Ethics", href: "/whistleblower", icon: FileWarning },
         { label: "Business Continuity", href: "/bcm", icon: Radio },
+        { label: "IT Disaster Recovery", href: "/it-dr", icon: ServerCrash },
+        { label: "Fraud Case Management", href: "/fraud-cases", icon: AlertOctagon },
         { label: "Contract Compliance", href: "/contract-compliance", icon: FileSignature },
       ],
     },

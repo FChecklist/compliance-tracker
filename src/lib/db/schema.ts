@@ -2043,6 +2043,85 @@ export const bcmExercisesRelations = relations(bcmExercises, ({ one }) => ({
   plan: one(bcmPlans, { fields: [bcmExercises.planId], references: [bcmPlans.id] }),
 }))
 
+// ─── Wave 92 (Comparison CSV 3 gap analysis: GRC012 "Fraud Management" +
+// GRC009 "Disaster Recovery") ───────────────────────────────────────────────
+// Fraud case register -- zero fraud-detection/case-tracking capability
+// existed anywhere in the codebase before this wave. IT Disaster Recovery
+// is deliberately distinct from Wave 89's bcm_plans: BCM models generic
+// business-PROCESS recovery narrative (BIA/procedures/exercises), whereas
+// DR here is IT-SYSTEM-specific (RTO/RPO per system, backup verification,
+// failover test history) -- the same "different aggregate, not a bigger
+// bcm_plans row" judgment as Wave 90's legal_matters vs litigation_matters.
+export const fraudCases = complianceSchemaDB.table('fraud_cases', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  caseNumber: integer('case_number').notNull(), // per-org sequence, matching erp_contracts.contract_number convention
+  title: text('title').notNull(),
+  fraudType: text('fraud_type').notNull().default('other'), // 'financial'|'procurement'|'payroll'|'expense'|'inventory'|'cyber'|'other'
+  detectionSource: text('detection_source').notNull().default('other'), // 'internal_audit'|'whistleblower'|'system_alert'|'external_report'|'management_review'|'other'
+  description: text('description'),
+  financialExposure: numeric('financial_exposure'),
+  status: text('status').notNull().default('reported'), // 'reported'|'investigating'|'confirmed'|'unsubstantiated'|'resolved'
+  reportedDate: date('reported_date', { mode: 'string' }).notNull(),
+  investigatorId: text('investigator_id'),
+  resolutionSummary: text('resolution_summary'),
+  resolvedDate: date('resolved_date', { mode: 'string' }),
+  linkedRiskId: text('linked_risk_id'), // nullable link into the existing risks register, same convention as legal_opinions.linked_risk_id
+  clientId: text('client_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const itDrPlans = complianceSchemaDB.table('it_dr_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  systemName: text('system_name').notNull(),
+  systemDescription: text('system_description'),
+  criticalityLevel: text('criticality_level').notNull().default('medium'), // 'low'|'medium'|'high'|'critical'
+  rtoHours: numeric('rto_hours').notNull(), // Recovery Time Objective
+  rpoHours: numeric('rpo_hours').notNull(), // Recovery Point Objective
+  backupFrequency: text('backup_frequency').notNull().default('daily'), // 'hourly'|'daily'|'weekly'|'monthly'
+  status: text('status').notNull().default('active'), // 'active'|'draft'|'retired'
+  ownerId: text('owner_id'),
+  clientId: text('client_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// No org_id of their own; RLS scopes via their parent DR plan (Wave 87/88/89/90 convention).
+export const itDrBackupVerifications = complianceSchemaDB.table('it_dr_backup_verifications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  drPlanId: text('dr_plan_id').notNull(),
+  verificationDate: date('verification_date', { mode: 'string' }).notNull(),
+  status: text('status').notNull().default('success'), // 'success'|'failed'|'partial'
+  notes: text('notes'),
+  verifiedById: text('verified_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const itDrFailoverTests = complianceSchemaDB.table('it_dr_failover_tests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  drPlanId: text('dr_plan_id').notNull(),
+  testDate: date('test_date', { mode: 'string' }).notNull(),
+  testType: text('test_type').notNull().default('tabletop'), // 'tabletop'|'partial_failover'|'full_failover'
+  outcome: text('outcome').notNull().default('passed'), // 'passed'|'failed'|'partial'
+  findings: text('findings'),
+  conductedById: text('conducted_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const itDrPlansRelations = relations(itDrPlans, ({ many }) => ({
+  backupVerifications: many(itDrBackupVerifications),
+  failoverTests: many(itDrFailoverTests),
+}))
+export const itDrBackupVerificationsRelations = relations(itDrBackupVerifications, ({ one }) => ({
+  plan: one(itDrPlans, { fields: [itDrBackupVerifications.drPlanId], references: [itDrPlans.id] }),
+}))
+export const itDrFailoverTestsRelations = relations(itDrFailoverTests, ({ one }) => ({
+  plan: one(itDrPlans, { fields: [itDrFailoverTests.drPlanId], references: [itDrPlans.id] }),
+}))
+
 export const contractComplianceItems = complianceSchemaDB.table('contract_compliance_items', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   vendorName: text('vendor_name').notNull(),
