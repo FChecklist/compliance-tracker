@@ -1,0 +1,82 @@
+# Comparison CSV 2 — Gap Analysis (GRC/Legal/CorpSec/DMS/ESG/BCM/CLM/WorkflowEngine/Procurement/Inventory/Manufacturing/LowCode/BPM)
+
+Source: `comparison_csv_2_full_benchmark.csv` (538 lines, 506 feature rows, 13 modules), saved verbatim in this repo root. Saved to memory as `comparison_csv_2_manufacturing_grc_benchmark`.
+
+## Method
+
+Same discipline as `COMPARISON_CSV_GAP_ANALYSIS.md`: checked each submodule's feature cluster against live `src/lib/db/schema.ts` and `src/lib/services/*.ts`, not against memory or wave-history summaries alone. Status:
+- **PRESENT** — the submodule's core capability already exists (schema + service + some UI), even if a few of its 15-18 individual feature rows are thinner than the benchmark's "AI Opportunity"/"Strategic" framing implies.
+- **PARTIAL** — a real subset exists; named gaps below.
+- **GAP** — nothing exists for this submodule cluster.
+
+## Explicit scope decision (user-directed, 2026-07-05)
+
+Three modules are **out of scope entirely** for this pass — each is a brand-new-product-scale build, not an incremental enhancement to VERIDIAN's compliance/GRC/ERP core, and each would individually take roughly as long as VERIDIAN's entire ERP effort (Waves 49-85) to build with real parity:
+
+- **Manufacturing** (162 features: BOM, Routing, Work Centers, Shop Floor, Production Planning, Process Manufacturing, PLM/Product Engineering, Quality Management, Enterprise Asset Management/Maintenance, Industry 4.0, Supply Chain Collaboration) — VERIDIAN has zero manufacturing/MRP schema today (Items/Warehouses/Stock exist for trading, not production).
+- **Low Code Platform** (15 features: App Builder, UI Designer, Forms, Data Modeling, Deployment, Marketplace) — a generic no-code app builder is a different product category (Retool/Appsmith-class), not a GRC/ERP feature.
+- **BPM generic engine** (15 features: visual process modeling, process mining, simulation, process repository) — VERIDIAN already has a real, reused approval-workflow engine (see Workflow Engine below) for its actual transactional needs; a generic BPMN authoring/mining/simulation studio is a separate product.
+
+These are recorded here as **OUT OF SCOPE (by decision)**, not silently dropped.
+
+## Module-by-module
+
+### GRC (8 features) — PRESENT
+This is VERIDIAN's home turf — the original compliance/GRC product. `GRC001` (Enterprise Policy Management) → Wave 27 Policy Management. `GRC002/GRC003` (Risk Register/Scoring) → Wave 31 Risk module. `GRC004` (Compliance Monitoring) → the core compliance-tracker product itself. `GRC005` (Internal Audit) → Wave 33 Audit/Controls & Framework Library. `GRC006` (Control Framework) → same. `GRC008` (Responsible AI Governance) → `VERIDIAN_AI_CONSTITUTION.md` + `policy-enforcement-engine.ts` (Wave 46-ish). Only **`GRC007` (Enterprise Fraud Monitoring / anomaly detection)** is a genuine gap — no dedicated fraud-anomaly-detection engine exists (incident management exists, but nothing scores transactions for fraud patterns). Minor, not built this pass — no reliable historical-fraud training signal exists in this environment to make it more than a placeholder.
+
+### Corporate Secretarial (15 features) — PRESENT
+Maps almost 1:1 onto Wave 27 (Governance: Board/Committees/RPT/DoA/Director Register/Board Evaluation) + Wave 28 (Company Secretarial: Statutory Registers/Cap Table/Charges/Secretarial Audit/MCA e-Filing). `CS001` Entity Management, `CS002/003` Board Management/Meetings, `CS005` Minutes, `CS007` Compliance Calendar, `CS008` Share Capital/Cap Table, `CS009` Statutory Registers, `CS010` Filings, `CS011` Board Evaluation, `CS013/014` Audit/Analytics — all PRESENT. `CS004` (AI Agenda Generator) and `CS006` (formal Resolution register distinct from minutes) are thin/PARTIAL — not built this pass (low value relative to effort; agendas/resolutions are currently captured inside meeting minutes text, which is how the source benchmark's own comparison columns show Odoo/ERPNext/Zoho treating it too — "Partial" across the board).
+
+### Legal (16 features) — PARTIAL
+Wave 29 built External Counsel (`LEGAL008`), Litigation (`LEGAL003`), IP Portfolio (`LEGAL007`), Legal Opinions (`LEGAL005`). Genuine gaps: `LEGAL001/002` (no unified "Matter" concept spanning litigation/IP/opinions — each lives in its own table with no cross-cutting matter register), `LEGAL004` (Arbitration & Mediation — no dedicated tracking, only court litigation), `LEGAL009` (Legal Spend/Billing — no legal-specific cost tracking; compliance cost tracking from early waves is compliance-obligation-scoped, not matter-scoped), `LEGAL012` (Evidence Repository — could trivially reuse the polymorphic `documents` table, just needs a `linkedEntityType='legal_matter'` convention, no new schema). Deferred this pass: `LEGAL006` (AI contract review — overlaps with CLM), `LEGAL013` (Knowledge Hub — overlaps with existing Knowledge Base, Wave 29/81).
+
+### DMS (16 features) — PARTIAL
+Wave 61 built Central Document Repository + versioning + expiry tracking; Wave 76 wired vision/OCR extraction into upload. `DMS001` Repository, `DMS002` Version Control, `DMS005` OCR (vision-based), `DMS015` Audit — PRESENT. Genuine gaps: `DMS006` (Full-text search — current implementation is metadata/category filtering, not content search), `DMS008` (Retention & Disposal — no retention-period/disposal-date policy anywhere), `DMS009` (Enterprise Templates), `DMS012` (Digital Signature/eSignature — **zero eSignature capability exists anywhere in VERIDIAN**, confirmed via grep), `DMS011` (Email capture — needs live mailbox integration, out of scope: no mail server/IMAP credentials in this environment). `DMS010` (live co-authoring) explicitly deferred, matching this codebase's own prior "no CRDT rich-text editor" decision (Wave 25 PMS wiki).
+
+### ESG (15 features) — PARTIAL
+Wave 34 built ESG/BRSR (India's Business Responsibility & Sustainability Reporting framework) + Vendor Risk. `ESG001` Governance Framework, `ESG008` ESG Risk Register, `ESG009` Reporting & Disclosure, `ESG007` Supplier Sustainability (via vendor risk profiles) — PRESENT. Genuine but consciously out-of-scope: `ESG002-005/010` (Carbon/Energy/Water/Waste/Biodiversity operational tracking) need real sensor/utility-meter data feeds this environment has no source for — building empty data-entry forms with no real measurement pipeline behind them would be exactly the kind of hollow feature this codebase's discipline avoids (see Wave 80's sanction-screening precedent: build the real workflow, disclose the boundary, never fabricate live data). `ESG011` (Green Finance) and `ESG006` (Workforce Sustainability) similarly deferred — no natural data source.
+
+### BCM (15 features) — PARTIAL (thin)
+Wave 35 built `bcmPlans` — but it's genuinely minimal: `planName`, `lastTestedDate`, `status` only. That covers a bare sliver of `BCM001` (framework) and `BCM004/BCM009` (recovery plan register + last-tested date as a proxy for exercises). Real gaps: `BCM002` (Business Impact Analysis — no critical-process/RTO/RPO data model at all), `BCM004` detail (no actual recovery-procedure content, just a status flag), `BCM009` detail (no exercise/drill log, just `lastTestedDate`). `BCM005-008/010-011` (IT Disaster Recovery execution, Crisis Management Center, Emergency Response, Mass Notification, Supplier Continuity, Facility Recovery) are genuinely operational-crisis-infrastructure builds (need real SMS/mass-notification providers, real facilities data) — deferred, consistent with the ESG boundary reasoning above.
+
+### CLM (16 features) — PARTIAL
+Wave 71 built `erpContracts`/Amendments/Billing Schedules/Revenue Schedules/Obligations/Subscriptions. `CLM001` Repository, `CLM008` Obligations, `CLM009` Renewals (auto-renewal flag), `CLM010` Commercial/Billing — PRESENT. Genuine gaps: `CLM002/003/004` (Template Management, Clause Library, generative Authoring — no clause/template master data at all), `CLM007` (eSignature — same gap as `DMS012`, one build covers both), `CLM005` (Negotiation tracking — Wave 83 built exactly this pattern for procurement RFQs (`erpRfqNegotiationRounds`); CLM's own negotiation log doesn't exist yet, but the pattern is proven and cheap to replicate), `CLM013/014` (Analytics/Search — thin, mostly deferred).
+
+### Workflow Engine (15 features) — PRESENT (via existing infrastructure, not a dedicated product)
+This is the one module where VERIDIAN's *general-purpose* infrastructure already satisfies most rows without a dedicated "Workflow Engine" product: `WF003` (Universal Approval Framework) → `approval-workflow-service.ts`, reused across journal entries/requisitions/invoices/contracts since Wave 19. `WF004` (Event-driven automation) → outbound webhooks (Wave 58) + worker-agent automation rules (Wave 43). `WF005` (Scheduler) → Vercel cron jobs (metric alerts Wave 38, SLA Wave 39). `WF008` (Intelligent routing) → role/amount-based approval matrices already in the engine. `WF011` (Security) → RLS on every table. `WF013` (Human-AI hybrid) → `task-execution-engine.ts`'s human-gated pattern. `WF014` (Audit) → `logActivity()` everywhere. Only `WF001/002/006` (a **visual** workflow designer + forms builder + distributed execution runtime) are a true gap — and that's precisely the Low-Code/BPM overlap already ruled out of scope.
+
+### Procurement (72 features: AP/Vendor Payments/Vendor Returns/Analytics) — PRESENT
+Fully built across this session's Waves 55-85: Accounts Payable (invoicing, matching, TDS, e-invoicing — Waves 60/65-69), Vendor Payments (payment scheduling reuses invoice due dates + credit notes, Wave 52/60), Vendor Returns (`erp-returns-service.ts`, Wave 63 — RTV/RMA workflow with reason codes, inventory adjustment, credit notes), Analytics (Vendor Scorecarding Wave 64, Financial Reports Wave 50-51/70). Genuine remaining gaps are narrow and already tracked in `COMPARISON_CSV_GAP_ANALYSIS.md`'s own backlog language (bank-API direct integration `PAY003`, sanctions/AML screening `PAY011` — both need real external provider credentials this environment lacks, same boundary as Wave 80's sanction-check log).
+
+### Inventory (126 features: Item Master/Warehouse/Stock Movement/Inventory Control/Replenishment/Demand Planning/Traceability) — PARTIAL
+- **Item Master** (18) — PRESENT. `erpItems` covers code/name/UOM/costing method/HSN-SAC/batch-serial flags (Waves 49/57/65).
+- **Warehouse** (18) — PRESENT (core) / PARTIAL (advanced). `erpWarehouses` tree (parent/child = bin-capable), putaway (Wave 85). Missing: zones-as-a-first-class-concept, dock scheduling, cross-docking, robotics/IoT integration (genuinely deferred — no physical automation hardware in this environment).
+- **Stock Movement** (18) — PRESENT. FIFO valuation engine (Wave 53), batch/serial (Wave 57), landed cost (Wave 85).
+- **Inventory Control / Cycle Count** (18, `CC001-018`) — **GAP**. No cycle-count planning, ABC classification, physical-count workflow, or variance analysis anywhere.
+- **Replenishment** (18, `REP001-018`) — **GAP**. No reorder point, safety stock, or min/max levels on `erpItems` at all (confirmed via grep — zero hits).
+- **Demand Planning** (18, `DP001-018`) — GAP, but consciously deferred: statistical/ML demand forecasting (`DP001/002/008`) needs a real historical-sales-volume dataset and a forecasting library this environment has neither the data volume nor a stated need for yet (VERIDIAN's ERP is not yet in live production use generating real consumption history) — building a forecasting engine against zero real data would be a hollow feature.
+- **Traceability** (18, `LOT001-018`) — PARTIAL. Batch/serial tracking exists (Wave 57) covering `LOT001-003`. Missing and deferred: recall management (`LOT008`, needs a real customer-shipment-linkage graph this environment's sales-order model doesn't carry yet), blockchain traceability (`LOT016`, explicitly a "Strategic/optional" row even in the source CSV).
+
+## Decision (the "boss" call)
+
+Building on this session's established discipline (real, bounded, verified extensions — never hollow placeholder features), this pass builds:
+
+- **Wave 86 — eSignature** (closes `CLM007` + `DMS012` in one build): signature request/capture workflow with a tamper-evident audit trail (signer identity, IP, timestamp, SHA-256 hash of the document at signing time), attached to both the existing `documents` table and `erpContracts`. No paid e-signature provider integration (none available in this environment) — this is a real, first-party signing workflow, not a DocuSign wrapper.
+- **Wave 87 — Inventory Replenishment + Cycle Count/ABC** (closes the `REP`/`CC` gaps' realistic core): reorder point/safety stock/min-max levels on `erpItems` + reorder suggestion report; ABC classification (computed from real stock-ledger consumption value, not fabricated); cycle count plans + physical count entry + variance posting.
+- **Wave 88 — CLM Clause Library + Templates + Negotiation Log**: closes `CLM002/003/005`, reusing Wave 83's exact negotiation-round-log pattern.
+- **Wave 89 — BCM Business Impact Analysis + Recovery Plan detail + Exercise log**: extends the thin `bcmPlans` table into a real BIA/recovery-procedure/drill-history model.
+- **Wave 90 — Legal Matter Management unification + Arbitration tracking + Legal Spend**: a `legalMatters` register linking existing litigation/IP/opinion rows, plus arbitration cases and matter-scoped cost tracking.
+- **Wave 91 — DMS Retention & Disposal + Full-text search**: a real retention-period/disposal-date gate on `documents`, plus Postgres full-text search (tsvector, matching this codebase's existing `pg_trgm`/vector-search precedent).
+
+Explicitly NOT built this pass (documented above with reasoning, not silently skipped): Manufacturing, Low-Code Platform, generic BPM engine (all three per user directive), ESG environmental sensor tracking, BCM crisis/emergency-response operations, Demand Planning ML forecasting, Traceability recall management, DMS email capture/live co-authoring, GRC fraud-anomaly engine.
+
+## Status
+
+- Wave 86: pending
+- Wave 87: pending
+- Wave 88: pending
+- Wave 89: pending
+- Wave 90: pending
+- Wave 91: pending
+
+(Updated as each wave ships, same convention as `COMPARISON_CSV_GAP_ANALYSIS.md`.)
