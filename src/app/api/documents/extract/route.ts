@@ -3,7 +3,8 @@ import { documents } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 import { eq } from "drizzle-orm";
-import { callGroqLLMJson, getGroqApiKey } from "@/lib/groq";
+import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
+import { callLLMJson } from "@/lib/llm-client";
 import { storeEmbedding } from "@/lib/embeddings";
 
 const EXTRACTION_PROMPT = `You are a compliance document extraction AI for Indian regulatory filings. Extract structured information from the document text provided.
@@ -75,58 +76,15 @@ export async function POST(request: NextRequest) {
       if (file.type === "text/plain" || file.name.endsWith(".txt")) {
         textContent = await file.text();
       } else if (file.type === "application/pdf") {
-        // For PDFs, attempt to extract text
-        try {
-          // Convert to ArrayBuffer then to base64 for Groq vision
-          const arrayBuffer = await file.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString("base64");
-
-          // Try using Groq's vision capability to extract text from the PDF
-          const apiKey = getGroqApiKey();
-          if (apiKey) {
-            const visionRes = await fetch(
-              "https://api.groq.com/openai/v1/chat/completions",
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  model: "llama-3.2-90b-vision-preview",
-                  messages: [
-                    {
-                      role: "user",
-                      content: [
-                        {
-                          type: "text",
-                          text: "Extract ALL text content from this document image. Return only the raw text content, preserving structure and formatting as much as possible.",
-                        },
-                        {
-                          type: "image_url",
-                          image_url: {
-                            url: `data:application/pdf;base64,${base64}`,
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                  temperature: 0.1,
-                  max_tokens: 4096,
-                }),
-              }
-            );
-
-            if (visionRes.ok) {
-              const visionData = await visionRes.json();
-              textContent =
-                visionData.choices[0].message.content || "";
-            }
-          }
-        } catch (err) {
-          console.warn("PDF text extraction failed:", err);
-          textContent = `[PDF file: ${file.name}] — Text extraction unavailable. Please provide document text directly.`;
-        }
+        // Wave 103 (end-to-end testing pass): the old code here base64'd the
+        // PDF and sent it as an image_url to Groq's decommissioned
+        // llama-3.2-90b-vision-preview -- doubly broken (GROQ_API_KEY was
+        // never configured in production, and vision chat endpoints accept
+        // images, not PDFs), so this branch never once produced text. The
+        // honest behavior is the fallback message the old catch already had;
+        // image-based extraction lives in document-extraction-service.ts
+        // (Wave 76), and tabular PDF import lives in /api/ingest.
+        textContent = `[PDF file: ${file.name}] — Text extraction unavailable. Please provide document text directly.`;
       } else {
         // For other file types, use the file name as context
         textContent = `[File: ${file.name}, Type: ${file.type}] — Please provide the document text for extraction.`;
@@ -169,11 +127,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Call Groq LLM to extract fields
-    const extractedData = await callGroqLLMJson<ExtractedFields>(
+    // Wave 103: previously called callGroqLLMJson (hardcoded GROQ_API_KEY,
+    // never configured in production -- this whole route was dead on
+    // arrival). Routed through the same org-aware resolver every other AI
+    // call site uses: org BYOK config wins, else the platform's OpenRouter
+    // default, with callLLM's built-in retry + fallback (Wave 72).
+    const modelConfig = await resolveModelConfig(orgId, "customer_account_oa");
+    if (!modelConfig) {
+      return NextResponse.json(
+        { error: "No AI model configured for document extraction. Configure one in Settings -> AI Configuration." },
+        { status: 503 }
+      );
+    }
+    const { data: extractedData } = await callLLMJson<ExtractedFields>(
+      modelConfig.provider,
+      modelConfig.model,
+      modelConfig.apiKey,
       EXTRACTION_PROMPT,
       textContent.slice(0, 12000), // Truncate to avoid token limits
-      { temperature: 0.1, maxTokens: 2048 }
+      { temperature: 0.1, maxTokens: 2048 },
+      modelConfig.fallback
     );
 
     await withTenantContext({ orgId }, async (db) => {

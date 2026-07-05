@@ -12,7 +12,12 @@ function getConnectionString(): string {
   const dbPassword = process.env.SUPABASE_DB_PASSWORD
   if (supabaseUrl && dbPassword) {
     const ref = supabaseUrl.replace('https://', '').split('.')[0]
-    return `postgresql://postgres.${ref}:${dbPassword}@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`
+    // Wave 103: this fallback still pointed at aws-0-ap-northeast-2 -- the
+    // old, deleted MeetTrack project's pooler region, the exact wrong-region
+    // bug Wave 45 root-caused and fixed in the env vars but never in this
+    // fallback. Correct region for this project confirmed via the Supabase
+    // Management API pooler config in Wave 45: aws-1-ap-south-1.
+    return `postgresql://postgres.${ref}:${dbPassword}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres`
   }
 
   throw new Error('No database connection string available. Set DATABASE_URL or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_DB_PASSWORD.')

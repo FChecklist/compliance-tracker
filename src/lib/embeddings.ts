@@ -11,7 +11,10 @@ function getConnectionString(): string {
   const dbPassword = process.env.SUPABASE_DB_PASSWORD;
   if (supabaseUrl && dbPassword) {
     const ref = supabaseUrl.replace("https://", "").split(".")[0];
-    return `postgresql://postgres.${ref}:${dbPassword}@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`;
+    // Wave 103: fixed the same wrong-region fallback as db/index.ts -- see
+    // the comment there (aws-0-ap-northeast-2 was the deleted MeetTrack
+    // project's region, Wave 45's root-caused bug).
+    return `postgresql://postgres.${ref}:${dbPassword}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres`;
   }
 
   throw new Error("No database connection string available.");
