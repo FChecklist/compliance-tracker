@@ -20,7 +20,7 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | Finance > Taxation (TAX001-018) | PRESENT | `erpTaxTemplates`/Items, `erpTaxWithholdingCategories`/Rates (Wave 68 TDS), HSN/SAC on items (Wave 65) | |
 | Finance > Financial Reporting (FS001-018) | PARTIAL | `erp-financial-report-service.ts`: `trialBalance`, `profitAndLoss`, `balanceSheet` | Missing: Statement of Cash Flows. Added in Wave 70 (small addendum, reuses same service file) |
 | Finance > Period Closing (CL001-020) | PRESENT (Wave 82) | `erpAccountingPeriods` + `closePeriod`/`reopenPeriod`/`generatePeriodsForFiscalYear` + Wave 82: `erpPeriodClosingChecklistItems` (seeded accrual/provision/reconciliation/review tasks) + `signOffPeriod()` -- `closePeriod()` now REQUIRES the checklist complete + sign-off before it will close, a real gate not a cosmetic list. New `/erp/periods` page (first UI for periods at all). | |
-| CRM > Customer Master (CRM001-018) | PARTIAL | `erpCustomers` (name, GSTIN, PAN, payment terms) | Missing: multiple addresses/contacts, credit limit. Minor — backlogged |
+| CRM > Customer Master (CRM001-018) | PRESENT (Wave 84) | `erpCustomers` (name, GSTIN, PAN, payment terms) + Wave 84: `creditLimit` (enforced at sales-invoice-submit), `erpAddresses`/`erpContacts` (polymorphic, shared with suppliers), first-ever `/erp/customers` page | |
 | CRM > Lead Management (LEAD001-018) | PRESENT | `crmLeads` (Wave 41) | |
 | CRM > Opportunity Management (OPP001-018) | PRESENT | `crmOpportunities` (Wave 41) | |
 | CRM > Quotation Management (QT001-018) | PRESENT | `erpQuotations`/Items | |
@@ -29,7 +29,7 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | Sales > Returns & RMA (RMA001-018) | PRESENT | `erpSalesReturns`/`erpPurchaseReturns` + Items (Wave 63) | |
 | Sales > Contract Management (SC001-018) | **GAP** | `contractComplianceItems` exists but is the GRC "contract compliance obligations register" (Integrity module) — no SLA, renewals, amendments, recurring billing, revenue recognition, subscription lifecycle, or usage billing anywhere | Built in Wave 71 below |
 | CRM > Customer Service (CS001-018) | PRESENT (Wave 81) | `tickets` (Wave 39) + `knowledgeBasePages` (Wave 29, now searchable) + Wave 81: `ticketSatisfactionSurveys` (CSAT/NPS via guest-chat token), `installedProducts` (warranty tracking), `fieldServiceDispatches`, `problemRecords`/`problemTickets` (RCA grouping) | |
-| Procurement > Vendor Master (VEN001-018) | PRESENT (Wave 80) | `erpSuppliers` + `vendorRiskProfiles` + Vendor Scorecarding (Wave 64) + Wave 80: KYC docs (reuses `documents`), `erpSupplierBankAccounts` (pgcrypto-encrypted), `erpSupplierQualifications`, `erpSupplierSanctionChecks` (manual screening log, no live API), `erpSupplierPortalLinks` (self-service portal) | Sanction screening is a manual log, not a live external-API check (no sanctions-API key in this environment) |
+| Procurement > Vendor Master (VEN001-018) | PRESENT (Wave 80/84) | `erpSuppliers` + `vendorRiskProfiles` + Vendor Scorecarding (Wave 64) + Wave 80: KYC docs (reuses `documents`), `erpSupplierBankAccounts` (pgcrypto-encrypted), `erpSupplierQualifications`, `erpSupplierSanctionChecks` (manual screening log, no live API), `erpSupplierPortalLinks` (self-service portal) + Wave 84: `creditLimit` (enforced at purchase-invoice-submit), `erpAddresses`/`erpContacts` (shared with customers) | Sanction screening is a manual log, not a live external-API check (no sanctions-API key in this environment) |
 | Procurement > Purchase Requisition (PR001-018) | PRESENT | `erpPurchaseRequisitions`/Items | |
 | Procurement > RFQ Management (RFQ001-018) | PRESENT (Wave 83) | `erpRfqs`/Items/Suppliers + `erpSupplierQuotations`/Items + Wave 83: `erpRfqScoringCriteria`/`erpRfqQuotationScores` (weighted scoring), `erpRfqNegotiationRounds` (structured counter-offer log), `erpRfqReverseAuctions`/`erpRfqAuctionBids` (suppliers bid via their existing Wave 80 vendor-portal token) | |
 | Procurement > Purchase Order (PO001-018) | PRESENT | `erpPurchaseOrders`/Items | |
@@ -55,7 +55,7 @@ Everything marked PARTIAL above is an *enhancement* to an already-shipped module
 2. ~~Customer Service: Knowledge Base articles + search, CSAT/NPS post-ticket surveys, installed-product/warranty tracking, field-service dispatch, problem management/RCA grouping.~~ DONE (Wave 81).
 3. ~~Period Closing: formal closing-checklist workflow (accrual/provision tasks, sign-off steps) beyond today's simple open/closed period flag.~~ DONE (Wave 82).
 4. ~~RFQ Management: reverse auction, formal weighted vendor scoring, structured negotiation-round log.~~ DONE (Wave 83).
-5. Customer/Vendor Master: multiple addresses/contacts per record, credit limits.
+5. ~~Customer/Vendor Master: multiple addresses/contacts per record, credit limits.~~ DONE (Wave 84).
 6. Goods Receipt: three-way-match (PO/GRN/Invoice) report, landed-cost allocation, putaway/bin assignment.
 
 ## On the code-copying permission
