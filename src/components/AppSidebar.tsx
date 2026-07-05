@@ -54,6 +54,7 @@ import {
   FolderOpen,
   UserPlus,
   ClipboardCheck,
+  Undo2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +121,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Procurement Workflow", href: "/erp/procurement", icon: ClipboardList },
         { label: "Statutory Payroll", href: "/erp/payroll", icon: IndianRupee },
         { label: "Invoicing", href: "/erp/invoicing", icon: Receipt },
+        { label: "Returns (RMA)", href: "/erp/returns", icon: Undo2 },
       ],
     },
     {

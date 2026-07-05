@@ -4407,3 +4407,66 @@ export const performanceReviews = complianceSchemaDB.table('performance_reviews'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── Wave 63: RMA/Returns Workflow (Tier 3 #11 remainder) ────────────────
+// ERPNext itself only flags returns with no real workflow -- this is a
+// genuine in-house design. Deliberately reuses existing infrastructure
+// rather than reinventing it: physical stock movement goes through the
+// same recordStockReceipt/recordStockIssue FIFO engine every other stock
+// movement uses (Wave 53/57) -- a return is not a parallel valuation path.
+// The financial side (crediting the customer / getting credited by the
+// supplier) reuses the existing erp_sales_credit_notes/
+// erp_purchase_credit_notes documents (Wave 52) via an explicit,
+// admin-linked creditNoteId -- never auto-created, since picking the
+// correct revenue/expense account requires the same human judgment call
+// Wave 60 already decided invoicing itself needs.
+export const erpSalesReturnStatusEnum = complianceSchemaDB.enum('erp_sales_return_status', ['requested', 'approved', 'received', 'rejected'])
+export const erpPurchaseReturnStatusEnum = complianceSchemaDB.enum('erp_purchase_return_status', ['requested', 'approved', 'dispatched', 'rejected'])
+
+export const erpSalesReturns = complianceSchemaDB.table('erp_sales_returns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  salesInvoiceId: text('sales_invoice_id'), // nullable -- a return can be raised without a specific originating invoice
+  warehouseId: text('warehouse_id').notNull(), // where the returned stock is received back into
+  reason: text('reason'),
+  status: erpSalesReturnStatusEnum('status').notNull().default('requested'),
+  creditNoteId: text('credit_note_id'), // set only once an admin explicitly links an already-created erp_sales_credit_notes row
+  requestedById: text('requested_by_id').notNull(),
+  approvedById: text('approved_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpSalesReturnItems = complianceSchemaDB.table('erp_sales_return_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  returnId: text('return_id').notNull(),
+  itemId: text('item_id').notNull(),
+  quantity: numeric('quantity').notNull(),
+  rate: numeric('rate').notNull().default('0'), // informational -- the actual FIFO cost is computed by recordStockReceipt itself
+  reason: text('reason'),
+})
+
+export const erpPurchaseReturns = complianceSchemaDB.table('erp_purchase_returns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  purchaseInvoiceId: text('purchase_invoice_id'),
+  warehouseId: text('warehouse_id').notNull(), // where the stock being returned to the supplier is issued from
+  reason: text('reason'),
+  status: erpPurchaseReturnStatusEnum('status').notNull().default('requested'),
+  creditNoteId: text('credit_note_id'), // set only once an admin explicitly links an already-created erp_purchase_credit_notes row
+  requestedById: text('requested_by_id').notNull(),
+  approvedById: text('approved_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseReturnItems = complianceSchemaDB.table('erp_purchase_return_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  returnId: text('return_id').notNull(),
+  itemId: text('item_id').notNull(),
+  quantity: numeric('quantity').notNull(),
+  rate: numeric('rate').notNull().default('0'),
+  reason: text('reason'),
+})
