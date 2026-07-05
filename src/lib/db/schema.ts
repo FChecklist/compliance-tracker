@@ -4707,3 +4707,151 @@ export const erpBudgetLineItemsRelations = relations(erpBudgetLineItems, ({ one 
   budget: one(erpBudgets, { fields: [erpBudgetLineItems.budgetId], references: [erpBudgets.id] }),
   account: one(erpAccounts, { fields: [erpBudgetLineItems.accountId], references: [erpAccounts.id] }),
 }))
+
+// ─── Wave 71 (Contract & Commercial Lifecycle Management) ────────────────
+// Per COMPARISON_CSV_GAP_ANALYSIS.md: Sales>Contract Management was a
+// complete gap -- the existing `contractComplianceItems` table (Integrity
+// module, Wave 8) is a GRC "contract compliance obligations register",
+// unrelated to commercial contract lifecycle (SLA, renewals, amendments,
+// recurring billing, revenue recognition, subscriptions). Deliberately
+// reuses existing infrastructure rather than duplicating it: contract
+// documents use the existing polymorphic `documents` table
+// (linkedEntityType='erp_contract', Wave 61) instead of a new attachment
+// table; the audit trail uses the existing logActivity() mechanism instead
+// of a bespoke log table. Usage-based billing (CSV feature SC015) and the
+// AI Contract Copilot (SC018, Pilot/Strategic tier in the source CSV) are
+// deliberately deferred -- no AI feature is ported from any studied
+// source, matching this codebase's standing discipline that new AI
+// touches must go through the Prompt OS/Worker Agent stack, not be
+// invented ad hoc.
+export const erpContractStatusEnum = complianceSchemaDB.enum('erp_contract_status', ['draft', 'active', 'expired', 'terminated', 'renewed'])
+export const erpContractBillingFrequencyEnum = complianceSchemaDB.enum('erp_contract_billing_frequency', ['monthly', 'quarterly', 'half_yearly', 'annually', 'milestone'])
+export const erpContractAmendmentStatusEnum = complianceSchemaDB.enum('erp_contract_amendment_status', ['draft', 'approved'])
+export const erpContractObligationStatusEnum = complianceSchemaDB.enum('erp_contract_obligation_status', ['pending', 'completed', 'overdue'])
+export const erpSubscriptionStatusEnum = complianceSchemaDB.enum('erp_subscription_status', ['active', 'paused', 'cancelled', 'expired'])
+
+export const erpContracts = complianceSchemaDB.table('erp_contracts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  contractNumber: integer('contract_number').notNull(), // per-org sequence, matching erp_purchase_orders.po_number convention
+  title: text('title').notNull(),
+  contractType: text('contract_type'), // free text: 'service'|'supply'|'nda'|'msa'|... -- admin-extensible, matches erp_accounts.account_type precedent
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }),
+  autoRenew: boolean('auto_renew').notNull().default(false),
+  renewalNoticeDays: integer('renewal_notice_days'),
+  contractValue: numeric('contract_value').notNull().default('0'),
+  currencyId: text('currency_id'),
+  slaResponseHours: numeric('sla_response_hours'), // simple inline SLA terms -- no separate SLA table, matching the "additive columns, not a new table" precedent used throughout this schema for single-valued attributes
+  slaResolutionHours: numeric('sla_resolution_hours'),
+  ownerId: text('owner_id'), // account manager, users.id
+  status: erpContractStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpContractAmendments = complianceSchemaDB.table('erp_contract_amendments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contractId: text('contract_id').notNull(),
+  amendmentNumber: integer('amendment_number').notNull(),
+  description: text('description').notNull(),
+  previousValue: numeric('previous_value'),
+  newValue: numeric('new_value'),
+  effectiveDate: date('effective_date', { mode: 'string' }).notNull(),
+  status: erpContractAmendmentStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id'),
+  approvedById: text('approved_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpContractBillingSchedules = complianceSchemaDB.table('erp_contract_billing_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contractId: text('contract_id').notNull(),
+  billingFrequency: erpContractBillingFrequencyEnum('billing_frequency').notNull(),
+  nextBillingDate: date('next_billing_date', { mode: 'string' }).notNull(),
+  amount: numeric('amount').notNull(),
+  lastInvoiceId: text('last_invoice_id'), // nullable -- points at the most recent erp_sales_invoices row this schedule generated
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Revenue recognition schedule (IFRS15/ASC606-style deferred revenue) --
+// one row per recognition period, generated up front when a contract's
+// value spans multiple periods. Deliberately a plain schedule table, not
+// wired to auto-post journal entries -- picking the correct revenue
+// account is the same human judgment call Wave 60 (invoicing) already
+// decided requires an explicit admin action, not silent automation.
+export const erpContractRevenueSchedules = complianceSchemaDB.table('erp_contract_revenue_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contractId: text('contract_id').notNull(),
+  periodStart: date('period_start', { mode: 'string' }).notNull(),
+  periodEnd: date('period_end', { mode: 'string' }).notNull(),
+  recognizedAmount: numeric('recognized_amount').notNull().default('0'),
+  deferredAmount: numeric('deferred_amount').notNull().default('0'),
+  isRecognized: boolean('is_recognized').notNull().default(false),
+  journalEntryId: text('journal_entry_id'), // nullable -- set only once an admin explicitly posts recognition for this period
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpContractObligations = complianceSchemaDB.table('erp_contract_obligations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contractId: text('contract_id').notNull(),
+  description: text('description').notNull(),
+  dueDate: date('due_date', { mode: 'string' }).notNull(),
+  status: erpContractObligationStatusEnum('status').notNull().default('pending'),
+  responsibleUserId: text('responsible_user_id'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSubscriptionPlans = complianceSchemaDB.table('erp_subscription_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  billingFrequency: erpContractBillingFrequencyEnum('billing_frequency').notNull(),
+  price: numeric('price').notNull(),
+  currencyId: text('currency_id'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSubscriptions = complianceSchemaDB.table('erp_subscriptions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  contractId: text('contract_id'), // nullable -- a subscription can exist without a formal contract document
+  customerId: text('customer_id').notNull(),
+  planId: text('plan_id').notNull(),
+  status: erpSubscriptionStatusEnum('status').notNull().default('active'),
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  nextRenewalDate: date('next_renewal_date', { mode: 'string' }),
+  cancelledAt: timestamp('cancelled_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpContractsRelations = relations(erpContracts, ({ one, many }) => ({
+  customer: one(erpCustomers, { fields: [erpContracts.customerId], references: [erpCustomers.id] }),
+  amendments: many(erpContractAmendments),
+  billingSchedules: many(erpContractBillingSchedules),
+  revenueSchedules: many(erpContractRevenueSchedules),
+  obligations: many(erpContractObligations),
+}))
+export const erpContractAmendmentsRelations = relations(erpContractAmendments, ({ one }) => ({
+  contract: one(erpContracts, { fields: [erpContractAmendments.contractId], references: [erpContracts.id] }),
+}))
+export const erpContractBillingSchedulesRelations = relations(erpContractBillingSchedules, ({ one }) => ({
+  contract: one(erpContracts, { fields: [erpContractBillingSchedules.contractId], references: [erpContracts.id] }),
+}))
+export const erpContractRevenueSchedulesRelations = relations(erpContractRevenueSchedules, ({ one }) => ({
+  contract: one(erpContracts, { fields: [erpContractRevenueSchedules.contractId], references: [erpContracts.id] }),
+}))
+export const erpContractObligationsRelations = relations(erpContractObligations, ({ one }) => ({
+  contract: one(erpContracts, { fields: [erpContractObligations.contractId], references: [erpContracts.id] }),
+}))
+export const erpSubscriptionsRelations = relations(erpSubscriptions, ({ one }) => ({
+  contract: one(erpContracts, { fields: [erpSubscriptions.contractId], references: [erpContracts.id] }),
+  customer: one(erpCustomers, { fields: [erpSubscriptions.customerId], references: [erpCustomers.id] }),
+  plan: one(erpSubscriptionPlans, { fields: [erpSubscriptions.planId], references: [erpSubscriptionPlans.id] }),
+}))

@@ -123,6 +123,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Statutory Payroll", href: "/erp/payroll", icon: IndianRupee },
         { label: "Invoicing", href: "/erp/invoicing", icon: Receipt },
         { label: "Returns (RMA)", href: "/erp/returns", icon: Undo2 },
+        { label: "Contracts", href: "/erp/contracts", icon: FileSignature },
         { label: "Suppliers", href: "/erp/suppliers", icon: Building2 },
       ],
     },
