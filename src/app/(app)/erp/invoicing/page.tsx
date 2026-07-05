@@ -23,7 +23,8 @@ type Supplier = { id: string; supplierName: string };
 type Item = { id: string; itemCode: string; itemName: string; standardSellingRate: string | null };
 type Account = { id: string; accountName: string; accountType: string | null; rootType: string };
 type TaxTemplate = { id: string; name: string; items: { rate: string }[] };
-type Invoice = { id: string; invoiceNumber: number; postingDate: string; status: string; subtotal: string; taxAmount: string; grandTotal: string; currencyId: string | null; exchangeRate: string; tdsAmount?: string; customer?: { customerName: string }; supplier?: { supplierName: string } };
+type Invoice = { id: string; invoiceNumber: number; postingDate: string; status: string; subtotal: string; taxAmount: string; grandTotal: string; currencyId: string | null; exchangeRate: string; tdsAmount?: string; irn?: string | null; eInvoiceStatus?: string | null; customer?: { customerName: string }; supplier?: { supplierName: string } };
+type EInvoiceLog = { id: string; referenceId: string; status: string; irn: string | null };
 type PricingRule = { id: string; name: string; appliesTo: string; targetId: string | null; discountType: string; discountValue: string; validFrom: string; validTo: string | null; priority: number };
 type LineItem = { itemId: string; description: string; quantity: string; rate: string; taxTemplateId: string };
 type Currency = { id: string; code: string; name: string; symbol: string | null; isBaseCurrency: boolean };
@@ -56,6 +57,9 @@ export default function ErpInvoicingPage() {
   const [siCompanyId, setSiCompanyId] = useState("");
   const [creatingSi, setCreatingSi] = useState(false);
   const [siSubmitRevenueAccount, setSiSubmitRevenueAccount] = useState<Record<string, string>>({});
+  const [eInvoiceLogsByInvoice, setEInvoiceLogsByInvoice] = useState<Record<string, EInvoiceLog[]>>({});
+  const [ackInputs, setAckInputs] = useState<Record<string, { irn: string; ackNumber: string; ackDate: string }>>({});
+  const [eInvoiceBusyId, setEInvoiceBusyId] = useState<string | null>(null);
 
   const [piOpen, setPiOpen] = useState(false);
   const [piSupplierId, setPiSupplierId] = useState("");
@@ -145,6 +149,35 @@ export default function ErpInvoicingPage() {
     setBusyId(null);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to submit"); return; }
     toast.success("Sales invoice posted to GL");
+    load();
+  };
+
+  const generateEInvoice = async (invoiceId: string) => {
+    setEInvoiceBusyId(invoiceId);
+    const res = await fetch(`/api/erp/sales-invoices/${invoiceId}/e-invoice`, { method: "POST" });
+    setEInvoiceBusyId(null);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to generate e-invoice payload"); return; }
+    toast.success("E-invoice IRP payload generated (draft) -- submit it via your GSP integration, then record the response below");
+    const logsRes = await fetch(`/api/erp/sales-invoices/${invoiceId}/e-invoice`);
+    const logsData = await logsRes.json();
+    setEInvoiceLogsByInvoice((prev) => ({ ...prev, [invoiceId]: logsData.logs ?? [] }));
+  };
+
+  const loadEInvoiceLogs = async (invoiceId: string) => {
+    const res = await fetch(`/api/erp/sales-invoices/${invoiceId}/e-invoice`);
+    const data = await res.json();
+    setEInvoiceLogsByInvoice((prev) => ({ ...prev, [invoiceId]: data.logs ?? [] }));
+  };
+
+  const markEInvoiceGenerated = async (logId: string, invoiceId: string) => {
+    const input = ackInputs[logId];
+    if (!input?.irn || !input?.ackNumber || !input?.ackDate) { toast.error("IRN, Ack Number, and Ack Date are all required"); return; }
+    setEInvoiceBusyId(logId);
+    const res = await fetch(`/api/erp/e-invoice-logs/${logId}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+    setEInvoiceBusyId(null);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to record IRP response"); return; }
+    toast.success("E-invoice marked generated");
+    loadEInvoiceLogs(invoiceId);
     load();
   };
 
@@ -311,6 +344,26 @@ export default function ErpInvoicingPage() {
                                 <SelectContent>{receivableAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.accountName}</SelectItem>)}</SelectContent>
                               </Select>
                               <Button size="sm" className="h-7 text-xs bg-ct-teal hover:bg-ct-teal-hover text-white" onClick={() => submitSalesInvoice(inv.id)} disabled={busyId === inv.id}>{busyId === inv.id && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Post</Button>
+                            </div>
+                          )}
+                          {inv.status === "submitted" && (
+                            <div className="flex flex-col gap-1">
+                              {inv.eInvoiceStatus === "generated" ? (
+                                <Badge className="bg-green-100 text-green-700 w-fit">IRN: {inv.irn}</Badge>
+                              ) : (
+                                <div className="flex gap-1 items-center">
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => generateEInvoice(inv.id)} disabled={eInvoiceBusyId === inv.id}>{eInvoiceBusyId === inv.id && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Generate E-Invoice Payload</Button>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => loadEInvoiceLogs(inv.id)}>View log</Button>
+                                </div>
+                              )}
+                              {(eInvoiceLogsByInvoice[inv.id] ?? []).filter((l) => l.status === "draft").map((l) => (
+                                <div key={l.id} className="flex gap-1 items-center bg-ct-cloud/40 rounded p-1">
+                                  <Input className="w-24 h-6 text-xs" placeholder="IRN" value={ackInputs[l.id]?.irn ?? ""} onChange={(e) => setAckInputs((prev) => ({ ...prev, [l.id]: { ...prev[l.id], irn: e.target.value, ackNumber: prev[l.id]?.ackNumber ?? "", ackDate: prev[l.id]?.ackDate ?? "" } }))} />
+                                  <Input className="w-20 h-6 text-xs" placeholder="Ack #" value={ackInputs[l.id]?.ackNumber ?? ""} onChange={(e) => setAckInputs((prev) => ({ ...prev, [l.id]: { ...prev[l.id], ackNumber: e.target.value, irn: prev[l.id]?.irn ?? "", ackDate: prev[l.id]?.ackDate ?? "" } }))} />
+                                  <Input className="w-28 h-6 text-xs" type="date" value={ackInputs[l.id]?.ackDate ?? ""} onChange={(e) => setAckInputs((prev) => ({ ...prev, [l.id]: { ...prev[l.id], ackDate: e.target.value, irn: prev[l.id]?.irn ?? "", ackNumber: prev[l.id]?.ackNumber ?? "" } }))} />
+                                  <Button size="sm" className="h-6 text-xs bg-ct-teal hover:bg-ct-teal-hover text-white" onClick={() => markEInvoiceGenerated(l.id, inv.id)} disabled={eInvoiceBusyId === l.id}>Record IRP Response</Button>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </td>
