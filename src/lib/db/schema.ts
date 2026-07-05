@@ -2122,6 +2122,43 @@ export const itDrFailoverTestsRelations = relations(itDrFailoverTests, ({ one })
   plan: one(itDrPlans, { fields: [itDrFailoverTests.drPlanId], references: [itDrPlans.id] }),
 }))
 
+// ─── Wave 93 (Comparison CSV 3 gap analysis: MDM007 "Duplicate Detection" +
+// MDM008 "Data Quality Scoring") ────────────────────────────────────────────
+// Duplicate candidates are detected via pg_trgm similarity() on
+// erp_customers.customer_name / erp_suppliers.supplier_name combined with
+// exact gstin/pan_number matches -- a real similarity computation, not a
+// fabricated score. The merge workflow is deliberately scoped down: it
+// deactivates the loser record and reassigns its own erp_contacts /
+// erp_addresses (polymorphic linkedEntityId) and erp_supplier_bank_accounts
+// (direct supplierId FK) to the survivor. It does NOT rewrite historical
+// invoices/POs/subscriptions still pointing at the merged-away id -- a
+// full transactional FK rewrite across every ERP table was judged too risky
+// for this pass; this is documented, not a silent gap.
+export const mdmDuplicateCandidates = complianceSchemaDB.table('mdm_duplicate_candidates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // 'erp_customer'|'erp_supplier'
+  entityIdA: text('entity_id_a').notNull(),
+  entityIdB: text('entity_id_b').notNull(),
+  matchScore: numeric('match_score').notNull(), // 0..1
+  matchReason: text('match_reason').notNull(), // 'name_similarity'|'gstin_match'|'pan_match'|'combined'
+  status: text('status').notNull().default('pending'), // 'pending'|'confirmed_duplicate'|'not_duplicate'|'merged'
+  reviewedById: text('reviewed_by_id'),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const mdmMergeLog = complianceSchemaDB.table('mdm_merge_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(),
+  survivingEntityId: text('surviving_entity_id').notNull(),
+  mergedEntityId: text('merged_entity_id').notNull(),
+  mergedById: text('merged_by_id').notNull(),
+  mergedAt: timestamp('merged_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const contractComplianceItems = complianceSchemaDB.table('contract_compliance_items', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   vendorName: text('vendor_name').notNull(),

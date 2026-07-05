@@ -59,6 +59,7 @@ import {
   UserPlus,
   ClipboardCheck,
   Undo2,
+  Fingerprint,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +134,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Clause Library & Templates", href: "/erp/clm-library", icon: BookText },
         { label: "Customers", href: "/erp/customers", icon: Users },
         { label: "Suppliers", href: "/erp/suppliers", icon: Building2 },
+        { label: "Master Data Quality", href: "/mdm-quality", icon: Fingerprint },
       ],
     },
     {
