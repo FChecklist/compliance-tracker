@@ -2969,6 +2969,18 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   status: text('status').notNull().default('draft'), // 'draft' | 'published' -- once published, meeting-level fields lock
   publishedAt: timestamp('published_at'),
   publishedById: text('published_by_id'),
+  // Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT):
+  // a real LLM extraction over `minutes`, run automatically (non-blocking,
+  // best-effort) when a meeting with real minutes is published, and
+  // re-runnable manually via a dedicated route. All 4 columns nullable/
+  // empty-default -- a meeting published before this wave, or one whose
+  // generation failed/was never triggered, just shows nothing, exactly like
+  // every other "AI enrichment of existing human-entered data" column this
+  // codebase already has (e.g. documents.extractedData).
+  aiSummary: text('ai_summary'),
+  aiKeyDecisions: jsonb('ai_key_decisions').notNull().default([]), // string[]
+  aiSuggestedActionItems: jsonb('ai_suggested_action_items').notNull().default([]), // { title, assignee: string | null, dueDateHint: string | null }[] -- suggestions only, never auto-created as real tasks
+  aiGeneratedAt: timestamp('ai_generated_at'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

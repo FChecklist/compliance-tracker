@@ -6,17 +6,19 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Save, Loader2, ArrowLeft, Plus, CheckCircle2, Lock, Globe, Download, Share2, History, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Save, Loader2, ArrowLeft, Plus, CheckCircle2, Lock, Globe, Download, Share2, History, ChevronDown, ChevronUp, Copy, Sparkles, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 type ActionItem = { id: string; task: { id: string; title: string; status: string } };
+type SuggestedActionItem = { title: string; assignee: string | null; dueDateHint: string | null };
 type Meeting = {
   id: string; title: string; meetingType: string; scheduledAt: string; systemId: string | null;
   status: "draft" | "published"; attendees: string[]; agenda: string[];
   minutes: string | null; actionItems: ActionItem[];
+  aiSummary: string | null; aiKeyDecisions: string[]; aiSuggestedActionItems: SuggestedActionItem[]; aiGeneratedAt: string | null;
 };
 type AuditEntry = { id: string; action: string; actorName: string; details: string | null; createdAt: string };
 type ShareLink = { id: string; token: string; expiresAt: string; revokedAt: string | null };
@@ -41,6 +43,7 @@ export default function VeriMeetingDetailPage() {
 
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [creatingLink, setCreatingLink] = useState(false);
+  const [generatingIntelligence, setGeneratingIntelligence] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/veri-meetings/${params.id}`);
@@ -140,6 +143,36 @@ export default function VeriMeetingDetailPage() {
     toast.success("Share link copied");
   };
 
+  const generateIntelligence = async () => {
+    setGeneratingIntelligence(true);
+    try {
+      const res = await fetch(`/api/veri-meetings/${params.id}/generate-intelligence`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("AI intelligence generated");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate AI intelligence");
+    } finally {
+      setGeneratingIntelligence(false);
+    }
+  };
+
+  const addSuggestedActionItem = async (item: SuggestedActionItem) => {
+    try {
+      const res = await fetch(`/api/veri-meetings/${params.id}/action-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: item.title }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Added to Action Items");
+      setHistoryLoaded(false);
+      load();
+    } catch {
+      toast.error("Failed to add action item");
+    }
+  };
+
   const addActionItem = async () => {
     if (!newActionItem.trim()) return;
     setAddingItem(true);
@@ -230,6 +263,55 @@ export default function VeriMeetingDetailPage() {
           className="min-h-[300px] text-sm"
         />
       </div>
+
+      {(minutes.trim() || meeting.aiGeneratedAt) && (
+        <div className="rounded-xl border border-ct-border bg-white p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ct-navy uppercase tracking-wide flex items-center gap-2">
+              <Sparkles className="size-4 text-ct-saffron" /> AI Intelligence
+            </h2>
+            <Button size="sm" variant="outline" onClick={generateIntelligence} disabled={generatingIntelligence || !minutes.trim()}>
+              {generatingIntelligence ? <Loader2 className="size-3.5 mr-1 animate-spin" /> : <RefreshCw className="size-3.5 mr-1" />}
+              {meeting.aiGeneratedAt ? "Regenerate" : "Generate"}
+            </Button>
+          </div>
+          {!meeting.aiGeneratedAt ? (
+            <p className="text-xs text-ct-muted">No AI summary yet -- generated automatically on publish, or click Generate to run it now.</p>
+          ) : (
+            <div className="space-y-3 text-sm">
+              <p className="text-ct-navy">{meeting.aiSummary}</p>
+              {meeting.aiKeyDecisions.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-ct-navy uppercase tracking-wide mb-1">Key Decisions</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-ct-navy">
+                    {meeting.aiKeyDecisions.map((d, i) => <li key={i}>{d}</li>)}
+                  </ul>
+                </div>
+              )}
+              {meeting.aiSuggestedActionItems.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-ct-navy uppercase tracking-wide mb-1">Suggested Action Items</p>
+                  <div className="space-y-1.5">
+                    {meeting.aiSuggestedActionItems.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-ct-cloud rounded-lg px-3 py-2">
+                        <span className="flex-1">
+                          {item.title}
+                          {item.assignee && <span className="text-ct-muted"> — {item.assignee}</span>}
+                          {item.dueDateHint && <span className="text-ct-muted"> ({item.dueDateHint})</span>}
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={() => addSuggestedActionItem(item)}>
+                          <Plus className="size-3.5 mr-1" /> Add
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-ct-muted">Generated {new Date(meeting.aiGeneratedAt).toLocaleString()} — suggestions only, review before adding.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-xl border border-ct-border bg-white p-6 space-y-3">
         <h2 className="text-sm font-semibold text-ct-navy uppercase tracking-wide">Action Items</h2>

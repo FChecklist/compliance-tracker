@@ -19,6 +19,10 @@ import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, aud
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
 import { eq, and, desc } from "drizzle-orm"
+import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import { callLLMJson } from "@/lib/llm-client"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -135,18 +139,77 @@ export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: s
 // Publish/lock -- the core auditability feature adopted from meettrack-v2,
 // enforced server-side (assertEditable), not just a disabled UI input.
 export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const updated = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Meeting not found", 404)
     if (existing.status === "published") throw new ServiceError("Meeting is already published", 409)
 
-    const [updated] = await db.update(veriMeetings)
+    const [row] = await db.update(veriMeetings)
       .set({ status: "published", publishedAt: new Date(), publishedById: ctx.userId, updatedAt: new Date() })
       .where(eq(veriMeetings.id, meetingId)).returning()
 
     await logActivity({
       tx: db, action: "veri_meeting.published", entityType: "veri_meeting", entityId: meetingId,
       details: "Meeting published and locked", orgId: ctx.orgId, dbUser: ctx.dbUser,
+    })
+    return row
+  })
+
+  // Wave 74 (Meeting Intelligence): best-effort, non-blocking -- publishing
+  // must succeed and return regardless of whether AI extraction works. Only
+  // attempted when there's real minutes text to analyze.
+  if (updated?.minutes?.trim()) {
+    generateMeetingIntelligence(ctx, meetingId).catch((err) => {
+      console.error("Meeting intelligence generation failed (non-fatal, meeting still published):", err)
+    })
+  }
+
+  return updated
+}
+
+// Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT).
+// Read-only over `minutes` -- never mutates meeting-level fields, so it's
+// safe to call on a published (locked) meeting and safe to re-run any
+// number of times (overwrites its own prior AI columns only). Suggested
+// action items are exactly that -- suggestions a human reviews and
+// explicitly promotes via the existing addMeetingActionItem(), never
+// auto-created as real `tasks` rows.
+export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!meeting) throw new ServiceError("Meeting not found", 404)
+    if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
+
+    const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+
+    const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
+    const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
+
+    const startedAt = Date.now()
+    const { data: result, usage } = await callLLMJson<{
+      summary: string
+      keyDecisions: string[]
+      suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
+    }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
+
+    recordOrchestraExecution({
+      orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
+      input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
+      status: "completed", durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    })
+
+    const [updated] = await db.update(veriMeetings).set({
+      aiSummary: result.summary,
+      aiKeyDecisions: result.keyDecisions ?? [],
+      aiSuggestedActionItems: result.suggestedActionItems ?? [],
+      aiGeneratedAt: new Date(),
+    }).where(eq(veriMeetings.id, meetingId)).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
+      details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, dbUser: ctx.dbUser,
     })
     return updated
   })
