@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
+import { updateDocumentMetadata, ServiceError } from "@/lib/services/document-service"
 
 const BUCKET = "compliance-documents"
 const SIGNED_URL_TTL_SECONDS = 300 // 5 minutes -- short-lived on purpose, re-requested per view
@@ -69,5 +70,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
   } catch (error) {
     console.error("Document GET error:", error)
     return NextResponse.json({ error: "Failed to retrieve document" }, { status: 500 })
+  }
+}
+
+// Wave 61: metadata-only edit (category/expiryDate/linkedEntity) -- never
+// touches the underlying file. Replacing the file itself goes through
+// POST /api/documents with versionOfId, which creates a new version row.
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  try {
+    const { id } = await context.params
+    const body = await request.json()
+    const updated = await updateDocumentMetadata({ orgId, userId: dbUser.id }, id, {
+      category: body.category,
+      expiryDate: body.expiryDate,
+      linkedEntityType: body.linkedEntityType,
+      linkedEntityId: body.linkedEntityId,
+    })
+    return NextResponse.json(updated)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Document metadata update error:", error)
+    return NextResponse.json({ error: "Failed to update document" }, { status: 500 })
   }
 }

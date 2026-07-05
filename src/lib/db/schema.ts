@@ -247,6 +247,21 @@ export const documents = complianceSchemaDB.table('documents', {
   orgId: text('org_id').notNull(),
   clientId: text('client_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Wave 61 (Unified Document Management, ERP benchmark Tier 3 #15): additive
+  // columns so this same table becomes a real central repository instead of
+  // adding a parallel one. category/expiryDate/linkedEntityType+linkedEntityId
+  // are generic and deliberately NOT another FK per module (there's no single
+  // table every future linkable entity could point at) -- linkedEntityType is
+  // a free-text discriminator (e.g. 'erp_sales_invoice', 'pms_issue',
+  // 'employee_profile') resolved by the consuming UI, exactly like
+  // referenceType/referenceId already works on erp_journal_entries.
+  category: text('category'), // nullable: 'contract'|'certificate'|'license'|'policy'|'id_proof'|'other' -- advisory, not enum-enforced, since new categories will keep appearing across modules
+  expiryDate: timestamp('expiry_date'), // nullable: drives the expiring-documents dashboard widget
+  linkedEntityType: text('linked_entity_type'),
+  linkedEntityId: text('linked_entity_id'),
+  parentDocumentId: text('parent_document_id'), // self-FK: previous version of this same logical document
+  versionNumber: integer('version_number').notNull().default(1),
+  isLatestVersion: boolean('is_latest_version').notNull().default(true), // maintained by document-service.ts on every new-version insert, not a DB trigger -- matches this codebase's assigneeId-cache convention elsewhere
 })
 
 // ─── Compliance Costs (Wave 7) ───────────────────────────────────────────
@@ -1113,6 +1128,7 @@ export const documentsRelations = relations(documents, ({ one }) => ({
   complianceItem: one(complianceItems, { fields: [documents.complianceItemId], references: [complianceItems.id] }),
   notice: one(notices, { fields: [documents.noticeId], references: [notices.id] }),
   uploadedBy: one(users, { fields: [documents.uploadedById], references: [users.id] }),
+  parentDocument: one(documents, { fields: [documents.parentDocumentId], references: [documents.id], relationName: 'documentVersions' }),
 }))
 
 export const complianceCostsRelations = relations(complianceCosts, ({ one, many }) => ({

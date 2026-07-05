@@ -51,6 +51,7 @@ import {
   ArrowRightLeft,
   IndianRupee,
   Receipt,
+  FolderOpen,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -276,6 +277,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           label: "Tasks",
           href: "/tasks",
           icon: ListTodo,
+        },
+        {
+          label: "Documents",
+          href: "/documents",
+          icon: FolderOpen,
         },
         {
           label: "VERI REPORTS AI",
