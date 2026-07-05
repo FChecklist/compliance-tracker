@@ -1,8 +1,7 @@
 import type { ParseResult, ExtractionResult, ExtractedItem, SkippedRow } from './types'
 import { VALID_COMPLIANCE_TYPES, VALID_STATUSES, VALID_PRIORITIES } from './types'
-
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+import { resolvePlatformModelConfig } from '@/lib/orchestra-model-resolver'
+import { callLLM } from '@/lib/llm-client'
 
 // Max rows to send to AI in one call. Split into batches for larger files.
 const BATCH_SIZE = 80
@@ -102,60 +101,32 @@ COMMON INDIAN COMPLIANCE FILE COLUMN NAMES TO RECOGNISE:
 - Penalty: put in extra_data
 - Remarks: use as description`
 
-interface GroqResponse {
-  choices: Array<{
-    message: { content: string }
-    finish_reason: string
-  }>
-  model: string
-}
+// Wave 102 (end-to-end testing pass): this previously called Groq directly
+// via a hardcoded process.env.GROQ_API_KEY -- confirmed dead in production
+// since Wave 73 (GROQ_API_KEY has never been set in Vercel; it exists in
+// GitHub Secrets only). Bulk compliance-item import has been completely
+// broken end-to-end since this feature was built. Fixed by routing through
+// the same platform-model resolver every other AI call site uses.
+// resolvePlatformModelConfig (not resolveModelConfig) because this is a
+// platform-level utility operation on an already-uploaded file, not a
+// per-org BYOK-aware feature -- same category as Wave 18's Shared AI
+// Resource Pool "platform's own internal orchestration work". callLLM
+// already retries transient 429/5xx failures internally (Wave 72), so the
+// bespoke Groq-specific 429 retry loop here is no longer needed.
+async function callExtractionModel(userContent: string): Promise<{ content: string; model: string }> {
+  const modelConfig = await resolvePlatformModelConfig('customer_account_oa')
+  if (!modelConfig) throw new Error('No AI model configured for compliance item extraction')
 
-async function callGroq(userContent: string, retries = 2): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error('GROQ_API_KEY is not configured')
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userContent },
-          ],
-          max_tokens: 8192,
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-      })
-
-      if (res.status === 429) {
-        // Rate limited — wait and retry
-        if (attempt < retries) {
-          await new Promise(r => setTimeout(r, (attempt + 1) * 3000))
-          continue
-        }
-        throw new Error('Groq rate limit reached. Please wait a moment and try again.')
-      }
-
-      if (!res.ok) {
-        const err = await res.text()
-        throw new Error(`Groq API error (${res.status}): ${err}`)
-      }
-
-      const data = await res.json() as GroqResponse
-      return data.choices[0]?.message?.content ?? '{}'
-    } catch (err) {
-      if (attempt === retries) throw err
-      await new Promise(r => setTimeout(r, 1000))
-    }
-  }
-  throw new Error('Extraction failed after retries')
+  const result = await callLLM(
+    modelConfig.provider,
+    modelConfig.model,
+    modelConfig.apiKey,
+    SYSTEM_PROMPT,
+    userContent,
+    { maxTokens: 8192, temperature: 0.1, jsonMode: true },
+    modelConfig.fallback
+  )
+  return { content: result.content, model: modelConfig.model }
 }
 
 function buildUserMessage(parsed: ParseResult, batchIndex: number, totalBatches: number): string {
@@ -279,18 +250,22 @@ export async function extractComplianceItems(parsed: ParseResult): Promise<Extra
   const batches = chunkRows(parsed)
   const allItems: ExtractedItem[] = []
   const allSkipped: SkippedRow[] = []
+  let resolvedModel = 'unknown'
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]
     const userMessage = buildUserMessage(batch, i, batches.length)
 
-    const raw = await callGroq(userMessage)
-    const { items, skipped } = parseAiResponse(raw, i * BATCH_SIZE + 1)
+    const { content, model } = await callExtractionModel(userMessage)
+    resolvedModel = model
+    const { items, skipped } = parseAiResponse(content, i * BATCH_SIZE + 1)
 
     allItems.push(...items)
     allSkipped.push(...skipped)
 
-    // Respect Groq rate limit between batches (30 req/min)
+    // Space out batches to stay under whichever provider's rate limit is
+    // actually in effect -- callLLM's own retry handles a transient 429,
+    // this just reduces how often that path gets exercised on large files.
     if (i < batches.length - 1) {
       await new Promise(r => setTimeout(r, 2200))
     }
@@ -299,7 +274,7 @@ export async function extractComplianceItems(parsed: ParseResult): Promise<Extra
   return {
     items: allItems,
     skipped: allSkipped,
-    aiModel: GROQ_MODEL,
+    aiModel: resolvedModel,
     totalInputRows: parsed.totalRows,
   }
 }
