@@ -73,7 +73,7 @@ Explicitly NOT built this pass (documented above with reasoning, not silently sk
 ## Status
 
 - **Wave 86 (eSignature, CLM007+DMS012): DONE.** `esignature_requests`/`esignature_signers`, ordered/parallel signing, hand-rolled canvas signature pad + typed-name fallback on public `/sign/[token]`, tamper-evident audit trail (document-hash comparison, IP, user agent, timestamp). Migration `wave86_esignature`, commit `c5bcfde`, deployed and verified (tsc/eslint clean, hashing/tamper-detection proof + full request/signing/completion state-machine + RLS proof via `execute_sql`, `get_advisors` clean, zero runtime errors).
-- Wave 87: pending
+- **Wave 87 (Inventory Replenishment + Cycle Count/ABC, REP001-004+CC001-006): DONE.** `erp_reorder_levels` (point/qty/safety-stock/min-max per item+warehouse) with read-time reorder suggestions computed against the real FIFO stock balance; `erp_abc_classifications` — real Pareto analysis over stock-ledger consumption value (recomputed/cached snapshot, matching Wave 64's vendor-scorecard precedent); `erp_cycle_count_plans`/`erp_cycle_count_lines` — system-quantity snapshot, physical count entry, variance posted through the existing FIFO engine (`recordStockReceipt`/`recordStockIssue`), never a bespoke adjustment table. `erp_cycle_count_lines` has no `org_id` of its own; RLS scopes via its parent plan (same convention as `erp_purchase_order_items`/`erp_rfq_items`). Migration `wave87_replenishment_cycle_count`, commit `1b34a84`, deployed and verified (tsc/eslint clean, full reorder-suggestion/ABC-math/cycle-count-variance proof + cross-org RLS isolation via `execute_sql`, `get_advisors` clean, zero new runtime errors).
 - Wave 88: pending
 - Wave 89: pending
 - Wave 90: pending
