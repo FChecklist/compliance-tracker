@@ -4310,3 +4310,100 @@ export const erpPricingRules = complianceSchemaDB.table('erp_pricing_rules', {
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Wave 62: Recruitment/ATS + Performance Appraisal (Tier 3 #14) ───────
+// Complete gaps before this wave -- HR (Wave 40) has employee master data
+// and leave, but no hiring pipeline and no review cycle. Candidate resumes
+// deliberately do NOT get a new file column -- a candidate is just another
+// `linkedEntityType='candidate'` row in the Wave 61 central documents
+// repository, proving that mechanism actually generalizes across modules
+// rather than being ERP-only. Hiring an application does NOT
+// auto-provision a `users`/`employeeProfiles` row -- same "no silent
+// auto-provisioning" discipline as Wave 59's SSO -- an admin explicitly
+// creates the employee profile and links it via `hiredEmployeeProfileId`.
+export const jobOpeningStatusEnum = complianceSchemaDB.enum('job_opening_status', ['open', 'on_hold', 'closed', 'filled'])
+export const applicationStageEnum = complianceSchemaDB.enum('application_stage', ['applied', 'screening', 'interview', 'offer', 'hired', 'rejected'])
+export const interviewRecommendationEnum = complianceSchemaDB.enum('interview_recommendation', ['strong_yes', 'yes', 'no', 'strong_no'])
+export const performanceReviewCycleStatusEnum = complianceSchemaDB.enum('performance_review_cycle_status', ['draft', 'active', 'closed'])
+export const performanceReviewStatusEnum = complianceSchemaDB.enum('performance_review_status', ['pending', 'submitted', 'acknowledged'])
+
+export const jobOpenings = complianceSchemaDB.table('job_openings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  title: text('title').notNull(),
+  departmentId: text('department_id'),
+  jobDescription: text('job_description'),
+  employmentType: text('employment_type').notNull().default('full_time'), // matches employeeProfiles.employmentType's free-text convention
+  numPositions: integer('num_positions').notNull().default(1),
+  status: jobOpeningStatusEnum('status').notNull().default('open'),
+  postedById: text('posted_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  closedAt: timestamp('closed_at'),
+})
+
+export const candidates = complianceSchemaDB.table('candidates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+  source: text('source'), // free text: 'referral' | 'job_board' | 'agency' | etc.
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const jobApplications = complianceSchemaDB.table('job_applications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  jobOpeningId: text('job_opening_id').notNull(),
+  candidateId: text('candidate_id').notNull(),
+  stage: applicationStageEnum('stage').notNull().default('applied'),
+  rejectedReason: text('rejected_reason'),
+  offerAmount: numeric('offer_amount'),
+  offerAcceptedAt: timestamp('offer_accepted_at'),
+  hiredEmployeeProfileId: text('hired_employee_profile_id'), // set only when an admin explicitly links a created employeeProfiles row -- never auto-provisioned
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const interviewFeedback = complianceSchemaDB.table('interview_feedback', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  applicationId: text('application_id').notNull(),
+  interviewerId: text('interviewer_id').notNull(),
+  roundName: text('round_name').notNull(), // free text: 'Screening' | 'Technical' | 'HR' | etc.
+  scheduledAt: timestamp('scheduled_at').notNull(),
+  rating: integer('rating'), // 1-5, null until the interview is actually completed
+  recommendation: interviewRecommendationEnum('recommendation'),
+  feedback: text('feedback'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const performanceReviewCycles = complianceSchemaDB.table('performance_review_cycles', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(), // e.g. "H1 2026"
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  status: performanceReviewCycleStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const performanceReviews = complianceSchemaDB.table('performance_reviews', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  cycleId: text('cycle_id').notNull(),
+  employeeProfileId: text('employee_profile_id').notNull(),
+  reviewerId: text('reviewer_id').notNull(),
+  selfRating: integer('self_rating'), // 1-5, filled in by the employee
+  managerRating: integer('manager_rating'), // 1-5, filled in by the reviewer
+  strengths: text('strengths'),
+  improvements: text('improvements'),
+  goalsForNextPeriod: text('goals_for_next_period'),
+  status: performanceReviewStatusEnum('status').notNull().default('pending'),
+  submittedAt: timestamp('submitted_at'),
+  acknowledgedAt: timestamp('acknowledged_at'), // set when the reviewed employee acknowledges having read it
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

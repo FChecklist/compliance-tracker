@@ -52,6 +52,8 @@ import {
   IndianRupee,
   Receipt,
   FolderOpen,
+  UserPlus,
+  ClipboardCheck,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -190,6 +192,8 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Leave & Holiday Compliance", href: "/leave-holiday", icon: CheckSquare },
         { label: "POSH Compliance", href: "/posh", icon: UserCheck },
         { label: "VERI HR AI", href: "/hr", icon: Users },
+        { label: "Recruitment", href: "/recruitment", icon: UserPlus },
+        { label: "Performance Reviews", href: "/performance-reviews", icon: ClipboardCheck },
       ],
     },
     {
