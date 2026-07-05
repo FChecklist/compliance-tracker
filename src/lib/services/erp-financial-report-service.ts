@@ -9,9 +9,10 @@
 // posting so these reports stay trustworthy in production.
 import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, lte, gte, sql } from "drizzle-orm"
+import { and, eq, lte, gte, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+import { getCompanyDescendantIds } from "./erp-company-service"
 
 /** Generates one open period per calendar month spanning the fiscal year -- the concrete, usable starting point an org needs before any period-lock control means anything. */
 export async function generatePeriodsForFiscalYear(ctx: { orgId: string }, fiscalYearId: string) {
@@ -104,10 +105,11 @@ type AccountBalance = {
 }
 
 /** Sums submitted journal-entry-line debit/credit by account, in a date range. */
-async function accountBalancesInRange(orgId: string, fromDate: string | null, toDate: string): Promise<AccountBalance[]> {
+async function accountBalancesInRange(orgId: string, fromDate: string | null, toDate: string, companyIds?: string[]): Promise<AccountBalance[]> {
   return withTenantContext({ orgId }, async (db) => {
     const conditions = [eq(erpJournalEntries.orgId, orgId), eq(erpJournalEntries.status, "submitted"), lte(erpJournalEntries.postingDate, toDate)]
     if (fromDate) conditions.push(gte(erpJournalEntries.postingDate, fromDate))
+    if (companyIds) conditions.push(inArray(erpJournalEntries.companyId, companyIds))
 
     const rows = await db
       .select({
@@ -132,17 +134,38 @@ async function accountBalancesInRange(orgId: string, fromDate: string | null, to
   })
 }
 
+export type CompanyScope = { companyId?: string; consolidate?: boolean }
+
+/**
+ * Wave 67: resolves an optional company filter into the concrete set of
+ * companyIds a report should aggregate. No companyId -> no filter at all
+ * (unchanged behavior for every report run before this wave -- aggregates
+ * every journal entry regardless of company). A companyId with
+ * consolidate=true walks the company tree (getCompanyDescendantIds) and
+ * includes every descendant's postings -- a genuine group consolidation,
+ * computed live at report-runtime rather than a stored "group GL", per
+ * ERPNext's own approach. consolidate=false (or omitted) scopes to just
+ * that one company's own postings.
+ */
+async function resolveCompanyScope(ctx: { orgId: string }, scope?: CompanyScope): Promise<string[] | undefined> {
+  if (!scope?.companyId) return undefined
+  if (scope.consolidate) return getCompanyDescendantIds(ctx, scope.companyId)
+  return [scope.companyId]
+}
+
 /** Trial Balance: every account's cumulative debit/credit as of a date, from inception. */
-export async function trialBalance(ctx: { orgId: string }, asOfDate: string) {
-  const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate)
+export async function trialBalance(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate, companyIds)
   const totalDebit = balances.reduce((sum, b) => sum + b.totalDebit, 0)
   const totalCredit = balances.reduce((sum, b) => sum + b.totalCredit, 0)
   return { asOfDate, accounts: balances.sort((a, b) => (a.accountNumber ?? "").localeCompare(b.accountNumber ?? "")), totalDebit, totalCredit, isBalanced: Math.abs(totalDebit - totalCredit) < 0.01 }
 }
 
 /** Profit & Loss: income/expense accounts only, over a period (not cumulative from inception). */
-export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, toDate: string) {
-  const balances = await accountBalancesInRange(ctx.orgId, fromDate, toDate)
+export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const balances = await accountBalancesInRange(ctx.orgId, fromDate, toDate, companyIds)
   const income = balances.filter((b) => b.rootType === "income")
   const expense = balances.filter((b) => b.rootType === "expense")
   // Income accounts are credit-natured (netBalance is debit-credit, so flip sign); expense accounts are debit-natured.
@@ -152,8 +175,9 @@ export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, to
 }
 
 /** Balance Sheet: asset/liability/equity accounts, cumulative as of a date. */
-export async function balanceSheet(ctx: { orgId: string }, asOfDate: string) {
-  const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate)
+export async function balanceSheet(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate, companyIds)
   const assets = balances.filter((b) => b.rootType === "asset")
   const liabilities = balances.filter((b) => b.rootType === "liability")
   const equity = balances.filter((b) => b.rootType === "equity")

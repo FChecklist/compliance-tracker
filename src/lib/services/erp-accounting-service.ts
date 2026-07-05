@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, users } from "@/lib/db"
+import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql, desc, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -48,6 +48,7 @@ export type JournalEntryInput = {
   userRemark?: string
   referenceType?: string
   referenceId?: string
+  companyId?: string // Wave 67: nullable -- omitted means "no company subdivision", unchanged behavior for single-entity orgs
   lines: JournalEntryLineInput[]
 }
 
@@ -159,6 +160,11 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
     const validIds = new Set(accounts.filter((a) => accountIds.includes(a.id)).map((a) => a.id))
     if (validIds.size !== accountIds.length) throw new ServiceError("One or more accounts were not found in this organisation", 400)
 
+    if (input.companyId) {
+      const company = await db.query.erpCompanies.findFirst({ where: and(eq(erpCompanies.id, input.companyId), eq(erpCompanies.orgId, ctx.orgId)) })
+      if (!company) throw new ServiceError("Company not found", 404)
+    }
+
     // Per-org sequential entry number -- MAX+1 within this transaction,
     // matching this schema's own "per-org sequence" comment from Wave 49;
     // same lightweight approach every other ERP document number
@@ -173,6 +179,7 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
       referenceType: input.referenceType,
       referenceId: input.referenceId,
       userRemark: input.userRemark,
+      companyId: input.companyId,
       totalDebit: totalDebit.toString(),
       totalCredit: totalCredit.toString(),
       createdById: ctx.userId,

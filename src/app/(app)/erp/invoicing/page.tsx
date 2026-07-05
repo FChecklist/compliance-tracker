@@ -27,6 +27,7 @@ type Invoice = { id: string; invoiceNumber: number; postingDate: string; status:
 type PricingRule = { id: string; name: string; appliesTo: string; targetId: string | null; discountType: string; discountValue: string; validFrom: string; validTo: string | null; priority: number };
 type LineItem = { itemId: string; description: string; quantity: string; rate: string; taxTemplateId: string };
 type Currency = { id: string; code: string; name: string; symbol: string | null; isBaseCurrency: boolean };
+type Company = { id: string; companyName: string; abbr: string | null };
 
 const STATUS_COLORS: Record<string, string> = { draft: "bg-ct-cloud text-ct-muted", submitted: "bg-green-100 text-green-700", partially_paid: "bg-amber-100 text-amber-700", paid: "bg-green-100 text-green-700", overdue: "bg-red-100 text-red-700", cancelled: "bg-red-100 text-red-700" };
 
@@ -42,6 +43,7 @@ export default function ErpInvoicingPage() {
   const [purchaseInvoices, setPurchaseInvoices] = useState<Invoice[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -51,6 +53,7 @@ export default function ErpInvoicingPage() {
   const [siItems, setSiItems] = useState<LineItem[]>([emptyLine()]);
   const [siCurrencyId, setSiCurrencyId] = useState("");
   const [siExchangeRate, setSiExchangeRate] = useState("1");
+  const [siCompanyId, setSiCompanyId] = useState("");
   const [creatingSi, setCreatingSi] = useState(false);
   const [siSubmitRevenueAccount, setSiSubmitRevenueAccount] = useState<Record<string, string>>({});
 
@@ -60,6 +63,7 @@ export default function ErpInvoicingPage() {
   const [piItems, setPiItems] = useState<LineItem[]>([emptyLine()]);
   const [piCurrencyId, setPiCurrencyId] = useState("");
   const [piExchangeRate, setPiExchangeRate] = useState("1");
+  const [piCompanyId, setPiCompanyId] = useState("");
   const [creatingPi, setCreatingPi] = useState(false);
   const [piSubmitExpenseAccount, setPiSubmitExpenseAccount] = useState<Record<string, string>>({});
 
@@ -89,10 +93,10 @@ export default function ErpInvoicingPage() {
     Promise.all([
       fetch("/api/erp/selling/customers"), fetch("/api/erp/buying/suppliers"), fetch("/api/erp/stock/items"),
       fetch("/api/erp/accounts"), fetch("/api/erp/tax-templates"), fetch("/api/erp/sales-invoices"),
-      fetch("/api/erp/purchase-invoices"), fetch("/api/erp/pricing-rules"), fetch("/api/erp/currencies"),
+      fetch("/api/erp/purchase-invoices"), fetch("/api/erp/pricing-rules"), fetch("/api/erp/currencies"), fetch("/api/erp/companies"),
     ])
       .then((responses) => Promise.all(responses.map((r) => r.json())))
-      .then(([custData, supData, itemData, accData, taxData, siData, piData, prData, curData]) => {
+      .then(([custData, supData, itemData, accData, taxData, siData, piData, prData, curData, compData]) => {
         setCustomers(custData.customers ?? []);
         setSuppliers(supData.suppliers ?? []);
         setItems(itemData.items ?? []);
@@ -102,6 +106,7 @@ export default function ErpInvoicingPage() {
         setPurchaseInvoices(piData.invoices ?? []);
         setPricingRules(prData.rules ?? []);
         setCurrencies(curData.currencies ?? []);
+        setCompanies(compData.companies ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -120,12 +125,13 @@ export default function ErpInvoicingPage() {
       body: JSON.stringify({
         customerId: siCustomerId, postingDate: siDate,
         currencyId: siCurrencyId || undefined, exchangeRate: siCurrencyId ? Number(siExchangeRate) || undefined : undefined,
+        companyId: siCompanyId || undefined,
         items: siItems.filter((i) => i.description).map((i) => ({ itemId: i.itemId || undefined, description: i.description, quantity: Number(i.quantity) || 1, rate: i.rate ? Number(i.rate) : undefined, taxTemplateId: i.taxTemplateId || undefined })),
       }),
     });
     setCreatingSi(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create sales invoice"); return; }
-    setSiOpen(false); setSiItems([emptyLine()]); setSiCurrencyId(""); setSiExchangeRate("1");
+    setSiOpen(false); setSiItems([emptyLine()]); setSiCurrencyId(""); setSiExchangeRate("1"); setSiCompanyId("");
     toast.success("Sales invoice created as draft");
     load();
   };
@@ -148,12 +154,13 @@ export default function ErpInvoicingPage() {
       body: JSON.stringify({
         supplierId: piSupplierId, postingDate: piDate,
         currencyId: piCurrencyId || undefined, exchangeRate: piCurrencyId ? Number(piExchangeRate) || undefined : undefined,
+        companyId: piCompanyId || undefined,
         items: piItems.filter((i) => i.description).map((i) => ({ itemId: i.itemId || undefined, description: i.description, quantity: Number(i.quantity) || 1, rate: Number(i.rate) || 0, taxTemplateId: i.taxTemplateId || undefined })),
       }),
     });
     setCreatingPi(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create purchase invoice"); return; }
-    setPiOpen(false); setPiItems([emptyLine()]); setPiCurrencyId(""); setPiExchangeRate("1");
+    setPiOpen(false); setPiItems([emptyLine()]); setPiCurrencyId(""); setPiExchangeRate("1"); setPiCompanyId("");
     toast.success("Purchase invoice created as draft");
     load();
   };
@@ -251,6 +258,12 @@ export default function ErpInvoicingPage() {
                       <div><Label>Exchange Rate (to base currency)</Label><Input type="number" step="0.0001" value={siExchangeRate} onChange={(e) => setSiExchangeRate(e.target.value)} placeholder="e.g. 83.25" /></div>
                     )}
                   </div>
+                  <div><Label>Company (optional)</Label>
+                    <Select value={siCompanyId || "__none__"} onValueChange={(v) => setSiCompanyId(v === "__none__" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="No company" /></SelectTrigger>
+                      <SelectContent><SelectItem value="__none__">No company</SelectItem>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.abbr ? `${c.abbr} — ` : ""}{c.companyName}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label>Line Items (leave rate blank to auto-price from item + pricing rules)</Label>
                     {siItems.map((it, i) => (
@@ -333,6 +346,12 @@ export default function ErpInvoicingPage() {
                     {piCurrencyId && (
                       <div><Label>Exchange Rate (to base currency)</Label><Input type="number" step="0.0001" value={piExchangeRate} onChange={(e) => setPiExchangeRate(e.target.value)} placeholder="e.g. 83.25" /></div>
                     )}
+                  </div>
+                  <div><Label>Company (optional)</Label>
+                    <Select value={piCompanyId || "__none__"} onValueChange={(v) => setPiCompanyId(v === "__none__" ? "" : v)}>
+                      <SelectTrigger><SelectValue placeholder="No company" /></SelectTrigger>
+                      <SelectContent><SelectItem value="__none__">No company</SelectItem>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.abbr ? `${c.abbr} — ` : ""}{c.companyName}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Line Items</Label>

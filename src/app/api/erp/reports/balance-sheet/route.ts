@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const asOfDate = request.nextUrl.searchParams.get("asOfDate") || new Date().toISOString().slice(0, 10)
-    const report = await balanceSheet({ orgId }, asOfDate)
+    const companyId = request.nextUrl.searchParams.get("companyId") || undefined
+    const consolidate = request.nextUrl.searchParams.get("consolidate") === "true"
+    const report = await balanceSheet({ orgId }, asOfDate, { companyId, consolidate })
     return NextResponse.json(report)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

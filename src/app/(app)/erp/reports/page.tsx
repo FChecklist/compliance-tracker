@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type AccountRow = { accountId: string; accountName: string; accountNumber: string | null; totalDebit: number; totalCredit: number; netBalance: number };
+type Company = { id: string; companyName: string; abbr: string | null; isGroup: boolean };
 
 function fmt(n: number) { return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
@@ -21,20 +23,28 @@ export default function ErpReportsPage() {
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
   const [fromDate, setFromDate] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState("");
+  const [consolidate, setConsolidate] = useState(false);
 
   const [tb, setTb] = useState<{ accounts: AccountRow[]; totalDebit: number; totalCredit: number; isBalanced: boolean } | null>(null);
   const [pnl, setPnl] = useState<{ income: AccountRow[]; expense: AccountRow[]; totalIncome: number; totalExpense: number; netProfit: number } | null>(null);
   const [bs, setBs] = useState<{ assets: AccountRow[]; liabilities: AccountRow[]; equity: AccountRow[]; totalAssets: number; totalLiabilities: number; totalEquity: number; isBalanced: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    fetch("/api/erp/companies").then((r) => r.json()).then((d) => setCompanies(d.companies ?? [])).catch(() => {});
+  }, []);
+
   const load = useCallback(() => {
+    const companyParams = companyId ? `&companyId=${companyId}&consolidate=${consolidate}` : "";
     Promise.resolve()
       .then(() => {
         setLoading(true);
         return Promise.all([
-          fetch(`/api/erp/reports/trial-balance?asOfDate=${asOfDate}`),
-          fetch(`/api/erp/reports/profit-and-loss?fromDate=${fromDate}&toDate=${toDate}`),
-          fetch(`/api/erp/reports/balance-sheet?asOfDate=${asOfDate}`),
+          fetch(`/api/erp/reports/trial-balance?asOfDate=${asOfDate}${companyParams}`),
+          fetch(`/api/erp/reports/profit-and-loss?fromDate=${fromDate}&toDate=${toDate}${companyParams}`),
+          fetch(`/api/erp/reports/balance-sheet?asOfDate=${asOfDate}${companyParams}`),
         ]);
       })
       .then(([tbRes, pnlRes, bsRes]) => Promise.all([tbRes.json(), pnlRes.json(), bsRes.json()]))
@@ -45,7 +55,7 @@ export default function ErpReportsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [asOfDate, fromDate, toDate]);
+  }, [asOfDate, fromDate, toDate, companyId, consolidate]);
 
   useEffect(load, [load]);
 
@@ -56,10 +66,23 @@ export default function ErpReportsPage() {
         <p className="text-sm text-ct-muted mt-1">Trial Balance, Profit &amp; Loss, Balance Sheet — computed live from posted journal entries</p>
       </div>
 
-      <div className="flex gap-4 items-end">
+      <div className="flex gap-4 items-end flex-wrap">
         <div><Label>As of</Label><Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="w-40" /></div>
         <div><Label>P&amp;L From</Label><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" /></div>
         <div><Label>P&amp;L To</Label><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" /></div>
+        {companies.length > 0 && (
+          <>
+            <div><Label>Company</Label>
+              <Select value={companyId || "__all__"} onValueChange={(v) => setCompanyId(v === "__all__" ? "" : v)}>
+                <SelectTrigger className="w-48"><SelectValue placeholder="All companies" /></SelectTrigger>
+                <SelectContent><SelectItem value="__all__">All companies (no filter)</SelectItem>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.abbr ? `${c.abbr} — ` : ""}{c.companyName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {companyId && (
+              <label className="flex items-center gap-2 text-sm pb-2"><input type="checkbox" checked={consolidate} onChange={(e) => setConsolidate(e.target.checked)} />Consolidate subsidiaries</label>
+            )}
+          </>
+        )}
       </div>
 
       {loading ? (

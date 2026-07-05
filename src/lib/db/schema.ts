@@ -3148,6 +3148,12 @@ export const erpJournalEntries = complianceSchemaDB.table('erp_journal_entries',
   status: erpJournalEntryStatusEnum('status').notNull().default('draft'),
   totalDebit: numeric('total_debit').notNull().default('0'),
   totalCredit: numeric('total_credit').notNull().default('0'),
+  // Wave 67: nullable link to erp_companies -- null means "no company
+  // subdivision" (a single-entity org, unchanged behavior for every entry
+  // created before this wave). Financial reports filter/consolidate by
+  // walking the company tree from this stamp, never by re-deriving it
+  // from the accounts touched (accounts are shared across companies).
+  companyId: text('company_id'),
   createdById: text('created_by_id'),
   submittedAt: timestamp('submitted_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -3223,6 +3229,7 @@ export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
   status: erpInvoiceStatusEnum('status').notNull().default('draft'),
   journalEntryId: text('journal_entry_id'), // set once posted to the GL
   salesOrderId: text('sales_order_id'),
+  companyId: text('company_id'), // Wave 67: which erp_companies entity this invoice belongs to; nullable, propagated onto the posted journal entry at submit time
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3262,6 +3269,7 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   status: erpInvoiceStatusEnum('status').notNull().default('draft'),
   journalEntryId: text('journal_entry_id'),
   purchaseOrderId: text('purchase_order_id'),
+  companyId: text('company_id'), // see erpSalesInvoices' identical Wave 67 comment
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3809,6 +3817,29 @@ export const approvalWorkflowStepApprovalsRelations = relations(approvalWorkflow
 // tag into a real dimension table (Tier 2 #4). Kept as a NEW nullable FK
 // column alongside the existing text field rather than replacing it --
 // additive, no breaking change to Wave 49 data.
+// Wave 67 (multi-entity/consolidation): a Company is a legal entity WITHIN
+// an org's ERP -- distinct from `organisations` above, which is the
+// VERIDIAN tenant itself. Modeled on ERPNext's Company doctype (isGroup +
+// parentCompanyId nested tree, abbr, defaultCurrencyId) but deliberately
+// simpler: the chart of accounts (erp_accounts) is SHARED across an org's
+// companies rather than cloned per-company, and consolidation is computed
+// at report-runtime by walking this tree and aggregating erp_journal_
+// entries of every company in the group -- there is no stored "group GL",
+// matching ERPNext's own approach.
+export const erpCompanies = complianceSchemaDB.table('erp_companies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  companyName: text('company_name').notNull(),
+  abbr: text('abbr'), // short code, e.g. "HO" or "SUB1" -- optional display/reference tag
+  parentCompanyId: text('parent_company_id'), // self-FK -- nested tree for group structures
+  isGroup: boolean('is_group').notNull().default(false), // a group node exists to hold subsidiaries, not to post transactions itself
+  defaultCurrencyId: text('default_currency_id'), // nullable link to erp_currencies
+  country: text('country'),
+  dateOfIncorporation: date('date_of_incorporation', { mode: 'string' }),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const erpCostCenters = complianceSchemaDB.table('erp_cost_centers', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),

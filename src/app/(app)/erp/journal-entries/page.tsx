@@ -22,6 +22,7 @@ type Account = { id: string; accountName: string; accountNumber: string | null; 
 type JournalEntry = { id: string; entryNumber: number; postingDate: string; status: string; totalDebit: string; totalCredit: string; userRemark: string | null };
 type Line = { accountId: string; debit: string; credit: string };
 type CostCenter = { id: string; name: string; isGroup: boolean };
+type Company = { id: string; companyName: string; abbr: string | null; parentCompanyId: string | null; isGroup: boolean; country: string | null; isActive: boolean };
 
 const ROOT_TYPES = ["asset", "liability", "equity", "income", "expense"];
 const STATUS_COLORS: Record<string, string> = {
@@ -34,6 +35,7 @@ export default function ErpJournalEntriesPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [acctOpen, setAcctOpen] = useState(false);
@@ -49,17 +51,27 @@ export default function ErpJournalEntriesPage() {
   const [jeOpen, setJeOpen] = useState(false);
   const [postingDate, setPostingDate] = useState(new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
+  const [jeCompanyId, setJeCompanyId] = useState("");
   const [lines, setLines] = useState<Line[]>([{ accountId: "", debit: "", credit: "" }, { accountId: "", debit: "", credit: "" }]);
   const [creatingJe, setCreatingJe] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
 
+  const [compOpen, setCompOpen] = useState(false);
+  const [compName, setCompName] = useState("");
+  const [compAbbr, setCompAbbr] = useState("");
+  const [compParentId, setCompParentId] = useState("");
+  const [compIsGroup, setCompIsGroup] = useState(false);
+  const [compCountry, setCompCountry] = useState("");
+  const [creatingComp, setCreatingComp] = useState(false);
+
   const load = useCallback(() => {
-    Promise.all([fetch("/api/erp/accounts"), fetch("/api/erp/journal-entries"), fetch("/api/erp/cost-centers")])
-      .then(([acctRes, jeRes, ccRes]) => Promise.all([acctRes.json(), jeRes.json(), ccRes.json()]))
-      .then(([acctData, jeData, ccData]) => {
+    Promise.all([fetch("/api/erp/accounts"), fetch("/api/erp/journal-entries"), fetch("/api/erp/cost-centers"), fetch("/api/erp/companies")])
+      .then(([acctRes, jeRes, ccRes, compRes]) => Promise.all([acctRes.json(), jeRes.json(), ccRes.json(), compRes.json()]))
+      .then(([acctData, jeData, ccData, compData]) => {
         setAccounts(acctData.accounts ?? []);
         setEntries(jeData.entries ?? []);
         setCostCenters(ccData.costCenters ?? []);
+        setCompanies(compData.companies ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -106,14 +118,28 @@ export default function ErpJournalEntriesPage() {
     const res = await fetch("/api/erp/journal-entries", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        postingDate, userRemark: remark || undefined,
+        postingDate, userRemark: remark || undefined, companyId: jeCompanyId || undefined,
         lines: lines.filter((l) => l.accountId).map((l) => ({ accountId: l.accountId, debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 })),
       }),
     });
     setCreatingJe(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create journal entry"); return; }
-    setJeOpen(false); setRemark(""); setLines([{ accountId: "", debit: "", credit: "" }, { accountId: "", debit: "", credit: "" }]);
+    setJeOpen(false); setRemark(""); setJeCompanyId(""); setLines([{ accountId: "", debit: "", credit: "" }, { accountId: "", debit: "", credit: "" }]);
     toast.success("Journal entry created as draft");
+    load();
+  };
+
+  const createCompany = async () => {
+    if (!compName.trim()) return;
+    setCreatingComp(true);
+    const res = await fetch("/api/erp/companies", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyName: compName, abbr: compAbbr || undefined, parentCompanyId: compParentId || undefined, isGroup: compIsGroup, country: compCountry || undefined }),
+    });
+    setCreatingComp(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create company"); return; }
+    setCompOpen(false); setCompName(""); setCompAbbr(""); setCompParentId(""); setCompIsGroup(false); setCompCountry("");
+    toast.success("Company created");
     load();
   };
 
@@ -141,6 +167,7 @@ export default function ErpJournalEntriesPage() {
           <TabsTrigger value="entries">Journal Entries</TabsTrigger>
           <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
           <TabsTrigger value="costcenters">Cost Centers</TabsTrigger>
+          <TabsTrigger value="companies">Companies</TabsTrigger>
         </TabsList>
 
         <TabsContent value="entries" className="space-y-3">
@@ -150,9 +177,15 @@ export default function ErpJournalEntriesPage() {
               <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>New Journal Entry</DialogTitle><DialogDescription>Debits must equal credits before this can be submitted.</DialogDescription></DialogHeader>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div><Label>Posting Date</Label><Input type="date" value={postingDate} onChange={(e) => setPostingDate(e.target.value)} /></div>
                     <div><Label>Remark</Label><Input value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="Optional" /></div>
+                    <div><Label>Company (optional)</Label>
+                      <Select value={jeCompanyId || "__none__"} onValueChange={(v) => setJeCompanyId(v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="No company" /></SelectTrigger>
+                        <SelectContent><SelectItem value="__none__">No company</SelectItem>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.abbr ? `${c.abbr} — ` : ""}{c.companyName}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {lines.map((line, i) => (
@@ -251,6 +284,52 @@ export default function ErpJournalEntriesPage() {
                 <tbody className="divide-y divide-ct-border">
                   {costCenters.length === 0 ? <tr><td className="p-6 text-center text-ct-muted">No cost centers yet.</td></tr>
                     : costCenters.map((c) => <tr key={c.id} className="hover:bg-ct-row-hover"><td className="p-3">{c.name}</td></tr>)}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="companies" className="space-y-3">
+          <div className="flex justify-end">
+            <Dialog open={compOpen} onOpenChange={setCompOpen}>
+              <DialogTrigger asChild><Button className="bg-ct-teal hover:bg-ct-teal-hover text-white"><Plus className="w-4 h-4 mr-1" />New Company</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>New Company</DialogTitle><DialogDescription>A legal entity within your organisation's ERP -- e.g. a subsidiary. Journal entries and invoices can optionally be tagged to one.</DialogDescription></DialogHeader>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Company Name</Label><Input value={compName} onChange={(e) => setCompName(e.target.value)} /></div>
+                    <div><Label>Abbreviation</Label><Input value={compAbbr} onChange={(e) => setCompAbbr(e.target.value)} placeholder="e.g. HO, SUB1" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Parent Company (optional)</Label>
+                      <Select value={compParentId || "__none__"} onValueChange={(v) => setCompParentId(v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="None -- top level" /></SelectTrigger>
+                        <SelectContent><SelectItem value="__none__">None -- top level</SelectItem>{companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Country</Label><Input value={compCountry} onChange={(e) => setCompCountry(e.target.value)} placeholder="e.g. India" /></div>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={compIsGroup} onChange={(e) => setCompIsGroup(e.target.checked)} />Group company (holds subsidiaries, doesn't post its own transactions)</label>
+                </div>
+                <DialogFooter><Button onClick={createCompany} disabled={creatingComp || !compName} className="bg-ct-teal hover:bg-ct-teal-hover text-white">{creatingComp && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Create</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <Card className="rounded-xl shadow-card bg-white">
+            <CardContent className="p-0">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Name</th><th className="p-3 font-medium">Abbr</th><th className="p-3 font-medium">Parent</th><th className="p-3 font-medium">Country</th><th className="p-3 font-medium">Group?</th></tr></thead>
+                <tbody className="divide-y divide-ct-border">
+                  {companies.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">No companies yet -- create one to tag journal entries/invoices to a specific legal entity, or leave everything untagged for a single-entity org.</td></tr>
+                    : companies.map((c) => (
+                      <tr key={c.id} className="hover:bg-ct-row-hover">
+                        <td className="p-3">{c.companyName}</td><td className="p-3">{c.abbr ?? "—"}</td>
+                        <td className="p-3">{companies.find((p) => p.id === c.parentCompanyId)?.companyName ?? "—"}</td>
+                        <td className="p-3">{c.country ?? "—"}</td>
+                        <td className="p-3">{c.isGroup ? <Badge className="bg-ct-cloud text-ct-muted">Group</Badge> : ""}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </CardContent>
