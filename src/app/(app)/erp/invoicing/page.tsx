@@ -23,7 +23,7 @@ type Supplier = { id: string; supplierName: string };
 type Item = { id: string; itemCode: string; itemName: string; standardSellingRate: string | null };
 type Account = { id: string; accountName: string; accountType: string | null; rootType: string };
 type TaxTemplate = { id: string; name: string; items: { rate: string }[] };
-type Invoice = { id: string; invoiceNumber: number; postingDate: string; status: string; subtotal: string; taxAmount: string; grandTotal: string; currencyId: string | null; exchangeRate: string; customer?: { customerName: string }; supplier?: { supplierName: string } };
+type Invoice = { id: string; invoiceNumber: number; postingDate: string; status: string; subtotal: string; taxAmount: string; grandTotal: string; currencyId: string | null; exchangeRate: string; tdsAmount?: string; customer?: { customerName: string }; supplier?: { supplierName: string } };
 type PricingRule = { id: string; name: string; appliesTo: string; targetId: string | null; discountType: string; discountValue: string; validFrom: string; validTo: string | null; priority: number };
 type LineItem = { itemId: string; description: string; quantity: string; rate: string; taxTemplateId: string };
 type Currency = { id: string; code: string; name: string; symbol: string | null; isBaseCurrency: boolean };
@@ -66,6 +66,7 @@ export default function ErpInvoicingPage() {
   const [piCompanyId, setPiCompanyId] = useState("");
   const [creatingPi, setCreatingPi] = useState(false);
   const [piSubmitExpenseAccount, setPiSubmitExpenseAccount] = useState<Record<string, string>>({});
+  const [piSubmitTdsAccount, setPiSubmitTdsAccount] = useState<Record<string, string>>({});
 
   const [curOpen, setCurOpen] = useState(false);
   const [curCode, setCurCode] = useState("");
@@ -168,8 +169,9 @@ export default function ErpInvoicingPage() {
   const submitPurchaseInvoice = async (id: string) => {
     const expenseAccountId = piSubmitExpenseAccount[id];
     if (!expenseAccountId) { toast.error("Select an expense account first"); return; }
+    const tdsPayableAccountId = piSubmitTdsAccount[id];
     setBusyId(id);
-    const res = await fetch(`/api/erp/purchase-invoices/${id}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expenseAccountId }) });
+    const res = await fetch(`/api/erp/purchase-invoices/${id}/submit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expenseAccountId, tdsPayableAccountId: tdsPayableAccountId || undefined }) });
     setBusyId(null);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to submit"); return; }
     toast.success("Purchase invoice posted to GL");
@@ -397,8 +399,15 @@ export default function ErpInvoicingPage() {
                                 <SelectTrigger className="w-32 h-7 text-xs"><SelectValue placeholder="Expense a/c" /></SelectTrigger>
                                 <SelectContent>{payableAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.accountName}</SelectItem>)}</SelectContent>
                               </Select>
+                              <Select value={piSubmitTdsAccount[inv.id] ?? "__none__"} onValueChange={(v) => setPiSubmitTdsAccount((prev) => ({ ...prev, [inv.id]: v === "__none__" ? "" : v }))}>
+                                <SelectTrigger className="w-36 h-7 text-xs"><SelectValue placeholder="TDS payable a/c (if any)" /></SelectTrigger>
+                                <SelectContent><SelectItem value="__none__">TDS payable a/c (if any)</SelectItem>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.accountName}</SelectItem>)}</SelectContent>
+                              </Select>
                               <Button size="sm" className="h-7 text-xs bg-ct-teal hover:bg-ct-teal-hover text-white" onClick={() => submitPurchaseInvoice(inv.id)} disabled={busyId === inv.id}>{busyId === inv.id && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}Post</Button>
                             </div>
+                          )}
+                          {inv.status !== "draft" && Number(inv.tdsAmount ?? 0) > 0 && (
+                            <span className="text-xs text-ct-muted">TDS withheld: {Number(inv.tdsAmount).toFixed(2)}</span>
                           )}
                         </td>
                       </tr>

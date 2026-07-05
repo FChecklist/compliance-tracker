@@ -2821,6 +2821,10 @@ export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   employmentType: text('employment_type').notNull().default('full_time'), // 'full_time' | 'part_time' | 'contract' | 'intern'
   dateOfJoining: date('date_of_joining'),
   dateOfBirth: date('date_of_birth'),
+  // Wave 68: nullable -- which erp_income_tax_slabs record (regime) this
+  // employee has opted into for annual TDS projection. No slab assigned
+  // means payroll keeps Wave 56's original manual-TDS-entry-only behavior.
+  incomeTaxSlabId: text('income_tax_slab_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -3270,6 +3274,11 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   journalEntryId: text('journal_entry_id'),
   purchaseOrderId: text('purchase_order_id'),
   companyId: text('company_id'), // see erpSalesInvoices' identical Wave 67 comment
+  // Wave 68: computed and snapshotted at submit time (never re-derived
+  // later), matching this codebase's snapshot-at-transaction-time
+  // discipline -- a later change to the supplier's withholding category
+  // or rate must never silently rewrite a past invoice's TDS.
+  tdsAmount: numeric('tds_amount').notNull().default('0'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -3367,6 +3376,7 @@ export const erpSuppliers = complianceSchemaDB.table('erp_suppliers', {
   panNumber: text('pan_number'),
   defaultPaymentTermsDays: integer('default_payment_terms_days'),
   vendorRiskProfileId: text('vendor_risk_profile_id'), // nullable link to VERIDIAN's existing vendor_risk_profiles (Third-Party & ESG module)
+  taxWithholdingCategoryId: text('tax_withholding_category_id'), // Wave 68: nullable -- assigns this supplier a default TDS category; no category means no withholding is ever computed for their invoices
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -4248,6 +4258,73 @@ export const erpPayslipLines = complianceSchemaDB.table('erp_payslip_lines', {
   label: text('label').notNull(),
   lineType: erpPayslipLineTypeEnum('line_type').notNull(),
   amount: numeric('amount').notNull().default('0'),
+})
+
+// Wave 68 (payroll TDS auto-computation, per ERPNext's Income Tax Slab
+// doctype as reference, read-only/GPL-3.0/no code copied): old-regime vs
+// new-regime is modeled as TWO SEPARATE slab records (an employee is
+// assigned one), not a regime flag on one record -- matching ERPNext's
+// own approach, since the slab bands/rates genuinely differ, not just a
+// toggle. An org must set these up (admin-editable, never hardcoded --
+// same "rates come from a periodic government notification" discipline
+// as Wave 56's erp_statutory_rules) before payroll can auto-compute TDS
+// for an employee; an employee with no slab assigned keeps Wave 56's
+// original manual-entry-only behavior, unchanged.
+export const erpIncomeTaxSlabs = complianceSchemaDB.table('erp_income_tax_slabs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(), // e.g. "New Regime FY 2026-27"
+  effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+  standardDeduction: numeric('standard_deduction').notNull().default('0'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpIncomeTaxSlabRates = complianceSchemaDB.table('erp_income_tax_slab_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  slabId: text('slab_id').notNull(),
+  fromAmount: numeric('from_amount').notNull(),
+  toAmount: numeric('to_amount'), // nullable -- the top band has no upper bound
+  percentDeduction: numeric('percent_deduction').notNull(),
+})
+
+// A flat declaration list (name, category, amount) rather than ERPNext's
+// full Category/SubCategory/ProofSubmission hierarchy -- a deliberate
+// simplification that still captures the total exemption amount a
+// computeAnnualTds() run needs, without building document-proof workflow
+// this pass doesn't need.
+export const erpEmployeeTaxExemptions = complianceSchemaDB.table('erp_employee_tax_exemptions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  employeeId: text('employee_id').notNull(),
+  financialYear: text('financial_year').notNull(), // e.g. "2026-27"
+  category: text('category').notNull(), // free text, e.g. "80C", "HRA", "80D"
+  amount: numeric('amount').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Wave 68 (vendor-payment TDS, per ERPNext's Tax Withholding Category
+// doctype as reference): applied at purchase-invoice-submit time by
+// comparing this invoice's (and this supplier's already-submitted prior
+// invoices' cumulative) taxable basis against the category's thresholds.
+// No structured "section code" (194C/194J etc.) field -- handled via
+// free-text categoryName, matching ERPNext's own shape.
+export const erpTaxWithholdingCategories = complianceSchemaDB.table('erp_tax_withholding_categories', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  categoryName: text('category_name').notNull(),
+  taxDeductionBasis: text('tax_deduction_basis').notNull().default('net_total'), // 'gross_total' | 'net_total'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpTaxWithholdingRates = complianceSchemaDB.table('erp_tax_withholding_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  categoryId: text('category_id').notNull(),
+  fromDate: date('from_date', { mode: 'string' }).notNull(),
+  toDate: date('to_date', { mode: 'string' }),
+  rate: numeric('rate').notNull(),
+  singleThreshold: numeric('single_threshold'), // nullable -- withhold if a single invoice's basis exceeds this
+  cumulativeThreshold: numeric('cumulative_threshold'), // nullable -- withhold if this supplier's running total (incl. this invoice) exceeds this
 })
 
 export const erpSalaryStructuresRelations = relations(erpSalaryStructures, ({ one, many }) => ({

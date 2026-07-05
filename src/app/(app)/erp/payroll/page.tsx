@@ -5,13 +5,14 @@ export const dynamic = "force-dynamic";
 // Wave 56 (VERI ERP gap-fill, Tier 2 #5/#6): Indian Statutory Payroll.
 // PF/ESI/Professional Tax are computed by a configurable rule engine (rates
 // live in erp_statutory_rules, never hardcoded) -- see
-// erp-payroll-service.ts. TDS is deliberately NOT auto-computed: it needs a
-// manually-entered value per payslip, clearly labeled below, since correct
-// TDS depends on regime choice/exemptions/slabs that can't be safely
-// approximated.
+// erp-payroll-service.ts. TDS was originally NOT auto-computed at all.
+//
+// Wave 68: Income Tax Slabs give payroll TDS a real, admin-editable
+// auto-compute engine -- opt-in per employee. An employee with no slab
+// assigned keeps the original manual-entry-only behavior.
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-type Employee = { id: string; name: string; profile: { id: string; employeeCode: string | null } | null };
+type Employee = { id: string; name: string; profile: { id: string; employeeCode: string | null; incomeTaxSlabId: string | null } | null };
 type Component = { id: string; name: string; componentType: string; calculationType: string; defaultPercentage: string | null; defaultAmount: string | null; includeInPfWage: boolean };
 type StatutoryRule = { id: string; ruleType: string; state: string | null; effectiveFrom: string; employeeRate: string | null; employerRate: string | null; wageCeiling: string | null; slabs: { uptoAmount: number; taxAmount: number }[] | null };
 type Structure = { id: string; employeeId: string; employeeName: string; ctcAnnual: string; effectiveFrom: string; state: string | null };
 type PayrollRun = { id: string; month: number; year: number; status: string };
 type Payslip = { id: string; employeeId: string; employeeName: string; grossEarnings: string; totalDeductions: string; netPay: string; status: string; lines: { id: string; label: string; lineType: string; amount: string }[] };
+type IncomeTaxSlab = { id: string; name: string; effectiveFrom: string; standardDeduction: string; rates: { fromAmount: string; toAmount: string | null; percentDeduction: string }[] };
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -71,6 +73,15 @@ export default function ErpPayrollPage() {
   const [runYear, setRunYear] = useState(String(new Date().getFullYear()));
   const [creatingRun, setCreatingRun] = useState(false);
 
+  const [slabs, setSlabs] = useState<IncomeTaxSlab[]>([]);
+  const [slabOpen, setSlabOpen] = useState(false);
+  const [slabName, setSlabName] = useState("");
+  const [slabFrom, setSlabFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [slabStdDeduction, setSlabStdDeduction] = useState("");
+  const [slabRates, setSlabRates] = useState<{ fromAmount: string; toAmount: string; percentDeduction: string }[]>([{ fromAmount: "0", toAmount: "", percentDeduction: "" }]);
+  const [creatingSlab, setCreatingSlab] = useState(false);
+  const [assigningSlabFor, setAssigningSlabFor] = useState<string | null>(null);
+
   const load = useCallback(() => {
     Promise.all([
       fetch("/api/hr/employees").catch(() => null),
@@ -78,17 +89,19 @@ export default function ErpPayrollPage() {
       fetch("/api/erp/payroll/statutory-rules"),
       fetch("/api/erp/payroll/salary-structures"),
       fetch("/api/erp/payroll/runs"),
+      fetch("/api/erp/payroll/income-tax-slabs"),
     ])
-      .then(([empRes, compRes, ruleRes, structRes, runRes]) => Promise.all([
+      .then(([empRes, compRes, ruleRes, structRes, runRes, slabRes]) => Promise.all([
         empRes && empRes.ok ? empRes.json() : { employees: [] },
-        compRes.json(), ruleRes.json(), structRes.json(), runRes.json(),
+        compRes.json(), ruleRes.json(), structRes.json(), runRes.json(), slabRes.json(),
       ]))
-      .then(([empData, compData, ruleData, structData, runData]) => {
+      .then(([empData, compData, ruleData, structData, runData, slabData]) => {
         setEmployees(empData.employees ?? []);
         setComponents(compData.components ?? []);
         setRules(ruleData.rules ?? []);
         setStructures(structData.structures ?? []);
         setRuns(runData.runs ?? []);
+        setSlabs(slabData.slabs ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -189,6 +202,33 @@ export default function ErpPayrollPage() {
     loadPayslips(selectedRunId);
   };
 
+  const createSlab = async () => {
+    setCreatingSlab(true);
+    const res = await fetch("/api/erp/payroll/income-tax-slabs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: slabName, effectiveFrom: slabFrom, standardDeduction: slabStdDeduction ? Number(slabStdDeduction) : undefined,
+        rates: slabRates.filter((r) => r.percentDeduction).map((r) => ({ fromAmount: Number(r.fromAmount) || 0, toAmount: r.toAmount ? Number(r.toAmount) : undefined, percentDeduction: Number(r.percentDeduction) })),
+      }),
+    });
+    setCreatingSlab(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create income tax slab"); return; }
+    setSlabOpen(false); setSlabName(""); setSlabStdDeduction(""); setSlabRates([{ fromAmount: "0", toAmount: "", percentDeduction: "" }]);
+    toast.success("Income tax slab saved");
+    load();
+  };
+
+  const assignSlab = async (employeeProfileId: string, slabId: string) => {
+    setAssigningSlabFor(employeeProfileId);
+    const res = await fetch(`/api/erp/payroll/employees/${employeeProfileId}/income-tax-slab`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slabId: slabId || undefined }),
+    });
+    setAssigningSlabFor(null);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to assign slab"); return; }
+    toast.success("Income tax slab assigned");
+    load();
+  };
+
   const employeesWithProfile = employees.filter((e) => e.profile);
 
   return (
@@ -196,7 +236,7 @@ export default function ErpPayrollPage() {
       <div>
         <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Statutory Payroll</h1>
         <p className="text-sm text-ct-muted mt-1">Salary structures, PF/ESI/Professional Tax (configurable rates, never hardcoded), payroll runs — VERI ERP AI</p>
-        <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-2 inline-block">TDS is not auto-calculated — enter the CA-computed value manually on each payslip before finalizing.</p>
+        <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1 mt-2 inline-block">TDS auto-computes only for employees with an Income Tax Slab assigned (see that tab) — always review the amount before finalizing. Employees with no slab assigned still require a manually-entered value.</p>
       </div>
 
       <Tabs defaultValue="runs">
@@ -205,6 +245,7 @@ export default function ErpPayrollPage() {
           <TabsTrigger value="structures">Salary Structures</TabsTrigger>
           <TabsTrigger value="components">Salary Components</TabsTrigger>
           <TabsTrigger value="rules">Statutory Rules</TabsTrigger>
+          <TabsTrigger value="taxslabs">Income Tax Slabs</TabsTrigger>
         </TabsList>
 
         <TabsContent value="runs" className="space-y-3">
@@ -320,15 +361,24 @@ export default function ErpPayrollPage() {
           <Card className="rounded-xl shadow-card bg-white">
             <CardContent className="p-0">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Employee</th><th className="p-3 font-medium">Effective From</th><th className="p-3 font-medium text-right">Annual CTC</th><th className="p-3 font-medium">State</th></tr></thead>
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Employee</th><th className="p-3 font-medium">Effective From</th><th className="p-3 font-medium text-right">Annual CTC</th><th className="p-3 font-medium">State</th><th className="p-3 font-medium">Income Tax Slab (TDS)</th></tr></thead>
                 <tbody className="divide-y divide-ct-border">
-                  {loading ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">Loading…</td></tr>
-                    : structures.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">No salary structures yet.</td></tr>
-                    : structures.map((s) => (
-                      <tr key={s.id} className="hover:bg-ct-row-hover">
-                        <td className="p-3">{s.employeeName}</td><td className="p-3">{s.effectiveFrom}</td><td className="p-3 text-right">{Number(s.ctcAnnual).toFixed(2)}</td><td className="p-3">{s.state ?? "—"}</td>
-                      </tr>
-                    ))}
+                  {loading ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">Loading…</td></tr>
+                    : structures.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">No salary structures yet.</td></tr>
+                    : structures.map((s) => {
+                      const profile = employeesWithProfile.find((e) => e.profile!.id === s.employeeId)?.profile;
+                      return (
+                        <tr key={s.id} className="hover:bg-ct-row-hover">
+                          <td className="p-3">{s.employeeName}</td><td className="p-3">{s.effectiveFrom}</td><td className="p-3 text-right">{Number(s.ctcAnnual).toFixed(2)}</td><td className="p-3">{s.state ?? "—"}</td>
+                          <td className="p-3">
+                            <Select value={profile?.incomeTaxSlabId ?? "__none__"} onValueChange={(v) => assignSlab(s.employeeId, v === "__none__" ? "" : v)} disabled={assigningSlabFor === s.employeeId}>
+                              <SelectTrigger className="w-44 h-7 text-xs"><SelectValue placeholder="Manual TDS only" /></SelectTrigger>
+                              <SelectContent><SelectItem value="__none__">Manual TDS only</SelectItem>{slabs.map((sl) => <SelectItem key={sl.id} value={sl.id}>{sl.name}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </CardContent>
@@ -428,6 +478,54 @@ export default function ErpPayrollPage() {
                       <tr key={r.id} className="hover:bg-ct-row-hover">
                         <td className="p-3">{r.ruleType}</td><td className="p-3">{r.state ?? "—"}</td><td className="p-3">{r.effectiveFrom}</td>
                         <td className="p-3">{r.employeeRate ?? "—"}</td><td className="p-3">{r.employerRate ?? "—"}</td><td className="p-3">{r.wageCeiling ?? "—"}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="taxslabs" className="space-y-3">
+          <div className="flex justify-end">
+            <Dialog open={slabOpen} onOpenChange={setSlabOpen}>
+              <DialogTrigger asChild><Button className="bg-ct-teal hover:bg-ct-teal-hover text-white"><Plus className="w-4 h-4 mr-1" />New Income Tax Slab</Button></DialogTrigger>
+              <DialogContent className="max-w-xl">
+                <DialogHeader><DialogTitle>New Income Tax Slab</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-xs text-ct-muted">Model old regime and new regime as two separate slabs -- an employee is assigned one on the Salary Structures tab.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div><Label>Name</Label><Input value={slabName} onChange={(e) => setSlabName(e.target.value)} placeholder="e.g. New Regime FY 2026-27" /></div>
+                    <div><Label>Effective From</Label><Input type="date" value={slabFrom} onChange={(e) => setSlabFrom(e.target.value)} /></div>
+                    <div><Label>Standard Deduction</Label><Input type="number" value={slabStdDeduction} onChange={(e) => setSlabStdDeduction(e.target.value)} placeholder="e.g. 75000" /></div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Slab Bands (progressive -- each band taxed only on the portion within it)</Label>
+                    {slabRates.map((r, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <Input className="flex-1" type="number" placeholder="From amount" value={r.fromAmount} onChange={(e) => setSlabRates((prev) => prev.map((p, idx) => idx === i ? { ...p, fromAmount: e.target.value } : p))} />
+                        <Input className="flex-1" type="number" placeholder="To amount (blank = no limit)" value={r.toAmount} onChange={(e) => setSlabRates((prev) => prev.map((p, idx) => idx === i ? { ...p, toAmount: e.target.value } : p))} />
+                        <Input className="w-24" type="number" placeholder="Rate %" value={r.percentDeduction} onChange={(e) => setSlabRates((prev) => prev.map((p, idx) => idx === i ? { ...p, percentDeduction: e.target.value } : p))} />
+                        <Button size="sm" variant="ghost" onClick={() => setSlabRates((prev) => prev.filter((_, idx) => idx !== i))} disabled={slabRates.length <= 1}><Trash2 className="w-4 h-4" /></Button>
+                      </div>
+                    ))}
+                    <Button size="sm" variant="outline" onClick={() => setSlabRates((prev) => [...prev, { fromAmount: "", toAmount: "", percentDeduction: "" }])}><Plus className="w-3 h-3 mr-1" />Add band</Button>
+                  </div>
+                </div>
+                <DialogFooter><Button onClick={createSlab} disabled={creatingSlab || !slabName} className="bg-ct-teal hover:bg-ct-teal-hover text-white">{creatingSlab && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <Card className="rounded-xl shadow-card bg-white">
+            <CardContent className="p-0">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Name</th><th className="p-3 font-medium">Effective From</th><th className="p-3 font-medium text-right">Standard Deduction</th><th className="p-3 font-medium">Bands</th></tr></thead>
+                <tbody className="divide-y divide-ct-border">
+                  {slabs.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">No income tax slabs configured yet -- TDS remains manual-entry-only until one is created and assigned.</td></tr>
+                    : slabs.map((sl) => (
+                      <tr key={sl.id} className="hover:bg-ct-row-hover">
+                        <td className="p-3">{sl.name}</td><td className="p-3">{sl.effectiveFrom}</td><td className="p-3 text-right">{Number(sl.standardDeduction).toFixed(2)}</td>
+                        <td className="p-3">{sl.rates.map((r) => `${r.fromAmount}-${r.toAmount ?? "∞"}: ${r.percentDeduction}%`).join(", ")}</td>
                       </tr>
                     ))}
                 </tbody>

@@ -4,20 +4,19 @@
 // rates/ceilings/slabs live in erp_statutory_rules as admin-editable master
 // data -- never hardcoded here -- since these change via periodic
 // government notification (see VAIOS_ARCHITECTURE_STRATEGY.md's payroll
-// section). TDS (income tax) is deliberately NOT auto-computed: correct TDS
-// depends on regime choice (old/new), Section 80C/HRA exemptions, and
-// annual slab projection, none of which can be safely approximated without
-// real risk of an incorrect statutory deduction -- getting this wrong is a
-// legal/financial liability for customers, not a UX bug. Every payslip
-// carries a manually-entered TDS line the payroll preparer sets before
-// finalizing.
+// section). TDS (income tax) was originally NOT auto-computed at all
+// (real risk of an incorrect statutory deduction without a real slab
+// engine) -- Wave 68 below now provides that real engine as an opt-in:
+// an employee with no incomeTaxSlabId assigned keeps this original
+// manual-entry-only behavior unchanged.
 import {
   erpSalaryComponents, erpSalaryStructures, erpSalaryStructureComponents,
   erpStatutoryRules, erpPayrollRuns, erpPayslips, erpPayslipLines,
+  erpIncomeTaxSlabs, erpIncomeTaxSlabRates, erpEmployeeTaxExemptions,
   employeeProfiles, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, lte, or, isNull, gte } from "drizzle-orm"
+import { and, eq, lte, or, isNull, gte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
@@ -240,8 +239,26 @@ export async function processPayrollRun(ctx: ErpContext, runId: string) {
         totalDeductions += ptAmount
       }
 
-      // TDS: never auto-computed. Zero-amount placeholder line the preparer must set via updatePayslipTds.
-      lines.push({ componentId: null, label: "TDS (enter manually -- not auto-calculated)", lineType: "deduction", amount: 0 })
+      // Wave 68: if this employee has an income tax slab assigned, auto-
+      // compute a suggested monthly TDS via computeAnnualTds -- projecting
+      // this month's gross across 12 months (a deliberate simplification,
+      // same spirit as Wave 56's own documented scope boundaries: it does
+      // not account for mid-year salary changes, multiple employers, or
+      // income outside VERIDIAN). The preparer can still override the
+      // amount via updatePayslipTds before finalizing, same as before.
+      const employeeProfile = await db.query.employeeProfiles.findFirst({ where: eq(employeeProfiles.id, structure.employeeId) })
+      let tdsAmount = 0
+      let tdsLabel = "TDS (enter manually -- not auto-calculated)"
+      if (employeeProfile?.incomeTaxSlabId) {
+        const financialYear = run.month >= 4 ? `${run.year}-${String(run.year + 1).slice(2)}` : `${run.year - 1}-${String(run.year).slice(2)}`
+        const annualTax = await computeAnnualTds(db, ctx.orgId, employeeProfile.incomeTaxSlabId, structure.employeeId, financialYear, grossEarnings * 12)
+        if (annualTax !== null) {
+          tdsAmount = annualTax / 12
+          tdsLabel = "TDS (auto-computed -- review before finalizing)"
+        }
+      }
+      lines.push({ componentId: null, label: tdsLabel, lineType: "deduction", amount: tdsAmount })
+      totalDeductions += tdsAmount
 
       const netPay = grossEarnings - totalDeductions
 
@@ -309,4 +326,107 @@ export async function finalizePayslip(ctx: ErpContext, payslipId: string) {
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_payslip.finalized", entityType: "erp_payslip", entityId: payslipId })
     return updated
   })
+}
+
+// ============================================================
+// Wave 68: Income Tax Slabs (payroll TDS engine) -- admin-editable master
+// data, never hardcoded, same discipline as erp_statutory_rules above.
+// Old regime vs. new regime is two separate slab records, not a flag.
+// ============================================================
+
+export async function listIncomeTaxSlabs(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const slabs = await db.query.erpIncomeTaxSlabs.findMany({ where: eq(erpIncomeTaxSlabs.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.effectiveFrom) })
+    const allRates = await db.query.erpIncomeTaxSlabRates.findMany({ where: sql`${erpIncomeTaxSlabRates.slabId} IN (SELECT id FROM compliance.erp_income_tax_slabs WHERE org_id = ${ctx.orgId})` })
+    return slabs.map((s) => ({ ...s, rates: allRates.filter((r) => r.slabId === s.id).sort((a, b) => Number(a.fromAmount) - Number(b.fromAmount)) }))
+  })
+}
+
+export async function createIncomeTaxSlab(
+  ctx: ErpContext,
+  input: { name: string; effectiveFrom: string; standardDeduction?: number; rates: { fromAmount: number; toAmount?: number; percentDeduction: number }[] }
+) {
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+  if (!input.rates?.length) throw new ServiceError("At least one slab rate is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [slab] = await db.insert(erpIncomeTaxSlabs).values({
+      orgId: ctx.orgId, name: input.name, effectiveFrom: input.effectiveFrom, standardDeduction: (input.standardDeduction ?? 0).toString(),
+    }).returning()
+    await db.insert(erpIncomeTaxSlabRates).values(
+      input.rates.map((r) => ({ slabId: slab.id, fromAmount: r.fromAmount.toString(), toAmount: r.toAmount?.toString(), percentDeduction: r.percentDeduction.toString() }))
+    )
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_income_tax_slab.created", entityType: "erp_income_tax_slab", entityId: slab.id })
+    return slab
+  })
+}
+
+/** Assigns (or clears, if slabId is undefined) an employee's income tax slab -- the opt-in switch for payroll TDS auto-computation. */
+export async function assignIncomeTaxSlab(ctx: ErpContext, employeeId: string, slabId: string | undefined) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const employee = await db.query.employeeProfiles.findFirst({ where: and(eq(employeeProfiles.id, employeeId), eq(employeeProfiles.orgId, ctx.orgId)) })
+    if (!employee) throw new ServiceError("Employee not found", 404)
+    if (slabId) {
+      const slab = await db.query.erpIncomeTaxSlabs.findFirst({ where: and(eq(erpIncomeTaxSlabs.id, slabId), eq(erpIncomeTaxSlabs.orgId, ctx.orgId)) })
+      if (!slab) throw new ServiceError("Income tax slab not found", 404)
+    }
+    const [updated] = await db.update(employeeProfiles).set({ incomeTaxSlabId: slabId ?? null, updatedAt: new Date() }).where(eq(employeeProfiles.id, employeeId)).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_employee.income_tax_slab_assigned", entityType: "employee_profile", entityId: employeeId })
+    return updated
+  })
+}
+
+export async function listEmployeeTaxExemptions(ctx: { orgId: string }, employeeId: string, financialYear?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpEmployeeTaxExemptions.findMany({
+      where: financialYear
+        ? and(eq(erpEmployeeTaxExemptions.orgId, ctx.orgId), eq(erpEmployeeTaxExemptions.employeeId, employeeId), eq(erpEmployeeTaxExemptions.financialYear, financialYear))
+        : and(eq(erpEmployeeTaxExemptions.orgId, ctx.orgId), eq(erpEmployeeTaxExemptions.employeeId, employeeId)),
+      orderBy: (t, { desc }) => desc(t.financialYear),
+    })
+  })
+}
+
+export async function createEmployeeTaxExemption(ctx: ErpContext, input: { employeeId: string; financialYear: string; category: string; amount: number }) {
+  if (!input.financialYear?.trim()) throw new ServiceError("financialYear is required", 400)
+  if (!input.category?.trim()) throw new ServiceError("category is required", 400)
+  if (!input.amount || input.amount < 0) throw new ServiceError("amount must be a non-negative number", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const employee = await db.query.employeeProfiles.findFirst({ where: and(eq(employeeProfiles.id, input.employeeId), eq(employeeProfiles.orgId, ctx.orgId)) })
+    if (!employee) throw new ServiceError("Employee not found", 404)
+    const [exemption] = await db.insert(erpEmployeeTaxExemptions).values({
+      orgId: ctx.orgId, employeeId: input.employeeId, financialYear: input.financialYear, category: input.category, amount: input.amount.toString(),
+    }).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_employee_tax_exemption.created", entityType: "erp_employee_tax_exemption", entityId: exemption.id })
+    return exemption
+  })
+}
+
+/**
+ * Projects annualGrossIncome through the assigned slab's rates
+ * progressively (each band taxed only on the portion of income falling
+ * within it), after subtracting the slab's standard deduction and the
+ * employee's declared exemptions for financialYear. Returns null if the
+ * slab has no rates configured (nothing to compute from) -- the caller
+ * then falls back to the original manual-entry-only behavior.
+ */
+async function computeAnnualTds(db: TenantDb, orgId: string, slabId: string, employeeId: string, financialYear: string, annualGrossIncome: number): Promise<number | null> {
+  const slab = await db.query.erpIncomeTaxSlabs.findFirst({ where: and(eq(erpIncomeTaxSlabs.id, slabId), eq(erpIncomeTaxSlabs.orgId, orgId)) })
+  if (!slab) return null
+  const rates = await db.query.erpIncomeTaxSlabRates.findMany({ where: eq(erpIncomeTaxSlabRates.slabId, slabId), orderBy: (t, { asc }) => asc(t.fromAmount) })
+  if (!rates.length) return null
+
+  const exemptions = await db.query.erpEmployeeTaxExemptions.findMany({ where: and(eq(erpEmployeeTaxExemptions.orgId, orgId), eq(erpEmployeeTaxExemptions.employeeId, employeeId), eq(erpEmployeeTaxExemptions.financialYear, financialYear)) })
+  const totalExemptions = exemptions.reduce((sum, e) => sum + Number(e.amount), 0)
+
+  const taxableIncome = Math.max(0, annualGrossIncome - Number(slab.standardDeduction) - totalExemptions)
+
+  let tax = 0
+  for (const rate of rates) {
+    const bandFrom = Number(rate.fromAmount)
+    const bandTo = rate.toAmount !== null ? Number(rate.toAmount) : Infinity
+    if (taxableIncome <= bandFrom) break
+    const amountInBand = Math.min(taxableIncome, bandTo) - bandFrom
+    tax += amountInBand * (Number(rate.percentDeduction) / 100)
+  }
+  return tax
 }

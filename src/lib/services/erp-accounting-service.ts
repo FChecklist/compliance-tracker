@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, users } from "@/lib/db"
+import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql, desc, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -319,5 +319,43 @@ export async function getLatestExchangeRate(ctx: { orgId: string }, fromCurrency
       where: and(eq(erpExchangeRates.orgId, ctx.orgId), eq(erpExchangeRates.fromCurrencyId, fromCurrencyId), eq(erpExchangeRates.toCurrencyId, toCurrencyId), lte(erpExchangeRates.rateDate, asOfDate)),
       orderBy: (t, { desc }) => desc(t.rateDate),
     })
+  })
+}
+
+// ============================================================
+// Wave 68: Tax Withholding Categories (vendor-payment TDS) -- admin-
+// editable master data assigned to a supplier (erp_suppliers.
+// taxWithholdingCategoryId), applied by erp-invoicing-service.ts at
+// purchase-invoice-submit time. No structured "section code" field
+// (194C/194J etc.) -- handled via free-text categoryName, matching
+// ERPNext's own Tax Withholding Category shape.
+// ============================================================
+
+export async function listTaxWithholdingCategories(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const categories = await db.query.erpTaxWithholdingCategories.findMany({ where: eq(erpTaxWithholdingCategories.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.categoryName) })
+    const allRates = await db.query.erpTaxWithholdingRates.findMany({ where: sql`${erpTaxWithholdingRates.categoryId} IN (SELECT id FROM compliance.erp_tax_withholding_categories WHERE org_id = ${ctx.orgId})` })
+    return categories.map((c) => ({ ...c, rates: allRates.filter((r) => r.categoryId === c.id).sort((a, b) => a.fromDate.localeCompare(b.fromDate)) }))
+  })
+}
+
+export async function createTaxWithholdingCategory(
+  ctx: ErpContext,
+  input: { categoryName: string; taxDeductionBasis?: "gross_total" | "net_total"; rates: { fromDate: string; toDate?: string; rate: number; singleThreshold?: number; cumulativeThreshold?: number }[] }
+) {
+  if (!input.categoryName?.trim()) throw new ServiceError("categoryName is required", 400)
+  if (!input.rates?.length) throw new ServiceError("At least one withholding rate is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [category] = await db.insert(erpTaxWithholdingCategories).values({
+      orgId: ctx.orgId, categoryName: input.categoryName, taxDeductionBasis: input.taxDeductionBasis ?? "net_total",
+    }).returning()
+    await db.insert(erpTaxWithholdingRates).values(
+      input.rates.map((r) => ({
+        categoryId: category.id, fromDate: r.fromDate, toDate: r.toDate, rate: r.rate.toString(),
+        singleThreshold: r.singleThreshold?.toString(), cumulativeThreshold: r.cumulativeThreshold?.toString(),
+      }))
+    )
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_tax_withholding_category.created", entityType: "erp_tax_withholding_category", entityId: category.id })
+    return category
   })
 }

@@ -20,6 +20,7 @@ import {
   erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts, erpCurrencies, erpCompanies,
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
+  erpTaxWithholdingCategories, erpTaxWithholdingRates,
   users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -149,6 +150,54 @@ async function resolveInvoiceCompany(db: TenantDb, orgId: string, companyId: str
   const company = await db.query.erpCompanies.findFirst({ where: and(eq(erpCompanies.id, companyId), eq(erpCompanies.orgId, orgId)) })
   if (!company) throw new ServiceError("Company not found", 404)
   return companyId
+}
+
+/**
+ * Wave 68 (vendor-payment TDS): if this supplier has a tax withholding
+ * category assigned, finds the rate valid for postingDate and compares
+ * this invoice's taxable basis (and this supplier's already-submitted
+ * prior invoices' cumulative basis this calendar year, a deliberate
+ * simplification vs. ERPNext's own fiscal-year scoping) against the
+ * category's thresholds. Withholds on the FULL basis when a threshold is
+ * crossed, not just the excess over it -- a documented simplification,
+ * same "automate what's safely automatable" spirit as the rest of this
+ * codebase's TDS work. Returns 0 if no category is assigned or no rate
+ * covers postingDate -- never guessed.
+ */
+async function computeVendorTds(db: TenantDb, orgId: string, supplierId: string, postingDate: string, baseSubtotal: number, baseGrandTotal: number, excludeInvoiceId: string): Promise<number> {
+  const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, orgId)) })
+  if (!supplier?.taxWithholdingCategoryId) return 0
+
+  const category = await db.query.erpTaxWithholdingCategories.findFirst({ where: and(eq(erpTaxWithholdingCategories.id, supplier.taxWithholdingCategoryId), eq(erpTaxWithholdingCategories.orgId, orgId)) })
+  if (!category) return 0
+
+  const rates = await db.query.erpTaxWithholdingRates.findMany({
+    where: and(eq(erpTaxWithholdingRates.categoryId, category.id), lte(erpTaxWithholdingRates.fromDate, postingDate), or(isNull(erpTaxWithholdingRates.toDate), gte(erpTaxWithholdingRates.toDate, postingDate))),
+    orderBy: (t, { desc }) => desc(t.fromDate),
+  })
+  const applicableRate = rates[0]
+  if (!applicableRate) return 0
+
+  const thisBasis = category.taxDeductionBasis === "gross_total" ? baseGrandTotal : baseSubtotal
+
+  let cumulativeBasis = thisBasis
+  if (applicableRate.cumulativeThreshold) {
+    const yearStart = `${postingDate.slice(0, 4)}-01-01`
+    const yearEnd = `${postingDate.slice(0, 4)}-12-31`
+    const priorInvoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(eq(erpPurchaseInvoices.orgId, orgId), eq(erpPurchaseInvoices.supplierId, supplierId), eq(erpPurchaseInvoices.status, "submitted"), gte(erpPurchaseInvoices.postingDate, yearStart), lte(erpPurchaseInvoices.postingDate, yearEnd)),
+    })
+    for (const prior of priorInvoices.filter((p) => p.id !== excludeInvoiceId)) {
+      const priorRate = Number(prior.exchangeRate)
+      cumulativeBasis += category.taxDeductionBasis === "gross_total" ? Number(prior.grandTotal) * priorRate : Number(prior.subtotal) * priorRate
+    }
+  }
+
+  const singleCrossed = applicableRate.singleThreshold != null && thisBasis > Number(applicableRate.singleThreshold)
+  const cumulativeCrossed = applicableRate.cumulativeThreshold != null && cumulativeBasis > Number(applicableRate.cumulativeThreshold)
+  if (!singleCrossed && !cumulativeCrossed) return 0
+
+  return thisBasis * (Number(applicableRate.rate) / 100)
 }
 
 async function findControlAccount(db: TenantDb, orgId: string, accountType: "receivable" | "payable") {
@@ -322,7 +371,7 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
   })
 }
 
-export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, input: { expenseAccountId: string }) {
+export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, input: { expenseAccountId: string; tdsPayableAccountId?: string }) {
   if (!input.expenseAccountId) throw new ServiceError("expenseAccountId is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -343,6 +392,10 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     const baseSubtotal = Number(invoice.subtotal) * rate
     const currencyAudit = invoice.currencyId ? { currencyId: invoice.currencyId, exchangeRate: invoice.exchangeRate } : {}
 
+    const tdsAmount = await computeVendorTds(db, ctx.orgId, invoice.supplierId, invoice.postingDate, baseSubtotal, baseGrandTotal, invoiceId)
+    if (tdsAmount > 0 && !input.tdsPayableAccountId) throw new ServiceError("This supplier's TDS threshold was crossed -- tdsPayableAccountId is required to post the withholding liability", 400)
+    const netPayable = baseGrandTotal - tdsAmount
+
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpJournalEntries.entryNumber}), 0)` }).from(erpJournalEntries).where(eq(erpJournalEntries.orgId, ctx.orgId))
     const [je] = await db.insert(erpJournalEntries).values({
       orgId: ctx.orgId, entryNumber: Number(maxNumber) + 1, postingDate: invoice.postingDate,
@@ -354,11 +407,12 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     const lines = [
       { journalEntryId: je.id, accountId: input.expenseAccountId, debit: baseSubtotal.toString(), credit: "0", debitInCurrency: invoice.currencyId ? invoice.subtotal : undefined, ...currencyAudit },
       ...Array.from(taxByAccount.entries()).map(([accountId, amount]) => ({ journalEntryId: je.id, accountId, debit: (amount * rate).toString(), credit: "0", debitInCurrency: invoice.currencyId ? amount.toString() : undefined, ...currencyAudit })), // input tax recoverable -- debited
-      { journalEntryId: je.id, accountId: payableAccount.id, partyType: "supplier" as const, partyId: invoice.supplierId, debit: "0", credit: baseGrandTotal.toString(), creditInCurrency: invoice.currencyId ? invoice.grandTotal : undefined, ...currencyAudit },
+      { journalEntryId: je.id, accountId: payableAccount.id, partyType: "supplier" as const, partyId: invoice.supplierId, debit: "0", credit: netPayable.toString(), creditInCurrency: invoice.currencyId ? invoice.grandTotal : undefined, ...currencyAudit },
+      ...(tdsAmount > 0 ? [{ journalEntryId: je.id, accountId: input.tdsPayableAccountId!, debit: "0", credit: tdsAmount.toString() }] : []),
     ]
     await db.insert(erpJournalEntryLines).values(lines)
 
-    const [updated] = await db.update(erpPurchaseInvoices).set({ status: "submitted", journalEntryId: je.id }).where(eq(erpPurchaseInvoices.id, invoiceId)).returning()
+    const [updated] = await db.update(erpPurchaseInvoices).set({ status: "submitted", journalEntryId: je.id, tdsAmount: tdsAmount.toString() }).where(eq(erpPurchaseInvoices.id, invoiceId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.submitted", entityType: "erp_purchase_invoice", entityId: invoiceId })
     return updated
   })

@@ -13,6 +13,16 @@ export async function listSuppliers(ctx: { orgId: string }) {
   })
 }
 
+/** Wave 68: assigns (or clears, if categoryId is undefined) a supplier's default Tax Withholding Category -- the opt-in switch for vendor-payment TDS auto-computation at invoice-submit time. */
+export async function updateSupplierTaxWithholding(ctx: { orgId: string }, supplierId: string, categoryId: string | undefined) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+    if (!supplier) throw new ServiceError("Supplier not found", 404)
+    const [updated] = await db.update(erpSuppliers).set({ taxWithholdingCategoryId: categoryId ?? null }).where(eq(erpSuppliers.id, supplierId)).returning()
+    return updated
+  })
+}
+
 // Wave 64 (Vendor Scorecarding, ERP benchmark Tier 4 #19). Read-time
 // aggregation over existing purchase order/receipt/return data -- matching
 // the same discipline as Wave 50/51's financial reports and Wave 28's
