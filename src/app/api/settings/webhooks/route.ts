@@ -10,6 +10,11 @@ const VALID_EVENTS = [
   "item.overdue",
   "notice.received",
   "challan.recorded",
+  // Wave 58: ERP domain events (see WebhookSection.tsx's WEBHOOK_EVENTS list)
+  "erp_journal_entry.submitted",
+  "erp_cash_voucher.posted",
+  "erp_payslip.finalized",
+  "erp_purchase_requisition.approved",
 ];
 
 function generateSecret(): string {
