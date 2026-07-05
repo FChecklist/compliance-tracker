@@ -131,9 +131,9 @@ Dark mode is configured (`darkMode: "class"`) but only meaningfully implemented 
 LLM cost/token logging is real and used. No APM/distributed tracing exists; relies entirely on Vercel's built-in logs (which is how this session found the pooler bug, via `get_runtime_errors`).
 **Fix priority**: LOW at current scale; revisit if traffic grows.
 
-### 3.8 CI/CD & Deployment Safety -- 🟡 FUNCTIONAL_BUT_UNVERIFIED, with a real gap
-CI runs lint/typecheck/build correctly. **`bun test --passWithNoTests` means the "Unit Tests" and "E2E Tests" CI gates pass even though zero tests exist to run** -- confirmed this exact gate showed green throughout this whole session's many waves. No rollback automation; reverting a bad deploy is a manual Vercel-dashboard action.
-**Fix priority**: HIGH -- a CI gate that always passes regardless of code correctness is actively misleading, arguably worse than no gate at all since it creates false confidence.
+### 3.8 CI/CD & Deployment Safety -- 🟡 FUNCTIONAL_BUT_UNVERIFIED, partial fix (Wave 79)
+CI runs lint/typecheck/build correctly. The "Unit Tests" gate now has real tests behind it: `src/lib/{purpose-bound-ai,llm-client,policy-enforcement-engine}.test.ts` (26 assertions via `bun:test`) cover the two highest-stakes deterministic gates in the codebase -- the Wave 17 tool/domain allowlist and the Wave 46 Constitution policy engine (personal-use/prompt-injection/domain-validity denial paths) -- plus `estimateCostUsd`'s pure cost math. `--passWithNoTests` was removed from the `unit-tests` CI job so a future PR that deletes all tests fails CI instead of passing silently. **The "E2E Tests" gate still passes vacuously** (`--pass-with-no-tests` intentionally kept) -- zero Playwright browser tests exist; writing real ones (server + auth fixtures) was out of scope for this wave's "minimal suite" fix. No rollback automation; reverting a bad deploy is a manual Vercel-dashboard action.
+**Fix priority**: MEDIUM -- the worst instance of this gap (a CI badge implying test coverage that doesn't exist at all) is fixed for unit tests; E2E coverage remains a real, disclosed gap for a future wave.
 
 ---
 
@@ -212,7 +212,7 @@ This is the concrete, runnable gate the user asked for -- what must be true befo
 
 1. ~~Re-run the Capability Registry backfill~~ -- **done during this certification pass** (70 rows now populated) -- §1.3
 2. **Provision a real embedding model** (`GROQ_API_KEY` or route through OpenRouter) so RAG matching uses genuine semantic vectors instead of the current hash-based fallback -- §1.3
-3. **Fix CI's `--passWithNoTests`** or write even a minimal real test suite -- a green CI gate that proves nothing is worse than no gate -- §3.8
+3. ~~Fix CI's `--passWithNoTests`~~ -- DONE (Wave 79): real unit tests exist and back the gate; E2E (`--pass-with-no-tests`) remains open -- §3.8
 4. **Add retry + fallback to `callLLM`** -- cheap, high-impact reliability fix -- §2.5
 5. **Build Meeting Intelligence** (one LLM call on publish, using existing Prompt OS) -- concrete, contained, high product value -- §3.2
 6. ~~Run a dedicated prompt-injection/jailbreak pass against VERI Chat, VERI FDE, and the page-agent~~ -- **done during this pass (Wave 46)**: the Policy Enforcement Engine (§2.8) now gates all 3 surfaces pre-call; 18/18 local test cases pass. Remaining: the denylist is illustrative not exhaustive, and no real production traffic has exercised it yet
