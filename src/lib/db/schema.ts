@@ -1906,6 +1906,61 @@ export const bcmPlans = complianceSchemaDB.table('bcm_plans', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Wave 89 (Comparison CSV 2 gap analysis: BCM Business Impact Analysis +
+// Recovery Plan detail + Exercise log) ─────────────────────────────────────
+// bcm_plans (above) was a bare name/last-tested-date/status flag with zero
+// BIA/recovery/exercise detail. None of these three child tables carry
+// their own org_id -- RLS scopes via their parent plan's org_id, the same
+// convention established in Wave 87 (erp_cycle_count_lines) and Wave 88
+// (clm_template_clauses).
+export const bcmBusinessImpactAnalyses = complianceSchemaDB.table('bcm_business_impact_analyses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  planId: text('plan_id').notNull(),
+  businessProcessName: text('business_process_name').notNull(),
+  impactDescription: text('impact_description'),
+  rtoHours: numeric('rto_hours'), // Recovery Time Objective
+  rpoHours: numeric('rpo_hours'), // Recovery Point Objective
+  criticalityLevel: text('criticality_level').notNull().default('medium'), // 'low'|'medium'|'high'|'critical'
+  dependencies: text('dependencies'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const bcmRecoveryProcedures = complianceSchemaDB.table('bcm_recovery_procedures', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  planId: text('plan_id').notNull(),
+  stepNumber: integer('step_number').notNull(),
+  description: text('description').notNull(),
+  responsibleUserId: text('responsible_user_id'),
+  estimatedDurationMinutes: numeric('estimated_duration_minutes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const bcmExercises = complianceSchemaDB.table('bcm_exercises', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  planId: text('plan_id').notNull(),
+  exerciseDate: date('exercise_date', { mode: 'string' }).notNull(),
+  exerciseType: text('exercise_type').notNull(), // 'tabletop'|'walkthrough'|'full_simulation'
+  outcome: text('outcome').notNull(), // 'passed'|'failed'|'partial'
+  findings: text('findings'),
+  conductedById: text('conducted_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const bcmPlansRelations = relations(bcmPlans, ({ many }) => ({
+  businessImpactAnalyses: many(bcmBusinessImpactAnalyses),
+  recoveryProcedures: many(bcmRecoveryProcedures),
+  exercises: many(bcmExercises),
+}))
+export const bcmBusinessImpactAnalysesRelations = relations(bcmBusinessImpactAnalyses, ({ one }) => ({
+  plan: one(bcmPlans, { fields: [bcmBusinessImpactAnalyses.planId], references: [bcmPlans.id] }),
+}))
+export const bcmRecoveryProceduresRelations = relations(bcmRecoveryProcedures, ({ one }) => ({
+  plan: one(bcmPlans, { fields: [bcmRecoveryProcedures.planId], references: [bcmPlans.id] }),
+}))
+export const bcmExercisesRelations = relations(bcmExercises, ({ one }) => ({
+  plan: one(bcmPlans, { fields: [bcmExercises.planId], references: [bcmPlans.id] }),
+}))
+
 export const contractComplianceItems = complianceSchemaDB.table('contract_compliance_items', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   vendorName: text('vendor_name').notNull(),
