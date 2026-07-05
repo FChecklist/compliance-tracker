@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, users } from "@/lib/db"
+import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -103,6 +103,15 @@ export async function createCostCenter(ctx: ErpContext, input: CostCenterInput) 
     }).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_cost_center.created", entityType: "erp_cost_center", entityId: cc.id })
     return cc
+  })
+}
+
+// Wave 54: backs the Bank Reconciliation UI's bank-account picker --
+// erpBankAccounts has existed since Wave 49 with no service-layer
+// consumer until now.
+export async function listBankAccounts(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpBankAccounts.findMany({ where: eq(erpBankAccounts.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.accountName) })
   })
 }
 

@@ -48,6 +48,7 @@ import {
   Database,
   Banknote,
   FileMinus,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +111,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         { label: "Cash Management", href: "/erp/cash-management", icon: Banknote },
         { label: "Credit Notes", href: "/erp/credit-notes", icon: FileMinus },
         { label: "Inventory", href: "/erp/inventory", icon: Database },
+        { label: "Bank Reconciliation", href: "/erp/bank-reconciliation", icon: ArrowRightLeft },
       ],
     },
     {

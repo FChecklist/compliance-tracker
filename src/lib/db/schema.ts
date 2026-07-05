@@ -3886,3 +3886,46 @@ export const erpStockValuationLayersRelations = relations(erpStockValuationLayer
   item: one(erpItems, { fields: [erpStockValuationLayers.itemId], references: [erpItems.id] }),
   warehouse: one(erpWarehouses, { fields: [erpStockValuationLayers.warehouseId], references: [erpWarehouses.id] }),
 }))
+
+// ─── VERI ERP Wave 54: Bank Statement Import & Reconciliation ─────────────
+// Per ERP_BENCHMARK_COMPARISON.md Tier 3 #9 -- entirely unbuilt before
+// this wave. Reuses this codebase's own existing generic file parser
+// (src/lib/ingest/parser.ts, already handling CSV/Excel/PDF for the
+// compliance-item ingestion pipeline) rather than adding a new MT940/
+// CAMT.053 parsing dependency -- per VAIOS_ARCHITECTURE_STRATEGY.md's own
+// finding that Indian banks overwhelmingly export CSV/Excel, not raw
+// SWIFT MT940, so the already-built parser is the correct "don't
+// reinvent" move here, not a new npm dependency.
+export const erpBankReconciliationStatusEnum = complianceSchemaDB.enum('erp_bank_reconciliation_status', ['unmatched', 'matched', 'ignored'])
+
+export const erpBankStatementImports = complianceSchemaDB.table('erp_bank_statement_imports', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  bankAccountId: text('bank_account_id').notNull(), // links to erp_bank_accounts (Wave 49)
+  fileName: text('file_name').notNull(),
+  totalLines: integer('total_lines').notNull().default(0),
+  importedById: text('imported_by_id'),
+  importedAt: timestamp('imported_at').notNull().defaultNow(),
+})
+
+export const erpBankStatementLines = complianceSchemaDB.table('erp_bank_statement_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  importId: text('import_id').notNull(),
+  transactionDate: date('transaction_date', { mode: 'string' }).notNull(),
+  description: text('description'),
+  referenceNo: text('reference_no'),
+  debitAmount: numeric('debit_amount').notNull().default('0'), // withdrawal
+  creditAmount: numeric('credit_amount').notNull().default('0'), // deposit
+  status: erpBankReconciliationStatusEnum('status').notNull().default('unmatched'),
+  matchedJournalEntryId: text('matched_journal_entry_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpBankStatementImportsRelations = relations(erpBankStatementImports, ({ many }) => ({
+  lines: many(erpBankStatementLines),
+}))
+
+export const erpBankStatementLinesRelations = relations(erpBankStatementLines, ({ one }) => ({
+  import: one(erpBankStatementImports, { fields: [erpBankStatementLines.importId], references: [erpBankStatementImports.id] }),
+}))
