@@ -31,7 +31,7 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | CRM > Customer Service (CS001-018) | PRESENT (Wave 81) | `tickets` (Wave 39) + `knowledgeBasePages` (Wave 29, now searchable) + Wave 81: `ticketSatisfactionSurveys` (CSAT/NPS via guest-chat token), `installedProducts` (warranty tracking), `fieldServiceDispatches`, `problemRecords`/`problemTickets` (RCA grouping) | |
 | Procurement > Vendor Master (VEN001-018) | PRESENT (Wave 80) | `erpSuppliers` + `vendorRiskProfiles` + Vendor Scorecarding (Wave 64) + Wave 80: KYC docs (reuses `documents`), `erpSupplierBankAccounts` (pgcrypto-encrypted), `erpSupplierQualifications`, `erpSupplierSanctionChecks` (manual screening log, no live API), `erpSupplierPortalLinks` (self-service portal) | Sanction screening is a manual log, not a live external-API check (no sanctions-API key in this environment) |
 | Procurement > Purchase Requisition (PR001-018) | PRESENT | `erpPurchaseRequisitions`/Items | |
-| Procurement > RFQ Management (RFQ001-018) | PARTIAL | `erpRfqs`/Items/Suppliers + `erpSupplierQuotations`/Items | Missing: reverse auction, formal weighted scoring, negotiation-round tracking. Minor — backlogged |
+| Procurement > RFQ Management (RFQ001-018) | PRESENT (Wave 83) | `erpRfqs`/Items/Suppliers + `erpSupplierQuotations`/Items + Wave 83: `erpRfqScoringCriteria`/`erpRfqQuotationScores` (weighted scoring), `erpRfqNegotiationRounds` (structured counter-offer log), `erpRfqReverseAuctions`/`erpRfqAuctionBids` (suppliers bid via their existing Wave 80 vendor-portal token) | |
 | Procurement > Purchase Order (PO001-018) | PRESENT | `erpPurchaseOrders`/Items | |
 | Procurement > Goods Receipt (GRN001-018) | PARTIAL | `erpPurchaseReceipts`/Items + batch/serial (Wave 57) | Missing: formal three-way-match report, landed-cost allocation, putaway/bin management. Backlogged |
 
@@ -54,7 +54,7 @@ Everything marked PARTIAL above is an *enhancement* to an already-shipped module
 1. ~~Vendor Master: KYC document tracking, banking details table, qualification workflow, sanction/blacklist screening, vendor self-service portal.~~ DONE (Wave 80).
 2. ~~Customer Service: Knowledge Base articles + search, CSAT/NPS post-ticket surveys, installed-product/warranty tracking, field-service dispatch, problem management/RCA grouping.~~ DONE (Wave 81).
 3. ~~Period Closing: formal closing-checklist workflow (accrual/provision tasks, sign-off steps) beyond today's simple open/closed period flag.~~ DONE (Wave 82).
-4. RFQ Management: reverse auction, formal weighted vendor scoring, structured negotiation-round log.
+4. ~~RFQ Management: reverse auction, formal weighted vendor scoring, structured negotiation-round log.~~ DONE (Wave 83).
 5. Customer/Vendor Master: multiple addresses/contacts per record, credit limits.
 6. Goods Receipt: three-way-match (PO/GRN/Invoice) report, landed-cost allocation, putaway/bin assignment.
 
