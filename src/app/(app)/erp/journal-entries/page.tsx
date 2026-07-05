@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type Account = { id: string; accountName: string; accountNumber: string | null; rootType: string; accountType: string | null };
 type JournalEntry = { id: string; entryNumber: number; postingDate: string; status: string; totalDebit: string; totalCredit: string; userRemark: string | null };
 type Line = { accountId: string; debit: string; credit: string };
+type CostCenter = { id: string; name: string; isGroup: boolean };
 
 const ROOT_TYPES = ["asset", "liability", "equity", "income", "expense"];
 const STATUS_COLORS: Record<string, string> = {
@@ -32,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ErpJournalEntriesPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [acctOpen, setAcctOpen] = useState(false);
@@ -39,6 +41,10 @@ export default function ErpJournalEntriesPage() {
   const [acctRootType, setAcctRootType] = useState("asset");
   const [acctType, setAcctType] = useState("");
   const [creatingAcct, setCreatingAcct] = useState(false);
+
+  const [ccOpen, setCcOpen] = useState(false);
+  const [ccName, setCcName] = useState("");
+  const [creatingCc, setCreatingCc] = useState(false);
 
   const [jeOpen, setJeOpen] = useState(false);
   const [postingDate, setPostingDate] = useState(new Date().toISOString().slice(0, 10));
@@ -48,17 +54,31 @@ export default function ErpJournalEntriesPage() {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    Promise.all([fetch("/api/erp/accounts"), fetch("/api/erp/journal-entries")])
-      .then(([acctRes, jeRes]) => Promise.all([acctRes.json(), jeRes.json()]))
-      .then(([acctData, jeData]) => {
+    Promise.all([fetch("/api/erp/accounts"), fetch("/api/erp/journal-entries"), fetch("/api/erp/cost-centers")])
+      .then(([acctRes, jeRes, ccRes]) => Promise.all([acctRes.json(), jeRes.json(), ccRes.json()]))
+      .then(([acctData, jeData, ccData]) => {
         setAccounts(acctData.accounts ?? []);
         setEntries(jeData.entries ?? []);
+        setCostCenters(ccData.costCenters ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
   useEffect(load, [load]);
+
+  const createCostCenter = async () => {
+    if (!ccName.trim()) return;
+    setCreatingCc(true);
+    const res = await fetch("/api/erp/cost-centers", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: ccName }),
+    });
+    setCreatingCc(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create cost center"); return; }
+    setCcOpen(false); setCcName("");
+    toast.success("Cost center created");
+    load();
+  };
 
   const createAccount = async () => {
     if (!acctName.trim()) return;
@@ -120,6 +140,7 @@ export default function ErpJournalEntriesPage() {
         <TabsList>
           <TabsTrigger value="entries">Journal Entries</TabsTrigger>
           <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
+          <TabsTrigger value="costcenters">Cost Centers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="entries" className="space-y-3">
@@ -206,6 +227,30 @@ export default function ErpJournalEntriesPage() {
                 <tbody className="divide-y divide-ct-border">
                   {accounts.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">No accounts yet — create your chart of accounts to get started.</td></tr>
                     : accounts.map((a) => <tr key={a.id} className="hover:bg-ct-row-hover"><td className="p-3">{a.accountNumber ?? "—"}</td><td className="p-3">{a.accountName}</td><td className="p-3 capitalize">{a.rootType}</td><td className="p-3">{a.accountType ?? "—"}</td></tr>)}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="costcenters" className="space-y-3">
+          <div className="flex justify-end">
+            <Dialog open={ccOpen} onOpenChange={setCcOpen}>
+              <DialogTrigger asChild><Button className="bg-ct-teal hover:bg-ct-teal-hover text-white"><Plus className="w-4 h-4 mr-1" />New Cost Center</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>New Cost Center</DialogTitle><DialogDescription>Tag journal entry lines to track spend by department, project, or business unit.</DialogDescription></DialogHeader>
+                <div><Label>Name</Label><Input value={ccName} onChange={(e) => setCcName(e.target.value)} /></div>
+                <DialogFooter><Button onClick={createCostCenter} disabled={creatingCc} className="bg-ct-teal hover:bg-ct-teal-hover text-white">{creatingCc && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Create</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <Card className="rounded-xl shadow-card bg-white">
+            <CardContent className="p-0">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Name</th></tr></thead>
+                <tbody className="divide-y divide-ct-border">
+                  {costCenters.length === 0 ? <tr><td className="p-6 text-center text-ct-muted">No cost centers yet.</td></tr>
+                    : costCenters.map((c) => <tr key={c.id} className="hover:bg-ct-row-hover"><td className="p-3">{c.name}</td></tr>)}
                 </tbody>
               </table>
             </CardContent>

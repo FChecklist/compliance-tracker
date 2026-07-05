@@ -3145,7 +3145,8 @@ export const erpJournalEntryLines = complianceSchemaDB.table('erp_journal_entry_
   partyId: text('party_id'), // polymorphic -- erp_customers.id or erp_suppliers.id depending on partyType
   debit: numeric('debit').notNull().default('0'),
   credit: numeric('credit').notNull().default('0'),
-  costCenter: text('cost_center'),
+  costCenter: text('cost_center'), // legacy free-text tag, kept for existing rows
+  costCenterId: text('cost_center_id'), // Wave 52: real dimension FK -> erp_cost_centers, additive alongside the legacy text field
   clientId: text('client_id'), // nullable -- client-billable entries link back to VERIDIAN's own clients table
   remark: text('remark'),
 })
@@ -3728,4 +3729,134 @@ export const approvalWorkflowStepInstancesRelations = relations(approvalWorkflow
 
 export const approvalWorkflowStepApprovalsRelations = relations(approvalWorkflowStepApprovals, ({ one }) => ({
   step: one(approvalWorkflowStepInstances, { fields: [approvalWorkflowStepApprovals.stepInstanceId], references: [approvalWorkflowStepInstances.id] }),
+}))
+
+// ─── VERI ERP Wave 52: Cost Centers, Cash Management, Credit Notes ────────
+// Per ERP_BENCHMARK_COMPARISON.md Tier 2 -- three of the ranked gaps,
+// batched into one migration since each is additive and independent.
+
+// Cost Centers: upgrades erpJournalEntryLines.costCenter from a free-text
+// tag into a real dimension table (Tier 2 #4). Kept as a NEW nullable FK
+// column alongside the existing text field rather than replacing it --
+// additive, no breaking change to Wave 49 data.
+export const erpCostCenters = complianceSchemaDB.table('erp_cost_centers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  parentCostCenterId: text('parent_cost_center_id'),
+  isGroup: boolean('is_group').notNull().default(false),
+  departmentId: text('department_id'), // nullable link to VERIDIAN's existing departments table
+  projectId: text('project_id'), // nullable link to VERIDIAN's existing projects table
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Cash Management (Tier 2 #3): entirely unbuilt before this wave.
+export const erpCashVoucherTypeEnum = complianceSchemaDB.enum('erp_cash_voucher_type', ['receipt', 'payment'])
+export const erpCashVoucherStatusEnum = complianceSchemaDB.enum('erp_cash_voucher_status', ['draft', 'submitted', 'cancelled'])
+
+export const erpCashAccounts = complianceSchemaDB.table('erp_cash_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  accountName: text('account_name').notNull(),
+  glAccountId: text('gl_account_id'), // links to erp_accounts -- this cash account's balance-sheet account
+  isPettyCash: boolean('is_petty_cash').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpCashVouchers = complianceSchemaDB.table('erp_cash_vouchers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  cashAccountId: text('cash_account_id').notNull(),
+  voucherNumber: integer('voucher_number').notNull(),
+  voucherType: erpCashVoucherTypeEnum('voucher_type').notNull(),
+  amount: numeric('amount').notNull(),
+  partyType: erpPartyTypeEnum('party_type'),
+  partyId: text('party_id'),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  status: erpCashVoucherStatusEnum('status').notNull().default('draft'),
+  journalEntryId: text('journal_entry_id'), // set once posted to the GL
+  remark: text('remark'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Sales/Purchase Credit Notes (Tier 3 #11): zero schema before this wave
+// on either side.
+export const erpCreditNoteStatusEnum = complianceSchemaDB.enum('erp_credit_note_status', ['draft', 'submitted', 'cancelled'])
+
+export const erpSalesCreditNotes = complianceSchemaDB.table('erp_sales_credit_notes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  salesInvoiceId: text('sales_invoice_id'), // nullable -- a credit note can be raised independent of a specific invoice
+  creditNoteNumber: integer('credit_note_number').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  reason: text('reason'),
+  status: erpCreditNoteStatusEnum('status').notNull().default('draft'),
+  totalAmount: numeric('total_amount').notNull().default('0'),
+  journalEntryId: text('journal_entry_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpSalesCreditNoteItems = complianceSchemaDB.table('erp_sales_credit_note_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  creditNoteId: text('credit_note_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+})
+
+export const erpPurchaseCreditNotes = complianceSchemaDB.table('erp_purchase_credit_notes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  purchaseInvoiceId: text('purchase_invoice_id'),
+  creditNoteNumber: integer('credit_note_number').notNull(),
+  postingDate: date('posting_date', { mode: 'string' }).notNull(),
+  reason: text('reason'),
+  status: erpCreditNoteStatusEnum('status').notNull().default('draft'),
+  totalAmount: numeric('total_amount').notNull().default('0'),
+  journalEntryId: text('journal_entry_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpPurchaseCreditNoteItems = complianceSchemaDB.table('erp_purchase_credit_note_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  creditNoteId: text('credit_note_id').notNull(),
+  itemId: text('item_id'),
+  description: text('description').notNull(),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'),
+})
+
+export const erpCostCentersRelations = relations(erpCostCenters, ({ one, many }) => ({
+  parentCostCenter: one(erpCostCenters, { fields: [erpCostCenters.parentCostCenterId], references: [erpCostCenters.id], relationName: 'erpCostCenterTree' }),
+  childCostCenters: many(erpCostCenters, { relationName: 'erpCostCenterTree' }),
+}))
+
+export const erpCashVouchersRelations = relations(erpCashVouchers, ({ one }) => ({
+  cashAccount: one(erpCashAccounts, { fields: [erpCashVouchers.cashAccountId], references: [erpCashAccounts.id] }),
+}))
+
+export const erpSalesCreditNotesRelations = relations(erpSalesCreditNotes, ({ one, many }) => ({
+  customer: one(erpCustomers, { fields: [erpSalesCreditNotes.customerId], references: [erpCustomers.id] }),
+  items: many(erpSalesCreditNoteItems),
+}))
+
+export const erpSalesCreditNoteItemsRelations = relations(erpSalesCreditNoteItems, ({ one }) => ({
+  creditNote: one(erpSalesCreditNotes, { fields: [erpSalesCreditNoteItems.creditNoteId], references: [erpSalesCreditNotes.id] }),
+}))
+
+export const erpPurchaseCreditNotesRelations = relations(erpPurchaseCreditNotes, ({ one, many }) => ({
+  supplier: one(erpSuppliers, { fields: [erpPurchaseCreditNotes.supplierId], references: [erpSuppliers.id] }),
+  items: many(erpPurchaseCreditNoteItems),
+}))
+
+export const erpPurchaseCreditNoteItemsRelations = relations(erpPurchaseCreditNoteItems, ({ one }) => ({
+  creditNote: one(erpPurchaseCreditNotes, { fields: [erpPurchaseCreditNoteItems.creditNoteId], references: [erpPurchaseCreditNotes.id] }),
 }))

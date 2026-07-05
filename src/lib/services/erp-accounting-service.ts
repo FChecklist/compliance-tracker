@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, users } from "@/lib/db"
+import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -26,6 +26,7 @@ export type JournalEntryLineInput = {
   partyType?: "customer" | "supplier"
   partyId?: string
   costCenter?: string
+  costCenterId?: string
   clientId?: string
   remark?: string
 }
@@ -79,6 +80,29 @@ export async function createAccount(ctx: ErpContext, input: AccountInput) {
     }).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_account.created", entityType: "erp_account", entityId: account.id })
     return account
+  })
+}
+
+// Wave 52 (Tier 2 #4): upgrades the free-text costCenter tag on journal
+// entry lines into a real dimension. listAccounts/createAccount above is
+// the direct template.
+export async function listCostCenters(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
+  })
+}
+
+export type CostCenterInput = { name: string; parentCostCenterId?: string; isGroup?: boolean; departmentId?: string; projectId?: string }
+
+export async function createCostCenter(ctx: ErpContext, input: CostCenterInput) {
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [cc] = await db.insert(erpCostCenters).values({
+      orgId: ctx.orgId, name: input.name, parentCostCenterId: input.parentCostCenterId,
+      isGroup: input.isGroup ?? false, departmentId: input.departmentId, projectId: input.projectId,
+    }).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_cost_center.created", entityType: "erp_cost_center", entityId: cc.id })
+    return cc
   })
 }
 
@@ -142,6 +166,7 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
         partyType: l.partyType,
         partyId: l.partyId,
         costCenter: l.costCenter,
+        costCenterId: l.costCenterId,
         clientId: l.clientId,
         remark: l.remark,
       }))

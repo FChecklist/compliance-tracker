@@ -46,6 +46,8 @@ import {
   TrendingUp,
   Sparkles,
   Database,
+  Banknote,
+  FileMinus,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -105,6 +107,8 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
       items: [
         { label: "Journal Entries", href: "/erp/journal-entries", icon: FileText },
         { label: "Financial Reports", href: "/erp/reports", icon: TrendingUp },
+        { label: "Cash Management", href: "/erp/cash-management", icon: Banknote },
+        { label: "Credit Notes", href: "/erp/credit-notes", icon: FileMinus },
       ],
     },
     {
