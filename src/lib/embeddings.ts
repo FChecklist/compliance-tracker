@@ -63,17 +63,67 @@ async function tryOpenRouterEmbedding(text: string): Promise<number[] | null> {
   return null;
 }
 
+// Wave 99 (alibaba/zvec evaluation -- rejected as incompatible with Vercel
+// Edge/Supabase Edge Functions; see PLATFORM_STRATEGY.md and this session's
+// memory note for the full reasoning). The real latency bottleneck in
+// semantic search was never pgvector's own query time (sub-millisecond at
+// current scale) -- it's the network round-trip to OpenRouter's embeddings
+// endpoint on every single call, including repeated identical query text
+// (e.g. fde-service.ts re-embedding the same task description on every
+// dispatch). This exact-match cache (keyed on sha256 of the literal text)
+// skips that round-trip entirely on a repeat. Global, not org-scoped -- see
+// the embeddingCache schema.ts comment for why that's safe.
+async function getCachedEmbedding(contentHash: string): Promise<number[] | null> {
+  const client = getRawClient();
+  const rows = await client`
+    SELECT embedding FROM compliance.embedding_cache WHERE content_hash = ${contentHash}
+  `;
+  if (rows.length === 0) return null;
+  // Fire-and-forget freshness bump, matches this codebase's established
+  // lastUsedAt-update convention (api_keys, customer_model_config).
+  client`UPDATE compliance.embedding_cache SET last_used_at = NOW() WHERE content_hash = ${contentHash}`.catch(() => {});
+  const raw = rows[0].embedding as string; // pgvector returns "[0.1,0.2,...]" text form
+  return raw.slice(1, -1).split(",").map(Number);
+}
+
+async function setCachedEmbedding(contentHash: string, content: string, vector: number[]): Promise<void> {
+  const vectorStr = `[${vector.join(",")}]`;
+  const client = getRawClient();
+  await client`
+    INSERT INTO compliance.embedding_cache (id, content_hash, content, embedding, created_at, last_used_at)
+    VALUES (gen_random_uuid()::text, ${contentHash}, ${content}, ${vectorStr}::vector, NOW(), NOW())
+    ON CONFLICT (content_hash) DO NOTHING
+  `;
+}
+
 /**
- * Generate an embedding vector, preferring OpenRouter (platform-wide,
- * genuinely configured) over Groq (BYOK-only in practice -- see comment
- * above) over a deterministic hash-based pseudo-vector as the last resort.
+ * Generate an embedding vector, preferring a cached result (exact text
+ * match) over OpenRouter (platform-wide, genuinely configured) over Groq
+ * (BYOK-only in practice -- see comment above) over a deterministic
+ * hash-based pseudo-vector as the last resort.
  */
 export async function generateEmbedding(
   text: string,
   apiKey?: string
 ): Promise<number[]> {
+  const contentHash = createHash("sha256").update(text).digest("hex");
+  const cached = await getCachedEmbedding(contentHash);
+  if (cached) return cached;
+
+  const result = await generateEmbeddingUncached(text, apiKey);
+  // Never cache the hash-based pseudo-vector fallback -- caching a
+  // degraded-quality result under the same key a real provider would later
+  // fill correctly would make the degradation permanent for that text.
+  if (result.isReal) await setCachedEmbedding(contentHash, text, result.vector);
+  return result.vector;
+}
+
+async function generateEmbeddingUncached(
+  text: string,
+  apiKey?: string
+): Promise<{ vector: number[]; isReal: boolean }> {
   const openRouterResult = await tryOpenRouterEmbedding(text);
-  if (openRouterResult) return openRouterResult;
+  if (openRouterResult) return { vector: openRouterResult, isReal: true };
 
   const key = apiKey || process.env.GROQ_API_KEY;
   if (key) {
@@ -92,7 +142,7 @@ export async function generateEmbedding(
 
       if (res.ok) {
         const data = await res.json();
-        return data.data[0].embedding as number[];
+        return { vector: data.data[0].embedding as number[], isReal: true };
       }
       console.warn("Groq embedding API returned", res.status, "— using fallback");
     } catch (err) {
@@ -102,7 +152,7 @@ export async function generateEmbedding(
 
   // Last resort: deterministic hash-based pseudo-embedding (1536 dimensions)
   console.warn("No real embedding provider available (OpenRouter and Groq both unavailable) — using hash-based pseudo-vector. Semantic search quality will be degraded.");
-  return hashToVector(text, 1536);
+  return { vector: hashToVector(text, 1536), isReal: false };
 }
 
 /**

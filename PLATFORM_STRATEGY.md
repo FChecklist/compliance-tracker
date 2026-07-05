@@ -1068,3 +1068,30 @@ The temporary test route and its dedicated secret were removed after verificatio
 ### 26.5 Explicitly deferred
 
 Rewiring every existing LLM call site (chat-service.ts, task-execution-engine.ts, page-agent proxy, etc.) to pass a `clientId` through so Layer 3 resolution is actually reachable from all of them -- this wave built and proved the mechanism (`resolveClientModelConfig`, wired into `resolvePageAgentModelConfig`) but did not thread `clientId` through every call site, since most don't currently carry client context at all and doing so well is separate, real work. `generateEmbedding()`'s own provider (still hardcoded to call Groq's embeddings endpoint directly, independent of the LLM provider resolvers) -- OpenRouter's embedding-model support is inconsistent enough across providers that switching this wasn't attempted this pass; the hash-based fallback vector remains what's actually used in production today, a separate, already-known limitation.
+
+## 27. alibaba/zvec evaluation -- rejected for VERIDIAN's edge architecture; real vector-search speedup delivered instead (Wave 99)
+
+The user asked to study `alibaba/zvec` and integrate it into VERIDIAN's Supabase Edge Function + Vercel Edge Runtime architecture so that "most tasks complete instantaneously," and to check whether this vector database is useful elsewhere in VERIDIAN.
+
+### 27.1 What zvec actually is (confirmed via the GitHub API, not assumed from training data)
+
+`gh api repos/alibaba/zvec` plus its README and `src/` file tree confirm zvec is a native C++ (CMake-built), **in-process/embedded, local-file** vector database. Its own README states it "Runs Anywhere: as an in-process library" with "no servers," and that "multiple processes can read the same collection simultaneously" -- both statements assume a shared, persistent local disk under one machine. Language bindings are Python (pybind), Node.js (`@zvec/zvec`, a native N-API addon), Go, Rust, Dart -- every binding is a native binary. There is no WASM build target anywhere in the repo and no client-server protocol.
+
+### 27.2 Why it doesn't fit VERIDIAN's actual deployment target
+
+Both runtimes named in the request are V8/Deno **isolates**, not general-purpose servers:
+- **Vercel Edge Runtime** -- V8 isolate; cannot load native Node addons; no persistent local disk.
+- **Supabase Edge Functions** -- Deno Deploy isolate; identical constraints.
+- Even Vercel's Node.js **serverless** (non-Edge) functions don't fit: production traffic is served by many horizontally-scaled, ephemeral containers, each with its own disconnected, wiped-on-recycle filesystem. zvec's embedded-local-file design has no mechanism to share state across those instances, which is the opposite of what a shared vector store needs.
+
+This is the same "hollow infrastructure" pattern this document has rejected before (§17, §23.4-style scoping, the Digital Twin/Developer Platform/Observability rejections from the Comparison CSV 3 pass) -- a real, well-regarded tool, but the wrong fit for this deployment reality. **Verdict: rejected, not adopted, anywhere in VERIDIAN.**
+
+### 27.3 What was built instead (Wave 99, real and shipped)
+
+VERIDIAN already runs a fully edge/serverless-compatible vector database: Supabase Postgres + pgvector (`compliance.embeddings`, live since Wave 45/§26.3). A ground-truthed audit (verified directly against the live database, correcting a background agent's false claim that `assistant_memories.embedding` didn't exist) found a real, actionable inconsistency: `compliance.embeddings` still used an `ivfflat` index (which needs periodic list-count retraining as the table grows), while `compliance.assistant_memories` already used the better `hnsw` index. Migration `0083_wave99_vector_search_optimization.sql` reconciles this -- `embeddings` now uses `hnsw (m=16, ef_construction=64)`, matching `assistant_memories` exactly.
+
+The same migration also adds `compliance.embedding_cache`, an exact-match cache (keyed on `sha256(text)`) so `generateEmbedding()` (`src/lib/embeddings.ts`) can skip the OpenRouter network round-trip entirely for repeated identical query text -- e.g. `fde-service.ts` re-embedding the same task description on every dispatch. This, not pgvector's own query time (already sub-millisecond at current scale), was the real latency bottleneck. The cache is global, not org-scoped (identical literal text embeds identically regardless of org, so sharing leaks nothing an org couldn't already infer from the embedding model itself -- the same posture as `embeddings.org_id`'s own nullable rows for platform-wide entries), and deliberately never stores the hash-based pseudo-vector fallback used when both OpenRouter and Groq are unavailable, so a later real-provider result for the same text isn't permanently blocked by a degraded cached value.
+
+### 27.4 Is pgvector useful elsewhere in VERIDIAN? Not this pass
+
+Every existing vector-search consumer (`findSimilar`, Capability Registry duplicate-check, VERI FDE resolution) already goes through `compliance.embeddings` via `embeddings.ts`, so there was no second, unindexed vector use site to fix. No new product surface was invented to "use pgvector more" -- consistent with this document's own recurring discipline against building capability nobody asked for.

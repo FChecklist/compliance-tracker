@@ -522,6 +522,22 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Wave 99 (alibaba/zvec evaluation -- rejected as incompatible with
+// Vercel Edge/Supabase Edge Functions, see PLATFORM_STRATEGY.md): a real
+// exact-match cache so generateEmbedding() can skip the OpenRouter network
+// round-trip for repeated identical query text -- the actual latency
+// bottleneck, not pgvector search itself. Looked up by content_hash only
+// (sha256 of the literal text), never by vector similarity, so no ANN
+// index exists on this table. `embedding vector(1536)` intentionally
+// omitted here -- same raw-SQL-managed pattern as `embeddings` above.
+export const embeddingCache = complianceSchemaDB.table('embedding_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contentHash: text('content_hash').notNull().unique(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(),
+})
+
 // ─── MCP Access Codes ────────────────────────────────────────────────────
 // @deprecated Wave 10: /api/mcp now authenticates against the unified
 // api_keys table (see resolveToken() in src/app/api/mcp/route.ts) instead
