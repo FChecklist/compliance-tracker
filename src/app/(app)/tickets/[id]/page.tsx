@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Copy } from "lucide-react";
+import { Loader2, UserPlus, Copy, Wrench, Star, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -23,8 +24,16 @@ import { ThreadView } from "@/components/chat/ThreadView";
 
 type Ticket = {
   id: string; conversationId: string; subject: string; category: string | null;
-  priority: string; status: string; slaDeadline: string | null;
+  priority: string; status: string; slaDeadline: string | null; installedProductId: string | null;
 };
+
+// Wave 81 (Customer Service enhancements): field-service dispatch + CSAT/NPS
+// survey results + installed-product link, alongside the existing ticket
+// header rather than a separate page -- these are all "about this ticket"
+// context a support agent needs while working it.
+type Dispatch = { id: string; scheduledAt: string; status: string; addressText: string | null };
+type Survey = { id: string; csatScore: number | null; npsScore: number | null; comment: string | null; createdAt: string };
+type InstalledProduct = { id: string; productName: string; serialNumber: string | null; warrantyExpiresAt: string | null };
 
 export default function TicketDetailPage() {
   const params = useParams<{ id: string }>();
@@ -37,18 +46,58 @@ export default function TicketDetailPage() {
   const [inviting, setInviting] = useState(false);
   const [guestUrl, setGuestUrl] = useState<string | null>(null);
 
+  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [installedProducts, setInstalledProducts] = useState<InstalledProduct[]>([]);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [dispatchScheduledAt, setDispatchScheduledAt] = useState("");
+  const [dispatchAddress, setDispatchAddress] = useState("");
+  const [schedulingDispatch, setSchedulingDispatch] = useState(false);
+
   const load = useCallback(() => {
     fetch(`/api/tickets/${params.id}`)
       .then((r) => r.json())
       .then((data) => setTicket(data.id ? data : null))
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch(`/api/tickets/${params.id}/dispatches`).then((r) => r.json()).then((d) => setDispatches(d.dispatches ?? [])).catch(() => {});
+    fetch(`/api/tickets/${params.id}/surveys`).then((r) => r.json()).then((d) => setSurveys(d.surveys ?? [])).catch(() => {});
+    fetch("/api/installed-products").then((r) => r.json()).then((d) => setInstalledProducts(d.installedProducts ?? [])).catch(() => {});
   }, [params.id]);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setCurrentUserId(d.id));
     load();
   }, [load]);
+
+  async function scheduleDispatch() {
+    if (!ticket || !dispatchScheduledAt) return;
+    setSchedulingDispatch(true);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/dispatches`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledAt: dispatchScheduledAt, addressText: dispatchAddress || undefined }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Field-service visit scheduled");
+      setDispatchOpen(false); setDispatchScheduledAt(""); setDispatchAddress("");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to schedule dispatch");
+    } finally {
+      setSchedulingDispatch(false);
+    }
+  }
+
+  async function linkInstalledProduct(installedProductId: string) {
+    if (!ticket) return;
+    const res = await fetch(`/api/tickets/${ticket.id}/installed-product`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installedProductId: installedProductId || null }),
+    });
+    if (!res.ok) { toast.error("Failed to link installed product"); return; }
+    load();
+  }
 
   async function updateField(patch: Partial<{ status: string; priority: string }>) {
     if (!ticket) return;
@@ -148,6 +197,42 @@ export default function TicketDetailPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <div className="flex items-center gap-2 flex-wrap mb-3 text-xs">
+        <Select value={ticket.installedProductId ?? "__none__"} onValueChange={(v) => linkInstalledProduct(v === "__none__" ? "" : v)}>
+          <SelectTrigger className="w-52 h-8 text-xs"><Package className="size-3 mr-1" /><SelectValue placeholder="No installed product" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">No installed product</SelectItem>
+            {installedProducts.map((p) => <SelectItem key={p.id} value={p.id}>{p.productName}{p.serialNumber ? ` (${p.serialNumber})` : ""}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Dialog open={dispatchOpen} onOpenChange={setDispatchOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Schedule Field-Service Visit</DialogTitle></DialogHeader>
+            <div className="space-y-2">
+              <Input type="datetime-local" value={dispatchScheduledAt} onChange={(e) => setDispatchScheduledAt(e.target.value)} />
+              <Input placeholder="Site address (optional)" value={dispatchAddress} onChange={(e) => setDispatchAddress(e.target.value)} />
+              <Button size="sm" onClick={scheduleDispatch} disabled={!dispatchScheduledAt || schedulingDispatch} className="w-full">
+                {schedulingDispatch ? <Loader2 className="size-4 animate-spin" /> : "Schedule"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setDispatchOpen(true)}>
+          <Wrench className="size-3 mr-1" /> Schedule Visit
+        </Button>
+        {dispatches.map((d) => (
+          <Badge key={d.id} variant="outline" className="text-xs">{d.status}: {new Date(d.scheduledAt).toLocaleDateString()}</Badge>
+        ))}
+
+        {surveys.map((s) => (
+          <Badge key={s.id} variant="outline" className="text-xs gap-1">
+            <Star className="size-3 text-ct-saffron" />
+            {s.csatScore != null ? `CSAT ${s.csatScore}/5` : ""}{s.csatScore != null && s.npsScore != null ? " · " : ""}{s.npsScore != null ? `NPS ${s.npsScore}/10` : ""}
+          </Badge>
+        ))}
+      </div>
 
       <div className="flex-1 min-h-0 rounded-lg border border-ct-border bg-white overflow-hidden">
         {currentUserId && (

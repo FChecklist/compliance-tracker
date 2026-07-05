@@ -86,6 +86,8 @@ export default function TicketsPage() {
           <h1 className="text-2xl font-heading text-ct-navy">Ticketing</h1>
           <p className="text-sm text-ct-muted mt-1">Customer-facing support tickets. Every ticket is a VERI Chat conversation underneath -- invite an external customer as a guest to reply without an account.</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Link href="/problem-records"><Button variant="outline">Problem Records</Button></Link>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
@@ -134,6 +136,7 @@ export default function TicketsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {loading ? (

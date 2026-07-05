@@ -2897,6 +2897,78 @@ export const tickets = complianceSchemaDB.table('tickets', {
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md
+  // backlog #2): nullable link to the installed product this ticket concerns.
+  installedProductId: text('installed_product_id'),
+})
+
+// ─── Wave 81 (Customer Service enhancements) ──────────────────────────────
+// Installed-product/warranty tracking -- a customer's purchased/deployed
+// product instance, so tickets can reference "which unit" rather than only
+// "which client."
+export const installedProducts = complianceSchemaDB.table('installed_products', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  productName: text('product_name').notNull(),
+  serialNumber: text('serial_number'),
+  installedAt: date('installed_at', { mode: 'string' }),
+  warrantyExpiresAt: date('warranty_expires_at', { mode: 'string' }),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Post-resolution CSAT (1-5) / NPS (0-10) survey -- submitted by the
+// customer via the same guest-chat token their ticket already uses (Wave
+// 36/39), not a new token mechanism. One row per submission; a ticket
+// could in principle be re-surveyed, so this is append-only, not unique-
+// per-ticket.
+export const ticketSatisfactionSurveys = complianceSchemaDB.table('ticket_satisfaction_surveys', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ticketId: text('ticket_id').notNull(),
+  csatScore: integer('csat_score'), // 1-5, nullable -- a submission can be NPS-only or CSAT-only
+  npsScore: integer('nps_score'), // 0-10
+  comment: text('comment'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Field-service dispatch -- an on-site visit scheduled against a ticket.
+export const fieldServiceDispatches = complianceSchemaDB.table('field_service_dispatches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ticketId: text('ticket_id').notNull(),
+  technicianUserId: text('technician_user_id'),
+  scheduledAt: timestamp('scheduled_at').notNull(),
+  status: text('status').notNull().default('scheduled'), // 'scheduled'|'en_route'|'completed'|'cancelled'
+  addressText: text('address_text'),
+  completedAt: timestamp('completed_at'),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Problem management / RCA grouping (ITIL-style) -- a single underlying
+// root cause that may manifest as several separate tickets, tracked as its
+// own record rather than duplicating root-cause notes on every ticket.
+export const problemRecords = complianceSchemaDB.table('problem_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  title: text('title').notNull(),
+  rootCause: text('root_cause'),
+  status: text('status').notNull().default('open'), // 'open'|'investigating'|'resolved'
+  createdById: text('created_by_id'),
+  resolvedAt: timestamp('resolved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const problemTickets = complianceSchemaDB.table('problem_tickets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  problemId: text('problem_id').notNull(),
+  ticketId: text('ticket_id').notNull(),
+  linkedAt: timestamp('linked_at').notNull().defaultNow(),
 })
 
 // ─── VERI Chat (Wave 32) ──────────────────────────────────────────────────

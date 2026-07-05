@@ -4,7 +4,7 @@
 // line already drawn for pms_wiki_pages).
 import { knowledgeBasePages } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, ilike, or } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -20,6 +20,28 @@ export async function listKbPages(ctx: { orgId: string }) {
     return db.query.knowledgeBasePages.findMany({
       where: and(eq(knowledgeBasePages.orgId, ctx.orgId), eq(knowledgeBasePages.isArchived, false)),
       orderBy: (t, { asc }) => asc(t.title),
+    })
+  })
+}
+
+// Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md
+// backlog #2): "Knowledge Base articles + search" -- articles already
+// existed (Wave 29), search did not. Plain ILIKE over title/content,
+// matching this v1 scope's own "no CRDT/blocks, plain markdown" ceiling --
+// full-text/vector search is future work if the KB grows large enough to
+// need it.
+export async function searchKbPages(ctx: { orgId: string }, query: string) {
+  const q = query?.trim()
+  if (!q) return []
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.knowledgeBasePages.findMany({
+      where: and(
+        eq(knowledgeBasePages.orgId, ctx.orgId),
+        eq(knowledgeBasePages.isArchived, false),
+        or(ilike(knowledgeBasePages.title, `%${q}%`), ilike(knowledgeBasePages.content, `%${q}%`))
+      ),
+      orderBy: (t, { asc }) => asc(t.title),
+      limit: 25,
     })
   })
 }

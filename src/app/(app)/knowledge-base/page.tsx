@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Loader2, BookOpen } from "lucide-react";
+import { Plus, Loader2, BookOpen, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,12 @@ export default function KnowledgeBaseIndexPage() {
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Wave 81 (Customer Service enhancements): the one missing piece for
+  // "Knowledge Base articles + search" -- articles/pages already existed.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<KbPage[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
   const load = useCallback(async () => {
     const res = await fetch("/api/knowledge-base/pages");
     const data = await res.json();
@@ -42,6 +48,20 @@ export default function KnowledgeBaseIndexPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) { setSearchResults(null); return; }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/knowledge-base/pages/search?q=${encodeURIComponent(q)}`)
+        .then((r) => r.json())
+        .then((d) => setSearchResults(d.pages ?? []))
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const createPage = async () => {
     if (!title.trim()) return;
@@ -100,8 +120,32 @@ export default function KnowledgeBaseIndexPage() {
         </Dialog>
       </div>
 
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-ct-muted" />
+        <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search knowledge base..." className="pl-9" />
+      </div>
+
       {loading ? (
         <p className="text-sm text-ct-muted">Loading...</p>
+      ) : searchResults !== null ? (
+        searching ? (
+          <p className="text-sm text-ct-muted">Searching...</p>
+        ) : searchResults.length === 0 ? (
+          <p className="text-sm text-ct-muted">No pages match &quot;{searchQuery}&quot;.</p>
+        ) : (
+          <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
+            {searchResults.map((page) => (
+              <button
+                key={page.id}
+                onClick={() => router.push(`/knowledge-base/${page.slug}`)}
+                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-ct-cloud transition-colors"
+              >
+                <BookOpen className="size-4 text-ct-teal shrink-0" />
+                <span className="text-sm font-medium text-ct-navy">{page.title}</span>
+              </button>
+            ))}
+          </div>
+        )
       ) : pages.length === 0 ? (
         <Card className="rounded-xl shadow-card bg-white">
           <CardContent className="pt-10 pb-10 text-center space-y-2">

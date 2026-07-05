@@ -5,11 +5,14 @@
 // markdown rendering (Wave 37), and attachments (Wave 32) all work for
 // free. External guest participation reuses veri-chat-service.ts's
 // createGuestAccess() directly rather than a parallel implementation.
-import { db, tickets, conversations, conversationParticipants, notifications } from "@/lib/db"
+import {
+  db, tickets, conversations, conversationParticipants, notifications,
+  installedProducts, ticketSatisfactionSurveys, fieldServiceDispatches, problemRecords, problemTickets,
+} from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq, and, lt, notInArray } from "drizzle-orm"
+import { eq, and, lt, notInArray, desc, inArray } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
-import { createGuestAccess } from "./veri-chat-service"
+import { createGuestAccess, resolveActiveGuestAccess } from "./veri-chat-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -137,4 +140,169 @@ export async function checkTicketSlaBreaches(): Promise<{ breached: number }> {
   }
 
   return { breached: overdue.length }
+}
+
+// ─── Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md
+// backlog #2) ────────────────────────────────────────────────────────────
+
+// Installed-product / warranty tracking.
+export async function listInstalledProducts(ctx: { orgId: string }, clientId?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.installedProducts.findMany({
+      where: clientId ? and(eq(installedProducts.orgId, ctx.orgId), eq(installedProducts.clientId, clientId)) : eq(installedProducts.orgId, ctx.orgId),
+      orderBy: desc(installedProducts.createdAt),
+    })
+  )
+}
+
+export async function createInstalledProduct(
+  ctx: TicketContext,
+  input: { productName: string; clientId?: string; serialNumber?: string; installedAt?: string; warrantyExpiresAt?: string; notes?: string }
+) {
+  const productName = input.productName?.trim()
+  if (!productName) throw new ServiceError("productName is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [product] = await db.insert(installedProducts).values({
+      orgId: ctx.orgId, clientId: input.clientId || null, productName,
+      serialNumber: input.serialNumber || null, installedAt: input.installedAt || null,
+      warrantyExpiresAt: input.warrantyExpiresAt || null, notes: input.notes || null, createdById: ctx.userId,
+    }).returning()
+    return product
+  })
+}
+
+// Attaches an installed product to a ticket (which unit the ticket is about).
+export async function setTicketInstalledProduct(ctx: TicketContext, ticketId: string, installedProductId: string | null) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const ticket = await db.query.tickets.findFirst({ where: and(eq(tickets.id, ticketId), eq(tickets.orgId, ctx.orgId)) })
+    if (!ticket) throw new ServiceError("Ticket not found", 404)
+    const [updated] = await db.update(tickets).set({ installedProductId, updatedAt: new Date() }).where(eq(tickets.id, ticketId)).returning()
+    return updated
+  })
+}
+
+// CSAT/NPS survey -- submitted by the customer via the same guest-chat
+// token their ticket already uses (Wave 36/39), not a new token mechanism.
+// Only allowed once the ticket is resolved/closed, matching real helpdesk
+// survey-trigger conventions (Zendesk/Freshdesk send the survey on resolution).
+export async function submitTicketSurveyByToken(token: string, input: { csatScore?: number; npsScore?: number; comment?: string }) {
+  const access = await resolveActiveGuestAccess(token)
+  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.conversationId, access.conversationId) })
+  if (!ticket) throw new ServiceError("This guest link is not attached to a ticket", 404)
+  if (ticket.status !== "resolved" && ticket.status !== "closed") {
+    throw new ServiceError("This ticket hasn't been resolved yet -- the survey opens once it is", 400)
+  }
+  if (input.csatScore == null && input.npsScore == null) throw new ServiceError("Provide at least a CSAT or NPS score", 400)
+
+  const [survey] = await db.insert(ticketSatisfactionSurveys).values({
+    orgId: ticket.orgId, ticketId: ticket.id,
+    csatScore: input.csatScore ?? null, npsScore: input.npsScore ?? null, comment: input.comment?.trim() || null,
+  }).returning()
+  return survey
+}
+
+export async function listTicketSurveys(ctx: { orgId: string }, ticketId?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.ticketSatisfactionSurveys.findMany({
+      where: ticketId ? and(eq(ticketSatisfactionSurveys.orgId, ctx.orgId), eq(ticketSatisfactionSurveys.ticketId, ticketId)) : eq(ticketSatisfactionSurveys.orgId, ctx.orgId),
+      orderBy: desc(ticketSatisfactionSurveys.createdAt),
+    })
+  )
+}
+
+// Field-service dispatch.
+export async function createFieldServiceDispatch(
+  ctx: TicketContext,
+  ticketId: string,
+  input: { technicianUserId?: string; scheduledAt: string; addressText?: string; notes?: string }
+) {
+  if (!input.scheduledAt) throw new ServiceError("scheduledAt is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const ticket = await db.query.tickets.findFirst({ where: and(eq(tickets.id, ticketId), eq(tickets.orgId, ctx.orgId)) })
+    if (!ticket) throw new ServiceError("Ticket not found", 404)
+
+    const [dispatch] = await db.insert(fieldServiceDispatches).values({
+      orgId: ctx.orgId, ticketId, technicianUserId: input.technicianUserId || null,
+      scheduledAt: new Date(input.scheduledAt), addressText: input.addressText || null, notes: input.notes || null,
+      createdById: ctx.userId,
+    }).returning()
+    return dispatch
+  })
+}
+
+export async function listFieldServiceDispatches(ctx: { orgId: string }, ticketId?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.fieldServiceDispatches.findMany({
+      where: ticketId ? and(eq(fieldServiceDispatches.orgId, ctx.orgId), eq(fieldServiceDispatches.ticketId, ticketId)) : eq(fieldServiceDispatches.orgId, ctx.orgId),
+      orderBy: desc(fieldServiceDispatches.scheduledAt),
+    })
+  )
+}
+
+export async function updateFieldServiceDispatch(
+  ctx: TicketContext,
+  dispatchId: string,
+  patch: Partial<{ status: string; notes: string }>
+) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.fieldServiceDispatches.findFirst({ where: and(eq(fieldServiceDispatches.id, dispatchId), eq(fieldServiceDispatches.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Dispatch not found", 404)
+    const completedAt = patch.status === "completed" ? new Date() : existing.completedAt
+    const [updated] = await db.update(fieldServiceDispatches).set({ ...patch, completedAt }).where(eq(fieldServiceDispatches.id, dispatchId)).returning()
+    return updated
+  })
+}
+
+// Problem management / RCA grouping (ITIL-style) -- a single underlying
+// root cause that may manifest as several separate tickets.
+export async function createProblemRecord(ctx: TicketContext, input: { title: string; rootCause?: string }) {
+  const title = input.title?.trim()
+  if (!title) throw new ServiceError("title is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [problem] = await db.insert(problemRecords).values({ orgId: ctx.orgId, title, rootCause: input.rootCause || null, createdById: ctx.userId }).returning()
+    return problem
+  })
+}
+
+export async function listProblemRecords(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.problemRecords.findMany({ where: eq(problemRecords.orgId, ctx.orgId), orderBy: desc(problemRecords.createdAt) })
+  )
+}
+
+export async function updateProblemRecord(ctx: TicketContext, problemId: string, patch: Partial<{ status: string; rootCause: string }>) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.problemRecords.findFirst({ where: and(eq(problemRecords.id, problemId), eq(problemRecords.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Problem record not found", 404)
+    const resolvedAt = patch.status === "resolved" ? new Date() : existing.resolvedAt
+    const [updated] = await db.update(problemRecords).set({ ...patch, resolvedAt, updatedAt: new Date() }).where(eq(problemRecords.id, problemId)).returning()
+    return updated
+  })
+}
+
+export async function linkTicketToProblem(ctx: TicketContext, problemId: string, ticketId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const problem = await db.query.problemRecords.findFirst({ where: and(eq(problemRecords.id, problemId), eq(problemRecords.orgId, ctx.orgId)) })
+    if (!problem) throw new ServiceError("Problem record not found", 404)
+    const ticket = await db.query.tickets.findFirst({ where: and(eq(tickets.id, ticketId), eq(tickets.orgId, ctx.orgId)) })
+    if (!ticket) throw new ServiceError("Ticket not found", 404)
+
+    const existing = await db.query.problemTickets.findFirst({ where: and(eq(problemTickets.problemId, problemId), eq(problemTickets.ticketId, ticketId)) })
+    if (existing) return existing
+
+    const [link] = await db.insert(problemTickets).values({ problemId, ticketId }).returning()
+    return link
+  })
+}
+
+export async function listTicketsForProblem(ctx: { orgId: string }, problemId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const links = await db.query.problemTickets.findMany({ where: eq(problemTickets.problemId, problemId) })
+    const ticketIds = links.map((l) => l.ticketId)
+    if (ticketIds.length === 0) return []
+    return db.query.tickets.findMany({ where: and(eq(tickets.orgId, ctx.orgId), inArray(tickets.id, ticketIds)) })
+  })
 }

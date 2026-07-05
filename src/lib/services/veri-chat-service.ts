@@ -9,7 +9,7 @@
 import { createId } from "@paralleldrive/cuid2"
 import {
   db, conversations, conversationParticipants, messages, messageAttachments,
-  conversationShareLinks, conversationGuestAccess, documents,
+  conversationShareLinks, conversationGuestAccess, documents, tickets,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
@@ -193,7 +193,10 @@ export async function revokeGuestAccess(ctx: VeriChatContext, guestAccessId: str
   })
 }
 
-async function resolveActiveGuestAccess(token: string) {
+// Exported for ticket-service.ts's survey submission (Wave 81) -- the
+// ticket's guest-facing satisfaction survey resolves the same token this
+// module already validates, rather than inventing a second token check.
+export async function resolveActiveGuestAccess(token: string) {
   const access = await db.query.conversationGuestAccess.findFirst({ where: eq(conversationGuestAccess.token, token) })
   if (!access || access.revokedAt || access.expiresAt < new Date()) throw new ServiceError("This guest link is invalid or has expired", 404)
   return access
@@ -212,9 +215,17 @@ export async function getGuestConversation(token: string) {
     where: eq(messages.conversationId, access.conversationId),
     orderBy: (t, { asc }) => asc(t.createdAt),
   })
+
+  // Wave 81: if this guest link belongs to a ticket, surface its status so
+  // the guest page can show the CSAT/NPS survey once it's resolved/closed --
+  // undefined (not just null) distinguishes "not a ticket" from "ticket, but
+  // not yet resolved."
+  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.conversationId, access.conversationId) })
+
   return {
     title: convo.title,
     guestName: access.guestName,
+    ticketStatus: ticket?.status ?? null,
     messages: rows.map((m) => ({
       senderId: m.senderId, isGuestMessage: m.guestAccessId === access.id, content: m.content, createdAt: m.createdAt.toISOString(),
     })),
