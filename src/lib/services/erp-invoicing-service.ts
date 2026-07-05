@@ -304,6 +304,23 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
     const baseSubtotal = Number(invoice.subtotal) * rate
     const currencyAudit = invoice.currencyId ? { currencyId: invoice.currencyId, exchangeRate: invoice.exchangeRate } : {}
 
+    // Wave 84 (COMPARISON_CSV_GAP_ANALYSIS.md backlog #5): a real credit-
+    // limit gate, checked in base currency (each open invoice's own
+    // snapshotted exchangeRate, same conversion the GL posting below uses)
+    // rather than face-value transaction amounts. No-op when the customer
+    // has no creditLimit set (every customer seeded before this wave).
+    const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, invoice.customerId), eq(erpCustomers.orgId, ctx.orgId)) })
+    if (customer?.creditLimit != null) {
+      const openInvoices = await db.select({ outstandingAmount: erpSalesInvoices.outstandingAmount, exchangeRate: erpSalesInvoices.exchangeRate })
+        .from(erpSalesInvoices)
+        .where(and(eq(erpSalesInvoices.orgId, ctx.orgId), eq(erpSalesInvoices.customerId, invoice.customerId), eq(erpSalesInvoices.status, "submitted")))
+      const existingOutstandingBase = openInvoices.reduce((sum, inv) => sum + Number(inv.outstandingAmount) * Number(inv.exchangeRate), 0)
+      const projectedOutstandingBase = existingOutstandingBase + baseGrandTotal
+      if (projectedOutstandingBase > Number(customer.creditLimit)) {
+        throw new ServiceError(`Submitting this invoice would put ${customer.customerName}'s outstanding balance (${projectedOutstandingBase.toFixed(2)}) over their credit limit (${customer.creditLimit})`, 409)
+      }
+    }
+
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpJournalEntries.entryNumber}), 0)` }).from(erpJournalEntries).where(eq(erpJournalEntries.orgId, ctx.orgId))
     const [je] = await db.insert(erpJournalEntries).values({
       orgId: ctx.orgId, entryNumber: Number(maxNumber) + 1, postingDate: invoice.postingDate,
@@ -395,6 +412,20 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     const tdsAmount = await computeVendorTds(db, ctx.orgId, invoice.supplierId, invoice.postingDate, baseSubtotal, baseGrandTotal, invoiceId)
     if (tdsAmount > 0 && !input.tdsPayableAccountId) throw new ServiceError("This supplier's TDS threshold was crossed -- tdsPayableAccountId is required to post the withholding liability", 400)
     const netPayable = baseGrandTotal - tdsAmount
+
+    // Wave 84: symmetric credit-limit gate -- the credit line this supplier
+    // extends to us. See submitSalesInvoice's identical comment.
+    const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, invoice.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+    if (supplier?.creditLimit != null) {
+      const openInvoices = await db.select({ outstandingAmount: erpPurchaseInvoices.outstandingAmount, exchangeRate: erpPurchaseInvoices.exchangeRate })
+        .from(erpPurchaseInvoices)
+        .where(and(eq(erpPurchaseInvoices.orgId, ctx.orgId), eq(erpPurchaseInvoices.supplierId, invoice.supplierId), eq(erpPurchaseInvoices.status, "submitted")))
+      const existingOutstandingBase = openInvoices.reduce((sum, inv) => sum + Number(inv.outstandingAmount) * Number(inv.exchangeRate), 0)
+      const projectedOutstandingBase = existingOutstandingBase + baseGrandTotal
+      if (projectedOutstandingBase > Number(supplier.creditLimit)) {
+        throw new ServiceError(`Submitting this invoice would put outstanding payables to ${supplier.supplierName} (${projectedOutstandingBase.toFixed(2)}) over their credit limit (${supplier.creditLimit})`, 409)
+      }
+    }
 
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpJournalEntries.entryNumber}), 0)` }).from(erpJournalEntries).where(eq(erpJournalEntries.orgId, ctx.orgId))
     const [je] = await db.insert(erpJournalEntries).values({

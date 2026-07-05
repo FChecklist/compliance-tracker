@@ -13,6 +13,40 @@ export async function listSuppliers(ctx: { orgId: string }) {
   })
 }
 
+// Wave 84 (COMPARISON_CSV_GAP_ANALYSIS.md backlog #5): create/update --
+// nothing had ever inserted a row into erp_suppliers outside of seed data,
+// which made credit limits (this wave's actual goal) impossible to manage
+// without a way to create/edit a supplier at all.
+export type SupplierInput = { supplierName: string; supplierType?: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number }
+
+export async function createSupplier(ctx: { orgId: string }, input: SupplierInput) {
+  if (!input.supplierName?.trim()) throw new ServiceError("supplierName is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [supplier] = await db.insert(erpSuppliers).values({
+      orgId: ctx.orgId, supplierName: input.supplierName, supplierType: input.supplierType,
+      gstin: input.gstin, panNumber: input.panNumber, defaultPaymentTermsDays: input.defaultPaymentTermsDays,
+      creditLimit: input.creditLimit?.toString(),
+    }).returning()
+    return supplier
+  })
+}
+
+export async function updateSupplier(ctx: { orgId: string }, supplierId: string, input: Partial<SupplierInput>) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+    if (!supplier) throw new ServiceError("Supplier not found", 404)
+    const [updated] = await db.update(erpSuppliers).set({
+      ...(input.supplierName !== undefined ? { supplierName: input.supplierName } : {}),
+      ...(input.supplierType !== undefined ? { supplierType: input.supplierType } : {}),
+      ...(input.gstin !== undefined ? { gstin: input.gstin } : {}),
+      ...(input.panNumber !== undefined ? { panNumber: input.panNumber } : {}),
+      ...(input.defaultPaymentTermsDays !== undefined ? { defaultPaymentTermsDays: input.defaultPaymentTermsDays } : {}),
+      ...(input.creditLimit !== undefined ? { creditLimit: input.creditLimit === null ? null : input.creditLimit.toString() } : {}),
+    }).where(eq(erpSuppliers.id, supplierId)).returning()
+    return updated
+  })
+}
+
 /** Wave 68: assigns (or clears, if categoryId is undefined) a supplier's default Tax Withholding Category -- the opt-in switch for vendor-payment TDS auto-computation at invoice-submit time. */
 export async function updateSupplierTaxWithholding(ctx: { orgId: string }, supplierId: string, categoryId: string | undefined) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {

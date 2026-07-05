@@ -3523,6 +3523,11 @@ export const erpSuppliers = complianceSchemaDB.table('erp_suppliers', {
   qualificationStatus: text('qualification_status').notNull().default('not_started'), // 'not_started'|'in_review'|'qualified'|'rejected'
   sanctionScreeningStatus: text('sanction_screening_status').notNull().default('not_checked'), // 'not_checked'|'clear'|'flagged'
   sanctionScreenedAt: timestamp('sanction_screened_at'),
+  // Wave 84: the credit line this supplier extends to us -- nullable, no
+  // limit enforced when unset. Checked against total outstanding AP at
+  // purchase-invoice-submit time, see erp-invoicing-service.ts's
+  // submitPurchaseInvoice.
+  creditLimit: numeric('credit_limit'),
 })
 
 // Wave 80 (Vendor Master enhancements, COMPARISON_CSV_GAP_ANALYSIS.md backlog
@@ -3649,7 +3654,44 @@ export const erpCustomers = complianceSchemaDB.table('erp_customers', {
   gstin: text('gstin'),
   panNumber: text('pan_number'),
   defaultPaymentTermsDays: integer('default_payment_terms_days'),
+  // Wave 84 (COMPARISON_CSV_GAP_ANALYSIS.md backlog #5): nullable -- no limit
+  // enforced when unset (every customer seeded before this wave). Checked
+  // against total outstanding AR at sales-invoice-submit time, see
+  // erp-invoicing-service.ts's submitSalesInvoice.
+  creditLimit: numeric('credit_limit'),
   isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Wave 84: polymorphic multiple-addresses/contacts, matching the `documents`
+// table's own linkedEntityType/linkedEntityId convention (Wave 61) rather
+// than adding a parallel customer-only and supplier-only pair of tables.
+export const erpAddresses = complianceSchemaDB.table('erp_addresses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  linkedEntityType: text('linked_entity_type').notNull(), // 'erp_customer'|'erp_supplier'
+  linkedEntityId: text('linked_entity_id').notNull(),
+  addressType: text('address_type').notNull().default('billing'), // 'billing'|'shipping'|'other'
+  line1: text('line1').notNull(),
+  line2: text('line2'),
+  city: text('city'),
+  state: text('state'),
+  postalCode: text('postal_code'),
+  country: text('country'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpContacts = complianceSchemaDB.table('erp_contacts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  linkedEntityType: text('linked_entity_type').notNull(), // 'erp_customer'|'erp_supplier'
+  linkedEntityId: text('linked_entity_id').notNull(),
+  contactName: text('contact_name').notNull(),
+  designation: text('designation'),
+  email: text('email'),
+  phone: text('phone'),
+  isPrimary: boolean('is_primary').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

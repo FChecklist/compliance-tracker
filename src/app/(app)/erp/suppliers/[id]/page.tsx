@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, Plus, Landmark, ShieldCheck, ShieldAlert, FileText,
-  Upload, Link2, Copy, Ban,
+  Upload, Link2, Copy, Ban, Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,8 +20,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { PartyAddressesAndContacts } from "@/components/erp/PartyAddressesAndContacts";
 
-type Supplier = { id: string; supplierName: string; qualificationStatus: string; sanctionScreeningStatus: string; sanctionScreenedAt: string | null };
+type Supplier = { id: string; supplierName: string; qualificationStatus: string; sanctionScreeningStatus: string; sanctionScreenedAt: string | null; creditLimit: string | null };
 type BankAccount = { id: string; accountHolderName: string; bankName: string; accountNumberMasked: string; ifscCode: string | null; accountType: string; isPrimary: boolean };
 type Qualification = { id: string; status: string; score: string | null; notes: string | null; createdAt: string };
 type SanctionCheck = { id: string; listsChecked: string[]; matchFound: boolean; matchDetails: string | null; resultStatus: string; createdAt: string };
@@ -74,6 +75,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const [uploading, setUploading] = useState(false);
   const [creatingLink, setCreatingLink] = useState(false);
 
+  const [creditLimitInput, setCreditLimitInput] = useState("");
+  const [savingCreditLimit, setSavingCreditLimit] = useState(false);
+
   const load = useCallback(async () => {
     const [supRes, bankRes, qualRes, sanctionRes, linkRes, docRes] = await Promise.all([
       fetch("/api/erp/buying/suppliers"),
@@ -86,7 +90,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     const [supData, bankData, qualData, sanctionData, linkData, docData] = await Promise.all([
       supRes.json(), bankRes.json(), qualRes.json(), sanctionRes.json(), linkRes.json(), docRes.json(),
     ]);
-    setSupplier((supData.suppliers ?? []).find((s: Supplier) => s.id === id) ?? null);
+    const foundSupplier = (supData.suppliers ?? []).find((s: Supplier) => s.id === id) ?? null;
+    setSupplier(foundSupplier);
+    setCreditLimitInput(foundSupplier?.creditLimit ?? "");
     setBankAccounts(bankData.bankAccounts ?? []);
     setQualifications(qualData.qualifications ?? []);
     setSanctionChecks(sanctionData.sanctionChecks ?? []);
@@ -203,6 +209,23 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     toast.success("Portal link copied to clipboard");
   };
 
+  const saveCreditLimit = async () => {
+    setSavingCreditLimit(true);
+    try {
+      const res = await fetch(`/api/erp/buying/suppliers/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creditLimit: creditLimitInput === "" ? null : Number(creditLimitInput) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Credit limit updated");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update credit limit");
+    } finally {
+      setSavingCreditLimit(false);
+    }
+  };
+
   if (loading) return <p className="text-sm text-ct-muted">Loading...</p>;
   if (!supplier) return <p className="text-sm text-ct-muted">Supplier not found.</p>;
 
@@ -224,6 +247,19 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Wave 84: credit limit -- the credit line this supplier extends to us */}
+        <Card className="rounded-xl shadow-card bg-white">
+          <CardHeader className="pb-2"><CardTitle className="text-base text-ct-navy flex items-center gap-2"><Wallet className="size-4 text-ct-teal" /> Credit Limit</CardTitle></CardHeader>
+          <CardContent className="flex items-center gap-2">
+            <Input type="number" value={creditLimitInput} onChange={(e) => setCreditLimitInput(e.target.value)} placeholder="No limit" className="max-w-40" />
+            <Button size="sm" onClick={saveCreditLimit} disabled={savingCreditLimit} className="bg-ct-teal hover:bg-ct-teal-hover text-white">
+              {savingCreditLimit && <Loader2 className="size-3.5 mr-1 animate-spin" />} Save
+            </Button>
+          </CardContent>
+        </Card>
+
+        <PartyAddressesAndContacts entityType="erp_supplier" entityId={id} />
+
         {/* Banking */}
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
