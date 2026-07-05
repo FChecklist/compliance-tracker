@@ -322,6 +322,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: BarChart3,
         },
         {
+          label: "Enterprise KPI Hub",
+          href: "/kpi-hub",
+          icon: LayoutDashboard,
+        },
+        {
           label: "Knowledge Base",
           href: "/knowledge-base",
           icon: BookOpen,

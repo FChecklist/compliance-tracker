@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
     "/cap-table", "/capability-registry", "/charges", "/chat", "/checklists", "/clients", "/committees", "/crm", "/documents", "/erp", "/fde", "/fraud-cases", "/hr",
     "/compliance", "/contract-compliance", "/dashboard", "/departments", "/directors",
     "/doa", "/esg", "/frameworks", "/help", "/home", "/hr-compliance", "/incidents",
-    "/ingest", "/ip-portfolio", "/irdai", "/it-dr", "/knowledge-base", "/leave-holiday", "/legal-matters", "/legal-opinions",
+    "/ingest", "/ip-portfolio", "/irdai", "/it-dr", "/knowledge-base", "/kpi-hub", "/leave-holiday", "/legal-matters", "/legal-opinions",
     "/legal-vendors", "/litigation", "/mca-filings", "/mdm-quality", "/metric-alerts", "/notices", "/orchestra",
     "/penalties", "/performance-reviews", "/pms", "/policies", "/posh", "/problem-records", "/prompt-eval", "/rbi", "/recruitment", "/reports", "/risks", "/rpt",
     "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks", "/tickets",
