@@ -10,6 +10,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const payslip = await finalizePayslip({ orgId, userId: dbUser.id, dbUser }, id)
+
+    try {
+      const { deliverWebhook } = await import("@/lib/webhook-deliver")
+      await deliverWebhook(orgId, "erp_payslip.finalized", { payslipId: id, netPay: payslip.netPay })
+    } catch (webhookError) {
+      console.error("Webhook delivery error (non-fatal):", webhookError)
+    }
+
     return NextResponse.json(payslip)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

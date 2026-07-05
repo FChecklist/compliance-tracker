@@ -26,6 +26,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const voucher = await createAndPostCashVoucher({ orgId, userId: dbUser.id, dbUser }, body)
+
+    try {
+      const { deliverWebhook } = await import("@/lib/webhook-deliver")
+      await deliverWebhook(orgId, "erp_cash_voucher.posted", { voucherId: voucher.id, voucherType: voucher.voucherType, amount: voucher.amount })
+    } catch (webhookError) {
+      console.error("Webhook delivery error (non-fatal):", webhookError)
+    }
+
     return NextResponse.json(voucher, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

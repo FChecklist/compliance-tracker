@@ -36,6 +36,11 @@ const WEBHOOK_EVENTS = [
   { id: "item.overdue", label: "Item Overdue" },
   { id: "notice.received", label: "Notice Received" },
   { id: "challan.recorded", label: "Challan Recorded" },
+  // Wave 58: ERP domain events -- same delivery infra, new event coverage.
+  { id: "erp_journal_entry.submitted", label: "ERP: Journal Entry Submitted" },
+  { id: "erp_cash_voucher.posted", label: "ERP: Cash Voucher Posted" },
+  { id: "erp_payslip.finalized", label: "ERP: Payslip Finalized" },
+  { id: "erp_purchase_requisition.approved", label: "ERP: Purchase Requisition Approved" },
 ] as const;
 
 type WebhookEvent = (typeof WEBHOOK_EVENTS)[number]["id"];

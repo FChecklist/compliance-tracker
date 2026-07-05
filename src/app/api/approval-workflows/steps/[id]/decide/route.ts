@@ -15,6 +15,16 @@ async function onWorkflowApproved(ctx: { orgId: string; userId: string; dbUser: 
   } else if (entityType === "erp_purchase_requisition") {
     await markPurchaseRequisitionApprovedFromApproval(ctx, entityId)
   }
+
+  // Wave 58: fire an ERP webhook once the workflow-gated entity actually
+  // finalizes, mirroring the same-event no-workflow-configured path.
+  try {
+    const { deliverWebhook } = await import("@/lib/webhook-deliver")
+    if (entityType === "erp_journal_entry") await deliverWebhook(ctx.orgId, "erp_journal_entry.submitted", { journalEntryId: entityId })
+    else if (entityType === "erp_purchase_requisition") await deliverWebhook(ctx.orgId, "erp_purchase_requisition.approved", { requisitionId: entityId })
+  } catch (webhookError) {
+    console.error("Webhook delivery error (non-fatal):", webhookError)
+  }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

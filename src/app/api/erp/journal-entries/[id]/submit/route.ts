@@ -10,6 +10,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const result = await submitJournalEntry({ orgId, userId: dbUser.id, dbUser }, id)
+
+    if (!result.pendingApproval) {
+      try {
+        const { deliverWebhook } = await import("@/lib/webhook-deliver")
+        await deliverWebhook(orgId, "erp_journal_entry.submitted", { journalEntryId: id, totalDebit: result.totalDebit })
+      } catch (webhookError) {
+        console.error("Webhook delivery error (non-fatal):", webhookError)
+      }
+    }
+
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
