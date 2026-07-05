@@ -3214,6 +3214,12 @@ export const erpSalesInvoiceItems = complianceSchemaDB.table('erp_sales_invoice_
   rate: numeric('rate').notNull().default('0'),
   amount: numeric('amount').notNull().default('0'),
   taxTemplateId: text('tax_template_id'),
+  // Wave 65: snapshotted from erp_items.hsn_sac_code at invoice-line-add
+  // time, not looked up live at report time -- matching ERPNext's own
+  // approach of copying the code onto the invoice line, since a later
+  // change to an item's HSN/SAC must never silently rewrite a past
+  // invoice's GST classification.
+  hsnSacCode: text('hsn_sac_code'),
 })
 
 export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoices', {
@@ -3245,6 +3251,7 @@ export const erpPurchaseInvoiceItems = complianceSchemaDB.table('erp_purchase_in
   rate: numeric('rate').notNull().default('0'),
   amount: numeric('amount').notNull().default('0'),
   taxTemplateId: text('tax_template_id'),
+  hsnSacCode: text('hsn_sac_code'), // Wave 65 -- see erp_sales_invoice_items' identical field for the snapshotting rationale
 })
 
 // --- Assets ---
@@ -3500,6 +3507,14 @@ export const erpItems = complianceSchemaDB.table('erp_items', {
   // track neither; batch/serial rows are only created when these are set.
   hasBatchNo: boolean('has_batch_no').notNull().default(false),
   hasSerialNo: boolean('has_serial_no').notNull().default(false),
+  // Wave 65 (India GST compliance gap-fill): HSN (goods) or SAC (services)
+  // classification code -- required on GST invoices/returns above the
+  // notified turnover threshold, which a Rs 1000cr company is well past.
+  // Nullable since it's genuinely optional for non-stock/non-taxable items
+  // and for orgs outside India, matching ERPNext's own Item.gst_hsn_code
+  // field shape (a free-text code, not a foreign key -- the HSN/SAC master
+  // list is a government-published code list, not org-editable data).
+  hsnSacCode: text('hsn_sac_code'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

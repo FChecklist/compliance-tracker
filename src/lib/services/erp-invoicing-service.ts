@@ -173,11 +173,17 @@ export async function createSalesInvoice(ctx: ErpContext, input: { customerId: s
     const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.customerId), eq(erpCustomers.orgId, ctx.orgId)) })
     if (!customer) throw new ServiceError("Customer not found", 404)
 
-    const resolvedItems: (SalesInvoiceItemInput & { quantity: number; rate: number })[] = []
+    const resolvedItems: (SalesInvoiceItemInput & { quantity: number; rate: number; hsnSacCode: string | null })[] = []
     for (const item of input.items) {
       const quantity = item.quantity ?? 1
       const rate = item.rate ?? (await resolveItemPrice(db, ctx.orgId, item.itemId, input.customerId, quantity, input.postingDate)).rate
-      resolvedItems.push({ ...item, quantity, rate })
+      // Wave 65: snapshot the item's current HSN/SAC code onto the invoice
+      // line -- never looked up live at report time, so a later change to
+      // the item's code doesn't silently rewrite a past invoice's GST
+      // classification (matching ERPNext's own copy-at-transaction-time
+      // convention for HSN/SAC).
+      const hsnSacCode = item.itemId ? (await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, item.itemId), eq(erpItems.orgId, ctx.orgId)) }))?.hsnSacCode ?? null : null
+      resolvedItems.push({ ...item, quantity, rate, hsnSacCode })
     }
 
     const { subtotal, taxAmount, grandTotal } = await computeInvoiceTotals(db, resolvedItems)
@@ -191,7 +197,7 @@ export async function createSalesInvoice(ctx: ErpContext, input: { customerId: s
     }).returning()
 
     await db.insert(erpSalesInvoiceItems).values(
-      resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId }))
+      resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId, hsnSacCode: i.hsnSacCode }))
     )
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id })
@@ -253,7 +259,11 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, input.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
     if (!supplier) throw new ServiceError("Supplier not found", 404)
 
-    const resolvedItems = input.items.map((i) => ({ ...i, quantity: i.quantity ?? 1 }))
+    const resolvedItems: (PurchaseInvoiceItemInput & { quantity: number; hsnSacCode: string | null })[] = []
+    for (const item of input.items) {
+      const hsnSacCode = item.itemId ? (await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, item.itemId), eq(erpItems.orgId, ctx.orgId)) }))?.hsnSacCode ?? null : null
+      resolvedItems.push({ ...item, quantity: item.quantity ?? 1, hsnSacCode })
+    }
     const { subtotal, taxAmount, grandTotal } = await computeInvoiceTotals(db, resolvedItems)
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpPurchaseInvoices.invoiceNumber}), 0)` }).from(erpPurchaseInvoices).where(eq(erpPurchaseInvoices.orgId, ctx.orgId))
 
@@ -265,7 +275,7 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
     }).returning()
 
     await db.insert(erpPurchaseInvoiceItems).values(
-      resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId }))
+      resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId, hsnSacCode: i.hsnSacCode }))
     )
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.created", entityType: "erp_purchase_invoice", entityId: invoice.id })

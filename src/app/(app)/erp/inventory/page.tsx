@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-type Item = { id: string; itemCode: string; itemName: string; uom: string | null; hasBatchNo: boolean; hasSerialNo: boolean };
+type Item = { id: string; itemCode: string; itemName: string; uom: string | null; hasBatchNo: boolean; hasSerialNo: boolean; hsnSacCode: string | null };
 type Warehouse = { id: string; warehouseName: string };
 type LedgerEntry = { id: string; postingDate: string; voucherType: string; quantityChange: string; valuationRate: string; balanceQty: string; balanceValue: string; transactionUom: string | null; transactionQty: string | null };
 type UomConversion = { id: string; itemId: string; uom: string; conversionFactor: string; item?: { itemName: string } };
@@ -40,6 +40,7 @@ export default function ErpInventoryPage() {
   const [itemCode, setItemCode] = useState("");
   const [itemName, setItemName] = useState("");
   const [itemUom, setItemUom] = useState("");
+  const [itemHsnSacCode, setItemHsnSacCode] = useState("");
   const [itemHasBatch, setItemHasBatch] = useState(false);
   const [itemHasSerial, setItemHasSerial] = useState(false);
   const [creatingItem, setCreatingItem] = useState(false);
@@ -101,11 +102,11 @@ export default function ErpInventoryPage() {
     setCreatingItem(true);
     const res = await fetch("/api/erp/stock/items", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemCode, itemName, uom: itemUom || undefined, hasBatchNo: itemHasBatch, hasSerialNo: itemHasSerial }),
+      body: JSON.stringify({ itemCode, itemName, uom: itemUom || undefined, hasBatchNo: itemHasBatch, hasSerialNo: itemHasSerial, hsnSacCode: itemHsnSacCode || undefined }),
     });
     setCreatingItem(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create item"); return; }
-    setItemOpen(false); setItemCode(""); setItemName(""); setItemUom(""); setItemHasBatch(false); setItemHasSerial(false);
+    setItemOpen(false); setItemCode(""); setItemName(""); setItemUom(""); setItemHsnSacCode(""); setItemHasBatch(false); setItemHasSerial(false);
     toast.success("Item created");
     load();
   };
@@ -273,6 +274,7 @@ export default function ErpInventoryPage() {
                   <div><Label>Item Code</Label><Input value={itemCode} onChange={(e) => setItemCode(e.target.value)} /></div>
                   <div><Label>Item Name</Label><Input value={itemName} onChange={(e) => setItemName(e.target.value)} /></div>
                   <div><Label>Stock UOM (optional)</Label><Input value={itemUom} onChange={(e) => setItemUom(e.target.value)} placeholder="e.g. Nos, Kg, Box" /></div>
+                  <div><Label>HSN/SAC Code (optional)</Label><Input value={itemHsnSacCode} onChange={(e) => setItemHsnSacCode(e.target.value)} placeholder="e.g. 8471 (goods) or 9983 (services)" /></div>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={itemHasBatch} onChange={(e) => setItemHasBatch(e.target.checked)} />Track by batch</label>
                     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={itemHasSerial} onChange={(e) => setItemHasSerial(e.target.checked)} />Track by serial</label>
@@ -285,12 +287,12 @@ export default function ErpInventoryPage() {
           <Card className="rounded-xl shadow-card bg-white">
             <CardContent className="p-0">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Code</th><th className="p-3 font-medium">Name</th><th className="p-3 font-medium">UOM</th><th className="p-3 font-medium">Tracking</th></tr></thead>
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Code</th><th className="p-3 font-medium">Name</th><th className="p-3 font-medium">UOM</th><th className="p-3 font-medium">HSN/SAC</th><th className="p-3 font-medium">Tracking</th></tr></thead>
                 <tbody className="divide-y divide-ct-border">
-                  {items.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">No items yet.</td></tr>
+                  {items.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">No items yet.</td></tr>
                     : items.map((i) => (
                       <tr key={i.id} className="hover:bg-ct-row-hover">
-                        <td className="p-3">{i.itemCode}</td><td className="p-3">{i.itemName}</td><td className="p-3">{i.uom ?? "—"}</td>
+                        <td className="p-3">{i.itemCode}</td><td className="p-3">{i.itemName}</td><td className="p-3">{i.uom ?? "—"}</td><td className="p-3">{i.hsnSacCode ?? "—"}</td>
                         <td className="p-3 flex gap-1">{i.hasBatchNo && <Badge className="bg-ct-cloud text-ct-muted">Batch</Badge>}{i.hasSerialNo && <Badge className="bg-ct-cloud text-ct-muted">Serial</Badge>}</td>
                       </tr>
                     ))}

@@ -16,13 +16,14 @@ export async function listItems(ctx: { orgId: string }) {
   })
 }
 
-export async function createItem(ctx: ErpContext, input: { itemCode: string; itemName: string; uom?: string; standardBuyingRate?: number; standardSellingRate?: number; hasBatchNo?: boolean; hasSerialNo?: boolean }) {
+export async function createItem(ctx: ErpContext, input: { itemCode: string; itemName: string; uom?: string; standardBuyingRate?: number; standardSellingRate?: number; hasBatchNo?: boolean; hasSerialNo?: boolean; hsnSacCode?: string }) {
   if (!input.itemCode?.trim() || !input.itemName?.trim()) throw new ServiceError("itemCode and itemName are required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [item] = await db.insert(erpItems).values({
       orgId: ctx.orgId, itemCode: input.itemCode, itemName: input.itemName, uom: input.uom,
       standardBuyingRate: input.standardBuyingRate?.toString(), standardSellingRate: input.standardSellingRate?.toString(),
       hasBatchNo: input.hasBatchNo ?? false, hasSerialNo: input.hasSerialNo ?? false,
+      hsnSacCode: input.hsnSacCode?.trim() || null,
     }).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_item.created", entityType: "erp_item", entityId: item.id })
     return item
