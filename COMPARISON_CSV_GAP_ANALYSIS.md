@@ -33,7 +33,7 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | Procurement > Purchase Requisition (PR001-018) | PRESENT | `erpPurchaseRequisitions`/Items | |
 | Procurement > RFQ Management (RFQ001-018) | PRESENT (Wave 83) | `erpRfqs`/Items/Suppliers + `erpSupplierQuotations`/Items + Wave 83: `erpRfqScoringCriteria`/`erpRfqQuotationScores` (weighted scoring), `erpRfqNegotiationRounds` (structured counter-offer log), `erpRfqReverseAuctions`/`erpRfqAuctionBids` (suppliers bid via their existing Wave 80 vendor-portal token) | |
 | Procurement > Purchase Order (PO001-018) | PRESENT | `erpPurchaseOrders`/Items | |
-| Procurement > Goods Receipt (GRN001-018) | PARTIAL | `erpPurchaseReceipts`/Items + batch/serial (Wave 57) | Missing: formal three-way-match report, landed-cost allocation, putaway/bin management. Backlogged |
+| Procurement > Goods Receipt (GRN001-018) | PRESENT (Wave 85) | `erpPurchaseOrders`/`erpPurchaseReceipts`/Items + batch/serial (Wave 57) + Wave 85: real create/submit for both (previously list-only since Wave 49), three-way-match report (PO vs GRN vs Invoice), `erpLandedCostVouchers`/Charges/Allocations (folds into FIFO valuation layer rate), putaway confirmation (bins are leaf `erpWarehouses` nodes) | |
 
 ## Status
 
@@ -56,7 +56,7 @@ Everything marked PARTIAL above is an *enhancement* to an already-shipped module
 3. ~~Period Closing: formal closing-checklist workflow (accrual/provision tasks, sign-off steps) beyond today's simple open/closed period flag.~~ DONE (Wave 82).
 4. ~~RFQ Management: reverse auction, formal weighted vendor scoring, structured negotiation-round log.~~ DONE (Wave 83).
 5. ~~Customer/Vendor Master: multiple addresses/contacts per record, credit limits.~~ DONE (Wave 84).
-6. Goods Receipt: three-way-match (PO/GRN/Invoice) report, landed-cost allocation, putaway/bin assignment.
+6. ~~Goods Receipt: three-way-match (PO/GRN/Invoice) report, landed-cost allocation, putaway/bin assignment.~~ DONE (Wave 85). **All 6 backlog items now closed.**
 
 ## On the code-copying permission
 
