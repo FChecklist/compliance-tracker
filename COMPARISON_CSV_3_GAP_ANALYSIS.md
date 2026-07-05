@@ -76,7 +76,7 @@ Explicitly NOT built this pass (documented above with reasoning, not silently sk
 
 ## Status
 
-- Wave 92: pending
+- **Wave 92 (GRC Fraud Case Management + IT Disaster Recovery, GRC012+GRC009): DONE.** `fraud_cases` — real status machine (reported→investigating→confirmed/unsubstantiated→resolved), financial exposure tracking, optional link into the existing risk register; zero fraud-tracking capability existed anywhere before this wave. `it_dr_plans`/`it_dr_backup_verifications`/`it_dr_failover_tests` — IT-system-specific recovery (RTO/RPO per system, backup verification log, failover test history), deliberately distinct from Wave 89's generic BCM. Child tables have no `org_id` of their own; RLS scopes via their parent DR plan (Wave 87-90 convention). Migration `wave92_fraud_cases_it_disaster_recovery`, commit `c37a796`, deployed and verified (tsc/eslint clean, full status-machine/backup-verification/failover-test proof + cross-org RLS isolation via `execute_sql`, `get_advisors` clean, zero runtime errors).
 - Wave 93: pending
 - Wave 94: pending
 - Wave 95: pending
