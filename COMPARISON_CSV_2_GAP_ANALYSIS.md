@@ -72,7 +72,7 @@ Explicitly NOT built this pass (documented above with reasoning, not silently sk
 
 ## Status
 
-- Wave 86: pending
+- **Wave 86 (eSignature, CLM007+DMS012): DONE.** `esignature_requests`/`esignature_signers`, ordered/parallel signing, hand-rolled canvas signature pad + typed-name fallback on public `/sign/[token]`, tamper-evident audit trail (document-hash comparison, IP, user agent, timestamp). Migration `wave86_esignature`, commit `c5bcfde`, deployed and verified (tsc/eslint clean, hashing/tamper-detection proof + full request/signing/completion state-machine + RLS proof via `execute_sql`, `get_advisors` clean, zero runtime errors).
 - Wave 87: pending
 - Wave 88: pending
 - Wave 89: pending
