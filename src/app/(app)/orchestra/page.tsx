@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Sparkles, Info } from "lucide-react";
+import Link from "next/link";
+import { Bot, Sparkles, Info, Activity } from "lucide-react";
 import { RealAssistantColumn } from "@/components/orchestra/RealAssistantColumn";
 import { AgentLibrarySheet } from "@/components/orchestra/AgentLibrarySheet";
 import { TIER_COLOR, TIER_LABEL, type AgentTier } from "@/lib/orchestra-mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TIERS: AgentTier[] = ["global", "firm", "client", "user"];
@@ -42,7 +44,12 @@ export default function OrchestraPage() {
             you service.
           </p>
         </div>
-        <AgentLibrarySheet />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/orchestra/analytics"><Activity className="w-4 h-4 mr-1" />Analytics</Link>
+          </Button>
+          <AgentLibrarySheet />
+        </div>
       </div>
 
       {/* What's real vs. what's coming */}
