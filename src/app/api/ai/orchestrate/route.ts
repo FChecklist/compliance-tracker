@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
       temperature: 0.3,
       maxTokens: 2048,
-    });
+    }, modelConfig.fallback);
 
     const response: OrchestratorResponse = {
       eventType: typedEvent,

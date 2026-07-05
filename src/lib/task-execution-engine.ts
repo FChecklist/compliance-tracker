@@ -138,7 +138,7 @@ export async function executeTask(
     }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
       temperature: 0.3,
       maxTokens: 800,
-    });
+    }, modelConfig.fallback);
     recordOrchestraExecution({
       orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.planning",
       input: { title, description }, output: { summary: result.summary, stepCount: result.steps?.length ?? 0 },

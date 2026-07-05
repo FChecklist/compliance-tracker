@@ -77,7 +77,7 @@ export async function runInstructionMismatchAudit(): Promise<{
     try {
       const { data: result, usage } = await callLLMJson<{ matches: boolean; summary: string; relatedTaskIndex: number | null }>(
         modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-        { temperature: 0.2, maxTokens: 300 }
+        { temperature: 0.2, maxTokens: 300 }, modelConfig.fallback
       )
       recordOrchestraExecution({
         orgId: commitment.orgId, layerKey: "user_assistant_oa", eventType: "instruction_mismatch.judgment",

@@ -292,7 +292,8 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       modelConfig.provider, modelConfig.model, modelConfig.apiKey,
       systemPrompt,
       userMessage,
-      { temperature: 0.4, maxTokens: 800, history }
+      { temperature: 0.4, maxTokens: 800, history },
+      modelConfig.fallback
     )
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",

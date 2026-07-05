@@ -90,7 +90,7 @@ export async function runLoopEngineeringAudit(loopId: string): Promise<{
         modelConfig.provider, modelConfig.model, modelConfig.apiKey,
         systemPrompt,
         `Active loops checked: ${activeLoops.length}. Silent (marked active, zero executions in ${LOOKBACK_DAYS}d): ${silentLoops.length}.\n${JSON.stringify(perLoopStats)}`,
-        { temperature: 0.2, maxTokens: 200 }
+        { temperature: 0.2, maxTokens: 200 }, modelConfig.fallback
       );
       llmSynthesis = result.synthesis;
     }

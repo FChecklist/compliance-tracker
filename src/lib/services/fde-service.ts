@@ -102,7 +102,7 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     const userMessage = `User's request: "${requestText}"\n\nClosest existing capabilities found by semantic search (JSON, NOT the full catalog):\n${JSON.stringify(candidateList)}`
     const { data: evaluation, usage } = await callLLMJson<FdeEvaluation>(
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-      { temperature: 0.3, maxTokens: 700 }
+      { temperature: 0.3, maxTokens: 700 }, modelConfig.fallback
     )
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",

@@ -1,14 +1,30 @@
 import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPoolAllocations } from "@/lib/db";
 import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
-import type { LLMProvider } from "@/lib/llm-client";
+import type { LLMProvider, LLMFallback } from "@/lib/llm-client";
 
 export type ResolvedModelConfig = {
   provider: LLMProvider;
   model: string;
   apiKey: string;
   isCustomerConfigured: boolean;
+  // Wave 72 (AI_OS_CERTIFICATION.md §2.5, model-switching-on-failure): the
+  // platform's own OpenRouter default, when it's actually configured and
+  // isn't just a repeat of the primary -- passed straight through to
+  // callLLM/callLLMJson's optional `fallback` parameter. undefined when
+  // there's genuinely nothing sensible to fall back to (no OPENROUTER_API_KEY
+  // configured, or the primary already IS the platform OpenRouter default).
+  fallback?: LLMFallback;
 };
+
+const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+
+function platformFallbackFor(primary: { provider: LLMProvider; model: string }): LLMFallback | undefined {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return undefined;
+  if (primary.provider === "openrouter" && primary.model === PLATFORM_FALLBACK_MODEL) return undefined;
+  return { provider: "openrouter", model: PLATFORM_FALLBACK_MODEL, apiKey };
+}
 
 // Wave 45: the platform-default path previously hardcoded process.env.GROQ_API_KEY
 // regardless of what layer.defaultModelConfig.provider actually said -- a real
@@ -67,11 +83,14 @@ export async function resolveModelConfig(orgId: string, layerKey: string): Promi
     db.update(customerModelConfig).set({ lastUsedAt: new Date() }).where(eq(customerModelConfig.id, customerConfig.id)).then(() => {});
 
     const apiKey = await decryptApiKey(customerConfig.encryptedApiKey);
+    const provider = customerConfig.provider as LLMProvider;
+    const model = customerConfig.modelName;
     return {
-      provider: customerConfig.provider as LLMProvider,
-      model: customerConfig.modelName,
+      provider,
+      model,
       apiKey,
       isCustomerConfigured: true,
+      fallback: platformFallbackFor({ provider, model }),
     };
   }
 
@@ -81,7 +100,7 @@ export async function resolveModelConfig(orgId: string, layerKey: string): Promi
   const apiKey = platformApiKeyFor(provider);
   if (!apiKey) return null;
 
-  return { provider, model, apiKey, isCustomerConfigured: false };
+  return { provider, model, apiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) };
 }
 
 /**
@@ -110,11 +129,14 @@ export async function resolveClientModelConfig(clientId: string, orgId: string, 
   if (clientConfig?.encryptedApiKey && clientConfig.modelName) {
     db.update(clientModelConfig).set({ lastUsedAt: new Date() }).where(eq(clientModelConfig.id, clientConfig.id)).then(() => {});
     const apiKey = await decryptApiKey(clientConfig.encryptedApiKey);
+    const provider = clientConfig.provider as LLMProvider;
+    const model = clientConfig.modelName;
     return {
-      provider: clientConfig.provider as LLMProvider,
-      model: clientConfig.modelName,
+      provider,
+      model,
       apiKey,
       isCustomerConfigured: true,
+      fallback: platformFallbackFor({ provider, model }),
     };
   }
 
@@ -144,7 +166,7 @@ export async function resolvePlatformModelConfig(layerKey: string): Promise<Reso
   const model = defaultConfig.model ?? "llama-3.3-70b-versatile";
   const platformApiKey = platformApiKeyFor(provider);
   if (platformApiKey) {
-    return { provider, model, apiKey: platformApiKey, isCustomerConfigured: false };
+    return { provider, model, apiKey: platformApiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) };
   }
 
   return borrowFromSharedPool(layerKey, layer.id);
@@ -178,10 +200,13 @@ async function borrowFromSharedPool(layerKey: string, orchestraLayerId: string):
   await db.update(customerModelConfig).set({ lastUsedAt: new Date() }).where(eq(customerModelConfig.id, candidate.id));
 
   const apiKey = await decryptApiKey(candidate.encryptedApiKey);
+  const provider = candidate.provider as LLMProvider;
+  const model = candidate.modelName;
   return {
-    provider: candidate.provider as LLMProvider,
-    model: candidate.modelName,
+    provider,
+    model,
     apiKey,
     isCustomerConfigured: true,
+    fallback: platformFallbackFor({ provider, model }),
   };
 }

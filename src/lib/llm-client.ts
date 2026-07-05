@@ -47,6 +47,49 @@ export type LLMResult = {
   usage: LLMUsage;
 };
 
+// Wave 72 (AI_OS_CERTIFICATION.md §2.5, "Model Switching / Fallback -- NOT_BUILT"):
+// a secondary provider/model/key to try if the primary exhausts its retries.
+// Optional and additive -- every pre-existing callLLM/callLLMJson call site
+// keeps working with zero changes; callers that want resilience pass one in
+// (orchestra-model-resolver.ts's three resolvers now populate this with the
+// platform's OpenRouter default when available).
+export type LLMFallback = { provider: LLMProvider; model: string; apiKey: string };
+
+/** Carries the HTTP status (when known) so retry logic can distinguish transient (429/5xx/network) from permanent (4xx auth/bad-request) failures. */
+export class LLMHttpError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "LLMHttpError";
+    this.status = status;
+  }
+}
+
+function isRetryable(error: unknown): boolean {
+  if (error instanceof LLMHttpError) {
+    // 429 (rate limit) and 5xx (upstream/provider trouble) are worth retrying;
+    // 4xx otherwise (bad key, bad request) will just fail identically again.
+    return error.status === 429 || (error.status !== undefined && error.status >= 500);
+  }
+  return true; // network errors (fetch threw before a response existed) are always worth one retry
+}
+
+const RETRY_DELAYS_MS = [300, 900]; // 2 retries total per attempt (3 tries), short exponential backoff
+
+async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i <= RETRY_DELAYS_MS.length; i++) {
+    try {
+      return await attempt();
+    } catch (error) {
+      lastError = error;
+      if (i === RETRY_DELAYS_MS.length || !isRetryable(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[i]));
+    }
+  }
+  throw lastError;
+}
+
 // Approximate, manually-maintained reference pricing (USD per 1K tokens) --
 // no live pricing API exists for any of these 4 providers, so this is an
 // honest-limitation constant like others in this codebase, not a precise
@@ -110,7 +153,7 @@ async function callOpenAICompatible(
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", ...extraHeadersFor(baseUrl) },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${baseUrl} error ${res.status}: ${await res.text().catch(() => "")}`);
+  if (!res.ok) throw new LLMHttpError(`${baseUrl} error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
   const data = await res.json();
   return {
     content: data.choices[0].message.content as string,
@@ -147,7 +190,7 @@ async function callAnthropic(
       messages: [...(options?.history ?? []), { role: "user", content: userMessage }],
     }),
   });
-  if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text().catch(() => "")}`);
+  if (!res.ok) throw new LLMHttpError(`Anthropic API error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
   const data = await res.json();
   return {
     content: data.content[0].text as string,
@@ -184,7 +227,7 @@ async function callGoogle(
       }),
     }
   );
-  if (!res.ok) throw new Error(`Google API error ${res.status}: ${await res.text().catch(() => "")}`);
+  if (!res.ok) throw new LLMHttpError(`Google API error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
   const data = await res.json();
   return {
     content: data.candidates[0].content.parts[0].text as string,
@@ -195,15 +238,7 @@ async function callGoogle(
   };
 }
 
-/** Dispatches to whichever provider is configured. `model` should be a real model name for that provider. */
-export async function callLLM(
-  provider: LLMProvider,
-  model: string,
-  apiKey: string,
-  systemPrompt: string,
-  userMessage: string,
-  options?: CallLLMOptions
-): Promise<LLMResult> {
+function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, systemPrompt: string, userMessage: string, options?: CallLLMOptions): Promise<LLMResult> {
   switch (provider) {
     case "groq":
       return callOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
@@ -215,6 +250,32 @@ export async function callLLM(
       return callAnthropic(apiKey, model, systemPrompt, userMessage, options);
     case "google":
       return callGoogle(apiKey, model, systemPrompt, userMessage, options);
+  }
+}
+
+/**
+ * Dispatches to whichever provider is configured. `model` should be a real
+ * model name for that provider. Wave 72 (AI_OS_CERTIFICATION.md §2.5): every
+ * call now retries transient failures (429/5xx/network) up to twice with
+ * short backoff before giving up, and -- only if a `fallback` is supplied --
+ * tries a second provider/model/key (also with its own retries) once the
+ * primary is fully exhausted. Every pre-existing call site that passes no
+ * fallback behaves identically to before except for the added retries.
+ */
+export async function callLLM(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  userMessage: string,
+  options?: CallLLMOptions,
+  fallback?: LLMFallback
+): Promise<LLMResult> {
+  try {
+    return await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));
+  } catch (primaryError) {
+    if (!fallback) throw primaryError;
+    return withRetry(() => dispatchLLM(fallback.provider, fallback.model, fallback.apiKey, systemPrompt, userMessage, options));
   }
 }
 
@@ -251,7 +312,7 @@ async function callVisionOpenAICompatible(
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${baseUrl} error ${res.status}: ${await res.text().catch(() => "")}`);
+  if (!res.ok) throw new LLMHttpError(`${baseUrl} error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
   const data = await res.json();
   return {
     content: data.choices[0].message.content as string,
@@ -278,7 +339,7 @@ async function callVisionAnthropic(
       ] }],
     }),
   });
-  if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text().catch(() => "")}`);
+  if (!res.ok) throw new LLMHttpError(`Anthropic API error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
   const data = await res.json();
   return {
     content: data.content[0].text as string,
@@ -304,7 +365,7 @@ async function callVisionGoogle(
       }),
     }
   );
-  if (!res.ok) throw new Error(`Google API error ${res.status}: ${await res.text().catch(() => "")}`);
+  if (!res.ok) throw new LLMHttpError(`Google API error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
   const data = await res.json();
   return {
     content: data.candidates[0].content.parts[0].text as string,
@@ -357,8 +418,9 @@ export async function callLLMJson<T>(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
-  options?: CallLLMOptions
+  options?: CallLLMOptions,
+  fallback?: LLMFallback
 ): Promise<{ data: T; usage: LLMUsage }> {
-  const { content, usage } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true });
+  const { content, usage } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
   return { data: JSON.parse(stripJsonFence(content)) as T, usage };
 }
