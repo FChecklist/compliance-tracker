@@ -35,6 +35,12 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | Procurement > Purchase Order (PO001-018) | PRESENT | `erpPurchaseOrders`/Items | |
 | Procurement > Goods Receipt (GRN001-018) | PARTIAL | `erpPurchaseReceipts`/Items + batch/serial (Wave 57) | Missing: formal three-way-match report, landed-cost allocation, putaway/bin management. Backlogged |
 
+## Status
+
+- **Wave 70 (Budgeting + Cash Flow Statement): DONE.** `erp_budgets`/`erp_budget_line_items`, live Budget vs Actual variance, `/erp/budgets` UI, `erp_fiscal_years` service/route (previously missing entirely), Cash Flow Statement tab on Financial Reports. Migration `wave70_budgeting`, commit `4f2e4f8`, deployed and verified (tsc/eslint clean, live functional + RLS proof via `execute_sql`, `get_advisors` clean, zero runtime errors).
+- **Wave 71 (Contract & Commercial Lifecycle Management): DONE.** `erp_contracts`/`erp_contract_amendments`/`erp_contract_billing_schedules`/`erp_contract_revenue_schedules`/`erp_contract_obligations`/`erp_subscription_plans`/`erp_subscriptions`, `/erp/contracts` UI (Contracts + Subscriptions tabs). Migration `wave71_contract_lifecycle_management`, commit `6ec22b4`, deployed and verified (tsc/eslint clean, live functional + RLS proof via `execute_sql`, `get_advisors` clean).
+- Both genuine, complete gaps identified in this CSV comparison are now closed. The Backlog section below remains open (partial-module enhancements only, deliberately not built this pass).
+
 ## Decision (the "boss" call)
 
 Two modules are complete, zero-schema gaps that stand alone as coherent products in the CSV — these get full new waves, built end-to-end (schema → migration → RLS → service → routes → UI → verified):
