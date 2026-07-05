@@ -30,7 +30,7 @@ function platformFallbackFor(primary: { provider: LLMProvider; model: string }):
 // regardless of what layer.defaultModelConfig.provider actually said -- a real
 // bug (silently broken for any layer ever pointed at a non-Groq provider).
 // Picks the right env var for whichever provider is actually configured.
-function platformApiKeyFor(provider: LLMProvider): string | undefined {
+export function platformApiKeyFor(provider: LLMProvider): string | undefined {
   switch (provider) {
     case "groq": return process.env.GROQ_API_KEY;
     case "openrouter": return process.env.OPENROUTER_API_KEY;

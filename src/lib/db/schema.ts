@@ -932,6 +932,45 @@ export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Wave 94 (Comparison CSV 3 gap analysis: AI011 "Prompt/Model Evaluation
+// Framework") ───────────────────────────────────────────────────────────────
+// Global/platform-governed, same posture as prompt_templates/prompt_versions
+// above -- eval cases are authored content, not tenant data, so there is no
+// org_id anywhere here. Writes are veridian_admin-gated at the service layer
+// (mirrors prompt-os-service.ts's createPromptVersion), not RLS-gated by org.
+// Scoring is deterministic keyword containment, never an LLM-judging-an-LLM
+// call -- a real, verifiable pass/fail, not a fabricated confidence score.
+export const promptEvalCases = complianceSchemaDB.table('prompt_eval_cases', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  promptTemplateId: text('prompt_template_id').notNull(),
+  name: text('name').notNull(),
+  inputVariables: jsonb('input_variables').notNull().default({}), // substituted into the prompt version's {{token}} placeholders (Wave 88's template-generation convention)
+  userMessage: text('user_message').notNull(),
+  expectedKeywords: jsonb('expected_keywords').notNull().default([]), // string[] -- all must appear (case-insensitive) in a passing output
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const promptEvalRuns = complianceSchemaDB.table('prompt_eval_runs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  evalCaseId: text('eval_case_id').notNull(),
+  promptVersionId: text('prompt_version_id').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  renderedPrompt: text('rendered_prompt').notNull(), // system prompt after {{token}} substitution -- audit trail of exactly what was sent
+  output: text('output'),
+  status: text('status').notNull().default('completed'), // 'completed'|'error' -- error means the LLM call itself failed, not a failed eval score
+  errorMessage: text('error_message'),
+  passed: boolean('passed'),
+  missingKeywords: jsonb('missing_keywords').notNull().default([]),
+  latencyMs: integer('latency_ms'),
+  promptTokens: integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  estimatedCostUsd: numeric('estimated_cost_usd'),
+  runById: text('run_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Personal Model Config (Wave 24, PageAgent integration) ──────────────
 // The per-user counterpart to customer_model_config's per-org BYO --
 // resolved BEFORE the org-level config in resolvePageAgentModelConfig()'s
@@ -1314,6 +1353,16 @@ export const promptTemplatesRelations = relations(promptTemplates, ({ many }) =>
 
 export const promptVersionsRelations = relations(promptVersions, ({ one }) => ({
   template: one(promptTemplates, { fields: [promptVersions.promptTemplateId], references: [promptTemplates.id] }),
+}))
+
+export const promptEvalCasesRelations = relations(promptEvalCases, ({ one, many }) => ({
+  template: one(promptTemplates, { fields: [promptEvalCases.promptTemplateId], references: [promptTemplates.id] }),
+  runs: many(promptEvalRuns),
+}))
+
+export const promptEvalRunsRelations = relations(promptEvalRuns, ({ one }) => ({
+  evalCase: one(promptEvalCases, { fields: [promptEvalRuns.evalCaseId], references: [promptEvalCases.id] }),
+  promptVersion: one(promptVersions, { fields: [promptEvalRuns.promptVersionId], references: [promptVersions.id] }),
 }))
 
 export const personalModelConfigRelations = relations(personalModelConfig, ({ one }) => ({

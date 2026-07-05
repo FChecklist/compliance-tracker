@@ -60,6 +60,7 @@ import {
   ClipboardCheck,
   Undo2,
   Fingerprint,
+  FlaskConical,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -289,6 +290,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           label: "VERI OPERATIONS AI",
           href: "/orchestra",
           icon: Bot,
+        },
+        {
+          label: "Prompt Eval Lab",
+          href: "/prompt-eval",
+          icon: FlaskConical,
         },
         {
           label: "Checklists",
