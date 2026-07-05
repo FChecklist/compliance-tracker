@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 // invoice-submit time (see erp-invoicing-service.ts's computeVendorTds).
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { Building2, Loader2, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -153,6 +154,9 @@ export default function ErpSuppliersPage() {
                   <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="No TDS category" /></SelectTrigger>
                   <SelectContent><SelectItem value="__none__">No TDS category</SelectItem>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.categoryName}</SelectItem>)}</SelectContent>
                 </Select>
+                <Link href={`/erp/suppliers/${s.id}`}>
+                  <Button size="sm" variant="outline" className="h-8 text-xs">Manage</Button>
+                </Link>
               </div>
             );
           })}

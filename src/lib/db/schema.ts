@@ -3445,6 +3445,80 @@ export const erpSuppliers = complianceSchemaDB.table('erp_suppliers', {
   taxWithholdingCategoryId: text('tax_withholding_category_id'), // Wave 68: nullable -- assigns this supplier a default TDS category; no category means no withholding is ever computed for their invoices
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Wave 80 (Vendor Master enhancements): denormalized caches of the latest
+  // erp_supplier_qualifications / erp_supplier_sanction_checks row, maintained
+  // by the service layer -- matches this codebase's assignee-cache convention.
+  qualificationStatus: text('qualification_status').notNull().default('not_started'), // 'not_started'|'in_review'|'qualified'|'rejected'
+  sanctionScreeningStatus: text('sanction_screening_status').notNull().default('not_checked'), // 'not_checked'|'clear'|'flagged'
+  sanctionScreenedAt: timestamp('sanction_screened_at'),
+})
+
+// Wave 80 (Vendor Master enhancements, COMPARISON_CSV_GAP_ANALYSIS.md backlog
+// #1). KYC document tracking deliberately has no table here -- it reuses the
+// existing polymorphic `documents` table (linkedEntityType='erp_supplier'),
+// per that table's own established cross-module linking convention.
+export const erpSupplierBankAccounts = complianceSchemaDB.table('erp_supplier_bank_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  accountHolderName: text('account_holder_name').notNull(),
+  bankName: text('bank_name').notNull(),
+  // pgcrypto-encrypted at rest via src/lib/ai-config-crypto.ts's existing
+  // encrypt/decrypt helpers (same AI_CONFIG_ENCRYPTION_KEY mechanism) --
+  // Drizzle can't type a pgp_sym_encrypt round-trip, see that file's own
+  // comment on why this goes through raw SQL, same as embeddings/ai_configurations.
+  accountNumberEncrypted: text('account_number_encrypted').notNull(),
+  accountNumberLast4: text('account_number_last4').notNull(),
+  ifscCode: text('ifsc_code'),
+  accountType: text('account_type').notNull().default('savings'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Append-only qualification review audit trail -- erpSuppliers.qualificationStatus
+// caches the latest row's status.
+export const erpSupplierQualifications = complianceSchemaDB.table('erp_supplier_qualifications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  status: text('status').notNull(), // 'in_review'|'qualified'|'rejected'
+  criteria: jsonb('criteria').notNull().default({}),
+  score: numeric('score'),
+  notes: text('notes'),
+  reviewedById: text('reviewed_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Append-only sanction/blacklist screening log -- a human records the
+// outcome of a check performed against an external list (UN/OFAC/RBI
+// caution list/etc). This environment has no live sanctions-API
+// integration, so this is a real screening-log data model and workflow,
+// not an automated live check (same verification-boundary honesty as
+// SSO/e-invoicing/embeddings elsewhere in this codebase).
+export const erpSupplierSanctionChecks = complianceSchemaDB.table('erp_supplier_sanction_checks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  checkedById: text('checked_by_id'),
+  listsChecked: jsonb('lists_checked').notNull().default([]), // e.g. ["UN Consolidated List", "OFAC SDN", "RBI Caution List"]
+  matchFound: boolean('match_found').notNull().default(false),
+  matchDetails: text('match_details'),
+  resultStatus: text('result_status').notNull(), // 'clear'|'flagged'|'blocked'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Vendor self-service portal: tokenized, time-limited, individually
+// revocable -- identical shape to conversationShareLinks (Wave 36).
+export const erpSupplierPortalLinks = complianceSchemaDB.table('erp_supplier_portal_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  supplierId: text('supplier_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id'),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders', {

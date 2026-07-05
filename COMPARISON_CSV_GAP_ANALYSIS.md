@@ -29,7 +29,7 @@ For each CSV module, checked for a matching schema table + service function. Sta
 | Sales > Returns & RMA (RMA001-018) | PRESENT | `erpSalesReturns`/`erpPurchaseReturns` + Items (Wave 63) | |
 | Sales > Contract Management (SC001-018) | **GAP** | `contractComplianceItems` exists but is the GRC "contract compliance obligations register" (Integrity module) — no SLA, renewals, amendments, recurring billing, revenue recognition, subscription lifecycle, or usage billing anywhere | Built in Wave 71 below |
 | CRM > Customer Service (CS001-018) | PARTIAL | `tickets` (Wave 39) with `slaDeadline`, category, priority, SLA cron | Missing: Knowledge Base articles, CSAT/NPS surveys, installed-product/warranty tracking, field-service dispatch, problem/RCA management. Backlogged |
-| Procurement > Vendor Master (VEN001-018) | PARTIAL | `erpSuppliers` (name, type, GSTIN, PAN, payment terms) + `vendorRiskProfiles` + Vendor Scorecarding (Wave 64) | Missing: KYC document tracking, banking details, vendor qualification workflow, sanction/blacklist screening, vendor portal. Backlogged |
+| Procurement > Vendor Master (VEN001-018) | PRESENT (Wave 80) | `erpSuppliers` + `vendorRiskProfiles` + Vendor Scorecarding (Wave 64) + Wave 80: KYC docs (reuses `documents`), `erpSupplierBankAccounts` (pgcrypto-encrypted), `erpSupplierQualifications`, `erpSupplierSanctionChecks` (manual screening log, no live API), `erpSupplierPortalLinks` (self-service portal) | Sanction screening is a manual log, not a live external-API check (no sanctions-API key in this environment) |
 | Procurement > Purchase Requisition (PR001-018) | PRESENT | `erpPurchaseRequisitions`/Items | |
 | Procurement > RFQ Management (RFQ001-018) | PARTIAL | `erpRfqs`/Items/Suppliers + `erpSupplierQuotations`/Items | Missing: reverse auction, formal weighted scoring, negotiation-round tracking. Minor — backlogged |
 | Procurement > Purchase Order (PO001-018) | PRESENT | `erpPurchaseOrders`/Items | |
@@ -51,7 +51,7 @@ Two modules are complete, zero-schema gaps that stand alone as coherent products
 Everything marked PARTIAL above is an *enhancement* to an already-shipped module, not a missing product — bundling all of them into this pass would dilute focus across ~6 small feature slices instead of shipping two complete ones. They are captured as an explicit backlog instead of being half-built:
 
 ### Backlog (future waves, not built this pass)
-1. Vendor Master: KYC document tracking, banking details table, qualification workflow, sanction/blacklist screening, vendor self-service portal.
+1. ~~Vendor Master: KYC document tracking, banking details table, qualification workflow, sanction/blacklist screening, vendor self-service portal.~~ DONE (Wave 80).
 2. Customer Service: Knowledge Base articles + search, CSAT/NPS post-ticket surveys, installed-product/warranty tracking, field-service dispatch, problem management/RCA grouping.
 3. Period Closing: formal closing-checklist workflow (accrual/provision tasks, sign-off steps) beyond today's simple open/closed period flag.
 4. RFQ Management: reverse auction, formal weighted vendor scoring, structured negotiation-round log.
