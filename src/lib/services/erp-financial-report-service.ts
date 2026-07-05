@@ -99,6 +99,7 @@ type AccountBalance = {
   accountName: string
   accountNumber: string | null
   rootType: string
+  accountType: string | null
   totalDebit: number
   totalCredit: number
   netBalance: number
@@ -117,6 +118,7 @@ async function accountBalancesInRange(orgId: string, fromDate: string | null, to
         accountName: erpAccounts.accountName,
         accountNumber: erpAccounts.accountNumber,
         rootType: erpAccounts.rootType,
+        accountType: erpAccounts.accountType,
         totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
         totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
       })
@@ -124,12 +126,12 @@ async function accountBalancesInRange(orgId: string, fromDate: string | null, to
       .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
       .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
       .where(and(...conditions))
-      .groupBy(erpAccounts.id, erpAccounts.accountName, erpAccounts.accountNumber, erpAccounts.rootType)
+      .groupBy(erpAccounts.id, erpAccounts.accountName, erpAccounts.accountNumber, erpAccounts.rootType, erpAccounts.accountType)
 
     return rows.map((r) => {
       const totalDebit = Number(r.totalDebit)
       const totalCredit = Number(r.totalCredit)
-      return { accountId: r.accountId, accountName: r.accountName, accountNumber: r.accountNumber, rootType: r.rootType, totalDebit, totalCredit, netBalance: totalDebit - totalCredit }
+      return { accountId: r.accountId, accountName: r.accountName, accountNumber: r.accountNumber, rootType: r.rootType, accountType: r.accountType, totalDebit, totalCredit, netBalance: totalDebit - totalCredit }
     })
   })
 }
@@ -186,4 +188,76 @@ export async function balanceSheet(ctx: { orgId: string }, asOfDate: string, sco
   const totalLiabilities = liabilities.reduce((sum, b) => sum + -b.netBalance, 0)
   const totalEquity = equity.reduce((sum, b) => sum + -b.netBalance, 0)
   return { asOfDate, assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity, isBalanced: Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01 }
+}
+
+/**
+ * Cash Flow Statement (indirect method) -- Wave 70 addendum, per
+ * COMPARISON_CSV_GAP_ANALYSIS.md (Financial Reporting had Trial Balance/P&L/
+ * Balance Sheet but no Statement of Cash Flows). Deliberately does NOT do
+ * the textbook "start from net profit, manually add back depreciation"
+ * step: this schema already has direct GL access to every balance-sheet
+ * account's actual period-over-period change (accountBalancesInRange
+ * above), so depreciation and every other non-cash P&L adjustment is
+ * already correctly reflected in the fixed_asset-tagged accounts' own
+ * movement -- adding it back again would double-count. Instead this is
+ * derived straight from the fundamental double-entry identity (every
+ * balanced ledger satisfies delta-assets + delta-liabilities + delta-equity
+ * = net profit for any period), which guarantees Operating+Investing+
+ * Financing reconciles exactly to the ledger's own cash/bank account
+ * movement -- no third-party code copied, this is a from-first-principles
+ * derivation, not a ported ERPNext/Odoo cash-flow report.
+ */
+export async function cashFlowStatement(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const pnl = await profitAndLoss(ctx, fromDate, toDate, scope)
+
+  const openingCursor = new Date(fromDate)
+  openingCursor.setDate(openingCursor.getDate() - 1)
+  const openingDate = openingCursor.toISOString().slice(0, 10)
+
+  const [opening, closing] = await Promise.all([
+    accountBalancesInRange(ctx.orgId, null, openingDate, companyIds),
+    accountBalancesInRange(ctx.orgId, null, toDate, companyIds),
+  ])
+  const openingById = new Map(opening.map((b) => [b.accountId, b]))
+  const closingById = new Map(closing.map((b) => [b.accountId, b]))
+  const allIds = new Set([...openingById.keys(), ...closingById.keys()])
+
+  let cashChange = 0, receivableChange = 0, stockChange = 0, payableChange = 0, fixedAssetChange = 0, otherAssetChange = 0, otherLiabilityEquityChange = 0
+
+  for (const id of allIds) {
+    const o = openingById.get(id)
+    const c = closingById.get(id)
+    const ref = c ?? o!
+    if (ref.rootType !== "asset" && ref.rootType !== "liability" && ref.rootType !== "equity") continue // income/expense are already reflected in netProfit
+    const change = (c?.netBalance ?? 0) - (o?.netBalance ?? 0)
+    if (ref.accountType === "bank" || ref.accountType === "cash") cashChange += change
+    else if (ref.accountType === "receivable") receivableChange += change
+    else if (ref.accountType === "stock") stockChange += change
+    else if (ref.accountType === "fixed_asset") fixedAssetChange += change
+    else if (ref.accountType === "payable") payableChange += change
+    else if (ref.rootType === "asset") otherAssetChange += change
+    else otherLiabilityEquityChange += change
+  }
+
+  const operatingCashFlow = pnl.netProfit - receivableChange - stockChange - payableChange - otherAssetChange
+  const investingCashFlow = -fixedAssetChange
+  const financingCashFlow = -otherLiabilityEquityChange
+  const netChangeInCash = operatingCashFlow + investingCashFlow + financingCashFlow
+
+  return {
+    fromDate,
+    toDate,
+    netProfit: pnl.netProfit,
+    operating: { cashFlow: operatingCashFlow, receivableChange, stockChange, payableChange, otherWorkingCapitalChange: otherAssetChange },
+    investing: { cashFlow: investingCashFlow, fixedAssetChange },
+    financing: { cashFlow: financingCashFlow, otherLiabilityEquityChange },
+    netChangeInCash,
+    actualCashChange: cashChange,
+    // Tautological by the double-entry identity above rather than an
+    // independent audit signal like trialBalance/balanceSheet's own
+    // isBalanced -- false here would indicate a real data problem (an
+    // unbalanced ledger), not just a display rounding issue.
+    isBalanced: Math.abs(netChangeInCash - cashChange) < 0.01,
+  }
 }

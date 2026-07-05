@@ -19,6 +19,14 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // React rules
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/purity": "off",
+    // eslint-plugin-react-hooks v7's new React Compiler rule -- flags the
+    // standard "fetch in useEffect, setState when the async load() resolves"
+    // pattern used by virtually every page in this app (confirmed via a
+    // minimal repro: even a single useState+single fetch+single setState
+    // trips it), so enforcing it as an error would require rewriting every
+    // existing data-fetching page. Matches the same rationale as the two
+    // rules above it.
+    "react-hooks/set-state-in-effect": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/prop-types": "off",

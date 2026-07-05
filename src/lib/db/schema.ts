@@ -4659,3 +4659,51 @@ export const erpPurchaseReturnItems = complianceSchemaDB.table('erp_purchase_ret
   rate: numeric('rate').notNull().default('0'),
   reason: text('reason'),
 })
+
+// ─── Wave 70 (Budgeting) ──────────────────────────────────────────────────
+// Per COMPARISON_CSV_GAP_ANALYSIS.md (benchmarking VERIDIAN against a CSV
+// comparing Odoo/ERPNext/Zoho/SAP/Oracle/Dynamics feature-by-feature):
+// Finance>Budgeting was a complete, zero-schema gap -- every other Finance
+// submodule in that CSV (Fixed Assets, Taxation, Financial Reporting,
+// Period Closing) already existed. Deliberately reuses existing
+// dimensions rather than inventing new ones: a budget is scoped to an
+// existing erp_cost_centers row (or org-wide if null) and its line items
+// are annual totals against existing erp_accounts rows -- variance is
+// computed live against erp_journal_entry_lines (which already carries
+// cost_center_id since Wave 52), never a duplicated actuals ledger, matching
+// this codebase's established "read-time aggregation" precedent (PMS
+// budgets, Wave 28).
+export const erpBudgetActionEnum = complianceSchemaDB.enum('erp_budget_action', ['ignore', 'warn', 'stop'])
+export const erpBudgetStatusEnum = complianceSchemaDB.enum('erp_budget_status', ['draft', 'submitted', 'cancelled'])
+
+export const erpBudgets = complianceSchemaDB.table('erp_budgets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  fiscalYearId: text('fiscal_year_id').notNull(),
+  companyId: text('company_id'), // nullable -- Wave 67 precedent, null = whole org
+  costCenterId: text('cost_center_id'), // nullable -- budget can be scoped to one cost center or org-wide
+  name: text('name').notNull(),
+  actionIfExceeded: erpBudgetActionEnum('action_if_exceeded').notNull().default('warn'),
+  status: erpBudgetStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const erpBudgetLineItems = complianceSchemaDB.table('erp_budget_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  budgetId: text('budget_id').notNull(),
+  accountId: text('account_id').notNull(),
+  annualAmount: numeric('annual_amount').notNull().default('0'),
+})
+
+export const erpBudgetsRelations = relations(erpBudgets, ({ one, many }) => ({
+  fiscalYear: one(erpFiscalYears, { fields: [erpBudgets.fiscalYearId], references: [erpFiscalYears.id] }),
+  costCenter: one(erpCostCenters, { fields: [erpBudgets.costCenterId], references: [erpCostCenters.id] }),
+  lineItems: many(erpBudgetLineItems),
+}))
+export const erpBudgetLineItemsRelations = relations(erpBudgetLineItems, ({ one }) => ({
+  budget: one(erpBudgets, { fields: [erpBudgetLineItems.budgetId], references: [erpBudgets.id] }),
+  account: one(erpAccounts, { fields: [erpBudgetLineItems.accountId], references: [erpAccounts.id] }),
+}))

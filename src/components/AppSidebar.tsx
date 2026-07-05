@@ -113,6 +113,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
       title: "FINANCE",
       items: [
         { label: "Journal Entries", href: "/erp/journal-entries", icon: FileText },
+        { label: "Budgeting", href: "/erp/budgets", icon: Wallet },
         { label: "Financial Reports", href: "/erp/reports", icon: TrendingUp },
         { label: "Cash Management", href: "/erp/cash-management", icon: Banknote },
         { label: "Credit Notes", href: "/erp/credit-notes", icon: FileMinus },

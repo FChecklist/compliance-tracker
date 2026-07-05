@@ -30,6 +30,17 @@ export default function ErpReportsPage() {
   const [tb, setTb] = useState<{ accounts: AccountRow[]; totalDebit: number; totalCredit: number; isBalanced: boolean } | null>(null);
   const [pnl, setPnl] = useState<{ income: AccountRow[]; expense: AccountRow[]; totalIncome: number; totalExpense: number; netProfit: number } | null>(null);
   const [bs, setBs] = useState<{ assets: AccountRow[]; liabilities: AccountRow[]; equity: AccountRow[]; totalAssets: number; totalLiabilities: number; totalEquity: number; isBalanced: boolean } | null>(null);
+  // Wave 70 addendum: Statement of Cash Flows (indirect method) -- see
+  // erp-financial-report-service.ts's cashFlowStatement() for the derivation.
+  const [cf, setCf] = useState<{
+    netProfit: number;
+    operating: { cashFlow: number; receivableChange: number; stockChange: number; payableChange: number; otherWorkingCapitalChange: number };
+    investing: { cashFlow: number; fixedAssetChange: number };
+    financing: { cashFlow: number; otherLiabilityEquityChange: number };
+    netChangeInCash: number;
+    actualCashChange: number;
+    isBalanced: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,13 +56,15 @@ export default function ErpReportsPage() {
           fetch(`/api/erp/reports/trial-balance?asOfDate=${asOfDate}${companyParams}`),
           fetch(`/api/erp/reports/profit-and-loss?fromDate=${fromDate}&toDate=${toDate}${companyParams}`),
           fetch(`/api/erp/reports/balance-sheet?asOfDate=${asOfDate}${companyParams}`),
+          fetch(`/api/erp/reports/cash-flow?fromDate=${fromDate}&toDate=${toDate}${companyParams}`),
         ]);
       })
-      .then(([tbRes, pnlRes, bsRes]) => Promise.all([tbRes.json(), pnlRes.json(), bsRes.json()]))
-      .then(([tbData, pnlData, bsData]) => {
+      .then(([tbRes, pnlRes, bsRes, cfRes]) => Promise.all([tbRes.json(), pnlRes.json(), bsRes.json(), cfRes.json()]))
+      .then(([tbData, pnlData, bsData, cfData]) => {
         setTb(tbData);
         setPnl(pnlData);
         setBs(bsData);
+        setCf(cfData);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -93,6 +106,7 @@ export default function ErpReportsPage() {
             <TabsTrigger value="tb">Trial Balance</TabsTrigger>
             <TabsTrigger value="pnl">Profit &amp; Loss</TabsTrigger>
             <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
+            <TabsTrigger value="cf">Cash Flow</TabsTrigger>
           </TabsList>
 
           <TabsContent value="tb">
@@ -156,6 +170,37 @@ export default function ErpReportsPage() {
             <Card className="rounded-xl shadow-card bg-white mt-4"><CardContent className="p-4 flex justify-between items-center">
               <span className="font-heading text-lg text-ct-navy">Assets = Liabilities + Equity</span>
               {bs?.isBalanced ? <Badge className="bg-green-100 text-green-700">Balanced</Badge> : <Badge className="bg-red-100 text-red-700">Out of balance</Badge>}
+            </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="cf">
+            <div className="grid md:grid-cols-3 gap-4">
+              <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-4 space-y-2">
+                <h3 className="font-medium text-ct-navy mb-2">Operating Activities</h3>
+                <div className="flex justify-between text-xs"><span>Net Profit</span><span>{fmt(cf?.netProfit ?? 0)}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Receivables</span><span>{fmt(-(cf?.operating.receivableChange ?? 0))}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Stock</span><span>{fmt(-(cf?.operating.stockChange ?? 0))}</span></div>
+                <div className="flex justify-between text-xs"><span>Change in Payables</span><span>{fmt(-(cf?.operating.payableChange ?? 0))}</span></div>
+                <div className="flex justify-between text-xs"><span>Other Working Capital</span><span>{fmt(-(cf?.operating.otherWorkingCapitalChange ?? 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Operating Cash Flow</span><span>{fmt(cf?.operating.cashFlow ?? 0)}</span></div>
+              </CardContent></Card>
+              <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-4 space-y-2">
+                <h3 className="font-medium text-ct-navy mb-2">Investing Activities</h3>
+                <div className="flex justify-between text-xs"><span>Change in Fixed Assets</span><span>{fmt(-(cf?.investing.fixedAssetChange ?? 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Investing Cash Flow</span><span>{fmt(cf?.investing.cashFlow ?? 0)}</span></div>
+              </CardContent></Card>
+              <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-4 space-y-2">
+                <h3 className="font-medium text-ct-navy mb-2">Financing Activities</h3>
+                <div className="flex justify-between text-xs"><span>Other Liabilities &amp; Equity</span><span>{fmt(-(cf?.financing.otherLiabilityEquityChange ?? 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-ct-navy font-medium pt-2"><span>Net Financing Cash Flow</span><span>{fmt(cf?.financing.cashFlow ?? 0)}</span></div>
+              </CardContent></Card>
+            </div>
+            <Card className="rounded-xl shadow-card bg-white mt-4"><CardContent className="p-4 flex justify-between items-center">
+              <span className="font-heading text-lg text-ct-navy">Net Change in Cash</span>
+              <div className="flex items-center gap-3">
+                <span className={`font-heading text-xl ${(cf?.netChangeInCash ?? 0) >= 0 ? "text-ct-teal" : "text-red-600"}`}>{fmt(cf?.netChangeInCash ?? 0)}</span>
+                {cf?.isBalanced ? <Badge className="bg-green-100 text-green-700">Reconciled</Badge> : <Badge className="bg-red-100 text-red-700">Unreconciled</Badge>}
+              </div>
             </CardContent></Card>
           </TabsContent>
         </Tabs>

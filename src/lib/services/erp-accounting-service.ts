@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, users } from "@/lib/db"
+import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql, desc, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -116,6 +116,30 @@ export async function createCostCenter(ctx: ErpContext, input: CostCenterInput) 
     }).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_cost_center.created", entityType: "erp_cost_center", entityId: cc.id })
     return cc
+  })
+}
+
+// Wave 70 (Budgeting): erp_fiscal_years has existed since Wave 49 (read by
+// erp-financial-report-service.ts's period generator) but had no
+// list/create service or route -- there was genuinely no way for an org to
+// create one through the app. listCostCenters/createCostCenter above is
+// the direct template.
+export async function listFiscalYears(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpFiscalYears.findMany({ where: eq(erpFiscalYears.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.startDate) })
+  })
+}
+
+export type FiscalYearInput = { yearName: string; startDate: string; endDate: string }
+
+export async function createFiscalYear(ctx: ErpContext, input: FiscalYearInput) {
+  if (!input.yearName?.trim()) throw new ServiceError("yearName is required", 400)
+  if (!input.startDate || !input.endDate) throw new ServiceError("startDate and endDate are required", 400)
+  if (input.endDate <= input.startDate) throw new ServiceError("endDate must be after startDate", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [fy] = await db.insert(erpFiscalYears).values({ orgId: ctx.orgId, yearName: input.yearName, startDate: input.startDate, endDate: input.endDate }).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_fiscal_year.created", entityType: "erp_fiscal_year", entityId: fy.id })
+    return fy
   })
 }
 
