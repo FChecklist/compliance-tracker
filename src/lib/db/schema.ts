@@ -3480,6 +3480,10 @@ export const erpItems = complianceSchemaDB.table('erp_items', {
   standardSellingRate: numeric('standard_selling_rate'),
   standardBuyingRate: numeric('standard_buying_rate'),
   isActive: boolean('is_active').notNull().default(true),
+  // Wave 57 (VERI ERP gap-fill, Tier 3 #12): opt-in flags -- most items
+  // track neither; batch/serial rows are only created when these are set.
+  hasBatchNo: boolean('has_batch_no').notNull().default(false),
+  hasSerialNo: boolean('has_serial_no').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -3495,10 +3499,20 @@ export const erpStockLedgerEntries = complianceSchemaDB.table('erp_stock_ledger_
   postingDate: date('posting_date', { mode: 'string' }).notNull(),
   voucherType: text('voucher_type').notNull(), // 'purchase_receipt'|'delivery_note'|'stock_reconciliation'
   voucherId: text('voucher_id').notNull(),
-  quantityChange: numeric('quantity_change').notNull(),
+  quantityChange: numeric('quantity_change').notNull(), // always in the item's stock UOM -- the single source of truth for valuation
   valuationRate: numeric('valuation_rate').notNull().default('0'),
   balanceQty: numeric('balance_qty').notNull(),
   balanceValue: numeric('balance_value').notNull(),
+  // Wave 57: as-entered UOM/qty when a receipt/issue was recorded in an
+  // alternate UOM (e.g. "2 Box"), for display/traceability only --
+  // quantityChange above is always already converted to stock UOM.
+  transactionUom: text('transaction_uom'),
+  transactionQty: numeric('transaction_qty'),
+  // Batch/serial are traceability metadata on the movement, not a
+  // per-batch FIFO redesign -- valuation continues at the item-warehouse
+  // level (see erp-inventory-service.ts for the reasoning).
+  batchId: text('batch_id'),
+  serialId: text('serial_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -4172,4 +4186,56 @@ export const erpPayslipsRelations = relations(erpPayslips, ({ one, many }) => ({
 export const erpPayslipLinesRelations = relations(erpPayslipLines, ({ one }) => ({
   payslip: one(erpPayslips, { fields: [erpPayslipLines.payslipId], references: [erpPayslips.id] }),
   component: one(erpSalaryComponents, { fields: [erpPayslipLines.componentId], references: [erpSalaryComponents.id] }),
+}))
+
+// ─── Wave 57: Multi-UOM Conversion + Batch/Serial Tracking ───────────────
+// Tier 3 #12 on ERP_BENCHMARK_COMPARISON.md's ranking. Items previously
+// had a single free-text UOM with no conversion path (can't buy in
+// "Box" and issue in "Nos"), and no batch/expiry or serial tracking at
+// all -- a real blocker for any distribution/trading or regulated-goods
+// client. Batch/serial are traceability metadata on stock movements, not
+// a per-batch FIFO redesign -- valuation continues at the item-warehouse
+// level (see erp-inventory-service.ts for the reasoning).
+export const erpItemSerialStatusEnum = complianceSchemaDB.enum('erp_item_serial_status', ['in_stock', 'delivered', 'returned'])
+
+export const erpItemUomConversions = complianceSchemaDB.table('erp_item_uom_conversions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull().references(() => erpItems.id),
+  uom: text('uom').notNull(), // the alternate UOM name, e.g. 'Box'
+  conversionFactor: numeric('conversion_factor').notNull(), // how many stock-UOM units equal 1 of this alternate UOM
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpItemBatches = complianceSchemaDB.table('erp_item_batches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull().references(() => erpItems.id),
+  batchNumber: text('batch_number').notNull(),
+  manufacturingDate: date('manufacturing_date', { mode: 'string' }),
+  expiryDate: date('expiry_date', { mode: 'string' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpItemSerials = complianceSchemaDB.table('erp_item_serials', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  itemId: text('item_id').notNull().references(() => erpItems.id),
+  serialNumber: text('serial_number').notNull(),
+  status: erpItemSerialStatusEnum('status').notNull().default('in_stock'),
+  warehouseId: text('warehouse_id').references(() => erpWarehouses.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const erpItemUomConversionsRelations = relations(erpItemUomConversions, ({ one }) => ({
+  item: one(erpItems, { fields: [erpItemUomConversions.itemId], references: [erpItems.id] }),
+}))
+
+export const erpItemBatchesRelations = relations(erpItemBatches, ({ one }) => ({
+  item: one(erpItems, { fields: [erpItemBatches.itemId], references: [erpItems.id] }),
+}))
+
+export const erpItemSerialsRelations = relations(erpItemSerials, ({ one }) => ({
+  item: one(erpItems, { fields: [erpItemSerials.itemId], references: [erpItems.id] }),
+  warehouse: one(erpWarehouses, { fields: [erpItemSerials.warehouseId], references: [erpWarehouses.id] }),
 }))

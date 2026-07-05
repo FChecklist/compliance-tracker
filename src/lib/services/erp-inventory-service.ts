@@ -7,12 +7,13 @@
 // stock_queue approach) and computes the true weighted cost of the
 // consumed quantity as this issue's valuation_rate, rather than
 // accepting an arbitrary caller-supplied number.
-import { erpItems, erpWarehouses, erpStockLedgerEntries, erpStockValuationLayers, users } from "@/lib/db"
+import { erpItems, erpWarehouses, erpStockLedgerEntries, erpStockValuationLayers, erpItemBatches, users } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, asc, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { convertToStockUom } from "./erp-uom-batch-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -27,7 +28,13 @@ async function currentBalance(db: TenantDb, itemId: string, warehouseId: string)
   return { qty: Number(row?.qty ?? 0), value: Number(row?.value ?? 0) }
 }
 
-export type StockReceiptInput = { itemId: string; warehouseId: string; quantity: number; rate: number; postingDate: string; voucherType: string; voucherId: string }
+export type StockReceiptInput = {
+  itemId: string; warehouseId: string; quantity: number; rate: number; postingDate: string; voucherType: string; voucherId: string
+  // Wave 57: optional alternate-UOM entry (converted to stock UOM before
+  // posting) and batch metadata -- both purely additive, existing callers
+  // that omit them behave exactly as before.
+  uom?: string; batchNumber?: string; expiryDate?: string
+}
 
 /** Records a stock receipt and opens a new FIFO layer for it. */
 export async function recordStockReceipt(ctx: ErpContext, input: StockReceiptInput) {
@@ -40,20 +47,32 @@ export async function recordStockReceipt(ctx: ErpContext, input: StockReceiptInp
     const warehouse = await db.query.erpWarehouses.findFirst({ where: and(eq(erpWarehouses.id, input.warehouseId), eq(erpWarehouses.orgId, ctx.orgId)) })
     if (!warehouse) throw new ServiceError("Warehouse not found", 404)
 
+    const stockQty = await convertToStockUom(db, ctx.orgId, input.itemId, input.uom, input.quantity)
+
+    let batchId: string | undefined
+    if (item.hasBatchNo) {
+      if (!input.batchNumber?.trim()) throw new ServiceError("This item requires a batch number", 400)
+      const [batch] = await db.insert(erpItemBatches).values({
+        orgId: ctx.orgId, itemId: input.itemId, batchNumber: input.batchNumber, expiryDate: input.expiryDate,
+      }).returning()
+      batchId = batch.id
+    }
+
     const before = await currentBalance(db, input.itemId, input.warehouseId)
-    const newQty = before.qty + input.quantity
-    const newValue = before.value + input.quantity * input.rate
+    const newQty = before.qty + stockQty
+    const newValue = before.value + stockQty * input.rate
 
     const [entry] = await db.insert(erpStockLedgerEntries).values({
       orgId: ctx.orgId, itemId: input.itemId, warehouseId: input.warehouseId, postingDate: input.postingDate,
       voucherType: input.voucherType, voucherId: input.voucherId,
-      quantityChange: input.quantity.toString(), valuationRate: input.rate.toString(),
+      quantityChange: stockQty.toString(), valuationRate: input.rate.toString(),
       balanceQty: newQty.toString(), balanceValue: newValue.toString(),
+      transactionUom: input.uom, transactionQty: input.uom ? input.quantity.toString() : undefined, batchId,
     }).returning()
 
     await db.insert(erpStockValuationLayers).values({
       orgId: ctx.orgId, itemId: input.itemId, warehouseId: input.warehouseId, stockLedgerEntryId: entry.id,
-      receiptDate: input.postingDate, originalQty: input.quantity.toString(), remainingQty: input.quantity.toString(), rate: input.rate.toString(),
+      receiptDate: input.postingDate, originalQty: stockQty.toString(), remainingQty: stockQty.toString(), rate: input.rate.toString(),
     })
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
@@ -61,7 +80,10 @@ export async function recordStockReceipt(ctx: ErpContext, input: StockReceiptInp
   })
 }
 
-export type StockIssueInput = { itemId: string; warehouseId: string; quantity: number; postingDate: string; voucherType: string; voucherId: string }
+export type StockIssueInput = {
+  itemId: string; warehouseId: string; quantity: number; postingDate: string; voucherType: string; voucherId: string
+  uom?: string // Wave 57: optional alternate-UOM entry, converted to stock UOM before posting
+}
 
 /**
  * Records a stock issue, consuming FIFO layers oldest-first. The
@@ -73,6 +95,8 @@ export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) 
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const issueQty = await convertToStockUom(db, ctx.orgId, input.itemId, input.uom, input.quantity)
+
     const layers = await db.query.erpStockValuationLayers.findMany({
       where: and(
         eq(erpStockValuationLayers.orgId, ctx.orgId),
@@ -84,11 +108,11 @@ export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) 
     })
 
     const available = layers.reduce((sum, l) => sum + Number(l.remainingQty), 0)
-    if (available < input.quantity) {
-      throw new ServiceError(`Insufficient stock: ${available} available, ${input.quantity} requested`, 409)
+    if (available < issueQty) {
+      throw new ServiceError(`Insufficient stock: ${available} available, ${issueQty} requested`, 409)
     }
 
-    let remainingToConsume = input.quantity
+    let remainingToConsume = issueQty
     let totalCost = 0
     for (const layer of layers) {
       if (remainingToConsume <= 0) break
@@ -99,17 +123,18 @@ export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) 
       await db.update(erpStockValuationLayers).set({ remainingQty: (layerQty - consumeQty).toString() }).where(eq(erpStockValuationLayers.id, layer.id))
     }
 
-    const weightedRate = totalCost / input.quantity
+    const weightedRate = totalCost / issueQty
 
     const before = await currentBalance(db, input.itemId, input.warehouseId)
-    const newQty = before.qty - input.quantity
+    const newQty = before.qty - issueQty
     const newValue = before.value - totalCost
 
     const [entry] = await db.insert(erpStockLedgerEntries).values({
       orgId: ctx.orgId, itemId: input.itemId, warehouseId: input.warehouseId, postingDate: input.postingDate,
       voucherType: input.voucherType, voucherId: input.voucherId,
-      quantityChange: (-input.quantity).toString(), valuationRate: weightedRate.toString(),
+      quantityChange: (-issueQty).toString(), valuationRate: weightedRate.toString(),
       balanceQty: newQty.toString(), balanceValue: newValue.toString(),
+      transactionUom: input.uom, transactionQty: input.uom ? input.quantity.toString() : undefined,
     }).returning()
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_stock.issued", entityType: "erp_stock_ledger_entry", entityId: entry.id })
