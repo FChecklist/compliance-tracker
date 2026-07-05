@@ -3165,6 +3165,18 @@ export const erpJournalEntryLines = complianceSchemaDB.table('erp_journal_entry_
   costCenterId: text('cost_center_id'), // Wave 52: real dimension FK -> erp_cost_centers, additive alongside the legacy text field
   clientId: text('client_id'), // nullable -- client-billable entries link back to VERIDIAN's own clients table
   remark: text('remark'),
+  // Wave 66: debit/credit above remain the ALWAYS-populated base-currency
+  // amounts -- the single source of truth every financial report already
+  // sums, never redefined. These 4 columns are an optional transaction-
+  // currency audit trail, populated only when this line originates from a
+  // non-base-currency document (e.g. a foreign-currency sales/purchase
+  // invoice): currencyId (-> erp_currencies), the exchangeRate applied at
+  // posting time, and the as-entered debit/credit in that currency before
+  // conversion to base.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate'),
+  debitInCurrency: numeric('debit_in_currency'),
+  creditInCurrency: numeric('credit_in_currency'),
 })
 
 export const erpPaymentEntries = complianceSchemaDB.table('erp_payment_entries', {
@@ -3193,6 +3205,17 @@ export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
   postingDate: date('posting_date', { mode: 'string' }).notNull(),
   dueDate: date('due_date', { mode: 'string' }),
   currencyId: text('currency_id'),
+  // currencyId (above) was Wave 49 schema-only scaffolding with zero
+  // consumer until now. Wave 66 wires it: when set, subtotal/taxAmount/
+  // grandTotal/outstandingAmount below are in THIS transaction currency
+  // (unchanged meaning for the common case where currencyId is null --
+  // those amounts are simply the org's base currency, exchangeRate 1, same
+  // as every invoice created before this wave). exchangeRate is the
+  // currencyId -> org-base-currency rate, snapshotted at invoice-creation
+  // time (never re-fetched later, so a later rate change never rewrites a
+  // submitted invoice's GL posting) -- submitSalesInvoice multiplies by it
+  // to post the correct base-currency journal entry.
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   subtotal: numeric('subtotal').notNull().default('0'),
   taxAmount: numeric('tax_amount').notNull().default('0'),
   grandTotal: numeric('grand_total').notNull().default('0'),
@@ -3230,6 +3253,8 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   postingDate: date('posting_date', { mode: 'string' }).notNull(),
   dueDate: date('due_date', { mode: 'string' }),
   currencyId: text('currency_id'),
+  // See erpSalesInvoices' identical currencyId/exchangeRate comment (Wave 66).
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   subtotal: numeric('subtotal').notNull().default('0'),
   taxAmount: numeric('tax_amount').notNull().default('0'),
   grandTotal: numeric('grand_total').notNull().default('0'),

@@ -17,7 +17,7 @@
 // explicit input for what's genuinely ambiguous" discipline used for
 // PF/ESI/PT vs. TDS in Wave 56.
 import {
-  erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts,
+  erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts, erpCurrencies,
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
   users,
@@ -127,6 +127,20 @@ export async function resolveItemPrice(
   return { rate: Math.max(discounted, 0), appliedRuleId: best.id }
 }
 
+// Wave 66: currencyId/exchangeRate are optional together -- omitting both
+// means "org base currency", exactly matching every invoice created before
+// this wave (exchangeRate stored as 1). Supplying currencyId without an
+// exchangeRate is refused rather than guessed, since an FX rate can't be
+// safely inferred (the same "require explicit input for what's genuinely
+// ambiguous" discipline as Wave 56's PF/ESI/PT vs. TDS boundary).
+async function resolveInvoiceCurrency(db: TenantDb, orgId: string, currencyId: string | undefined, exchangeRate: number | undefined): Promise<{ currencyId: string | null; exchangeRate: number }> {
+  if (!currencyId) return { currencyId: null, exchangeRate: 1 }
+  if (!exchangeRate || exchangeRate <= 0) throw new ServiceError("exchangeRate is required (and must be positive) when currencyId is set", 400)
+  const currency = await db.query.erpCurrencies.findFirst({ where: and(eq(erpCurrencies.id, currencyId), eq(erpCurrencies.orgId, orgId)) })
+  if (!currency) throw new ServiceError("Currency not found", 404)
+  return { currencyId, exchangeRate }
+}
+
 async function findControlAccount(db: TenantDb, orgId: string, accountType: "receivable" | "payable") {
   const account = await db.query.erpAccounts.findFirst({ where: and(eq(erpAccounts.orgId, orgId), eq(erpAccounts.accountType, accountType)) })
   if (!account) throw new ServiceError(`No chart-of-accounts entry with accountType='${accountType}' found -- set one up in Journal Entries > Chart of Accounts first`, 409)
@@ -165,13 +179,14 @@ export async function listSalesInvoices(ctx: { orgId: string }) {
   })
 }
 
-export async function createSalesInvoice(ctx: ErpContext, input: { customerId: string; postingDate: string; dueDate?: string; items: SalesInvoiceItemInput[] }) {
+export async function createSalesInvoice(ctx: ErpContext, input: { customerId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; items: SalesInvoiceItemInput[] }) {
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.customerId), eq(erpCustomers.orgId, ctx.orgId)) })
     if (!customer) throw new ServiceError("Customer not found", 404)
+    const { currencyId, exchangeRate } = await resolveInvoiceCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
 
     const resolvedItems: (SalesInvoiceItemInput & { quantity: number; rate: number; hsnSacCode: string | null })[] = []
     for (const item of input.items) {
@@ -191,8 +206,8 @@ export async function createSalesInvoice(ctx: ErpContext, input: { customerId: s
 
     const [invoice] = await db.insert(erpSalesInvoices).values({
       orgId: ctx.orgId, customerId: input.customerId, invoiceNumber: Number(maxNumber) + 1,
-      postingDate: input.postingDate, dueDate: input.dueDate, subtotal: subtotal.toString(),
-      taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
+      postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(),
+      subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
       createdById: ctx.userId,
     }).returning()
 
@@ -219,17 +234,27 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
     const receivableAccount = await findControlAccount(db, ctx.orgId, "receivable")
     const { taxByAccount } = await computeInvoiceTotals(db, invoice.items.map((i) => ({ quantity: Number(i.quantity), rate: Number(i.rate), taxTemplateId: i.taxTemplateId ?? undefined })))
 
+    // Wave 66: invoice.subtotal/taxAmount/grandTotal are transaction-currency
+    // amounts (base currency when invoice.currencyId is null, exchangeRate
+    // 1 -- unchanged behavior for every invoice created before this wave).
+    // The GL always posts in base currency, using the exchangeRate
+    // snapshotted at invoice-creation time -- never re-fetched here.
+    const rate = Number(invoice.exchangeRate)
+    const baseGrandTotal = Number(invoice.grandTotal) * rate
+    const baseSubtotal = Number(invoice.subtotal) * rate
+    const currencyAudit = invoice.currencyId ? { currencyId: invoice.currencyId, exchangeRate: invoice.exchangeRate } : {}
+
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpJournalEntries.entryNumber}), 0)` }).from(erpJournalEntries).where(eq(erpJournalEntries.orgId, ctx.orgId))
     const [je] = await db.insert(erpJournalEntries).values({
       orgId: ctx.orgId, entryNumber: Number(maxNumber) + 1, postingDate: invoice.postingDate,
       referenceType: "sales_invoice", referenceId: invoiceId, userRemark: `Sales Invoice #${invoice.invoiceNumber}`,
-      status: "submitted", totalDebit: invoice.grandTotal, totalCredit: invoice.grandTotal, createdById: ctx.userId, submittedAt: new Date(),
+      status: "submitted", totalDebit: baseGrandTotal.toString(), totalCredit: baseGrandTotal.toString(), createdById: ctx.userId, submittedAt: new Date(),
     }).returning()
 
     const lines = [
-      { journalEntryId: je.id, accountId: receivableAccount.id, partyType: "customer" as const, partyId: invoice.customerId, debit: invoice.grandTotal, credit: "0" },
-      { journalEntryId: je.id, accountId: input.revenueAccountId, debit: "0", credit: invoice.subtotal },
-      ...Array.from(taxByAccount.entries()).map(([accountId, amount]) => ({ journalEntryId: je.id, accountId, debit: "0", credit: amount.toString() })),
+      { journalEntryId: je.id, accountId: receivableAccount.id, partyType: "customer" as const, partyId: invoice.customerId, debit: baseGrandTotal.toString(), credit: "0", debitInCurrency: invoice.currencyId ? invoice.grandTotal : undefined, ...currencyAudit },
+      { journalEntryId: je.id, accountId: input.revenueAccountId, debit: "0", credit: baseSubtotal.toString(), creditInCurrency: invoice.currencyId ? invoice.subtotal : undefined, ...currencyAudit },
+      ...Array.from(taxByAccount.entries()).map(([accountId, amount]) => ({ journalEntryId: je.id, accountId, debit: "0", credit: (amount * rate).toString(), creditInCurrency: invoice.currencyId ? amount.toString() : undefined, ...currencyAudit })),
     ]
     await db.insert(erpJournalEntryLines).values(lines)
 
@@ -251,13 +276,14 @@ export async function listPurchaseInvoices(ctx: { orgId: string }) {
   })
 }
 
-export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; postingDate: string; dueDate?: string; items: PurchaseInvoiceItemInput[] }) {
+export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; items: PurchaseInvoiceItemInput[] }) {
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, input.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
     if (!supplier) throw new ServiceError("Supplier not found", 404)
+    const { currencyId, exchangeRate } = await resolveInvoiceCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
 
     const resolvedItems: (PurchaseInvoiceItemInput & { quantity: number; hsnSacCode: string | null })[] = []
     for (const item of input.items) {
@@ -269,8 +295,8 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
 
     const [invoice] = await db.insert(erpPurchaseInvoices).values({
       orgId: ctx.orgId, supplierId: input.supplierId, invoiceNumber: Number(maxNumber) + 1,
-      postingDate: input.postingDate, dueDate: input.dueDate, subtotal: subtotal.toString(),
-      taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
+      postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(),
+      subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
       createdById: ctx.userId,
     }).returning()
 
@@ -297,17 +323,24 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     const payableAccount = await findControlAccount(db, ctx.orgId, "payable")
     const { taxByAccount } = await computeInvoiceTotals(db, invoice.items.map((i) => ({ quantity: Number(i.quantity), rate: Number(i.rate), taxTemplateId: i.taxTemplateId ?? undefined })))
 
+    // See submitSalesInvoice's identical Wave 66 comment -- same base-
+    // currency conversion using the invoice's snapshotted exchangeRate.
+    const rate = Number(invoice.exchangeRate)
+    const baseGrandTotal = Number(invoice.grandTotal) * rate
+    const baseSubtotal = Number(invoice.subtotal) * rate
+    const currencyAudit = invoice.currencyId ? { currencyId: invoice.currencyId, exchangeRate: invoice.exchangeRate } : {}
+
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpJournalEntries.entryNumber}), 0)` }).from(erpJournalEntries).where(eq(erpJournalEntries.orgId, ctx.orgId))
     const [je] = await db.insert(erpJournalEntries).values({
       orgId: ctx.orgId, entryNumber: Number(maxNumber) + 1, postingDate: invoice.postingDate,
       referenceType: "purchase_invoice", referenceId: invoiceId, userRemark: `Purchase Invoice #${invoice.invoiceNumber}`,
-      status: "submitted", totalDebit: invoice.grandTotal, totalCredit: invoice.grandTotal, createdById: ctx.userId, submittedAt: new Date(),
+      status: "submitted", totalDebit: baseGrandTotal.toString(), totalCredit: baseGrandTotal.toString(), createdById: ctx.userId, submittedAt: new Date(),
     }).returning()
 
     const lines = [
-      { journalEntryId: je.id, accountId: input.expenseAccountId, debit: invoice.subtotal, credit: "0" },
-      ...Array.from(taxByAccount.entries()).map(([accountId, amount]) => ({ journalEntryId: je.id, accountId, debit: amount.toString(), credit: "0" })), // input tax recoverable -- debited
-      { journalEntryId: je.id, accountId: payableAccount.id, partyType: "supplier" as const, partyId: invoice.supplierId, debit: "0", credit: invoice.grandTotal },
+      { journalEntryId: je.id, accountId: input.expenseAccountId, debit: baseSubtotal.toString(), credit: "0", debitInCurrency: invoice.currencyId ? invoice.subtotal : undefined, ...currencyAudit },
+      ...Array.from(taxByAccount.entries()).map(([accountId, amount]) => ({ journalEntryId: je.id, accountId, debit: (amount * rate).toString(), credit: "0", debitInCurrency: invoice.currencyId ? amount.toString() : undefined, ...currencyAudit })), // input tax recoverable -- debited
+      { journalEntryId: je.id, accountId: payableAccount.id, partyType: "supplier" as const, partyId: invoice.supplierId, debit: "0", credit: baseGrandTotal.toString(), creditInCurrency: invoice.currencyId ? invoice.grandTotal : undefined, ...currencyAudit },
     ]
     await db.insert(erpJournalEntryLines).values(lines)
 

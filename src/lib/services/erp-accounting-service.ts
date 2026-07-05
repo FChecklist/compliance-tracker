@@ -8,9 +8,9 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, users } from "@/lib/db"
+import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, sql, desc, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
@@ -29,6 +29,18 @@ export type JournalEntryLineInput = {
   costCenterId?: string
   clientId?: string
   remark?: string
+  // Wave 66: debit/credit above are ALWAYS the base-currency amount, and
+  // remain mandatory -- this codebase never lets the caller skip supplying
+  // the base amount, matching the "automate what's safely automatable,
+  // require explicit input for what's genuinely ambiguous" discipline (an
+  // FX rate can't be safely inferred). These 4 fields are an optional
+  // transaction-currency audit trail only; the caller (UI) is responsible
+  // for having already computed debit/credit = debitInCurrency/
+  // creditInCurrency * exchangeRate before calling this service.
+  currencyId?: string
+  exchangeRate?: number
+  debitInCurrency?: number
+  creditInCurrency?: number
 }
 
 export type JournalEntryInput = {
@@ -178,6 +190,10 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
         costCenterId: l.costCenterId,
         clientId: l.clientId,
         remark: l.remark,
+        currencyId: l.currencyId,
+        exchangeRate: l.exchangeRate?.toString(),
+        debitInCurrency: l.debitInCurrency?.toString(),
+        creditInCurrency: l.creditInCurrency?.toString(),
       }))
     )
 
@@ -223,5 +239,78 @@ export async function markJournalEntrySubmittedFromApproval(ctx: { orgId: string
     const [updated] = await db.update(erpJournalEntries).set({ status: "submitted", submittedAt: new Date() }).where(and(eq(erpJournalEntries.id, entryId), eq(erpJournalEntries.orgId, ctx.orgId))).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.approved_and_submitted", entityType: "erp_journal_entry", entityId: entryId })
     return updated
+  })
+}
+
+// ============================================================
+// Wave 66: Currencies + Exchange Rates -- erp_currencies/erp_exchange_rates
+// have existed since Wave 49 with zero service-layer consumer until now.
+// An org must set up its currency list here before any invoice/journal
+// entry line can reference a non-base currency.
+// ============================================================
+
+export async function listCurrencies(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpCurrencies.findMany({ where: eq(erpCurrencies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.code) })
+  })
+}
+
+export type CurrencyInput = { code: string; name: string; symbol?: string; isBaseCurrency?: boolean }
+
+export async function createCurrency(ctx: ErpContext, input: CurrencyInput) {
+  if (!input.code?.trim()) throw new ServiceError("code is required", 400)
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    // Only one base currency per org -- unset any existing one first,
+    // rather than leaving two rows both claiming isBaseCurrency=true.
+    if (input.isBaseCurrency) {
+      await db.update(erpCurrencies).set({ isBaseCurrency: false }).where(and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.isBaseCurrency, true)))
+    }
+    const [currency] = await db.insert(erpCurrencies).values({
+      orgId: ctx.orgId, code: input.code.toUpperCase(), name: input.name, symbol: input.symbol,
+      isBaseCurrency: input.isBaseCurrency ?? false,
+    }).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_currency.created", entityType: "erp_currency", entityId: currency.id })
+    return currency
+  })
+}
+
+export async function listExchangeRates(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpExchangeRates.findMany({ where: eq(erpExchangeRates.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.rateDate) })
+  })
+}
+
+export type ExchangeRateInput = { fromCurrencyId: string; toCurrencyId: string; rate: number; rateDate: string }
+
+export async function createExchangeRate(ctx: ErpContext, input: ExchangeRateInput) {
+  if (!input.fromCurrencyId || !input.toCurrencyId) throw new ServiceError("fromCurrencyId and toCurrencyId are required", 400)
+  if (!input.rate || input.rate <= 0) throw new ServiceError("rate must be a positive number", 400)
+  if (!input.rateDate) throw new ServiceError("rateDate is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [rate] = await db.insert(erpExchangeRates).values({
+      orgId: ctx.orgId, fromCurrencyId: input.fromCurrencyId, toCurrencyId: input.toCurrencyId,
+      rate: input.rate.toString(), rateDate: input.rateDate,
+    }).returning()
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_exchange_rate.created", entityType: "erp_exchange_rate", entityId: rate.id })
+    return rate
+  })
+}
+
+/**
+ * Convenience lookup for the invoicing/journal-entry UI to suggest a
+ * starting rate -- the most recent rate on or before the given date. Never
+ * auto-applied to a document; createSalesInvoice/createPurchaseInvoice/
+ * createJournalEntry always require an explicit exchangeRate, since a
+ * stale or wrong suggested rate silently accepted would be a real risk.
+ */
+export async function getLatestExchangeRate(ctx: { orgId: string }, fromCurrencyId: string, toCurrencyId: string, asOfDate: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.erpExchangeRates.findFirst({
+      where: and(eq(erpExchangeRates.orgId, ctx.orgId), eq(erpExchangeRates.fromCurrencyId, fromCurrencyId), eq(erpExchangeRates.toCurrencyId, toCurrencyId), lte(erpExchangeRates.rateDate, asOfDate)),
+      orderBy: (t, { desc }) => desc(t.rateDate),
+    })
   })
 }

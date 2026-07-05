@@ -23,9 +23,10 @@ type Supplier = { id: string; supplierName: string };
 type Item = { id: string; itemCode: string; itemName: string; standardSellingRate: string | null };
 type Account = { id: string; accountName: string; accountType: string | null; rootType: string };
 type TaxTemplate = { id: string; name: string; items: { rate: string }[] };
-type Invoice = { id: string; invoiceNumber: number; postingDate: string; status: string; subtotal: string; taxAmount: string; grandTotal: string; customer?: { customerName: string }; supplier?: { supplierName: string } };
+type Invoice = { id: string; invoiceNumber: number; postingDate: string; status: string; subtotal: string; taxAmount: string; grandTotal: string; currencyId: string | null; exchangeRate: string; customer?: { customerName: string }; supplier?: { supplierName: string } };
 type PricingRule = { id: string; name: string; appliesTo: string; targetId: string | null; discountType: string; discountValue: string; validFrom: string; validTo: string | null; priority: number };
 type LineItem = { itemId: string; description: string; quantity: string; rate: string; taxTemplateId: string };
+type Currency = { id: string; code: string; name: string; symbol: string | null; isBaseCurrency: boolean };
 
 const STATUS_COLORS: Record<string, string> = { draft: "bg-ct-cloud text-ct-muted", submitted: "bg-green-100 text-green-700", partially_paid: "bg-amber-100 text-amber-700", paid: "bg-green-100 text-green-700", overdue: "bg-red-100 text-red-700", cancelled: "bg-red-100 text-red-700" };
 
@@ -40,6 +41,7 @@ export default function ErpInvoicingPage() {
   const [salesInvoices, setSalesInvoices] = useState<Invoice[]>([]);
   const [purchaseInvoices, setPurchaseInvoices] = useState<Invoice[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -47,6 +49,8 @@ export default function ErpInvoicingPage() {
   const [siCustomerId, setSiCustomerId] = useState("");
   const [siDate, setSiDate] = useState(new Date().toISOString().slice(0, 10));
   const [siItems, setSiItems] = useState<LineItem[]>([emptyLine()]);
+  const [siCurrencyId, setSiCurrencyId] = useState("");
+  const [siExchangeRate, setSiExchangeRate] = useState("1");
   const [creatingSi, setCreatingSi] = useState(false);
   const [siSubmitRevenueAccount, setSiSubmitRevenueAccount] = useState<Record<string, string>>({});
 
@@ -54,8 +58,17 @@ export default function ErpInvoicingPage() {
   const [piSupplierId, setPiSupplierId] = useState("");
   const [piDate, setPiDate] = useState(new Date().toISOString().slice(0, 10));
   const [piItems, setPiItems] = useState<LineItem[]>([emptyLine()]);
+  const [piCurrencyId, setPiCurrencyId] = useState("");
+  const [piExchangeRate, setPiExchangeRate] = useState("1");
   const [creatingPi, setCreatingPi] = useState(false);
   const [piSubmitExpenseAccount, setPiSubmitExpenseAccount] = useState<Record<string, string>>({});
+
+  const [curOpen, setCurOpen] = useState(false);
+  const [curCode, setCurCode] = useState("");
+  const [curName, setCurName] = useState("");
+  const [curSymbol, setCurSymbol] = useState("");
+  const [curIsBase, setCurIsBase] = useState(false);
+  const [creatingCur, setCreatingCur] = useState(false);
 
   const [prOpen, setPrOpen] = useState(false);
   const [prName, setPrName] = useState("");
@@ -76,10 +89,10 @@ export default function ErpInvoicingPage() {
     Promise.all([
       fetch("/api/erp/selling/customers"), fetch("/api/erp/buying/suppliers"), fetch("/api/erp/stock/items"),
       fetch("/api/erp/accounts"), fetch("/api/erp/tax-templates"), fetch("/api/erp/sales-invoices"),
-      fetch("/api/erp/purchase-invoices"), fetch("/api/erp/pricing-rules"),
+      fetch("/api/erp/purchase-invoices"), fetch("/api/erp/pricing-rules"), fetch("/api/erp/currencies"),
     ])
       .then((responses) => Promise.all(responses.map((r) => r.json())))
-      .then(([custData, supData, itemData, accData, taxData, siData, piData, prData]) => {
+      .then(([custData, supData, itemData, accData, taxData, siData, piData, prData, curData]) => {
         setCustomers(custData.customers ?? []);
         setSuppliers(supData.suppliers ?? []);
         setItems(itemData.items ?? []);
@@ -88,6 +101,7 @@ export default function ErpInvoicingPage() {
         setSalesInvoices(siData.invoices ?? []);
         setPurchaseInvoices(piData.invoices ?? []);
         setPricingRules(prData.rules ?? []);
+        setCurrencies(curData.currencies ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -97,6 +111,7 @@ export default function ErpInvoicingPage() {
 
   const receivableAccounts = accounts.filter((a) => a.rootType === "income" || a.accountType === "receivable");
   const payableAccounts = accounts.filter((a) => a.rootType === "expense" || a.accountType === "payable");
+  const currencyCode = (id: string | null) => (id ? currencies.find((c) => c.id === id)?.code ?? "" : "");
 
   const createSalesInvoice = async () => {
     setCreatingSi(true);
@@ -104,12 +119,13 @@ export default function ErpInvoicingPage() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customerId: siCustomerId, postingDate: siDate,
+        currencyId: siCurrencyId || undefined, exchangeRate: siCurrencyId ? Number(siExchangeRate) || undefined : undefined,
         items: siItems.filter((i) => i.description).map((i) => ({ itemId: i.itemId || undefined, description: i.description, quantity: Number(i.quantity) || 1, rate: i.rate ? Number(i.rate) : undefined, taxTemplateId: i.taxTemplateId || undefined })),
       }),
     });
     setCreatingSi(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create sales invoice"); return; }
-    setSiOpen(false); setSiItems([emptyLine()]);
+    setSiOpen(false); setSiItems([emptyLine()]); setSiCurrencyId(""); setSiExchangeRate("1");
     toast.success("Sales invoice created as draft");
     load();
   };
@@ -131,12 +147,13 @@ export default function ErpInvoicingPage() {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         supplierId: piSupplierId, postingDate: piDate,
+        currencyId: piCurrencyId || undefined, exchangeRate: piCurrencyId ? Number(piExchangeRate) || undefined : undefined,
         items: piItems.filter((i) => i.description).map((i) => ({ itemId: i.itemId || undefined, description: i.description, quantity: Number(i.quantity) || 1, rate: Number(i.rate) || 0, taxTemplateId: i.taxTemplateId || undefined })),
       }),
     });
     setCreatingPi(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create purchase invoice"); return; }
-    setPiOpen(false); setPiItems([emptyLine()]);
+    setPiOpen(false); setPiItems([emptyLine()]); setPiCurrencyId(""); setPiExchangeRate("1");
     toast.success("Purchase invoice created as draft");
     load();
   };
@@ -178,6 +195,19 @@ export default function ErpInvoicingPage() {
     load();
   };
 
+  const createCurrency = async () => {
+    setCreatingCur(true);
+    const res = await fetch("/api/erp/currencies", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: curCode, name: curName, symbol: curSymbol || undefined, isBaseCurrency: curIsBase }),
+    });
+    setCreatingCur(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create currency"); return; }
+    setCurOpen(false); setCurCode(""); setCurName(""); setCurSymbol(""); setCurIsBase(false);
+    toast.success("Currency saved");
+    load();
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -191,6 +221,7 @@ export default function ErpInvoicingPage() {
           <TabsTrigger value="purchase">Purchase Invoices</TabsTrigger>
           <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
           <TabsTrigger value="tax">Tax Templates</TabsTrigger>
+          <TabsTrigger value="currencies">Currencies</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sales" className="space-y-3">
@@ -208,6 +239,17 @@ export default function ErpInvoicingPage() {
                       </Select>
                     </div>
                     <div><Label>Posting Date</Label><Input type="date" value={siDate} onChange={(e) => setSiDate(e.target.value)} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Currency (optional -- leave blank for base currency)</Label>
+                      <Select value={siCurrencyId || "__base__"} onValueChange={(v) => setSiCurrencyId(v === "__base__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Base currency" /></SelectTrigger>
+                        <SelectContent><SelectItem value="__base__">Base currency</SelectItem>{currencies.map((c) => <SelectItem key={c.id} value={c.id}>{c.code} -- {c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {siCurrencyId && (
+                      <div><Label>Exchange Rate (to base currency)</Label><Input type="number" step="0.0001" value={siExchangeRate} onChange={(e) => setSiExchangeRate(e.target.value)} placeholder="e.g. 83.25" /></div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Line Items (leave rate blank to auto-price from item + pricing rules)</Label>
@@ -244,7 +286,7 @@ export default function ErpInvoicingPage() {
                     : salesInvoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-ct-row-hover">
                         <td className="p-3">{inv.invoiceNumber}</td><td className="p-3">{inv.customer?.customerName ?? "—"}</td><td className="p-3">{inv.postingDate}</td>
-                        <td className="p-3 text-right">{Number(inv.grandTotal).toFixed(2)}</td>
+                        <td className="p-3 text-right">{Number(inv.grandTotal).toFixed(2)}{inv.currencyId ? ` ${currencyCode(inv.currencyId)}` : ""}</td>
                         <td className="p-3"><Badge className={STATUS_COLORS[inv.status] ?? ""}>{inv.status}</Badge></td>
                         <td className="p-3">
                           {inv.status === "draft" && (
@@ -281,6 +323,17 @@ export default function ErpInvoicingPage() {
                     </div>
                     <div><Label>Posting Date</Label><Input type="date" value={piDate} onChange={(e) => setPiDate(e.target.value)} /></div>
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Currency (optional -- leave blank for base currency)</Label>
+                      <Select value={piCurrencyId || "__base__"} onValueChange={(v) => setPiCurrencyId(v === "__base__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Base currency" /></SelectTrigger>
+                        <SelectContent><SelectItem value="__base__">Base currency</SelectItem>{currencies.map((c) => <SelectItem key={c.id} value={c.id}>{c.code} -- {c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    {piCurrencyId && (
+                      <div><Label>Exchange Rate (to base currency)</Label><Input type="number" step="0.0001" value={piExchangeRate} onChange={(e) => setPiExchangeRate(e.target.value)} placeholder="e.g. 83.25" /></div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <Label>Line Items</Label>
                     {piItems.map((it, i) => (
@@ -316,7 +369,7 @@ export default function ErpInvoicingPage() {
                     : purchaseInvoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-ct-row-hover">
                         <td className="p-3">{inv.invoiceNumber}</td><td className="p-3">{inv.supplier?.supplierName ?? "—"}</td><td className="p-3">{inv.postingDate}</td>
-                        <td className="p-3 text-right">{Number(inv.grandTotal).toFixed(2)}</td>
+                        <td className="p-3 text-right">{Number(inv.grandTotal).toFixed(2)}{inv.currencyId ? ` ${currencyCode(inv.currencyId)}` : ""}</td>
                         <td className="p-3"><Badge className={STATUS_COLORS[inv.status] ?? ""}>{inv.status}</Badge></td>
                         <td className="p-3">
                           {inv.status === "draft" && (
@@ -438,6 +491,42 @@ export default function ErpInvoicingPage() {
                 <tbody className="divide-y divide-ct-border">
                   {taxTemplates.length === 0 ? <tr><td colSpan={2} className="p-6 text-center text-ct-muted">No tax templates yet.</td></tr>
                     : taxTemplates.map((t) => <tr key={t.id} className="hover:bg-ct-row-hover"><td className="p-3">{t.name}</td><td className="p-3">{t.items.reduce((sum, i) => sum + Number(i.rate), 0)}%</td></tr>)}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="currencies" className="space-y-3">
+          <div className="flex justify-end">
+            <Dialog open={curOpen} onOpenChange={setCurOpen}>
+              <DialogTrigger asChild><Button className="bg-ct-teal hover:bg-ct-teal-hover text-white"><Plus className="w-4 h-4 mr-1" />New Currency</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>New Currency</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Code (ISO 4217)</Label><Input value={curCode} onChange={(e) => setCurCode(e.target.value.toUpperCase())} placeholder="e.g. USD" maxLength={3} /></div>
+                    <div><Label>Symbol</Label><Input value={curSymbol} onChange={(e) => setCurSymbol(e.target.value)} placeholder="e.g. $" /></div>
+                  </div>
+                  <div><Label>Name</Label><Input value={curName} onChange={(e) => setCurName(e.target.value)} placeholder="e.g. US Dollar" /></div>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={curIsBase} onChange={(e) => setCurIsBase(e.target.checked)} />Set as base currency (unsets any existing base currency)</label>
+                </div>
+                <DialogFooter><Button onClick={createCurrency} disabled={creatingCur || !curCode || !curName} className="bg-ct-teal hover:bg-ct-teal-hover text-white">{creatingCur && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Save</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <Card className="rounded-xl shadow-card bg-white">
+            <CardContent className="p-0">
+              <table className="w-full text-xs">
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Code</th><th className="p-3 font-medium">Name</th><th className="p-3 font-medium">Symbol</th><th className="p-3 font-medium">Base?</th></tr></thead>
+                <tbody className="divide-y divide-ct-border">
+                  {currencies.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">No currencies configured yet -- an org must set these up before invoicing in a non-base currency.</td></tr>
+                    : currencies.map((c) => (
+                      <tr key={c.id} className="hover:bg-ct-row-hover">
+                        <td className="p-3">{c.code}</td><td className="p-3">{c.name}</td><td className="p-3">{c.symbol ?? "—"}</td>
+                        <td className="p-3">{c.isBaseCurrency ? <Badge className="bg-green-100 text-green-700">Base</Badge> : ""}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </CardContent>
