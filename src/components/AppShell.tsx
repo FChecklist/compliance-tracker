@@ -20,6 +20,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [unreadAiCount, setUnreadAiCount] = useState(0);
   const [pmsEnabled, setPmsEnabled] = useState(false);
+  const [orgName, setOrgName] = useState("");
 
   useEffect(() => {
     fetch("/api/compliance/stats")
@@ -34,6 +35,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .then((d) => {
         setAccountType(d.orgAccountType ?? "company");
         setPmsEnabled(d.pmsEnabled ?? false);
+        setOrgName(d.orgName ?? "");
       })
       .catch(() => {});
 
@@ -61,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <AppTopbar />
       <HealthRibbon />
       <div className="flex flex-1 overflow-hidden">
-        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} />
+        <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} orgName={orgName} />
         <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream", !dockHidden && "pb-28 md:pb-32")}>
           <OnboardingChecklist />
           <TrialBanner />
