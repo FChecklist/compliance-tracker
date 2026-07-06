@@ -897,6 +897,13 @@ export const moduleRegistry = complianceSchemaDB.table('module_registry', {
 // would need either a nullable orgId (breaking that table's existing RLS
 // invariant) or a fake sentinel-org row (an anti-pattern this codebase has
 // explicitly avoided elsewhere, see Wave 6's "first org in the DB" bug fix).
+// Wave 106 (Master AI OS): promoted from a bare catalog to a real product
+// catalog -- the platform now has ~20 branchKey rows (3 live + office +
+// ~16 future verticals), most of which don't exist yet, so the catalog
+// itself needs to carry "is this live, and how big a build is it" rather
+// than that living only in a separate doc that will drift. See
+// MASTER_AI_OS_ARCHITECTURE.md for the full rules this table's columns
+// encode.
 export const productBranches = complianceSchemaDB.table('product_branches', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   branchKey: text('branch_key').notNull().unique(), // 'grc' today; 'sales' | 'hr' | 'scm' | ... in future Phase D branches
@@ -904,6 +911,20 @@ export const productBranches = complianceSchemaDB.table('product_branches', {
   domain: text('domain').notNull(),
   description: text('description'),
   isActive: boolean('is_active').notNull().default(true),
+  tagline: text('tagline'), // marketing one-liner, e.g. "Run every marketplace from one place"
+  icon: text('icon'), // lucide-react icon name string -- matches how AppSidebar.tsx already imports icons by name; no new asset-management surface
+  // 'live' | 'building' | 'planned' -- deliberately text, not a Postgres
+  // enum: webhookEventEnum needing expansion for new event types was real
+  // friction elsewhere in this codebase, and this column WILL grow new
+  // values (e.g. 'deprecated') as the catalog matures. Validated at the
+  // service layer, same posture as moduleRegistry.category.
+  status: text('status').notNull().default('planned'),
+  launchOrder: integer('launch_order').notNull().default(999), // display ordering only
+  parentDomain: text('parent_domain'), // nullable, pure UI grouping (e.g. group procurement/distribution/export_import under an "ERP Family" heading) -- free text by convention like moduleRegistry.domain, not a real FK hierarchy
+  // 'repackage' | 'moderate_build' | 'ground_up' -- encodes the build-tier
+  // classification from MASTER_AI_OS_ARCHITECTURE.md directly in the
+  // catalog so it's queryable and can't drift out of sync with the doc.
+  buildTier: text('build_tier'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
