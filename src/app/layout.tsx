@@ -18,24 +18,42 @@ const dmSerifDisplay = DM_Serif_Display({
 });
 
 export const metadata: Metadata = {
-  title: "VERIDIAN AI — AI-Native Compliance & Audit Operating System",
+  // Repositioned 2026-07-06 with the new landing page: VERIDIAN is sold as
+  // ONE complete business system run by your AI assistant — not a
+  // compliance/audit tool. This title is the browser tab, the search-result
+  // headline, and every link preview, so it must carry the same message.
+  title: "VERIDIAN AI — Your Complete Business, Run by Your AI Assistant",
   description:
-    "Never miss a compliance deadline. AI extracts data from your notice PDFs, tracks filings, and calculates penalties in seconds. The single source of truth for Indian compliance.",
+    "One SAP-class system of 50+ modules — finance, sales, CRM, HR, operations, compliance — driven end to end by your own AI assistant. Tell it what to do. Consider it done. 10× productivity, save 2× what you spend.",
   keywords: [
     "VERIDIAN AI",
+    "AI assistant for business",
+    "AI business system",
+    "all-in-one business software",
+    "AI ERP",
+    "accounting software",
+    "CRM",
+    "HR and payroll software",
+    "inventory management",
     "compliance",
-    "GST",
-    "TDS",
-    "MCA",
-    "AI compliance",
-    "audit management",
-    "penalty calculator",
-    "compliance OS",
-    "regulatory",
-    "deadline tracking",
-    "audit",
+    "business automation",
+    "AI for SMB India",
   ],
   icons: { icon: "/logo-mark.svg" },
+  openGraph: {
+    title: "VERIDIAN AI — Tell it what to do. Consider it done.",
+    description:
+      "The complete system your company runs on — 50+ modules, one bill, operated for you by your own AI assistant. No other software needed.",
+    url: "https://veridian-ai-os.vercel.app",
+    siteName: "VERIDIAN AI",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VERIDIAN AI — Tell it what to do. Consider it done.",
+    description:
+      "One complete business system — finance, sales, CRM, HR, operations, compliance — run by your AI assistant. 10× productivity, 2× savings.",
+  },
 };
 
 export default function RootLayout({
