@@ -42,6 +42,16 @@ const WORKING_STEPS = [
   "Pulling together what needs your attention…",
 ];
 
+// Day one (first-minute experience, 2026-07-06): a brand-new org has nothing
+// due or overdue, so the compliance-scan language above would ring hollow.
+// For a first run the assistant narrates its own onboarding instead — the
+// same promise the landing page sells ("50+ modules, run by your assistant").
+const FIRST_RUN_STEPS = [
+  "Setting up your workspace…",
+  "Switching on your 50+ modules…",
+  "Your assistant is reporting for duty…",
+];
+
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -67,6 +77,7 @@ export default function HomePage() {
 
   const [workingStep, setWorkingStep] = useState(0);
   const [briefingReady, setBriefingReady] = useState(false);
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -97,7 +108,7 @@ export default function HomePage() {
 
   const loadMessages = useCallback((id: string) => {
     fetch(`/api/conversations/${id}/messages`).then((r) => r.json())
-      .then((d) => setMessages(d.messages ?? [])).catch(() => {});
+      .then((d) => { setMessages(d.messages ?? []); setMessagesLoaded(true); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -152,16 +163,36 @@ export default function HomePage() {
   const dueSoon = stats?.dueIn30Days ?? stats?.dueThisWeek ?? 0;
   const safe = stats?.safe ?? stats?.completed ?? 0;
 
-  const briefingLine = overdue > 0
-    ? `I've gone through everything. ${overdue} ${overdue === 1 ? "thing needs" : "things need"} your attention — I've flagged them for you. The rest is on track, and I'm keeping an eye on it.`
-    : `I've gone through everything and you're in good shape — nothing overdue. I'll keep watch and let you know the moment anything needs you.`;
+  // First-minute experience: a brand-new user has an empty org and only the
+  // seeded welcome message (senderId null) in their thread. For them the
+  // whole screen speaks day-one language — the assistant introduces itself
+  // and offers first tasks — instead of a compliance briefing full of zeros.
+  const firstRun =
+    messagesLoaded &&
+    messages.length <= 1 &&
+    messages.every((m) => m.senderId === null) &&
+    stats !== null &&
+    (stats.total ?? 0) === 0;
 
-  const suggestions = [
-    "What should I focus on today?",
-    "Show me what's overdue",
-    "Summarise this week for me",
-    "Draft a reply to my latest notice",
-  ];
+  const briefingLine = firstRun
+    ? `All set — your complete office is live. Finance, sales, CRM, HR, operations, compliance: one system, and I run it for you. Tell me what you need in plain words, or pick something below to see me work.`
+    : overdue > 0
+      ? `I've gone through everything. ${overdue} ${overdue === 1 ? "thing needs" : "things need"} your attention — I've flagged them for you. The rest is on track, and I'm keeping an eye on it.`
+      : `I've gone through everything and you're in good shape — nothing overdue. I'll keep watch and let you know the moment anything needs you.`;
+
+  const suggestions = firstRun
+    ? [
+        "Give me a 2-minute tour",
+        "What can you take off my plate today?",
+        "Add my first customer",
+        "Help me raise my first invoice",
+      ]
+    : [
+        "What should I focus on today?",
+        "Show me what's overdue",
+        "Summarise this week for me",
+        "Draft a reply to my latest notice",
+      ];
 
   return (
     <ResizablePanelGroup
@@ -191,22 +222,36 @@ export default function HomePage() {
               {!briefingReady ? (
                 <div className="flex items-center gap-3 text-sm text-ct-slate">
                   <Loader2 className="size-4 animate-spin text-ct-saffron" />
-                  <span>{WORKING_STEPS[workingStep]}</span>
+                  <span>{(firstRun ? FIRST_RUN_STEPS : WORKING_STEPS)[workingStep]}</span>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <p className="text-[15px] leading-relaxed text-ct-navy">{briefingLine}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Link href="/compliance?status=overdue" className="group inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors">
-                      {overdue} needs you <ArrowRight className="size-3 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    </Link>
-                    <Link href="/compliance" className="group inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors">
-                      {dueSoon} coming up <ArrowRight className="size-3 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    </Link>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      {safe} on track
-                    </span>
-                  </div>
+                  {firstRun ? (
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        50+ modules live
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-ct-saffron/10 px-3 py-1 text-xs font-semibold text-ct-saffron">
+                        <Sparkles className="size-3" /> Your assistant: on duty
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-ct-cloud px-3 py-1 text-xs font-semibold text-ct-slate">
+                        You approve everything
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <Link href="/compliance?status=overdue" className="group inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors">
+                        {overdue} needs you <ArrowRight className="size-3 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+                      </Link>
+                      <Link href="/compliance" className="group inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors">
+                        {dueSoon} coming up <ArrowRight className="size-3 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+                      </Link>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        {safe} on track
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -245,8 +290,10 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Suggested openers */}
-            {messages.length === 0 && (
+            {/* Suggested openers — also shown on first run, where the only
+                message is the assistant's seeded welcome and these chips are
+                the user's first commands. */}
+            {(messages.length === 0 || firstRun) && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {suggestions.map((s) => (
                   <button key={s} type="button" onClick={() => send(s)} disabled={sending || !conversationId}

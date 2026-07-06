@@ -47,6 +47,27 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
       id: newConversationId, orgId: ctx.orgId, type: "ai", isAiThread: true, title: "VERIDIAN AI",
     })
     await db.insert(conversationParticipants).values({ conversationId: newConversationId, userId: ctx.userId })
+
+    // First-minute experience (2026-07-06): the landing page promises "every
+    // employee gets an assistant" -- so the assistant speaks FIRST. Seed a
+    // real, persisted welcome message (senderId null = VERI AI, same shape as
+    // every AI reply) the moment a user's thread is born, so their very first
+    // screen is their new assistant reporting for duty rather than an empty
+    // chat. Runs exactly once per user (only on the thread-create path).
+    const me = await db.query.users.findFirst({ where: eq(users.id, ctx.userId) })
+    const first = me?.name?.trim().split(/\s+/)[0]
+    await db.insert(messages).values({
+      conversationId: newConversationId,
+      senderId: null,
+      content:
+        `Hi${first ? ` ${first}` : ""} — I'm **VERIDIAN**, your new assistant, reporting for work. 👋\n\n` +
+        `Your workspace is set up and all your modules are switched on — finance, sales, CRM, HR, operations, compliance. From today, you tell me what you need in plain words, and I do it.\n\n` +
+        `Three easy ways to start:\n` +
+        `1. **Give me a task** — "raise an invoice", "add my first customer", "set up payroll".\n` +
+        `2. **Ask me anything** about running your business.\n` +
+        `3. **Tell me one thing you do every week** that you'd love to never do again — I'll take it over.\n\n` +
+        `Nothing important happens without your yes — you approve, I do. What shall I take off your plate first?`,
+    })
     return newConversationId
   })
 }
