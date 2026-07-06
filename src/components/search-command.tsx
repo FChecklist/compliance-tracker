@@ -224,7 +224,7 @@ function SearchDialog() {
         }
       }}
       title="Search"
-      description="Search compliance items by title, department, or status."
+      description="Search across your business — records, documents, people, and more."
     >
       {/* Mode Tabs */}
       <div className="flex items-center gap-1 px-3 pt-2 pb-1">
@@ -257,7 +257,7 @@ function SearchDialog() {
       {mode === "standard" ? (
         <>
           <CommandInput
-            placeholder="Search compliance items..."
+            placeholder="Search…"
             value={query}
             onValueChange={setQuery}
           />
@@ -497,7 +497,7 @@ export function SearchTrigger() {
         onClick={() => openDialog?.()}
       >
         <Search className="size-4" />
-        <span className="hidden md:inline">Search compliance...</span>
+        <span className="hidden md:inline">Search</span>
         <kbd className="hidden lg:inline-flex items-center gap-0.5 ml-1 text-[10px] font-medium text-white/40 bg-white/10 rounded border border-white/10 px-1.5 py-0.5">
           <span className="text-xs">⌘</span>K
         </kbd>

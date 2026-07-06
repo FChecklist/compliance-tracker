@@ -151,7 +151,7 @@ export default function VeriAiPage() {
           {loading ? (
             <p className="text-sm text-ct-muted">Loading...</p>
           ) : messages.length === 0 ? (
-            <p className="text-sm text-ct-muted">Ask VERIDIAN AI anything about your compliance workspace.</p>
+            <p className="text-sm text-ct-muted">I&apos;m your VERIDIAN AI assistant — ask me anything about your business, or just tell me what to do.</p>
           ) : (
             messages.map((m) => <AiMessageBubble key={m.id} message={m} />)
           )}

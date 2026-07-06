@@ -121,11 +121,11 @@ export default function GlobalChatDock() {
                 send();
               }
             }}
-            placeholder="Tell VERIDIAN what to do…"
+            placeholder="Tell your AI Assistant what to do…"
             className="w-full bg-transparent text-sm text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[200px] overflow-y-auto"
           />
           <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[11px] text-ct-muted hidden sm:inline">VERI AI</span>
+            <span className="text-[11px] text-ct-muted hidden sm:inline">Your AI Assistant</span>
             <button
               type="button"
               onClick={send}

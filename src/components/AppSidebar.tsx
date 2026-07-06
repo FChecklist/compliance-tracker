@@ -91,18 +91,22 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: AlertTriangle,
           badge: overdueCount > 0 ? { count: overdueCount, color: "bg-red-500 text-white" } : undefined,
         },
-        // Only shown for accounts that serve more than one client (CA firm /
-        // legal firm / consultant) -- a plain 'company' account has exactly
-        // one, auto-backfilled "Self" client and no reason to see this.
+        // Clients view is only meaningful for accounts that serve more than
+        // one client (CA firm / legal firm / consultant); a plain 'company'
+        // account has one auto-backfilled "Self" client.
         ...(accountType !== "company"
-          ? [
-              { label: "VERI CUSTOMERS AI", href: "/clients", icon: Building2 },
-              // Wave 41 (CRM, PLATFORM_STRATEGY.md §20): a lead-to-client
-              // pipeline, gated identically to Clients -- a plain 'company'
-              // account has no clients to prospect for.
-              { label: "VERI CRM AI", href: "/crm", icon: TrendingUp },
-            ]
+          ? [{ label: "VERI CUSTOMERS AI", href: "/clients", icon: Building2 }]
           : []),
+      ],
+    },
+    // Wave 105 (demo UX feedback #12): CRM was previously hidden for plain
+    // 'company' accounts, so a company user never saw it. VERIDIAN AI is a
+    // full business system, not a client-firm tool -- every company runs
+    // sales/CRM. Now surfaced for everyone as its own department.
+    {
+      title: "SALES & CRM",
+      items: [
+        { label: "VERI CRM AI", href: "/crm", icon: TrendingUp },
       ],
     },
     // Only shown once an org enables the separate, opt-in VERIDIAN AI PMS
@@ -411,25 +415,25 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         <Link
           href="/home"
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors relative",
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/home")
               ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
               : "text-ct-navy hover:bg-ct-cloud"
           )}
         >
-          <LayoutDashboard className={cn("size-4 shrink-0", pathname.startsWith("/home") && "text-ct-saffron")} />
+          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname.startsWith("/home") && "text-ct-saffron")} />
           <span className="flex-1">Home</span>
         </Link>
         <Link
           href="/veri-ai"
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors relative",
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/veri-ai")
               ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
               : "text-ct-navy hover:bg-ct-cloud"
           )}
         >
-          <Bot className={cn("size-4 shrink-0", pathname.startsWith("/veri-ai") && "text-ct-saffron")} />
+          <Bot className={cn("size-3.5 shrink-0", pathname.startsWith("/veri-ai") && "text-ct-saffron")} />
           <span className="flex-1">VERI AI</span>
           {unreadAiCount > 0 && (
             <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
@@ -440,13 +444,13 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         <Link
           href="/chat"
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors relative",
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/chat")
               ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
               : "text-ct-navy hover:bg-ct-cloud"
           )}
         >
-          <MessageSquare className={cn("size-4 shrink-0", pathname.startsWith("/chat") && "text-ct-saffron")} />
+          <MessageSquare className={cn("size-3.5 shrink-0", pathname.startsWith("/chat") && "text-ct-saffron")} />
           <span className="flex-1">VERI Chat</span>
           {unreadChatCount > 0 && (
             <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
@@ -459,8 +463,8 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
         {sections.map((section) => (
-          <div key={section.title} className="mb-4">
-            <p className="px-3 mb-1.5 text-[10px] font-bold tracking-widest text-ct-muted uppercase">
+          <div key={section.title} className="mb-3">
+            <p className="px-3 mb-1 text-[9px] font-bold tracking-widest text-ct-muted uppercase">
               {section.title}
             </p>
             {section.items.map((item) => {
@@ -471,13 +475,13 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
                   key={item.href + item.label}
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5 relative",
+                    "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors mb-0.5 relative",
                     isActive
-                      ? "bg-ct-accent text-ct-saffron font-bold border-l-[3px] border-ct-saffron"
+                      ? "bg-ct-accent text-ct-saffron font-semibold border-l-[3px] border-ct-saffron"
                       : "text-ct-slate hover:bg-ct-cloud"
                   )}
                 >
-                  <item.icon className={cn("size-4 shrink-0", isActive && "text-ct-saffron")} />
+                  <item.icon className={cn("size-3.5 shrink-0", isActive && "text-ct-saffron")} />
                   <span className="flex-1">{item.label}</span>
                   {item.badge && (
                     <Badge
