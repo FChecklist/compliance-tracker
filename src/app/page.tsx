@@ -275,43 +275,56 @@ function Hero() {
         <div className="absolute top-40 -left-24 size-[380px] rounded-full bg-ct-teal/10 blur-3xl" />
       </div>
 
-      <div className="mx-auto max-w-6xl px-5 pt-16 pb-14 md:pt-24 md:pb-20 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
-          <span className="size-1.5 rounded-full bg-ct-teal" />
-          50+ modules · One SAP-class system · Run by your AI assistant
+      {/* Two-column hero (2026-07-06): the live agent window sits BESIDE the
+          headline so the product-is-the-advertisement plays above the fold —
+          a visitor watches VERIDIAN working before they scroll a pixel. The
+          earlier stacked layout hid it below the fold, and the first screen
+          read as unchanged marketing copy. */}
+      <div className="mx-auto max-w-6xl px-5 pt-12 pb-14 md:pt-16 md:pb-20">
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-12">
+          {/* the message */}
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
+              <span className="size-1.5 rounded-full bg-ct-teal" />
+              50+ modules · One SAP-class system · Run by your AI
+            </div>
+
+            <h1 className="mt-6 font-heading text-4xl leading-[1.08] text-ct-navy sm:text-5xl xl:text-6xl">
+              Tell it what to do.
+              <br />
+              <span className="text-ct-saffron">Consider it done.</span>
+            </h1>
+
+            <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
+              Unending deadlines, missed to-dos, follow-ups that never end — that&apos;s a software problem. VERIDIAN
+              gives your company a complete, enterprise-grade system —{" "}
+              <span className="font-semibold text-ct-navy">50+ modules, end to end</span> — driven entirely by your own
+              AI assistant. Watch it work&nbsp;→
+            </p>
+
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
+              <Link href="/signup">
+                <Button className="h-12 rounded-full bg-ct-saffron hover:bg-ct-saffron-hover px-7 text-base text-white shadow-saffron">
+                  Open your account <ArrowRight className="ml-1 size-4" />
+                </Button>
+              </Link>
+              <a href="#modules">
+                <Button variant="outline" className="h-12 rounded-full px-7 text-base border-ct-border text-ct-navy">
+                  See the 50+ modules
+                </Button>
+              </a>
+            </div>
+            <p className="mt-4 text-sm text-ct-muted">No credit card · Live in 2 minutes · 10× your team&apos;s output, or your money back</p>
+          </div>
+
+          {/* the proof — the product, working, above the fold */}
+          <div>
+            <AgentWindow />
+            <p className="mt-3 text-center text-sm text-ct-muted">
+              ↑ This is the actual screen your team sees — working, all day, for you.
+            </p>
+          </div>
         </div>
-
-        <h1 className="mt-6 font-heading text-4xl leading-[1.1] text-ct-navy sm:text-6xl">
-          Tell it what to do.
-          <br />
-          <span className="text-ct-saffron">Consider it done.</span>
-        </h1>
-
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-ct-slate">
-          Unending deadlines, missed to-dos, follow-ups that never end — that&apos;s not a people problem, it&apos;s a
-          software problem. VERIDIAN gives your company a complete, enterprise-grade system —{" "}
-          <span className="font-semibold text-ct-navy">50+ modules, end to end</span> — driven entirely by your own AI
-          assistant.
-        </p>
-
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link href="/signup">
-            <Button className="h-12 rounded-full bg-ct-saffron hover:bg-ct-saffron-hover px-7 text-base text-white shadow-saffron">
-              Open your account <ArrowRight className="ml-1 size-4" />
-            </Button>
-          </Link>
-          <a href="#modules">
-            <Button variant="outline" className="h-12 rounded-full px-7 text-base border-ct-border text-ct-navy">
-              See the 50+ modules
-            </Button>
-          </a>
-        </div>
-        <p className="mt-4 text-sm text-ct-muted">No credit card · Live in 2 minutes · 10× your team&apos;s output, or your money back</p>
-
-        {/* The product IS the advertisement: a live, auto-playing window of the
-            real Home/assistant screen running the whole business. */}
-        <AgentWindow />
-        <p className="mt-4 text-sm text-ct-muted">This is the actual screen your team sees — working, all day, for you.</p>
       </div>
     </section>
   );
@@ -378,7 +391,7 @@ function AgentWindow() {
   const complete = v >= sc.steps.length;
 
   return (
-    <div className="mx-auto mt-12 max-w-3xl">
+    <div className="mx-auto w-full max-w-2xl">
       <div className="rounded-2xl border border-ct-border bg-white shadow-card overflow-hidden text-left">
         {/* browser chrome */}
         <div className="flex items-center gap-2 border-b border-ct-border bg-ct-cloud px-4 py-2.5">
