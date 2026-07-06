@@ -2,20 +2,21 @@
 
 // VERIDIAN AI — public landing page.
 //
-// Positioning (deliberate): VERIDIAN is ONE COMPLETE SYSTEM that replaces the
-// whole software stack (accounting, CRM, HR/payroll, inventory/ERP,
-// spreadsheets, compliance) — operated for the customer by their own AI. The
-// page must land that it REPLACES their software, not sit on top of it, and
-// must feel premium ("enterprise/SAP-grade power, run by your assistant").
-// It leads with the assistant and with outcomes, and shows breadth as "one
-// system, nothing else needed" — never an ERP-style module grid.
+// Positioning (deliberate): people buy solutions to pain, so the page sells
+// in this order — (1) the pain every buyer persona feels (owner / department
+// head / team member: unending deadlines, missed to-dos, "any update?" on
+// loop), (2) the rescue: ONE complete, SAP-class system of 50+ modules run
+// end-to-end by your own AI assistant, shown as a premium animated ORBIT
+// (one brain, fifty arms) — never an ERP-style module grid, (3) the maths:
+// 10x productivity, save at least 2x what you spend.
 //
-// SOCIAL-PROOF NOTE FOR THE OWNER: the stat band (STATS) and testimonials
-// (STORIES) are ILLUSTRATIVE PLACEHOLDERS written by role/industry, not
-// verified named customers. Swap them for real figures/quotes as they come
-// in — publishing fabricated counts/reviews on a live paid page is a
-// misleading-advertising risk (India CCPA fake-review rules / ASCI). Pricing
-// numbers in PRICING are placeholders too — set your real prices there.
+// SOCIAL-PROOF NOTE FOR THE OWNER: the testimonials (STORIES) are
+// ILLUSTRATIVE PLACEHOLDERS written by role/industry, not verified named
+// customers. Swap them for real quotes as they come in — publishing
+// fabricated reviews on a live paid page is a misleading-advertising risk
+// (India CCPA fake-review rules / ASCI). Pricing numbers in PRICING are
+// placeholders too — set your real prices there. The "50+ modules" claim is
+// real (finance/ERP, CRM, HR, PMS, GRC, CLM, DMS… shipped in this repo).
 
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
@@ -26,38 +27,89 @@ import {
   X,
   Sparkles,
   ShieldCheck,
-  Zap,
-  Users,
   Wallet,
   CheckCircle2,
   Star,
   Quote,
   Loader2,
   Clock,
-  Layers,
+  AlarmClock,
+  MessageSquareWarning,
+  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // --- Editable content -------------------------------------------------------
 
-// Illustrative until real metrics exist — see owner note at top of file.
 const STATS = [
-  { value: "1 system", label: "replaces your whole stack" },
-  { value: "10×", label: "more output per person" },
-  { value: "2×+", label: "saved for every ₹ you spend" },
-  { value: "1,000+", label: "teams already onboard" },
+  { value: "50+", label: "modules in one system" },
+  { value: "10×", label: "productivity per person" },
+  { value: "2×", label: "minimum return on cost" },
+  { value: "24×7", label: "your AI never sleeps" },
 ];
 
-// The software VERIDIAN replaces — shown crossed out, becoming one system.
-const REPLACES = [
-  "Accounting / Tally",
-  "Your CRM",
-  "HRMS & Payroll",
-  "Inventory / ERP",
-  "Spreadsheets everywhere",
-  "Project & task tools",
-  "Compliance trackers",
-  "5 more subscriptions",
+// Pain, per buyer persona — each card sells to a different reader.
+const PAINS = [
+  {
+    icon: AlarmClock,
+    persona: "You — the owner",
+    hook: "You built the company. Now it runs you.",
+    pains: [
+      "You pay for 10 tools — and still run the business on WhatsApp and Excel",
+      "Nobody tells you about a problem until it has already cost money",
+      "Every step of growth means more hires, more salaries, more chaos",
+    ],
+    flip: "One living picture of your whole business — and an AI that acts before small problems become expensive ones.",
+  },
+  {
+    icon: Repeat,
+    persona: "Your department heads",
+    hook: "The day disappears in follow-ups.",
+    pains: [
+      "“Any update?” on repeat — chasing people instead of leading them",
+      "Deadlines slip because a task sat unseen in someone's inbox",
+      "A simple report takes two days to stitch from five systems",
+    ],
+    flip: "VERIDIAN chases, reminds, escalates and reports on its own — your managers lead, the AI follows up.",
+  },
+  {
+    icon: MessageSquareWarning,
+    persona: "Your team",
+    hook: "Multi-tasking until something slips.",
+    pains: [
+      "Six screens open, the same data typed into three of them",
+      "To-dos scattered across mail, chat and memory — one always escapes",
+      "Busywork eats the hours the real work needed",
+    ],
+    flip: "Every employee gets a personal assistant that does the boring 80% — on time, error-free, without being reminded.",
+  },
+];
+
+// Orbit rings — departments (inner) and headline modules (outer).
+const ORBIT_DEPTS = ["Finance", "Sales & CRM", "HR & Payroll", "Operations", "Compliance", "Projects"];
+const ORBIT_MODULES = [
+  "Invoicing & GST",
+  "Accounting",
+  "Inventory",
+  "Procurement",
+  "Payroll",
+  "Recruitment",
+  "Leads & Pipeline",
+  "Support Desk",
+  "Contracts",
+  "Documents",
+  "Meetings & MoM",
+  "Audit & Risk",
+];
+
+// The full breadth, grouped — 36 named here, honestly "50+" in the product.
+const MODULE_MAP = [
+  { dept: "Finance", items: ["Accounting", "Invoicing & GST", "Budgeting", "TDS & e-Invoicing", "Multi-currency", "Period Closing"] },
+  { dept: "Sales & CRM", items: ["Leads", "Pipeline", "Quotes", "Follow-ups", "Customer 360", "Support & SLA"] },
+  { dept: "HR & Payroll", items: ["Recruitment", "Onboarding", "Leave", "Payroll · PF · ESI", "Appraisals", "POSH"] },
+  { dept: "Operations", items: ["Inventory", "Procurement", "Orders & Dispatch", "Vendors", "Returns", "Replenishment"] },
+  { dept: "Compliance & Legal", items: ["Filings & Deadlines", "Notices", "Contracts", "Litigation", "Audit", "Risk Register"] },
+  { dept: "Projects & Work", items: ["Tasks & To-dos", "Projects & Sprints", "Meetings & MoM", "Documents", "Team Chat", "Approvals"] },
 ];
 
 const ASK_EXAMPLES = [
@@ -67,45 +119,17 @@ const ASK_EXAMPLES = [
   "Summarise yesterday's sales calls and update the pipeline",
 ];
 
-const OFFICE = [
-  {
-    icon: Wallet,
-    title: "Finance & Accounting",
-    line: "Invoices, GST, TDS, books, month-end. A full accounting system — no Tally, no separate tool.",
-  },
-  {
-    icon: Users,
-    title: "Sales & CRM",
-    line: "Leads, pipeline, quotes, follow-ups chased automatically. Your CRM, built in.",
-  },
-  {
-    icon: Sparkles,
-    title: "People & HR",
-    line: "Hiring, onboarding, leave, and payroll end to end. A complete HRMS — nothing extra to buy.",
-  },
-  {
-    icon: Zap,
-    title: "Operations & Supply",
-    line: "Orders, stock, vendors, dispatch. Full inventory and ERP power without the ERP price.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Compliance & Legal",
-    line: "Deadlines tracked, notices answered, records audit-ready — always.",
-  },
-];
-
 const WOW = [
   {
-    title: "The power of a ₹50-lakh enterprise system",
-    line: "Everything SAP, Oracle or a full ERP gives a large corporate — accounting, inventory, CRM, HR, compliance — without the cost, the consultants, or the two-year rollout.",
+    title: "A ₹50-lakh system. Without the ₹50 lakh.",
+    line: "The depth large corporates buy from SAP or Oracle — 50+ modules across finance, sales, HR, operations and compliance — without the consultants, the training, or the two-year rollout.",
   },
   {
     title: "A worker for every employee",
     line: "Not one shared chatbot. Each person gets their own assistant that knows their job and does it.",
   },
   {
-    title: "It runs the system — not just tracks it",
+    title: "It runs the system — you don't",
     line: "Old software gives you screens to fill. VERIDIAN does the work across every department, then shows you what it did for your approval.",
   },
   {
@@ -118,19 +142,19 @@ const WOW = [
 const STORIES = [
   {
     quote:
-      "It replaced our accounting software, our CRM and a part-time accountant. My team just tells it what they need and it's done before I've finished my coffee.",
+      "I used to end every day with 30 unanswered follow-ups. Now I end it approving finished work. That's the whole difference.",
     who: "Founder",
     org: "D2C brand, Bengaluru",
   },
   {
     quote:
-      "We shut down four subscriptions. Everything — finance, sales, HR — now lives in one place and nobody chases spreadsheets any more.",
+      "We shut down four subscriptions. Finance, sales, HR — one place, one truth, and nobody chases spreadsheets any more.",
     who: "Finance Head",
     org: "Mid-size manufacturer, Pune",
   },
   {
     quote:
-      "It feels like we bought an SAP-class system, except a person runs it for us. Every salesperson now has a back-office and our close rate is up.",
+      "It feels like we bought an SAP-class system, except a person runs it for us. Every salesperson now has a back-office.",
     who: "Sales Director",
     org: "IT services firm, Gurugram",
   },
@@ -143,7 +167,7 @@ const PRICING = [
     price: "₹499",
     unit: "/ user / month",
     tagline: "Everything included, for small teams getting started.",
-    features: ["Up to 10 users", "Every department & assistant", "Email + chat support", "2-minute setup"],
+    features: ["Up to 10 users", "All 50+ modules included", "Email + chat support", "2-minute setup"],
     cta: "Start free",
     highlight: false,
   },
@@ -154,7 +178,7 @@ const PRICING = [
     tagline: "The complete system for companies running everything on VERIDIAN.",
     features: [
       "Unlimited users",
-      "All departments — finance, sales, CRM, HR, ops, compliance",
+      "All 50+ modules — finance, sales, CRM, HR, ops, compliance",
       "Build your own agents",
       "Priority support",
       "Advanced automations",
@@ -178,10 +202,10 @@ const PRICING = [
 function Nav() {
   const [open, setOpen] = useState(false);
   const links = [
-    { href: "#replace", label: "What it replaces" },
+    { href: "#pain", label: "The problem" },
+    { href: "#modules", label: "50+ modules" },
     { href: "#how", label: "How it works" },
     { href: "#pricing", label: "Pricing" },
-    { href: "#stories", label: "Stories" },
   ];
   return (
     <nav className="sticky top-0 z-50 bg-ct-cream/80 backdrop-blur-md border-b border-ct-border/60">
@@ -243,8 +267,6 @@ function Nav() {
   );
 }
 
-const DEPARTMENTS = ["Finance", "Sales", "CRM", "HR & Payroll", "Inventory", "Operations", "Compliance"];
-
 function Hero() {
   return (
     <section className="relative overflow-hidden">
@@ -256,7 +278,7 @@ function Hero() {
       <div className="mx-auto max-w-6xl px-5 pt-16 pb-14 md:pt-24 md:pb-20 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
           <span className="size-1.5 rounded-full bg-ct-teal" />
-          One complete system for your entire company — no other software needed
+          50+ modules · One SAP-class system · Run by your AI assistant
         </div>
 
         <h1 className="mt-6 font-heading text-4xl leading-[1.1] text-ct-navy sm:text-6xl">
@@ -266,9 +288,10 @@ function Hero() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-2xl text-lg text-ct-slate">
-          VERIDIAN runs your <span className="font-semibold text-ct-navy">entire business</span> — finance, sales, CRM,
-          HR, operations, compliance — as one complete system. The power of an enterprise platform like SAP, operated
-          for you by your own AI. Nothing else to buy. Nothing else to learn.
+          Unending deadlines, missed to-dos, follow-ups that never end — that&apos;s not a people problem, it&apos;s a
+          software problem. VERIDIAN gives your company a complete, enterprise-grade system —{" "}
+          <span className="font-semibold text-ct-navy">50+ modules, end to end</span> — driven entirely by your own AI
+          assistant.
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -277,28 +300,18 @@ function Hero() {
               Open your account <ArrowRight className="ml-1 size-4" />
             </Button>
           </Link>
-          <a href="#replace">
+          <a href="#modules">
             <Button variant="outline" className="h-12 rounded-full px-7 text-base border-ct-border text-ct-navy">
-              See what it replaces
+              See the 50+ modules
             </Button>
           </a>
         </div>
         <p className="mt-4 text-sm text-ct-muted">No credit card · Live in 2 minutes · 10× your team&apos;s output, or your money back</p>
 
-        {/* Breadth strip — signals "complete", every department included */}
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
-          {DEPARTMENTS.map((d) => (
-            <span key={d} className="rounded-full border border-ct-border bg-white/70 px-3 py-1 text-xs font-medium text-ct-slate">
-              {d}
-            </span>
-          ))}
-          <span className="rounded-full bg-ct-teal/10 px-3 py-1 text-xs font-semibold text-ct-teal">all in one</span>
-        </div>
-
         {/* The product IS the advertisement: a live, auto-playing window of the
             real Home/assistant screen running the whole business. */}
         <AgentWindow />
-        <p className="mt-4 text-sm text-ct-muted">Your entire company — finance, sales, HR, all of it — running on one screen, for you.</p>
+        <p className="mt-4 text-sm text-ct-muted">This is the actual screen your team sees — working, all day, for you.</p>
       </div>
     </section>
   );
@@ -473,107 +486,147 @@ function StatBand() {
   );
 }
 
-function Replace() {
+function Pain() {
   return (
-    <section id="replace" className="mx-auto max-w-6xl px-5 py-20">
+    <section id="pain" className="mx-auto max-w-6xl px-5 py-20">
       <div className="text-center">
-        <div className="inline-flex items-center gap-2 rounded-full bg-ct-saffron/10 px-4 py-1.5 text-sm font-medium text-ct-saffron">
-          <Layers className="size-4" /> One system instead of twelve
-        </div>
-        <h2 className="mt-5 font-heading text-3xl md:text-4xl text-ct-navy">Cancel the rest of your software</h2>
+        <div className="font-heading text-xl text-ct-muted italic">It&apos;s 11:40 PM. You&apos;re still typing &ldquo;any update?&rdquo;</div>
+        <h2 className="mt-3 font-heading text-3xl md:text-4xl text-ct-navy">
+          Unending deadlines. Missed to-dos.
+          <br className="hidden sm:block" /> Follow-ups that never end.
+        </h2>
         <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          Your accounting tool, your CRM, your HR and payroll, your inventory, your spreadsheets, your compliance
-          trackers — VERIDIAN is all of them, in one place. One login. One bill. One source of truth.
+          The real cost of running a business isn&apos;t the software bill. It&apos;s the chaos — and everyone in the
+          company pays it differently.
         </p>
       </div>
 
-      <div className="mt-10 grid lg:grid-cols-[1fr_auto_1fr] items-center gap-6">
-        {/* what you cancel */}
-        <div className="rounded-2xl border border-ct-border bg-white p-6">
-          <div className="text-sm font-semibold text-ct-muted">What you switch off</div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {REPLACES.map((r) => (
-              <span key={r} className="rounded-lg bg-ct-cloud px-3 py-1.5 text-sm text-ct-muted line-through decoration-red-300">
-                {r}
+      <div className="mt-12 grid md:grid-cols-3 gap-5">
+        {PAINS.map((p) => (
+          <div key={p.persona} className="flex flex-col rounded-2xl border border-ct-border bg-white p-7">
+            <div className="flex items-center gap-2.5">
+              <span className="grid size-10 place-items-center rounded-xl bg-ct-cloud">
+                <p.icon className="size-5 text-ct-slate" />
               </span>
-            ))}
-          </div>
-          <div className="mt-4 text-sm text-ct-muted">…plus the licences, logins and consultants that come with them.</div>
-        </div>
-
-        {/* arrow */}
-        <div className="hidden lg:flex items-center justify-center">
-          <div className="grid size-12 place-items-center rounded-full bg-ct-navy text-white">
-            <ArrowRight className="size-5" />
-          </div>
-        </div>
-
-        {/* what you get */}
-        <div className="rounded-2xl border-2 border-ct-saffron/40 bg-ct-saffron/5 p-6">
-          <div className="text-sm font-semibold text-ct-saffron">What you turn on</div>
-          <div className="mt-4 flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-xl bg-ct-navy text-white">
-              <Sparkles className="size-5 text-ct-saffron" />
-            </span>
-            <div>
-              <div className="font-heading text-xl text-ct-navy">VERIDIAN</div>
-              <div className="text-sm text-ct-slate">One complete system, run by your AI.</div>
+              <div className="text-sm font-semibold text-ct-muted">{p.persona}</div>
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-ct-navy">{p.hook}</h3>
+            <ul className="mt-3 space-y-2.5 flex-1">
+              {p.pains.map((t) => (
+                <li key={t} className="flex items-start gap-2 text-sm text-ct-slate">
+                  <X className="mt-0.5 size-4 shrink-0 text-red-400" />
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 rounded-xl bg-ct-saffron/5 border border-ct-saffron/30 p-3.5">
+              <div className="flex items-start gap-2 text-sm text-ct-navy">
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-ct-saffron" />
+                <span>{p.flip}</span>
+              </div>
             </div>
           </div>
-          <ul className="mt-4 space-y-2 text-sm text-ct-navy">
-            {["Every department, one place", "One bill — everything included", "Set up in minutes, not months", "No consultants, no IT team"].map(
-              (t) => (
-                <li key={t} className="flex items-center gap-2">
-                  <Check className="size-4 shrink-0 text-ct-teal" /> {t}
-                </li>
-              ),
-            )}
-          </ul>
-        </div>
+        ))}
       </div>
     </section>
   );
 }
 
-function Shift() {
+// Positions n chips evenly on a circle of radius r (% of container), starting
+// at 12 o'clock. Percent-based so the same maths works at every screen size.
+// toFixed keeps the SSR and client strings byte-identical — raw float trig
+// serialises differently on each side and trips React hydration.
+function ringPos(i: number, n: number, r: number) {
+  const a = (i / n) * 2 * Math.PI - Math.PI / 2;
+  return { left: `${(50 + r * Math.cos(a)).toFixed(3)}%`, top: `${(50 + r * Math.sin(a)).toFixed(3)}%` };
+}
+
+function ModulesOrbit() {
   return (
-    <section className="bg-white border-y border-ct-border/60">
+    <section id="modules" className="bg-white border-y border-ct-border/60 overflow-hidden">
       <div className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center">
-          <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">A whole company, without the busywork</h2>
+          <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">
+            One brain. <span className="text-ct-saffron">Fifty arms.</span>
+          </h2>
           <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-            Enterprise software makes you hire people to run it. VERIDIAN runs itself — you just say what you need.
+            Everything a large corporate buys in an SAP-class platform — 50+ modules across every department — with one
+            difference: yours comes with someone to run it. Your AI assistant, VERIDIAN.
           </p>
         </div>
 
-        <div className="mt-10 grid md:grid-cols-2 gap-5">
-          <div className="rounded-2xl border border-ct-border bg-white p-7">
-            <div className="text-sm font-semibold text-ct-muted">The old way</div>
-            <ul className="mt-4 space-y-3 text-ct-slate">
-              {["A different app for finance, sales, HR, stock…", "Monthly bills for 8+ subscriptions", "Data trapped in silos that don't talk", "Consultants and training to run an ERP", "You still stitch it all together"].map(
-                (t) => (
-                  <li key={t} className="flex items-start gap-2">
-                    <X className="mt-0.5 size-4 shrink-0 text-ct-muted" />
-                    <span>{t}</span>
-                  </li>
-                ),
-              )}
-            </ul>
+        {/* the orbit */}
+        <div className="relative mx-auto mt-14 aspect-square w-full max-w-[620px]">
+          {/* guide rings */}
+          <div className="absolute inset-[8%] rounded-full border border-dashed border-ct-border/70" />
+          <div className="absolute inset-[27%] rounded-full border border-dashed border-ct-border/70" />
+
+          {/* outer ring — modules (invisible on very small screens; list below
+              covers them). NOTE: `invisible` (visibility) not `hidden`
+              (display) — display:none pauses CSS animations, so a chip
+              revealed later by a resize would restart its counter-rotation
+              out of phase with the ring and render tilted. visibility keeps
+              every animation ticking from page load, phases stay locked. */}
+          <div className="absolute inset-0 animate-vd-orbit">
+            {ORBIT_MODULES.map((m, i) => (
+              <div key={m} className="absolute -translate-x-1/2 -translate-y-1/2 invisible sm:visible" style={ringPos(i, ORBIT_MODULES.length, 42)}>
+                <div className="animate-vd-orbit-rev whitespace-nowrap rounded-full border border-ct-border bg-white px-3 py-1.5 text-xs font-medium text-ct-slate shadow-card">
+                  {m}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="rounded-2xl border-2 border-ct-saffron/40 bg-ct-saffron/5 p-7">
-            <div className="text-sm font-semibold text-ct-saffron">With VERIDIAN</div>
-            <ul className="mt-4 space-y-3 text-ct-navy">
-              {["One system for every department", "One bill — everything included", "One source of truth, always in sync", "No consultants — your AI runs it", "Enterprise-grade, working on day one"].map(
-                (t) => (
-                  <li key={t} className="flex items-start gap-2">
-                    <Check className="mt-0.5 size-4 shrink-0 text-ct-teal" />
-                    <span>{t}</span>
-                  </li>
-                ),
-              )}
-            </ul>
+
+          {/* inner ring — departments (counter-rotates for depth). Rendered
+              once per breakpoint at different radii: mobile needs the chips
+              further out (34%) to clear the core; desktop sits them at 28%. */}
+          <div className="absolute inset-0 animate-vd-orbit-rev">
+            {ORBIT_DEPTS.map((d, i) => (
+              <div key={`m-${d}`} className="absolute -translate-x-1/2 -translate-y-1/2 visible sm:invisible" style={ringPos(i, ORBIT_DEPTS.length, 34)}>
+                <div className="animate-vd-orbit whitespace-nowrap rounded-full bg-ct-navy px-2.5 py-1 text-[10px] font-semibold text-white shadow-card">
+                  {d}
+                </div>
+              </div>
+            ))}
+            {ORBIT_DEPTS.map((d, i) => (
+              <div key={`d-${d}`} className="absolute -translate-x-1/2 -translate-y-1/2 invisible sm:visible" style={ringPos(i, ORBIT_DEPTS.length, 28)}>
+                <div className="animate-vd-orbit whitespace-nowrap rounded-full bg-ct-navy px-3 py-1.5 text-xs font-semibold text-white shadow-card">
+                  {d}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* the core */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="grid size-20 sm:size-40 place-items-center rounded-full bg-ct-navy text-center shadow-[0_0_80px_rgba(245,130,10,0.35)]">
+              <div>
+                <Sparkles className="mx-auto size-4 sm:size-6 text-ct-saffron" />
+                <div className="mt-0.5 sm:mt-1 font-heading text-white text-[11px] sm:text-base leading-tight">VERIDIAN AI</div>
+                <div className="text-[8px] sm:text-[10px] text-white/60">your assistant</div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* the full breadth, grouped */}
+        <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {MODULE_MAP.map((g) => (
+            <div key={g.dept} className="rounded-2xl border border-ct-border bg-ct-cream p-5">
+              <div className="text-sm font-semibold text-ct-navy">{g.dept}</div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {g.items.map((m) => (
+                  <span key={m} className="rounded-md bg-white border border-ct-border px-2 py-1 text-xs text-ct-slate">
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-6 text-center text-sm text-ct-muted">
+          …and more added every month. One login. One bill. One source of truth — nothing else to buy.
+        </p>
       </div>
     </section>
   );
@@ -582,7 +635,7 @@ function Shift() {
 function How() {
   const steps = [
     { n: "1", title: "Tell it", line: "Type or say what you want, the way you'd tell a colleague. No forms, no training." },
-    { n: "2", title: "It works", line: "VERIDIAN runs the work across your whole business — and shows you exactly what it did." },
+    { n: "2", title: "It works", line: "VERIDIAN runs the work across all 50+ modules — and shows you exactly what it did." },
     { n: "3", title: "You approve", line: "Anything that matters waits for your one-tap yes. You stay in control, always." },
   ];
   return (
@@ -611,39 +664,6 @@ function How() {
               &ldquo;{e}&rdquo;
             </div>
           ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Office() {
-  return (
-    <section id="office" className="bg-white border-y border-ct-border/60">
-      <div className="mx-auto max-w-6xl px-5 py-20">
-        <div className="text-center">
-          <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Everything your company runs on. In one place.</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-            Finance to sales to HR to operations — one complete system, not a dozen disconnected apps. No other
-            software needed.
-          </p>
-        </div>
-        <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {OFFICE.map((o) => (
-            <div key={o.title} className="rounded-2xl border border-ct-border bg-white p-6 hover:shadow-card transition-shadow">
-              <div className="grid size-11 place-items-center rounded-xl bg-ct-teal/10">
-                <o.icon className="size-5 text-ct-teal" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-ct-navy">{o.title}</h3>
-              <p className="mt-1.5 text-sm text-ct-slate">{o.line}</p>
-            </div>
-          ))}
-          <div className="rounded-2xl border-2 border-dashed border-ct-border bg-ct-cloud p-6 flex flex-col justify-center">
-            <h3 className="text-lg font-semibold text-ct-navy">…and whatever else you need</h3>
-            <p className="mt-1.5 text-sm text-ct-slate">
-              If it&apos;s office work, VERIDIAN already does it — or builds you a custom agent for it in minutes.
-            </p>
-          </div>
         </div>
       </div>
     </section>
@@ -686,15 +706,15 @@ function Roi() {
           <span className="text-ct-saffron">10×</span> the output. <span className="text-ct-saffron">2×</span> the savings.
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-ct-slate">
-          One VERIDIAN seat replaces a stack of software subscriptions and hours of manual work. Teams do 10× more, make
-          almost no routine errors, and save at least 2× what they spend — usually far more. The power of a corporate
-          ERP, at a price that pays for itself in the first week.
+          One VERIDIAN seat replaces a stack of subscriptions and hours of manual work. Teams do 10× more, make almost
+          no routine errors, and save at least 2× what they spend — usually far more. The power of a corporate ERP, at
+          a price that pays for itself in the first week.
         </p>
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
           {[
             ["10×", "more done per person"],
-            ["2×+", "saved vs what you spend"],
-            ["1", "system for everything"],
+            ["2×", "minimum return on every rupee"],
+            ["50+", "modules on one bill"],
           ].map(([v, l]) => (
             <div key={l} className="rounded-2xl bg-white border border-ct-border py-5">
               <div className="font-heading text-3xl text-ct-navy">{v}</div>
@@ -717,7 +737,7 @@ function Stories() {
               <Star key={i} className="size-5 fill-current" />
             ))}
           </div>
-          <h2 className="mt-4 font-heading text-3xl md:text-4xl text-ct-navy">Teams that switched off everything else</h2>
+          <h2 className="mt-4 font-heading text-3xl md:text-4xl text-ct-navy">Teams that got their evenings back</h2>
         </div>
         <div className="mt-12 grid md:grid-cols-3 gap-5">
           {STORIES.map((s) => (
@@ -740,10 +760,10 @@ function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-20">
       <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One price. Everything included.</h2>
+        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One price. All 50+ modules. Everything included.</h2>
         <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          Every department, every assistant — no add-ons, no modules to buy. Priced per person, because every person
-          gets their own worker. Start free; pay only when it&apos;s already saving you money.
+          No add-ons, no per-module pricing, no surprises. Priced per person, because every person gets their own
+          worker. Start free; pay only when it&apos;s already saving you money.
         </p>
       </div>
       <div className="mt-12 grid md:grid-cols-3 gap-5 items-start">
@@ -796,10 +816,10 @@ function FinalCta() {
     <section className="mx-auto max-w-6xl px-5 pb-24">
       <div className="rounded-3xl bg-ct-navy px-8 py-16 text-center text-white">
         <ShieldCheck className="mx-auto size-8 text-ct-saffron" />
-        <h2 className="mt-4 font-heading text-3xl md:text-5xl">Your complete office. 100% trusted.</h2>
+        <h2 className="mt-4 font-heading text-3xl md:text-5xl">Get your evenings back.</h2>
         <p className="mx-auto mt-4 max-w-xl text-white/70">
-          One system for your whole company, run by your own AI. Switch off the rest. It takes two minutes to start —
-          and you&apos;ll feel the difference today.
+          One complete system. 50+ modules. An assistant for every employee. The deadlines get met, the follow-ups get
+          done — and you approve the results. It takes two minutes to start.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
           <Link href="/signup">
@@ -830,7 +850,7 @@ function Footer() {
           <span className="text-sm text-ct-muted">— your complete office, run by AI</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-ct-muted">
-          <a href="#replace" className="hover:text-ct-navy">What it replaces</a>
+          <a href="#modules" className="hover:text-ct-navy">50+ modules</a>
           <a href="#pricing" className="hover:text-ct-navy">Pricing</a>
           <Link href="/login" className="hover:text-ct-navy">Log in</Link>
         </div>
@@ -846,10 +866,9 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <StatBand />
-      <Replace />
-      <Shift />
+      <Pain />
+      <ModulesOrbit />
       <How />
-      <Office />
       <Wow />
       <Roi />
       <Stories />

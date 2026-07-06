@@ -210,3 +210,16 @@
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
   }
 }
+/* Landing-page module orbit (hero "50+ modules, one AI" visualisation).
+   Container spins; each chip counter-spins at the same rate so its text
+   stays upright while its position orbits the VERIDIAN core. */
+@keyframes vd-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-vd-orbit {
+  animation: vd-orbit 90s linear infinite;
+}
+.animate-vd-orbit-rev {
+  animation: vd-orbit 90s linear infinite reverse;
+}
