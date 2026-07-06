@@ -2,11 +2,13 @@
 
 // VERIDIAN AI — public landing page.
 //
-// Positioning (deliberate): VERIDIAN is sold as a *worker*, not a tool. The
-// whole page leads with the assistant and with outcomes ("tell it, it's
-// done"), and lets breadth (finance / sales / HR / ops / compliance) show up
-// only as things you can *ask it to do* — never as an ERP-style module grid.
-// That reframing is what keeps this from looking like Odoo / Zoho / Tally.
+// Positioning (deliberate): VERIDIAN is ONE COMPLETE SYSTEM that replaces the
+// whole software stack (accounting, CRM, HR/payroll, inventory/ERP,
+// spreadsheets, compliance) — operated for the customer by their own AI. The
+// page must land that it REPLACES their software, not sit on top of it, and
+// must feel premium ("enterprise/SAP-grade power, run by your assistant").
+// It leads with the assistant and with outcomes, and shows breadth as "one
+// system, nothing else needed" — never an ERP-style module grid.
 //
 // SOCIAL-PROOF NOTE FOR THE OWNER: the stat band (STATS) and testimonials
 // (STORIES) are ILLUSTRATIVE PLACEHOLDERS written by role/industry, not
@@ -27,12 +29,12 @@ import {
   Zap,
   Users,
   Wallet,
-  Send,
   CheckCircle2,
   Star,
   Quote,
   Loader2,
   Clock,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -40,10 +42,22 @@ import { Button } from "@/components/ui/button";
 
 // Illustrative until real metrics exist — see owner note at top of file.
 const STATS = [
-  { value: "1,000+", label: "teams onboard" },
-  { value: "20+", label: "countries" },
-  { value: "4.2M", label: "tasks completed" },
-  { value: "5.4×", label: "average ROI" },
+  { value: "1 system", label: "replaces your whole stack" },
+  { value: "10×", label: "more output per person" },
+  { value: "2×+", label: "saved for every ₹ you spend" },
+  { value: "1,000+", label: "teams already onboard" },
+];
+
+// The software VERIDIAN replaces — shown crossed out, becoming one system.
+const REPLACES = [
+  "Accounting / Tally",
+  "Your CRM",
+  "HRMS & Payroll",
+  "Inventory / ERP",
+  "Spreadsheets everywhere",
+  "Project & task tools",
+  "Compliance trackers",
+  "5 more subscriptions",
 ];
 
 const ASK_EXAMPLES = [
@@ -57,42 +71,42 @@ const OFFICE = [
   {
     icon: Wallet,
     title: "Finance & Accounting",
-    line: "Invoices, GST, TDS, books, and month-end — asked for, not filled in.",
+    line: "Invoices, GST, TDS, books, month-end. A full accounting system — no Tally, no separate tool.",
   },
   {
     icon: Users,
     title: "Sales & CRM",
-    line: "Follow-ups chased, pipeline updated, quotes drafted while you sleep.",
+    line: "Leads, pipeline, quotes, follow-ups chased automatically. Your CRM, built in.",
   },
   {
     icon: Sparkles,
     title: "People & HR",
-    line: "Hiring, onboarding, leave, and payroll — handled end to end.",
+    line: "Hiring, onboarding, leave, and payroll end to end. A complete HRMS — nothing extra to buy.",
   },
   {
     icon: Zap,
     title: "Operations & Supply",
-    line: "Orders, stock, vendors, and dispatch kept moving on their own.",
+    line: "Orders, stock, vendors, dispatch. Full inventory and ERP power without the ERP price.",
   },
   {
     icon: ShieldCheck,
     title: "Compliance & Legal",
-    line: "Deadlines tracked, notices answered, records audit-ready always.",
+    line: "Deadlines tracked, notices answered, records audit-ready — always.",
   },
 ];
 
 const WOW = [
   {
+    title: "The power of a ₹50-lakh enterprise system",
+    line: "Everything SAP, Oracle or a full ERP gives a large corporate — accounting, inventory, CRM, HR, compliance — without the cost, the consultants, or the two-year rollout.",
+  },
+  {
     title: "A worker for every employee",
     line: "Not one shared chatbot. Each person gets their own assistant that knows their job and does it.",
   },
   {
-    title: "It does the work — not just tracks it",
-    line: "Dashboards tell you what's wrong. VERIDIAN fixes it, then shows you what it did for your approval.",
-  },
-  {
-    title: "It learns your business",
-    line: "Your customers, your rules, your way of doing things. The more you use it, the sharper it gets.",
+    title: "It runs the system — not just tracks it",
+    line: "Old software gives you screens to fill. VERIDIAN does the work across every department, then shows you what it did for your approval.",
   },
   {
     title: "Guardrails built in",
@@ -104,19 +118,19 @@ const WOW = [
 const STORIES = [
   {
     quote:
-      "It replaced four different tools and a part-time accountant. My team just tells it what they need and it's done before I've finished my coffee.",
+      "It replaced our accounting software, our CRM and a part-time accountant. My team just tells it what they need and it's done before I've finished my coffee.",
     who: "Founder",
     org: "D2C brand, Bengaluru",
   },
   {
     quote:
-      "We went from missing filings to never missing one. Nobody chases spreadsheets any more — the assistant chases us.",
+      "We shut down four subscriptions. Everything — finance, sales, HR — now lives in one place and nobody chases spreadsheets any more.",
     who: "Finance Head",
     org: "Mid-size manufacturer, Pune",
   },
   {
     quote:
-      "Every salesperson now has a back-office. Follow-ups happen on their own and our close rate is up noticeably.",
+      "It feels like we bought an SAP-class system, except a person runs it for us. Every salesperson now has a back-office and our close rate is up.",
     who: "Sales Director",
     org: "IT services firm, Gurugram",
   },
@@ -128,8 +142,8 @@ const PRICING = [
     name: "Starter",
     price: "₹499",
     unit: "/ user / month",
-    tagline: "For small teams getting their first assistants.",
-    features: ["Up to 10 users", "Every core assistant", "Email + chat support", "2-minute setup"],
+    tagline: "Everything included, for small teams getting started.",
+    features: ["Up to 10 users", "Every department & assistant", "Email + chat support", "2-minute setup"],
     cta: "Start free",
     highlight: false,
   },
@@ -137,10 +151,10 @@ const PRICING = [
     name: "Business",
     price: "₹999",
     unit: "/ user / month",
-    tagline: "For growing companies running the whole office on VERIDIAN.",
+    tagline: "The complete system for companies running everything on VERIDIAN.",
     features: [
       "Unlimited users",
-      "All departments & assistants",
+      "All departments — finance, sales, CRM, HR, ops, compliance",
       "Build your own agents",
       "Priority support",
       "Advanced automations",
@@ -164,8 +178,8 @@ const PRICING = [
 function Nav() {
   const [open, setOpen] = useState(false);
   const links = [
+    { href: "#replace", label: "What it replaces" },
     { href: "#how", label: "How it works" },
-    { href: "#office", label: "What it does" },
     { href: "#pricing", label: "Pricing" },
     { href: "#stories", label: "Stories" },
   ];
@@ -229,6 +243,8 @@ function Nav() {
   );
 }
 
+const DEPARTMENTS = ["Finance", "Sales", "CRM", "HR & Payroll", "Inventory", "Operations", "Compliance"];
+
 function Hero() {
   return (
     <section className="relative overflow-hidden">
@@ -240,7 +256,7 @@ function Hero() {
       <div className="mx-auto max-w-6xl px-5 pt-16 pb-14 md:pt-24 md:pb-20 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
           <span className="size-1.5 rounded-full bg-ct-teal" />
-          Your AI workforce — one assistant for every person on your team
+          One complete system for your entire company — no other software needed
         </div>
 
         <h1 className="mt-6 font-heading text-4xl leading-[1.1] text-ct-navy sm:text-6xl">
@@ -250,8 +266,9 @@ function Hero() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-2xl text-lg text-ct-slate">
-          VERIDIAN is a trusted assistant for your whole office. Every employee gets one. You just say what you need —
-          in plain words — and it does the actual work. Finance, sales, people, operations, compliance. One tool.
+          VERIDIAN runs your <span className="font-semibold text-ct-navy">entire business</span> — finance, sales, CRM,
+          HR, operations, compliance — as one complete system. The power of an enterprise platform like SAP, operated
+          for you by your own AI. Nothing else to buy. Nothing else to learn.
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -260,18 +277,28 @@ function Hero() {
               Open your account <ArrowRight className="ml-1 size-4" />
             </Button>
           </Link>
-          <a href="#how">
+          <a href="#replace">
             <Button variant="outline" className="h-12 rounded-full px-7 text-base border-ct-border text-ct-navy">
-              See how it works
+              See what it replaces
             </Button>
           </a>
         </div>
-        <p className="mt-4 text-sm text-ct-muted">No credit card needed · Live in 2 minutes · 5× your productivity or your money back</p>
+        <p className="mt-4 text-sm text-ct-muted">No credit card · Live in 2 minutes · 10× your team&apos;s output, or your money back</p>
+
+        {/* Breadth strip — signals "complete", every department included */}
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
+          {DEPARTMENTS.map((d) => (
+            <span key={d} className="rounded-full border border-ct-border bg-white/70 px-3 py-1 text-xs font-medium text-ct-slate">
+              {d}
+            </span>
+          ))}
+          <span className="rounded-full bg-ct-teal/10 px-3 py-1 text-xs font-semibold text-ct-teal">all in one</span>
+        </div>
 
         {/* The product IS the advertisement: a live, auto-playing window of the
-            real Home/assistant screen working through tasks. */}
+            real Home/assistant screen running the whole business. */}
         <AgentWindow />
-        <p className="mt-4 text-sm text-ct-muted">This is the actual screen your team sees — working, all day, for you.</p>
+        <p className="mt-4 text-sm text-ct-muted">Your entire company — finance, sales, HR, all of it — running on one screen, for you.</p>
       </div>
     </section>
   );
@@ -446,43 +473,106 @@ function StatBand() {
   );
 }
 
-function Shift() {
+function Replace() {
   return (
-    <section className="mx-auto max-w-6xl px-5 py-20">
+    <section id="replace" className="mx-auto max-w-6xl px-5 py-20">
       <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Not another system your team has to run</h2>
+        <div className="inline-flex items-center gap-2 rounded-full bg-ct-saffron/10 px-4 py-1.5 text-sm font-medium text-ct-saffron">
+          <Layers className="size-4" /> One system instead of twelve
+        </div>
+        <h2 className="mt-5 font-heading text-3xl md:text-4xl text-ct-navy">Cancel the rest of your software</h2>
         <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          Every other business tool gives you more forms to fill and more screens to check. VERIDIAN gives you someone
-          who does it for you.
+          Your accounting tool, your CRM, your HR and payroll, your inventory, your spreadsheets, your compliance
+          trackers — VERIDIAN is all of them, in one place. One login. One bill. One source of truth.
         </p>
       </div>
 
-      <div className="mt-10 grid md:grid-cols-2 gap-5">
-        <div className="rounded-2xl border border-ct-border bg-white p-7">
-          <div className="text-sm font-semibold text-ct-muted">The old way</div>
-          <ul className="mt-4 space-y-3 text-ct-slate">
-            {["Learn 20 modules and menus", "Someone has to enter everything", "Dashboards that only report problems", "A new hire and a month of training", "You still do the chasing"].map(
+      <div className="mt-10 grid lg:grid-cols-[1fr_auto_1fr] items-center gap-6">
+        {/* what you cancel */}
+        <div className="rounded-2xl border border-ct-border bg-white p-6">
+          <div className="text-sm font-semibold text-ct-muted">What you switch off</div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {REPLACES.map((r) => (
+              <span key={r} className="rounded-lg bg-ct-cloud px-3 py-1.5 text-sm text-ct-muted line-through decoration-red-300">
+                {r}
+              </span>
+            ))}
+          </div>
+          <div className="mt-4 text-sm text-ct-muted">…plus the licences, logins and consultants that come with them.</div>
+        </div>
+
+        {/* arrow */}
+        <div className="hidden lg:flex items-center justify-center">
+          <div className="grid size-12 place-items-center rounded-full bg-ct-navy text-white">
+            <ArrowRight className="size-5" />
+          </div>
+        </div>
+
+        {/* what you get */}
+        <div className="rounded-2xl border-2 border-ct-saffron/40 bg-ct-saffron/5 p-6">
+          <div className="text-sm font-semibold text-ct-saffron">What you turn on</div>
+          <div className="mt-4 flex items-center gap-3">
+            <span className="grid size-11 place-items-center rounded-xl bg-ct-navy text-white">
+              <Sparkles className="size-5 text-ct-saffron" />
+            </span>
+            <div>
+              <div className="font-heading text-xl text-ct-navy">VERIDIAN</div>
+              <div className="text-sm text-ct-slate">One complete system, run by your AI.</div>
+            </div>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm text-ct-navy">
+            {["Every department, one place", "One bill — everything included", "Set up in minutes, not months", "No consultants, no IT team"].map(
               (t) => (
-                <li key={t} className="flex items-start gap-2">
-                  <X className="mt-0.5 size-4 shrink-0 text-ct-muted" />
-                  <span>{t}</span>
+                <li key={t} className="flex items-center gap-2">
+                  <Check className="size-4 shrink-0 text-ct-teal" /> {t}
                 </li>
               ),
             )}
           </ul>
         </div>
-        <div className="rounded-2xl border-2 border-ct-saffron/40 bg-ct-saffron/5 p-7">
-          <div className="text-sm font-semibold text-ct-saffron">With VERIDIAN</div>
-          <ul className="mt-4 space-y-3 text-ct-navy">
-            {["Just say what you need in plain words", "It does the entering, chasing, drafting", "It fixes things, then asks for your yes", "Anyone can use it on day one", "Your whole office, handled"].map(
-              (t) => (
-                <li key={t} className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-ct-teal" />
-                  <span>{t}</span>
-                </li>
-              ),
-            )}
-          </ul>
+      </div>
+    </section>
+  );
+}
+
+function Shift() {
+  return (
+    <section className="bg-white border-y border-ct-border/60">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <div className="text-center">
+          <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">A whole company, without the busywork</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
+            Enterprise software makes you hire people to run it. VERIDIAN runs itself — you just say what you need.
+          </p>
+        </div>
+
+        <div className="mt-10 grid md:grid-cols-2 gap-5">
+          <div className="rounded-2xl border border-ct-border bg-white p-7">
+            <div className="text-sm font-semibold text-ct-muted">The old way</div>
+            <ul className="mt-4 space-y-3 text-ct-slate">
+              {["A different app for finance, sales, HR, stock…", "Monthly bills for 8+ subscriptions", "Data trapped in silos that don't talk", "Consultants and training to run an ERP", "You still stitch it all together"].map(
+                (t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <X className="mt-0.5 size-4 shrink-0 text-ct-muted" />
+                    <span>{t}</span>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
+          <div className="rounded-2xl border-2 border-ct-saffron/40 bg-ct-saffron/5 p-7">
+            <div className="text-sm font-semibold text-ct-saffron">With VERIDIAN</div>
+            <ul className="mt-4 space-y-3 text-ct-navy">
+              {["One system for every department", "One bill — everything included", "One source of truth, always in sync", "No consultants — your AI runs it", "Enterprise-grade, working on day one"].map(
+                (t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-ct-teal" />
+                    <span>{t}</span>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -492,37 +582,35 @@ function Shift() {
 function How() {
   const steps = [
     { n: "1", title: "Tell it", line: "Type or say what you want, the way you'd tell a colleague. No forms, no training." },
-    { n: "2", title: "It works", line: "VERIDIAN does the real work across your business — and shows you exactly what it did." },
+    { n: "2", title: "It works", line: "VERIDIAN runs the work across your whole business — and shows you exactly what it did." },
     { n: "3", title: "You approve", line: "Anything that matters waits for your one-tap yes. You stay in control, always." },
   ];
   return (
-    <section id="how" className="bg-white border-y border-ct-border/60">
-      <div className="mx-auto max-w-6xl px-5 py-20">
-        <div className="text-center">
-          <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Three steps. That&apos;s the whole thing.</h2>
-        </div>
-        <div className="mt-12 grid md:grid-cols-3 gap-6">
-          {steps.map((s) => (
-            <div key={s.n} className="relative rounded-2xl border border-ct-border p-7">
-              <div className="grid size-10 place-items-center rounded-xl bg-ct-navy font-heading text-lg text-white">
-                {s.n}
-              </div>
-              <h3 className="mt-4 text-xl font-semibold text-ct-navy">{s.title}</h3>
-              <p className="mt-2 text-ct-slate">{s.line}</p>
+    <section id="how" className="mx-auto max-w-6xl px-5 py-20">
+      <div className="text-center">
+        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Three steps. That&apos;s the whole thing.</h2>
+      </div>
+      <div className="mt-12 grid md:grid-cols-3 gap-6">
+        {steps.map((s) => (
+          <div key={s.n} className="relative rounded-2xl border border-ct-border p-7 bg-white">
+            <div className="grid size-10 place-items-center rounded-xl bg-ct-navy font-heading text-lg text-white">
+              {s.n}
+            </div>
+            <h3 className="mt-4 text-xl font-semibold text-ct-navy">{s.title}</h3>
+            <p className="mt-2 text-ct-slate">{s.line}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-12 rounded-2xl bg-ct-cloud p-7">
+        <div className="text-sm font-semibold text-ct-muted">Things people ask it, every day</div>
+        <div className="mt-4 grid sm:grid-cols-2 gap-3">
+          {ASK_EXAMPLES.map((e) => (
+            <div key={e} className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm text-ct-navy">
+              <Sparkles className="size-4 shrink-0 text-ct-saffron" />
+              &ldquo;{e}&rdquo;
             </div>
           ))}
-        </div>
-
-        <div className="mt-12 rounded-2xl bg-ct-cloud p-7">
-          <div className="text-sm font-semibold text-ct-muted">Things people ask it, every day</div>
-          <div className="mt-4 grid sm:grid-cols-2 gap-3">
-            {ASK_EXAMPLES.map((e) => (
-              <div key={e} className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm text-ct-navy">
-                <Sparkles className="size-4 shrink-0 text-ct-saffron" />
-                &ldquo;{e}&rdquo;
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </section>
@@ -531,28 +619,31 @@ function How() {
 
 function Office() {
   return (
-    <section id="office" className="mx-auto max-w-6xl px-5 py-20">
-      <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One assistant. Your whole office.</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          The complete power of an office, in your hand. No separate software for each department — just ask.
-        </p>
-      </div>
-      <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {OFFICE.map((o) => (
-          <div key={o.title} className="rounded-2xl border border-ct-border bg-white p-6 hover:shadow-card transition-shadow">
-            <div className="grid size-11 place-items-center rounded-xl bg-ct-teal/10">
-              <o.icon className="size-5 text-ct-teal" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold text-ct-navy">{o.title}</h3>
-            <p className="mt-1.5 text-sm text-ct-slate">{o.line}</p>
-          </div>
-        ))}
-        <div className="rounded-2xl border-2 border-dashed border-ct-border bg-ct-cloud p-6 flex flex-col justify-center">
-          <h3 className="text-lg font-semibold text-ct-navy">…and whatever else you need</h3>
-          <p className="mt-1.5 text-sm text-ct-slate">
-            If it&apos;s office work, VERIDIAN can do it — or build you a custom agent for it in minutes.
+    <section id="office" className="bg-white border-y border-ct-border/60">
+      <div className="mx-auto max-w-6xl px-5 py-20">
+        <div className="text-center">
+          <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Everything your company runs on. In one place.</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
+            Finance to sales to HR to operations — one complete system, not a dozen disconnected apps. No other
+            software needed.
           </p>
+        </div>
+        <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {OFFICE.map((o) => (
+            <div key={o.title} className="rounded-2xl border border-ct-border bg-white p-6 hover:shadow-card transition-shadow">
+              <div className="grid size-11 place-items-center rounded-xl bg-ct-teal/10">
+                <o.icon className="size-5 text-ct-teal" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold text-ct-navy">{o.title}</h3>
+              <p className="mt-1.5 text-sm text-ct-slate">{o.line}</p>
+            </div>
+          ))}
+          <div className="rounded-2xl border-2 border-dashed border-ct-border bg-ct-cloud p-6 flex flex-col justify-center">
+            <h3 className="text-lg font-semibold text-ct-navy">…and whatever else you need</h3>
+            <p className="mt-1.5 text-sm text-ct-slate">
+              If it&apos;s office work, VERIDIAN already does it — or builds you a custom agent for it in minutes.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -564,9 +655,10 @@ function Wow() {
     <section className="bg-ct-navy text-white">
       <div className="mx-auto max-w-6xl px-5 py-20">
         <div className="text-center">
-          <h2 className="font-heading text-3xl md:text-4xl">Why it feels different</h2>
+          <h2 className="font-heading text-3xl md:text-4xl">Enterprise power. Zero enterprise pain.</h2>
           <p className="mx-auto mt-3 max-w-2xl text-white/70">
-            This isn&apos;t a chatbot bolted onto old software. It&apos;s a worker that actually works for you.
+            This isn&apos;t a chatbot bolted onto old software. It&apos;s the whole system — run by a worker that
+            actually works for you.
           </p>
         </div>
         <div className="mt-12 grid md:grid-cols-2 gap-5">
@@ -591,18 +683,18 @@ function Roi() {
           <Wallet className="size-4" /> The maths that makes it easy
         </div>
         <h2 className="mt-5 font-heading text-3xl md:text-5xl text-ct-navy">
-          Save at least <span className="text-ct-saffron">5×</span> what you spend
+          <span className="text-ct-saffron">10×</span> the output. <span className="text-ct-saffron">2×</span> the savings.
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-ct-slate">
-          One VERIDIAN seat costs less than a few hours of a person&apos;s time — and gives back days of it every month.
-          Fewer tools, fewer mistakes, fewer people stuck on busywork. Most teams make their money back in the first
-          week.
+          One VERIDIAN seat replaces a stack of software subscriptions and hours of manual work. Teams do 10× more, make
+          almost no routine errors, and save at least 2× what they spend — usually far more. The power of a corporate
+          ERP, at a price that pays for itself in the first week.
         </p>
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
           {[
-            ["5×", "more done per person"],
-            ["~0", "errors on routine work"],
-            ["Day 1", "everyone productive"],
+            ["10×", "more done per person"],
+            ["2×+", "saved vs what you spend"],
+            ["1", "system for everything"],
           ].map(([v, l]) => (
             <div key={l} className="rounded-2xl bg-white border border-ct-border py-5">
               <div className="font-heading text-3xl text-ct-navy">{v}</div>
@@ -625,7 +717,7 @@ function Stories() {
               <Star key={i} className="size-5 fill-current" />
             ))}
           </div>
-          <h2 className="mt-4 font-heading text-3xl md:text-4xl text-ct-navy">Teams that stopped doing busywork</h2>
+          <h2 className="mt-4 font-heading text-3xl md:text-4xl text-ct-navy">Teams that switched off everything else</h2>
         </div>
         <div className="mt-12 grid md:grid-cols-3 gap-5">
           {STORIES.map((s) => (
@@ -648,10 +740,10 @@ function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-5 py-20">
       <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Simple pricing. An assistant for everyone.</h2>
+        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One price. Everything included.</h2>
         <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          Priced per person, because every person gets their own worker. Start free — pay only when it&apos;s already
-          saving you money.
+          Every department, every assistant — no add-ons, no modules to buy. Priced per person, because every person
+          gets their own worker. Start free; pay only when it&apos;s already saving you money.
         </p>
       </div>
       <div className="mt-12 grid md:grid-cols-3 gap-5 items-start">
@@ -673,7 +765,7 @@ function Pricing() {
               <span className="text-sm text-ct-muted">{p.unit}</span>
             </div>
             <p className="mt-2 text-sm text-ct-slate">{p.tagline}</p>
-            <Link href={p.name === "Enterprise" ? "/signup" : "/signup"}>
+            <Link href="/signup">
               <Button
                 className={`mt-5 w-full rounded-full ${
                   p.highlight
@@ -704,10 +796,10 @@ function FinalCta() {
     <section className="mx-auto max-w-6xl px-5 pb-24">
       <div className="rounded-3xl bg-ct-navy px-8 py-16 text-center text-white">
         <ShieldCheck className="mx-auto size-8 text-ct-saffron" />
-        <h2 className="mt-4 font-heading text-3xl md:text-5xl">100% reliable. 100% trusted.</h2>
+        <h2 className="mt-4 font-heading text-3xl md:text-5xl">Your complete office. 100% trusted.</h2>
         <p className="mx-auto mt-4 max-w-xl text-white/70">
-          Give every person on your team an assistant that just gets it done. It takes two minutes to start — and
-          you&apos;ll feel the difference today.
+          One system for your whole company, run by your own AI. Switch off the rest. It takes two minutes to start —
+          and you&apos;ll feel the difference today.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
           <Link href="/signup">
@@ -735,10 +827,10 @@ function Footer() {
             <Sparkles className="size-3.5 text-ct-saffron" />
           </span>
           <span className="font-heading text-ct-navy">VERIDIAN</span>
-          <span className="text-sm text-ct-muted">— your trusted assistant</span>
+          <span className="text-sm text-ct-muted">— your complete office, run by AI</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-ct-muted">
-          <a href="#how" className="hover:text-ct-navy">How it works</a>
+          <a href="#replace" className="hover:text-ct-navy">What it replaces</a>
           <a href="#pricing" className="hover:text-ct-navy">Pricing</a>
           <Link href="/login" className="hover:text-ct-navy">Log in</Link>
         </div>
@@ -754,6 +846,7 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <StatBand />
+      <Replace />
       <Shift />
       <How />
       <Office />
