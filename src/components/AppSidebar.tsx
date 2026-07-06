@@ -469,7 +469,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
           )}
         >
           <Rocket className={cn("size-3.5 shrink-0", pathname.startsWith("/fde") && "text-ct-saffron")} />
-          <span className="flex-1">Do It For Me</span>
+          <span className="flex-1">Make Your Own Agents</span>
         </Link>
       </div>
 

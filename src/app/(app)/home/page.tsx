@@ -182,7 +182,7 @@ export default function HomePage() {
                 <h1 className="font-heading text-2xl text-ct-navy tracking-tight">
                   {greeting()}{firstName ? `, ${firstName}` : ""}.
                 </h1>
-                <p className="text-sm text-ct-muted mt-0.5">I&apos;m VERIDIAN, your AI assistant. Here&apos;s where things stand.</p>
+                <p className="text-sm text-ct-muted mt-0.5">I&apos;m VERIDIAN, your AI assistant — tell me what you need and I&apos;ll do it for you. Here&apos;s where things stand.</p>
               </div>
             </div>
 

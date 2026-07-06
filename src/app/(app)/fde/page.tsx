@@ -74,8 +74,8 @@ export default function FdePage() {
       <div className="flex items-center gap-2">
         <Sparkles className="size-5 text-ct-saffron" />
         <div>
-          <h1 className="text-2xl font-heading text-ct-navy">VERI FDE</h1>
-          <p className="text-sm text-ct-muted mt-1">Describe a capability you want -- VERI FDE checks it against everything VERIDIAN already has, and only proposes a new Worker Agent (pending admin approval) if nothing already covers it.</p>
+          <h1 className="text-2xl font-heading text-ct-navy">Make Your Own Agents</h1>
+          <p className="text-sm text-ct-muted mt-1">Describe something you want done in plain language. VERIDIAN first checks whether it can already do it, and only if nothing fits does it build you a brand-new AI agent for it (your admin approves before it goes live).</p>
         </div>
       </div>
 
@@ -89,7 +89,7 @@ export default function FdePage() {
           />
           <Button onClick={submit} disabled={submitting || !requestText.trim()} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
             {submitting ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Sparkles className="size-4 mr-2" />}
-            Ask VERI FDE
+            Build My Agent
           </Button>
         </CardContent>
       </Card>
