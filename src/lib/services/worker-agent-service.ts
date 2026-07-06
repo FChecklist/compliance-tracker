@@ -15,6 +15,7 @@
 // customer/client/user branches), so "only Layer 1 may autonomously create
 // platform agents" is enforced at the database layer already, not just by
 // this service.
+import { after } from "next/server"
 import { db, workerAgents, approvalRequests, userClientAccess, taskExecutionPlan, workerAgentLearnings, workerAgentDomainIndex } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray } from "drizzle-orm"
@@ -89,11 +90,13 @@ export async function proposeWorkerAgent(
     // discoverable so VERI FDE (or a human) doesn't propose a duplicate of
     // something already awaiting approval. Fire-and-forget, never blocks
     // the proposal itself on an embedding-API round trip.
-    indexCapability(
+    // Bug fix (2026-07-06): wrapped in after() -- same fire-and-forget
+    // reliability bug found in Meeting Intelligence (veri-meeting-service.ts).
+    after(() => indexCapability(
       "worker_agent", agent.id,
       buildCapabilityContent({ name: agent.name, domain: agent.domain, description: agent.description, inputSchema: agent.inputSchema, outputSchema: agent.outputSchema }),
       agent.orgId
-    ).catch((err) => console.error("Failed to index worker agent capability:", err))
+    ).catch((err) => console.error("Failed to index worker agent capability:", err)))
 
     // Wave 21: index the agent's serviceable domain path(s) -- the domain
     // it was proposed under is always indexed; domainPaths lets it serve

@@ -6,6 +6,7 @@
 // notice-service.ts's updateNotice() and pms-issue-service.ts's
 // updateIssue()) -- there is no generic event bus in this codebase and
 // building one is out of scope for what 2 call sites need.
+import { after } from "next/server"
 import { automationRules, automationRuleRuns, notifications, tasks } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
@@ -58,11 +59,15 @@ export async function createAutomationRule(
     // Wave 43 (Capability Registry) -- fire-and-forget, mirrors
     // proposeWorkerAgent()'s own indexing so VERI FDE's duplicate-check
     // covers automation rules too, not just worker agents.
-    indexCapability(
+    //
+    // Bug fix (2026-07-06): wrapped in after() -- an un-awaited promise here
+    // could be killed by Vercel before it ran, same root cause found in
+    // Meeting Intelligence (see veri-meeting-service.ts).
+    after(() => indexCapability(
       "automation_rule", rule.id,
       buildCapabilityContent({ name: rule.name, domain: rule.triggerType, description: rule.description }),
       rule.orgId
-    ).catch((err) => console.error("Failed to index automation rule capability:", err))
+    ).catch((err) => console.error("Failed to index automation rule capability:", err)))
 
     return rule
   })

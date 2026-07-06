@@ -15,6 +15,7 @@
 // the task lifecycle, which meettrack-v2 never had to reason about since its
 // "action items" were never real cross-module rows.
 import { createId } from "@paralleldrive/cuid2"
+import { after } from "next/server"
 import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, db } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
@@ -159,10 +160,18 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
   // Wave 74 (Meeting Intelligence): best-effort, non-blocking -- publishing
   // must succeed and return regardless of whether AI extraction works. Only
   // attempted when there's real minutes text to analyze.
+  //
+  // Bug fix (2026-07-06, found during the Demo Company E2E pass): this was a
+  // bare un-awaited .catch() with no after()/waitUntil() wrapper. On Vercel's
+  // serverless runtime the function environment can be frozen the instant the
+  // HTTP response is sent, killing this promise before generateMeetingIntelligence
+  // ever ran -- confirmed via orchestra_executions showing zero
+  // meeting_intelligence.extract rows after a real publish. after() keeps the
+  // invocation alive until this callback settles.
   if (updated?.minutes?.trim()) {
-    generateMeetingIntelligence(ctx, meetingId).catch((err) => {
+    after(() => generateMeetingIntelligence(ctx, meetingId).catch((err) => {
       console.error("Meeting intelligence generation failed (non-fatal, meeting still published):", err)
-    })
+    }))
   }
 
   return updated

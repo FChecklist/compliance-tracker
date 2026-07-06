@@ -1,6 +1,6 @@
 import { documents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
@@ -126,11 +126,15 @@ export async function POST(request: NextRequest) {
     // Wave 35 (Document AI): fire-and-forget vision extraction -- never
     // blocks or fails the upload response. Image types only this pass (see
     // document-extraction-service.ts for why PDF is deliberately deferred).
+    //
+    // Bug fix (2026-07-06): wrapped in after() -- a bare un-awaited promise
+    // here could be killed by Vercel before it ran, same root cause found in
+    // Meeting Intelligence (see veri-meeting-service.ts).
     if (isVisionExtractable(file.type)) {
       const imageBase64 = Buffer.from(bytes).toString("base64")
-      extractDocumentContent({ orgId, userId: dbUser.id, documentId: result.id, imageBase64, mimeType: file.type }).catch((err) =>
+      after(() => extractDocumentContent({ orgId, userId: dbUser.id, documentId: result.id, imageBase64, mimeType: file.type }).catch((err) =>
         console.error("Fire-and-forget document extraction failed to even start:", err)
-      )
+      ))
     }
 
     return NextResponse.json({
