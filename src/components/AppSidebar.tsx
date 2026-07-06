@@ -421,8 +421,21 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
               : "text-ct-navy hover:bg-ct-cloud"
           )}
         >
-          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname.startsWith("/home") && "text-ct-saffron")} />
+          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname === "/home" && "text-ct-saffron")} />
           <span className="flex-1">Home</span>
+        </Link>
+        <Link
+          href="/home-2"
+          className={cn(
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
+            pathname.startsWith("/home-2")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <Sparkles className={cn("size-3.5 shrink-0", pathname.startsWith("/home-2") ? "text-ct-saffron" : "text-ct-saffron/70")} />
+          <span className="flex-1">Home 2</span>
+          <span className="text-[9px] font-bold text-ct-saffron/80 bg-ct-saffron/10 rounded px-1.5 py-0.5">NEW</span>
         </Link>
         <Link
           href="/veri-ai"
