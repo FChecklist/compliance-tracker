@@ -1,32 +1,35 @@
 "use client";
 
-import { useState } from "react";
+// Bug fix (2026-07-06, found during the Demo Company E2E pass): this banner
+// was entirely hardcoded to a fake trial window (Jan 2025 + 14 days) and
+// completely ignored the real organisations.trial_ends_at column -- every
+// org, regardless of actual plan or trial status, saw "trial ends in 0 days"
+// once that fake window lapsed. Now reads the org's real trial_ends_at (via
+// /api/me) and hides entirely for orgs with no trial window (e.g. paid plans,
+// or a trial_ends_at of null).
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock, AlertTriangle, X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// Demo flag — in production, this would check org.trialEndsAt from the backend
-const DEMO_TRIAL_ENABLED = true;
-const DEMO_TRIAL_START = new Date("2025-01-20");
-const DEMO_TRIAL_DURATION_DAYS = 14;
-
-function computeTrialState() {
-  if (!DEMO_TRIAL_ENABLED) return null;
-
-  const end = new Date(DEMO_TRIAL_START);
-  end.setDate(end.getDate() + DEMO_TRIAL_DURATION_DAYS);
-
-  const now = new Date();
-  const diffMs = end.getTime() - now.getTime();
-  const diffDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-
-  return { daysRemaining: diffDays, isWarning: diffDays <= 4 };
-}
+type TrialState = { daysRemaining: number; isWarning: boolean };
 
 export default function TrialBanner() {
   const [dismissed, setDismissed] = useState(false);
-  const trial = computeTrialState();
+  const [trial, setTrial] = useState<TrialState | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.orgPlan !== "free" || !d?.trialEndsAt) return; // no trial to show
+        const diffMs = new Date(d.trialEndsAt).getTime() - Date.now();
+        const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        setTrial({ daysRemaining, isWarning: daysRemaining <= 4 });
+      })
+      .catch(() => {});
+  }, []);
 
   if (!trial || dismissed) return null;
 
@@ -58,7 +61,7 @@ export default function TrialBanner() {
             </>
           ) : (
             <>
-              You&apos;re on a <strong>14-day free trial</strong>.{" "}
+              You&apos;re on a free trial.{" "}
               <strong>{trial.daysRemaining} day{trial.daysRemaining !== 1 ? "s" : ""}</strong> remaining.
             </>
           )}

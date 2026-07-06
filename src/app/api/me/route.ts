@@ -27,6 +27,8 @@ export async function GET() {
     orgRegulatoryEntityType: org?.regulatoryEntityType ?? "general",
     pmsEnabled,
     pageAgentEnabled: org?.pageAgentEnabled ?? true,
+    orgPlan: org?.plan ?? "free",
+    trialEndsAt: org?.trialEndsAt ? org.trialEndsAt.toISOString() : null,
   })
 }
 
