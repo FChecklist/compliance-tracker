@@ -23,13 +23,16 @@ import { toast } from "sonner";
 import { Send, Loader2, Paperclip } from "lucide-react";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 
-// Home 2 has its own full composer -- showing the dock on top of it would be
-// a second, redundant chat box (demo feedback). Same reason /veri-ai and
-// /chat are hidden.
-const HIDDEN_PREFIXES = ["/veri-ai", "/chat", "/home-2", "/login", "/signup"];
+// Home (the assistant screen, Wave 105) and /veri-ai and /chat all have
+// their own full composer -- showing the dock on top would be a second,
+// redundant chat box (demo feedback). "/home" is matched exactly so the
+// dock still shows on /dashboard and everywhere else.
+const HIDDEN_PREFIXES = ["/veri-ai", "/chat", "/login", "/signup"];
+const HIDDEN_EXACT = ["/home"];
 
 export function isDockHiddenForPath(pathname: string | null): boolean {
-  return HIDDEN_PREFIXES.some((p) => pathname?.startsWith(p));
+  if (!pathname) return false;
+  return HIDDEN_PREFIXES.some((p) => pathname.startsWith(p)) || HIDDEN_EXACT.includes(pathname);
 }
 
 export default function GlobalChatDock() {

@@ -351,11 +351,6 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Ticket,
         },
         {
-          label: "VERI FDE",
-          href: "/fde",
-          icon: Sparkles,
-        },
-        {
           label: "Capability Registry",
           href: "/capability-registry",
           icon: Database,
@@ -411,48 +406,41 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
           VERI Chat (user <-> people, enterprise Slack/WhatsApp-style) --
           which used to be conflated as one link with the AI thread just
           pinned inside the same list. See PLATFORM_STRATEGY.md §18. */}
+      {/* Wave 105 (demo feedback): Home is now the assistant-first screen
+          (formerly "Home 2"); the old tabbed workspace became Dashboard
+          (opens on Analytics). VERI AI's standalone page is retired for
+          users -- the assistant lives on Home -- so its unread count now
+          badges Home. VERI FDE, renamed "Do It For Me" in plain language,
+          is promoted here. Order: Home, Dashboard, VERI Chat, Do It For Me. */}
       <div className="px-3 mb-2 space-y-0.5">
         <Link
           href="/home"
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/home")
+            pathname === "/home"
               ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
               : "text-ct-navy hover:bg-ct-cloud"
           )}
         >
-          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname === "/home" && "text-ct-saffron")} />
+          <Sparkles className={cn("size-3.5 shrink-0", pathname === "/home" ? "text-ct-saffron" : "text-ct-saffron/70")} />
           <span className="flex-1">Home</span>
-        </Link>
-        <Link
-          href="/home-2"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/home-2")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Sparkles className={cn("size-3.5 shrink-0", pathname.startsWith("/home-2") ? "text-ct-saffron" : "text-ct-saffron/70")} />
-          <span className="flex-1">Home 2</span>
-          <span className="text-[9px] font-bold text-ct-saffron/80 bg-ct-saffron/10 rounded px-1.5 py-0.5">NEW</span>
-        </Link>
-        <Link
-          href="/veri-ai"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/veri-ai")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Bot className={cn("size-3.5 shrink-0", pathname.startsWith("/veri-ai") && "text-ct-saffron")} />
-          <span className="flex-1">VERI AI</span>
           {unreadAiCount > 0 && (
             <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
               {unreadAiCount}
             </Badge>
           )}
+        </Link>
+        <Link
+          href="/dashboard"
+          className={cn(
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
+            pathname.startsWith("/dashboard")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname.startsWith("/dashboard") && "text-ct-saffron")} />
+          <span className="flex-1">Dashboard</span>
         </Link>
         <Link
           href="/chat"
@@ -470,6 +458,18 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
               {unreadChatCount}
             </Badge>
           )}
+        </Link>
+        <Link
+          href="/fde"
+          className={cn(
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
+            pathname.startsWith("/fde")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <Rocket className={cn("size-3.5 shrink-0", pathname.startsWith("/fde") && "text-ct-saffron")} />
+          <span className="flex-1">Do It For Me</span>
         </Link>
       </div>
 
