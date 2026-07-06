@@ -16,7 +16,7 @@
 // numbers in PRICING are placeholders too — set your real prices there.
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowRight,
   Check,
@@ -31,6 +31,8 @@ import {
   CheckCircle2,
   Star,
   Quote,
+  Loader2,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -266,31 +268,166 @@ function Hero() {
         </div>
         <p className="mt-4 text-sm text-ct-muted">No credit card needed · Live in 2 minutes · 5× your productivity or your money back</p>
 
-        {/* Command → done demo */}
-        <div className="mx-auto mt-12 max-w-xl text-left">
-          <div className="rounded-2xl border border-ct-border bg-white shadow-card p-4">
-            <div className="flex items-center gap-2 rounded-xl bg-ct-cloud px-4 py-3">
-              <Sparkles className="size-4 shrink-0 text-ct-saffron" />
-              <span className="text-sm text-ct-navy">Raise this month&apos;s invoices and send them for approval</span>
-              <span className="ml-auto grid size-7 shrink-0 place-items-center rounded-lg bg-ct-saffron text-white">
-                <Send className="size-3.5" />
-              </span>
+        {/* The product IS the advertisement: a live, auto-playing window of the
+            real Home/assistant screen working through tasks. */}
+        <AgentWindow />
+        <p className="mt-4 text-sm text-ct-muted">This is the actual screen your team sees — working, all day, for you.</p>
+      </div>
+    </section>
+  );
+}
+
+// The hero centrepiece — a browser-framed, auto-looping recreation of the Home
+// assistant screen. Each scenario streams: a request → tasks it completed →
+// one thing left "pending your approval". Deliberately a scripted showreel
+// (representative tasks), not the live logged-in app, so it plays instantly
+// with no sign-in and always tells a clean story.
+const HERO_SCENARIOS = [
+  {
+    who: "You",
+    command: "Raise this month's invoices and send them out",
+    steps: [
+      { t: "Pulled 24 clients due this billing cycle", k: "done" },
+      { t: "Drafted 24 GST-ready invoices", k: "done" },
+      { t: "Cross-checked each against last month — all correct", k: "done" },
+      { t: "Send all 24 invoices to clients", k: "approve" },
+    ],
+  },
+  {
+    who: "Priya · Sales",
+    command: "Chase the 3 overdue payments and tell me what they say",
+    steps: [
+      { t: "Reviewed 3 overdue invoices (₹4.2L total)", k: "done" },
+      { t: "Sent polite reminders to all three", k: "done" },
+      { t: "Acme replied — paying Friday. Logged it.", k: "done" },
+      { t: "Escalate the one client who didn't respond", k: "approve" },
+    ],
+  },
+  {
+    who: "Rahul · HR",
+    command: "Onboard our new hire, Meera",
+    steps: [
+      { t: "Generated her offer letter and sent for e-sign", k: "done" },
+      { t: "Set up PF, ESI and payroll", k: "done" },
+      { t: "Created her email and app accounts", k: "done" },
+      { t: "Release her first-month salary", k: "approve" },
+    ],
+  },
+] as const;
+
+function AgentWindow() {
+  // Flatten every scenario into a frame list so the ticker is a simple index
+  // walk — no stale-closure risk from reading state inside the interval.
+  const frames = useMemo(() => {
+    const f: { s: number; v: number }[] = [];
+    HERO_SCENARIOS.forEach((sc, si) => {
+      for (let v = 0; v <= sc.steps.length; v++) f.push({ s: si, v });
+      for (let h = 0; h < 3; h++) f.push({ s: si, v: sc.steps.length }); // hold on completion
+    });
+    return f;
+  }, []);
+
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((x) => (x + 1) % frames.length), 900);
+    return () => clearInterval(id);
+  }, [frames.length]);
+
+  const { s, v } = frames[i];
+  const sc = HERO_SCENARIOS[s];
+  const complete = v >= sc.steps.length;
+
+  return (
+    <div className="mx-auto mt-12 max-w-3xl">
+      <div className="rounded-2xl border border-ct-border bg-white shadow-card overflow-hidden text-left">
+        {/* browser chrome */}
+        <div className="flex items-center gap-2 border-b border-ct-border bg-ct-cloud px-4 py-2.5">
+          <span className="size-2.5 rounded-full bg-red-300" />
+          <span className="size-2.5 rounded-full bg-yellow-300" />
+          <span className="size-2.5 rounded-full bg-green-300" />
+          <div className="ml-3 flex-1 truncate rounded-md bg-white px-3 py-1 text-xs text-ct-muted">
+            veridian-ai-os.vercel.app/home
+          </div>
+        </div>
+
+        {/* app body */}
+        <div className="p-5 sm:p-7 min-h-[360px] bg-gradient-to-b from-white to-ct-cream">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-heading text-lg text-ct-navy">Good morning 👋</div>
+              <div className="text-sm text-ct-muted">Here&apos;s what I&apos;m getting done for you.</div>
             </div>
-            <div className="mt-3 space-y-2 px-1">
-              {["Pulled 24 clients due this cycle", "Drafted 24 GST-ready invoices", "Sent to you for one-tap approval"].map(
-                (step) => (
-                  <div key={step} className="flex items-center gap-2 text-sm text-ct-slate">
-                    <CheckCircle2 className="size-4 text-ct-teal" />
-                    {step}
-                  </div>
-                ),
+            <div
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                complete ? "bg-ct-saffron/10 text-ct-saffron" : "bg-ct-teal/10 text-ct-teal"
+              }`}
+            >
+              {complete ? (
+                <>
+                  <Clock className="size-3.5" /> Awaiting your approval
+                </>
+              ) : (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" /> Working…
+                </>
               )}
-              <div className="pt-1 text-xs text-ct-muted">Done in 40 seconds · nothing sent without your yes</div>
             </div>
+          </div>
+
+          {/* the request */}
+          <div className="mt-5 flex justify-end">
+            <div className="flex items-center gap-2 rounded-2xl rounded-br-sm bg-ct-navy px-4 py-2.5 text-sm text-white max-w-[85%]">
+              <span className="text-white/50 text-xs">{sc.who}:</span>
+              {sc.command}
+            </div>
+          </div>
+
+          {/* the assistant working */}
+          <div className="mt-4 space-y-2">
+            {sc.steps.slice(0, v).map((step, idx) => (
+              <div
+                key={`${s}-${idx}`}
+                className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm animate-in fade-in slide-in-from-bottom-1 duration-300 ${
+                  step.k === "approve"
+                    ? "border-ct-saffron/40 bg-ct-saffron/5 text-ct-navy"
+                    : "border-ct-border bg-white text-ct-slate"
+                }`}
+              >
+                {step.k === "approve" ? (
+                  <Clock className="size-4 shrink-0 text-ct-saffron" />
+                ) : (
+                  <CheckCircle2 className="size-4 shrink-0 text-ct-teal" />
+                )}
+                <span className="flex-1">{step.t}</span>
+                {step.k === "approve" ? (
+                  <span className="shrink-0 rounded-full bg-ct-saffron px-3 py-1 text-xs font-semibold text-white">
+                    Approve
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[11px] font-medium text-ct-teal">Done</span>
+                )}
+              </div>
+            ))}
+            {!complete && (
+              <div className="flex items-center gap-2.5 px-3.5 py-1 text-sm text-ct-muted">
+                <Loader2 className="size-4 shrink-0 animate-spin text-ct-saffron" />
+                Working on the next step…
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </section>
+
+      {/* progress dots per scenario */}
+      <div className="mt-4 flex items-center justify-center gap-1.5">
+        {HERO_SCENARIOS.map((_, idx) => (
+          <span
+            key={idx}
+            className={`h-1.5 rounded-full transition-all ${idx === s ? "w-6 bg-ct-saffron" : "w-1.5 bg-ct-border"}`}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
