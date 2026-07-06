@@ -51,7 +51,7 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // user's explicit instruction. Distinct from whether a model is actually
   // configured for it (page_agent_oa layer) -- an org can have both a
   // model configured AND this off, or vice versa.
-  pageAgentEnabled: boolean('page_agent_enabled').notNull().default(true),
+  pageAgentEnabled: boolean('page_agent_enabled').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

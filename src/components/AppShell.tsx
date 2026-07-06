@@ -65,7 +65,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} orgName={orgName} />
         <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream", !dockHidden && "pb-28 md:pb-32")}>
-          <OnboardingChecklist />
+          {/* /home leads with the assistant (first-minute experience) -- the
+              legacy Get Started checklist would sit above it speaking old
+              compliance language, so it stays on every page except Home. */}
+          {pathname !== "/home" && <OnboardingChecklist />}
           <TrialBanner />
           {children}
         </main>
