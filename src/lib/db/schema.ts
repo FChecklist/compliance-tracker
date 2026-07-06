@@ -6156,3 +6156,213 @@ export const fmVisitorsRelations = relations(fmVisitors, ({ many }) => ({
 export const fmVisitorLogsRelations = relations(fmVisitorLogs, ({ one }) => ({
   visitor: one(fmVisitors, { fields: [fmVisitorLogs.visitorId], references: [fmVisitors.id] }),
 }))
+
+// ─── THE FIRM AI OS (Wave 108): Practice Management for CA/CS/Legal/GRC/
+// Audit firms ────────────────────────────────────────────────────────────
+// Product for a firm owner (4-20 staff) serving many clients across some
+// mix of CA/CS/Legal/GRC/Audit services -- the `clients`/`clientEntities`
+// hierarchy (Wave 1) and the per-client-scoped compliance/legal/CS/audit
+// modules already do the heavy lifting; this wave adds what's genuinely
+// missing: per-client service-line gating, engagement/scope-of-work,
+// Indian tax-notice/appeal case workflow, staff-to-client capacity
+// assignment, and client-billable time + invoicing (deliberately parallel
+// to, not reusing, pmsTimeEntries -- that table is PMS-issue-scoped with
+// no clientId, and conflating "internal project hours" with "billable
+// client hours" would give one table two incompatible meanings).
+export const firmServiceLineEnum = complianceSchemaDB.enum('firm_service_line', ['ca_services', 'cs_services', 'legal_services', 'grc_services', 'audit_services'])
+export const firmFeeTypeEnum = complianceSchemaDB.enum('firm_fee_type', ['fixed', 'hourly', 'retainer'])
+export const firmStaffRoleEnum = complianceSchemaDB.enum('firm_staff_role', ['partner', 'manager', 'associate', 'staff'])
+export const firmInvoiceStatusEnum = complianceSchemaDB.enum('firm_invoice_status', ['draft', 'sent', 'paid', 'overdue', 'void'])
+
+export const firmClientServiceLines = complianceSchemaDB.table('firm_client_service_lines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  serviceLine: firmServiceLineEnum('service_line').notNull(),
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  leadStaffUserId: text('lead_staff_user_id'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const firmEngagements = complianceSchemaDB.table('firm_engagements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  serviceLine: firmServiceLineEnum('service_line').notNull(),
+  title: text('title').notNull(),
+  scopeOfWork: text('scope_of_work'),
+  feeType: firmFeeTypeEnum('fee_type').notNull().default('fixed'),
+  feeAmount: numeric('fee_amount'),
+  billingFrequency: text('billing_frequency').default('monthly'), // free text, descriptive only -- not branched on internally this wave
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }),
+  status: text('status').notNull().default('active'), // 'active'|'on_hold'|'completed'|'terminated' -- matches legalMatters.status's free-text precedent
+  leadPartnerUserId: text('lead_partner_user_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Polymorphic link, deliberate reuse of documents.linkedEntityType/
+// linkedEntityId's exact pattern -- points at an existing per-client
+// record (compliance_item/legal_matter/audit_engagement/firm_tax_case/
+// notice) so an engagement's deliverable checklist doesn't duplicate data
+// that already lives in those modules; null = a standalone deliverable.
+export const firmEngagementDeliverables = complianceSchemaDB.table('firm_engagement_deliverables', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  engagementId: text('engagement_id').notNull(),
+  title: text('title').notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  status: text('status').notNull().default('pending'), // 'pending'|'in_progress'|'done'|'blocked'
+  linkedEntityType: text('linked_entity_type'), // 'compliance_item'|'legal_matter'|'audit_engagement'|'firm_tax_case'|'notice'|null
+  linkedEntityId: text('linked_entity_id'), // no FK -- polymorphic, follows documents' precedent
+  assignedToId: text('assigned_to_id'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// The genuine new domain this wave: Indian income-tax/GST notice,
+// assessment, and appeal procedural workflow. caseType/forum/stage are
+// free text (not enums) since tax procedure evolves under statute
+// amendments faster than a migration cycle should gate on -- matches
+// legalMatters.matterType's free-text precedent for the same "sub-
+// classification of a case" concept. limitationDate (statute-barred
+// date) is deliberately distinct from dueDate (a procedural deadline) --
+// missing the former is a firm-ending liability, missing the latter is a
+// missed reminder.
+export const firmTaxCases = complianceSchemaDB.table('firm_tax_cases', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  assessmentYear: text('assessment_year').notNull(), // e.g. "2023-24"
+  caseType: text('case_type').notNull().default('scrutiny'), // scrutiny|reassessment|appeal|gst_notice|tds_default|refund_claim
+  sectionCode: text('section_code'), // e.g. "143(3)", "148", "144" -- format varies, free text
+  authority: text('authority'),
+  forum: text('forum').notNull().default('ao'), // ao|cit_appeals|itat|high_court|supreme_court
+  stage: text('stage').notNull().default('notice_received'), // notice_received|reply_filed|hearing|order_passed|appeal_filed|disposed
+  dueDate: date('due_date', { mode: 'string' }),
+  limitationDate: date('limitation_date', { mode: 'string' }), // statute-barred date, distinct from dueDate
+  demandAmount: numeric('demand_amount'),
+  outcome: text('outcome'),
+  linkedNoticeId: text('linked_notice_id'), // -> notices.id -- reference the existing generic notice, don't duplicate it
+  responsibleUserId: text('responsible_user_id'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const firmStaffAssignments = complianceSchemaDB.table('firm_staff_assignments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  userId: text('user_id').notNull(),
+  role: firmStaffRoleEnum('role').notNull().default('staff'),
+  allocatedHoursPerWeek: numeric('allocated_hours_per_week'),
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Deliberately parallel to, not reusing, pmsTimeEntries -- see the section
+// header comment above for why. invoiceLineItemId is nullable and set
+// once billed (prevents double-billing a time entry); added via
+// ALTER TABLE after firmInvoiceLineItems exists below, same forward-FK
+// pattern Wave 107 used for fmAssets.amcContractId.
+export const firmTimeEntries = complianceSchemaDB.table('firm_time_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  engagementId: text('engagement_id'), // nullable -- time can be logged before an engagement is formalized
+  userId: text('user_id').notNull(),
+  taskDescription: text('task_description').notNull(),
+  hours: numeric('hours').notNull(),
+  spentOn: date('spent_on', { mode: 'string' }).notNull(),
+  billable: boolean('billable').notNull().default(true),
+  isRunning: boolean('is_running').notNull().default(false),
+  startedAt: timestamp('started_at'),
+  hourlyRateSnapshot: numeric('hourly_rate_snapshot'), // captured at billing time, not creation time
+  invoiceLineItemId: text('invoice_line_item_id'), // nullable; FK added via ALTER TABLE in the migration (forward reference)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Nullable userId/clientId give a 4-tier resolution precedence (most
+// specific wins): (user,client) > (user,null) > (null,client) >
+// (null,null firm-wide default) -- generalizes pmsBillableRates' existing
+// "null user = org default" convention by adding the client axis.
+export const firmBillableRates = complianceSchemaDB.table('firm_billable_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  clientId: text('client_id'),
+  hourlyRate: numeric('hourly_rate').notNull(),
+  validFrom: date('valid_from', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const firmInvoices = complianceSchemaDB.table('firm_invoices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  engagementId: text('engagement_id'),
+  invoiceNumber: text('invoice_number').notNull(),
+  issueDate: date('issue_date', { mode: 'string' }).notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  status: firmInvoiceStatusEnum('status').notNull().default('draft'),
+  subtotal: numeric('subtotal').notNull().default('0'),
+  taxAmount: numeric('tax_amount').notNull().default('0'),
+  totalAmount: numeric('total_amount').notNull().default('0'),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const firmInvoiceLineItems = complianceSchemaDB.table('firm_invoice_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  invoiceId: text('invoice_id').notNull(),
+  description: text('description').notNull(),
+  quantityHours: numeric('quantity_hours'),
+  rate: numeric('rate'),
+  amount: numeric('amount').notNull(),
+  timeEntryId: text('time_entry_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const firmClientServiceLinesRelations = relations(firmClientServiceLines, ({ one }) => ({
+  client: one(clients, { fields: [firmClientServiceLines.clientId], references: [clients.id] }),
+}))
+export const firmEngagementsRelations = relations(firmEngagements, ({ one, many }) => ({
+  client: one(clients, { fields: [firmEngagements.clientId], references: [clients.id] }),
+  deliverables: many(firmEngagementDeliverables),
+  timeEntries: many(firmTimeEntries),
+  invoices: many(firmInvoices),
+}))
+export const firmEngagementDeliverablesRelations = relations(firmEngagementDeliverables, ({ one }) => ({
+  engagement: one(firmEngagements, { fields: [firmEngagementDeliverables.engagementId], references: [firmEngagements.id] }),
+}))
+export const firmTaxCasesRelations = relations(firmTaxCases, ({ one }) => ({
+  client: one(clients, { fields: [firmTaxCases.clientId], references: [clients.id] }),
+  linkedNotice: one(notices, { fields: [firmTaxCases.linkedNoticeId], references: [notices.id] }),
+}))
+export const firmStaffAssignmentsRelations = relations(firmStaffAssignments, ({ one }) => ({
+  client: one(clients, { fields: [firmStaffAssignments.clientId], references: [clients.id] }),
+}))
+export const firmTimeEntriesRelations = relations(firmTimeEntries, ({ one }) => ({
+  client: one(clients, { fields: [firmTimeEntries.clientId], references: [clients.id] }),
+  engagement: one(firmEngagements, { fields: [firmTimeEntries.engagementId], references: [firmEngagements.id] }),
+}))
+export const firmInvoicesRelations = relations(firmInvoices, ({ one, many }) => ({
+  client: one(clients, { fields: [firmInvoices.clientId], references: [clients.id] }),
+  engagement: one(firmEngagements, { fields: [firmInvoices.engagementId], references: [firmEngagements.id] }),
+  lineItems: many(firmInvoiceLineItems),
+}))
+export const firmInvoiceLineItemsRelations = relations(firmInvoiceLineItems, ({ one }) => ({
+  invoice: one(firmInvoices, { fields: [firmInvoiceLineItems.invoiceId], references: [firmInvoices.id] }),
+}))

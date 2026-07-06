@@ -32,6 +32,11 @@ export const DOMAIN_ALLOWED_TOOLS: Record<string, Set<string>> = {
   // one regardless, per the established rule: a domain with any AI surface
   // must have an entry here before it ships, even an empty one.
   facilities_management: new Set([]),
+  // THE FIRM AI OS (Wave 108): empty allowlist -- no AI tool surface this
+  // wave (client-service-line/engagement/tax-case/staff/time/billing is
+  // pure CRUD + read-side aggregation, no LLM call site). Added on day one
+  // regardless, per the established rule.
+  the_firm: new Set([]),
 }
 
 export const DEFAULT_DOMAIN = "compliance"
