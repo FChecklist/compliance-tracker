@@ -25,6 +25,13 @@ export const DOMAIN_ALLOWED_TOOLS: Record<string, Set<string>> = {
   // VERI ERP (Wave 49): empty allowlist -- schema-only wave, no service
   // layer or AI tool exists for this domain yet.
   erp: new Set([]),
+  // VERI FM & CS AI OS (Wave 107): empty allowlist -- register digitization
+  // (this wave's only AI feature) is a direct service call
+  // (fm-register-digitization-service.ts), not a dispatchable tool a chat
+  // agent can invoke, so there is nothing to allowlist yet. Added on day
+  // one regardless, per the established rule: a domain with any AI surface
+  // must have an entry here before it ships, even an empty one.
+  facilities_management: new Set([]),
 }
 
 export const DEFAULT_DOMAIN = "compliance"

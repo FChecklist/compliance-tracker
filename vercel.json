@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "regions": ["sin1"],
   "crons": [
+    { "path": "/api/internal/fm-ppm/generate-occurrences/run", "schedule": "0 2 * * *" },
     { "path": "/api/internal/loops/run", "schedule": "0 3 * * *" },
     { "path": "/api/internal/instruction-audit/run", "schedule": "0 4 * * *" },
     { "path": "/api/internal/metric-alerts/run", "schedule": "0 5 * * *" }

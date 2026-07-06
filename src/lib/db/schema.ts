@@ -5860,3 +5860,299 @@ export const esignatureRequestsRelations = relations(esignatureRequests, ({ many
 export const esignatureSignersRelations = relations(esignatureSigners, ({ one }) => ({
   request: one(esignatureRequests, { fields: [esignatureSigners.requestId], references: [esignatureRequests.id] }),
 }))
+
+// ─── Wave 107 (VERI FM & CS AI OS -- Facilities Management & Corporate
+// Services). See MASTER_AI_OS_ARCHITECTURE.md and the FM.md memory doc for
+// the real source-document analysis this schema is built from. The stated
+// success metric is ground-staff adoption, not feature completeness -- a
+// prior in-house attempt at this exact product failed on that point. Two
+// design decisions this wave hinges on, both explained where they occur
+// below: (1) asset category is a small governed lookup table, not free
+// text, because it's the join key checklist templates/PPM schedules
+// depend on and free text would let it drift the same way raw asset names
+// already have; (2) one asset can have MULTIPLE simultaneous active PPM
+// frequencies (confirmed real data, e.g. a DG set with weekly AND monthly
+// AND quarterly AND yearly checks all live at once) -- this is genuinely
+// new versus compliance_items' single-frequency recurrenceType model.
+export const fmPpmFrequencyEnum = complianceSchemaDB.enum('fm_ppm_frequency', ['daily', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'half_yearly', 'annually'])
+export const fmPpmOccurrenceStatusEnum = complianceSchemaDB.enum('fm_ppm_occurrence_status', ['due', 'in_progress', 'completed', 'overdue', 'skipped'])
+export const fmAmcPaymentFrequencyEnum = complianceSchemaDB.enum('fm_amc_payment_frequency', ['monthly', 'quarterly', 'half_yearly', 'annually', 'one_time'])
+export const fmVisitorLogStatusEnum = complianceSchemaDB.enum('fm_visitor_log_status', ['checked_in', 'checked_out', 'denied'])
+
+// Small, platform-governed lookup (~20 rows, seeded by migration, not
+// user-creatable at runtime) -- same posture as moduleRegistry/
+// orchestraLayers. This is where the #1 confirmed data-quality problem
+// (equipment-class naming drift) is actually fixed, at the level where it
+// matters: checklist templates and PPM schedules join on categoryId, not
+// on the free-text assetName below.
+export const fmAssetCategories = complianceSchemaDB.table('fm_asset_categories', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  categoryKey: text('category_key').notNull().unique(), // 'dg_set'|'hsd_tank'|'lt_panel'|'ht_panel'|'transformer'|'ups'|'vrv_ac'|'non_vrv_ac'|'ahu'|'chiller'|'cooling_tower'|'condenser_pump'|'borewell'|'water_tank'|'ro_system'|'uv_sterilizer'|'water_filter'|'softener'|'fire_fighting'|'passenger_lift'|'earthing_pit'|'lightning_arrestor'|'kitchen_exhaust'|'pneumatic_pump'|'sound_av_system'|'solar_system'|'carpentry_furniture'|'cctv'
+  displayName: text('display_name').notNull(),
+  typicalSpecUnit: text('typical_spec_unit'), // advisory only: 'KVA'|'HP'|'Ltr'|'NA' -- hints the digitization-AI prompt and manual-entry placeholder text, never validated/enforced (see fmAssets.capacitySpec below for why)
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const fmAssets = complianceSchemaDB.table('fm_assets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  locationLabel: text('location_label'), // free text this wave, e.g. "Block A - Terrace" -- no dedicated sites/locations table yet, promoted to a real FK once one exists
+  categoryId: text('category_id').notNull(),
+  assetName: text('asset_name').notNull(), // preserves the source spelling verbatim -- "Non VRV Ac-2", "Borewel-1" typos included, on purpose; normalizedName below is the dedup key, not this column
+  normalizedName: text('normalized_name').notNull(), // service-computed on write: lowercase, trim, collapse whitespace -- what fm-asset-dedup-service.ts's trigram matching runs against. Deliberately NOT unique: dedup is human-confirmed via fmAssetDuplicateCandidates, never DB-enforced
+  assetCode: text('asset_code'), // optional short human code e.g. "DG-01", independent of the QR value below
+  // Deliberately free text, not a numeric value + unit enum pair. Real data
+  // includes literal "NA", mixed unit families across categories (KVA vs
+  // HP vs Ltr vs bare count), and formula-error artifacts -- forcing
+  // structure at ingestion would either reject legitimate legacy rows or
+  // silently mangle them, both wrong for a product whose stated goal is
+  // REDUCING data discrepancies. fmAssetCategories.typicalSpecUnit is a
+  // soft hint only.
+  capacitySpec: text('capacity_spec'),
+  make: text('make'),
+  model: text('model'),
+  serialNumber: text('serial_number'),
+  installedDate: date('installed_date', { mode: 'string' }),
+  status: text('status').notNull().default('active'), // 'active'|'inactive'|'decommissioned'|'under_repair'
+  qrCodeValue: text('qr_code_value').unique(), // the literal string encoded in a printed QR label, scanned client-side (html5-qrcode, future UI wave); nullable until a label is generated
+  amcContractId: text('amc_contract_id'), // denormalized "current AMC" pointer, maintained by fm-amc-service.ts on contract create/renewal -- same cached-pointer convention as erpSuppliers' qualification-status columns
+  notes: text('notes'),
+  isDuplicateOf: text('is_duplicate_of'), // self-FK, set only once a human confirms this row is a duplicate via fmAssetDuplicateCandidates review -- soft-merge marker, row is kept not deleted
+  sourceType: text('source_type').notNull().default('manual'), // 'manual'|'register_digitization' -- traces provenance back to the AI-extraction pipeline
+  sourceDocumentId: text('source_document_id'), // nullable -> documents.id, the uploaded register/photo this row was extracted from, if any
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Platform-owned catalog, resolved at runtime -- NOT copy-on-enable like
+// PMS issue types. "UV -- Quarterly" is one real-world procedure that
+// should be free for every org on enable, not something each org
+// reinvents from scratch. orgId nullable: NULL = seeded platform library
+// row available to every org; non-null = an org's own customized fork
+// (fork-UI itself is a later wave, this column already supports it).
+export const fmChecklistTemplates = complianceSchemaDB.table('fm_checklist_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  categoryId: text('category_id').notNull(),
+  frequency: fmPpmFrequencyEnum('frequency').notNull(),
+  name: text('name').notNull(), // "UV -- Quarterly"
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'), // nullable -- platform-seeded rows have no human author, mirrors promptVersions.createdById
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const fmChecklistTemplateItems = complianceSchemaDB.table('fm_checklist_template_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  templateId: text('template_id').notNull(),
+  sequenceOrder: integer('sequence_order').notNull().default(0),
+  itemText: text('item_text').notNull(), // "Check for leakage", "Clean lamp glass and check O-ring"
+  itemType: text('item_type').notNull().default('checkbox'), // 'checkbox'|'photo_required'|'numeric_reading'|'text_note' -- encodes the "camera/tap over typing" adoption principle directly in the schema
+  isMandatory: boolean('is_mandatory').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// THE genuinely novel piece versus compliance_items' single-frequency
+// model: one asset can have N active rows here simultaneously (weekly AND
+// monthly AND quarterly AND yearly, all live at once). No uniqueness on
+// assetId alone -- only on (assetId, checklistTemplateId), so the SAME
+// frequency can't be double-scheduled by accident.
+export const fmPpmSchedules = complianceSchemaDB.table('fm_ppm_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  checklistTemplateId: text('checklist_template_id').notNull(), // the template's own `frequency` column IS this schedule's frequency -- no separate frequency column here, avoids the two ever disagreeing
+  isActive: boolean('is_active').notNull().default(true), // pausing a frequency (asset temporarily decommissioned) without losing schedule history
+  nextDueDate: date('next_due_date', { mode: 'string' }).notNull(),
+  lastGeneratedOccurrenceId: text('last_generated_occurrence_id'), // denormalized pointer to the most recently generated occurrence -- lets the generator cheaply check "did I already generate this one" without a reverse-scanning query
+  defaultAssigneeId: text('default_assignee_id'), // nullable -- pre-fills a new occurrence's assignee (e.g. "the on-site electrician"); per-occurrence assignee can still be reassigned
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const fmPpmOccurrences = complianceSchemaDB.table('fm_ppm_occurrences', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  scheduleId: text('schedule_id').notNull(),
+  assetId: text('asset_id').notNull(), // denormalized from the schedule for cheap "all occurrences for this asset" queries without a join
+  dueDate: date('due_date', { mode: 'string' }).notNull(),
+  status: fmPpmOccurrenceStatusEnum('status').notNull().default('due'),
+  assigneeId: text('assignee_id'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  completedById: text('completed_by_id'),
+  completionNotes: text('completion_notes'),
+  overdueNotifiedAt: timestamp('overdue_notified_at'), // nullable -- when the overdue alert last fired, prevents re-notifying every cron tick
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Per-occurrence tick-marks/readings, deliberately separate from
+// fmChecklistTemplateItems (the reusable definition) so editing a
+// template's wording later never rewrites completed history. Photo
+// evidence for itemType='photo_required' reuses `documents` directly
+// (linkedEntityType: 'fm_ppm_occurrence_item_result') -- zero new table,
+// multiple photos per result = multiple document rows sharing one
+// linkedEntityId.
+export const fmPpmOccurrenceItemResults = complianceSchemaDB.table('fm_ppm_occurrence_item_results', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  occurrenceId: text('occurrence_id').notNull(),
+  templateItemId: text('template_item_id').notNull(), // item wording resolved at read time via join, not snapshotted -- acceptable since template edits are rare and this avoids a full snapshot-copy table for a first wave
+  isChecked: boolean('is_checked').notNull().default(false),
+  numericValue: numeric('numeric_value'), // used when itemType = 'numeric_reading'
+  textNote: text('text_note'),
+  orgId: text('org_id').notNull(),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const fmAmcContracts = complianceSchemaDB.table('fm_amc_contracts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  vendorId: text('vendor_id').notNull(), // -> erp_suppliers.id -- reuses the existing vendor master, no new FM-specific vendor table
+  contractStartDate: date('contract_start_date', { mode: 'string' }).notNull(),
+  contractEndDate: date('contract_end_date', { mode: 'string' }).notNull(),
+  paymentFrequency: fmAmcPaymentFrequencyEnum('payment_frequency').notNull(),
+  contractedYearlyServiceCount: integer('contracted_yearly_service_count').notNull(),
+  firstServiceDate: date('first_service_date', { mode: 'string' }),
+  contractValue: numeric('contract_value'),
+  status: text('status').notNull().default('active'), // 'active'|'expired'|'terminated'|'renewal_pending'
+  notes: text('notes'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// FM-specific dedup -- deliberately NOT routed through Wave 93's MDM
+// engine (mdm-quality-service.ts's assertEntityType is hardcoded to
+// 'erp_customer'|'erp_supplier' and its scoring assumes gstin/pan_number
+// columns that don't exist on physical assets). Matching combines pg_trgm
+// similarity() on normalizedName (catches "Non VRV Ac-2" case drift,
+// "Borewel-1" typos) with an optional embeddings.ts findSimilar() cross
+// check for semantic near-duplicates. status='merged' on this table
+// itself is the audit trail at this scale -- no separate merge-log table
+// this wave.
+export const fmAssetDuplicateCandidates = complianceSchemaDB.table('fm_asset_duplicate_candidates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  assetIdA: text('asset_id_a').notNull(),
+  assetIdB: text('asset_id_b').notNull(),
+  matchScore: numeric('match_score').notNull(), // 0..1
+  matchReason: text('match_reason').notNull(), // 'trigram_name_similarity'|'embedding_similarity'|'combined'
+  status: text('status').notNull().default('pending'), // 'pending'|'confirmed_duplicate'|'not_duplicate'|'merged'
+  reviewedById: text('reviewed_by_id'),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// The flagship adoption feature's staging layer: "upload an Excel/photo of
+// a physical register and AI creates the digital register." Nothing here
+// ever auto-commits to fmAssets -- a row only becomes a real asset after
+// an explicit human review + commit action, directly serving the stated
+// "reduce data discrepancies" goal rather than just moving them digital.
+export const fmRegisterDigitizationBatches = complianceSchemaDB.table('fm_register_digitization_batches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  sourceDocumentId: text('source_document_id').notNull(), // -> documents.id
+  sourceType: text('source_type').notNull(), // 'excel'|'csv'|'photo'
+  status: text('status').notNull().default('extracted'), // 'extracted'|'under_review'|'committed'|'discarded'
+  totalRowsExtracted: integer('total_rows_extracted').notNull().default(0),
+  totalRowsCommitted: integer('total_rows_committed').notNull().default(0),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  reviewedAt: timestamp('reviewed_at'),
+})
+
+export const fmRegisterDigitizationRows = complianceSchemaDB.table('fm_register_digitization_rows', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  batchId: text('batch_id').notNull(),
+  orgId: text('org_id').notNull(),
+  sourceRowNumber: integer('source_row_number'),
+  extractedData: jsonb('extracted_data').notNull(), // raw LLM output: assetName/categoryHint/capacitySpec/make/model/locationLabel/confidence/warnings
+  confidence: numeric('confidence'), // denormalized from extractedData for cheap sort/filter in the review UI
+  reviewStatus: text('review_status').notNull().default('pending'), // 'pending'|'approved'|'edited'|'rejected'
+  editedData: jsonb('edited_data'), // nullable -- human corrections before commit, kept separate from extractedData so the original AI output is never overwritten (an audit trail of what the AI got wrong)
+  committedAssetId: text('committed_asset_id'), // nullable -> fm_assets.id, set only once this row is actually committed
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Corporate Services scope for this wave: visitor check-in/check-out only
+// (canteen/transport/mailroom/meeting-room-booking are explicitly
+// deferred). fmVisitors is separate from fmVisitorLogs so a repeat visitor
+// (e.g. a recurring vendor technician) doesn't re-enter their details
+// every visit -- front desk searches-and-selects an existing visitor,
+// matching how a familiar, register-like flow should behave for reception
+// staff. ID/face photos reuse `documents` (linkedEntityType:
+// 'fm_visitor_log') -- only a display-safe fragment lives on this table.
+export const fmVisitors = complianceSchemaDB.table('fm_visitors', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  fullName: text('full_name').notNull(),
+  phoneNumber: text('phone_number'),
+  idType: text('id_type'), // 'aadhaar'|'driving_license'|'passport'|'other' -- advisory, not validated
+  idNumberLast4: text('id_number_last4'), // deliberately NOT the full ID number -- the readable-in-full ID photo lives in documents, access-controlled the same way erpSuppliers' KYC docs already are
+  companyOrOrg: text('company_or_org'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const fmVisitorLogs = complianceSchemaDB.table('fm_visitor_logs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  visitorId: text('visitor_id').notNull(),
+  hostUserId: text('host_user_id').notNull(),
+  purpose: text('purpose'),
+  checkInAt: timestamp('check_in_at').notNull().defaultNow(),
+  checkOutAt: timestamp('check_out_at'),
+  status: fmVisitorLogStatusEnum('status').notNull().default('checked_in'),
+  hostNotifiedAt: timestamp('host_notified_at'), // when the host was pinged -- reuses whatever notification channel already exists, not a new mechanism
+  loggedById: text('logged_by_id'), // front-desk/reception user who created the entry
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const fmAssetsRelations = relations(fmAssets, ({ one, many }) => ({
+  category: one(fmAssetCategories, { fields: [fmAssets.categoryId], references: [fmAssetCategories.id] }),
+  schedules: many(fmPpmSchedules),
+  amcContracts: many(fmAmcContracts),
+}))
+export const fmChecklistTemplatesRelations = relations(fmChecklistTemplates, ({ one, many }) => ({
+  category: one(fmAssetCategories, { fields: [fmChecklistTemplates.categoryId], references: [fmAssetCategories.id] }),
+  items: many(fmChecklistTemplateItems),
+}))
+export const fmChecklistTemplateItemsRelations = relations(fmChecklistTemplateItems, ({ one }) => ({
+  template: one(fmChecklistTemplates, { fields: [fmChecklistTemplateItems.templateId], references: [fmChecklistTemplates.id] }),
+}))
+export const fmPpmSchedulesRelations = relations(fmPpmSchedules, ({ one, many }) => ({
+  asset: one(fmAssets, { fields: [fmPpmSchedules.assetId], references: [fmAssets.id] }),
+  checklistTemplate: one(fmChecklistTemplates, { fields: [fmPpmSchedules.checklistTemplateId], references: [fmChecklistTemplates.id] }),
+  occurrences: many(fmPpmOccurrences),
+}))
+export const fmPpmOccurrencesRelations = relations(fmPpmOccurrences, ({ one, many }) => ({
+  schedule: one(fmPpmSchedules, { fields: [fmPpmOccurrences.scheduleId], references: [fmPpmSchedules.id] }),
+  asset: one(fmAssets, { fields: [fmPpmOccurrences.assetId], references: [fmAssets.id] }),
+  itemResults: many(fmPpmOccurrenceItemResults),
+}))
+export const fmPpmOccurrenceItemResultsRelations = relations(fmPpmOccurrenceItemResults, ({ one }) => ({
+  occurrence: one(fmPpmOccurrences, { fields: [fmPpmOccurrenceItemResults.occurrenceId], references: [fmPpmOccurrences.id] }),
+  templateItem: one(fmChecklistTemplateItems, { fields: [fmPpmOccurrenceItemResults.templateItemId], references: [fmChecklistTemplateItems.id] }),
+}))
+export const fmAmcContractsRelations = relations(fmAmcContracts, ({ one }) => ({
+  asset: one(fmAssets, { fields: [fmAmcContracts.assetId], references: [fmAssets.id] }),
+  vendor: one(erpSuppliers, { fields: [fmAmcContracts.vendorId], references: [erpSuppliers.id] }),
+}))
+export const fmRegisterDigitizationBatchesRelations = relations(fmRegisterDigitizationBatches, ({ many }) => ({
+  rows: many(fmRegisterDigitizationRows),
+}))
+export const fmRegisterDigitizationRowsRelations = relations(fmRegisterDigitizationRows, ({ one }) => ({
+  batch: one(fmRegisterDigitizationBatches, { fields: [fmRegisterDigitizationRows.batchId], references: [fmRegisterDigitizationBatches.id] }),
+}))
+export const fmVisitorsRelations = relations(fmVisitors, ({ many }) => ({
+  logs: many(fmVisitorLogs),
+}))
+export const fmVisitorLogsRelations = relations(fmVisitorLogs, ({ one }) => ({
+  visitor: one(fmVisitors, { fields: [fmVisitorLogs.visitorId], references: [fmVisitors.id] }),
+}))
