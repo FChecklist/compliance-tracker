@@ -100,9 +100,14 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     const systemPrompt = await resolvePromptTemplate("fde.evaluate_request")
     const candidateList = candidates.map((c) => ({ entityType: c.entityType, entityId: c.entityId, similarityScore: Math.round(c.score * 100) / 100, contract: c.content }))
     const userMessage = `User's request: "${requestText}"\n\nClosest existing capabilities found by semantic search (JSON, NOT the full catalog):\n${JSON.stringify(candidateList)}`
+    // Wave 110: expectedKeys catches a malformed/incomplete LLM response
+    // here (LLMVerificationError, caught below) instead of silently
+    // proceeding with an undefined matchType/responseToUser that could
+    // otherwise mis-route into the wrong branch below (e.g.
+    // `undefined !== "no_match"` would wrongly look like a real match).
     const { data: evaluation, usage } = await callLLMJson<FdeEvaluation>(
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-      { temperature: 0.3, maxTokens: 700 }, modelConfig.fallback
+      { temperature: 0.3, maxTokens: 700, expectedKeys: ["matchType", "responseToUser"] }, modelConfig.fallback
     )
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",

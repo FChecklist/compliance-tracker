@@ -6512,3 +6512,24 @@ export const salesCommissionAccrualsRelations = relations(salesCommissionAccrual
   partner: one(salesPartners, { fields: [salesCommissionAccruals.salesPartnerId], references: [salesPartners.id] }),
   plan: one(salesCommissionPlans, { fields: [salesCommissionAccruals.salesCommissionPlanId], references: [salesCommissionPlans.id] }),
 }))
+
+// ─── LLM Response Cache (Wave 110, AI_OS_MASTER_PROMPT_GAP_ANALYSIS.md) ──
+// Deliberately NOT the same shape as embeddingCache -- that table's cache
+// key is a bare content hash because identical text always embeds
+// identically regardless of tenant, making a global cache always safe.
+// An LLM *completion* for the same prompt text is NOT guaranteed safe to
+// share across orgs (a system prompt can carry implicit per-org context),
+// so cacheKey here is a hash of (orgId + provider + model + systemPrompt +
+// userMessage), never a bare prompt hash -- see callLLMCached() in
+// llm-client.ts, which is opt-in per caller, not automatic at every
+// existing call site. expiresAt exists because business-data answers go
+// stale in a way static embedded text never does.
+export const llmResponseCache = complianceSchemaDB.table('llm_response_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  cacheKey: text('cache_key').notNull().unique(),
+  content: text('content').notNull(),
+  promptTokens: integer('prompt_tokens').notNull().default(0),
+  completionTokens: integer('completion_tokens').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+})

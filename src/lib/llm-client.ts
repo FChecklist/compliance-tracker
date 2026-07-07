@@ -35,6 +35,11 @@ export type CallLLMOptions = {
   // additive -- every pre-existing call site passes no history and gets the
   // exact same single-turn request as before.
   history?: ChatTurn[];
+  // Wave 110: only consumed by callLLMJson -- if supplied, the parsed JSON
+  // is checked for these top-level keys before being returned; a missing
+  // key throws LLMVerificationError instead of handing the caller
+  // malformed data to discover later. Optional and additive.
+  expectedKeys?: string[];
 };
 
 export type LLMUsage = {
@@ -62,6 +67,22 @@ export class LLMHttpError extends Error {
     super(message);
     this.name = "LLMHttpError";
     this.status = status;
+  }
+}
+
+// Wave 110 (AI_OS_MASTER_PROMPT_GAP_ANALYSIS.md, "output verification
+// engineering" -- confirmed absent anywhere in this codebase prior).
+// Deliberately narrow: checks JSON *shape* (are the keys the caller
+// actually needs present?), not a claim against a business fact -- that's
+// a much larger undertaking with no existing primitive to build on yet.
+// Thrown as its own type so a caller can log/handle a malformed-output
+// case distinctly from a network/provider failure (LLMHttpError).
+export class LLMVerificationError extends Error {
+  missingKeys: string[];
+  constructor(missingKeys: string[]) {
+    super(`LLM JSON response missing expected key(s): ${missingKeys.join(", ")}`);
+    this.name = "LLMVerificationError";
+    this.missingKeys = missingKeys;
   }
 }
 
@@ -422,5 +443,12 @@ export async function callLLMJson<T>(
   fallback?: LLMFallback
 ): Promise<{ data: T; usage: LLMUsage }> {
   const { content, usage } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
-  return { data: JSON.parse(stripJsonFence(content)) as T, usage };
+  const data = JSON.parse(stripJsonFence(content)) as T;
+
+  if (options?.expectedKeys?.length) {
+    const missing = options.expectedKeys.filter((key) => !(data && typeof data === "object" && key in (data as object)));
+    if (missing.length > 0) throw new LLMVerificationError(missing);
+  }
+
+  return { data, usage };
 }
