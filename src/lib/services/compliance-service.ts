@@ -7,6 +7,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, or, like, asc, desc, not, inArray, gte, lte, lt, sql, type SQL } from "drizzle-orm"
 import { logActivity } from "@/lib/audit"
 import { notifyAssigned } from "@/lib/email"
+import { checkAndUnlockAchievements } from "./veri-reward-service"
 import type { ServiceContext, ReadContext } from "./context"
 
 export const VALID_STATUSES = ["pending", "in_progress", "completed", "overdue", "not_applicable", "draft"] as const
@@ -272,6 +273,16 @@ export async function updateComplianceItem(ctx: ServiceContext, id: string, inpu
     if (status !== undefined) {
       updateData.status = status
       if (status === "completed") updateData.completedAt = new Date()
+      // VERI Reward: nudge the 'first_compliance_item' achievement when an
+      // item is marked completed. Wrapped so a points-engine failure can
+      // never break the actual compliance-item update (logged, not thrown).
+      if (status === "completed") {
+        try {
+          await checkAndUnlockAchievements(db, { orgId, userId: userId!, achievementKey: "first_compliance_item" })
+        } catch (err) {
+          console.error("[veri-reward] failed to check first_compliance_item achievement", err)
+        }
+      }
     }
 
     await db.update(complianceItems).set(updateData as any).where(eq(complianceItems.id, id))
