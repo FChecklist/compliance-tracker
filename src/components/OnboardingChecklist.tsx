@@ -71,6 +71,12 @@ export default function OnboardingChecklist() {
       }
       return next;
     });
+    // Sync server-side alongside the existing localStorage write
+    fetch('/api/me/onboarding-stage', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: id }),
+    });
   }, []);
 
   const handleDismiss = useCallback(() => {
