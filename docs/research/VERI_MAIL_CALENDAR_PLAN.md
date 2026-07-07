@@ -6,19 +6,22 @@ This document outlines a plan to implement 'VERI Mail' and 'VERI Calendar' featu
 
 Integration will be built on top of the existing `gmail` and `googlecalendar` connectors. Actions will be executed via Composio's `execute` API endpoint, using the `connectedAccountId` stored in the `connector_accounts` table.
 
-**Note:** Outbound network access to the Composio API is restricted in the current environment. The following tool slugs are inferred based on common API design patterns and could not be live-verified. **They must be confirmed against the Composio API documentation or by making live API calls before implementation.**
+**Update (2026-07-07):** the AI Workforce agent's CI runner had no live network access to Composio, so it correctly flagged the slugs below as unverified. Verified live afterward against `https://backend.composio.dev/api/v3/tools?toolkit_slug=gmail` and `toolkit_slug=googlecalendar` -- real slugs, not inferred:
 
-### Gmail (`gmail` toolkit)
+### Gmail (`gmail` toolkit) -- verified slugs
 
-*   **List emails:** `list_emails` (or similar)
-*   **Read email:** `get_email` (with an `id` parameter)
-*   **Send email:** `send_email` (with `to`, `subject`, and `body` parameters)
+*   **List/search emails:** `GMAIL_FETCH_EMAILS`
+*   **Read one email:** `GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID` (also `GMAIL_FETCH_MESSAGE_BY_THREAD_ID` for a whole thread)
+*   **Send email:** `GMAIL_SEND_EMAIL` (drafts: `GMAIL_LIST_DRAFTS` / `GMAIL_SEND_DRAFT`)
+*   **Labels:** `GMAIL_LIST_LABELS`
 
-### Google Calendar (`googlecalendar` toolkit)
+### Google Calendar (`googlecalendar` toolkit) -- verified slugs
 
-*   **List calendar events:** `list_events` (with `calendarId`, `timeMin`, `timeMax`)
-*   **Create calendar event:** `create_event` (with `calendarId`, `summary`, `start`, `end`, `attendees`)
-*   **Create meeting invite:** This is typically part of `create_event` by including `attendees` with email addresses, which automatically sends invites.
+*   **List calendars:** `GOOGLECALENDAR_LIST_CALENDARS`
+*   **List events:** `GOOGLECALENDAR_EVENTS_LIST`
+*   **Find a specific event:** `GOOGLECALENDAR_FIND_EVENT`
+*   **Create event / meeting invite:** `GOOGLECALENDAR_CREATE_EVENT` (attendees on this call trigger real Google Calendar invite emails)
+*   **Update / move / delete:** `GOOGLECALENDAR_UPDATE_EVENT`, `GOOGLECALENDAR_PATCH_EVENT`, `GOOGLECALENDAR_EVENTS_MOVE`, `GOOGLECALENDAR_DELETE_EVENT`
 
 ## 2. API Route Shape
 
