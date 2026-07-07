@@ -220,7 +220,19 @@ async function main() {
       } catch (err) {
         result = `ERROR: ${err.message}`
       }
-      messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 8000) })
+      // A real run (2026-07-07) proved this cap was a genuine bug, not
+      // just a defensive limit: it silently truncated read_file's output
+      // to 8000 CHARACTERS (not the file-size cap, MAX_FILE_BYTES=200KB,
+      // which never fired) mid-token, well below most real source files in
+      // this repo. The model (correctly) refused to write_file a
+      // reconstruction of a file it could only see ~30% of rather than
+      // risk destroying the unseen ~70%. read_file results are now
+      // unsliced (up to MAX_FILE_BYTES, already enforced in execTool);
+      // only list_dir/write_file/finish confirmations (naturally short)
+      // keep the 8000-char cap, as a genuine guard against a runaway or
+      // malformed tool result.
+      const content = call.function.name === "read_file" ? String(result) : String(result).slice(0, 8000)
+      messages.push({ role: "tool", tool_call_id: call.id, content })
     }
   }
 
