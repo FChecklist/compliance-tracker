@@ -7,6 +7,10 @@ import TrialBanner from "@/components/TrialBanner";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import PageAgentInitializer from "@/components/PageAgentInitializer";
 import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock";
+// HelpWidget was built in an earlier session wave but never wired into any
+// render tree — imported and rendered here as a fixed-position floating
+// widget that lives for the entire authenticated session.
+import HelpWidget from "@/components/HelpWidget";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -74,6 +78,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <GlobalChatDock />
+      {/* HelpWidget: floating help-chat button/panel, fixed-position, rendered
+          once per authenticated session alongside other global overlays. */}
+      <HelpWidget />
     </div>
   );
 }
