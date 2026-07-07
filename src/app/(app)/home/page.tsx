@@ -68,6 +68,7 @@ function convoName(c: Conversation): string {
 export default function HomePage() {
   const [firstName, setFirstName] = useState<string>("");
   const [stats, setStats] = useState<Stats | null>(null);
+  const [statsError, setStatsError] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [chats, setChats] = useState<Conversation[]>([]);
@@ -87,7 +88,7 @@ export default function HomePage() {
     fetch("/api/me").then((r) => r.json()).then((d) => {
       if (d?.name) setFirstName(String(d.name).split(" ")[0]);
     }).catch(() => {});
-    fetch("/api/compliance/stats").then((r) => r.json()).then(setStats).catch(() => {});
+    fetch("/api/compliance/stats").then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then(setStats).catch(() => setStatsError(true));
     fetch("/api/conversations").then((r) => r.json()).then((d) => {
       const all: Conversation[] = d?.conversations ?? [];
       const ai = all.find((c) => c.isAiThread);
@@ -174,11 +175,19 @@ export default function HomePage() {
     stats !== null &&
     (stats.total ?? 0) === 0;
 
-  const briefingLine = firstRun
-    ? `All set — your complete office is live. Finance, sales, CRM, HR, operations, compliance: one system, and I run it for you. Tell me what you need in plain words, or pick something below to see me work.`
-    : overdue > 0
-      ? `I've gone through everything. ${overdue} ${overdue === 1 ? "thing needs" : "things need"} your attention — I've flagged them for you. The rest is on track, and I'm keeping an eye on it.`
-      : `I've gone through everything and you're in good shape — nothing overdue. I'll keep watch and let you know the moment anything needs you.`;
+  // Wave 111 finding: a failed /api/compliance/stats fetch used to leave
+  // `stats` null, which fed the exact same `overdue ?? 0` path as a genuine
+  // zero-overdue org -- silently telling the user "you're in good shape"
+  // when the system had actually failed to check. In a compliance product
+  // that false reassurance is worse than no answer at all, so a fetch
+  // failure now gets its own honest, distinct message instead.
+  const briefingLine = statsError
+    ? `I couldn't check what's overdue just now — the connection dropped partway through. I don't want to tell you "you're all clear" without actually knowing, so please refresh in a moment.`
+    : firstRun
+      ? `All set — your complete office is live. Finance, sales, CRM, HR, operations, compliance: one system, and I run it for you. Tell me what you need in plain words, or pick something below to see me work.`
+      : overdue > 0
+        ? `I've gone through everything. ${overdue} ${overdue === 1 ? "thing needs" : "things need"} your attention — I've flagged them for you. The rest is on track, and I'm keeping an eye on it.`
+        : `I've gone through everything and you're in good shape — nothing overdue. I'll keep watch and let you know the moment anything needs you.`;
 
   const suggestions = firstRun
     ? [
