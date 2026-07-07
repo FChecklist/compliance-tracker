@@ -11,7 +11,7 @@
 // embedding search runs first -- a high-confidence match answers instantly
 // with zero LLM call at all, and anything less certain only sends the
 // top-K semantically similar candidates (not the whole org) to the LLM.
-import { fdeRequests } from "@/lib/db"
+import { fdeRequests, workerAgents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
@@ -23,6 +23,8 @@ import { hasRole } from "@/lib/supabase/auth-guard"
 import { proposeWorkerAgent } from "./worker-agent-service"
 import { findSimilarCapabilities } from "./capability-registry-service"
 import { ServiceError } from "./compliance-service"
+import { isToolAllowedForDomain } from "@/lib/purpose-bound-ai"
+import { dispatchTool } from "@/lib/task-execution-engine"
 export { ServiceError }
 import type { users } from "@/lib/db"
 
@@ -79,11 +81,41 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
 
   if (topMatch && topMatch.score >= HIGH_CONFIDENCE_THRESHOLD) {
     const label = labelFromContent(topMatch.content)
+    let responseText = `This looks like it's already covered by "${label}" (${Math.round(topMatch.score * 100)}% match) -- no new capability needed.`
+
+    // Phase 1 of Worker Agent Dispatch (READ-ONLY actions only): when the
+    // high-confidence match is a worker agent that qualifies for the exact
+    // same read-only auto-dispatch task-execution-engine.ts already
+    // enforces (global tier + codeReference + isToolAllowedForDomain),
+    // actually run it and surface its real JSON output. This reuses the
+    // existing dispatchTool() -- it only ever executes the 3 read-only
+    // global agents hardcoded there, so no write action can ever slip
+    // through. Any failure falls back to the static message above.
+    if (topMatch.entityType === "worker_agent") {
+      try {
+        const agent = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+          db.query.workerAgents.findFirst({
+            where: eq(workerAgents.id, topMatch.entityId),
+            columns: { id: true, tier: true, codeReference: true, domain: true },
+          })
+        )
+        if (agent?.tier === "global" && agent.codeReference && isToolAllowedForDomain(agent.domain, agent.codeReference)) {
+          await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+            const output = await dispatchTool(db, ctx.orgId, agent.codeReference)
+            responseText += ` Result: ${JSON.stringify(output)}`
+          })
+        }
+      } catch {
+        // Dispatch failure -- fall back to the existing static message
+        // rather than surfacing an error to the user.
+      }
+    }
+
     return recordFdeRequest(ctx, requestText, {
       status: "matched_existing",
       matchedWorkerAgentId: topMatch.entityType === "worker_agent" ? topMatch.entityId : null,
       matchedLabel: label,
-      responseText: `This looks like it's already covered by "${label}" (${Math.round(topMatch.score * 100)}% match) -- no new capability needed.`,
+      responseText,
     })
   }
 
