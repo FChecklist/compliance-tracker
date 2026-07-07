@@ -76,7 +76,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
 
@@ -123,6 +123,33 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         label: `Assistant ${i + 1}`,
       }))
     )
+
+    // Wave 109 (Sales Engine): if this signup carried a referral code
+    // (threaded from /signup's ?ref= param into supabase.auth.signUp's
+    // options.data), link it now -- signup and org creation happen in the
+    // same request here, so there's no deferred/manual linking step
+    // needed. next/headers' headers() is available in this same
+    // request-scoped call tree (requireAuth -> autoProvisionUser), the
+    // same way createClient() already reads cookies() here -- no need to
+    // thread the raw Request through every caller of requireAuth().
+    // Never blocks signup on failure.
+    const ref = meta?.ref?.trim()
+    if (ref) {
+      try {
+        const { recordReferralSignupAndOrgProvisioned } = await import("@/lib/services/sales-engine-service")
+        const { headers } = await import("next/headers")
+        const h = await headers()
+        await recordReferralSignupAndOrgProvisioned({
+          refToken: ref,
+          authUserId: authUser.id,
+          orgId: org.id,
+          ipAddress: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null,
+          userAgent: h.get("user-agent") ?? null,
+        })
+      } catch (err) {
+        console.warn("Referral linking failed (non-fatal):", err)
+      }
+    }
 
     return newUser
   } catch (err) {

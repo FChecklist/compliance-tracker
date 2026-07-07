@@ -6366,3 +6366,149 @@ export const firmInvoicesRelations = relations(firmInvoices, ({ one, many }) => 
 export const firmInvoiceLineItemsRelations = relations(firmInvoiceLineItems, ({ one }) => ({
   invoice: one(firmInvoices, { fields: [firmInvoiceLineItems.invoiceId], references: [firmInvoices.id] }),
 }))
+
+// ─── Sales Engine (Wave 109): cross-product referral, pipeline & commission
+// tracking ──────────────────────────────────────────────────────────────
+// Platform-owned (no orgId column on any table here) -- a sales partner
+// (reseller/consultant/referral agent/commission agent/third party) is not
+// a member of any one tenant; they refer prospects INTO many different
+// eventual orgs across many different products, exactly the same "no
+// tenant to scope by" rationale productBranches itself already documents.
+// All 5 tables get RLS enabled with ONLY a service_role_bypass policy (see
+// the migration) -- no app_runtime policy at all, since there is no org_id
+// and no tenant GUC means anything for an external partner. Every service
+// function in sales-engine-service.ts uses the raw `db` export, never
+// withTenantContext, the same posture auth-guard.ts's autoProvisionUser()
+// already uses for the identical reason (creating a brand-new tenant is
+// inherently a platform-level operation).
+export const salesPartnerTypeEnum = complianceSchemaDB.enum('sales_partner_type', ['reseller', 'consultant', 'referral_agent', 'commission_agent', 'third_party'])
+export const salesPartnerStatusEnum = complianceSchemaDB.enum('sales_partner_status', ['active', 'suspended', 'offboarded'])
+// Real enum: the service layer state-machines over this exact fixed list
+// with forward-only transitions (mirrors recruitment-service.ts's
+// VALID_STAGE_TRANSITIONS precedent, Wave 62), not open-ended catalog data.
+export const salesReferralStatusEnum = complianceSchemaDB.enum('sales_referral_status', ['clicked', 'signup_completed', 'org_provisioned', 'paid', 'lost'])
+export const salesCommissionTypeEnum = complianceSchemaDB.enum('sales_commission_type', ['percentage', 'flat'])
+export const salesCommissionAccrualStatusEnum = complianceSchemaDB.enum('sales_commission_accrual_status', ['accrued', 'paid', 'void'])
+
+export const salesPartners = complianceSchemaDB.table('sales_partners', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  phone: text('phone'),
+  partnerType: salesPartnerTypeEnum('partner_type').notNull(),
+  status: salesPartnerStatusEnum('status').notNull().default('active'),
+  companyName: text('company_name'),
+  notes: text('notes'), // admin-internal, never shown on the partner dashboard
+  // Long-lived dashboard access token -- replaces a full Supabase Auth
+  // account for partners this wave (see sales-engine-service.ts's header
+  // comment for the full rationale); same token/expiry/revocation shape
+  // as erpSupplierPortalLinks/conversationGuestAccess, except long-lived
+  // since partners return repeatedly rather than a one-shot submission.
+  dashboardToken: text('dashboard_token').notNull().unique(),
+  dashboardTokenExpiresAt: timestamp('dashboard_token_expires_at').notNull(),
+  dashboardTokenRevokedAt: timestamp('dashboard_token_revoked_at'),
+  createdById: text('created_by_id'), // the admin who seeded this partner -- partner self-registration is out of scope this wave
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const salesReferralLinks = complianceSchemaDB.table('sales_referral_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  salesPartnerId: text('sales_partner_id').notNull(),
+  // Nullable = generic/any-product link (lands on /signup). Non-null =
+  // product-specific link (e.g. lands on /the-firm). Free text, NOT an FK
+  // -- 'forge' has no product_branches row and 'crm' is unbranched, so a
+  // strict FK would reject valid values; validated against a small
+  // hardcoded allowlist in the service layer instead (same posture as
+  // moduleRegistry.category / productBranches.status).
+  productKey: text('product_key'),
+  token: text('token').notNull().unique(), // the /r/<token> segment
+  label: text('label'), // partner's own name for this link, e.g. "LinkedIn bio link"
+  isActive: boolean('is_active').notNull().default(true),
+  clickCount: integer('click_count').notNull().default(0), // lightweight counter -- deliberately not a per-click log table
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// One row per distinct referred prospect. ipAddress/userAgent captured at
+// the moment of signup (the real conversion event), mirroring
+// esignatureSigners' own ipAddress/userAgent-at-signing precedent -- not a
+// separate high-volume click-log table.
+export const salesReferrals = complianceSchemaDB.table('sales_referrals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  salesPartnerId: text('sales_partner_id').notNull(),
+  salesReferralLinkId: text('sales_referral_link_id').notNull(),
+  productKey: text('product_key'), // denormalized from the link at click time -- survives the link later being edited/deactivated
+  status: salesReferralStatusEnum('status').notNull().default('clicked'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  authUserId: text('auth_user_id'), // the Supabase Auth UUID -- not compliance.users.id, which may not exist until org_provisioned
+  orgId: text('org_id'), // set the moment autoProvisionUser() creates the org
+  clickedAt: timestamp('clicked_at').notNull().defaultNow(),
+  signupCompletedAt: timestamp('signup_completed_at'),
+  orgProvisionedAt: timestamp('org_provisioned_at'),
+  paidAt: timestamp('paid_at'),
+  lostAt: timestamp('lost_at'),
+  lostReason: text('lost_reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const salesCommissionPlans = complianceSchemaDB.table('sales_commission_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  productKey: text('product_key').notNull(), // free text, not FK -- see salesReferralLinks.productKey's own comment
+  // Nullable = default plan for this product, applying to any partner type
+  // without a more specific override. Non-null = override for that one
+  // partner type. Resolution (most-specific-wins) is in the service layer.
+  partnerType: salesPartnerTypeEnum('partner_type'),
+  commissionType: salesCommissionTypeEnum('commission_type').notNull(),
+  rate: numeric('rate', { precision: 6, scale: 3 }), // percentage, e.g. 15.000 = 15% -- required if commissionType='percentage'
+  flatAmount: numeric('flat_amount', { precision: 12, scale: 2 }), // required if commissionType='flat'
+  currency: text('currency').notNull().default('INR'),
+  validFrom: timestamp('valid_from').notNull().defaultNow(),
+  validTo: timestamp('valid_to'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Append-only ledger, mirrors costPayments/auditLogs -- never UPDATE an
+// existing row's status; a status change (accrued -> paid, or -> void)
+// INSERTS a new row referencing the same salesReferralId. The "current"
+// state of a referral's commission is whichever row for that referralId
+// has the latest createdAt.
+export const salesCommissionAccruals = complianceSchemaDB.table('sales_commission_accruals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  salesReferralId: text('sales_referral_id').notNull(),
+  salesPartnerId: text('sales_partner_id').notNull(),
+  productKey: text('product_key').notNull(),
+  salesCommissionPlanId: text('sales_commission_plan_id'), // nullable -- a void/manual-adjustment row may not reference a plan
+  dealValue: numeric('deal_value', { precision: 12, scale: 2 }), // basis this was computed from, nullable for flat-rate plans
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  currency: text('currency').notNull().default('INR'),
+  status: salesCommissionAccrualStatusEnum('status').notNull().default('accrued'),
+  note: text('note'), // e.g. "voided: duplicate accrual", "paid via bank transfer ref #1234"
+  recordedById: text('recorded_by_id'), // null for system-generated accrual rows; set for admin-recorded paid/void transitions
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const salesPartnersRelations = relations(salesPartners, ({ many }) => ({
+  referralLinks: many(salesReferralLinks),
+  referrals: many(salesReferrals),
+  commissionAccruals: many(salesCommissionAccruals),
+}))
+export const salesReferralLinksRelations = relations(salesReferralLinks, ({ one, many }) => ({
+  partner: one(salesPartners, { fields: [salesReferralLinks.salesPartnerId], references: [salesPartners.id] }),
+  referrals: many(salesReferrals),
+}))
+export const salesReferralsRelations = relations(salesReferrals, ({ one, many }) => ({
+  partner: one(salesPartners, { fields: [salesReferrals.salesPartnerId], references: [salesPartners.id] }),
+  link: one(salesReferralLinks, { fields: [salesReferrals.salesReferralLinkId], references: [salesReferralLinks.id] }),
+  commissionAccruals: many(salesCommissionAccruals),
+}))
+export const salesCommissionPlansRelations = relations(salesCommissionPlans, ({ many }) => ({
+  accruals: many(salesCommissionAccruals),
+}))
+export const salesCommissionAccrualsRelations = relations(salesCommissionAccruals, ({ one }) => ({
+  referral: one(salesReferrals, { fields: [salesCommissionAccruals.salesReferralId], references: [salesReferrals.id] }),
+  partner: one(salesPartners, { fields: [salesCommissionAccruals.salesPartnerId], references: [salesPartners.id] }),
+  plan: one(salesCommissionPlans, { fields: [salesCommissionAccruals.salesCommissionPlanId], references: [salesCommissionPlans.id] }),
+}))

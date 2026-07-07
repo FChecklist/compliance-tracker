@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest) {
     "/ingest", "/ip-portfolio", "/irdai", "/it-dr", "/knowledge-base", "/kpi-hub", "/leave-holiday", "/legal-matters", "/legal-opinions",
     "/legal-vendors", "/litigation", "/mca-filings", "/mdm-quality", "/metric-alerts", "/notices", "/orchestra",
     "/penalties", "/performance-reviews", "/pms", "/policies", "/posh", "/problem-records", "/prompt-eval", "/rbi", "/recruitment", "/reports", "/risks", "/rpt",
-    "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks", "/tickets",
+    "/sales-hq", "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks", "/tickets",
     "/team", "/users", "/vendor-risk", "/veri-ai", "/veri-meetings", "/veri-todo", "/whistleblower",
   ]
   const isAppRoute = PROTECTED_APP_ROUTE_PREFIXES.some((prefix) => request.nextUrl.pathname.startsWith(prefix))

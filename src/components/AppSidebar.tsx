@@ -306,6 +306,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: FlaskConical,
         },
         {
+          label: "Sales HQ",
+          href: "/sales-hq",
+          icon: Users,
+        },
+        {
           label: "Checklists",
           href: "/checklists",
           icon: CheckSquare,
