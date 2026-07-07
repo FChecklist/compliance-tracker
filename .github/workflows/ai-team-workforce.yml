@@ -38,9 +38,10 @@ jobs:
 
       - name: Create work branch
         id: branch
+        env:
+          ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
         run: |
-          ROLE="${{ github.event.client_payload.role_key || github.event.inputs.role_key }}"
-          BRANCH="ai-team/${ROLE}/$(date +%Y%m%d-%H%M%S)"
+          BRANCH="ai-team/${ROLE_KEY}/$(date +%Y%m%d-%H%M%S)"
           git checkout -b "$BRANCH"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
@@ -54,41 +55,53 @@ jobs:
           AI_TEAM_SUPABASE_ANON_KEY: ${{ secrets.AI_TEAM_SUPABASE_ANON_KEY }}
         run: bun run scripts/ai-workforce-agent.mjs
 
+      # 6th real bug found smoke-testing this pipeline: the agent's own
+      # freeform summary text (markdown, backticks, $(...), quotes) was
+      # previously interpolated directly into a `run:` shell block via
+      # ${{ steps.agent.outputs.summary }} -- GitHub Actions substitutes
+      # that as raw text BEFORE bash parses the script, so shell
+      # metacharacters inside the LLM's own prose got executed/misparsed
+      # (a real command-injection-shaped bug, not just a formatting one).
+      # Every step below now passes untrusted text through env vars and
+      # references it as "$VAR" inside the script, which bash treats as a
+      # literal string, never re-parsed for shell syntax.
       - name: Commit changes
         id: commit
+        env:
+          ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          SUMMARY: ${{ steps.agent.outputs.summary }}
         run: |
           git config user.name "veridian-ai-workforce[bot]"
           git config user.email "ai-workforce@veridian.internal"
           git add -A
-          git diff --cached --quiet && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
-          git diff --cached --quiet || git commit -m "AI Workforce (${{ github.event.client_payload.role_key || github.event.inputs.role_key }}): ${{ steps.agent.outputs.summary }}"
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git commit -m "AI Workforce (${ROLE_KEY}): ${SUMMARY}"
+          fi
 
       - name: Push and open PR
         if: steps.commit.outputs.changed == 'true'
         env:
-          # 4th real bug found smoke-testing this pipeline: PAT_FCHECKLIST
-          # returns HTTP 401 "Bad credentials" (expired/revoked). The push
-          # itself already succeeds using actions/checkout's own auto-
-          # provisioned GITHUB_TOKEN (via `permissions: contents: write`
-          # above) -- using it for `gh pr create` too needs no external PAT
-          # at all for a same-repo PR (`permissions: pull-requests: write`
-          # covers it).
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          TASK: ${{ github.event.client_payload.task || github.event.inputs.task }}
+          SUMMARY: ${{ steps.agent.outputs.summary }}
+          FILES_CHANGED: ${{ steps.agent.outputs.files_changed }}
         run: |
-          git push origin "${{ steps.branch.outputs.branch }}"
+          git push origin "$BRANCH"
           gh pr create \
-            --title "AI Workforce (${{ github.event.client_payload.role_key || github.event.inputs.role_key }}): ${{ steps.agent.outputs.summary }}" \
-            --body "$(cat <<EOF
-          **Role:** ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
-          **Task:** ${{ github.event.client_payload.task || github.event.inputs.task }}
-          **Files changed:** ${{ steps.agent.outputs.files_changed }}
-          **Summary:** ${{ steps.agent.outputs.summary }}
+            --title "AI Workforce (${ROLE_KEY}): ${SUMMARY:0:100}" \
+            --body "**Role:** ${ROLE_KEY}
+          **Task:** ${TASK}
+          **Files changed:** ${FILES_CHANGED}
+          **Summary:** ${SUMMARY}
 
-          Opened automatically by the AI Workforce (repo-write) workflow. Requires Security & Code Reviewer / human review before merge — never auto-merged.
-          EOF
-          )" \
+          Opened automatically by the AI Workforce (repo-write) workflow. Requires Security & Code Reviewer / human review before merge — never auto-merged." \
             --base main \
-            --head "${{ steps.branch.outputs.branch }}"
+            --head "$BRANCH"
 
       - name: No changes made
         if: steps.commit.outputs.changed == 'false'
