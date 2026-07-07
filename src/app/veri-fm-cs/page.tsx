@@ -43,6 +43,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductSalesSection } from "@/components/ProductSalesSection";
+import { VisitorIntelligence } from "@/components/VisitorIntelligence";
+import { LegalBar } from "@/components/LegalBar";
 
 // --- Editable content -------------------------------------------------------
 
@@ -203,6 +205,8 @@ function Nav() {
     { href: "#features", label: "Features" },
     { href: "#how", label: "How it works" },
     { href: "#pricing", label: "Pricing" },
+    { href: "#sales", label: "Sales & demo" },
+    { href: "/?from=veri-fm-cs", label: "Research" },
   ];
   return (
     <nav className="sticky top-0 z-50 bg-ct-cream/80 backdrop-blur-md border-b border-ct-border/60">
@@ -737,6 +741,8 @@ export default function VeriFmCsLandingPage() {
       <ProductSalesSection product="VERI FM & CS AI OS" />
       <FinalCta />
       <Footer />
+      <LegalBar />
+      <VisitorIntelligence page="/veri-fm-cs" productKey="facilities_management" />
     </main>
   );
 }

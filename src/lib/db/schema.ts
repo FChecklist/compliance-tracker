@@ -6533,3 +6533,39 @@ export const llmResponseCache = complianceSchemaDB.table('llm_response_cache', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at').notNull(),
 })
+
+// --- Wave 113: Visitor Intelligence (VERIDIAN SALES AI) ----------------------
+// Anonymous public-site analytics feeding the Sales Engine's conversion
+// mission: who visited which product page, how many times, which section
+// they reached before leaving, which exit-intent offer they were shown, and
+// whether they converted to a signup. Platform-owned (no orgId) -- a public
+// visitor belongs to no tenant -- so RLS is service_role_bypass-only and the
+// service uses the raw `db` client, the exact posture of the Wave 109 sales
+// tables. The visitor_id is a self-generated anonymous id stored client-side;
+// no name/email is ever collected pre-signup (see /privacy).
+export const visitorSessions = complianceSchemaDB.table('visitor_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  visitorId: text('visitor_id').notNull().unique(),
+  firstSeenAt: timestamp('first_seen_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  visitCount: integer('visit_count').notNull().default(1),
+  firstPage: text('first_page'),
+  lastPage: text('last_page'),
+  referrer: text('referrer'),
+  userAgent: text('user_agent'),
+  convertedOrgId: text('converted_org_id'),
+  convertedAt: timestamp('converted_at'),
+})
+
+export const visitorEvents = complianceSchemaDB.table('visitor_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  visitorId: text('visitor_id').notNull(),
+  // page_view | section_view | cta_click | exit | offer_shown | offer_clicked
+  // | offer_dismissed | signup_completed
+  eventType: text('event_type').notNull(),
+  page: text('page').notNull(),
+  productKey: text('product_key'),
+  section: text('section'),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

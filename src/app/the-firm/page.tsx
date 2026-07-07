@@ -41,6 +41,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductSalesSection } from "@/components/ProductSalesSection";
+import { VisitorIntelligence } from "@/components/VisitorIntelligence";
+import { LegalBar } from "@/components/LegalBar";
 
 // --- Editable content -------------------------------------------------------
 
@@ -198,6 +200,8 @@ function Nav() {
     { href: "#features", label: "Features" },
     { href: "#how", label: "How it works" },
     { href: "#pricing", label: "Pricing" },
+    { href: "#sales", label: "Sales & demo" },
+    { href: "/?from=the-firm", label: "Research" },
   ];
   return (
     <nav className="sticky top-0 z-50 bg-ct-cream/80 backdrop-blur-md border-b border-ct-border/60">
@@ -749,6 +753,8 @@ export default function TheFirmLandingPage() {
       <ProductSalesSection product="THE FIRM AI OS" />
       <FinalCta />
       <Footer />
+      <LegalBar />
+      <VisitorIntelligence page="/the-firm" productKey="the_firm" />
     </main>
   );
 }

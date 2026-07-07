@@ -14,7 +14,20 @@
 // Server component on purpose — no state, no client JS beyond Next's own.
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { VisitorIntelligence } from "@/components/VisitorIntelligence";
+
+// Wave 113: the Research nav item on every product page links here with
+// ?from=<slug>. A visitor mid-purchase-journey who detours to the lab page
+// must not lose the thread — the sticky return pill below hands them straight
+// back to the product they were evaluating.
+const RETURN_MAP: Record<string, { name: string; href: string }> = {
+  office: { name: "VERIDIAN OFFICE AI OS", href: "/office" },
+  "the-firm": { name: "THE FIRM AI OS", href: "/the-firm" },
+  forge: { name: "FORGE", href: "/forge" },
+  "veri-fm-cs": { name: "VERI FM & CS AI OS", href: "/veri-fm-cs" },
+};
 
 const PRODUCTS = [
   {
@@ -70,14 +83,24 @@ const RESEARCH = [
   },
 ];
 
-export default function CognitiveRootPage() {
+export default async function CognitiveRootPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
+  const returnTo = from ? RETURN_MAP[from] : undefined;
+
   return (
     <main className="min-h-screen bg-[#F4F1E8] text-[#1a1a17] antialiased">
       {/* nav — spare, editorial */}
       <nav className="border-b border-[#1a1a17]/10">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="font-heading text-lg tracking-tight">
-            VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+          <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
+            <Image src="/logo-mark.svg" alt="VERIDIAN" width={28} height={28} priority />
+            <span>
+              VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+            </span>
           </Link>
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
             <a href="#research" className="hover:text-[#1a1a17]">Research</a>
@@ -266,7 +289,10 @@ export default function CognitiveRootPage() {
       {/* footer */}
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
-          <div className="font-heading">VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></div>
+          <div className="flex items-center gap-2 font-heading">
+            <Image src="/logo-mark.svg" alt="VERIDIAN" width={22} height={22} />
+            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+          </div>
           <div className="flex flex-wrap items-center gap-6 text-sm text-[#1a1a17]/60">
             <Link href="/office" className="hover:text-[#1a1a17]">Office</Link>
             <Link href="/the-firm" className="hover:text-[#1a1a17]">The Firm</Link>
@@ -276,7 +302,53 @@ export default function CognitiveRootPage() {
           </div>
           <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} VERIDIAN AI</div>
         </div>
+        <div className="border-t border-[#1a1a17]/10">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-5 text-xs text-[#1a1a17]/50 md:flex-row md:items-center md:justify-between">
+            <span>
+              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company
+              incorporated in India under the Companies Act.
+            </span>
+            <span className="flex gap-5">
+              <Link href="/terms" className="hover:text-[#1a1a17]">Terms & Conditions</Link>
+              <Link href="/privacy" className="hover:text-[#1a1a17]">Privacy Policy</Link>
+              <Link href="/data-policy" className="hover:text-[#1a1a17]">Data Policy</Link>
+            </span>
+          </div>
+        </div>
       </footer>
+
+      {/* return-to-product pill — keeps a detouring buyer on their journey */}
+      {returnTo && (
+        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2">
+          <Link
+            href={returnTo.href}
+            className="group flex items-center gap-2 rounded-full bg-[#1a1a17] px-6 py-3 text-sm font-medium text-[#F4F1E8] shadow-xl"
+          >
+            Continue exploring {returnTo.name}
+            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      )}
+
+      {/* JSON-LD: the lab as an Organization, its products as offers */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "VERIDIAN COGNITIVE AI OS",
+            legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
+            url: "https://veridian-ai-os.vercel.app",
+            logo: "https://veridian-ai-os.vercel.app/logo-mark.svg",
+            description:
+              "AI cognitive research that becomes advanced, working products — operating systems that perceive a company's state, decide, act, and account for every action.",
+            brand: PRODUCTS.map((p) => ({ "@type": "Brand", name: p.name })),
+          }),
+        }}
+      />
+
+      <VisitorIntelligence page="/" productKey="cognitive" />
     </main>
   );
 }

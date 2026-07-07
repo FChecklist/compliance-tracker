@@ -76,7 +76,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
 
@@ -148,6 +148,18 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         })
       } catch (err) {
         console.warn("Referral linking failed (non-fatal):", err)
+      }
+    }
+
+    // Wave 113 (Visitor Intelligence): close the anonymous-visit → converted-
+    // tenant loop. Same posture as ref above — never blocks signup.
+    const vid = meta?.vid?.trim()
+    if (vid) {
+      try {
+        const { recordVisitorConversion } = await import("@/lib/services/visitor-intelligence-service")
+        await recordVisitorConversion(vid, org.id)
+      } catch (err) {
+        console.warn("Visitor conversion linking failed (non-fatal):", err)
       }
     }
 

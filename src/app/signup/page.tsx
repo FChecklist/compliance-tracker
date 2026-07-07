@@ -36,6 +36,12 @@ function SignupForm() {
     setLoading(true);
     const supabase = createClient();
 
+    // Wave 113 (Visitor Intelligence): the anonymous visitor id set by the
+    // public pages' tracker, so autoProvisionUser() can close the loop from
+    // anonymous visit to converted tenant — same mechanism as ref above.
+    let vid: string | null = null;
+    try { vid = localStorage.getItem("VERIDIAN_VID"); } catch { /* ignore */ }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -44,6 +50,7 @@ function SignupForm() {
           full_name: fullName,
           organisation,
           ...(ref ? { ref } : {}),
+          ...(vid ? { vid } : {}),
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },

@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { VisitorIntelligencePanel } from "@/components/VisitorIntelligencePanel";
 
 const PARTNER_TYPES = ["reseller", "consultant", "referral_agent", "commission_agent", "third_party"];
 const PRODUCT_KEYS = ["grc", "erp", "pms", "hr", "crm", "facilities_management", "the_firm", "forge"];
@@ -124,6 +125,7 @@ export default function SalesHqPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-5xl">
+      <VisitorIntelligencePanel />
       <div>
         <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Users className="size-6" /> Sales HQ</h1>
         <p className="text-sm text-ct-muted">Every sales partner, referral, and commission plan across the platform.</p>
