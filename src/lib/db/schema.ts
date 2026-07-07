@@ -6569,3 +6569,23 @@ export const visitorEvents = complianceSchemaDB.table('visitor_events', {
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Connectors (sidebar one-click OAuth: Gmail / Google Drive / Google
+// Calendar via Composio) ───────────────────────────────────────────────
+// Per-user, not per-org: the OAuth grant belongs to the individual whose
+// mailbox/calendar it is, same posture as personal_model_config. toolkitSlug
+// is Composio's own identifier ('gmail'|'googledrive'|'googlecalendar'),
+// composioConnectedAccountId is Composio's ca_* id -- the actual OAuth
+// tokens live in Composio, never touch this DB, mirroring how BYO API keys
+// are encrypted-at-rest rather than stored raw anywhere in this codebase.
+export const connectorAccounts = complianceSchemaDB.table('connector_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  toolkitSlug: text('toolkit_slug').notNull(), // 'gmail' | 'googledrive' | 'googlecalendar'
+  composioConnectedAccountId: text('composio_connected_account_id').notNull(),
+  status: text('status').notNull().default('INITIALIZING'), // Composio's own status vocabulary: INITIALIZING | ACTIVE | FAILED | EXPIRED
+  connectedEmail: text('connected_email'), // populated once known, for display ("Connected as x@gmail.com")
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

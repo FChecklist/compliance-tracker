@@ -286,6 +286,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Settings,
         },
         {
+          label: "VERI CONNECT",
+          href: "/connectors",
+          icon: Link2,
+        },
+        {
           label: "Audit Log",
           href: "/audit",
           icon: History,
