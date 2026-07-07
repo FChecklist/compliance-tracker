@@ -6590,3 +6590,102 @@ export const connectorAccounts = complianceSchemaDB.table('connector_accounts', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── VERI Reward (gamification + refer-and-earn) ────────────────────────
+// Per docs/research/VERI_REWARD_EVALUATION.md: one module, one currency --
+// every gamification event AND every referral event resolve to exactly one
+// write path, an insert into veri_reward_points_ledger. Deliberately NOT
+// reusing sales_partners/sales_referral_links/sales_referrals/
+// sales_commission_accruals (Wave 109) -- that system is platform-owned,
+// deliberately RLS-free, for external B2B partners with real currency
+// commissions; these are org-scoped, RLS-protected, points-only (Boss
+// decision 2026-07-08: points only, no cash bridge for now).
+
+// Append-only ledger -- current balance is SUM(delta), never a separately-
+// maintained counter, same discipline sales_commission_accruals already
+// uses for money, applied here to points.
+export const veriRewardPointsLedger = complianceSchemaDB.table('veri_reward_points_ledger', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  delta: integer('delta').notNull(), // positive award, negative redemption/void
+  sourceType: text('source_type').notNull(), // 'achievement_unlock' | 'streak' | 'referral' | 'manual_adjustment' | 'redemption'
+  sourceId: text('source_id'), // points to the achievement_unlock/referral row etc.
+  reason: text('reason'), // human-readable, shown in the user's activity feed
+  createdById: text('created_by_id'), // null for system-awarded, set for admin manual adjustment
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Org-configurable (e.g. HR sets its own thresholds) but ships with
+// platform-default rows (orgId null) -- same scope-resolution shape as
+// module_rule_configs (platform default, org override).
+export const veriRewardAchievementDefinitions = complianceSchemaDB.table('veri_reward_achievement_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // NULL = platform default, visible to every org until overridden
+  achievementKey: text('achievement_key').notNull(), // 'first_compliance_item' | 'login_streak_3' | 'weekly_task_5' ...
+  context: text('context').notNull(), // 'product_engagement' | 'hr_performance' | 'team_gamification' | 'internal_ops'
+  displayName: text('display_name').notNull(),
+  description: text('description'),
+  icon: text('icon'),
+  targetValue: integer('target_value').notNull(), // e.g. 5 (tasks), 3 (streak days)
+  pointsReward: integer('points_reward').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// One row per user per achievement (unique below) -- prevents double-award,
+// and IS the "instant" unlock event an API response payload reads back
+// synchronously in the same request that triggered it.
+export const veriRewardAchievementUnlocks = complianceSchemaDB.table('veri_reward_achievement_unlocks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  achievementDefinitionId: text('achievement_definition_id').notNull(),
+  progressValue: integer('progress_value').notNull().default(0), // current count toward targetValue -- real backing number for a progress bar
+  unlockedAt: timestamp('unlocked_at'), // null while in progress, set the instant targetValue is reached
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Grace-window streak state -- deliberately its own table, not folded into
+// achievement_unlocks, because a streak's current count resets on a genuine
+// miss (past the grace window) in a way a one-time achievement never does.
+// Anti-dark-pattern design: one missed day holds via graceUsedAt rather than
+// zeroing immediately.
+export const veriRewardStreaks = complianceSchemaDB.table('veri_reward_streaks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  streakKey: text('streak_key').notNull(), // 'daily_login' | 'weekly_task_completion' etc.
+  currentCount: integer('current_count').notNull().default(0),
+  longestCount: integer('longest_count').notNull().default(0),
+  lastIncrementedAt: timestamp('last_incremented_at'),
+  graceUsedAt: timestamp('grace_used_at'), // set when a missed day consumed this cycle's one grace allowance
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Reuses the Sales Engine's proven 5-state shape (clicked -> signup_completed
+// -> org_provisioned -> paid -> lost) and mechanics (token link, click
+// count, claim-most-recent-on-signup) as a PATTERN, not the tables
+// themselves -- org-scoped and RLS-protected here, unlike sales_referrals.
+// rewardPoints only (no currency column): Boss decision 2026-07-08 was
+// points-only, no cash-payout bridge into sales-engine-service.ts for now.
+export const veriRewardReferrals = complianceSchemaDB.table('veri_reward_referrals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(), // the REFERRER's org -- real tenant scope, unlike sales_referrals
+  referrerUserId: text('referrer_user_id').notNull(),
+  referralToken: text('referral_token').notNull().unique(),
+  targetType: text('target_type').notNull(), // 'customer_to_customer' | 'veridian_growth'
+  status: text('status').notNull().default('clicked'), // clicked | signup_completed | org_provisioned | paid | lost
+  referredOrgId: text('referred_org_id'), // set once the referred org exists
+  referredUserId: text('referred_user_id'),
+  clickCount: integer('click_count').notNull().default(0),
+  rewardPoints: integer('reward_points'), // credited to referrer's veri_reward_points_ledger via sourceType='referral'
+  clickedAt: timestamp('clicked_at'),
+  signupCompletedAt: timestamp('signup_completed_at'),
+  orgProvisionedAt: timestamp('org_provisioned_at'),
+  paidAt: timestamp('paid_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
