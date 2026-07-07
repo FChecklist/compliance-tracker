@@ -4,4 +4,6 @@
 -- and is queryable for cohort/lifecycle analysis.
 
 ALTER TABLE compliance.users ADD COLUMN IF NOT EXISTS onboarding_stage text NOT NULL DEFAULT 'profile';
--- values: profile | first_task | documents | invite_team | ai_config | complete
+-- values: the step ids from OnboardingChecklist.tsx's STEPS array --
+-- profile | compliance | upload | invite | ai-config -- persisted via
+-- PATCH /api/me/onboarding-stage whenever a step is completed.
