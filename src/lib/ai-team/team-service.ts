@@ -1,0 +1,108 @@
+// VERIDIAN Cognitive AI OS Development Team — execution layer.
+//
+// Every LLM-backed role in roster.ts is invoked the same way: resolve its
+// prompt-OS template (resolvePromptTemplate, Wave 22 -- no hardcoded system
+// prompt string literals in this codebase), then call it via OpenRouter
+// using the platform's own key, same posture as
+// resolvePlatformModelConfig() in orchestra-model-resolver.ts ("the
+// platform's OWN internal orchestration work, never a customer org's
+// workflow"). This module never touches a customer org's
+// customer_model_config -- the AI Dev Team builds VERIDIAN, it doesn't run
+// inside it.
+
+import { callLLM, callLLMJson, type LLMResult } from "@/lib/llm-client"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { checkCostPolicy } from "./cost-policy"
+import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, type RoleDefinition } from "./roster"
+
+function platformOpenRouterKey(): string {
+  const key = process.env.OPENROUTER_API_KEY
+  if (!key) throw new Error("OPENROUTER_API_KEY is not configured -- the AI Dev Team has no platform key to call OpenRouter with.")
+  return key
+}
+
+export class RoleNotCallableError extends Error {
+  constructor(roleKey: string, reason: string) {
+    super(`Role '${roleKey}' cannot be called directly: ${reason}`)
+    this.name = "RoleNotCallableError"
+  }
+}
+
+function requireCallableRole(roleKey: string): RoleDefinition {
+  const role = getRole(roleKey)
+  if (!role) throw new RoleNotCallableError(roleKey, "unknown role_key")
+  if (role.isHuman) throw new RoleNotCallableError(roleKey, "this is a human role (Founder/Executive Advisor), never API-dispatched")
+  if (role.isCodeOnly || !role.model || !role.promptKey) throw new RoleNotCallableError(roleKey, "this role is deterministic code, not an LLM call -- see cost-policy.ts / existing RBAC in auth-guard.ts")
+  return role
+}
+
+/** Runs one AI Dev Team or Guardrail role against a task/input string. Enforces the Cost & Policy Engine before spending anything. */
+export async function runRole(roleKey: string, input: string): Promise<LLMResult & { role: RoleDefinition }> {
+  const role = requireCallableRole(roleKey)
+  const systemPrompt = await resolvePromptTemplate(role.promptKey!)
+  const apiKey = platformOpenRouterKey()
+
+  // Pre-flight cost check uses a rough usage estimate (input length as a
+  // token-count proxy) -- good enough to catch a wildly oversized prompt
+  // before spending; the real, precise check is the returned usage itself.
+  const roughEstimate = { promptTokens: Math.ceil((systemPrompt.length + input.length) / 4), completionTokens: 500 }
+  const preflight = checkCostPolicy(role.model!, roughEstimate)
+  if (!preflight.allowed) throw new Error(`Cost & Policy Engine blocked call to '${roleKey}': ${preflight.reason}`)
+
+  const result = await callLLM("openrouter", role.model!, apiKey, systemPrompt, input)
+
+  const postflight = checkCostPolicy(role.model!, result.usage)
+  if (!postflight.allowed) {
+    // The call already happened (money spent); this flags it for the Cost
+    // Governance Officer / human review rather than pretending it didn't.
+    console.error(`[ai-team] Cost & Policy Engine: role '${roleKey}' exceeded ceiling post-call: ${postflight.reason}`)
+  }
+
+  return { ...result, role }
+}
+
+export type ClassificationResult = { role: string; reasoning: string; confidence: number }
+
+/** AI Router / Task Classifier -- assigns an incoming task to one AI Workforce role. */
+export async function classifyTask(taskDescription: string): Promise<ClassificationResult> {
+  const systemPrompt = await resolvePromptTemplate("ai_team.ai_router")
+  const apiKey = platformOpenRouterKey()
+  const routerRole = getRole("ai_router")!
+  const { data } = await callLLMJson<ClassificationResult>(
+    "openrouter",
+    routerRole.model!,
+    apiKey,
+    systemPrompt,
+    taskDescription,
+    { jsonMode: true, expectedKeys: ["role", "reasoning", "confidence"] }
+  )
+  if (!getRole(data.role) || getRole(data.role)!.team !== "AI_WORKFORCE") {
+    throw new Error(`AI Router returned an invalid role_key: '${data.role}' is not an AI Workforce role`)
+  }
+  return data
+}
+
+export type GuardrailVerdict = { roleKey: string; title: string; team: string; verdict: string }
+
+/**
+ * Runs the Guardrail Team's LLM-backed roles for one enforcement level
+ * (platform/product/account/user) against a proposed action, returning
+ * each role's raw verdict. Platform level should run for every dispatched
+ * task; product/account/user levels only when that layer is actually
+ * touched (mirrors workflow_orchestrator's own stated policy).
+ */
+export async function runGuardrailLevel(
+  level: "GUARDRAIL_PLATFORM" | "GUARDRAIL_PRODUCT" | "GUARDRAIL_ACCOUNT" | "GUARDRAIL_USER",
+  proposedAction: string
+): Promise<GuardrailVerdict[]> {
+  const levelRoles = allGuardrailRoles().filter((r) => r.team === level && !r.isCodeOnly)
+  const results = await Promise.all(
+    levelRoles.map(async (role) => {
+      const { content } = await runRole(role.roleKey, proposedAction)
+      return { roleKey: role.roleKey, title: role.title, team: role.team, verdict: content }
+    })
+  )
+  return results
+}
+
+export { AI_TEAM_ROSTER, getRole }
