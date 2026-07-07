@@ -66,7 +66,14 @@ jobs:
       - name: Push and open PR
         if: steps.commit.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.PAT_FCHECKLIST }}
+          # 4th real bug found smoke-testing this pipeline: PAT_FCHECKLIST
+          # returns HTTP 401 "Bad credentials" (expired/revoked). The push
+          # itself already succeeds using actions/checkout's own auto-
+          # provisioned GITHUB_TOKEN (via `permissions: contents: write`
+          # above) -- using it for `gh pr create` too needs no external PAT
+          # at all for a same-repo PR (`permissions: pull-requests: write`
+          # covers it).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git push origin "${{ steps.branch.outputs.branch }}"
           gh pr create \
