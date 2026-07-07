@@ -9,6 +9,7 @@ import {
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
+import { after } from "next/server"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
@@ -16,6 +17,7 @@ import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
+import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -398,6 +400,35 @@ export async function sendMessage(
   if (result.isAiThread) {
     const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
+
+    // Inline VERI FDE evaluation (fire-and-forget, non-blocking). VERI FDE's
+    // own embedding-based capability check (findSimilarCapabilities in
+    // fde-service.ts) already short-circuits with ZERO LLM cost on a
+    // high-confidence match (>= HIGH_CONFIDENCE_THRESHOLD), so running the
+    // SAME user message text through that existing evaluation pipeline in
+    // parallel with every AI-thread chat turn is cheap and lets the product
+    // "evolve" from real user requests without the user having to explicitly
+    // click away to /fde and hit "Request a capability" (per the Founder's
+    // own framing). This is purely additive telemetry/evaluation: it runs
+    // AFTER the visible reply above is already generated and saved, so it
+    // never blocks or slows the chat response; every error is caught
+    // internally and never surfaces to the user or breaks the chat. The
+    // existing reply-generation/save logic above is untouched, and the /fde
+    // page + "Request a capability" button are left as-is (additive, not a
+    // replacement). ChatContext only carries {orgId, userId} (no dbUser),
+    // and submitFdeRequest's FdeContext needs dbUser for hasRole() tier
+    // selection, so it is fetched inside the callback.
+    after(async () => {
+      try {
+        const dbUser = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+          db.query.users.findFirst({ where: eq(users.id, ctx.userId) })
+        )
+        if (!dbUser) return
+        await submitFdeRequest({ orgId: ctx.orgId, userId: ctx.userId, dbUser }, { requestText: content })
+      } catch (err) {
+        console.error("Background FDE evaluation failed:", err)
+      }
+    })
   }
 
   return response
