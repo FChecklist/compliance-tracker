@@ -22,7 +22,12 @@ import { readFile, writeFile, readdir, stat, mkdir } from "node:fs/promises"
 import path from "node:path"
 
 const REPO_ROOT = process.cwd()
-const MAX_ITERATIONS = 20
+// 3 of 4 real tasks in one smoke-testing batch (2026-07-07) hit this
+// ceiling with ZERO output -- any task needing 2-3 reads before it can
+// write anything (the common case: read the existing pattern, then follow
+// it) burned the whole budget just exploring. Raised from 20; still a
+// hard bound, not unlimited.
+const MAX_ITERATIONS = 40
 const MAX_FILE_BYTES = 200_000
 
 const roleKey = process.env.AI_TEAM_ROLE_KEY
