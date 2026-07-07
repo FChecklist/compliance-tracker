@@ -1,31 +1,66 @@
-// VERIDIAN Cognitive AI OS — Development Team + Guardrail Team roster.
+// VERIDIAN Cognitive AI OS — full company AI Team roster.
 //
-// This is the platform's OWN internal engineering organization: the set of
-// AI roles that build and govern VERIDIAN itself, distinct from
-// orchestra-model-resolver.ts's customer-facing Orchestra Layers (which
-// route a customer ORG's product features to a model). Every model here is
-// called via OpenRouter (`process.env.OPENROUTER_API_KEY`), following the
-// same "platform's own internal orchestration work, never a customer org's
-// workflow" posture as resolvePlatformModelConfig() in
-// orchestra-model-resolver.ts.
+// This is the platform's OWN internal organization: every AI role that
+// builds and runs VERIDIAN itself (the whole company, not just
+// engineering), distinct from orchestra-model-resolver.ts's customer-
+// facing Orchestra Layers (which route a customer ORG's product features
+// to a model). Every model here is called via OpenRouter
+// (`process.env.OPENROUTER_API_KEY`), following the same "platform's own
+// internal orchestration work, never a customer org's workflow" posture
+// as resolvePlatformModelConfig() in orchestra-model-resolver.ts.
+//
+// Wave: expanded 2026-07-07 from the original 10-role Engineering-only
+// AI Workforce to the founder's full ~30-role company org chart, per his
+// explicit 2-tier model strategy: GLM-5.2 does the primary lifting
+// everywhere (proven in production this session -- it's what fixed the
+// deepseek-v4-flash failures documented in
+// veridian_ai_workforce_autonomous_run_2026-07-07.md), GLM-5V-Turbo for
+// anything needing vision (reading designs/screenshots), GLM-5-Turbo for
+// high-volume/low-stakes work, and Claude Sonnet 5 reserved for exactly
+// 3 judgment-critical roles: Security & Code Reviewer, Quality Gate
+// Manager, Legal Counsel/Privacy -- everywhere else, a mistake is
+// reversible; those three are the roles where GLM's cheap draft becomes
+// Claude's final sign-off.
 //
 // Two roles are Human / interaction-only and are never dispatched through
 // team-service.ts: `founder_ceo` (the platform owner) and
 // `executive_advisor`, who interacts via Claude Desktop directly — not an
-// API call this codebase makes. They're listed here only so the roster is
-// a complete, accurate org chart.
+// API call this codebase makes.
 //
 // Two roles are `isCodeOnly: true` — deterministic code, not an LLM call:
 // `cost_policy_engine` (implemented in cost-policy.ts) and
 // `user_permission_manager` (the existing RBAC/ABAC checks in
-// auth-guard.ts). Listing them here documents their place in the org chart
-// without inventing an LLM call that shouldn't exist.
+// auth-guard.ts).
+//
+// The 4-level Guardrail Team (GUARDRAIL_PLATFORM/PRODUCT/ACCOUNT/USER) is
+// a separate, pre-existing governance layer -- it validates actions
+// against policy, it doesn't do the operational work. This roster's new
+// departments are the company actually doing the work; Guardrail still
+// checks it.
 //
 // All OpenRouter model slugs below were verified live against
 // https://openrouter.ai/api/v1/models on 2026-07-07 — every one of them
-// exists in OpenRouter's current catalog under this exact id.
+// exists in OpenRouter's current catalog under this exact id, including
+// the 2026-07-07 additions (z-ai/glm-5v-turbo, z-ai/glm-5-turbo,
+// anthropic/claude-sonnet-5).
 
-export type TeamName = "VERIDIAN_AI_OS" | "AI_WORKFORCE" | "GUARDRAIL_PLATFORM" | "GUARDRAIL_PRODUCT" | "GUARDRAIL_ACCOUNT" | "GUARDRAIL_USER" | "HUMAN"
+export type TeamName =
+  | "VERIDIAN_AI_OS"
+  | "ENGINEERING"
+  | "QUALITY_SAFETY"
+  | "LEGAL_COMPLIANCE"
+  | "DATA_TEAM"
+  | "CUSTOMER_SETUP"
+  | "CUSTOMER_SUPPORT"
+  | "SALES_MARKETING"
+  | "FINANCE"
+  | "HR"
+  | "ADMIN"
+  | "GUARDRAIL_PLATFORM"
+  | "GUARDRAIL_PRODUCT"
+  | "GUARDRAIL_ACCOUNT"
+  | "GUARDRAIL_USER"
+  | "HUMAN"
 
 export type RoleDefinition = {
   roleKey: string
@@ -39,51 +74,103 @@ export type RoleDefinition = {
   isHuman?: boolean
 }
 
+// Model constants -- the founder's exact 2-tier strategy, named once so
+// every role below is an obvious, auditable one-line assignment.
+const GLM_52 = "z-ai/glm-5.2" // primary lifting: coding, reasoning, most department leads
+const GLM_5V_TURBO = "z-ai/glm-5v-turbo" // vision-capable: reads designs/screenshots
+const GLM_5_TURBO = "z-ai/glm-5-turbo" // high-volume/low-stakes: fast, cheap, bulk work
+const CLAUDE_5 = "anthropic/claude-sonnet-5" // judgment-critical only: security, quality gate, legal
+const GEMINI_25_PRO = "google/gemini-2.5-pro" // deep research/analysis, kept from the original roster
+const GPT_55 = "openai/gpt-5.5" // genuinely independent second opinion (different vendor than the primary reviewer)
+
 export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // ─── Human ───────────────────────────────────────────────────────────
   { roleKey: "founder_ceo", team: "HUMAN", title: "Founder & CEO", model: null, promptKey: null, isHuman: true },
   { roleKey: "executive_advisor", team: "HUMAN", title: "Executive Advisor (Interactive — Claude Desktop, not API-dispatched)", model: null, promptKey: null, isHuman: true },
 
-  // ─── VERIDIAN AI OS (routing / management layer) ────────────────────
-  { roleKey: "ai_router", team: "VERIDIAN_AI_OS", title: "AI Router / Task Classifier", model: "z-ai/glm-5.2", promptKey: "ai_team.ai_router" },
-  { roleKey: "project_manager", team: "VERIDIAN_AI_OS", title: "Project Manager", model: "z-ai/glm-5.2", promptKey: "ai_team.project_manager" },
-  { roleKey: "workflow_orchestrator", team: "VERIDIAN_AI_OS", title: "Workflow Orchestrator", model: "z-ai/glm-5.2", promptKey: "ai_team.workflow_orchestrator" },
-  { roleKey: "github_issue_planner", team: "VERIDIAN_AI_OS", title: "GitHub Issue Planner", model: "z-ai/glm-5.2", promptKey: "ai_team.github_issue_planner" },
+  // ─── CORE SYSTEM ─────────────────────────────────────────────────────
+  { roleKey: "ai_router", team: "VERIDIAN_AI_OS", title: "AI Router / Task Classifier", model: GLM_52, promptKey: "ai_team.ai_router" },
+  { roleKey: "project_manager", team: "VERIDIAN_AI_OS", title: "Project Manager", model: GLM_52, promptKey: "ai_team.project_manager" },
+  { roleKey: "workflow_orchestrator", team: "VERIDIAN_AI_OS", title: "Workflow Orchestrator", model: GLM_52, promptKey: "ai_team.workflow_orchestrator" },
+  { roleKey: "github_issue_planner", team: "VERIDIAN_AI_OS", title: "GitHub Issue Planner", model: GLM_52, promptKey: "ai_team.github_issue_planner" },
   { roleKey: "cost_policy_engine", team: "VERIDIAN_AI_OS", title: "Cost & Policy Engine (under AI Router control)", model: null, promptKey: null, isCodeOnly: true },
 
-  // ─── AI Workforce (execution layer) ─────────────────────────────────
-  { roleKey: "ceo_technical_director", team: "AI_WORKFORCE", title: "CEO / Technical Director", model: "anthropic/claude-sonnet-4.6", promptKey: "ai_team.ceo_technical_director" },
-  { roleKey: "senior_backend_engineer", team: "AI_WORKFORCE", title: "Senior Backend Engineer", model: "deepseek/deepseek-v4-pro", promptKey: "ai_team.senior_backend_engineer" },
-  { roleKey: "fullstack_developer", team: "AI_WORKFORCE", title: "Full Stack Developer", model: "deepseek/deepseek-v4-flash", promptKey: "ai_team.fullstack_developer" },
-  { roleKey: "frontend_engineer", team: "AI_WORKFORCE", title: "Frontend Engineer", model: "qwen/qwen3.6-27b", promptKey: "ai_team.frontend_engineer" },
-  { roleKey: "qa_engineer", team: "AI_WORKFORCE", title: "QA Engineer", model: "deepseek/deepseek-r1-0528", promptKey: "ai_team.qa_engineer" },
-  { roleKey: "research_analyst", team: "AI_WORKFORCE", title: "Research Analyst", model: "google/gemini-2.5-pro", promptKey: "ai_team.research_analyst" },
-  { roleKey: "documentation_specialist", team: "AI_WORKFORCE", title: "Documentation Specialist", model: "z-ai/glm-5.2", promptKey: "ai_team.documentation_specialist" },
-  { roleKey: "devops_engineer", team: "AI_WORKFORCE", title: "DevOps Engineer", model: "deepseek/deepseek-v4-pro", promptKey: "ai_team.devops_engineer" },
-  { roleKey: "security_code_reviewer", team: "AI_WORKFORCE", title: "Security & Code Reviewer", model: "anthropic/claude-sonnet-4.6", promptKey: "ai_team.security_code_reviewer" },
-  { roleKey: "escalation_second_opinion", team: "AI_WORKFORCE", title: "Escalation / Second Opinion", model: "openai/gpt-5.5", promptKey: "ai_team.escalation_second_opinion" },
+  // ─── ENGINEERING (The Factory) ───────────────────────────────────────
+  { roleKey: "ceo_technical_director", team: "ENGINEERING", title: "CEO / Technical Director", model: CLAUDE_5, promptKey: "ai_team.ceo_technical_director" },
+  { roleKey: "senior_backend_engineer", team: "ENGINEERING", title: "Senior Backend Engineer", model: GLM_52, promptKey: "ai_team.senior_backend_engineer" },
+  { roleKey: "fullstack_developer", team: "ENGINEERING", title: "Full Stack Developer", model: GLM_52, promptKey: "ai_team.fullstack_developer" },
+  { roleKey: "frontend_engineer", team: "ENGINEERING", title: "Frontend Engineer", model: GLM_5V_TURBO, promptKey: "ai_team.frontend_engineer" },
+  { roleKey: "devops_engineer", team: "ENGINEERING", title: "DevOps / Data Engineer", model: GLM_52, promptKey: "ai_team.devops_engineer" },
+  { roleKey: "qa_engineer", team: "ENGINEERING", title: "QA Engineer", model: GLM_52, promptKey: "ai_team.qa_engineer" },
+  { roleKey: "research_analyst", team: "ENGINEERING", title: "Research Analyst", model: GEMINI_25_PRO, promptKey: "ai_team.research_analyst" },
+  { roleKey: "documentation_specialist", team: "ENGINEERING", title: "Documentation Specialist", model: GLM_52, promptKey: "ai_team.documentation_specialist" },
+  { roleKey: "escalation_second_opinion", team: "ENGINEERING", title: "Escalation / Second Opinion", model: GPT_55, promptKey: "ai_team.escalation_second_opinion" },
+
+  // ─── QUALITY & SAFETY (The Specialists) ─────────────────────────────
+  { roleKey: "security_code_reviewer", team: "QUALITY_SAFETY", title: "Security & Code Reviewer", model: CLAUDE_5, promptKey: "ai_team.security_code_reviewer" },
+  { roleKey: "quality_gate_manager", team: "QUALITY_SAFETY", title: "Quality Gate Manager", model: CLAUDE_5, promptKey: "ai_team.quality_gate_manager" },
+
+  // ─── LEGAL & COMPLIANCE ──────────────────────────────────────────────
+  { roleKey: "legal_counsel_privacy", team: "LEGAL_COMPLIANCE", title: "Legal Counsel / Privacy", model: CLAUDE_5, promptKey: "ai_team.legal_counsel_privacy" },
+
+  // ─── DATA TEAM ───────────────────────────────────────────────────────
+  { roleKey: "data_architect_scientist", team: "DATA_TEAM", title: "Data Architect / Scientist", model: GLM_52, promptKey: "ai_team.data_architect_scientist" },
+  { roleKey: "data_quality_checker", team: "DATA_TEAM", title: "Data Quality Checker", model: GLM_5_TURBO, promptKey: "ai_team.data_quality_checker" },
+
+  // ─── CUSTOMER SETUP ──────────────────────────────────────────────────
+  { roleKey: "implementation_pm", team: "CUSTOMER_SETUP", title: "Implementation PM", model: GLM_52, promptKey: "ai_team.implementation_pm" },
+  { roleKey: "integration_migration", team: "CUSTOMER_SETUP", title: "Integration / Migration", model: GLM_52, promptKey: "ai_team.integration_migration" },
+  { roleKey: "uat_qa_engineer", team: "CUSTOMER_SETUP", title: "UAT & QA Engineer", model: GLM_5V_TURBO, promptKey: "ai_team.uat_qa_engineer" },
+  { roleKey: "training_documentation", team: "CUSTOMER_SETUP", title: "Training & Documentation", model: GLM_5_TURBO, promptKey: "ai_team.training_documentation" },
+
+  // ─── CUSTOMER SUPPORT ────────────────────────────────────────────────
+  { roleKey: "l2_technical_support", team: "CUSTOMER_SUPPORT", title: "L2 Technical Support", model: GLM_52, promptKey: "ai_team.l2_technical_support" },
+  { roleKey: "l1_support_faq_bot", team: "CUSTOMER_SUPPORT", title: "L1 Support / FAQ Bot", model: GLM_5_TURBO, promptKey: "ai_team.l1_support_faq_bot" },
+  { roleKey: "knowledge_manager", team: "CUSTOMER_SUPPORT", title: "Knowledge Manager", model: GLM_5_TURBO, promptKey: "ai_team.knowledge_manager" },
+
+  // ─── SALES & MARKETING ───────────────────────────────────────────────
+  { roleKey: "strategy_proposals", team: "SALES_MARKETING", title: "Strategy & Proposals", model: GLM_52, promptKey: "ai_team.strategy_proposals" },
+  { roleKey: "content_director", team: "SALES_MARKETING", title: "Content Director", model: GLM_52, promptKey: "ai_team.content_director" },
+  { roleKey: "analytics_seo", team: "SALES_MARKETING", title: "Analytics & SEO", model: GLM_52, promptKey: "ai_team.analytics_seo" },
+  { roleKey: "creative_social_media", team: "SALES_MARKETING", title: "Creative / Social Media", model: GLM_5_TURBO, promptKey: "ai_team.creative_social_media" },
+  { roleKey: "sdr_email_marketer", team: "SALES_MARKETING", title: "SDR / Email Marketer", model: GLM_5_TURBO, promptKey: "ai_team.sdr_email_marketer" },
+
+  // ─── FINANCE ─────────────────────────────────────────────────────────
+  { roleKey: "cfo_financial_planning", team: "FINANCE", title: "CFO / Financial Planning", model: GLM_52, promptKey: "ai_team.cfo_financial_planning" },
+  { roleKey: "billing_sub_manager", team: "FINANCE", title: "Billing & Subscription Manager", model: GLM_52, promptKey: "ai_team.billing_sub_manager" },
+  { roleKey: "internal_auditor", team: "FINANCE", title: "Internal Auditor", model: GLM_5_TURBO, promptKey: "ai_team.internal_auditor" },
+  { roleKey: "accounts_payable_receivable", team: "FINANCE", title: "Accounts Payable / Receivable", model: GLM_5_TURBO, promptKey: "ai_team.accounts_payable_receivable" },
+
+  // ─── HR ──────────────────────────────────────────────────────────────
+  { roleKey: "chro_performance", team: "HR", title: "CHRO / Performance", model: GLM_52, promptKey: "ai_team.chro_performance" },
+  { roleKey: "recruitment", team: "HR", title: "Recruitment", model: GLM_52, promptKey: "ai_team.recruitment" },
+  { roleKey: "onboarding_payroll", team: "HR", title: "Onboarding / Payroll", model: GLM_5_TURBO, promptKey: "ai_team.onboarding_payroll" },
+
+  // ─── ADMIN ───────────────────────────────────────────────────────────
+  { roleKey: "administration_manager", team: "ADMIN", title: "Administration Manager", model: GLM_52, promptKey: "ai_team.administration_manager" },
+  { roleKey: "procurement_vendor_mgmt", team: "ADMIN", title: "Procurement / Vendor Management", model: GLM_5_TURBO, promptKey: "ai_team.procurement_vendor_mgmt" },
 
   // ─── Guardrail Team — Platform Level ────────────────────────────────
-  { roleKey: "chief_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Chief Governance Officer", model: "anthropic/claude-sonnet-4.6", promptKey: "ai_team.chief_governance_officer" },
-  { roleKey: "security_threat_analyst", team: "GUARDRAIL_PLATFORM", title: "Security & Threat Analyst", model: "openai/gpt-5.5", promptKey: "ai_team.security_threat_analyst" },
-  { roleKey: "ai_safety_auditor", team: "GUARDRAIL_PLATFORM", title: "AI Safety Auditor", model: "anthropic/claude-sonnet-4.6", promptKey: "ai_team.ai_safety_auditor" },
-  { roleKey: "cost_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Cost Governance Officer", model: "z-ai/glm-5.2", promptKey: "ai_team.cost_governance_officer" },
+  { roleKey: "chief_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Chief Governance Officer", model: CLAUDE_5, promptKey: "ai_team.chief_governance_officer" },
+  { roleKey: "security_threat_analyst", team: "GUARDRAIL_PLATFORM", title: "Security & Threat Analyst", model: GPT_55, promptKey: "ai_team.security_threat_analyst" },
+  { roleKey: "ai_safety_auditor", team: "GUARDRAIL_PLATFORM", title: "AI Safety Auditor", model: CLAUDE_5, promptKey: "ai_team.ai_safety_auditor" },
+  { roleKey: "cost_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Cost Governance Officer", model: GLM_52, promptKey: "ai_team.cost_governance_officer" },
 
   // ─── Guardrail Team — Product Level ──────────────────────────────────
-  { roleKey: "product_policy_manager", team: "GUARDRAIL_PRODUCT", title: "Product Policy Manager", model: "anthropic/claude-sonnet-4.6", promptKey: "ai_team.product_policy_manager" },
-  { roleKey: "architecture_compliance_reviewer", team: "GUARDRAIL_PRODUCT", title: "Architecture Compliance Reviewer", model: "deepseek/deepseek-v4-pro", promptKey: "ai_team.architecture_compliance_reviewer" },
-  { roleKey: "quality_gate_manager", team: "GUARDRAIL_PRODUCT", title: "Quality Gate Manager", model: "deepseek/deepseek-r1-0528", promptKey: "ai_team.quality_gate_manager" },
-  { roleKey: "documentation_compliance", team: "GUARDRAIL_PRODUCT", title: "Documentation Compliance", model: "z-ai/glm-5.2", promptKey: "ai_team.documentation_compliance" },
+  { roleKey: "product_policy_manager", team: "GUARDRAIL_PRODUCT", title: "Product Policy Manager", model: CLAUDE_5, promptKey: "ai_team.product_policy_manager" },
+  { roleKey: "architecture_compliance_reviewer", team: "GUARDRAIL_PRODUCT", title: "Architecture Compliance Reviewer", model: GLM_52, promptKey: "ai_team.architecture_compliance_reviewer" },
+  { roleKey: "quality_gate_manager_guardrail", team: "GUARDRAIL_PRODUCT", title: "Quality Gate Manager (Guardrail)", model: CLAUDE_5, promptKey: "ai_team.quality_gate_manager_guardrail" },
+  { roleKey: "documentation_compliance", team: "GUARDRAIL_PRODUCT", title: "Documentation Compliance", model: GLM_52, promptKey: "ai_team.documentation_compliance" },
 
   // ─── Guardrail Team — Customer Account Level ────────────────────────
-  { roleKey: "account_compliance_manager", team: "GUARDRAIL_ACCOUNT", title: "Account Compliance Manager", model: "google/gemini-2.5-pro", promptKey: "ai_team.account_compliance_manager" },
-  { roleKey: "data_privacy_officer", team: "GUARDRAIL_ACCOUNT", title: "Data Privacy Officer", model: "anthropic/claude-sonnet-4.6", promptKey: "ai_team.data_privacy_officer" },
-  { roleKey: "ai_budget_controller", team: "GUARDRAIL_ACCOUNT", title: "AI Budget Controller", model: "z-ai/glm-5.2", promptKey: "ai_team.ai_budget_controller" },
+  { roleKey: "account_compliance_manager", team: "GUARDRAIL_ACCOUNT", title: "Account Compliance Manager", model: GEMINI_25_PRO, promptKey: "ai_team.account_compliance_manager" },
+  { roleKey: "data_privacy_officer", team: "GUARDRAIL_ACCOUNT", title: "Data Privacy Officer", model: CLAUDE_5, promptKey: "ai_team.data_privacy_officer" },
+  { roleKey: "ai_budget_controller", team: "GUARDRAIL_ACCOUNT", title: "AI Budget Controller", model: GLM_52, promptKey: "ai_team.ai_budget_controller" },
 
   // ─── Guardrail Team — Customer User Level ───────────────────────────
   { roleKey: "user_permission_manager", team: "GUARDRAIL_USER", title: "User Permission Manager (VERIDIAN Policy Engine)", model: null, promptKey: null, isCodeOnly: true },
-  { roleKey: "ai_response_validator", team: "GUARDRAIL_USER", title: "AI Response Validator", model: "deepseek/deepseek-r1-0528", promptKey: "ai_team.ai_response_validator" },
-  { roleKey: "audit_activity_monitor", team: "GUARDRAIL_USER", title: "Audit & Activity Monitor", model: "z-ai/glm-5.2", promptKey: "ai_team.audit_activity_monitor" },
+  { roleKey: "ai_response_validator", team: "GUARDRAIL_USER", title: "AI Response Validator", model: GLM_52, promptKey: "ai_team.ai_response_validator" },
+  { roleKey: "audit_activity_monitor", team: "GUARDRAIL_USER", title: "Audit & Activity Monitor", model: GLM_5_TURBO, promptKey: "ai_team.audit_activity_monitor" },
 ]
 
 export function getRole(roleKey: string): RoleDefinition | undefined {
@@ -94,12 +181,15 @@ export function rolesForTeam(team: TeamName): RoleDefinition[] {
   return AI_TEAM_ROSTER.filter((r) => r.team === team)
 }
 
+const GUARDRAIL_TEAMS: TeamName[] = ["GUARDRAIL_PLATFORM", "GUARDRAIL_PRODUCT", "GUARDRAIL_ACCOUNT", "GUARDRAIL_USER"]
+const NON_OPERATIONAL_TEAMS: TeamName[] = ["HUMAN", ...GUARDRAIL_TEAMS]
+
 /** Every guardrail role across all 4 levels, in enforcement order (platform → product → account → user). */
 export function allGuardrailRoles(): RoleDefinition[] {
-  return [
-    ...rolesForTeam("GUARDRAIL_PLATFORM"),
-    ...rolesForTeam("GUARDRAIL_PRODUCT"),
-    ...rolesForTeam("GUARDRAIL_ACCOUNT"),
-    ...rolesForTeam("GUARDRAIL_USER"),
-  ]
+  return GUARDRAIL_TEAMS.flatMap((team) => rolesForTeam(team))
+}
+
+/** Every operational department role the AI Router may assign a task to -- everything except Human and Guardrail. */
+export function operationalRoles(): RoleDefinition[] {
+  return AI_TEAM_ROSTER.filter((r) => !NON_OPERATIONAL_TEAMS.includes(r.team) && r.team !== "VERIDIAN_AI_OS")
 }

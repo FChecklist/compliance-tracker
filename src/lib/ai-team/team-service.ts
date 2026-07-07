@@ -13,7 +13,7 @@
 import { callLLM, callLLMJson, type LLMResult } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { checkCostPolicy } from "./cost-policy"
-import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, type RoleDefinition } from "./roster"
+import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 
 function platformOpenRouterKey(): string {
   const key = process.env.OPENROUTER_API_KEY
@@ -63,7 +63,13 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
 
 export type ClassificationResult = { role: string; reasoning: string; confidence: number }
 
-/** AI Router / Task Classifier -- assigns an incoming task to one AI Workforce role. */
+/**
+ * AI Router / Task Classifier -- assigns an incoming task to one
+ * operational department role (Engineering, Data, Customer Setup,
+ * Customer Support, Sales & Marketing, Finance, HR, Admin, Quality &
+ * Safety, Legal & Compliance -- everything except Human and the
+ * Guardrail Team, which validates work rather than doing it).
+ */
 export async function classifyTask(taskDescription: string): Promise<ClassificationResult> {
   const systemPrompt = await resolvePromptTemplate("ai_team.ai_router")
   const apiKey = platformOpenRouterKey()
@@ -76,8 +82,9 @@ export async function classifyTask(taskDescription: string): Promise<Classificat
     taskDescription,
     { jsonMode: true, expectedKeys: ["role", "reasoning", "confidence"] }
   )
-  if (!getRole(data.role) || getRole(data.role)!.team !== "AI_WORKFORCE") {
-    throw new Error(`AI Router returned an invalid role_key: '${data.role}' is not an AI Workforce role`)
+  const assignedRole = getRole(data.role)
+  if (!assignedRole || !operationalRoles().some((r) => r.roleKey === data.role)) {
+    throw new Error(`AI Router returned an invalid role_key: '${data.role}' is not a dispatchable operational role`)
   }
   return data
 }
