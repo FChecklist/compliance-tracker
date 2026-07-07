@@ -99,9 +99,10 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
             columns: { id: true, tier: true, codeReference: true, domain: true },
           })
         )
-        if (agent?.tier === "global" && agent.codeReference && isToolAllowedForDomain(agent.domain, agent.codeReference)) {
+        const codeReference = agent?.tier === "global" ? agent.codeReference : null
+        if (codeReference && isToolAllowedForDomain(agent?.domain, codeReference)) {
           await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-            const output = await dispatchTool(db, ctx.orgId, agent.codeReference)
+            const output = await dispatchTool(db, ctx.orgId, codeReference)
             responseText += ` Result: ${JSON.stringify(output)}`
           })
         }
