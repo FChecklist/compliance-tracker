@@ -1,0 +1,88 @@
+name: AI Workforce (repo-write)
+
+# Gives a VERIDIAN AI Workforce role (any OpenRouter model in
+# src/lib/ai-team/roster.ts) real read/write access to this repo. Always
+# lands on a new branch + PR — never pushes to main directly. This is
+# separate from ai-dispatch.yml's zai-task/claude-task events (those are
+# AGENTS.md's two full-access authorized agents); ai-team-task is a more
+# constrained, file-tools-only agent for the broader AI Workforce roster.
+on:
+  repository_dispatch:
+    types: [ai-team-task]
+  workflow_dispatch:
+    inputs:
+      role_key:
+        description: "AI Workforce role_key from src/lib/ai-team/roster.ts"
+        required: true
+        default: "fullstack_developer"
+      task:
+        description: "Task description"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Create work branch
+        id: branch
+        run: |
+          ROLE="${{ github.event.client_payload.role_key || github.event.inputs.role_key }}"
+          BRANCH="ai-team/${ROLE}/$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Run AI Workforce agent
+        id: agent
+        env:
+          AI_TEAM_ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          AI_TEAM_TASK: ${{ github.event.client_payload.task || github.event.inputs.task }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bun run scripts/ai-workforce-agent.mjs
+
+      - name: Commit changes
+        id: commit
+        run: |
+          git config user.name "veridian-ai-workforce[bot]"
+          git config user.email "ai-workforce@veridian.internal"
+          git add -A
+          git diff --cached --quiet && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+          git diff --cached --quiet || git commit -m "AI Workforce (${{ github.event.client_payload.role_key || github.event.inputs.role_key }}): ${{ steps.agent.outputs.summary }}"
+
+      - name: Push and open PR
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PAT_FCHECKLIST }}
+        run: |
+          git push origin "${{ steps.branch.outputs.branch }}"
+          gh pr create \
+            --title "AI Workforce (${{ github.event.client_payload.role_key || github.event.inputs.role_key }}): ${{ steps.agent.outputs.summary }}" \
+            --body "$(cat <<EOF
+          **Role:** ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          **Task:** ${{ github.event.client_payload.task || github.event.inputs.task }}
+          **Files changed:** ${{ steps.agent.outputs.files_changed }}
+          **Summary:** ${{ steps.agent.outputs.summary }}
+
+          Opened automatically by the AI Workforce (repo-write) workflow. Requires Security & Code Reviewer / human review before merge — never auto-merged.
+          EOF
+          )" \
+            --base main \
+            --head "${{ steps.branch.outputs.branch }}"
+
+      - name: No changes made
+        if: steps.commit.outputs.changed == 'false'
+        run: echo "Agent made no file changes -- nothing to PR. See job summary above for the agent's stated reason."
