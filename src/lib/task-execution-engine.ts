@@ -37,7 +37,7 @@ import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/a
  * write-then-read loop for that assistant's future tasks.
  */
 
-async function dispatchTool(db: TenantDb, orgId: string, codeReference: string): Promise<unknown> {
+export async function dispatchTool(db: TenantDb, orgId: string, codeReference: string): Promise<unknown> {
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
