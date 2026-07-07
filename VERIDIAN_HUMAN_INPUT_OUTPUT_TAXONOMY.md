@@ -35,6 +35,88 @@ Across every module VERIDIAN has built (50+ waves, spanning GRC, ERP, HR, CRM, P
 
 ---
 
+## Part 1B — Verbatim Example Inputs (written the way a real person actually types)
+
+An intent classifier trained on clean textbook phrasing ("Please create a new purchase order") will misfire the moment a real user types the way real users actually type: short, impatient, sometimes bundling two asks in one line, sometimes in Hinglish, sometimes with a typo, rarely with punctuation. These examples are drawn across VERIDIAN's real personas — a CA firm partner, a facilities technician, an HR manager, a sales reseller, an ERP accountant, a compliance officer — written as they would actually message, not as a spec would phrase it. Every pattern classifier this platform ever builds should be tested against messages that look like these, not the clean Part 1 examples.
+
+**1. Command / Action Request**
+- "mark the gst return as filed pls"
+- "create new client - sharma textiles nashik, gstin is 27AABCS1234A1Z5"
+- "send the notice reply to the officer today itself, dont wait"
+- "pls approve rohit's leave 15th to 18th"
+- "book the DG set service, vendor confirmed tmrw 10am"
+- "close ticket 4521 customer said its fixed"
+
+**2. Query / Retrieval Request**
+- "which clients have pending tds this month"
+- "show leads not contacted in 2 weeks"
+- "kitne assets ka amc is month khatam ho raha hai"
+- "who all on leave next week"
+- "total outstanding from customers right now?"
+
+**3. Status / Progress Check**
+- "any update on sharma textiles secretarial audit"
+- "board resolution draft ready ya nahi"
+- "vendor confirmed the po or not yet"
+- "checking - payroll done for this month?"
+
+**4. Upload / Attach**
+- *[photo of a physical AMC register page, no caption at all]*
+- "bank statement for reconciliation" *[Excel attached]*
+- *[PDF of a GST notice]* "got this today"
+- "scanning the old asset register in parts, sending 3 photos"
+
+**5. Approval / Decision**
+- "approved"
+- "reject - amount looks wrong check again"
+- "hold this need to discuss with partner first"
+- "yes sign it"
+- "go ahead no changes"
+
+**6. Correction / Feedback**
+- "wrong vendor, its the pune one not mumbai"
+- "amount is wrong should be 45,000 not 4,500"
+- "no i meant last month not this month"
+- "client name is sharma not verma, you got it wrong"
+
+**7. Escalation / Exception Report**
+- "urgent - client says notice deadline is tomorrow and nothing filed yet"
+- "DG set not starting, need technician asap"
+- "server down 2 hrs nobody can mark attendance"
+- "this vendor hasnt replied in a week now, escalate pls"
+
+**8. Delegation / Assignment**
+- "give this to priya she did the last one"
+- "nashik client compliance - assign to junior team"
+- "let facilities handle the ac issue"
+- "route this to billing not me"
+
+**9. Configuration / Preference Setting**
+- "always cc me on notices above 1 lakh from now"
+- "default payment terms net 45 for this client going forward"
+- "2 approvers required for any refund from now on"
+- "make weekly ppm checklist mandatory for all dg sets"
+
+**10. Free-form Conversation / Clarification**
+- "what happens if we miss the roc filing deadline"
+- "why did this client's compliance score drop suddenly"
+- "what if we increase the credit limit for this customer, any risk"
+- "is there a better way to track this than excel"
+
+**11. Bulk / Batch Operation**
+- "send reminder to all clients with pending kyc"
+- "mark all as acknowledged for this month's policy update"
+- "generate invoices for everyone with unbilled hours this month"
+- "run ppm check for all dg sets in noida campus"
+
+**12. Scheduled / Recurring Intent**
+- "remind me every quarter about board minutes"
+- "auto renew this amc every year unless i cancel"
+- "send this report to the partner every monday morning"
+- "review this vendor every 6 months"
+
+---
+
 ## Part 2 — Canonical VERIDIAN Output Patterns
 
 The response side is equally patterned. Every module's response is one of:
@@ -51,6 +133,62 @@ The response side is equally patterned. Every module's response is one of:
 | H | **Dashboard / Aggregate Summary** | Computed metrics across many records | Orchestra Analytics cost dashboard, Sales HQ commission liability |
 | I | **Notification / Async Update** | Pushed to the user later, not a direct reply | Metric alert firing, host-notified-on-visitor-checkin |
 | J | **Clarifying Question** | The system needs more from the human before it can act | Ambiguous intent, missing required field |
+
+---
+
+## Part 2B — Verbatim Example Outputs (written the way VERIDIAN actually replies, not how a spec describes a reply)
+
+A good system reply reads like a competent colleague answered, not like a template filled in variables. These are drawn from real modules already built in this codebase — the tone (plain, specific numbers, no filler like "Sure! I'd be happy to help") is deliberate and should be the house style for any new module's replies too.
+
+**A. Confirmation**
+- "Done — GST return marked filed for Sharma Textiles."
+- "Leave approved for Rohit, 15th to 18th."
+- "Marked. Ticket 4521 closed."
+- "Vendor changed to Pune Fabricators on this PO."
+
+**B. Data Table / List**
+- "3 clients have pending TDS this month: Sharma Textiles (₹12,400), Verma Industries (₹8,200), Patel & Co (₹21,000)."
+- "7 leads haven't been contacted in 2+ weeks. Sorted oldest first — want me to draft follow-up messages for all of them?"
+- "12 assets have AMC expiring this month across Noida and Pune campuses."
+
+**C. Single Record View**
+- "Sharma Textiles — GSTIN 27AABCS1234A1Z5, Nashik. Compliance score 82/100. 2 items overdue, 1 due this week."
+- "DG Set #GEN-014, Noida basement. Last service 12 Jun. Next PPM due 12 Jul. AMC with Kirloskar, expires 30 Sep."
+
+**D. Generated Document**
+- "Invoice INV-2026-0412 generated for Verma Industries — ₹1,84,000, 62 unbilled hours across 3 matters."
+- "IRN generated: 3fdc98a1... e-invoice ready to send."
+- "Board resolution draft ready for review — added as an attachment, not yet sent to the client."
+
+**E. Proposal Awaiting Approval**
+- "I found 14 rows that look like assets from your uploaded photo. Review them before I add anything to the register."
+- "No existing agent handles 'auto-approve POs under ₹5,000' — I've drafted a new Worker Agent for this. Needs your approval before it goes live."
+- "This looks like a fresh legal matter, not an update to an existing one. Want me to open it as a new matter?"
+
+**F. Refusal / Guardrail Message**
+- "I can't process a fund transfer — that needs to be done directly by you in your banking app."
+- "That's outside what I'm set up to help with here. This assistant handles compliance and filings, not HR policy questions — try the HR module."
+- "I won't delete this record permanently. If you need it removed, an admin can do that from Settings."
+
+**G. Error / Degraded Result**
+- "Couldn't reach the AI provider after 3 tries — try again in a minute, or check your API key in Settings."
+- "The response I got back didn't have what I needed to route this properly, so I've logged it as an error instead of guessing. Please try rephrasing."
+- "Bank statement import failed on row 47 — the date format doesn't match. Rest of the file processed fine, 46/47 rows matched."
+
+**H. Dashboard / Aggregate Summary**
+- "This month: 340 API calls, ₹412 in model cost, 2 failed executions (both retried successfully)."
+- "Sales HQ: 6 active partners, 23 referrals in pipeline, ₹38,000 commission accrued, ₹12,000 already paid out."
+- "Sprint burndown: 18 of 24 points done, 3 days left, on track."
+
+**I. Notification / Async Update**
+- "Rahul checked in a visitor — Amit Shah, meeting with Rahul, 11:15 AM. You've been notified as the host."
+- "Heads up — the vendor payment reminder you scheduled just went out to 8 overdue accounts."
+- "Your GST filing reminder: 3 days left for Sharma Textiles."
+
+**J. Clarifying Question**
+- "Which client did you mean — there are two 'Sharma' entries, Sharma Textiles and Sharma Enterprises?"
+- "By 'this month' do you mean the calendar month or the current billing cycle? They're different for this client."
+- "You uploaded a photo but didn't say what it's for — is this for the asset register, or something else?"
 
 ---
 
