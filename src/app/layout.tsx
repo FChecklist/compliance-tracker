@@ -18,41 +18,39 @@ const dmSerifDisplay = DM_Serif_Display({
 });
 
 export const metadata: Metadata = {
-  // Repositioned 2026-07-06 with the new landing page: VERIDIAN is sold as
-  // ONE complete business system run by your AI assistant — not a
-  // compliance/audit tool. This title is the browser tab, the search-result
-  // headline, and every link preview, so it must carry the same message.
-  title: "VERIDIAN AI — Your Complete Business, Run by Your AI Assistant",
+  // Repositioned 2026-07-07 (Wave 112): the site root is now VERIDIAN
+  // COGNITIVE AI OS — the research-lab identity above the whole product
+  // family. The complete-business-system selling metadata moved with its
+  // page to /office/layout.tsx; product pages under /the-firm, /forge and
+  // /veri-fm-cs carry their own. This block is the browser tab, search
+  // headline and link preview for the lab itself.
+  title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
   description:
-    "One SAP-class system of 50+ modules — finance, sales, CRM, HR, operations, compliance — driven end to end by your own AI assistant. Tell it what to do. Consider it done. 10× productivity, save 2× what you spend.",
+    "AI cognitive research that becomes advanced, working products. VERIDIAN builds operating systems that perceive a company's state, decide, act, and account for every action — bounded by a constitution, accountable to a ledger.",
   keywords: [
-    "VERIDIAN AI",
-    "AI assistant for business",
-    "AI business system",
-    "all-in-one business software",
-    "AI ERP",
-    "accounting software",
-    "CRM",
-    "HR and payroll software",
-    "inventory management",
-    "compliance",
-    "business automation",
-    "AI for SMB India",
+    "VERIDIAN",
+    "cognitive AI",
+    "AI research",
+    "AI operating system",
+    "enterprise AI",
+    "AI agents",
+    "purpose-bound AI",
+    "accountable AI",
   ],
   icons: { icon: "/logo-mark.svg" },
   openGraph: {
-    title: "VERIDIAN AI — Tell it what to do. Consider it done.",
+    title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
     description:
-      "The complete system your company runs on — 50+ modules, one bill, operated for you by your own AI assistant. No other software needed.",
+      "We research how a business thinks — then build the system that thinks for it. Advanced AI products and projects: OFFICE, THE FIRM, FM & CS, FORGE.",
     url: "https://veridian-ai-os.vercel.app",
-    siteName: "VERIDIAN AI",
+    siteName: "VERIDIAN COGNITIVE AI OS",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "VERIDIAN AI — Tell it what to do. Consider it done.",
+    title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
     description:
-      "One complete business system — finance, sales, CRM, HR, operations, compliance — run by your AI assistant. 10× productivity, 2× savings.",
+      "AI cognitive research that becomes advanced, working products — systems that perceive, decide, act, and account for themselves.",
   },
 };
 

@@ -42,6 +42,7 @@ import {
   Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProductSalesSection } from "@/components/ProductSalesSection";
 
 // --- Editable content -------------------------------------------------------
 
@@ -733,6 +734,7 @@ export default function VeriFmCsLandingPage() {
       <PoweredBy />
       <Stories />
       <Pricing />
+      <ProductSalesSection product="VERI FM & CS AI OS" />
       <FinalCta />
       <Footer />
     </main>

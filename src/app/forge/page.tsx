@@ -45,6 +45,7 @@ import {
   Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProductSalesSection } from "@/components/ProductSalesSection";
 
 // --- Editable content -------------------------------------------------------
 
@@ -649,6 +650,7 @@ export default function ForgeLandingPage() {
       <PoweredBy />
       <Stories />
       <Pricing />
+      <ProductSalesSection product="FORGE — AI Engineering" />
       <FinalCta />
       <Footer />
     </main>

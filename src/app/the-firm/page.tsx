@@ -40,6 +40,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProductSalesSection } from "@/components/ProductSalesSection";
 
 // --- Editable content -------------------------------------------------------
 
@@ -745,6 +746,7 @@ export default function TheFirmLandingPage() {
       <PoweredBy />
       <Stories />
       <Pricing />
+      <ProductSalesSection product="THE FIRM AI OS" />
       <FinalCta />
       <Footer />
     </main>

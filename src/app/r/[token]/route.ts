@@ -6,6 +6,7 @@ import { resolveReferralLinkAndRecordClick, ServiceError } from "@/lib/services/
 // calls for. Deliberately excluded from middleware.ts's
 // PROTECTED_APP_ROUTE_PREFIXES, same posture as /vendor-portal/[token].
 const PRODUCT_LANDING_PAGES: Record<string, string> = {
+  office: "/office",
   the_firm: "/the-firm",
   forge: "/forge",
   facilities_management: "/veri-fm-cs",
