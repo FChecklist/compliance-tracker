@@ -47,19 +47,24 @@ if (!role || role.isHuman || role.isCodeOnly || !role.model) {
 // vars not available here. SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (both
 // already GitHub Secrets on this repo) are enough for a read-only lookup
 // against the platform-governed prompt_templates/prompt_versions tables.
+// Two real CI runs (2026-07-07) threw ERR_INVALID_URL even after falling
+// back to a hardcoded, known-good URL -- meaning the GitHub Secret values
+// themselves aren't empty, they're wrapped in literal quote characters
+// (e.g. the secret's stored value is `"https://...supabase.co"`, quotes
+// included). Stripping matching leading/trailing quotes defensively rather
+// than trying to fix however the secrets were originally set.
+function stripQuotes(s) {
+  if (!s) return s
+  const trimmed = s.trim()
+  return trimmed.replace(/^['"]|['"]$/g, "")
+}
+
 async function fetchSystemPrompt(templateKey) {
-  // SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL GitHub Secrets both resolved
-  // empty in practice (confirmed via a real failed run 2026-07-07) --
-  // falling back to the known project URL directly. Not a secret: this is
-  // the public Supabase REST endpoint, gated by the (genuinely secret)
-  // service role key below, same value as verdian-ai's project ref
-  // pcrjmlpuqsbocqfwoxod confirmed live via the Supabase Management API.
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://pcrjmlpuqsbocqfwoxod.supabase.co"
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const res = await fetch(
-    `${supabaseUrl}/rest/v1/prompt_versions?select=content,prompt_templates!inner(template_key)&prompt_templates.template_key=eq.${templateKey}&label=eq.production&is_active=eq.true`,
-    { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "compliance" } }
-  )
+  const supabaseUrl = stripQuotes(process.env.SUPABASE_URL) || stripQuotes(process.env.NEXT_PUBLIC_SUPABASE_URL) || "https://pcrjmlpuqsbocqfwoxod.supabase.co"
+  const serviceKey = stripQuotes(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const url = `${supabaseUrl}/rest/v1/prompt_versions?select=content,prompt_templates!inner(template_key)&prompt_templates.template_key=eq.${templateKey}&label=eq.production&is_active=eq.true`
+  console.log(`[ai-workforce-agent] fetching prompt from: ${url.slice(0, 60)}... (serviceKey present: ${!!serviceKey}, len: ${serviceKey?.length ?? 0})`)
+  const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "compliance" } })
   if (!res.ok) throw new Error(`Failed to fetch prompt template '${templateKey}': HTTP ${res.status} ${await res.text()}`)
   const rows = await res.json()
   if (!rows.length) throw new Error(`No production prompt_version found for '${templateKey}'`)
