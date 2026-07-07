@@ -59,17 +59,25 @@ function stripQuotes(s) {
   return trimmed.replace(/^['"]|['"]$/g, "")
 }
 
-// A real CI run (2026-07-07) proved the SUPABASE_URL secret isn't empty
-// OR quote-wrapped -- it resolves to `jusqumifsmtcaujqyjuy.supabase.co`, a
-// project that doesn't exist in this account at all (confirmed via
-// list_projects: the only real project is pcrjmlpuqsbocqfwoxod/verdian-ai).
-// Stale secret, same "wrong region/ref left over from a deleted project"
-// pattern as the DATABASE_URL bug orchestra_changes.md documents as
-// BUG-002's real root cause. Not trusting either URL secret at all now --
-// hardcoded is the only value that's actually been verified correct.
+// Two real CI runs (2026-07-07) proved SUPABASE_URL and
+// SUPABASE_SERVICE_ROLE_KEY are BOTH stale -- they resolve to
+// `jusqumifsmtcaujqyjuy.supabase.co`, a project that doesn't exist in this
+// account at all (confirmed via list_projects: the only real project is
+// pcrjmlpuqsbocqfwoxod/verdian-ai), so the "service role key" is actually
+// some other project's key entirely (HTTP 401 "Invalid API key" once the
+// URL itself was hardcoded correctly). Same "stale ref left over from a
+// deleted project" pattern as the DATABASE_URL wrong-region bug.
+//
+// Rather than depend on a service_role key at all, prompt_templates/
+// prompt_versions got an explicit public-read RLS policy added this
+// session (matching their own schema comment: "Global-read platform
+// catalog... prompt content is a platform-governed asset" -- the intent
+// was always public-read, RLS just never had a policy enforcing it). Uses
+// dedicated, freshly-verified secrets (AI_TEAM_SUPABASE_URL/
+// AI_TEAM_SUPABASE_ANON_KEY) instead of the untrustworthy shared ones.
 async function fetchSystemPrompt(templateKey) {
-  const supabaseUrl = "https://pcrjmlpuqsbocqfwoxod.supabase.co"
-  const serviceKey = stripQuotes(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const supabaseUrl = stripQuotes(process.env.AI_TEAM_SUPABASE_URL) || "https://pcrjmlpuqsbocqfwoxod.supabase.co"
+  const serviceKey = stripQuotes(process.env.AI_TEAM_SUPABASE_ANON_KEY)
   const url = `${supabaseUrl}/rest/v1/prompt_versions?select=content,prompt_templates!inner(template_key)&prompt_templates.template_key=eq.${templateKey}&label=eq.production&is_active=eq.true`
   console.log(`[ai-workforce-agent] fetching prompt from: ${url.slice(0, 60)}... (serviceKey present: ${!!serviceKey}, len: ${serviceKey?.length ?? 0})`)
   const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "compliance" } })

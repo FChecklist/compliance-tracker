@@ -50,9 +50,8 @@ jobs:
           AI_TEAM_ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
           AI_TEAM_TASK: ${{ github.event.client_payload.task || github.event.inputs.task }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AI_TEAM_SUPABASE_URL: ${{ secrets.AI_TEAM_SUPABASE_URL }}
+          AI_TEAM_SUPABASE_ANON_KEY: ${{ secrets.AI_TEAM_SUPABASE_ANON_KEY }}
         run: bun run scripts/ai-workforce-agent.mjs
 
       - name: Commit changes
