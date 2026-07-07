@@ -10,7 +10,7 @@ import { storeEmbedding, findSimilar, deleteEmbedding } from "@/lib/embeddings"
 import { db, embeddings } from "@/lib/db"
 import { or, eq, isNull, and, inArray } from "drizzle-orm"
 
-export const CAPABILITY_ENTITY_TYPES = ["worker_agent", "automation_rule", "module"] as const
+export const CAPABILITY_ENTITY_TYPES = ["worker_agent", "automation_rule", "module", "prompt_pattern"] as const
 export type CapabilityEntityType = (typeof CAPABILITY_ENTITY_TYPES)[number]
 
 function isCapabilityEntityType(value: string): value is CapabilityEntityType {
@@ -62,6 +62,26 @@ export async function findSimilarCapabilities(query: string, orgId: string, limi
   return results
     .filter((r): r is CapabilityMatch => isCapabilityEntityType(r.entityType))
     .slice(0, limit)
+}
+
+// Phase 2 of the Prompt Directory (backend only). Mirrors
+// findSimilarCapabilities() but is scoped to the single 'prompt_pattern'
+// entity type instead of all capability types, so the Prompt Directory can
+// surface semantically similar existing patterns before a new one is
+// authored. Same over-fetch-then-filter-then-slice shape as its sibling.
+export async function findSimilarPromptPatterns(query: string, orgId: string, limit = 5): Promise<CapabilityMatch[]> {
+  const results = await findSimilar(query, orgId, limit * 3)
+  return results
+    .filter((r): r is CapabilityMatch => r.entityType === "prompt_pattern")
+    .slice(0, limit)
+}
+
+// Phase 2 of the Prompt Directory (backend only). Mirrors indexCapability()
+// but is hardcoded to the 'prompt_pattern' entity type, so prompt patterns
+// flow into the same entity-agnostic embeddings backing store used by the
+// rest of the Capability Registry -- no new table, no migration.
+export async function indexPromptPattern(entityId: string, content: string, orgId?: string | null): Promise<void> {
+  await storeEmbedding("prompt_pattern", entityId, content, orgId ?? undefined)
 }
 
 export type DuplicateCandidate = { a: CapabilityMatch; b: CapabilityMatch; score: number }
