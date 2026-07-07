@@ -207,7 +207,22 @@ async function main() {
     }
 
     for (const call of msg.tool_calls) {
-      const args = JSON.parse(call.function.arguments || "{}")
+      // 9th real bug found running this pipeline (2026-07-07): a real run
+      // crashed the ENTIRE process with an unhandled SyntaxError here --
+      // the model's tool-call arguments JSON came back truncated
+      // ("Unexpected EOF"), most likely from writing a large multi-
+      // function file in one write_file call and hitting a completion
+      // length limit mid-generation. A malformed tool call is now a
+      // retryable error fed back to the model (which can retry smaller,
+      // e.g. split the write into more calls), not a fatal crash that
+      // throws away the whole session's progress.
+      let args
+      try {
+        args = JSON.parse(call.function.arguments || "{}")
+      } catch (err) {
+        messages.push({ role: "tool", tool_call_id: call.id, content: `ERROR: your last tool call's arguments were not valid JSON (${err.message}) -- likely truncated because the content was too large for one call. Retry with a smaller write_file call (e.g. split the file into multiple write_file calls, or shorten it), and double-check your JSON escaping.` })
+        continue
+      }
       if (call.function.name === "finish") {
         finished = { summary: args.summary, filesChanged: args.filesChanged || [...filesChanged] }
         messages.push({ role: "tool", tool_call_id: call.id, content: "Session ending." })
