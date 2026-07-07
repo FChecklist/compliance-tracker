@@ -48,7 +48,13 @@ if (!role || role.isHuman || role.isCodeOnly || !role.model) {
 // already GitHub Secrets on this repo) are enough for a read-only lookup
 // against the platform-governed prompt_templates/prompt_versions tables.
 async function fetchSystemPrompt(templateKey) {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  // SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL GitHub Secrets both resolved
+  // empty in practice (confirmed via a real failed run 2026-07-07) --
+  // falling back to the known project URL directly. Not a secret: this is
+  // the public Supabase REST endpoint, gated by the (genuinely secret)
+  // service role key below, same value as verdian-ai's project ref
+  // pcrjmlpuqsbocqfwoxod confirmed live via the Supabase Management API.
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://pcrjmlpuqsbocqfwoxod.supabase.co"
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const res = await fetch(
     `${supabaseUrl}/rest/v1/prompt_versions?select=content,prompt_templates!inner(template_key)&prompt_templates.template_key=eq.${templateKey}&label=eq.production&is_active=eq.true`,
