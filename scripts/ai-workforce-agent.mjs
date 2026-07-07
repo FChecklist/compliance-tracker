@@ -59,8 +59,16 @@ function stripQuotes(s) {
   return trimmed.replace(/^['"]|['"]$/g, "")
 }
 
+// A real CI run (2026-07-07) proved the SUPABASE_URL secret isn't empty
+// OR quote-wrapped -- it resolves to `jusqumifsmtcaujqyjuy.supabase.co`, a
+// project that doesn't exist in this account at all (confirmed via
+// list_projects: the only real project is pcrjmlpuqsbocqfwoxod/verdian-ai).
+// Stale secret, same "wrong region/ref left over from a deleted project"
+// pattern as the DATABASE_URL bug orchestra_changes.md documents as
+// BUG-002's real root cause. Not trusting either URL secret at all now --
+// hardcoded is the only value that's actually been verified correct.
 async function fetchSystemPrompt(templateKey) {
-  const supabaseUrl = stripQuotes(process.env.SUPABASE_URL) || stripQuotes(process.env.NEXT_PUBLIC_SUPABASE_URL) || "https://pcrjmlpuqsbocqfwoxod.supabase.co"
+  const supabaseUrl = "https://pcrjmlpuqsbocqfwoxod.supabase.co"
   const serviceKey = stripQuotes(process.env.SUPABASE_SERVICE_ROLE_KEY)
   const url = `${supabaseUrl}/rest/v1/prompt_versions?select=content,prompt_templates!inner(template_key)&prompt_templates.template_key=eq.${templateKey}&label=eq.production&is_active=eq.true`
   console.log(`[ai-workforce-agent] fetching prompt from: ${url.slice(0, 60)}... (serviceKey present: ${!!serviceKey}, len: ${serviceKey?.length ?? 0})`)
