@@ -1,0 +1,13 @@
+-- Gap closure, AUDIT_2026-07-09.md (Database & Schema Review section).
+-- Applied live via Supabase MCP apply_migration on 2026-07-09.
+--
+-- compliance.firm_client_portal_links existed live (RLS + policies attached)
+-- with zero rows, zero corresponding schema.ts declaration, zero migration
+-- file anywhere in the repo, and zero application code referencing it
+-- (confirmed via repo-wide grep, "firm_client_portal_links"/
+-- "firmClientPortalLinks", zero hits). Either created ad hoc outside the
+-- migration pipeline during an early THE FIRM feature spike and abandoned,
+-- or a remnant of reverted work. Zero-row table with zero consumers is safe
+-- to drop outright -- no data loss, closes real undocumented attack
+-- surface/schema clutter.
+DROP TABLE IF EXISTS compliance.firm_client_portal_links;
