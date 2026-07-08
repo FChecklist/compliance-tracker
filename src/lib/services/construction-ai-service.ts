@@ -22,7 +22,7 @@ import { documents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
-import { callLLMJson, callLLMVision, type LLMProvider } from "@/lib/llm-client"
+import { callLLM, callLLMJson, callLLMVision, type LLMProvider } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { ServiceError } from "./compliance-service"
@@ -190,4 +190,38 @@ export async function diffDrawingRevisions(
     provider: modelConfig.provider, model: modelConfig.model, usage,
   })
   return data
+}
+
+// Wave 132 (PROJEXA's Discuss pill): genuine free-form conversational chat,
+// deliberately NOT part of the deterministic Chain Selector/dispatchTool()
+// mechanism -- callLLM's raw-text path, not callLLMJson, since a chat reply
+// isn't a structured record. No live project data is passed in (the prompt
+// explicitly tells the model to defer to the Assistant actions for that),
+// so unlike generateProgressSummary/detectBudgetScheduleRisk there's no
+// hallucinated-numbers risk to guard against here.
+export async function discussConstruction(
+  ctx: { orgId: string; userId: string },
+  message: string,
+  history: { role: "user" | "assistant"; content: string }[] = []
+): Promise<{ reply: string }> {
+  const startedAt = Date.now()
+  const modelConfig = await resolveModelConfig(ctx.orgId, "user_assistant_oa")
+  if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
+
+  const systemPrompt = await resolvePromptTemplate("construction.discuss")
+  const transcript = history.map((m) => `${m.role === "user" ? "User" : "VERI"}: ${m.content}`).join("\n")
+  const userMessage = transcript ? `${transcript}\nUser: ${message}` : message
+
+  const { content, usage } = await callLLM(
+    modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
+    { temperature: 0.4, maxTokens: 500 }, modelConfig.fallback
+  )
+
+  recordOrchestraExecution({
+    orgId: ctx.orgId, userId: ctx.userId, layerKey: "user_assistant_oa", eventType: "construction.discuss",
+    input: { messageLength: message.length }, output: { replyLength: content.length },
+    status: "completed", durationMs: Date.now() - startedAt,
+    provider: modelConfig.provider, model: modelConfig.model, usage,
+  })
+  return { reply: content }
 }
