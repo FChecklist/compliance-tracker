@@ -51,3 +51,36 @@ export function writtenDownValueDepreciation(input: DepreciationInput & { rate?:
 function round2(d: Decimal): number {
   return d.toDecimalPlaces(2).toNumber()
 }
+
+// Useful Life Calculator -- estimates remaining useful life from age and originally assigned life
+export function calculateRemainingUsefulLife(originalUsefulLifeYears: number, ageInYears: number): number {
+  return Math.max(0, originalUsefulLifeYears - ageInYears)
+}
+
+// Asset Transfer Engine -- carries net book value across a location/department transfer (no cost/depreciation impact, just a record)
+export function transferAsset(netBookValue: number, fromLocation: string, toLocation: string): { netBookValue: number; fromLocation: string; toLocation: string } {
+  return { netBookValue, fromLocation, toLocation }
+}
+
+// Asset Disposal Engine -- profit/loss on disposal = sale proceeds - net book value
+export function calculateDisposalGainLoss(netBookValue: number, saleProceeds: number): { gainOrLoss: number; isGain: boolean } {
+  const diff = new Decimal(saleProceeds).minus(netBookValue)
+  return { gainOrLoss: round2(diff), isGain: diff.gte(0) }
+}
+
+// Capitalization Engine -- determines whether an expense should be capitalized (added to asset cost) vs expensed, per a materiality threshold
+export function shouldCapitalize(expenseAmount: number, capitalizationThreshold: number, extendsUsefulLife: boolean): boolean {
+  return extendsUsefulLife && expenseAmount >= capitalizationThreshold
+}
+
+// Revaluation Engine -- restates an asset to fair value, tracking the revaluation surplus/deficit
+export function revalueAsset(currentNetBookValue: number, fairValue: number): { revaluationSurplus: number; newCarryingValue: number } {
+  const diff = new Decimal(fairValue).minus(currentNetBookValue)
+  return { revaluationSurplus: round2(diff), newCarryingValue: round2(new Decimal(fairValue)) }
+}
+
+// Impairment Engine -- Ind AS 36 style: impairment loss = carrying value - recoverable amount (only if carrying > recoverable)
+export function calculateImpairmentLoss(carryingValue: number, recoverableAmount: number): { impairmentLoss: number; impaired: boolean } {
+  const loss = new Decimal(carryingValue).minus(recoverableAmount)
+  return { impairmentLoss: loss.gt(0) ? round2(loss) : 0, impaired: loss.gt(0) }
+}

@@ -1,6 +1,11 @@
 // VCEL Data Quality Engine (computation_engines: pan_validation_engine,
-// gstin_validation_engine, ifsc_validation_engine). India-specific
-// format + check-digit validators -- deterministic, well-documented algorithms.
+// gstin_validation_engine, ifsc_validation_engine, email/phone/bank-account/
+// address). India-specific format + check-digit validators are hand-rolled
+// (deterministic, well-documented algorithms with no suitable npm package);
+// generic email/phone validation uses standard npm libraries per project
+// convention rather than hand-rolled regex.
+import isEmail from "validator/lib/isEmail"
+import { parsePhoneNumberFromString } from "libphonenumber-js"
 
 // PAN: AAAAA9999A (5 letters, 4 digits, 1 letter). No public check-digit
 // algorithm is published by the Income Tax Department -- format is the
@@ -48,4 +53,29 @@ const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/
 
 export function isValidIfscFormat(ifsc: string): boolean {
   return IFSC_REGEX.test(ifsc?.trim().toUpperCase() ?? "")
+}
+
+// Email Validation Engine -- validator.js (RFC 5322-aware) rather than hand-rolled regex
+export function isValidEmail(email: string): boolean {
+  return isEmail(email?.trim() ?? "")
+}
+
+// Phone Validation Engine -- libphonenumber-js, the standard for real international phone validation
+export function isValidPhoneNumber(phone: string, defaultCountry: string = "IN"): boolean {
+  const parsed = parsePhoneNumberFromString(phone ?? "", defaultCountry as never)
+  return parsed?.isValid() ?? false
+}
+
+// Bank Account Validation Engine -- format-only (Indian bank account numbers
+// are 9-18 digits, no universal checksum across banks); real validation
+// requires a penny-drop/bank-API verification, out of scope for a pure function.
+export function isValidBankAccountFormat(accountNumber: string): boolean {
+  return /^[0-9]{9,18}$/.test(accountNumber?.trim() ?? "")
+}
+
+// Address Standardization Engine -- normalizes whitespace/casing only; true
+// standardization (canonical city/state/pincode resolution) requires a
+// postal API/database, out of scope for a pure deterministic function.
+export function standardizeAddress(address: string): string {
+  return address?.trim().replace(/\s+/g, " ").replace(/,\s*,/g, ",") ?? ""
 }

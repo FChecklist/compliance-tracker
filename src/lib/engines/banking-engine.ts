@@ -55,3 +55,39 @@ export function calculateEmi(input: EmiInput): EmiResult {
 function round2(d: Decimal): number {
   return d.toDecimalPlaces(2).toNumber()
 }
+
+// Interest Calculator (Banking) -- simple or compound, on a savings/deposit balance
+export function calculateBankingInterest(principal: number, annualRatePercent: number, days: number, method: "simple" | "compound_daily" = "simple"): number {
+  if (method === "simple") return round2(new Decimal(principal).mul(annualRatePercent).div(100).mul(days).div(365))
+  const dailyRate = new Decimal(annualRatePercent).div(100).div(365)
+  const amount = new Decimal(principal).mul(dailyRate.plus(1).pow(days))
+  return round2(amount.minus(principal))
+}
+
+// Cash Flow Projection -- rolls forward an opening balance through a list of expected in/outflows
+export function projectCashFlow(openingBalance: number, movements: { date: string; amount: number }[]): { date: string; amount: number; runningBalance: number }[] {
+  let balance = new Decimal(openingBalance)
+  return movements.map((m) => {
+    balance = balance.plus(m.amount)
+    return { date: m.date, amount: m.amount, runningBalance: round2(balance) }
+  })
+}
+
+// Outstanding Cheque Engine -- cheques issued/received but not yet cleared as of a cutoff date
+export function findOutstandingCheques(cheques: { id: string; issueDate: string; clearedDate?: string }[], asOfDate: string): string[] {
+  return cheques.filter((c) => !c.clearedDate || c.clearedDate > asOfDate).filter((c) => c.issueDate <= asOfDate).map((c) => c.id)
+}
+
+// Deposit Maturity Engine -- fixed deposit maturity value via compound interest
+export function calculateDepositMaturity(principal: number, annualRatePercent: number, tenureMonths: number, compoundingFrequencyPerYear = 4): { maturityValue: number; interestEarned: number } {
+  const n = compoundingFrequencyPerYear
+  const t = new Decimal(tenureMonths).div(12).toNumber()
+  const maturity = new Decimal(principal).mul(new Decimal(1).plus(new Decimal(annualRatePercent).div(100).div(n)).pow(n * t))
+  return { maturityValue: round2(maturity), interestEarned: round2(maturity.minus(principal)) }
+}
+
+// Credit Limit Calculator -- generic multiple-of-income based limit, with an existing-obligations deduction
+export function calculateCreditLimit(monthlyIncome: number, multiplier: number, existingMonthlyObligations = 0): number {
+  const eligible = new Decimal(monthlyIncome).minus(existingMonthlyObligations).mul(multiplier)
+  return round2(Decimal.max(0, eligible))
+}
