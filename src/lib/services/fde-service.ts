@@ -121,7 +121,7 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
         const codeReference = agent?.tier === "global" ? agent.codeReference : null
         if (codeReference && isToolAllowedForDomain(agent?.domain, codeReference)) {
           await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-            const output = await dispatchTool(db, ctx.orgId, codeReference)
+            const output = await dispatchTool(db, ctx.orgId, ctx.userId, codeReference)
             responseText += ` Result: ${JSON.stringify(output)}`
           })
         }

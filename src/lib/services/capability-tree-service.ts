@@ -18,9 +18,10 @@
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
   workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
+  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, ne, asc } from "drizzle-orm"
+import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
 
 // The 6 real compliance_status enum values -- shown as clickable targets,
 // not a free-text field, so "update status" dispatch needs zero typing.
@@ -130,7 +131,8 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
     const entityNodes = await buildEntityNodes(db, ctx.orgId)
     const complianceItemNodes = await buildComplianceItemNodes(db, ctx.orgId)
     const calculatorNodes = await buildCalculatorNodes(db)
-    return [...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes]
+    const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
+    return [...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes]
   })
 }
 
@@ -290,4 +292,99 @@ async function buildComplianceItemNodes(db: TenantDb, orgId: string): Promise<Ca
       })),
     })),
   }]
+}
+
+// GST Reconciliation -- unconditional like buildComplianceItemNodes (the
+// module isn't behind a product-branch enablement flag, matching
+// AppSidebar.tsx's "Finance section shown unconditionally" posture, so it's
+// visible from the chain selector for every org/product experience,
+// including Office and The Firm, not gated to a specific branch). Each
+// sub-branch only appears once there's real data to act on -- an org with
+// no staged batches never sees an empty "Import Batches" node.
+async function buildGstReconciliationNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
+  const [confirmAgent, reconcileAgent, generateReturnAgent, aiReviewAgent] = await Promise.all([
+    db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "confirm_gst_batch"), eq(workerAgents.tier, "global")) }),
+    db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "run_gst_reconciliation"), eq(workerAgents.tier, "global")) }),
+    db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "generate_gst_return"), eq(workerAgents.tier, "global")) }),
+    db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "generate_gst_ai_review"), eq(workerAgents.tier, "global")) }),
+  ])
+  if (!confirmAgent && !reconcileAgent && !generateReturnAgent && !aiReviewAgent) return []
+
+  const children: CapabilityNode[] = []
+
+  // Import Batches (pending confirm) -> [batch] -> Confirm
+  if (confirmAgent) {
+    const stagedBatches = await db.query.gstImportBatches.findMany({
+      where: and(eq(gstImportBatches.orgId, orgId), eq(gstImportBatches.status, "staged")),
+      orderBy: desc(gstImportBatches.createdAt), limit: 20,
+    })
+    if (stagedBatches.length > 0) {
+      children.push({
+        key: "gst_import_batches", label: "Import Batches (pending confirm)", leaf: false,
+        children: stagedBatches.map((b) => ({
+          key: b.id, label: `${b.fileName} (${b.period})`, leaf: true,
+          codeReference: "confirm_gst_batch", agentId: confirmAgent.id, fixedInputs: { batchId: b.id },
+        })),
+      })
+    }
+  }
+
+  // Reconcile GSTR-2B -> [purchase batch] -> [2B batch] -> Run
+  if (reconcileAgent) {
+    const [purchaseBatches, gstr2bBatches] = await Promise.all([
+      db.query.gstImportBatches.findMany({ where: and(eq(gstImportBatches.orgId, orgId), eq(gstImportBatches.direction, "purchase"), eq(gstImportBatches.status, "confirmed")), orderBy: desc(gstImportBatches.createdAt), limit: 10 }),
+      db.query.gstImportBatches.findMany({ where: and(eq(gstImportBatches.orgId, orgId), eq(gstImportBatches.direction, "gstr2b"), eq(gstImportBatches.status, "confirmed")), orderBy: desc(gstImportBatches.createdAt), limit: 10 }),
+    ])
+    if (purchaseBatches.length > 0 && gstr2bBatches.length > 0) {
+      children.push({
+        key: "gst_reconcile", label: "Reconcile GSTR-2B", leaf: false,
+        children: purchaseBatches.map((pb) => ({
+          key: pb.id, label: `Purchase: ${pb.fileName} (${pb.period})`, leaf: false,
+          children: gstr2bBatches.map((gb) => ({
+            key: gb.id, label: `vs 2B: ${gb.fileName} (${gb.period})`, leaf: true,
+            codeReference: "run_gst_reconciliation", agentId: reconcileAgent.id,
+            fixedInputs: { purchaseBatchId: pb.id, gstr2bBatchId: gb.id, period: pb.period },
+          })),
+        })),
+      })
+    }
+  }
+
+  // Generate Return -> [period with confirmed sales invoices] -> GSTR-1 | GSTR-3B
+  if (generateReturnAgent) {
+    const periodRows = await db.selectDistinct({ period: gstCanonicalInvoices.period }).from(gstCanonicalInvoices)
+      .where(and(eq(gstCanonicalInvoices.orgId, orgId), eq(gstCanonicalInvoices.direction, "sales")))
+    if (periodRows.length > 0) {
+      children.push({
+        key: "gst_generate_return", label: "Generate Return", leaf: false,
+        children: periodRows.map((p) => ({
+          key: p.period, label: p.period, leaf: false,
+          children: [
+            { key: `${p.period}::gstr1`, label: "GSTR-1", leaf: true, codeReference: "generate_gst_return", agentId: generateReturnAgent.id, fixedInputs: { period: p.period, returnType: "gstr1" } },
+            { key: `${p.period}::gstr3b`, label: "GSTR-3B", leaf: true, codeReference: "generate_gst_return", agentId: generateReturnAgent.id, fixedInputs: { period: p.period, returnType: "gstr3b" } },
+          ],
+        })),
+      })
+    }
+  }
+
+  // AI Review -> [generated return] -> Generate AI Review
+  if (aiReviewAgent) {
+    const returns = await db.query.gstReturnPeriods.findMany({
+      where: and(eq(gstReturnPeriods.orgId, orgId), inArray(gstReturnPeriods.status, ["generated", "filed"])),
+      orderBy: desc(gstReturnPeriods.createdAt), limit: 20,
+    })
+    if (returns.length > 0) {
+      children.push({
+        key: "gst_ai_review", label: "AI Review", leaf: false,
+        children: returns.map((r) => ({
+          key: r.id, label: `${r.returnType.toUpperCase()} — ${r.period}`, leaf: true,
+          codeReference: "generate_gst_ai_review", agentId: aiReviewAgent.id, fixedInputs: { returnPeriodId: r.id },
+        })),
+      })
+    }
+  }
+
+  if (children.length === 0) return []
+  return [{ key: "gst_reconciliation", label: "GST Reconciliation", leaf: false, children }]
 }

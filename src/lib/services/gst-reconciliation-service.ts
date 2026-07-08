@@ -35,6 +35,12 @@ async function resolveOwnGstin(db: TenantDb, orgId: string, clientId: string | n
   return org?.gstin ?? null
 }
 
+// Exported for callers (chain-selector dispatch) that need the org/client's
+// own GSTIN without already being inside a withTenantContext transaction.
+export async function resolveOwnGstinForOrg(ctx: { orgId: string; clientId?: string | null }): Promise<string | null> {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => resolveOwnGstin(db, ctx.orgId, ctx.clientId ?? null))
+}
+
 // ─── Import ──────────────────────────────────────────────────────────────
 export async function importFile(
   ctx: GstContext,
@@ -134,8 +140,11 @@ export async function cancelBatch(ctx: GstContext, batchId: string) {
 }
 
 // ─── Confirm (staged -> canonical + validation) ────────────────────────────
-export async function confirmBatch(ctx: GstContext, batchId: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+// Core takes an already-open `db` so callers that already have a transaction
+// open (e.g. task-execution-engine.ts's structured dispatch) can run this
+// atomically within it, instead of opening a second, independent transaction.
+export async function confirmBatchCore(db: TenantDb, ctx: GstContext, batchId: string) {
+  {
     const batch = await db.query.gstImportBatches.findFirst({ where: and(eq(gstImportBatches.id, batchId), eq(gstImportBatches.orgId, ctx.orgId)) })
     if (!batch) throw new ServiceError("Import batch not found", 404)
     if (batch.status === "confirmed") throw new ServiceError("Batch already confirmed", 409)
@@ -203,7 +212,11 @@ export async function confirmBatch(ctx: GstContext, batchId: string) {
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "gst_import.confirmed", entityType: "gst_import_batch", entityId: batch.id, details: `${insertedIds.length} invoices, ${findings.length} findings` })
     return { confirmedCount: insertedIds.length, findingsCount: findings.length }
-  })
+  }
+}
+
+export async function confirmBatch(ctx: GstContext, batchId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => confirmBatchCore(db, ctx, batchId))
 }
 
 export async function listFindings(ctx: { orgId: string }, batchId: string) {
@@ -213,8 +226,8 @@ export async function listFindings(ctx: { orgId: string }, batchId: string) {
 }
 
 // ─── Reconciliation ─────────────────────────────────────────────────────
-export async function runReconciliation(ctx: GstContext, input: { period: string; clientId?: string | null; purchaseBatchId: string; gstr2bBatchId: string }) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+export async function runReconciliationCore(db: TenantDb, ctx: GstContext, input: { period: string; clientId?: string | null; purchaseBatchId: string; gstr2bBatchId: string }) {
+  {
     const [purchaseInvoices, gstr2bInvoices] = await Promise.all([
       db.query.gstCanonicalInvoices.findMany({ where: and(eq(gstCanonicalInvoices.orgId, ctx.orgId), eq(gstCanonicalInvoices.batchId, input.purchaseBatchId)) }),
       db.query.gstCanonicalInvoices.findMany({ where: and(eq(gstCanonicalInvoices.orgId, ctx.orgId), eq(gstCanonicalInvoices.batchId, input.gstr2bBatchId)) }),
@@ -242,7 +255,11 @@ export async function runReconciliation(ctx: GstContext, input: { period: string
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "gst_reconciliation.run", entityType: "gst_reconciliation_run", entityId: run.id, details: JSON.stringify(summary) })
     return { runId: run.id, summary }
-  })
+  }
+}
+
+export async function runReconciliation(ctx: GstContext, input: { period: string; clientId?: string | null; purchaseBatchId: string; gstr2bBatchId: string }) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => runReconciliationCore(db, ctx, input))
 }
 
 export async function getReconciliationRun(ctx: { orgId: string }, runId: string) {
@@ -261,8 +278,8 @@ export async function listReconciliationRuns(ctx: { orgId: string }) {
 }
 
 // ─── Return generation ──────────────────────────────────────────────────
-export async function generateReturn(ctx: GstContext, input: { period: string; gstin: string; returnType: "gstr1" | "gstr3b"; clientId?: string | null }) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+export async function generateReturnCore(db: TenantDb, ctx: GstContext, input: { period: string; gstin: string; returnType: "gstr1" | "gstr3b"; clientId?: string | null }) {
+  {
     const salesInvoices = await db.query.gstCanonicalInvoices.findMany({
       where: and(eq(gstCanonicalInvoices.orgId, ctx.orgId), eq(gstCanonicalInvoices.period, input.period), eq(gstCanonicalInvoices.direction, "sales")),
       with: { items: true },
@@ -291,7 +308,11 @@ export async function generateReturn(ctx: GstContext, input: { period: string; g
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "gst_return.generated", entityType: "gst_return_period", entityId: returnPeriod.id, details: input.returnType })
     return returnPeriod
-  })
+  }
+}
+
+export async function generateReturn(ctx: GstContext, input: { period: string; gstin: string; returnType: "gstr1" | "gstr3b"; clientId?: string | null }) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => generateReturnCore(db, ctx, input))
 }
 
 export async function getReturn(ctx: { orgId: string }, returnPeriodId: string) {
@@ -309,8 +330,8 @@ export async function listReturns(ctx: { orgId: string }) {
 }
 
 // ─── AI review (the one AI-touched step) ───────────────────────────────
-export async function generateReviewReport(ctx: GstContext, returnPeriodId: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+export async function generateReviewReportCore(db: TenantDb, ctx: GstContext, returnPeriodId: string) {
+  {
     const returnPeriod = await db.query.gstReturnPeriods.findFirst({ where: and(eq(gstReturnPeriods.id, returnPeriodId), eq(gstReturnPeriods.orgId, ctx.orgId)) })
     if (!returnPeriod) throw new ServiceError("Return not found", 404)
 
@@ -343,7 +364,11 @@ export async function generateReviewReport(ctx: GstContext, returnPeriodId: stri
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "gst_return.ai_review_generated", entityType: "gst_ai_review_report", entityId: report.id, details: result.verdict })
     return { ...report, verdict: result.verdict, summary: result.summary, topIssues: result.topIssues }
-  })
+  }
+}
+
+export async function generateReviewReport(ctx: GstContext, returnPeriodId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => generateReviewReportCore(db, ctx, returnPeriodId))
 }
 
 export async function getLatestReviewReport(ctx: { orgId: string }, returnPeriodId: string) {

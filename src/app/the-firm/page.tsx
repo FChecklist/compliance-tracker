@@ -36,6 +36,7 @@ import {
   Receipt,
   FileWarning,
   Users,
+  FileCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductSalesSection } from "@/components/ProductSalesSection";
@@ -118,6 +119,11 @@ const FEATURES = [
     icon: Receipt,
     title: "Billing",
     line: "Generate an invoice straight from unbilled hours — rates resolve per staff member, per client, automatically. A time entry can never be billed twice.",
+  },
+  {
+    icon: FileCheck,
+    title: "GST reconciliation, per client",
+    line: "Import a client's sales/purchase register (Excel, CSV, Tally, Busy, Zoho Books) or their GSTR-2B, and the engine auto-maps columns, validates GSTINs and HSN codes, reconciles 2B against the books, and drafts the GSTR-1/3B JSON — deterministic, with an AI risk summary before anyone files.",
   },
 ];
 
