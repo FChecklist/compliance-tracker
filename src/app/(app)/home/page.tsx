@@ -83,6 +83,11 @@ export default function HomePage() {
   const [workingStep, setWorkingStep] = useState(0);
   const [briefingReady, setBriefingReady] = useState(false);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
+  // veriChatV2Enabled orgs get the persistent global composer (AppShell) +
+  // independent VERI Chat panel everywhere, Home included -- this page's
+  // own bespoke two-column assistant/chat layout below is only rendered for
+  // orgs still on the previous flow, so the two composers never double up.
+  const [veriChatV2Enabled, setVeriChatV2Enabled] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -91,6 +96,7 @@ export default function HomePage() {
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => {
       if (d?.name) setFirstName(String(d.name).split(" ")[0]);
+      setVeriChatV2Enabled(Boolean(d?.veriChatV2Enabled));
     }).catch(() => {});
     fetch("/api/compliance/stats").then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then(setStats).catch(() => setStatsError(true));
     fetch("/api/conversations").then((r) => r.json()).then((d) => {
@@ -206,6 +212,40 @@ export default function HomePage() {
         "Summarise this week for me",
         "Draft a reply to my latest notice",
       ];
+
+  // The AppShell-level VeriComposer + VeriChatPanel already provide the
+  // composer/thread/chat-list experience for these orgs -- this page only
+  // needs to contribute the greeting/briefing card above it, not its own
+  // parallel composer.
+  if (veriChatV2Enabled) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="flex items-start gap-4">
+          <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-ct-saffron/90 to-[#F5A623] text-white shadow-sm">
+            <Sparkles className="size-5" />
+          </div>
+          <div className="pt-0.5">
+            <h1 className="font-heading text-2xl text-ct-navy tracking-tight">
+              {greeting()}{firstName ? `, ${firstName}` : ""}.
+            </h1>
+            <p className="text-sm text-ct-muted mt-0.5">I&apos;m VERIDIAN, your AI assistant — tell me what you need in VERI Chat below, and I&apos;ll do it for you.</p>
+          </div>
+        </div>
+        {!statsError && stats && (
+          <div className="mt-6 rounded-2xl border border-ct-border bg-white/70 backdrop-blur px-5 py-4 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">{stats.overdue} needs you</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{stats.dueIn30Days ?? stats.dueThisWeek} coming up</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{stats.safe ?? stats.completed} on track</span>
+            </div>
+          </div>
+        )}
+        <div className="mt-4">
+          <AchievementCard />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ResizablePanelGroup

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, User, Settings, LogOut, ChevronDown, Loader2 } from "lucide-react";
+import { Bell, User, Settings, LogOut, ChevronDown, Loader2, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -28,7 +28,7 @@ type NotificationItem = {
   createdAt: string;
 };
 
-export function AppTopbar() {
+export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollapsed?: boolean; onToggleSidebar?: () => void } = {}) {
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
@@ -95,6 +95,20 @@ export function AppTopbar() {
   return (
     <header className="flex h-[60px] shrink-0 items-center gap-4 px-4 md:px-6 bg-gradient-navy shadow-nav sticky top-0 z-30">
       {/* Left: hamburger is handled by AppSidebar (mobile) */}
+
+      {/* Sidebar collapse toggle -- only rendered for orgs on the
+          veriChatV2 branch (onToggleSidebar is undefined otherwise) */}
+      {onToggleSidebar && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleSidebar}
+          title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          className="text-white/80 hover:text-white hover:bg-white/10"
+        >
+          <PanelLeft className="size-4" />
+        </Button>
+      )}
 
       {/* Org name (visible on md+) */}
       <div className="hidden md:block">
