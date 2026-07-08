@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { canAccess, type UserRoleClearanceOverrides } from "@/lib/classification"
 import { logActivity } from "@/lib/audit"
 import { resolveModuleRule } from "@/lib/module-rules-resolver"
+import { computePoshInquiryDeadline, validateIccComposition } from "@/lib/engines/grc-workflow-engine"
 
 // Wave 21: an org can raise/lower the classification ceiling for POSH
 // complaints specifically (never the case content itself -- see
@@ -31,7 +32,15 @@ export async function GET() {
   return NextResponse.json({
     restricted: false,
     committee: committee.map((c) => ({ id: c.id, memberName: c.memberName, role: c.role })),
-    complaints: complaints.map((c) => ({ id: c.id, caseRef: c.caseRef, receivedDate: c.receivedDate.toISOString(), status: c.status })),
+    // Real POSH Act Sec 4(2) composition check over the existing committee
+    // roster -- was never validated, just listed.
+    committeeComposition: validateIccComposition(committee),
+    complaints: complaints.map((c) => ({
+      id: c.id, caseRef: c.caseRef, receivedDate: c.receivedDate.toISOString(), status: c.status,
+      // Real POSH Act Sec 11(4) 90-day statutory inquiry deadline -- was
+      // never computed anywhere, only receivedDate was stored.
+      inquirySla: computePoshInquiryDeadline(c.receivedDate),
+    })),
     annualReports: annualReports.map((a) => ({ id: a.id, year: a.year, filedWith: a.filedWith, status: a.status })),
   })
 }

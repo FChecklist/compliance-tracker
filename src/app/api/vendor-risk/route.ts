@@ -10,7 +10,7 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ vendors: [] })
   const rows = await withTenantContext({ orgId }, (db) => db.query.vendorRiskProfiles.findMany({ orderBy: asc(vendorRiskProfiles.name) }))
-  return NextResponse.json({ vendors: rows.map((v) => ({ id: v.id, name: v.name, riskTier: v.riskTier, certifications: v.certifications, lastAssessedDate: v.lastAssessedDate?.toISOString() ?? null })) })
+  return NextResponse.json({ vendors: rows.map((v) => ({ id: v.id, name: v.name, riskTier: v.riskTier, riskScore: v.riskScore, riskFactors: v.riskFactors, certifications: v.certifications, lastAssessedDate: v.lastAssessedDate?.toISOString() ?? null })) })
 }
 
 export async function POST(request: NextRequest) {

@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/SimpleModulePage";
 
+type SlaStatus = { dueDate: string | null; daysRemaining: number | null; isOverdue: boolean; urgency: "none" | "ok" | "due_soon" | "overdue" };
 type Incident = {
   id: string; title: string | null; category: string; severity: string; classification: string; stage: string;
   regulatoryNotifyRequired: boolean; notified: boolean; notifyDeadline: string | null; linkedRiskId: string | null; restricted?: boolean;
+  capaSla: SlaStatus;
 };
+
+const SLA_COLORS: Record<SlaStatus["urgency"], string> = { none: "", ok: "text-ct-muted", due_soon: "text-amber-600", overdue: "text-red-600" };
 
 const STAGES = ["logged", "triaged", "investigating", "contained", "notified", "remediated", "closed"];
 
@@ -76,6 +80,11 @@ export default function IncidentsPage() {
                         {i.regulatoryNotifyRequired && (
                           <p className={`text-[10px] mt-1 ${i.notified ? "text-emerald-600" : "text-red-600"}`}>
                             {i.notified ? "✓ Regulator notified" : `Notify by ${i.notifyDeadline}`}
+                          </p>
+                        )}
+                        {i.capaSla.dueDate && (
+                          <p className={`text-[10px] mt-1 ${SLA_COLORS[i.capaSla.urgency]}`}>
+                            CAPA {i.capaSla.isOverdue ? `overdue by ${Math.abs(i.capaSla.daysRemaining!)}d` : `due in ${i.capaSla.daysRemaining}d`}
                           </p>
                         )}
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">

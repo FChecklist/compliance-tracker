@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { canAccess } from "@/lib/classification"
 import { logActivity } from "@/lib/audit"
 import { resolveModuleRule } from "@/lib/module-rules-resolver"
+import { computeSlaStatus } from "@/lib/engines/grc-workflow-engine"
 
 // Wave 21: the auto-trigger condition that decides whether a new incident
 // is classified 'confidential' (vs. 'department') -- the actual gate this
@@ -45,6 +46,9 @@ export async function GET() {
         id: i.id, category: i.category, severity: i.severity, classification: i.classification, stage: i.stage,
         regulatoryNotifyRequired: i.regulatoryNotifyRequired, notified: i.notified, notifyDeadline: i.notifyDeadline,
         linkedRiskId: i.linkedRiskId,
+        // Real SLA computation over the existing capaDueDate -- was stored
+        // but never surfaced as overdue/days-remaining anywhere.
+        capaSla: computeSlaStatus(i.capaDueDate),
         ...(cleared ? { title: i.title, capaDueDate: i.capaDueDate?.toISOString() ?? null } : { restricted: true, title: null }),
       }
     }),

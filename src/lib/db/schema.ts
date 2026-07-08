@@ -2118,10 +2118,18 @@ export const auditFindings = complianceSchemaDB.table('audit_findings', {
 })
 
 // ─── THIRD-PARTY & ESG ───────────────────────────────────────────────────
+// riskScore/riskFactors (added alongside grc-workflow-engine.ts's
+// computeVendorRiskScore): riskTier above was a manually-picked free-text
+// field with nothing computing it -- these two columns hold the real
+// deterministic 0-100 score and its factor breakdown from the last
+// assessment, so riskTier becomes a value an assessment can set (and a
+// human can still override), not a blank guess.
 export const vendorRiskProfiles = complianceSchemaDB.table('vendor_risk_profiles', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),
   riskTier: text('risk_tier').notNull().default('medium'),
+  riskScore: integer('risk_score'),
+  riskFactors: jsonb('risk_factors'),
   certifications: jsonb('certifications').notNull().default([]),
   lastAssessedDate: timestamp('last_assessed_date'),
   orgId: text('org_id').notNull(),

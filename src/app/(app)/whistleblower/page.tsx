@@ -5,7 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/SimpleModulePage";
 
-type WCase = { id: string; caseRef: string; category: string | null; receivedDate: string; status: string };
+type SlaStatus = { dueDate: string | null; daysRemaining: number | null; isOverdue: boolean; urgency: "none" | "ok" | "due_soon" | "overdue" };
+type WCase = { id: string; caseRef: string; category: string | null; receivedDate: string; status: string; investigationSla: SlaStatus };
+
+const SLA_COLORS: Record<SlaStatus["urgency"], string> = { none: "text-ct-muted", ok: "text-ct-muted", due_soon: "text-amber-600", overdue: "text-red-600" };
 
 export default function WhistleblowerPage() {
   const [restricted, setRestricted] = useState<boolean | null>(null);
@@ -46,10 +49,13 @@ export default function WhistleblowerPage() {
       </div>
       <Card className="rounded-xl shadow-card bg-white">
         <table className="w-full text-xs">
-          <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Case ID</th><th className="p-3 font-medium">Category</th><th className="p-3 font-medium">Received</th><th className="p-3 font-medium">Status</th></tr></thead>
+          <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">Case ID</th><th className="p-3 font-medium">Category</th><th className="p-3 font-medium">Received</th><th className="p-3 font-medium">Status</th><th className="p-3 font-medium">Investigation SLA</th></tr></thead>
           <tbody className="divide-y divide-ct-border">
-            {cases.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-ct-muted">No cases logged.</td></tr> : cases.map((c) => (
-              <tr key={c.id}><td className="p-3">{c.caseRef}</td><td className="p-3">{c.category}</td><td className="p-3">{new Date(c.receivedDate).toLocaleDateString("en-IN")}</td><td className="p-3"><StatusPill value={c.status} /></td></tr>
+            {cases.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">No cases logged.</td></tr> : cases.map((c) => (
+              <tr key={c.id}>
+                <td className="p-3">{c.caseRef}</td><td className="p-3">{c.category}</td><td className="p-3">{new Date(c.receivedDate).toLocaleDateString("en-IN")}</td><td className="p-3"><StatusPill value={c.status} /></td>
+                <td className={`p-3 ${SLA_COLORS[c.investigationSla.urgency]}`}>{c.investigationSla.dueDate ? (c.investigationSla.isOverdue ? `Overdue by ${Math.abs(c.investigationSla.daysRemaining!)}d` : `${c.investigationSla.daysRemaining}d left`) : "—"}</td>
+              </tr>
             ))}
           </tbody>
         </table>
