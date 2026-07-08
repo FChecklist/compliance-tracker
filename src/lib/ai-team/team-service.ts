@@ -13,6 +13,7 @@
 import { callLLM, callLLMJson, type LLMResult } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { checkCostPolicy } from "./cost-policy"
+import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 
 function platformOpenRouterKey(): string {
@@ -57,6 +58,20 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
     // Governance Officer / human review rather than pretending it didn't.
     console.error(`[ai-team] Cost & Policy Engine: role '${roleKey}' exceeded ceiling post-call: ${postflight.reason}`)
   }
+
+  // Token Usage Ledger (Finance, 2026-07-08): this is the Next.js-side
+  // invocation path (via /api/ai/team/dispatch); the GitHub-Actions-side
+  // path (scripts/ai-workforce-agent.mjs) logs separately via the
+  // secret-gated /api/ai/team/log-usage route, since that script has no
+  // direct DB access. Fire-and-forget -- logTokenUsage never throws.
+  void logTokenUsage({
+    scope: "ai_team_internal",
+    roleKey,
+    taskSummary: input.slice(0, 200),
+    provider: "openrouter",
+    model: role.model!,
+    usage: result.usage,
+  })
 
   return { ...result, role }
 }

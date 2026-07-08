@@ -6689,3 +6689,31 @@ export const veriRewardReferrals = complianceSchemaDB.table('veri_reward_referra
   paidAt: timestamp('paid_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Token Usage Ledger (Finance) ────────────────────────────────────────
+// Built 2026-07-08 after a real gap: the AI Team's repo-write dispatches
+// (scripts/ai-workforce-agent.mjs, running in GitHub Actions, no Postgres
+// access) had ZERO internal record of their own OpenRouter spend -- the
+// only way to answer "how much did we spend and on what" was to query
+// OpenRouter's own billing API directly. orchestra_executions (Wave 23)
+// already covers customer-facing product usage (per-org, per-layer) but
+// requires a NOT NULL orgId + orchestraLayerId, so it structurally can't
+// represent platform-internal AI Team spend (no org, no Orchestra Layer).
+// This is the unified ledger Finance owns: `scope` distinguishes internal
+// AI Team dispatch usage from product/customer usage, so orgId/userId/
+// roleKey/layerKey are all nullable and populated per-scope.
+export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: text('scope').notNull(), // 'ai_team_internal' | 'product_orchestra'
+  orgId: text('org_id'), // null for ai_team_internal (platform-owned, no tenant)
+  userId: text('user_id'), // the end user, when applicable
+  roleKey: text('role_key'), // AI Team role_key (src/lib/ai-team/roster.ts), when scope='ai_team_internal'
+  layerKey: text('layer_key'), // Orchestra Layer key, when scope='product_orchestra'
+  taskSummary: text('task_summary'), // short description of what the call was for, for human review
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  promptTokens: integer('prompt_tokens').notNull().default(0),
+  completionTokens: integer('completion_tokens').notNull().default(0),
+  estimatedCostUsd: numeric('estimated_cost_usd'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

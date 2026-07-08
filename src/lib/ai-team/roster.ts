@@ -149,6 +149,17 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   { roleKey: "billing_sub_manager", team: "FINANCE", title: "Billing & Subscription Manager", model: GLM_52, promptKey: "ai_team.billing_sub_manager" },
   { roleKey: "internal_auditor", team: "FINANCE", title: "Internal Auditor", model: GLM_5_TURBO, promptKey: "ai_team.internal_auditor" },
   { roleKey: "accounts_payable_receivable", team: "FINANCE", title: "Accounts Payable / Receivable", model: GLM_5_TURBO, promptKey: "ai_team.accounts_payable_receivable" },
+  // Token Usage Analyst (2026-07-08): owns the Token Usage Ledger
+  // (compliance.token_usage_ledger, src/lib/services/token-usage-service.ts)
+  // -- analyzes AI spend, both internal (AI Team dispatches) and product
+  // (per customer account, per end user). Built after a real gap: today's
+  // spend could only be answered by querying OpenRouter's own billing API
+  // directly, with zero internal record. This role has no live DB query
+  // tool of its own (same file-read/write-only constraint as every AI
+  // Workforce role) -- its real usage is receiving a GET
+  // /api/ai/team/token-usage report (veridian_admin-only) as task input
+  // and analyzing it, not querying the ledger live itself.
+  { roleKey: "token_usage_analyst", team: "FINANCE", title: "Token Usage Analyst", model: GLM_52, promptKey: "ai_team.token_usage_analyst" },
 
   // ─── HR ──────────────────────────────────────────────────────────────
   { roleKey: "chro_performance", team: "HR", title: "CHRO / Performance", model: GLM_52, promptKey: "ai_team.chro_performance" },

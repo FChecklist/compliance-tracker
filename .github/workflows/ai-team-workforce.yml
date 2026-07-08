@@ -53,6 +53,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           AI_TEAM_SUPABASE_URL: ${{ secrets.AI_TEAM_SUPABASE_URL }}
           AI_TEAM_SUPABASE_ANON_KEY: ${{ secrets.AI_TEAM_SUPABASE_ANON_KEY }}
+          AI_TEAM_LOG_URL: "https://veridian-ai-os.vercel.app/api/ai/team/log-usage"
+          AI_TEAM_LOG_SECRET: ${{ secrets.AI_TEAM_LOG_SECRET }}
         run: bun run scripts/ai-workforce-agent.mjs
 
       # 6th real bug found smoke-testing this pipeline: the agent's own

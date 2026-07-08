@@ -166,6 +166,34 @@ async function execTool(name, args) {
   }
 }
 
+// Token Usage Ledger (Finance, 2026-07-08): this script previously had NO
+// internal record of its own OpenRouter spend at all -- the only way to
+// answer "how much did we spend and on what" was to query OpenRouter's own
+// billing API directly (which is how the $11.44-of-$12.34 Claude Sonnet 5
+// cost concentration was actually discovered). Best-effort, never fatal:
+// a logging failure must never break the actual agent run.
+async function logUsageToLedger(usage) {
+  const logUrl = process.env.AI_TEAM_LOG_URL
+  const logSecret = process.env.AI_TEAM_LOG_SECRET
+  if (!logUrl || !logSecret || !usage) return
+  try {
+    await fetch(logUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-ai-team-secret": logSecret },
+      body: JSON.stringify({
+        roleKey,
+        model: role.model,
+        provider: "openrouter",
+        promptTokens: usage.prompt_tokens ?? 0,
+        completionTokens: usage.completion_tokens ?? 0,
+        taskSummary: task.slice(0, 200),
+      }),
+    })
+  } catch (err) {
+    console.error("[ai-workforce-agent] failed to log token usage (non-fatal):", err.message)
+  }
+}
+
 async function callOpenRouter(messages) {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -178,7 +206,9 @@ async function callOpenRouter(messages) {
     body: JSON.stringify({ model: role.model, messages, tools: TOOLS, temperature: 0.2 }),
   })
   if (!res.ok) throw new Error(`OpenRouter HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`)
-  return res.json()
+  const json = await res.json()
+  await logUsageToLedger(json.usage)
+  return json
 }
 
 async function main() {
