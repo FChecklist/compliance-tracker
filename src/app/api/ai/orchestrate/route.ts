@@ -7,6 +7,8 @@ import { callLLMJson } from "@/lib/llm-client";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
+import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 
 type EventType =
   | "document.uploaded"
@@ -68,7 +70,7 @@ function getUserMessage(
 }
 
 export async function POST(request: NextRequest) {
-  const { user, orgId, response: authError } = await requireAuth();
+  const { user, dbUser, orgId, response: authError } = await requireAuth();
   if (!user) return authError!;
   if (!orgId) {
     return NextResponse.json({ error: "No organisation on this account" }, { status: 400 });
@@ -187,6 +189,26 @@ export async function POST(request: NextRequest) {
     // else the platform default (Groq). See lib/orchestra-model-resolver.ts.
     const systemPrompt = await getSystemPrompt(typedEvent);
     const userMessage = getUserMessage(typedEvent, entityId, enrichedPayload);
+
+    // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+    // enrichedPayload can carry free text a human entered elsewhere (e.g. a
+    // notice's description) -- checked before the LLM call for the same
+    // reason every other real call site is, even though this endpoint isn't
+    // a live chat surface.
+    const policyDecision = enforcePolicy(
+      { orgId, userId: dbUser?.id, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: typedEvent },
+      userMessage
+    );
+    if (!policyDecision.allowed) {
+      const defaultActions = getDefaultActions(typedEvent, entityId, enrichedPayload);
+      return NextResponse.json({
+        eventType: typedEvent,
+        entityId,
+        timestamp: new Date().toISOString(),
+        context: refusalMessageFor(policyDecision),
+        actions: defaultActions,
+      });
+    }
 
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
     if (!modelConfig) {

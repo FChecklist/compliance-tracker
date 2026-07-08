@@ -23,6 +23,8 @@ import { eq, and, desc } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
+import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
 import { ServiceError } from "./compliance-service"
@@ -195,6 +197,15 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 
     const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
     const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
+
+    // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+    // minutes are human-typed free text, the same risk shape as any chat
+    // surface -- this call had no Constitution gate despite that.
+    const policyDecision = enforcePolicy(
+      { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
+      userMessage
+    )
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
 
     const startedAt = Date.now()
     const { data: result, usage } = await callLLMJson<{

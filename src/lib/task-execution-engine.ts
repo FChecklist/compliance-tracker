@@ -4,6 +4,7 @@ import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
 import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
@@ -415,6 +416,20 @@ export async function executeTask(
   }
 
   try {
+    // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+    // this free-text planning call -- exactly the entry point the
+    // Constitution's Policy Enforcement Engine (Wave 46) exists to guard --
+    // had never actually been wired to it. Checked before resolveModelConfig
+    // so a denied request never reaches a provider or costs a token.
+    const policyDecision = enforcePolicy(
+      { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.planning" },
+      `${title}\n${description ?? ""}`
+    );
+    if (!policyDecision.allowed) {
+      await markTaskOutcome(orgId, userId, taskId, "failed", refusalMessageFor(policyDecision));
+      return;
+    }
+
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
     if (!modelConfig) {
       await markTaskOutcome(orgId, userId, taskId, "failed", "No LLM provider is configured for this organisation (task_oa layer). Set one up in Settings → AI Configuration.");

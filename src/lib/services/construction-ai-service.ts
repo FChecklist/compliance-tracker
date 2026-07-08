@@ -25,6 +25,8 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, callLLMJson, callLLMVision, type LLMProvider } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
+import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { ServiceError } from "./compliance-service"
 import { getProjectDashboard } from "./construction-dashboard-service"
 import { budgetVsActual } from "./construction-reports-service"
@@ -205,6 +207,16 @@ export async function discussConstruction(
   history: { role: "user" | "assistant"; content: string }[] = []
 ): Promise<{ reply: string }> {
   const startedAt = Date.now()
+  // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+  // this is genuine free-form user chat, exactly the shape the Constitution's
+  // Policy Enforcement Engine gates elsewhere (VERI Chat/FDE/Page Agent) --
+  // was never wired here despite being the same risk surface.
+  const policyDecision = enforcePolicy(
+    { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "user_assistant_oa", eventType: "construction.discuss" },
+    message
+  )
+  if (!policyDecision.allowed) return { reply: refusalMessageFor(policyDecision) }
+
   const modelConfig = await resolveModelConfig(ctx.orgId, "user_assistant_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
 

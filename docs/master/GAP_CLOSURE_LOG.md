@@ -75,3 +75,18 @@ Each entry: **[CRITICAL_GAPS.md # or finding]** — what changed — files — v
 **Also corrected this batch:** `CRITICAL_GAPS.md`'s payroll-bug line was still shown as open despite being fixed in Batch 3 — marked ✅ CLOSED to match reality (a doc-sync miss, not a re-opened bug).
 
 **Verification for this batch:** `bun x tsc --noEmit -p tsconfig.json` clean, zero new errors after each of the 3 edits.
+
+## Batch 6 — 2026-07-09
+
+**[Agent Framework, High] Wired the Policy Enforcement Engine into 5 more real call sites**, taking coverage from 3 of 13 to 8 of 13 real LLM call sites:
+- `task-execution-engine.ts`'s free-text task-planning call (`executeTask()`) — arguably the single highest-stakes gap of the 5, since this is the entry point a task's raw title/description reaches an LLM through, and the audit named it explicitly.
+- `construction-ai-service.ts`'s `discussConstruction()` — PROJEXA's free-form Discuss pill, genuine conversational chat with no prior gate.
+- `veri-meeting-service.ts`'s `generateMeetingIntelligence()` — gates on the meeting's human-typed minutes text.
+- `/api/help/ask` — the Help AI's live user question, previously completely unguarded.
+- `/api/ai/orchestrate` — gates on the enriched event payload (which can carry a notice/compliance-item's human-authored description).
+
+All 5 follow the exact same pattern the 3 existing wired sites (VERI Chat, VERI FDE, Page Agent) established: `enforcePolicy()` called before `resolveModelConfig`/`callLLM*`, a denial returns `refusalMessageFor()` through whatever channel that call site already uses (chat message, thrown `ServiceError`, or a direct JSON response) instead of reaching a provider.
+
+**Explicitly left unwired, with reasoning (not silently skipped):** `document-extraction-service.ts`, `fm-register-digitization-service.ts` (both vision/structured-extraction calls over documents, not free text), `crm-service.ts` (lead-scoring/win-probability over structured records), `gst/ai-review-report.ts` (financial figures, not free text) — none of these have a real personal-use/prompt-injection surface, since there's no adversarial free-text channel a user types into; a domain-validity-only gate would be low-value noise. `ai-team/team-service.ts` (the AI Dev Team dispatcher) is architecturally platform-internal — no customer `orgId` exists in its call signature at all, and its own header comment states it "never runs inside" a customer org — so it doesn't fit `PolicyEnforcementContext`'s tenant-scoped shape without forcing an artificial org concept onto a system explicitly designed not to have one. `prompt-eval-service.ts` and `ingest/extractor.ts` are internal tooling/document-ingestion, same reasoning as the extraction services. Full remaining count and reasoning captured in `CRITICAL_GAPS.md` item #5.
+
+**Verification for this batch:** `bun x tsc --noEmit -p tsconfig.json` clean, zero new errors.
