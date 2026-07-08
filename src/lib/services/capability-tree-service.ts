@@ -148,7 +148,10 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
 // project" flag -- a project becomes construction-flavored simply by having
 // constructionBoqs/constructionCategories rows, matching how buildProductNodes
 // above also lists all active projects without a domain filter).
-async function buildConstructionNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
+// Exported (unlike the other builders here) so /api/v1/projexa/capability-tree
+// can call this subtree directly instead of the full buildCapabilityTree() --
+// PROJEXA must never see GST/compliance/other product nodes, only its own.
+export async function buildConstructionNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
   const codeRefs = [
     "get_construction_project_dashboard", "get_construction_budget_status", "get_construction_kpi_status",
     "generate_construction_progress_summary", "detect_construction_budget_schedule_risk",
