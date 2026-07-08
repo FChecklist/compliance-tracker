@@ -57,7 +57,26 @@ function labelFromContent(content: string): string {
   return content.split(" | ")[0] || content.slice(0, 60)
 }
 
-export async function submitFdeRequest(ctx: FdeContext, input: { requestText: string }) {
+export type SubmitFdeRequestOptions = {
+  // Real bug found + fixed 2026-07-08: chat-service.ts's inline background
+  // FDE evaluation (fires on EVERY AI-thread chat message, not just
+  // explicit capability requests) was falling through to this function's
+  // full LLM-evaluation-and-propose-new-agent path for any message that
+  // didn't match an existing capability at HIGH_CONFIDENCE_THRESHOLD --
+  // meaning ordinary chat ("thanks", "ok") was silently triggering a
+  // second LLM call AND could auto-propose garbage Worker Agent proposals
+  // from casual conversation. `passive: true` stops at the embedding
+  // check: a confident match still auto-answers/auto-dispatches exactly
+  // as before (that's the real "product evolves from real usage" value,
+  // and it's ~free); anything below threshold returns immediately with NO
+  // LLM call and NO fde_requests row, rather than escalating. The
+  // explicit /fde page ("Request a capability" button) always calls this
+  // WITHOUT passive:true, so a user who deliberately asks for something
+  // still gets the full evaluate-and-propose pipeline.
+  passive?: boolean
+}
+
+export async function submitFdeRequest(ctx: FdeContext, input: { requestText: string }, options?: SubmitFdeRequestOptions) {
   const requestText = input.requestText?.trim()
   if (!requestText) throw new ServiceError("requestText is required", 400)
 
@@ -119,6 +138,12 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       responseText,
     })
   }
+
+  // See SubmitFdeRequestOptions.passive: a passive (background) caller
+  // stops here on anything below high confidence -- no LLM call, no
+  // fde_requests row, no chance of auto-proposing a Worker Agent from
+  // ordinary chat text like "thanks" or "ok".
+  if (options?.passive) return null
 
   const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
   if (!modelConfig) {

@@ -401,30 +401,37 @@ export async function sendMessage(
     const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 
-    // Inline VERI FDE evaluation (fire-and-forget, non-blocking). VERI FDE's
-    // own embedding-based capability check (findSimilarCapabilities in
-    // fde-service.ts) already short-circuits with ZERO LLM cost on a
-    // high-confidence match (>= HIGH_CONFIDENCE_THRESHOLD), so running the
-    // SAME user message text through that existing evaluation pipeline in
-    // parallel with every AI-thread chat turn is cheap and lets the product
-    // "evolve" from real user requests without the user having to explicitly
-    // click away to /fde and hit "Request a capability" (per the Founder's
-    // own framing). This is purely additive telemetry/evaluation: it runs
-    // AFTER the visible reply above is already generated and saved, so it
-    // never blocks or slows the chat response; every error is caught
-    // internally and never surfaces to the user or breaks the chat. The
-    // existing reply-generation/save logic above is untouched, and the /fde
-    // page + "Request a capability" button are left as-is (additive, not a
-    // replacement). ChatContext only carries {orgId, userId} (no dbUser),
-    // and submitFdeRequest's FdeContext needs dbUser for hasRole() tier
-    // selection, so it is fetched inside the callback.
+    // Inline VERI FDE evaluation (fire-and-forget, non-blocking, PASSIVE).
+    // VERI FDE's own embedding-based capability check
+    // (findSimilarCapabilities in fde-service.ts) already short-circuits
+    // with ZERO LLM cost on a high-confidence match (>= HIGH_CONFIDENCE_
+    // THRESHOLD), so running the SAME user message text through that
+    // check in parallel with every AI-thread chat turn is cheap and lets
+    // the product "evolve" from real user requests without the user
+    // having to explicitly click away to /fde (per the Founder's own
+    // framing). This runs AFTER the visible reply is already generated
+    // and saved, so it never blocks or slows the chat response; every
+    // error is caught internally and never surfaces to the user.
+    //
+    // Real bug found + fixed 2026-07-08: the first version of this call
+    // omitted `{ passive: true }`, so it fell through to
+    // submitFdeRequest's full LLM-evaluation-and-propose-new-agent path
+    // for every message that wasn't a high-confidence match -- meaning
+    // ordinary chat ("thanks", "ok") silently triggered a SECOND LLM call
+    // on top of the visible reply's own, and could auto-propose garbage
+    // Worker Agent proposals from casual conversation. `passive: true`
+    // stops at the free embedding check; only a confident match still
+    // auto-answers/auto-dispatches. The explicit /fde page ("Request a
+    // capability" button) still calls submitFdeRequest WITHOUT passive,
+    // so a user who deliberately asks for something gets the full
+    // evaluate-and-propose pipeline exactly as before.
     after(async () => {
       try {
         const dbUser = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
           db.query.users.findFirst({ where: eq(users.id, ctx.userId) })
         )
         if (!dbUser) return
-        await submitFdeRequest({ orgId: ctx.orgId, userId: ctx.userId, dbUser }, { requestText: content })
+        await submitFdeRequest({ orgId: ctx.orgId, userId: ctx.userId, dbUser }, { requestText: content }, { passive: true })
       } catch (err) {
         console.error("Background FDE evaluation failed:", err)
       }
