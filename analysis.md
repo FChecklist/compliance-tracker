@@ -1,5 +1,7 @@
 # VERIDIAN AI Orchestra — Phase 1 Discovery Analysis
 
+> **⚠️ STALE CLAIM, corrected 2026-07-09:** This document's RLS findings (§1 Schema Map, §RLS Policies, §Critical sequencing flag — "No RLS at all," "not implemented at the database level") were true when written (commit `df59c34`) but have been false since Wave 1 (`orchestra_changes.md` change-log entry #18, 2026-07-01): a real `app_runtime` Postgres role (`NOSUPERUSER NOBYPASSRLS`) plus `FORCE ROW LEVEL SECURITY` policies on every tenant table, enforced via `withTenantContext()`'s GUC-setting pattern, has been live and independently re-verified in nearly every wave since. See [`docs/master/ARCHITECTURE.md`](docs/master/ARCHITECTURE.md) §8 for the current mechanism. Kept below unedited as the historical Phase 1 snapshot — do not cite this document's RLS claims as current state.
+
 **Scope of this document:** Phase 1 only (Discovery), per the master prompt's own gate ("Do NOT proceed to Phase 2 until you have produced and shown me all three maps") and per explicit instruction: *"dont change anything without full analysis."*
 
 No schema changes, no migrations, no code changes have been made. This document is the output of reading the actual repository at commit `df59c34` on `main` — not the `ai-os/boss/BOARD.yaml` self-reported status, not prior chat memory. Where those sources disagree with the code, the code wins and the discrepancy is flagged below.

@@ -1,3 +1,5 @@
+> **ARCHIVED 2026-07-09.** Earliest artifact in the repo (2026-06-28) — predates the Drizzle migration (schema was Prisma at the time), predates ERP/GRC/PMS/PROJEXA/VERI Chat entirely. Moved here for history only; see `docs/master/INDEX.md` for current documentation.
+
 ---
 Task ID: T1
 Agent: VEDABOSS + Worker
