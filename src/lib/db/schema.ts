@@ -7339,3 +7339,29 @@ export const constructionExpenseEntries = complianceSchemaDB.table('construction
   recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Logging & Monitoring
+// section) ───────────────────────────────────────────────────────────────
+// No APM/error-tracking service exists anywhere in this codebase -- 527
+// files' worth of console.error() disappear into Vercel's ephemeral log
+// retention with no alerting, aggregation, or historical query capability.
+// This table is the pragmatic first step given the real constraints (no
+// dedicated ops budget, Vercel+Supabase-only infra): Next.js's built-in
+// instrumentation.ts onRequestError hook writes here centrally, reusing the
+// DB the app already has rather than adding an external vendor. Gets most
+// of the value of an APM without adding cost or a new dependency -- a real
+// vendor (Sentry's free tier, etc.) is a reasonable next step once real
+// volume through this table is understood, not a prerequisite to closing
+// this specific gap. Platform-level, not tenant data (an error can occur
+// before orgId is even resolved) -- service_role-bypass-only RLS, same
+// posture as loop_executions/token_usage_ledger.
+export const applicationErrors = complianceSchemaDB.table('application_errors', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  route: text('route'),
+  message: text('message').notNull(),
+  stack: text('stack'),
+  orgId: text('org_id'),
+  userId: text('user_id'),
+  digestId: text('digest_id'), // Next.js's own error digest, for cross-referencing Vercel's log output to this row
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

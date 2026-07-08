@@ -17,7 +17,39 @@
 // PLATFORM_STRATEGY.md §2/Phase D) inherits real enforcement from day one
 // instead of a retrofit.
 export const DOMAIN_ALLOWED_TOOLS: Record<string, Set<string>> = {
-  compliance: new Set(["get_compliance_stats", "get_overdue_items", "list_departments"]),
+  // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+  // dispatchTool() in task-execution-engine.ts has implemented 3 more
+  // read-only compliance-domain tools (list_compliance_items, list_notices,
+  // get_task_status) and 2 read-only GST-domain tools (both registered
+  // under the compliance domain, matching workerAgents.domain's own
+  // capability-path taxonomy for GST) since this allowlist was last
+  // updated -- they were reachable via structured dispatch but structurally
+  // unreachable from the free-text/LLM-planning auto-dispatch path, a
+  // functional gap (conservative-safe, not a security hole: it just meant
+  // the LLM-planning path under-delivered relative to what dispatchTool()
+  // can already run safely). update_compliance_status is deliberately NOT
+  // added here -- it's a real write action, safe only via structured
+  // dispatch where a human, not an LLM, picked the exact arguments (see
+  // its own comment in task-execution-engine.ts); adding it here would
+  // let an LLM-generated plan auto-invoke a write, which this allowlist
+  // exists specifically to prevent.
+  compliance: new Set([
+    "get_compliance_stats", "get_overdue_items", "list_departments",
+    "list_compliance_items", "list_notices", "get_task_status",
+    "list_gst_import_batches", "list_gst_returns",
+  ]),
+  // Construction Intelligence (PROJEXA) -- previously not a key in this map
+  // at all, despite dispatchTool() having 7 real read-only construction
+  // tools. Every domain with an AI surface needs an entry per this file's
+  // own established rule; write actions (none exist yet for this domain)
+  // would need the same structured-dispatch-only treatment as
+  // update_compliance_status above once they do.
+  construction: new Set([
+    "get_construction_project_dashboard", "list_delayed_activities",
+    "get_construction_budget_status", "list_over_budget_projects",
+    "get_construction_kpi_status", "generate_construction_progress_summary",
+    "detect_construction_budget_schedule_risk",
+  ]),
   // VERIDIAN AI PMS (Wave 25): empty allowlist -- no AI tool touches PMS
   // this pass, per explicit instruction not to use any of the 3 studied
   // tools' AI or invent a new AI mechanism for this domain.

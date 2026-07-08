@@ -67,6 +67,7 @@ Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-0
 - Confirmed redundant table pairs: `contactSubmissions`/`forgeProjectRequests`, and `pmsTimeEntries`+`pmsBillableRates`/`firmTimeEntries`+`firmBillableRates`. (S-M, Yes)
 - No rate limiting on session-authenticated routes or 18 AI-backed routes. (M, Yes)
 - Payroll: `percentage_of_gross` earning component silently computes as zero; PT-slab lookup silently falls back to highest slab on misconfiguration. (S each, Yes)
+- ✅ **CLOSED** ~~`DOMAIN_ALLOWED_TOOLS` for the `compliance` domain (3 tools) is narrower than `dispatchTool()`'s actual read-only implementation (13+ tools), and construction/PROJEXA isn't a key in the map at all~~ — added the 5 missing read-only compliance/GST tools to the `compliance` entry and a new `construction` entry with all 7 read-only PROJEXA tools; write actions (`update_compliance_status` etc.) deliberately left off, per the allowlist's own structured-dispatch-only design for writes. (S, Yes)
 - No customer-facing status page/uptime history. (M, Yes)
 
 ---
