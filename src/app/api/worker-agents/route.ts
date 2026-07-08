@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Worker agents list error:", error);
     return NextResponse.json({ error: "Failed to fetch worker agents" }, { status: 500 });
   }

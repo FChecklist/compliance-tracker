@@ -11,6 +11,7 @@ export async function GET() {
     const customers = await listCustomers({ orgId })
     return NextResponse.json({ customers })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Customers list error:", error)
     return NextResponse.json({ error: "Failed to fetch customers" }, { status: 500 })
   }

@@ -12,6 +12,7 @@ import { runLoopEngineeringAudit } from "@/lib/loops/loop-engineering-audit";
 import { runKnowledgeFlowAudit } from "@/lib/loops/knowledge-flow-audit";
 import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit";
 import { runTierIntegrityAudit } from "@/lib/loops/tier-integrity-audit";
+import { runCapabilityIndexFreshnessAudit } from "@/lib/loops/capability-index-freshness-audit";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -86,6 +87,13 @@ async function runActiveLoops() {
   if (loop1?.isActive) {
     results.loop1_loopEngineeringAudit = await runLoopEngineeringAudit(loop1.id);
   }
+
+  // Not one of the 15 canonical loops (same reasoning as
+  // instruction-mismatch-audit.ts) -- Capability Registry infrastructure
+  // hygiene, piggybacked on this existing daily cron rather than adding a
+  // 6th cron entry to vercel.json for something this cheap to run alongside
+  // the others. Gap-closure fix, 2026-07-09.
+  results.capabilityIndexFreshnessAudit = await runCapabilityIndexFreshnessAudit();
 
   return results;
 }

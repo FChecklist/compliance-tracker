@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { PROTECTED_APP_ROUTE_PREFIXES } from "@/lib/protected-routes.generated"
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -34,27 +35,21 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes: redirect to login if not authenticated. Kept as an
-  // explicit allowlist mirroring every directory under src/app/(app)/ --
-  // confirmed via a live audit (2026-07-04) that this list had drifted
-  // badly out of sync with that directory over many waves of new GRC
-  // module pages (34 of 51 route groups were missing, including /posh and
-  // /whistleblower -- unauthenticated requests got a real 200 page shell
-  // instead of a redirect; no data actually leaked since every fetch
-  // inside those pages goes through requireAuth()-gated API routes, but
-  // this defense-in-depth layer was silently absent). Any new page added
-  // under src/app/(app)/ must be added here too.
-  const PROTECTED_APP_ROUTE_PREFIXES = [
-    "/access-review", "/approvals", "/audit", "/audit-engagements", "/automation", "/bcm", "/board", "/board-evaluation",
-    "/cap-table", "/capability-registry", "/charges", "/chat", "/checklists", "/clients", "/committees", "/crm", "/documents", "/erp", "/fde", "/fraud-cases", "/hr",
-    "/compliance", "/contract-compliance", "/dashboard", "/departments", "/directors",
-    "/doa", "/esg", "/frameworks", "/help", "/home", "/hr-compliance", "/incidents",
-    "/ingest", "/ip-portfolio", "/irdai", "/it-dr", "/knowledge-base", "/kpi-hub", "/leave-holiday", "/legal-matters", "/legal-opinions",
-    "/legal-vendors", "/litigation", "/mca-filings", "/mdm-quality", "/metric-alerts", "/notices", "/orchestra",
-    "/penalties", "/performance-reviews", "/pms", "/policies", "/posh", "/problem-records", "/prompt-eval", "/rbi", "/recruitment", "/reports", "/rewards", "/risks", "/rpt",
-    "/sales-hq", "/sebi", "/secretarial-audit", "/settings", "/statutory-registers", "/tasks", "/tickets",
-    "/team", "/users", "/vendor-risk", "/veri-ai", "/veri-meetings", "/veri-todo", "/whistleblower",
-  ]
+  // Protected routes: redirect to login if not authenticated.
+  //
+  // Gap-closure fix, 2026-07-09 (AUDIT_2026-07-09.md, Security Assessment):
+  // this used to be a hand-maintained array here, and it drifted out of
+  // sync with the real src/app/(app)/ directory listing 4 separate times
+  // across this project's history (most recently missing /connectors,
+  // /gst-reconciliation, /tds-returns, /the-firm-practice) -- each time a
+  // new module shipped a page directory without the array being updated in
+  // the same PR. No data actually leaked in any of the 4 incidents (every
+  // fetch inside those pages goes through requireAuth()-gated API routes
+  // independently), but this defense-in-depth layer was silently absent
+  // each time. PROTECTED_APP_ROUTE_PREFIXES is now generated directly from
+  // the filesystem (scripts/generate-protected-routes.mjs, run via the
+  // predev/prebuild npm scripts) so the next missing route is impossible by
+  // construction rather than a bug someone has to notice.
   const isAppRoute = PROTECTED_APP_ROUTE_PREFIXES.some((prefix) => request.nextUrl.pathname.startsWith(prefix))
 
   if (!user && isAppRoute) {

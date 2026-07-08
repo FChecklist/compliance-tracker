@@ -2,6 +2,8 @@
 
 Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-07-09.md) plus everything already surfaced this session before the formal audit. This is the list to actually act on — see the audit doc for full context/evidence per item. Updated 2026-07-09.
 
+**Execution status:** autonomous gap-closure in progress per Boss instruction (2026-07-09) — closable items are being fixed one by one, documented in [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md) as each closes. Items marked ✅ below are done. Items needing a product/architecture decision are explicitly left open and flagged in the final status report rather than guessed at.
+
 **Legend:** 🔵 = verified live against production (Supabase MCP or direct HTTP). 🟡 = verified by direct code reading. Effort: S = hours, M = days, L = weeks+.
 
 ---
@@ -12,8 +14,8 @@ Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-0
 |---|---|---|---|---|
 | 1 | **Worker agent execution engine doesn't execute worker agents** — outside ~20 hardcoded branches, an approved/published agent is only ever planned against, never invoked. Self-documented in code comments and `/orchestra` UI copy. | 🟡 `task-execution-engine.ts` inline comment | L (3-4 weeks) | Partial |
 | 2 | **The Firm practice module never applies per-client access scoping** — ~25 routes never pass `clientIds` into `withTenantContext`; a staffer restricted to one client can read another client's full data through this module today. Root cause of the CA evaluator's 5.5/10 rating. | 🟡 grep confirmed 0 of ~25 routes pass `clientIds` | M (3-5 days) | Partial |
-| 3 | **MCP write tool `create_compliance_item` has no cross-tenant FK validation** — externally reachable by any write-scoped API key holder; `department_id`/`assigned_to_id` accepted with no org check. | 🟡 `api/mcp/route.ts` ~line 423-440 | S (1-2 hrs) | Yes |
-| 4 | **No payment processor exists, and the pricing page falsely claims Razorpay processing.** Fix the false claim immediately regardless of billing roadmap timing. | 🟡 full-repo grep, zero payment code | S (claim) / L (real integration) | Partial |
+| 3 | ✅ **CLOSED** ~~MCP write tool `create_compliance_item` has no cross-tenant FK validation~~ — externally reachable by any write-scoped API key holder; `department_id`/`assigned_to_id` accepted with no org check. | 🟡 `api/mcp/route.ts` ~line 423-440 | S (1-2 hrs) | Yes |
+| 4 | ✅ **CLOSED (claim only — real integration still open, see roadmap)** ~~No payment processor exists, and the pricing page falsely claims Razorpay processing.~~ | 🟡 full-repo grep, zero payment code | S (claim) / L (real integration) | Partial |
 
 ---
 
@@ -24,8 +26,8 @@ Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-0
 | 5 | Policy Enforcement Engine covers only 3 of 13 real LLM call sites — gap has *widened* since the last check (7+ new surfaces shipped unwired). | 🟡 grep of `enforcePolicy(` call sites | M (1-2 days) | Yes |
 | 6 | Foreign-key integrity ~99% unenforced at DB level — 11 of 972 FK-shaped columns have a real constraint. General ledger, invoices, payroll-tax categories included. | 🟡 parsed `schema.ts`, all 356 tables | L (multi-wave) | Partial |
 | 7 | Zero explicit indexes in `schema.ts`; 🔵 203 unindexed FKs across 136 tables confirmed live, including 58 ERP indexes never once hit by a query. | 🔵 `get_advisors(performance)` | M | Yes |
-| 8 | Capability Registry embeddings confirmed stale right now — 13/27 worker agents, 38/99 modules missing embeddings; VERI FDE's duplicate-check silently runs against an incomplete roster. | 🔵 live query | S (2-4 hrs) | Yes |
-| 9 | `MODEL_PRICING` missing all 3 of the AI Dev Team's GLM models (`z-ai/glm-5.2`, `z-ai/glm-5v-turbo`, `z-ai/glm-5-turbo` — spot-check found a 3rd variant beyond the 2 the audit agent flagged) — cost tracking will silently report null/$0 for ~25 roles the moment `AI_TEAM_LOG_SECRET` is set (pending action item). | 🟡 verified via direct grep, zero matches in `MODEL_PRICING` | S (15 min) | Yes |
+| 8 | ✅ **CLOSED** ~~Capability Registry embeddings confirmed stale right now — 13/27 worker agents, 38/99 modules missing embeddings~~ — reconciliation loop added, wired into the daily cron; one-time catch-up run against production still needs triggering post-deploy. | 🔵 live query | S (2-4 hrs) | Yes |
+| 9 | ✅ **CLOSED** ~~`MODEL_PRICING` missing all 3 of the AI Dev Team's GLM models~~ (`z-ai/glm-5.2`, `z-ai/glm-5v-turbo`, `z-ai/glm-5-turbo`). | 🟡 verified via direct grep, zero matches in `MODEL_PRICING` | S (15 min) | Yes |
 | 10 | PROJEXA's fully-built backend (55 routes, AI features) has zero consuming UI. | 🟡 no `(app)/construction` or `/projexa` directory | M-L | Partial |
 | 11 | PROJEXA expenses/labour costs never post to the General Ledger — Finance and Construction report different numbers for the same project. | 🟡 `construction-expense-service.ts` header comment | M | Partial |
 | 12 | Live financial report aggregation has an unaddressed performance cliff — no index on `erp_journal_entries(status, posting_date)` despite universal filtering on exactly that; unbounded "from inception" scans; a confirmed N+1 in vendor scorecards. | 🟡 read `erp-financial-report-service.ts` + migrations | S (index) / L (snapshot design) | Mixed |
@@ -41,7 +43,7 @@ Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-0
 
 ## 🟡 MEDIUM (selected — see AUDIT_2026-07-09.md for the complete set)
 
-- Middleware route allowlist drifted a **4th time** (4 more unprotected pages) — recommend generating the allowlist from the real directory listing instead of hand-maintaining it. (S, Yes)
+- ✅ **CLOSED** ~~Middleware route allowlist drifted a **4th time** (4 more unprotected pages)~~ — now generated from the real directory listing (`scripts/generate-protected-routes.mjs`, wired into predev/prebuild) instead of hand-maintained; this bug class cannot recur. (S, Yes)
 - 🔵 Migration files aren't a trustworthy record of live security state — 3 critical tables have live RLS with zero corresponding migration. (M, Partial)
 - 🔵 `FORCE ROW LEVEL SECURITY` enabled on 0 of 357 tables — currently safe (app_runtime isn't table owner) but fragile against future role/ownership changes. (S, Yes)
 - No role-change or emergency deactivation API/UI for users. (S, Yes)
@@ -50,7 +52,7 @@ Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-0
 - Zod schemas are OpenAPI-documentation-only, not runtime validation. (S-M, Yes)
 - `/api/v1/openapi.json` covers a minority of real domains (~45-50 of ~90). (L cumulative, Yes)
 - Two independent hand-maintained tool-dispatch surfaces (MCP vs. internal engine) with no shared registry. (M, Yes)
-- 16 of 597 route handlers silently downgrade `ServiceError` status codes to generic 500. (S, Yes)
+- ✅ **CLOSED** ~~16 of 597 route handlers silently downgrade `ServiceError` status codes to generic 500~~ — all 16 fixed, repo-wide sweep re-confirms zero remaining. (S, Yes)
 - Unit test coverage narrow (3 files); zero coverage of ERP/financial-math logic. (M, Yes)
 - No automated regression test for RLS cross-tenant isolation (each wave's proof is manual, one-time). (M, Yes)
 - Knowledge Base search has no semantic/RAG layer — plain ILIKE. (M, Yes)

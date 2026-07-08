@@ -68,6 +68,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       expiresInSeconds: SIGNED_URL_TTL_SECONDS,
     })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Document GET error:", error)
     return NextResponse.json({ error: "Failed to retrieve document" }, { status: 500 })
   }

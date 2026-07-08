@@ -16,6 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       projects: result.map((p) => ({ id: p.id, productId: p.productId, name: p.name, description: p.description, clientId: p.clientId, isActive: p.isActive, createdAt: p.createdAt.toISOString() })),
     })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Projects list error:", error)
     return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
   }

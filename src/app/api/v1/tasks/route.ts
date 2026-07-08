@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const result = await listTasks({ orgId: ctx.orgId, userId: ctx.dbUser?.id }, { assistantId })
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 tasks list error:", error)
     return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 })
   }

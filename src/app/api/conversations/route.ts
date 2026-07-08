@@ -11,6 +11,7 @@ export async function GET() {
     const result = await listConversations({ orgId, userId: dbUser.id })
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Conversations list error:", error)
     return NextResponse.json({ error: "Failed to fetch conversations" }, { status: 500 })
   }

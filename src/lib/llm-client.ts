@@ -133,6 +133,13 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   // vision-capable (input_modalities includes "image"), used as the
   // OpenRouter entry in document-extraction-service.ts's VISION_MODEL_OVERRIDES.
   "openai/gpt-4o-mini": { promptPer1k: 0.00015, completionPer1k: 0.0006 },
+  // z-ai/glm-* (AI Dev Team roster, src/lib/ai-team/roster.ts) -- verified live
+  // via openrouter.ai's model pages 2026-07-09. Added before AI_TEAM_LOG_SECRET
+  // goes live in Vercel; without these rows, estimateCostUsd() silently returns
+  // null for every one of the ~25 AI Dev Team roles that use these models.
+  "z-ai/glm-5.2": { promptPer1k: 0.00042, completionPer1k: 0.00132 },
+  "z-ai/glm-5v-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
+  "z-ai/glm-5-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {

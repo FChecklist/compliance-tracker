@@ -18,6 +18,7 @@ export async function GET() {
       })),
     })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Projects list error:", error)
     return NextResponse.json({ error: "Failed to fetch projects" }, { status: 500 })
   }

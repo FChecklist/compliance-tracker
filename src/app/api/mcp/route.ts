@@ -421,8 +421,22 @@ async function handleTool(
   }
 
   if (name === 'create_compliance_item') {
-    const { data: org } = await sb.from('organisations').select('id').single()
-    if (!org) throw new Error('Organisation not found')
+    // This client is service-role (bypasses RLS), so unlike every other
+    // write path in this app -- which relies on RLS as the backstop even if
+    // application code forgets a check -- these foreign keys must be
+    // validated against orgId explicitly here, or a write-scoped API key
+    // holder could silently attach a compliance item to another org's
+    // department/user.
+    const departmentId = String(args.department_id)
+    const { data: dept } = await sb.from('departments').select('id').eq('id', departmentId).eq('org_id', orgId).maybeSingle()
+    if (!dept) throw new Error(`department_id ${departmentId} does not belong to this organisation`)
+
+    let assignedToId: string | null = null
+    if (args.assigned_to_id) {
+      assignedToId = String(args.assigned_to_id)
+      const { data: user } = await sb.from('users').select('id').eq('id', assignedToId).eq('org_id', orgId).maybeSingle()
+      if (!user) throw new Error(`assigned_to_id ${assignedToId} does not belong to this organisation`)
+    }
 
     const { data, error } = await sb.from('compliance_items').insert({
       title: String(args.title),
@@ -430,9 +444,9 @@ async function handleTool(
       compliance_type: String(args.compliance_type),
       priority: String(args.priority ?? 'medium'),
       due_date: String(args.due_date),
-      department_id: String(args.department_id),
+      department_id: departmentId,
       org_id: orgId,
-      assigned_to_id: args.assigned_to_id ? String(args.assigned_to_id) : null,
+      assigned_to_id: assignedToId,
     }).select('id, title, status').single()
 
     if (error) throw new Error(error.message)

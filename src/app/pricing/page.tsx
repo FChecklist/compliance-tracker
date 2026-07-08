@@ -131,7 +131,7 @@ const FAQS = [
   },
   {
     q: "What payment methods do you accept?",
-    a: "We accept all major credit and debit cards (Visa, Mastercard, Amex), UPI, net banking, and bank transfers. For Enterprise plans, we also support purchase orders and annual invoicing. All payments are processed securely through Razorpay.",
+    a: "We accept all major credit and debit cards, UPI, net banking, and bank transfers. For Enterprise plans, we also support purchase orders and annual invoicing. Our sales team will set up billing with you directly when you sign up.",
   },
 ];
 

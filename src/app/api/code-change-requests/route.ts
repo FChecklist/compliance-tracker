@@ -11,6 +11,7 @@ export async function GET() {
     const result = await listCodeChangeRequests({ orgId, userId: dbUser.id })
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Code change requests list error:", error)
     return NextResponse.json({ error: "Failed to fetch code change requests" }, { status: 500 })
   }

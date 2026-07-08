@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json(result)
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 compliance list error:", error)
     return NextResponse.json({ error: "Failed to fetch compliance items" }, { status: 500 })
   }

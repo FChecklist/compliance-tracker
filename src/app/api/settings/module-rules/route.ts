@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Module rules list error:", error)
     return NextResponse.json({ error: "Failed to fetch module rules" }, { status: 500 })
   }

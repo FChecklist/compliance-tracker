@@ -13,6 +13,7 @@ export async function GET() {
       products: result.map((p) => ({ id: p.id, name: p.name, slug: p.slug, description: p.description, isActive: p.isActive, createdAt: p.createdAt.toISOString() })),
     })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Products list error:", error)
     return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 })
   }

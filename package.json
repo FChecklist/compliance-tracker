@@ -3,6 +3,8 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/generate-protected-routes.mjs",
+    "prebuild": "node scripts/generate-protected-routes.mjs",
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
