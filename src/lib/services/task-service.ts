@@ -35,6 +35,7 @@ export async function createTask(ctx: ServiceContext, input: {
   // LLM planning entirely. Never trust these IDs from the client alone --
   // re-verified against the real registry below before being trusted.
   workerAgentId?: string
+  agentInputs?: Record<string, unknown>
   engineKey?: string
   engineInputs?: Record<string, unknown>
 }) {
@@ -84,7 +85,7 @@ export async function createTask(ctx: ServiceContext, input: {
 
   await executeTask(
     orgId, dbUser.id, result.id, result.title, result.description, result.projectId, result.assistantId,
-    result.resolvedWorkerAgentId, input.engineKey, input.engineInputs
+    result.resolvedWorkerAgentId, input.engineKey, input.engineInputs, input.agentInputs
   )
   const final = await withTenantContext({ orgId, userId: dbUser.id }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, result.id) }))
 

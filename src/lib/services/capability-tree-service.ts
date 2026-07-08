@@ -17,12 +17,16 @@
 // rather than needing a taxonomy maintainer.
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
-  workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines,
+  workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, ne, asc } from "drizzle-orm"
 
-export type CapabilityInputField = { key: string; label: string; type: "number" | "text" }
+// The 6 real compliance_status enum values -- shown as clickable targets,
+// not a free-text field, so "update status" dispatch needs zero typing.
+const COMPLIANCE_STATUS_VALUES = ["pending", "in_progress", "completed", "overdue", "not_applicable", "draft"] as const
+
+export type CapabilityInputField = { key: string; label: string; type: "number" | "text"; optional?: boolean }
 
 export type CapabilityNode = {
   key: string
@@ -33,29 +37,66 @@ export type CapabilityNode = {
   projectId?: string | null
   engineKey?: string | null
   inputFields?: CapabilityInputField[]
+  agentId?: string | null
+  fixedInputs?: Record<string, string>
   children?: CapabilityNode[]
 }
 
 // First VCEL slice wired into real dispatch (see task-execution-engine.ts's
 // dispatchEngine() -- a small reviewed allowlist, not a generic resolver).
-// Only these 3 of the 247 registered computation_engines rows are exposed
-// here; the rest need the same input-capture treatment before they're safe
-// to surface as a leaf a visitor can actually click and run.
+// Covers 15 of the 16 GST Engine category rows (all with clean file:function
+// implementation_ref values) -- gst_return_validation_engine is the lone
+// holdout, since its `lineItems: unknown[]` argument doesn't fit a simple
+// labeled-field form the way every other GST function's arguments do.
+// Everything outside GST Engine (Fixed Asset, Income Tax, Mathematical, ~200
+// more) needs the same treatment in a later pass, not attempted here.
+const GST_SPLIT_FIELDS: CapabilityInputField[] = [
+  { key: "taxableAmount", label: "Taxable amount (₹)", type: "number" },
+  { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
+  { key: "supplierStateCode", label: "Supplier state code", type: "text" },
+  { key: "buyerStateCode", label: "Buyer state code", type: "text" },
+]
+
 const WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
-  gst_split_engine: [
-    { key: "taxableAmount", label: "Taxable amount (₹)", type: "number" },
-    { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
-    { key: "supplierStateCode", label: "Supplier state code", type: "text" },
-    { key: "buyerStateCode", label: "Buyer state code", type: "text" },
-  ],
+  gst_split_engine: GST_SPLIT_FIELDS,
+  cgst_engine: GST_SPLIT_FIELDS,
+  sgst_engine: GST_SPLIT_FIELDS,
+  igst_engine: GST_SPLIT_FIELDS,
+  utgst_engine: GST_SPLIT_FIELDS,
   gst_calculation_engine: [
     { key: "taxableAmount", label: "Amount (₹)", type: "number" },
     { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
     { key: "supplierStateCode", label: "Supplier state code", type: "text" },
     { key: "buyerStateCode", label: "Buyer state code", type: "text" },
   ],
-  hsn_validation_engine: [
-    { key: "hsn", label: "HSN code", type: "text" },
+  reverse_charge_engine: [
+    ...GST_SPLIT_FIELDS,
+    { key: "isReverseCharge", label: "Reverse charge? (yes/no)", type: "text" },
+  ],
+  hsn_validation_engine: [{ key: "hsn", label: "HSN code", type: "text" }],
+  sac_validation_engine: [{ key: "sac", label: "SAC code", type: "text" }],
+  eway_bill_validation_engine: [{ key: "ebn", label: "E-way bill number", type: "text" }],
+  gst_exclusive_engine: [
+    { key: "taxableAmount", label: "Taxable amount (₹)", type: "number" },
+    { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
+  ],
+  gst_inclusive_engine: [
+    { key: "inclusiveAmount", label: "Inclusive amount (₹)", type: "number" },
+    { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
+  ],
+  gst_interest_engine: [
+    { key: "taxAmount", label: "Tax amount (₹)", type: "number" },
+    { key: "daysLate", label: "Days late", type: "number" },
+    { key: "isExcessItcClaim", label: "Excess ITC claim? (yes/no, optional)", type: "text", optional: true },
+  ],
+  gst_late_fee_engine: [
+    { key: "daysLate", label: "Days late", type: "number" },
+    { key: "isNilReturn", label: "Nil return? (yes/no, optional)", type: "text", optional: true },
+  ],
+  itc_calculation_engine: [
+    { key: "totalItcAvailable", label: "Total ITC available (₹)", type: "number" },
+    { key: "blockedCreditAmount", label: "Blocked credit amount (₹)", type: "number" },
+    { key: "exemptSupplyRatio", label: "Exempt supply ratio 0-1 (optional)", type: "number", optional: true },
   ],
 }
 
@@ -87,8 +128,9 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
     const productNodes = await buildProductNodes(db, ctx.orgId)
     const entityNodes = await buildEntityNodes(db, ctx.orgId)
+    const complianceItemNodes = await buildComplianceItemNodes(db, ctx.orgId)
     const calculatorNodes = await buildCalculatorNodes(db)
-    return [...branchNodes, ...productNodes, ...entityNodes, ...calculatorNodes]
+    return [...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes]
   })
 }
 
@@ -215,4 +257,37 @@ async function buildEntityNodes(db: TenantDb, orgId: string): Promise<Capability
     })
   }
   return nodes
+}
+
+// "Compliance Item -> [item] -> Mark as [status]" -- the real
+// update_compliance_status worker agent, dispatched with zero typing (every
+// value comes from tree position, not a form). Capped to the 20 nearest-due,
+// not-yet-completed items -- an org's full register can run into the
+// thousands, and this is a quick-action list, not a browse view (the real
+// /compliance page already exists for that).
+async function buildComplianceItemNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
+  const updateAgent = await db.query.workerAgents.findFirst({
+    where: and(eq(workerAgents.codeReference, "update_compliance_status"), eq(workerAgents.tier, "global")),
+  })
+  if (!updateAgent) return [] // agent not registered for this org's platform tier -- nothing to dispatch
+
+  const items = await db.query.complianceItems.findMany({
+    where: and(eq(complianceItems.orgId, orgId), ne(complianceItems.status, "completed")),
+    columns: { id: true, title: true, status: true },
+    orderBy: asc(complianceItems.dueDate),
+    limit: 20,
+  })
+  if (items.length === 0) return []
+
+  return [{
+    key: "compliance_item", label: "Compliance Item", leaf: false,
+    children: items.map((item) => ({
+      key: item.id, label: item.title, leaf: false,
+      children: COMPLIANCE_STATUS_VALUES.filter((s) => s !== item.status).map((status) => ({
+        key: `${item.id}::${status}`, label: `Mark as ${status.replace("_", " ")}`, leaf: true,
+        codeReference: "update_compliance_status", agentId: updateAgent.id,
+        fixedInputs: { complianceItemId: item.id, newStatus: status },
+      })),
+    })),
+  }]
 }

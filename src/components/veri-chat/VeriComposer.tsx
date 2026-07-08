@@ -111,7 +111,7 @@ export default function VeriComposer() {
   const isThreadOpen = Boolean(activeTaskId || activeConversationId);
   const completedLeaf = chainComplete && tree.length ? resolveLeaf(tree, selectedPath) : null;
   const needsEngineInputs = Boolean(completedLeaf?.inputFields?.length);
-  const engineInputsFilled = !needsEngineInputs || (completedLeaf!.inputFields!.every((f) => engineInputValues[f.key]?.trim()));
+  const engineInputsFilled = !needsEngineInputs || (completedLeaf!.inputFields!.every((f) => f.optional || engineInputValues[f.key]?.trim()));
 
   function toggleSingle(depth: number, key: string) {
     setSelectedPath((prev) => {
@@ -139,11 +139,18 @@ export default function VeriComposer() {
       const leaf = resolveLeaf(tree, p);
       const body: Record<string, unknown> = { title: crumb, description: text, projectId: leaf?.projectId ?? undefined };
       // Structured (non-LLM) dispatch: a worker-agent leaf carries its real
-      // id as `key` whenever it has a codeReference (capability-tree-
-      // service.ts), and a calculator leaf carries its engineKey -- passing
-      // either through means task-execution-engine.ts can skip LLM planning
-      // entirely instead of re-guessing intent from the breadcrumb text.
-      if (leaf?.codeReference) body.workerAgentId = leaf.key;
+      // dispatchable id (agentId when set -- e.g. an entity-scoped leaf like
+      // "Compliance Item X -> Mark completed", where `key` must stay unique
+      // per item+action but the real agent is shared; otherwise `key` itself
+      // IS the real id, as with the plain worker-agent branch leaves), and a
+      // calculator leaf carries its engineKey -- passing either through
+      // means task-execution-engine.ts can skip LLM planning entirely
+      // instead of re-guessing intent from the breadcrumb text.
+      if (leaf?.codeReference) {
+        body.workerAgentId = leaf.agentId ?? leaf.key;
+        const merged = { ...leaf.fixedInputs, ...engineInputs };
+        if (Object.keys(merged).length > 0) body.agentInputs = merged;
+      }
       if (leaf?.engineKey && engineInputs) { body.engineKey = leaf.engineKey; body.engineInputs = engineInputs; }
       try {
         const res = await fetch("/api/tasks", {

@@ -10,7 +10,7 @@
 // continuing it genuinely requires both sides to agree on what's open.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type CapabilityInputField = { key: string; label: string; type: "number" | "text" };
+export type CapabilityInputField = { key: string; label: string; type: "number" | "text"; optional?: boolean };
 
 export type CapabilityNode = {
   key: string;
@@ -24,6 +24,17 @@ export type CapabilityNode = {
   // with inputFields describing what the composer must collect before send.
   engineKey?: string | null;
   inputFields?: CapabilityInputField[];
+  // The real worker_agents.id to dispatch, when it differs from `key` (e.g.
+  // an entity-scoped leaf like "Compliance Item X -> Mark completed", where
+  // `key` must stay unique per item+action but the dispatchable agent is
+  // shared across every such leaf). Falls back to `key` when unset, which is
+  // how the plain worker-agent branch leaves (key IS the real agent id)
+  // already work.
+  agentId?: string | null;
+  // Values already determined by the leaf's position in the tree (e.g. which
+  // compliance item, which target status) -- sent through untouched, unlike
+  // inputFields which the composer still has to prompt the user to type.
+  fixedInputs?: Record<string, string>;
   children?: CapabilityNode[];
 };
 

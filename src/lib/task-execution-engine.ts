@@ -37,7 +37,7 @@ import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/a
  * write-then-read loop for that assistant's future tasks.
  */
 
-export async function dispatchTool(db: TenantDb, orgId: string, codeReference: string, context?: { taskId?: string }): Promise<unknown> {
+export async function dispatchTool(db: TenantDb, orgId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
@@ -100,6 +100,29 @@ export async function dispatchTool(db: TenantDb, orgId: string, codeReference: s
     return task;
   }
 
+  // A real write action -- safe to auto-dispatch here (unlike the free-text/
+  // LLM-planning path's DISPATCHABLE read-only restriction) because the
+  // arguments are never LLM-generated: capability-tree-service.ts's
+  // Compliance Item branch bakes the exact item id + target status into the
+  // leaf itself (fixedInputs), so this only ever runs with values a human
+  // picked by clicking, not values an LLM guessed.
+  if (codeReference === "update_compliance_status") {
+    const complianceItemId = String(context?.inputs?.complianceItemId ?? "");
+    const newStatus = String(context?.inputs?.newStatus ?? "");
+    const validStatuses = ["pending", "in_progress", "completed", "overdue", "not_applicable", "draft"];
+    if (!complianceItemId || !validStatuses.includes(newStatus)) throw new Error("Missing or invalid complianceItemId/newStatus");
+    const existing = await db.query.complianceItems.findFirst({
+      where: and(eq(complianceItems.id, complianceItemId), eq(complianceItems.orgId, orgId)),
+      columns: { id: true, title: true, status: true },
+    });
+    if (!existing) throw new Error("Compliance item not found");
+    const [updated] = await db.update(complianceItems)
+      .set({ status: newStatus as typeof existing.status, updatedAt: new Date(), ...(newStatus === "completed" ? { completedAt: new Date() } : {}) })
+      .where(eq(complianceItems.id, complianceItemId))
+      .returning({ id: complianceItems.id, title: complianceItems.title, status: complianceItems.status });
+    return { ...updated, previousStatus: existing.status };
+  }
+
   throw new Error(`No dispatcher implemented for ${codeReference}`);
 }
 
@@ -110,29 +133,81 @@ export async function dispatchTool(db: TenantDb, orgId: string, codeReference: s
 // real, reviewed import instead. First slice: 3 GST Engine functions,
 // proving both the numeric-calculation and string-validation input shapes
 // before extending to the other ~200 registered engines in a later wave.
+function truthy(v: unknown): boolean {
+  const s = String(v ?? "").trim().toLowerCase();
+  return s === "yes" || s === "true" || s === "1";
+}
+
 async function dispatchEngine(engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+  const gstSplitInput = () => ({
+    taxableAmount: Number(inputs.taxableAmount),
+    gstRatePercent: Number(inputs.gstRatePercent),
+    supplierStateCode: String(inputs.supplierStateCode ?? ""),
+    buyerStateCode: String(inputs.buyerStateCode ?? ""),
+  });
+
   switch (engineKey) {
-    case "gst_split_engine": {
+    // cgst/sgst/igst_engine are the same underlying split -- distinct
+    // registry rows/labels, one real function (matches implementation_ref).
+    case "gst_split_engine":
+    case "cgst_engine":
+    case "sgst_engine":
+    case "igst_engine": {
       const { splitGst } = await import("@/lib/engines/gst-engine");
-      return splitGst({
-        taxableAmount: Number(inputs.taxableAmount),
-        gstRatePercent: Number(inputs.gstRatePercent),
-        supplierStateCode: String(inputs.supplierStateCode ?? ""),
-        buyerStateCode: String(inputs.buyerStateCode ?? ""),
-      });
+      return splitGst(gstSplitInput());
+    }
+    case "utgst_engine": {
+      const { splitGstWithUtgst } = await import("@/lib/engines/gst-engine");
+      return splitGstWithUtgst(gstSplitInput());
     }
     case "gst_calculation_engine": {
       const { calculateGst } = await import("@/lib/engines/gst-engine");
-      return calculateGst({
-        taxableAmount: Number(inputs.taxableAmount),
-        gstRatePercent: Number(inputs.gstRatePercent),
-        supplierStateCode: String(inputs.supplierStateCode ?? ""),
-        buyerStateCode: String(inputs.buyerStateCode ?? ""),
-      });
+      return calculateGst(gstSplitInput());
+    }
+    case "reverse_charge_engine": {
+      const { computeReverseChargeLiability } = await import("@/lib/engines/gst-engine");
+      return computeReverseChargeLiability({ ...gstSplitInput(), isReverseCharge: truthy(inputs.isReverseCharge) });
     }
     case "hsn_validation_engine": {
       const { isValidHsnFormat } = await import("@/lib/engines/gst-engine");
       return { valid: isValidHsnFormat(String(inputs.hsn ?? "")) };
+    }
+    case "sac_validation_engine": {
+      const { isValidSacFormat } = await import("@/lib/engines/gst-engine");
+      return { valid: isValidSacFormat(String(inputs.sac ?? "")) };
+    }
+    case "eway_bill_validation_engine": {
+      const { isValidEwayBillNumberFormat } = await import("@/lib/engines/gst-engine");
+      return { valid: isValidEwayBillNumberFormat(String(inputs.ebn ?? "")) };
+    }
+    case "gst_exclusive_engine": {
+      const { gstExclusiveToInclusive } = await import("@/lib/engines/gst-engine");
+      return gstExclusiveToInclusive(Number(inputs.taxableAmount), Number(inputs.gstRatePercent));
+    }
+    case "gst_inclusive_engine": {
+      const { gstInclusiveToTaxable } = await import("@/lib/engines/gst-engine");
+      return gstInclusiveToTaxable(Number(inputs.inclusiveAmount), Number(inputs.gstRatePercent));
+    }
+    case "gst_interest_engine": {
+      const { calculateGstInterest } = await import("@/lib/engines/gst-engine");
+      return { interest: calculateGstInterest({
+        taxAmount: Number(inputs.taxAmount), daysLate: Number(inputs.daysLate),
+        isExcessItcClaim: inputs.isExcessItcClaim ? truthy(inputs.isExcessItcClaim) : undefined,
+      }) };
+    }
+    case "gst_late_fee_engine": {
+      const { calculateGstLateFee } = await import("@/lib/engines/gst-engine");
+      return calculateGstLateFee({
+        daysLate: Number(inputs.daysLate),
+        isNilReturn: inputs.isNilReturn ? truthy(inputs.isNilReturn) : undefined,
+      });
+    }
+    case "itc_calculation_engine": {
+      const { calculateEligibleItc } = await import("@/lib/engines/gst-engine");
+      return calculateEligibleItc({
+        totalItcAvailable: Number(inputs.totalItcAvailable), blockedCreditAmount: Number(inputs.blockedCreditAmount),
+        exemptSupplyRatio: inputs.exemptSupplyRatio ? Number(inputs.exemptSupplyRatio) : undefined,
+      });
     }
     default:
       throw new Error(`No engine dispatcher implemented for ${engineKey}`);
@@ -146,7 +221,7 @@ async function dispatchEngine(engineKey: string, inputs: Record<string, unknown>
 // picking an inappropriate tool; it has nothing to check when a human
 // already picked the exact tool by name). The free-text/LLM-planning path
 // below is completely unchanged and still enforces it.
-async function executeStructuredDispatch(orgId: string, userId: string, taskId: string, workerAgentId: string): Promise<void> {
+async function executeStructuredDispatch(orgId: string, userId: string, taskId: string, workerAgentId: string, agentInputs?: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     const agent = await db.query.workerAgents.findFirst({ where: eq(workerAgents.id, workerAgentId) });
     if (!agent?.codeReference || agent.tier !== "global" || !["approved", "published"].includes(agent.lifecycleStatus)) {
@@ -161,7 +236,7 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
 
     const startedAt = new Date();
     try {
-      const output = await dispatchTool(db, orgId, agent.codeReference, { taskId });
+      const output = await dispatchTool(db, orgId, agent.codeReference, { taskId, inputs: agentInputs });
       await db.insert(taskAgentExecutions).values({
         taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
         status: "completed", input: {}, output: output as object,
@@ -212,14 +287,15 @@ export async function executeTask(
   // the whole point of a structured selection over typed prose.
   resolvedWorkerAgentId?: string | null,
   engineKey?: string,
-  engineInputs?: Record<string, unknown>
+  engineInputs?: Record<string, unknown>,
+  agentInputs?: Record<string, unknown>
 ): Promise<void> {
   if (engineKey) {
     await executeEngineDispatch(orgId, userId, taskId, engineKey, engineInputs ?? {});
     return;
   }
   if (resolvedWorkerAgentId) {
-    await executeStructuredDispatch(orgId, userId, taskId, resolvedWorkerAgentId);
+    await executeStructuredDispatch(orgId, userId, taskId, resolvedWorkerAgentId, agentInputs);
     return;
   }
 
