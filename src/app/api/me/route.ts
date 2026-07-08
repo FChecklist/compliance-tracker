@@ -5,6 +5,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { isPmsEnabledForOrg } from "@/lib/services/pms-enablement-service"
 import { isVeriChatV2EnabledForOrg } from "@/lib/services/veri-chat-v2-enablement-service"
+import { isFirmEnabledForOrg } from "@/lib/services/firm-enablement-service"
 
 export async function GET() {
   const { response, dbUser, orgId } = await requireAuth()
@@ -15,6 +16,7 @@ export async function GET() {
     : null
   const pmsEnabled = orgId ? await isPmsEnabledForOrg(orgId) : false
   const veriChatV2Enabled = orgId ? await isVeriChatV2EnabledForOrg(orgId) : false
+  const firmEnabled = orgId ? await isFirmEnabledForOrg(orgId) : false
 
   return NextResponse.json({
     id: dbUser?.id ?? null,
@@ -29,6 +31,7 @@ export async function GET() {
     orgRegulatoryEntityType: org?.regulatoryEntityType ?? "general",
     pmsEnabled,
     veriChatV2Enabled,
+    firmEnabled,
     pageAgentEnabled: org?.pageAgentEnabled ?? true,
     orgPlan: org?.plan ?? "free",
     trialEndsAt: org?.trialEndsAt ? org.trialEndsAt.toISOString() : null,

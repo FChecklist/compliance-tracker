@@ -104,7 +104,7 @@ const ORBIT_MODULES = [
 
 // The full breadth, grouped — 36 named here, honestly "50+" in the product.
 const MODULE_MAP = [
-  { dept: "Finance", items: ["Accounting", "Invoicing & GST", "Budgeting", "TDS & e-Invoicing", "Multi-currency", "Period Closing"] },
+  { dept: "Finance", items: ["Accounting", "Invoicing & GST", "GST Reconciliation", "Budgeting", "TDS & e-Invoicing", "Multi-currency", "Period Closing"] },
   { dept: "Sales & CRM", items: ["Leads", "Pipeline", "Quotes", "Follow-ups", "Customer 360", "Support & SLA"] },
   { dept: "HR & Payroll", items: ["Recruitment", "Onboarding", "Leave", "Payroll · PF · ESI", "Appraisals", "POSH"] },
   { dept: "Operations", items: ["Inventory", "Procurement", "Orders & Dispatch", "Vendors", "Returns", "Replenishment"] },

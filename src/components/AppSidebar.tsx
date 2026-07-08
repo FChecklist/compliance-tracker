@@ -81,7 +81,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-function getNavSections(overdueCount: number, docCount: number, noticeCount: number, accountType: string, pmsEnabled: boolean): NavSection[] {
+function getNavSections(overdueCount: number, docCount: number, noticeCount: number, accountType: string, pmsEnabled: boolean, firmEnabled: boolean): NavSection[] {
   return [
     {
       title: "OVERVIEW",
@@ -126,6 +126,17 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     // product branch (Wave 25) -- absent by default for existing GRC orgs.
     ...(pmsEnabled
       ? [{ title: "PROJECTS", items: [{ label: "VERI PROJECTS AI", href: "/pms", icon: Rocket }] }]
+      : []),
+    // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
+    // real routes/UI this wave) -- gated behind its own 'the_firm' product
+    // branch, same reversible-without-redeploy posture as PMS above.
+    ...(firmEnabled
+      ? [{
+          title: "THE FIRM",
+          items: [
+            { label: "Practice Cockpit", href: "/the-firm-practice", icon: Briefcase },
+          ],
+        }]
       : []),
     // Wave 50 (VERI ERP gap-fill): shown unconditionally for now, matching
     // the GRC modules' own always-visible pattern -- the 'erp' branch has
@@ -409,9 +420,9 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean; orgName: string }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
   const pathname = usePathname();
-  const sections = getNavSections(overdueCount, docCount, noticeCount, accountType, pmsEnabled);
+  const sections = getNavSections(overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled);
 
   return (
     <div className="flex flex-col h-full">
@@ -547,23 +558,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, pmsEnabled = false, orgName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; pmsEnabled?: boolean; orgName?: string }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} orgName={orgName} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} orgName={orgName} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean; orgName: string }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -581,7 +592,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} orgName={orgName} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
       </SheetContent>
     </Sheet>
   );

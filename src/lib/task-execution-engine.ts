@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
@@ -37,7 +37,7 @@ import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/a
  * write-then-read loop for that assistant's future tasks.
  */
 
-export async function dispatchTool(db: TenantDb, orgId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
@@ -121,6 +121,63 @@ export async function dispatchTool(db: TenantDb, orgId: string, codeReference: s
       .where(eq(complianceItems.id, complianceItemId))
       .returning({ id: complianceItems.id, title: complianceItems.title, status: complianceItems.status });
     return { ...updated, previousStatus: existing.status };
+  }
+
+  // GST Reconciliation Engine dispatchers (Finance > GST Reconciliation).
+  // list_* are read-only, safe from either dispatch path. The write actions
+  // (confirm/reconcile/generate/review) call the *Core variants directly on
+  // this same `db`/transaction, matching update_compliance_status's inline
+  // style above -- one atomic transaction per dispatch, not a second,
+  // independent one opened by calling the outer service wrapper.
+  if (codeReference === "list_gst_import_batches") {
+    const { listBatches } = await import("@/lib/services/gst-reconciliation-service");
+    return listBatches({ orgId });
+  }
+
+  if (codeReference === "list_gst_returns") {
+    const { listReturns } = await import("@/lib/services/gst-reconciliation-service");
+    return listReturns({ orgId });
+  }
+
+  if (codeReference === "confirm_gst_batch") {
+    const batchId = String(context?.inputs?.batchId ?? "");
+    if (!batchId) throw new Error("Missing batchId");
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!dbUser) throw new Error("User not found");
+    const { confirmBatchCore } = await import("@/lib/services/gst-reconciliation-service");
+    return confirmBatchCore(db, { orgId, userId, dbUser }, batchId);
+  }
+
+  if (codeReference === "run_gst_reconciliation") {
+    const purchaseBatchId = String(context?.inputs?.purchaseBatchId ?? "");
+    const gstr2bBatchId = String(context?.inputs?.gstr2bBatchId ?? "");
+    const period = String(context?.inputs?.period ?? "");
+    if (!purchaseBatchId || !gstr2bBatchId || !period) throw new Error("Missing purchaseBatchId/gstr2bBatchId/period");
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!dbUser) throw new Error("User not found");
+    const { runReconciliationCore } = await import("@/lib/services/gst-reconciliation-service");
+    return runReconciliationCore(db, { orgId, userId, dbUser }, { period, purchaseBatchId, gstr2bBatchId });
+  }
+
+  if (codeReference === "generate_gst_return") {
+    const period = String(context?.inputs?.period ?? "");
+    const returnType = String(context?.inputs?.returnType ?? "");
+    if (!period || !["gstr1", "gstr3b"].includes(returnType)) throw new Error("Missing or invalid period/returnType");
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!dbUser) throw new Error("User not found");
+    const { generateReturnCore, resolveOwnGstinForOrg } = await import("@/lib/services/gst-reconciliation-service");
+    const gstin = await resolveOwnGstinForOrg({ orgId });
+    if (!gstin) throw new Error("No GSTIN configured for this organisation -- set it in Settings before generating a return.");
+    return generateReturnCore(db, { orgId, userId, dbUser }, { period, gstin, returnType: returnType as "gstr1" | "gstr3b" });
+  }
+
+  if (codeReference === "generate_gst_ai_review") {
+    const returnPeriodId = String(context?.inputs?.returnPeriodId ?? "");
+    if (!returnPeriodId) throw new Error("Missing returnPeriodId");
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!dbUser) throw new Error("User not found");
+    const { generateReviewReportCore } = await import("@/lib/services/gst-reconciliation-service");
+    return generateReviewReportCore(db, { orgId, userId, dbUser }, returnPeriodId);
   }
 
   throw new Error(`No dispatcher implemented for ${codeReference}`);
@@ -236,7 +293,7 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
 
     const startedAt = new Date();
     try {
-      const output = await dispatchTool(db, orgId, agent.codeReference, { taskId, inputs: agentInputs });
+      const output = await dispatchTool(db, orgId, userId, agent.codeReference, { taskId, inputs: agentInputs });
       await db.insert(taskAgentExecutions).values({
         taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
         status: "completed", input: {}, output: output as object,
@@ -424,7 +481,7 @@ export async function executeTask(
         if (agent?.tier === "global" && agent.codeReference && isToolAllowedForDomain(agent.domain, agent.codeReference)) {
           const startedAt = new Date();
           try {
-            const output = await dispatchTool(db, orgId, agent.codeReference);
+            const output = await dispatchTool(db, orgId, userId, agent.codeReference);
             await db.insert(taskAgentExecutions).values({
               taskExecutionPlanId: planRow.id,
               workerAgentId: agent.id,

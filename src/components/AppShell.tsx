@@ -29,6 +29,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [unreadAiCount, setUnreadAiCount] = useState(0);
   const [pmsEnabled, setPmsEnabled] = useState(false);
   const [veriChatV2Enabled, setVeriChatV2Enabled] = useState(false);
+  const [firmEnabled, setFirmEnabled] = useState(false);
   const [orgName, setOrgName] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -46,6 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setAccountType(d.orgAccountType ?? "company");
         setPmsEnabled(d.pmsEnabled ?? false);
         setVeriChatV2Enabled(d.veriChatV2Enabled ?? false);
+        setFirmEnabled(d.firmEnabled ?? false);
         setOrgName(d.orgName ?? "");
       })
       .catch(() => {});
@@ -88,7 +90,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             on the veriChatV2 branch; sidebarCollapsed stays false for every
             other org since the toggle button isn't rendered for them. */}
         {!(veriChatV2Enabled && sidebarCollapsed) && (
-          <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} orgName={orgName} />
+          <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
         )}
         {veriChatV2Enabled ? (
           <ResizablePanelGroup direction="horizontal" autoSaveId="veridian-shell-panels" className="flex-1 overflow-hidden">
