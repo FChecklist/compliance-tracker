@@ -211,6 +211,32 @@ async function callOpenRouter(messages) {
   return json
 }
 
+// 10th real bug found running this pipeline (2026-07-08): chat-completion
+// APIs are stateless -- every call resends the ENTIRE conversation, so a
+// file read on iteration 3 gets re-transmitted (and re-billed) on every
+// subsequent iteration up to 40, not paid for once. This is the confirmed
+// root cause behind the $11.44-of-$12.34 cost concentration on the long,
+// multi-file-read tasks (the evaluations, the audit prep). Fix: keep the
+// last KEEP_RECENT_READS read_file results fully visible (a model often
+// legitimately needs to re-check a file it read a couple of turns ago),
+// but collapse anything older to a one-line placeholder -- re-reading is
+// cheap (local disk, no network) if the model genuinely needs the content
+// again, so this trades a small amount of possible re-reading for
+// bounding growth to roughly linear instead of quadratic.
+const KEEP_RECENT_READS = 3
+
+function collapseOldReadFileResults(messages, readFileResults, currentIteration) {
+  for (const entry of readFileResults) {
+    if (entry.collapsed) continue
+    if (currentIteration - entry.iteration < KEEP_RECENT_READS) continue
+    const msg = messages[entry.index]
+    if (!msg || msg.role !== "tool") continue
+    const originalLength = msg.content.length
+    msg.content = `[Already read earlier: ${entry.path} (${originalLength} chars) -- call read_file again if you need to see its content now.]`
+    entry.collapsed = true
+  }
+}
+
 async function main() {
   const systemPrompt = await fetchSystemPrompt(role.promptKey)
   const messages = [
@@ -220,8 +246,10 @@ async function main() {
 
   let finished = null
   const filesChanged = new Set()
+  const readFileResults = [] // { index, path, iteration, collapsed }
 
   for (let i = 0; i < MAX_ITERATIONS && !finished; i++) {
+    collapseOldReadFileResults(messages, readFileResults, i)
     const response = await callOpenRouter(messages)
     const choice = response.choices?.[0]
     if (!choice) throw new Error("No response choice from OpenRouter")
@@ -278,6 +306,9 @@ async function main() {
       // malformed tool result.
       const content = call.function.name === "read_file" ? String(result) : String(result).slice(0, 8000)
       messages.push({ role: "tool", tool_call_id: call.id, content })
+      if (call.function.name === "read_file" && !String(result).startsWith("ERROR:")) {
+        readFileResults.push({ index: messages.length - 1, path: args.path, iteration: i, collapsed: false })
+      }
     }
   }
 
