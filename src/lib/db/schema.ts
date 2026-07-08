@@ -6795,3 +6795,242 @@ export const computationEngines = complianceSchemaDB.table('computation_engines'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── GST Verification & Reconciliation Engine ────────────────────────────
+// Built 2026-07-08. Deterministic import -> validate -> reconcile -> file
+// pipeline for CAs/accountants (design: veridian_gst_engine_design memory).
+// Studied resilient-tech/india-compliance's GSTR-1/3B JSON shape and 2A/2B
+// reconciliation approach as reference (GPL-3.0 -- no code copied; the GSTN
+// JSON schema itself is public government spec, safe to implement clean-room
+// -- same posture as the existing erpEInvoiceLogs comment above). One
+// canonical invoice schema is used for every import source (Excel/CSV/Tally/
+// Busy/Zoho Books) rather than a table per source -- gstSourceProfiles holds
+// the per-client, per-source learned column mapping so re-imports auto-map
+// with no AI involved. AI only touches gstAiReviewReports at the very end;
+// every table before it is pure deterministic compute (VCEL principle).
+export const gstSourceTypeEnum = complianceSchemaDB.enum('gst_source_type', ['excel_generic', 'csv_generic', 'tally_xml', 'busy', 'zoho_books'])
+export const gstInvoiceDirectionEnum = complianceSchemaDB.enum('gst_invoice_direction', ['sales', 'purchase', 'gstr2b'])
+export const gstImportBatchStatusEnum = complianceSchemaDB.enum('gst_import_batch_status', ['processing', 'staged', 'confirmed', 'failed', 'cancelled'])
+export const gstFindingSeverityEnum = complianceSchemaDB.enum('gst_finding_severity', ['error', 'warning', 'info'])
+export const gstMatchTypeEnum = complianceSchemaDB.enum('gst_match_type', ['exact', 'probable', 'mismatch', 'missing_in_2b', 'missing_in_books'])
+export const gstReturnTypeEnum = complianceSchemaDB.enum('gst_return_type', ['gstr1', 'gstr3b'])
+export const gstReturnStatusEnum = complianceSchemaDB.enum('gst_return_status', ['draft', 'generated', 'filed'])
+
+export const gstImportBatches = complianceSchemaDB.table('gst_import_batches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'), // nullable -- which VERIDIAN client this import is for, when the org is a CA firm filing on a client's behalf
+  sourceType: gstSourceTypeEnum('source_type').notNull(),
+  direction: gstInvoiceDirectionEnum('direction').notNull(),
+  period: text('period').notNull(), // 'YYYY-MM'
+  fileName: text('file_name').notNull(),
+  fileType: text('file_type').notNull(),
+  fileSizeBytes: integer('file_size_bytes'),
+  status: gstImportBatchStatusEnum('status').notNull().default('processing'),
+  totalRows: integer('total_rows'),
+  stagedCount: integer('staged_count'),
+  confirmedCount: integer('confirmed_count'),
+  errorMessage: text('error_message'),
+  uploadedById: text('uploaded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  confirmedAt: timestamp('confirmed_at'),
+  cancelledAt: timestamp('cancelled_at'),
+})
+
+// Learned column mapping per org+client+sourceType -- the "auto-map columns"
+// requirement without any AI: first import is fuzzy-matched (column-mapper.ts)
+// and confirmed once by the user, then reused for every later import from the
+// same accounting software so headers never need re-mapping.
+export const gstSourceProfiles = complianceSchemaDB.table('gst_source_profiles', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  sourceType: gstSourceTypeEnum('source_type').notNull(),
+  name: text('name').notNull().default('Default'),
+  columnMapping: jsonb('column_mapping').notNull().default({}), // { canonicalField: sourceHeader }
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Pre-confirmation staging -- raw parsed row + best-effort mapped row, kept
+// for audit trail and so a bad auto-map can be corrected before it ever
+// touches gstCanonicalInvoices.
+export const gstImportStagingRows = complianceSchemaDB.table('gst_import_staging_rows', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  batchId: text('batch_id').notNull(),
+  sourceRow: integer('source_row'),
+  rawData: jsonb('raw_data').notNull(),
+  mappedData: jsonb('mapped_data').notNull(),
+  mappingConfidence: numeric('mapping_confidence'), // 0-1, avg confidence of the fuzzy column match
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const gstCanonicalInvoices = complianceSchemaDB.table('gst_canonical_invoices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  batchId: text('batch_id'), // nullable -- the import batch this row was confirmed from
+  direction: gstInvoiceDirectionEnum('direction').notNull(),
+  period: text('period').notNull(),
+  sourceType: gstSourceTypeEnum('source_type').notNull(),
+  counterpartyGstin: text('counterparty_gstin'), // supplier GSTIN for purchase/2B rows, buyer GSTIN for sales rows
+  counterpartyName: text('counterparty_name'),
+  invoiceNumber: text('invoice_number').notNull(),
+  invoiceDate: date('invoice_date', { mode: 'string' }).notNull(),
+  placeOfSupply: text('place_of_supply'), // 2-digit GST state code
+  invoiceType: text('invoice_type').notNull().default('b2b'), // b2b | b2cl | b2cs | cdnr | exports | sez
+  taxableValue: numeric('taxable_value').notNull().default('0'),
+  cgstAmount: numeric('cgst_amount').notNull().default('0'),
+  sgstAmount: numeric('sgst_amount').notNull().default('0'),
+  igstAmount: numeric('igst_amount').notNull().default('0'),
+  cessAmount: numeric('cess_amount').notNull().default('0'),
+  totalValue: numeric('total_value').notNull().default('0'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const gstCanonicalInvoiceItems = complianceSchemaDB.table('gst_canonical_invoice_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  invoiceId: text('invoice_id').notNull(),
+  hsnSacCode: text('hsn_sac_code'),
+  description: text('description'),
+  quantity: numeric('quantity').notNull().default('1'),
+  rate: numeric('rate').notNull().default('0'),
+  taxableValue: numeric('taxable_value').notNull().default('0'),
+  gstRatePercent: numeric('gst_rate_percent').notNull().default('0'),
+  cgstAmount: numeric('cgst_amount').notNull().default('0'),
+  sgstAmount: numeric('sgst_amount').notNull().default('0'),
+  igstAmount: numeric('igst_amount').notNull().default('0'),
+})
+
+// GSTIN checksum + optional public-lookup cache, so repeated imports of the
+// same counterparty don't recompute/re-lookup every time.
+export const gstGstinMaster = complianceSchemaDB.table('gst_gstin_master', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  gstin: text('gstin').notNull().unique(),
+  checksumValid: boolean('checksum_valid').notNull(),
+  legalName: text('legal_name'),
+  tradeName: text('trade_name'),
+  stateCode: text('state_code'),
+  lookupStatus: text('lookup_status'), // 'active' | 'cancelled' | 'unknown' -- from a public GSTIN lookup, when available
+  lastCheckedAt: timestamp('last_checked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Reference HSN/SAC -> default GST rate, seeded with a common starter set;
+// used by the validation engine to flag an invoice's applied rate against
+// the code's expected rate.
+export const gstHsnMaster = complianceSchemaDB.table('gst_hsn_master', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  hsnSacCode: text('hsn_sac_code').notNull().unique(),
+  description: text('description'),
+  defaultGstRatePercent: numeric('default_gst_rate_percent'),
+  isService: boolean('is_service').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const gstValidationFindings = complianceSchemaDB.table('gst_validation_findings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  batchId: text('batch_id'),
+  invoiceId: text('invoice_id'),
+  ruleCode: text('rule_code').notNull(), // e.g. 'gstin_checksum_failed', 'duplicate_invoice', 'invoice_number_gap', 'hsn_unknown', 'tax_mismatch', 'interstate_split_error'
+  severity: gstFindingSeverityEnum('severity').notNull(),
+  message: text('message').notNull(),
+  suggestedFix: text('suggested_fix'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+})
+
+export const gstReconciliationRuns = complianceSchemaDB.table('gst_reconciliation_runs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  period: text('period').notNull(),
+  purchaseBatchId: text('purchase_batch_id'),
+  gstr2bBatchId: text('gstr2b_batch_id'),
+  status: text('status').notNull().default('running'), // running | completed | failed
+  totalPurchaseRows: integer('total_purchase_rows'),
+  total2bRows: integer('total_2b_rows'),
+  exactMatches: integer('exact_matches'),
+  probableMatches: integer('probable_matches'),
+  mismatches: integer('mismatches'),
+  missingIn2b: integer('missing_in_2b'),
+  missingInBooks: integer('missing_in_books'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
+export const gstReconciliationMatches = complianceSchemaDB.table('gst_reconciliation_matches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  runId: text('run_id').notNull(),
+  purchaseInvoiceId: text('purchase_invoice_id'),
+  gstr2bInvoiceId: text('gstr2b_invoice_id'),
+  matchType: gstMatchTypeEnum('match_type').notNull(),
+  confidenceScore: numeric('confidence_score'), // 0-1
+  deltaAmount: numeric('delta_amount'), // total_value difference, 0 for exact matches
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const gstReturnPeriods = complianceSchemaDB.table('gst_return_periods', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  period: text('period').notNull(),
+  gstin: text('gstin').notNull(),
+  returnType: gstReturnTypeEnum('return_type').notNull(),
+  status: gstReturnStatusEnum('status').notNull().default('draft'),
+  generatedJson: jsonb('generated_json'), // the GSTN-schema-shaped JSON, ready for offline-tool import / portal upload
+  summary: jsonb('summary'), // totals by section (b2b/b2cl/b2cs/cdnr/hsn) for the review UI
+  generatedById: text('generated_by_id'),
+  generatedAt: timestamp('generated_at'),
+  filedAt: timestamp('filed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// The one AI-touched table in this whole module -- a narrative risk report
+// generated FROM the deterministic findings/matches/totals above, never the
+// source of them.
+export const gstAiReviewReports = complianceSchemaDB.table('gst_ai_review_reports', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  returnPeriodId: text('return_period_id').notNull(),
+  reportText: text('report_text').notNull(),
+  riskFlags: jsonb('risk_flags').notNull().default([]),
+  provider: text('provider'),
+  model: text('model'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const gstImportBatchesRelations = relations(gstImportBatches, ({ many }) => ({
+  stagingRows: many(gstImportStagingRows),
+}))
+
+export const gstImportStagingRowsRelations = relations(gstImportStagingRows, ({ one }) => ({
+  batch: one(gstImportBatches, { fields: [gstImportStagingRows.batchId], references: [gstImportBatches.id] }),
+}))
+
+export const gstCanonicalInvoicesRelations = relations(gstCanonicalInvoices, ({ many }) => ({
+  items: many(gstCanonicalInvoiceItems),
+}))
+
+export const gstCanonicalInvoiceItemsRelations = relations(gstCanonicalInvoiceItems, ({ one }) => ({
+  invoice: one(gstCanonicalInvoices, { fields: [gstCanonicalInvoiceItems.invoiceId], references: [gstCanonicalInvoices.id] }),
+}))
+
+export const gstReconciliationRunsRelations = relations(gstReconciliationRuns, ({ many }) => ({
+  matches: many(gstReconciliationMatches),
+}))
+
+export const gstReconciliationMatchesRelations = relations(gstReconciliationMatches, ({ one }) => ({
+  run: one(gstReconciliationRuns, { fields: [gstReconciliationMatches.runId], references: [gstReconciliationRuns.id] }),
+}))
+
+export const gstReturnPeriodsRelations = relations(gstReturnPeriods, ({ many }) => ({
+  aiReviewReports: many(gstAiReviewReports),
+}))
+
+export const gstAiReviewReportsRelations = relations(gstAiReviewReports, ({ one }) => ({
+  returnPeriod: one(gstReturnPeriods, { fields: [gstAiReviewReports.returnPeriodId], references: [gstReturnPeriods.id] }),
+}))

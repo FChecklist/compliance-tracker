@@ -64,6 +64,7 @@
     "decimal.js": "^10.6.0",
     "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
+    "fast-xml-parser": "^5.9.3",
     "framer-motion": "^12.23.2",
     "input-otp": "^1.4.2",
     "javascript-lp-solver": "^1.0.3",
