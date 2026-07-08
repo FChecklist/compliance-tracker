@@ -274,6 +274,13 @@ export const documents = complianceSchemaDB.table('documents', {
   isDisposed: boolean('is_disposed').notNull().default(false),
   disposedAt: timestamp('disposed_at'),
   disposedById: text('disposed_by_id'),
+  // Wave 117 (PROJEXA Permits/Drawings/Site Photos): category-specific fields
+  // (permitAuthority/permitNumber for 'permit'; a floor/area/activity
+  // location path for 'site_photo') aren't generic enough across 30+
+  // existing document categories to justify dedicated typed columns --
+  // same reasoning already applied to `category` itself being free text
+  // instead of an enum. Follows the extractedData precedent directly above.
+  metadata: jsonb('metadata'),
 })
 
 // ─── Compliance Costs (Wave 7) ───────────────────────────────────────────
@@ -2704,6 +2711,11 @@ export const pmsIssues = complianceSchemaDB.table('pms_issues', {
   isArchived: boolean('is_archived').notNull().default(false),
   createdById: text('created_by_id'),
   assignedById: text('assigned_by_id'), // mirrors tasks.assignedById's Wave-15 "assigned to me vs by me" convention
+  // Wave 116 (PROJEXA Schedule/Gantt): additive, defaults to 0/unused for
+  // every non-construction org -- the frappe-gantt (MIT) UI and delay
+  // computation (dueDate vs the moment status enters a "completed" group)
+  // both read this; it's set by the service layer on update, not derived.
+  completionPercentage: integer('completion_percentage').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -2723,6 +2735,11 @@ export const pmsIssueRelations = complianceSchemaDB.table('pms_issue_relations',
   issueId: text('issue_id').notNull(),
   relatedIssueId: text('related_issue_id').notNull(),
   relationType: pmsIssueRelationTypeEnum('relation_type').notNull(),
+  // Wave 116 (PROJEXA Schedule/Gantt): nullable finish-to-start-plus-lag
+  // days for 'blocks'/'blocked_by' relations, which is what frappe-gantt's
+  // dependency lines natively support. Meaningless for
+  // 'duplicates'/'relates_to' -- left null there, never enforced by a CHECK.
+  lagDays: integer('lag_days'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -3752,6 +3769,10 @@ export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Wave 120 (PROJEXA Revenue Report): nullable/additive -- lets a sales
+  // invoice be attributed to one construction project. clientId alone
+  // isn't precise enough (one client can have many projects).
+  projectId: text('project_id'),
 })
 
 // Wave 69 (e-invoicing/IRN, per resilient-tech/india-compliance's
@@ -3946,6 +3967,17 @@ export const erpSuppliers = complianceSchemaDB.table('erp_suppliers', {
   // purchase-invoice-submit time, see erp-invoicing-service.ts's
   // submitPurchaseInvoice.
   creditLimit: numeric('credit_limit'),
+  // Wave 120 (PROJEXA Vendor Master enhancement): both nullable/additive --
+  // every non-construction org leaves them unused. trade is free text
+  // (civil/electrical/painter/carpenter/plumber/POP/tiles etc.), matching
+  // constructionLabourRoster.trade's precedent, not an enum (new trades
+  // keep appearing). projectId is a single primary-project convenience
+  // link for subcontractor-type suppliers tied to one job; a supplier
+  // working multiple projects is still discoverable via
+  // constructionLabourRoster.vendorId or erpPurchaseInvoices, this is not
+  // the only path.
+  trade: text('trade'),
+  projectId: text('project_id'),
 })
 
 // Wave 80 (Vendor Master enhancements, COMPARISON_CSV_GAP_ANALYSIS.md backlog
@@ -4305,6 +4337,12 @@ export const erpStockLedgerEntries = complianceSchemaDB.table('erp_stock_ledger_
   batchId: text('batch_id'),
   serialId: text('serial_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Wave 120 (PROJEXA Material Consumption Report): nullable/additive --
+  // attributes a stock movement to a construction project so material
+  // issues/receipts can be summed per project, matching the
+  // pmsIssues.completionPercentage precedent (Wave 116) for additive
+  // construction-only columns on shared tables.
+  projectId: text('project_id'),
 })
 
 export const erpStockReconciliations = complianceSchemaDB.table('erp_stock_reconciliations', {
@@ -7034,3 +7072,235 @@ export const gstReturnPeriodsRelations = relations(gstReturnPeriods, ({ many }) 
 export const gstAiReviewReportsRelations = relations(gstAiReviewReports, ({ one }) => ({
   returnPeriod: one(gstReturnPeriods, { fields: [gstAiReviewReports.returnPeriodId], references: [gstReturnPeriods.id] }),
 }))
+
+// ─── Construction Intelligence (Wave 115, PROJEXA foundation) ────────────
+// Scope of Work/BOQ, Work Progress hierarchy, Daily Site Diary. Built inside
+// VERIDIAN AI OS per the Boss decision (2026-07-08) to expose every
+// construction module via /api/v1 rather than duplicate it inside the
+// separate PROJEXA product -- PROJEXA is a thin client consuming this data.
+// No GPL/AGPL code copied (OpenConstructionERP is AGPL-3.0) -- only domain
+// concepts studied, matching this repo's existing GST-engine precedent.
+export const constructionBoqStatusEnum = complianceSchemaDB.enum('construction_boq_status', ['draft', 'submitted', 'approved', 'superseded'])
+
+// Bill of Quantities. Revisions form a chain via parentBoqId (v1 -> v2 ->
+// v3); comparison between two versions is computed at read time by
+// construction-boq-service.ts (diff by lineItem.itemCode), never stored --
+// matches this codebase's preference for live aggregation over denormalized
+// diff tables (see custom-report-service.ts).
+export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  version: integer('version').notNull().default(1),
+  parentBoqId: text('parent_boq_id'), // self-FK -- previous revision in the chain
+  title: text('title').notNull(),
+  status: constructionBoqStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id').notNull(),
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const constructionBoqLineItems = complianceSchemaDB.table('construction_boq_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  boqId: text('boq_id').notNull(),
+  activityId: text('activity_id'), // nullable -- optional link to constructionActivities, used by the "warn if scope already executed" guard
+  itemCode: text('item_code'), // stable key used for revision-to-revision diffing when present; service falls back to description match otherwise
+  description: text('description').notNull(),
+  unit: text('unit').notNull(),
+  quantity: numeric('quantity').notNull().default('0'),
+  rate: numeric('rate').notNull().default('0'),
+  amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (not a DB generated column, matching this codebase's convention elsewhere)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Work Progress classification hierarchy: Category (e.g. "Civil") ->
+// Activity (e.g. "Brickwork"), both project-scoped. Deliberately NOT reusing
+// projects.parentProjectId -- child-project grouping is a different
+// concept/cardinality than line-item classification within one project.
+export const constructionCategories = complianceSchemaDB.table('construction_categories', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  parentCategoryId: text('parent_category_id'), // self-FK -- sub-categories
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionActivities = complianceSchemaDB.table('construction_activities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  categoryId: text('category_id').notNull(),
+  name: text('name').notNull(),
+  unit: text('unit'),
+  plannedQuantity: numeric('planned_quantity'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Daily quantity/percent-complete log against one activity. Photos attach via
+// the existing documents table (linkedEntityType='construction_work_progress',
+// linkedEntityId=this row's id) -- no new file-storage plumbing needed.
+export const constructionWorkProgressEntries = complianceSchemaDB.table('construction_work_progress_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  activityId: text('activity_id').notNull(),
+  entryDate: date('entry_date', { mode: 'string' }).notNull(),
+  quantityDone: numeric('quantity_done').notNull().default('0'),
+  percentComplete: integer('percent_complete').notNull().default(0), // 0-100, cumulative for the activity as of entryDate
+  remarks: text('remarks'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// One row per project per day. Unique(projectId, diaryDate) enforced in the
+// migration SQL -- this table's Drizzle definition doesn't model composite
+// constraints, matching this codebase's convention of keeping RLS and
+// composite constraints in the raw SQL rather than the Drizzle layer.
+export const constructionSiteDiaries = complianceSchemaDB.table('construction_site_diaries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  diaryDate: date('diary_date', { mode: 'string' }).notNull(),
+  weather: text('weather'),
+  workDone: text('work_done'),
+  visitors: text('visitors'),
+  issues: text('issues'),
+  instructions: text('instructions'),
+  materialReceived: text('material_received'),
+  labourCount: integer('labour_count'),
+  remarks: text('remarks'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) => ({
+  lineItems: many(constructionBoqLineItems),
+}))
+
+export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one }) => ({
+  boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
+}))
+
+export const constructionCategoriesRelations = relations(constructionCategories, ({ many }) => ({
+  activities: many(constructionActivities),
+}))
+
+export const constructionActivitiesRelations = relations(constructionActivities, ({ one, many }) => ({
+  category: one(constructionCategories, { fields: [constructionActivities.categoryId], references: [constructionCategories.id] }),
+  progressEntries: many(constructionWorkProgressEntries),
+}))
+
+export const constructionWorkProgressEntriesRelations = relations(constructionWorkProgressEntries, ({ one }) => ({
+  activity: one(constructionActivities, { fields: [constructionWorkProgressEntries.activityId], references: [constructionActivities.id] }),
+}))
+
+// ─── Construction Intelligence (Wave 116) ─────────────────────────────────
+// Manpower/Attendance. constructionLabourRoster deliberately has no userId
+// FK -- site labour rarely has login accounts (employeeProfiles.userId is
+// notNull().unique(), ruling out extending it); attendance is recorded by a
+// supervisor/foreman, not self-service. vendorId links subcontracted labour
+// to the existing erpSuppliers table rather than duplicating vendor data.
+export const constructionAttendanceStatusEnum = complianceSchemaDB.enum('construction_attendance_status', ['present', 'absent', 'half_day'])
+
+export const constructionLabourRoster = complianceSchemaDB.table('construction_labour_roster', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  trade: text('trade'), // free text (civil/electrical/painter/carpenter/plumber/POP/tiles etc.) -- advisory, not enum-enforced, same posture as documents.category
+  skillLevel: text('skill_level'),
+  vendorId: text('vendor_id'), // nullable FK to erp_suppliers -- subcontracted labour
+  dailyRate: numeric('daily_rate').notNull().default('0'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionAttendance = complianceSchemaDB.table('construction_attendance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  rosterId: text('roster_id').notNull(),
+  attendanceDate: date('attendance_date', { mode: 'string' }).notNull(),
+  status: constructionAttendanceStatusEnum('status').notNull().default('present'),
+  hoursWorked: numeric('hours_worked'),
+  dailyCost: numeric('daily_cost').notNull().default('0'), // computed by the service layer at write time from roster.dailyRate (half_day = half rate), not a DB generated column
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionLabourRosterRelations = relations(constructionLabourRoster, ({ many }) => ({
+  attendance: many(constructionAttendance),
+}))
+
+export const constructionAttendanceRelations = relations(constructionAttendance, ({ one }) => ({
+  roster: one(constructionLabourRoster, { fields: [constructionAttendance.rosterId], references: [constructionLabourRoster.id] }),
+}))
+
+// ─── Construction Intelligence (Wave 117) ─────────────────────────────────
+// KPI module: designer-fills / manager-approves workflow, modeled as a
+// definitions+entries pair (not an extension of kpi-hub-service.ts, which is
+// a hardcoded 5-metric scorecard, not a real definitions framework). Role
+// gating (submit=member, approve=manager+) reuses the existing
+// admin/manager/member rank system rather than introducing new role labels
+// -- employeeProfiles.jobTitle already carries free-text designations
+// ("Site Engineer", "QS Engineer") for display.
+export const constructionKpiPeriodEnum = complianceSchemaDB.enum('construction_kpi_period', ['monthly', 'quarterly', 'milestone'])
+export const constructionKpiApprovalStatusEnum = complianceSchemaDB.enum('construction_kpi_approval_status', ['draft', 'submitted', 'approved'])
+
+export const constructionKpiDefinitions = complianceSchemaDB.table('construction_kpi_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id'), // nullable -- org-wide KPIs (e.g. "Designer Hours Utilized") vs. project-scoped ones
+  metricName: text('metric_name').notNull(),
+  targetValue: numeric('target_value'),
+  unit: text('unit'),
+  period: constructionKpiPeriodEnum('period').notNull().default('monthly'),
+  ownerId: text('owner_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionKpiEntries = complianceSchemaDB.table('construction_kpi_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  kpiDefinitionId: text('kpi_definition_id').notNull(),
+  period: text('period').notNull(), // free-text period label, e.g. '2026-07' or a milestone id -- shape depends on the definition's `period` cadence
+  actualValue: numeric('actual_value').notNull(),
+  filledById: text('filled_by_id').notNull(),
+  approvalStatus: constructionKpiApprovalStatusEnum('approval_status').notNull().default('draft'),
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionKpiDefinitionsRelations = relations(constructionKpiDefinitions, ({ many }) => ({
+  entries: many(constructionKpiEntries),
+}))
+
+export const constructionKpiEntriesRelations = relations(constructionKpiEntries, ({ one }) => ({
+  definition: one(constructionKpiDefinitions, { fields: [constructionKpiEntries.kpiDefinitionId], references: [constructionKpiDefinitions.id] }),
+}))
+
+// ─── Construction Intelligence (Wave 120) ─────────────────────────────────
+// Expense heads (material/labour/transport/subcontractor/equipment/misc).
+// This is a thin CLASSIFICATION/rollup layer, not a duplicate ledger --
+// linkedEntityType/linkedEntityId points back at the real source-of-truth
+// row (erp_purchase_invoices, erp_cash_vouchers, or construction_attendance
+// for labour cost), matching the documents.linkedEntityType polymorphic-
+// pointer precedent already used twice in this codebase. amount is
+// snapshotted at classification time, not live-recomputed from the source.
+export const constructionExpenseHeadEnum = complianceSchemaDB.enum('construction_expense_head', ['material', 'labour', 'transport', 'subcontractor', 'equipment', 'misc'])
+
+export const constructionExpenseEntries = complianceSchemaDB.table('construction_expense_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  expenseHead: constructionExpenseHeadEnum('expense_head').notNull(),
+  description: text('description'),
+  amount: numeric('amount').notNull(),
+  expenseDate: date('expense_date', { mode: 'string' }).notNull(),
+  linkedEntityType: text('linked_entity_type'), // 'erp_purchase_invoice'|'erp_cash_voucher'|'construction_attendance'|null (manual entry)
+  linkedEntityId: text('linked_entity_id'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

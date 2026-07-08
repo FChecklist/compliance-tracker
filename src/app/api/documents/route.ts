@@ -58,6 +58,18 @@ export async function POST(request: NextRequest) {
     const linkedEntityType = (formData.get("linkedEntityType") as string | null) || null
     const linkedEntityId = (formData.get("linkedEntityId") as string | null) || null
     const versionOfId = (formData.get("versionOfId") as string | null) || null
+    // Wave 117 (PROJEXA Permits/Drawings/Site Photos): category-specific
+    // fields (permitAuthority/permitNumber, a floor/area/activity location
+    // path, etc.) that aren't generic enough for a dedicated column.
+    const metadataRaw = (formData.get("metadata") as string | null) || null
+    let metadata: unknown = null
+    if (metadataRaw) {
+      try {
+        metadata = JSON.parse(metadataRaw)
+      } catch {
+        return NextResponse.json({ error: "metadata must be valid JSON" }, { status: 400 })
+      }
+    }
 
     const objectPath = `${orgId}/${createId()}-${sanitizeFileName(file.name)}`
     const bytes = new Uint8Array(await file.arrayBuffer())
@@ -106,6 +118,7 @@ export async function POST(request: NextRequest) {
         parentDocumentId: versionOfId,
         versionNumber,
         isLatestVersion: true,
+        metadata: metadata ?? undefined,
       }).returning()
 
       await logActivity({

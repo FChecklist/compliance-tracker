@@ -5,7 +5,7 @@
 // Metabase/Superset's SQL editors, which this pass deliberately does not
 // adopt: arbitrary SQL against a multi-tenant DB is a real security
 // surface this codebase has never exposed anywhere else.
-import { savedReports, complianceItems, notices, risks, pmsIssues, incidents } from "@/lib/db"
+import { savedReports, complianceItems, notices, risks, pmsIssues, incidents, constructionBoqs, constructionWorkProgressEntries, constructionAttendance } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -24,6 +24,12 @@ const GROUP_BY_FIELDS: Record<string, string[]> = {
   risks: ["status", "category"],
   pms_issues: ["statusId", "priority"],
   incidents: ["stage", "severity"],
+  // Wave 118 (PROJEXA reporting integration). construction_boq_line_items is
+  // deliberately excluded -- it has no direct orgId column (scoped via its
+  // parent BOQ), which doesn't fit this switch's flat orgId-filter pattern.
+  construction_boqs: ["status"],
+  construction_work_progress_entries: ["activityId"],
+  construction_attendance: ["status", "rosterId"],
 }
 
 export type SourceEntity = keyof typeof GROUP_BY_FIELDS
@@ -133,6 +139,27 @@ export async function runReport(ctx: { orgId: string }, reportId: string) {
         rows = col
           ? await db.select({ groupValue: col, count: sql<number>`count(*)::int` }).from(incidents).where(eq(incidents.orgId, ctx.orgId)).groupBy(col)
           : [{ groupValue: "Total", count: (await db.select({ count: sql<number>`count(*)::int` }).from(incidents).where(eq(incidents.orgId, ctx.orgId)))[0].count }]
+        break
+      }
+      case "construction_boqs": {
+        const col = groupBy === "status" ? constructionBoqs.status : null
+        rows = col
+          ? await db.select({ groupValue: col, count: sql<number>`count(*)::int` }).from(constructionBoqs).where(eq(constructionBoqs.orgId, ctx.orgId)).groupBy(col)
+          : [{ groupValue: "Total", count: (await db.select({ count: sql<number>`count(*)::int` }).from(constructionBoqs).where(eq(constructionBoqs.orgId, ctx.orgId)))[0].count }]
+        break
+      }
+      case "construction_work_progress_entries": {
+        const col = groupBy === "activityId" ? constructionWorkProgressEntries.activityId : null
+        rows = col
+          ? await db.select({ groupValue: col, count: sql<number>`count(*)::int` }).from(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.orgId, ctx.orgId)).groupBy(col)
+          : [{ groupValue: "Total", count: (await db.select({ count: sql<number>`count(*)::int` }).from(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.orgId, ctx.orgId)))[0].count }]
+        break
+      }
+      case "construction_attendance": {
+        const col = groupBy === "rosterId" ? constructionAttendance.rosterId : groupBy === "status" ? constructionAttendance.status : null
+        rows = col
+          ? await db.select({ groupValue: col, count: sql<number>`count(*)::int` }).from(constructionAttendance).where(eq(constructionAttendance.orgId, ctx.orgId)).groupBy(col)
+          : [{ groupValue: "Total", count: (await db.select({ count: sql<number>`count(*)::int` }).from(constructionAttendance).where(eq(constructionAttendance.orgId, ctx.orgId)))[0].count }]
         break
       }
     }

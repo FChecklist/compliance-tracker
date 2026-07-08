@@ -20,7 +20,10 @@ export async function listSuppliers(ctx: { orgId: string }) {
 // nothing had ever inserted a row into erp_suppliers outside of seed data,
 // which made credit limits (this wave's actual goal) impossible to manage
 // without a way to create/edit a supplier at all.
-export type SupplierInput = { supplierName: string; supplierType?: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number }
+// Wave 120 (PROJEXA Vendor Master enhancement): trade/projectId are
+// optional on every existing call site -- unset by default, matching this
+// wave's additive-column posture.
+export type SupplierInput = { supplierName: string; supplierType?: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number; trade?: string; projectId?: string }
 
 export async function createSupplier(ctx: { orgId: string }, input: SupplierInput) {
   if (!input.supplierName?.trim()) throw new ServiceError("supplierName is required", 400)
@@ -28,7 +31,7 @@ export async function createSupplier(ctx: { orgId: string }, input: SupplierInpu
     const [supplier] = await db.insert(erpSuppliers).values({
       orgId: ctx.orgId, supplierName: input.supplierName, supplierType: input.supplierType,
       gstin: input.gstin, panNumber: input.panNumber, defaultPaymentTermsDays: input.defaultPaymentTermsDays,
-      creditLimit: input.creditLimit?.toString(),
+      creditLimit: input.creditLimit?.toString(), trade: input.trade, projectId: input.projectId,
     }).returning()
     return supplier
   })
@@ -45,6 +48,8 @@ export async function updateSupplier(ctx: { orgId: string }, supplierId: string,
       ...(input.panNumber !== undefined ? { panNumber: input.panNumber } : {}),
       ...(input.defaultPaymentTermsDays !== undefined ? { defaultPaymentTermsDays: input.defaultPaymentTermsDays } : {}),
       ...(input.creditLimit !== undefined ? { creditLimit: input.creditLimit === null ? null : input.creditLimit.toString() } : {}),
+      ...(input.trade !== undefined ? { trade: input.trade } : {}),
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     }).where(eq(erpSuppliers.id, supplierId)).returning()
     return updated
   })

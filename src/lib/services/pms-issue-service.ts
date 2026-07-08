@@ -131,9 +131,17 @@ export type IssuePatch = Partial<{
   title: string; description: string | null; statusId: string; priority: string;
   assigneeIds: string[]; labelIds: string[]; milestoneId: string | null; estimatePointId: string | null;
   startDate: string | null; dueDate: string | null; position: string; isArchived: boolean; assignedById: string;
+  // Wave 116 (PROJEXA Schedule/Gantt): 0-100, read by the frappe-gantt UI and
+  // by delay computation. Meaningless/unused outside construction-flavored
+  // PMS projects, but additive to every pmsIssues row.
+  completionPercentage: number;
 }>
 
 export async function updateIssue(ctx: PmsContext, issueId: string, patch: IssuePatch) {
+  if (patch.completionPercentage !== undefined && (patch.completionPercentage < 0 || patch.completionPercentage > 100)) {
+    throw new ServiceError("completionPercentage must be between 0 and 100", 400)
+  }
+
   const result = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.pmsIssues.findFirst({ where: and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Issue not found", 404)

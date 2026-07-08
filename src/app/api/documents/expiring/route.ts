@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const withinDaysRaw = searchParams.get("withinDays")
     const withinDays = withinDaysRaw ? Number(withinDaysRaw) : 30
+    const category = searchParams.get("category") || undefined
 
-    const docs = await listExpiringDocuments({ orgId }, withinDays)
+    const docs = await listExpiringDocuments({ orgId }, withinDays, category)
     return NextResponse.json({ documents: docs })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

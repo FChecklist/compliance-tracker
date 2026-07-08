@@ -36,17 +36,22 @@ export async function listDocuments(ctx: { orgId: string }, filters: DocumentFil
 // "Expiring soon" is the whole point of tracking expiryDate at all -- a
 // dashboard widget/settings page surfaces this so a license/contract/
 // certificate renewal is never missed silently.
-export async function listExpiringDocuments(ctx: { orgId: string }, withinDays: number = 30) {
+export async function listExpiringDocuments(ctx: { orgId: string }, withinDays: number = 30, category?: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() + withinDays)
+    const conditions = [
+      eq(documents.orgId, ctx.orgId),
+      eq(documents.isLatestVersion, true),
+      isNotNull(documents.expiryDate),
+      lte(documents.expiryDate, cutoff),
+    ]
+    // Wave 117 (PROJEXA Permit Management): reuses this same expiring-
+    // documents widget for permit-expiry reminders rather than a new
+    // endpoint -- permits are just documents with category='permit'.
+    if (category) conditions.push(eq(documents.category, category))
     return db.query.documents.findMany({
-      where: and(
-        eq(documents.orgId, ctx.orgId),
-        eq(documents.isLatestVersion, true),
-        isNotNull(documents.expiryDate),
-        lte(documents.expiryDate, cutoff),
-      ),
+      where: and(...conditions),
       orderBy: (d, { asc }) => asc(d.expiryDate),
     })
   })
