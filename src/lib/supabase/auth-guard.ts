@@ -117,6 +117,25 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
       console.warn("VERI Treasure auto-enablement failed (non-fatal):", err)
     }
 
+    // Wave 131: VERI Chat (persistent composer) rolled out platform-wide
+    // 2026-07-09 -- same free/on-by-default shape as VERI Treasure above,
+    // not an opt-in vertical. 0112_veri_chat_v2_rollout.sql backfills orgs
+    // that already existed before this wave; every org created from here on
+    // gets it via this insert instead. Never blocks signup on failure.
+    try {
+      const veriChatV2Branch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_chat_v2") })
+      if (veriChatV2Branch) {
+        await db.insert(orgProductBranchEnablements).values({
+          orgId: org.id,
+          productBranchId: veriChatV2Branch.id,
+          isEnabled: true,
+          enabledAt: new Date(),
+        })
+      }
+    } catch (err) {
+      console.warn("VERI Chat v2 auto-enablement failed (non-fatal):", err)
+    }
+
     const [dept] = await db.insert(departments).values({
       name: "General",
       orgId: org.id,
