@@ -6571,6 +6571,26 @@ export const visitorEvents = complianceSchemaDB.table('visitor_events', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Landing-page lead capture (Join Us / Contact Us). Same platform-owned,
+// service_role_bypass posture as visitorSessions/visitorEvents above --
+// keyed by the same anonymous visitorId so an abandoned draft is still
+// captured even if the visitor never submits.
+export const contactSubmissions = complianceSchemaDB.table('contact_submissions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  visitorId: text('visitor_id').notNull(),
+  category: text('category'), // 'associate' | 'sales_partner' | 'ai_researcher' | null
+  name: text('name'),
+  email: text('email'),
+  mobile: text('mobile'),
+  message: text('message'),
+  status: text('status').notNull().default('draft'), // 'draft' | 'submitted'
+  confirmToken: text('confirm_token'),
+  emailConfirmedAt: timestamp('email_confirmed_at'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Connectors (sidebar one-click OAuth: Gmail / Google Drive / Google
 // Calendar via Composio) ───────────────────────────────────────────────
 // Per-user, not per-org: the OAuth grant belongs to the individual whose

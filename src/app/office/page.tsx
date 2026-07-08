@@ -19,20 +19,16 @@
 // real (finance/ERP, CRM, HR, PMS, GRC, CLM, DMS… shipped in this repo).
 
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
-  Check,
   Menu,
   X,
   Sparkles,
   ShieldCheck,
   Wallet,
-  CheckCircle2,
   Star,
   Quote,
-  Loader2,
-  Clock,
   AlarmClock,
   MessageSquareWarning,
   Repeat,
@@ -41,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { ProductSalesSection } from "@/components/ProductSalesSection";
 import { VisitorIntelligence } from "@/components/VisitorIntelligence";
 import { LegalBar } from "@/components/LegalBar";
+import { RealProductDemo } from "@/components/RealProductDemo";
 
 // --- Editable content -------------------------------------------------------
 
@@ -163,43 +160,6 @@ const STORIES = [
   },
 ];
 
-// Placeholder pricing — set your real prices here.
-const PRICING = [
-  {
-    name: "Starter",
-    price: "₹499",
-    unit: "/ user / month",
-    tagline: "Everything included, for small teams getting started.",
-    features: ["Up to 10 users", "All 50+ modules included", "Email + chat support", "2-minute setup"],
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Business",
-    price: "₹999",
-    unit: "/ user / month",
-    tagline: "The complete system for companies running everything on VERIDIAN.",
-    features: [
-      "Unlimited users",
-      "All 50+ modules — finance, sales, CRM, HR, ops, compliance",
-      "Build your own agents",
-      "Priority support",
-      "Advanced automations",
-    ],
-    cta: "Start free",
-    highlight: true,
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    unit: "",
-    tagline: "For larger organisations with security & scale needs.",
-    features: ["Everything in Business", "SSO & advanced security", "Dedicated success manager", "Custom integrations"],
-    cta: "Talk to us",
-    highlight: false,
-  },
-];
-
 // --- Sections ---------------------------------------------------------------
 
 function Nav() {
@@ -208,7 +168,7 @@ function Nav() {
     { href: "#pain", label: "The problem" },
     { href: "#modules", label: "50+ modules" },
     { href: "#how", label: "How it works" },
-    { href: "#pricing", label: "Pricing" },
+    { href: "#cost", label: "Cost" },
     { href: "#sales", label: "Sales & demo" },
     { href: "/?from=office", label: "Research" },
   ];
@@ -303,10 +263,13 @@ function Hero() {
             </h1>
 
             <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
-              Unending deadlines, missed to-dos, follow-ups that never end — that&apos;s a software problem. VERIDIAN
-              gives your company a complete, enterprise-grade system —{" "}
-              <span className="font-semibold text-ct-navy">50+ modules, end to end</span> — driven entirely by your own
-              AI assistant. Watch it work&nbsp;→
+              Software needs your time — screens to fill, boxes to tick, data entry that eats the hours your real
+              work needed. VERIDIAN flips that: a complete AI Operating System —{" "}
+              <span className="font-semibold text-ct-navy">50+ modules, end to end</span> — that does the working, so
+              you spend your time on decisions, not on doing the software&apos;s job.
+            </p>
+            <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
+              It doesn&apos;t replace your people — it makes every one of them 10× more productive.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
@@ -321,173 +284,16 @@ function Hero() {
                 </Button>
               </a>
             </div>
-            <p className="mt-4 text-sm text-ct-muted">No credit card · Live in 2 minutes · 10× your team&apos;s output, or your money back</p>
+            <p className="mt-4 text-sm text-ct-muted">No credit card · Live in 2 minutes · built for decisions, not data entry</p>
           </div>
 
-          {/* the proof — the product, working, above the fold */}
+          {/* the proof — the real product, working, above the fold */}
           <div>
-            <AgentWindow />
-            <p className="mt-3 text-center text-sm text-ct-muted">
-              ↑ This is the actual screen your team sees — working, all day, for you.
-            </p>
+            <RealProductDemo />
           </div>
         </div>
       </div>
     </section>
-  );
-}
-
-// The hero centrepiece — a browser-framed, auto-looping recreation of the Home
-// assistant screen. Each scenario streams: a request → tasks it completed →
-// one thing left "pending your approval". Deliberately a scripted showreel
-// (representative tasks), not the live logged-in app, so it plays instantly
-// with no sign-in and always tells a clean story.
-const HERO_SCENARIOS = [
-  {
-    who: "You",
-    command: "Raise this month's invoices and send them out",
-    steps: [
-      { t: "Pulled 24 clients due this billing cycle", k: "done" },
-      { t: "Drafted 24 GST-ready invoices", k: "done" },
-      { t: "Cross-checked each against last month — all correct", k: "done" },
-      { t: "Send all 24 invoices to clients", k: "approve" },
-    ],
-  },
-  {
-    who: "Priya · Sales",
-    command: "Chase the 3 overdue payments and tell me what they say",
-    steps: [
-      { t: "Reviewed 3 overdue invoices (₹4.2L total)", k: "done" },
-      { t: "Sent polite reminders to all three", k: "done" },
-      { t: "Acme replied — paying Friday. Logged it.", k: "done" },
-      { t: "Escalate the one client who didn't respond", k: "approve" },
-    ],
-  },
-  {
-    who: "Rahul · HR",
-    command: "Onboard our new hire, Meera",
-    steps: [
-      { t: "Generated her offer letter and sent for e-sign", k: "done" },
-      { t: "Set up PF, ESI and payroll", k: "done" },
-      { t: "Created her email and app accounts", k: "done" },
-      { t: "Release her first-month salary", k: "approve" },
-    ],
-  },
-] as const;
-
-function AgentWindow() {
-  // Flatten every scenario into a frame list so the ticker is a simple index
-  // walk — no stale-closure risk from reading state inside the interval.
-  const frames = useMemo(() => {
-    const f: { s: number; v: number }[] = [];
-    HERO_SCENARIOS.forEach((sc, si) => {
-      for (let v = 0; v <= sc.steps.length; v++) f.push({ s: si, v });
-      for (let h = 0; h < 3; h++) f.push({ s: si, v: sc.steps.length }); // hold on completion
-    });
-    return f;
-  }, []);
-
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setI((x) => (x + 1) % frames.length), 900);
-    return () => clearInterval(id);
-  }, [frames.length]);
-
-  const { s, v } = frames[i];
-  const sc = HERO_SCENARIOS[s];
-  const complete = v >= sc.steps.length;
-
-  return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="rounded-2xl border border-ct-border bg-white shadow-card overflow-hidden text-left">
-        {/* browser chrome */}
-        <div className="flex items-center gap-2 border-b border-ct-border bg-ct-cloud px-4 py-2.5">
-          <span className="size-2.5 rounded-full bg-red-300" />
-          <span className="size-2.5 rounded-full bg-yellow-300" />
-          <span className="size-2.5 rounded-full bg-green-300" />
-          <div className="ml-3 flex-1 truncate rounded-md bg-white px-3 py-1 text-xs text-ct-muted">
-            veridian-ai-os.vercel.app/home
-          </div>
-        </div>
-
-        {/* app body */}
-        <div className="p-5 sm:p-7 min-h-[360px] bg-gradient-to-b from-white to-ct-cream">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-heading text-lg text-ct-navy">Good morning 👋</div>
-              <div className="text-sm text-ct-muted">Here&apos;s what I&apos;m getting done for you.</div>
-            </div>
-            <div
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-                complete ? "bg-ct-saffron/10 text-ct-saffron" : "bg-ct-teal/10 text-ct-teal"
-              }`}
-            >
-              {complete ? (
-                <>
-                  <Clock className="size-3.5" /> Awaiting your approval
-                </>
-              ) : (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" /> Working…
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* the request */}
-          <div className="mt-5 flex justify-end">
-            <div className="flex items-center gap-2 rounded-2xl rounded-br-sm bg-ct-navy px-4 py-2.5 text-sm text-white max-w-[85%]">
-              <span className="text-white/50 text-xs">{sc.who}:</span>
-              {sc.command}
-            </div>
-          </div>
-
-          {/* the assistant working */}
-          <div className="mt-4 space-y-2">
-            {sc.steps.slice(0, v).map((step, idx) => (
-              <div
-                key={`${s}-${idx}`}
-                className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm animate-in fade-in slide-in-from-bottom-1 duration-300 ${
-                  step.k === "approve"
-                    ? "border-ct-saffron/40 bg-ct-saffron/5 text-ct-navy"
-                    : "border-ct-border bg-white text-ct-slate"
-                }`}
-              >
-                {step.k === "approve" ? (
-                  <Clock className="size-4 shrink-0 text-ct-saffron" />
-                ) : (
-                  <CheckCircle2 className="size-4 shrink-0 text-ct-teal" />
-                )}
-                <span className="flex-1">{step.t}</span>
-                {step.k === "approve" ? (
-                  <span className="shrink-0 rounded-full bg-ct-saffron px-3 py-1 text-xs font-semibold text-white">
-                    Approve
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-[11px] font-medium text-ct-teal">Done</span>
-                )}
-              </div>
-            ))}
-            {!complete && (
-              <div className="flex items-center gap-2.5 px-3.5 py-1 text-sm text-ct-muted">
-                <Loader2 className="size-4 shrink-0 animate-spin text-ct-saffron" />
-                Working on the next step…
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* progress dots per scenario */}
-      <div className="mt-4 flex items-center justify-center gap-1.5">
-        {HERO_SCENARIOS.map((_, idx) => (
-          <span
-            key={idx}
-            className={`h-1.5 rounded-full transition-all ${idx === s ? "w-6 bg-ct-saffron" : "w-1.5 bg-ct-border"}`}
-          />
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -776,57 +582,19 @@ function Stories() {
   );
 }
 
-function Pricing() {
+function CostCta() {
   return (
-    <section id="pricing" className="mx-auto max-w-6xl px-5 py-20">
-      <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One price. All 50+ modules. Everything included.</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          No add-ons, no per-module pricing, no surprises. Priced per person, because every person gets their own
-          worker. Start free; pay only when it&apos;s already saving you money.
-        </p>
-      </div>
-      <div className="mt-12 grid md:grid-cols-3 gap-5 items-start">
-        {PRICING.map((p) => (
-          <div
-            key={p.name}
-            className={`rounded-2xl border p-7 bg-white ${
-              p.highlight ? "border-2 border-ct-saffron shadow-saffron relative" : "border-ct-border"
-            }`}
-          >
-            {p.highlight && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-ct-saffron px-3 py-1 text-xs font-semibold text-white">
-                Most popular
-              </div>
-            )}
-            <div className="text-lg font-semibold text-ct-navy">{p.name}</div>
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className="font-heading text-4xl text-ct-navy">{p.price}</span>
-              <span className="text-sm text-ct-muted">{p.unit}</span>
-            </div>
-            <p className="mt-2 text-sm text-ct-slate">{p.tagline}</p>
-            <Link href="/signup">
-              <Button
-                className={`mt-5 w-full rounded-full ${
-                  p.highlight
-                    ? "bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
-                    : "bg-ct-navy hover:bg-ct-navy/90 text-white"
-                }`}
-              >
-                {p.cta}
-              </Button>
-            </Link>
-            <ul className="mt-6 space-y-2.5">
-              {p.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-ct-slate">
-                  <Check className="mt-0.5 size-4 shrink-0 text-ct-teal" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+    <section id="cost" className="mx-auto max-w-4xl px-5 py-20 text-center">
+      <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">We discuss cost. We don&apos;t publish price lists.</h2>
+      <p className="mx-auto mt-4 max-w-xl text-ct-slate">
+        What you pay should track what VERIDIAN actually does for you — not a seat count picked off a page. Tell us
+        about your team and we&apos;ll work out a number that pays for itself.
+      </p>
+      <Link href="/contact">
+        <Button className="mt-7 h-12 rounded-full bg-ct-navy hover:bg-ct-navy/90 px-8 text-base text-white">
+          Talk to us about cost
+        </Button>
+      </Link>
     </section>
   );
 }
@@ -871,7 +639,7 @@ function Footer() {
         </div>
         <div className="flex items-center gap-6 text-sm text-ct-muted">
           <a href="#modules" className="hover:text-ct-navy">50+ modules</a>
-          <a href="#pricing" className="hover:text-ct-navy">Pricing</a>
+          <a href="#cost" className="hover:text-ct-navy">Cost</a>
           <Link href="/login" className="hover:text-ct-navy">Log in</Link>
         </div>
         <div className="text-sm text-ct-muted">© {new Date().getFullYear()} VERIDIAN AI</div>
@@ -892,7 +660,7 @@ export default function LandingPage() {
       <Wow />
       <Roi />
       <Stories />
-      <Pricing />
+      <CostCta />
       <ProductSalesSection product="VERIDIAN OFFICE AI OS" />
       <FinalCta />
       <Footer />

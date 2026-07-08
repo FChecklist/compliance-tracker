@@ -11,7 +11,7 @@
 // billable human hours. FORGE runs the entire engineering process on AI
 // instead — the same requirements → schema → backend → UI → deploy
 // pipeline this very platform's own waves are built with — so it can
-// charge one flat $999, however complex the system, with zero recurring
+// charge one flat fee, however complex the system, with zero recurring
 // platform fee (the customer brings their own AI provider key). Same
 // design system as veridian-ai-os.vercel.app (shared ct-* tokens, DM
 // Serif Display + Inter, Button component) — see
@@ -21,8 +21,9 @@
 //
 // SOCIAL-PROOF NOTE FOR THE OWNER: STORIES below are illustrative
 // placeholders, not verified named customers — swap for real quotes as
-// they come in. The $999 price and BYOK/zero-recurring model are real
-// per the brief and should be kept accurate to whatever the actual offer is.
+// they come in. The flat-fee/BYOK/zero-recurring model is real per the
+// brief; the literal number is deliberately not published on this page
+// (site-wide "we discuss cost" positioning) — quote it directly when asked.
 
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
@@ -52,7 +53,7 @@ import { LegalBar } from "@/components/LegalBar";
 // --- Editable content -------------------------------------------------------
 
 const STATS = [
-  { value: "$999", label: "one-time cost, any complexity" },
+  { value: "Flat fee", label: "one-time cost, any complexity" },
   { value: "$0", label: "recurring platform fees, ever" },
   { value: "0", label: "billable consultants on your project" },
   { value: "BYOK", label: "bring your own AI provider key" },
@@ -68,7 +69,7 @@ const PAINS = [
       "Every change request becomes a new billable-hours invoice",
       "Six to twelve months pass before you see anything real running",
     ],
-    flip: "One project. One price. $999 — however complex the system actually is.",
+    flip: "One project. One flat price — however complex the system actually is.",
   },
   {
     icon: Code2,
@@ -98,7 +99,7 @@ const FEATURES = [
   {
     icon: Hammer,
     title: "Any complexity, one price",
-    line: "A full custom AI-native operating system for your business, however complicated the real-world processes behind it — engineered for a single flat $999.",
+    line: "A full custom AI-native operating system for your business, however complicated the real-world processes behind it — engineered for a single flat fee.",
   },
   {
     icon: KeyRound,
@@ -131,7 +132,7 @@ const HOW_STEPS = [
   { n: "1", title: "Tell us what you need", line: "Describe your actual business processes — however complicated. No requirements-document billing." },
   { n: "2", title: "AI designs the architecture", line: "Schema, workflows, and the AI layer, mapped directly to your real processes — not a generic template." },
   { n: "3", title: "AI builds, you review", line: "Real, working software at every stage — you approve before anything ships, the same discipline this platform builds itself with." },
-  { n: "4", title: "It's yours", line: "One-time $999. Bring your own AI key. Zero recurring charges. Forever yours." },
+  { n: "4", title: "It's yours", line: "One-time flat fee. Bring your own AI key. Zero recurring charges. Forever yours." },
 ];
 
 // Illustrative — replace with real, attributable quotes when available.
@@ -144,7 +145,7 @@ const STORIES = [
   },
   {
     quote:
-      "No hourly invoice ever showed up. We agreed on $999, and that's what we paid — for something more complete than what our last agency delivered in six months.",
+      "No hourly invoice ever showed up. We agreed on a flat fee, and that's what we paid — for something more complete than what our last agency delivered in six months.",
     who: "Operations Head",
     org: "Manufacturing SME, Pune",
   },
@@ -157,7 +158,7 @@ const STORIES = [
 ];
 
 const COMPARISON_ROWS = [
-  { label: "Upfront cost", agency: "Lakhs / five-to-six figures (USD)", forge: "$999 flat" },
+  { label: "Upfront cost", agency: "Lakhs / five-to-six figures (USD)", forge: "One flat fee — ask us" },
   { label: "Billing model", agency: "Hourly, scope changes re-billed", forge: "One-time, fixed" },
   { label: "Typical timeline", agency: "3-12 months", forge: "Days to weeks" },
   { label: "Recurring platform fee", agency: "Often $200-$2,000+/month", forge: "$0 — ever" },
@@ -173,7 +174,7 @@ function Nav() {
     { href: "#pain", label: "The problem" },
     { href: "#features", label: "Features" },
     { href: "#how", label: "How it works" },
-    { href: "#pricing", label: "Pricing" },
+    { href: "#cost", label: "Cost" },
     { href: "#sales", label: "Sales & demo" },
     { href: "/?from=forge", label: "Research" },
   ];
@@ -261,10 +262,14 @@ function Hero() {
             </h1>
 
             <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
-              FORGE builds a fully customized AI-native operating system for your business — however complex —
-              engineered entirely by AI, not a bench of billable consultants.{" "}
-              <span className="font-semibold text-ct-navy">One flat $999. Bring your own AI.</span> Zero recurring
+              A custom build shouldn&apos;t cost you months of requirements meetings and status calls. FORGE runs
+              the entire engineering process on AI — requirements to architecture to deployment — so your time goes
+              into the decisions that shape the system, not into managing a bench of billable consultants.{" "}
+              <span className="font-semibold text-ct-navy">One flat fee. Bring your own AI.</span> Zero recurring
               charges, ever.
+            </p>
+            <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
+              It doesn&apos;t replace engineering judgment — it removes the billable-hours tax on getting your say.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
@@ -279,7 +284,7 @@ function Hero() {
                 </Button>
               </a>
             </div>
-            <p className="mt-4 text-sm text-ct-muted">$999 flat · BYOK · No recurring platform fee · Built on VERIDIAN AI OS</p>
+            <p className="mt-4 text-sm text-ct-muted">Flat one-time fee · BYOK · No recurring platform fee · Built on VERIDIAN AI OS</p>
           </div>
 
           {/* the proof — AI actually engineering the system, live */}
@@ -304,7 +309,7 @@ function Hero() {
 const BUILD_STEPS = [
   { label: "Analyzing requirements", lines: ["Client onboarding & document intake", "Compliance & deadline tracking", "Role-based approval workflow", "Invoicing from logged work"] },
   { label: "Engineering the architecture", lines: ["schema.ts — 6 new tables, RLS policies", "service layer — 5 files", "api routes — validated, tenant-scoped", "landing page — reviewed by you"] },
-  { label: "Deploying your AI OS", lines: ["Migration applied", "Security check — passed", "Production build — passed", "Live — $999 total, $0/month"] },
+  { label: "Deploying your AI OS", lines: ["Migration applied", "Security check — passed", "Production build — passed", "Live — flat fee, $0/month"] },
 ] as const;
 
 function BuildLog() {
@@ -364,7 +369,7 @@ function BuildLog() {
           {complete && s === BUILD_STEPS.length - 1 && (
             <div className="mt-5 flex items-center gap-2 rounded-lg bg-white/5 px-3.5 py-2.5 text-ct-saffron">
               <Rocket className="size-4 shrink-0" />
-              <span className="text-[13px] font-semibold">Shipped — $999 one-time, $0/month, your AI key</span>
+              <span className="text-[13px] font-semibold">Shipped — flat fee, one-time, $0/month, your AI key</span>
             </div>
           )}
         </div>
@@ -543,26 +548,23 @@ function Stories() {
 
 function Pricing() {
   return (
-    <section id="pricing" className="mx-auto max-w-6xl px-5 py-20">
+    <section id="cost" className="mx-auto max-w-6xl px-5 py-20">
       <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One price. However complex the project.</h2>
+        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">One flat fee. However complex the project.</h2>
         <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
           No hourly billing, no change-request invoices, no recurring platform fee. Bring your own AI provider key
-          and the system is entirely yours.
+          and the system is entirely yours. Tell us about the build and we&apos;ll give you a number.
         </p>
       </div>
 
       <div className="mt-12 grid lg:grid-cols-[1fr_1.3fr] gap-6 items-start">
         <div className="rounded-2xl border-2 border-ct-saffron shadow-saffron bg-white p-8 text-center">
           <div className="text-sm font-semibold text-ct-muted">FORGE AI Engineering</div>
-          <div className="mt-3 flex items-baseline justify-center gap-1">
-            <span className="font-heading text-5xl text-ct-navy">$999</span>
-            <span className="text-sm text-ct-muted">/ one time</span>
-          </div>
+          <div className="mt-3 font-heading text-3xl text-ct-navy">One flat fee</div>
           <p className="mt-2 text-sm text-ct-slate">Any complexity. Fully custom. Bring your own AI.</p>
-          <Link href="/signup">
+          <Link href="/contact">
             <Button className="mt-6 w-full rounded-full bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">
-              Start your project
+              Talk to us about cost
             </Button>
           </Link>
           <ul className="mt-6 space-y-2.5 text-left">
@@ -601,7 +603,7 @@ function FinalCta() {
         <ShieldCheck className="mx-auto size-8 text-ct-saffron" />
         <h2 className="mt-4 font-heading text-3xl md:text-5xl">Stop paying agency prices for agency timelines.</h2>
         <p className="mx-auto mt-4 max-w-xl text-white/70">
-          One flat $999. Bring your own AI. Zero recurring charges. However complicated your project actually is.
+          One flat fee. Bring your own AI. Zero recurring charges. However complicated your project actually is.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
           <Link href="/signup">
@@ -633,7 +635,7 @@ function Footer() {
         </div>
         <div className="flex items-center gap-6 text-sm text-ct-muted">
           <a href="#features" className="hover:text-ct-navy">Features</a>
-          <a href="#pricing" className="hover:text-ct-navy">Pricing</a>
+          <a href="#cost" className="hover:text-ct-navy">Cost</a>
           <Link href="/login" className="hover:text-ct-navy">Log in</Link>
         </div>
         <div className="text-sm text-ct-muted">© {new Date().getFullYear()} VERIDIAN AI</div>

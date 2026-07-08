@@ -159,43 +159,6 @@ const STORIES = [
   },
 ];
 
-// Placeholder pricing — set your real prices here.
-const PRICING = [
-  {
-    name: "Starter",
-    price: "₹299",
-    unit: "/ asset / month",
-    tagline: "For a single campus getting its register digital for the first time.",
-    features: ["Up to 200 assets", "Register digitization included", "PPM & AMC scheduling", "Email support"],
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Business",
-    price: "₹499",
-    unit: "/ asset / month",
-    tagline: "The complete facilities operation, multi-site, ground staff included.",
-    features: [
-      "Unlimited assets, multiple sites",
-      "QR-code scan-to-checklist",
-      "Visitor management",
-      "Asset deduplication & data-quality checks",
-      "Priority support",
-    ],
-    cta: "Start free",
-    highlight: true,
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    unit: "",
-    tagline: "For large portfolios with security & integration needs.",
-    features: ["Everything in Business", "SSO & advanced security", "Dedicated success manager", "Custom vendor/ERP integrations"],
-    cta: "Talk to us",
-    highlight: false,
-  },
-];
-
 // --- Sections ---------------------------------------------------------------
 
 function Nav() {
@@ -204,7 +167,7 @@ function Nav() {
     { href: "#pain", label: "The problem" },
     { href: "#features", label: "Features" },
     { href: "#how", label: "How it works" },
-    { href: "#pricing", label: "Pricing" },
+    { href: "#cost", label: "Cost" },
     { href: "#sales", label: "Sales & demo" },
     { href: "/?from=veri-fm-cs", label: "Research" },
   ];
@@ -296,6 +259,10 @@ function Hero() {
               photograph a register page or upload your Excel sheet, and{" "}
               <span className="font-semibold text-ct-navy">AI quietly builds the digital version</span>. Your
               technicians just scan a QR code and tap. No typing, no training.
+            </p>
+            <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
+              It doesn&apos;t replace your ground staff — it gives them back the hours they used to spend writing
+              things down twice.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
@@ -622,57 +589,19 @@ function Stories() {
   );
 }
 
-function Pricing() {
+function CostCta() {
   return (
-    <section id="pricing" className="mx-auto max-w-6xl px-5 py-20">
-      <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Simple, per-asset pricing.</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          No separate charge for digitization, PPM, AMC tracking, or visitor management — it&apos;s all included.
-          Start free; pay only once your first register is live.
-        </p>
-      </div>
-      <div className="mt-12 grid md:grid-cols-3 gap-5 items-start">
-        {PRICING.map((p) => (
-          <div
-            key={p.name}
-            className={`rounded-2xl border p-7 bg-white ${
-              p.highlight ? "border-2 border-ct-saffron shadow-saffron relative" : "border-ct-border"
-            }`}
-          >
-            {p.highlight && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-ct-saffron px-3 py-1 text-xs font-semibold text-white">
-                Most popular
-              </div>
-            )}
-            <div className="text-lg font-semibold text-ct-navy">{p.name}</div>
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className="font-heading text-4xl text-ct-navy">{p.price}</span>
-              <span className="text-sm text-ct-muted">{p.unit}</span>
-            </div>
-            <p className="mt-2 text-sm text-ct-slate">{p.tagline}</p>
-            <Link href="/signup">
-              <Button
-                className={`mt-5 w-full rounded-full ${
-                  p.highlight
-                    ? "bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
-                    : "bg-ct-navy hover:bg-ct-navy/90 text-white"
-                }`}
-              >
-                {p.cta}
-              </Button>
-            </Link>
-            <ul className="mt-6 space-y-2.5">
-              {p.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-ct-slate">
-                  <Check className="mt-0.5 size-4 shrink-0 text-ct-teal" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+    <section id="cost" className="mx-auto max-w-4xl px-5 py-20 text-center">
+      <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">We discuss cost. We don&apos;t publish price lists.</h2>
+      <p className="mx-auto mt-4 max-w-xl text-ct-slate">
+        What a portfolio pays should track its own asset count and sites — not a rate card. Tell us about your
+        facilities and we&apos;ll work out a number that pays for itself.
+      </p>
+      <Link href="/contact">
+        <Button className="mt-7 h-12 rounded-full bg-ct-navy hover:bg-ct-navy/90 px-8 text-base text-white">
+          Talk to us about cost
+        </Button>
+      </Link>
     </section>
   );
 }
@@ -717,7 +646,7 @@ function Footer() {
         </div>
         <div className="flex items-center gap-6 text-sm text-ct-muted">
           <a href="#features" className="hover:text-ct-navy">Features</a>
-          <a href="#pricing" className="hover:text-ct-navy">Pricing</a>
+          <a href="#cost" className="hover:text-ct-navy">Cost</a>
           <Link href="/login" className="hover:text-ct-navy">Log in</Link>
         </div>
         <div className="text-sm text-ct-muted">© {new Date().getFullYear()} VERIDIAN AI</div>
@@ -737,7 +666,7 @@ export default function VeriFmCsLandingPage() {
       <How />
       <PoweredBy />
       <Stories />
-      <Pricing />
+      <CostCta />
       <ProductSalesSection product="VERI FM & CS AI OS" />
       <FinalCta />
       <Footer />

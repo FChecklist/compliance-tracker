@@ -20,24 +20,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { X, Sparkles } from "lucide-react";
+import { getVisitorId } from "@/lib/visitor-id";
 
-const VID_KEY = "VERIDIAN_VID";
 const OFFER_SESSION_KEY = "VERIDIAN_OFFER_SHOWN";
 
 type Offer = { code: string; headline: string; body: string; discountPct: number; validHours: number };
-
-function getVisitorId(): string {
-  try {
-    let vid = localStorage.getItem(VID_KEY);
-    if (!vid) {
-      vid = `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-      localStorage.setItem(VID_KEY, vid);
-    }
-    return vid;
-  } catch {
-    return `v_ephemeral_${Math.random().toString(36).slice(2, 10)}`;
-  }
-}
 
 function track(body: Record<string, unknown>, useBeacon = false) {
   const payload = JSON.stringify(body);

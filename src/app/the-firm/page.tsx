@@ -20,10 +20,9 @@
 // client/company names in the cockpit mockup are illustrative only.
 
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
-  Check,
   Menu,
   X,
   Sparkles,
@@ -37,12 +36,12 @@ import {
   Receipt,
   FileWarning,
   Users,
-  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductSalesSection } from "@/components/ProductSalesSection";
 import { VisitorIntelligence } from "@/components/VisitorIntelligence";
 import { LegalBar } from "@/components/LegalBar";
+import { RealProductDemo } from "@/components/RealProductDemo";
 
 // --- Editable content -------------------------------------------------------
 
@@ -153,44 +152,6 @@ const STORIES = [
   },
 ];
 
-// Placeholder pricing — set your real prices here. Priced per staff seat,
-// since a firm owner thinks in "how many people on my team," not per client.
-const PRICING = [
-  {
-    name: "Starter",
-    price: "₹999",
-    unit: "/ staff seat / month",
-    tagline: "For a small practice getting its client roster and deadlines onto one system.",
-    features: ["Up to 5 staff seats", "Client roster & service-line scoping", "Engagements & deliverables", "Email support"],
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Business",
-    price: "₹1,499",
-    unit: "/ staff seat / month",
-    tagline: "The complete practice operation — tax-case workflow, capacity, and billing included.",
-    features: [
-      "Unlimited staff seats",
-      "Indian tax-case workflow",
-      "Staff assignment & capacity tracking",
-      "Time tracking & billing from unbilled hours",
-      "Priority support",
-    ],
-    cta: "Start free",
-    highlight: true,
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    unit: "",
-    tagline: "For multi-branch firms with security & integration needs.",
-    features: ["Everything in Business", "SSO & advanced security", "Dedicated success manager", "Custom integrations"],
-    cta: "Talk to us",
-    highlight: false,
-  },
-];
-
 // --- Sections ---------------------------------------------------------------
 
 function Nav() {
@@ -199,7 +160,7 @@ function Nav() {
     { href: "#pain", label: "The problem" },
     { href: "#features", label: "Features" },
     { href: "#how", label: "How it works" },
-    { href: "#pricing", label: "Pricing" },
+    { href: "#cost", label: "Cost" },
     { href: "#sales", label: "Sales & demo" },
     { href: "/?from=the-firm", label: "Research" },
   ];
@@ -287,10 +248,13 @@ function Hero() {
             </h1>
 
             <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
-              THE FIRM is the one system for a CA, CS, Legal, GRC, or Audit practice — every client, every service
-              line, in one roster.{" "}
-              <span className="font-semibold text-ct-navy">One deadline radar. One staff-utilization view.</span>{" "}
-              Bill from unbilled hours in one click.
+              Practice software needs your time — re-keying the same client data, chasing your own staff for
+              status. THE FIRM flips that: one AI Operating System that does the working across every client,
+              every service line, so you spend your time on the calls that need a partner&apos;s judgment, not on
+              data entry.
+            </p>
+            <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
+              It doesn&apos;t replace your staff — it makes every one of them 10× more productive.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
@@ -305,163 +269,16 @@ function Hero() {
                 </Button>
               </a>
             </div>
-            <p className="mt-4 text-sm text-ct-muted">No credit card · Add your first client in 2 minutes · Built on VERIDIAN AI OS</p>
+            <p className="mt-4 text-sm text-ct-muted">No credit card · Add your first client in 2 minutes · built for decisions, not data entry</p>
           </div>
 
-          {/* the proof — the owner's own command center, working */}
+          {/* the proof — the real product, working */}
           <div>
-            <PracticeCockpit />
-            <p className="mt-3 text-center text-sm text-ct-muted">
-              ↑ Your whole practice — clients, deadlines, and staff — in one screen.
-            </p>
+            <RealProductDemo />
           </div>
         </div>
       </div>
     </section>
-  );
-}
-
-// A browser-chrome-framed, auto-cycling recreation of the owner's own
-// command-center view — deliberately NOT a phone mockup (that's VERI FM &
-// CS's adoption angle for ground staff). Here the buyer wants command-
-// center visibility across staff AND clients, so the artifact is a desktop
-// dashboard, mirroring the parent site's own AgentWindow rhythm (script →
-// reveal → hold → next screen). Client/company names shown are
-// illustrative, not real customers.
-const ROSTER_ROWS = [
-  { name: "Shah Textiles Pvt Ltd", lines: ["CA", "GST"], partner: "RM", due: "GST-3B · 3 days" },
-  { name: "Verma & Sons LLP", lines: ["CS", "Legal"], partner: "AK", due: "Board meeting · 6 days" },
-  { name: "Rohit Verma (Individual)", lines: ["CA"], partner: "RM", due: "ITR filing · 12 days" },
-  { name: "Bright Textiles Ltd", lines: ["Audit", "GRC"], partner: "PS", due: "Statutory audit · 18 days" },
-] as const;
-
-const DEADLINE_ROWS = [
-  { client: "Shah Textiles", label: "GST-3B return", type: "Compliance", days: 3 },
-  { client: "Bright Textiles", label: "Limitation date — AY 2022-23 scrutiny", type: "Tax case", days: 9 },
-  { client: "Verma & Sons", label: "Board meeting minutes", type: "Deliverable", days: 6 },
-  { client: "Rohit Verma", label: "ITR filing", type: "Compliance", days: 12 },
-] as const;
-
-const STAFF_ROWS = [
-  { name: "Priya S. — Partner", allocated: 40, actual: 38 },
-  { name: "Arjun K. — Manager", allocated: 40, actual: 44 },
-  { name: "Neha R. — Associate", allocated: 35, actual: 22 },
-  { name: "Vikram T. — Staff", allocated: 30, actual: 31 },
-] as const;
-
-const COCKPIT_SCREENS = [
-  { title: "Client roster", rows: ROSTER_ROWS },
-  { title: "Deadline radar", rows: DEADLINE_ROWS },
-  { title: "Staff utilization", rows: STAFF_ROWS },
-] as const;
-
-function PracticeCockpit() {
-  const frames = useMemo(() => {
-    const f: { s: number; v: number }[] = [];
-    COCKPIT_SCREENS.forEach((sc, si) => {
-      for (let v = 0; v <= sc.rows.length; v++) f.push({ s: si, v });
-      for (let h = 0; h < 3; h++) f.push({ s: si, v: sc.rows.length });
-    });
-    return f;
-  }, []);
-
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setI((x) => (x + 1) % frames.length), 900);
-    return () => clearInterval(id);
-  }, [frames.length]);
-
-  const { s, v } = frames[i];
-  const screen = COCKPIT_SCREENS[s];
-
-  return (
-    <div className="mx-auto w-full max-w-lg">
-      <div className="rounded-2xl border border-ct-border bg-white shadow-card overflow-hidden">
-        {/* browser chrome */}
-        <div className="flex items-center gap-1.5 border-b border-ct-border bg-ct-cloud px-4 py-2.5">
-          <span className="size-2.5 rounded-full bg-red-300" />
-          <span className="size-2.5 rounded-full bg-yellow-300" />
-          <span className="size-2.5 rounded-full bg-green-300" />
-          <span className="ml-3 rounded bg-white px-3 py-0.5 text-[11px] text-ct-muted">the-firm.app/practice</span>
-        </div>
-
-        <div className="p-5 min-h-[340px] bg-gradient-to-b from-white to-ct-cream">
-          <div className="flex items-center justify-between">
-            <div className="font-heading text-lg text-ct-navy leading-tight">{screen.title}</div>
-            <div className="flex items-center gap-1.5 text-xs text-ct-muted">
-              {screen.title === "Deadline radar" && <AlertTriangle className="size-3.5 text-ct-saffron" />}
-              {screen.title === "Staff utilization" && <UserCheck className="size-3.5 text-ct-teal" />}
-              {screen.title === "Client roster" && <Users className="size-3.5 text-ct-slate" />}
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-2.5">
-            {screen.rows.map((row, idx) => {
-              const revealed = idx < v;
-              return (
-                <div
-                  key={`${s}-${idx}`}
-                  className={`rounded-xl border px-3.5 py-3 text-sm transition-opacity border-ct-border bg-white ${
-                    revealed ? "opacity-100 animate-in fade-in slide-in-from-bottom-1 duration-300" : "opacity-30"
-                  }`}
-                >
-                  {"lines" in row && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-ct-navy">{row.name}</span>
-                      <span className="rounded-full bg-ct-teal/10 px-2 py-0.5 text-[11px] font-medium text-ct-teal shrink-0">{row.due}</span>
-                    </div>
-                  )}
-                  {"lines" in row && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {row.lines.map((l) => (
-                        <span key={l} className="rounded-md bg-ct-cloud px-2 py-0.5 text-[10px] font-medium text-ct-slate">{l}</span>
-                      ))}
-                      <span className="rounded-md bg-ct-navy/5 px-2 py-0.5 text-[10px] font-medium text-ct-navy">{row.partner}</span>
-                    </div>
-                  )}
-
-                  {"type" in row && (
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <span className="font-medium text-ct-navy">{row.label}</span>
-                        <span className="ml-2 text-[11px] text-ct-muted">{row.client}</span>
-                      </div>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium shrink-0 ${row.days <= 5 ? "bg-red-50 text-red-500" : "bg-ct-saffron/10 text-ct-saffron"}`}>
-                        {row.days}d
-                      </span>
-                    </div>
-                  )}
-
-                  {"allocated" in row && (
-                    <div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-ct-navy">{row.name}</span>
-                        <span className="text-ct-muted">{row.actual}h / {row.allocated}h</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full rounded-full bg-ct-cloud overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${row.actual > row.allocated ? "bg-red-300" : "bg-ct-teal"}`}
-                          style={{ width: `${Math.min(100, Math.round((row.actual / row.allocated) * 100))}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-center gap-1.5">
-        {COCKPIT_SCREENS.map((_, idx) => (
-          <span
-            key={idx}
-            className={`h-1.5 rounded-full transition-all ${idx === s ? "w-6 bg-ct-saffron" : "w-1.5 bg-ct-border"}`}
-          />
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -635,57 +452,19 @@ function Stories() {
   );
 }
 
-function Pricing() {
+function CostCta() {
   return (
-    <section id="pricing" className="mx-auto max-w-6xl px-5 py-20">
-      <div className="text-center">
-        <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">Simple, per-staff-seat pricing.</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
-          No separate charge for tax-case workflow, staff capacity, or billing — it's all included. Start free; pay
-          only once your practice is live.
-        </p>
-      </div>
-      <div className="mt-12 grid md:grid-cols-3 gap-5 items-start">
-        {PRICING.map((p) => (
-          <div
-            key={p.name}
-            className={`rounded-2xl border p-7 bg-white ${
-              p.highlight ? "border-2 border-ct-saffron shadow-saffron relative" : "border-ct-border"
-            }`}
-          >
-            {p.highlight && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-ct-saffron px-3 py-1 text-xs font-semibold text-white">
-                Most popular
-              </div>
-            )}
-            <div className="text-lg font-semibold text-ct-navy">{p.name}</div>
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className="font-heading text-4xl text-ct-navy">{p.price}</span>
-              <span className="text-sm text-ct-muted">{p.unit}</span>
-            </div>
-            <p className="mt-2 text-sm text-ct-slate">{p.tagline}</p>
-            <Link href="/signup">
-              <Button
-                className={`mt-5 w-full rounded-full ${
-                  p.highlight
-                    ? "bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
-                    : "bg-ct-navy hover:bg-ct-navy/90 text-white"
-                }`}
-              >
-                {p.cta}
-              </Button>
-            </Link>
-            <ul className="mt-6 space-y-2.5">
-              {p.features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm text-ct-slate">
-                  <Check className="mt-0.5 size-4 shrink-0 text-ct-teal" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+    <section id="cost" className="mx-auto max-w-4xl px-5 py-20 text-center">
+      <h2 className="font-heading text-3xl md:text-4xl text-ct-navy">We discuss cost. We don&apos;t publish price lists.</h2>
+      <p className="mx-auto mt-4 max-w-xl text-ct-slate">
+        What a practice pays should track its own headcount and service lines — not a rate card. Tell us about your
+        firm and we&apos;ll work out a number that pays for itself.
+      </p>
+      <Link href="/contact">
+        <Button className="mt-7 h-12 rounded-full bg-ct-navy hover:bg-ct-navy/90 px-8 text-base text-white">
+          Talk to us about cost
+        </Button>
+      </Link>
     </section>
   );
 }
@@ -729,7 +508,7 @@ function Footer() {
         </div>
         <div className="flex items-center gap-6 text-sm text-ct-muted">
           <a href="#features" className="hover:text-ct-navy">Features</a>
-          <a href="#pricing" className="hover:text-ct-navy">Pricing</a>
+          <a href="#cost" className="hover:text-ct-navy">Cost</a>
           <Link href="/login" className="hover:text-ct-navy">Log in</Link>
         </div>
         <div className="text-sm text-ct-muted">© {new Date().getFullYear()} VERIDIAN AI</div>
@@ -749,7 +528,7 @@ export default function TheFirmLandingPage() {
       <How />
       <PoweredBy />
       <Stories />
-      <Pricing />
+      <CostCta />
       <ProductSalesSection product="THE FIRM AI OS" />
       <FinalCta />
       <Footer />

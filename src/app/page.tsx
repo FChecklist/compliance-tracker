@@ -106,13 +106,13 @@ export default async function CognitiveRootPage({
             <a href="#research" className="hover:text-[#1a1a17]">Research</a>
             <a href="#products" className="hover:text-[#1a1a17]">Products</a>
             <a href="#cost" className="hover:text-[#1a1a17]">On cost</a>
-            <a href="#sales" className="hover:text-[#1a1a17]">Sales</a>
+            <Link href="/join-us" className="hover:text-[#1a1a17]">Join Us</Link>
           </div>
           <Link
-            href="/login"
+            href="/contact"
             className="rounded-full border border-[#1a1a17]/20 px-5 py-2 text-sm hover:bg-[#1a1a17] hover:text-[#F4F1E8] transition-colors"
           >
-            Sign in
+            Contact Us
           </Link>
         </div>
       </nav>
@@ -125,7 +125,7 @@ export default async function CognitiveRootPage({
         <h1 className="mt-8 max-w-4xl font-heading text-5xl leading-[1.06] sm:text-6xl md:text-7xl">
           We research how a business thinks.
           <br />
-          Then we build the system that thinks for it.
+          Then we build the AI system that thinks for it.
         </h1>
         <p className="mt-8 max-w-2xl text-lg leading-relaxed text-[#1a1a17]/70">
           VERIDIAN is a cognitive research and engineering practice. Our work becomes advanced,
@@ -253,39 +253,6 @@ export default async function CognitiveRootPage({
         </p>
       </section>
 
-      {/* sales — one organisation, four doors */}
-      <section id="sales" className="border-t border-[#1a1a17]/10 bg-[#EDE9DC]">
-        <div className="mx-auto max-w-6xl px-6 py-20 md:py-24">
-          <div className="grid gap-10 md:grid-cols-2 md:items-start">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Sales</div>
-              <h2 className="mt-4 font-heading text-3xl sm:text-4xl">
-                One sales organisation,
-                <br />
-                everything we build
-              </h2>
-              <p className="mt-5 max-w-md leading-relaxed text-[#1a1a17]/70">
-                Demos, guided walkthroughs and the partner programme for every VERIDIAN product run
-                through a single team — VERIDIAN AI OS Sales — so partners carry one link, one
-                dashboard, one commission ledger across the whole portfolio.
-              </p>
-            </div>
-            <div className="grid gap-3">
-              {PRODUCTS.map((p) => (
-                <Link
-                  key={p.href}
-                  href={`${p.href}#sales`}
-                  className="group flex items-center justify-between rounded-xl border border-[#1a1a17]/15 bg-[#F9F7F0] px-5 py-4 transition-colors hover:border-[#1a1a17]/40"
-                >
-                  <span className="text-sm font-medium">{p.name} — demos & partners</span>
-                  <ArrowRight className="size-4 text-[#1a1a17]/40 transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* footer */}
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
@@ -298,7 +265,8 @@ export default async function CognitiveRootPage({
             <Link href="/the-firm" className="hover:text-[#1a1a17]">The Firm</Link>
             <Link href="/veri-fm-cs" className="hover:text-[#1a1a17]">FM & CS</Link>
             <Link href="/forge" className="hover:text-[#1a1a17]">Forge</Link>
-            <Link href="/login" className="hover:text-[#1a1a17]">Sign in</Link>
+            <Link href="/join-us" className="hover:text-[#1a1a17]">Join Us</Link>
+            <Link href="/contact" className="hover:text-[#1a1a17]">Contact Us</Link>
           </div>
           <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} VERIDIAN AI</div>
         </div>
