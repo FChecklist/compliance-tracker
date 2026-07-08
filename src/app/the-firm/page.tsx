@@ -238,7 +238,7 @@ function Hero() {
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
               <span className="size-1.5 rounded-full bg-ct-teal" />
-              CA · CS · Legal · GRC · Audit · Part of VERIDIAN AI OS
+              CA · CS · Legal · GRC · Audit
             </div>
 
             <h1 className="mt-6 font-heading text-4xl leading-[1.08] text-ct-navy sm:text-5xl xl:text-6xl">
@@ -248,13 +248,14 @@ function Hero() {
             </h1>
 
             <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
-              Practice software needs your time — re-keying the same client data, chasing your own staff for
-              status. THE FIRM flips that: one AI Operating System that does the working across every client,
-              every service line, so you spend your time on the calls that need a partner&apos;s judgment, not on
-              data entry.
+              Legacy practice software is old — re-keying the same client data, chasing your own staff for
+              status. THE FIRM AI OS flips that: one complete, end-to-end AI Operating System that does the
+              working across every client, every service line, so you spend your time on decisions — your
+              business, not data entry.
             </p>
             <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
-              It doesn&apos;t replace your staff — it makes every one of them 10× more productive.
+              It doesn&apos;t replace your staff — it makes every one of them 10× more productive, and the work
+              easier and happier.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">

@@ -23,6 +23,9 @@ import { X, Sparkles } from "lucide-react";
 import { getVisitorId } from "@/lib/visitor-id";
 
 const OFFER_SESSION_KEY = "VERIDIAN_OFFER_SHOWN";
+// Discount popup was showing on live public pages unapproved — disabled.
+// Tracking (page/section/CTA/exit events) stays on; only the offer modal is off.
+const OFFER_ENABLED = false;
 
 type Offer = { code: string; headline: string; body: string; discountPct: number; validHours: number };
 
@@ -46,6 +49,7 @@ export function VisitorIntelligence({ page, productKey }: { page: string; produc
   const vidRef = useRef<string>("");
 
   const requestOffer = useCallback(async () => {
+    if (!OFFER_ENABLED) return;
     if (offerRequested.current) return;
     // one offer per browser session, across all our pages
     try {

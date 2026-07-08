@@ -60,6 +60,13 @@ function isRestrictedPath(pathname: string): boolean {
   return pathname.startsWith("/posh") || pathname.startsWith("/whistleblower")
 }
 
+// Global kill switch: PageAgent disabled across all of VERIDIAN, all orgs --
+// existing orgs created before Wave 24's schema default flip still have
+// pageAgentEnabled=true stored, so the per-org DB flag alone doesn't turn
+// it off everywhere. Rejected here, before any provider call is made, same
+// as the restricted-path check below -- not solely a client-side gate.
+const PAGE_AGENT_ENABLED = false
+
 // Best-effort extraction of the latest user turn's text, for the policy
 // gate below -- content is usually a plain string, but the page-agent
 // library can also send structured/multi-part content, hence the fallback.
@@ -88,6 +95,10 @@ function injectPurposeClause(messages: unknown[]): unknown[] {
 }
 
 export async function POST(request: NextRequest) {
+  if (!PAGE_AGENT_ENABLED) {
+    return NextResponse.json({ error: "PageAgent is globally disabled" }, { status: 403 })
+  }
+
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })

@@ -269,7 +269,8 @@ function Hero() {
               you spend your time on decisions, not on doing the software&apos;s job.
             </p>
             <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
-              It doesn&apos;t replace your people — it makes every one of them 10× more productive.
+              It doesn&apos;t replace your people — it makes every one of them 10× more productive, and the work
+              easier and happier.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">

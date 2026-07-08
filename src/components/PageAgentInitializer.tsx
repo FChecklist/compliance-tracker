@@ -27,6 +27,14 @@ import type { PageAgent as PageAgentType } from "page-agent";
 
 const RESTRICTED_PREFIXES = ["/posh", "/whistleblower"];
 
+// Global kill switch: PageAgent disabled across all of VERIDIAN, all orgs,
+// regardless of any org's stored pageAgentEnabled value. Existing orgs
+// created before Wave 24's schema default flip still have that column set
+// to true, so the per-org DB flag alone doesn't turn it off everywhere --
+// this short-circuits the mount before /api/page-agent/config is even
+// called. Mirrors the enforcement below in /api/page-agent/proxy.
+const PAGE_AGENT_ENABLED = false;
+
 type PageAgentConfigResponse = { enabled: boolean; hasModelConfigured: boolean };
 
 export default function PageAgentInitializer() {
@@ -40,6 +48,7 @@ export default function PageAgentInitializer() {
   const agentRef = useRef<PageAgentType | null>(null);
 
   useEffect(() => {
+    if (!PAGE_AGENT_ENABLED) return;
     let cancelled = false;
     fetch("/api/page-agent/config")
       .then((r) => r.json())
