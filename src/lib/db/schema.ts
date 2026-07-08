@@ -6717,3 +6717,37 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   estimatedCostUsd: numeric('estimated_cost_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── VERIDIAN Computational Engine Library (VCEL) ────────────────────────
+// Built 2026-07-08 per the founder's "VERIDIAN Computational Engineering"
+// principle: every deterministic business computation should be executed
+// by real software, never an LLM -- AI does reasoning/communication/
+// prediction/decision-support, engines do the math. This is the
+// discoverable catalog (mirrors capability-registry-service.ts's posture
+// for worker agents/modules: a real, queryable inventory, not a doc that
+// drifts) so the "can software complete this task?" routing step in the
+// founder's own diagram has something real to check against.
+//
+// Status is graded honestly, not aspirationally: 'implemented' means a
+// real, cited implementationRef exists and was verified via direct code
+// read (not assumed); 'partial' means the capability exists but embedded
+// inside a larger service rather than as a standalone reusable engine;
+// 'not_started' is the honest majority for a ~250-entry taxonomy audited
+// in one pass. openSourceRef notes when a standard OSS library is the
+// right build vs. hand-rolling a formula, per the founder's own "don't
+// recreate what you can copy" principle.
+export const computationEngines = complianceSchemaDB.table('computation_engines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  engineKey: text('engine_key').notNull().unique(), // stable slug, e.g. 'gst_split_engine'
+  name: text('name').notNull(), // display name, e.g. "GST Split Engine"
+  category: text('category').notNull(), // one of the founder's 25 domain groupings, e.g. "GST Engine"
+  description: text('description'),
+  status: text('status').notNull().default('not_started'), // 'implemented' | 'partial' | 'not_started'
+  implementationRef: text('implementation_ref'), // file path (+ function name) when implemented/partial, verified not assumed
+  openSourceRef: text('open_source_ref'), // note on a standard OSS library to use instead of hand-rolling, when applicable
+  inputSchema: jsonb('input_schema').notNull().default({}),
+  outputSchema: jsonb('output_schema').notNull().default({}),
+  notes: text('notes'), // honest caveats, e.g. "conflicts with prior Wave 35 decision to use LLM Vision over OCR libs"
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
