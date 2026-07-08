@@ -14,7 +14,7 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ filings: [] })
   const rows = await withTenantContext({ orgId }, (db) => db.query.mcaFilings.findMany({ orderBy: desc(mcaFilings.createdAt) }))
-  return NextResponse.json({ filings: rows.map((f) => ({ id: f.id, formType: f.formType, description: f.description, dueDate: f.dueDate?.toISOString() ?? null, status: f.status, srn: f.srn })) })
+  return NextResponse.json({ filings: rows.map((f) => ({ id: f.id, formType: f.formType, description: f.description, dueDate: f.dueDate?.toISOString() ?? null, status: f.status, srn: f.srn, formData: f.formData, generatedAt: f.generatedAt?.toISOString() ?? null })) })
 }
 
 export async function POST(request: NextRequest) {

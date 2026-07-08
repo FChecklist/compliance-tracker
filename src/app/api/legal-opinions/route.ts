@@ -10,7 +10,7 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ opinions: [] })
   const rows = await withTenantContext({ orgId }, (db) => db.query.legalOpinions.findMany({ orderBy: desc(legalOpinions.createdAt) }))
-  return NextResponse.json({ opinions: rows.map((o) => ({ id: o.id, topic: o.topic, opinionDate: o.opinionDate?.toISOString() ?? null, advisor: o.advisor })) })
+  return NextResponse.json({ opinions: rows.map((o) => ({ id: o.id, topic: o.topic, opinionDate: o.opinionDate?.toISOString() ?? null, advisor: o.advisor, bodyText: o.bodyText, generatedAt: o.generatedAt?.toISOString() ?? null })) })
 }
 
 export async function POST(request: NextRequest) {

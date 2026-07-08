@@ -1782,6 +1782,12 @@ export const secretarialAudits = complianceSchemaDB.table('secretarial_audits', 
 // actual submission requires the Company Secretary's own Digital Signature
 // Certificate on the government MCA portal. No code path here should ever
 // imply otherwise.
+// formData/generatedAt (added alongside mca-form-generator.ts): a real,
+// structured, filing-ready data compilation for AOC-4/MGT-7/DIR-12/CHG-1 --
+// sourced from directors_kmp/cap_table_entries/company_charges/board_meetings/
+// the ERP balance-sheet-P&L engine, in the actual field shape those MCA
+// e-forms require (public government form spec, not any third party's
+// code). Still stops at data compilation, same submission boundary as above.
 export const mcaFilings = complianceSchemaDB.table('mca_filings', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   formType: text('form_type').notNull(),
@@ -1790,6 +1796,8 @@ export const mcaFilings = complianceSchemaDB.table('mca_filings', {
   status: text('status').notNull().default('preparing'), // 'preparing' | 'ready_to_file' | 'filed'
   srn: text('srn'),
   filedDate: timestamp('filed_date'),
+  formData: jsonb('form_data'),
+  generatedAt: timestamp('generated_at'),
   orgId: text('org_id').notNull(),
   clientId: text('client_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1844,6 +1852,11 @@ export const ipPortfolio = complianceSchemaDB.table('ip_portfolio', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// bodyText/templateId/generatedAt (added alongside legal-opinion-service.ts):
+// real document drafting, reusing the exact same clm_contract_templates/
+// clm_template_clauses/clm_clauses infrastructure CLM contracts already use
+// for token-substitution generation -- a template isn't inherently
+// contract-specific, so no new clause/template schema was needed.
 export const legalOpinions = complianceSchemaDB.table('legal_opinions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   topic: text('topic').notNull(),
@@ -1851,6 +1864,9 @@ export const legalOpinions = complianceSchemaDB.table('legal_opinions', {
   advisor: text('advisor'),
   linkedRiskId: text('linked_risk_id'),
   matterId: text('matter_id'), // Wave 90
+  templateId: text('template_id'),
+  bodyText: text('body_text'),
+  generatedAt: timestamp('generated_at'),
   orgId: text('org_id').notNull(),
   clientId: text('client_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
