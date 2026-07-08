@@ -18,6 +18,7 @@ import { eq, sql, desc, gte, and } from "drizzle-orm"
 import { resolvePlatformModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 
 export type TrackPayload = {
   visitorId: string
@@ -194,13 +195,7 @@ export async function analyzeFunnelWithAI(ctx: { orgId: string; userId: string }
   const modelConfig = await resolvePlatformModelConfig("task_oa")
   if (!modelConfig) throw new Error("No platform model configured for task_oa")
 
-  const systemPrompt =
-    "You are VERIDIAN SALES AI, the conversion-analysis layer of a multi-product AI platform. " +
-    "You receive 30-day website funnel data: totals, per-product traffic, and drop-off points " +
-    "(the last section a visitor saw before leaving). Your single objective is converting visitors " +
-    "to signups. Respond ONLY with JSON: {\"summary\": string (2-3 sentences), \"biggestLeak\": string " +
-    "(the one drop-off costing the most conversions and why), \"recommendations\": string[] (3-5 specific, " +
-    "actionable changes to pages or offers, ordered by expected impact)}."
+  const systemPrompt = await resolvePromptTemplate("sales_ai.funnel_analysis")
 
   const started = Date.now()
   const { data, usage } = await callLLMJson<FunnelAnalysis>(

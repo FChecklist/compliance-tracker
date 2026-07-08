@@ -66,9 +66,12 @@ Flat, severity-sorted list synthesized from [`AUDIT_2026-07-09.md`](AUDIT_2026-0
 - ~7 undocumented denormalized total columns on ERP documents (grandTotal/totalAmount/outstandingAmount). (S, Yes)
 - Confirmed redundant table pairs: `contactSubmissions`/`forgeProjectRequests`, and `pmsTimeEntries`+`pmsBillableRates`/`firmTimeEntries`+`firmBillableRates`. (S-M, Yes)
 - No rate limiting on session-authenticated routes or 18 AI-backed routes. (M, Yes)
-- Payroll: `percentage_of_gross` earning component silently computes as zero; PT-slab lookup silently falls back to highest slab on misconfiguration. (S each, Yes)
+- ✅ **CLOSED** ~~Payroll: `percentage_of_gross` earning component silently computes as zero; PT-slab lookup silently falls back to highest slab on misconfiguration~~ — real two-pass gross calculation implemented; PT now surfaces "enter manually" instead of guessing a rate. (S each, Yes)
 - ✅ **CLOSED** ~~`DOMAIN_ALLOWED_TOOLS` for the `compliance` domain (3 tools) is narrower than `dispatchTool()`'s actual read-only implementation (13+ tools), and construction/PROJEXA isn't a key in the map at all~~ — added the 5 missing read-only compliance/GST tools to the `compliance` entry and a new `construction` entry with all 7 read-only PROJEXA tools; write actions (`update_compliance_status` etc.) deliberately left off, per the allowlist's own structured-dispatch-only design for writes. (S, Yes)
 - No customer-facing status page/uptime history. (M, Yes)
+- ✅ **CLOSED** ~~`findSimilarCapabilities`/`findSimilarPromptPatterns` have no relevance floor~~ — added the same 0.5 threshold `assistant-memory-service.ts` already uses. (Trivial, Yes)
+- ✅ **CLOSED** ~~`analyzeFunnelWithAI`'s system prompt is hardcoded inline instead of using the Prompt OS~~ — migrated to `sales_ai.funnel_analysis`, seeded live via migration `0120_wave138_...sql`. (S, Yes)
+- ✅ **CLOSED** ~~`ServiceError` is independently redefined in two places (`compliance-service.ts` and `sales-engine-service.ts`)~~ — `sales-engine-service.ts` now re-exports the canonical class instead of defining its own. (S, Yes)
 
 ---
 

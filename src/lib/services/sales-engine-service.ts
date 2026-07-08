@@ -15,14 +15,15 @@ import { eq, and, isNull, sql as drizzleSql } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { hasRole, type UserRole } from "@/lib/supabase/auth-guard"
 import type { users } from "@/lib/db"
-
-export class ServiceError extends Error {
-  status: number
-  constructor(message: string, status: number) {
-    super(message)
-    this.status = status
-  }
-}
+// Gap closure, 2026-07-09 (AUDIT_2026-07-09.md): this module used to define
+// its own independent ServiceError class, identical in shape to
+// compliance-service.ts's. Two classes with the same name/shape is a real
+// footgun for `instanceof` checks (an error thrown by one module would fail
+// an `instanceof ServiceError` check against the other's class) even though
+// no route currently mixes the two -- re-exporting the canonical one
+// closes the risk rather than waiting for it to bite.
+export { ServiceError } from "./compliance-service"
+import { ServiceError } from "./compliance-service"
 
 type AdminCtx = { dbUser: typeof users.$inferSelect | null }
 

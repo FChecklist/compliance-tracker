@@ -55,12 +55,21 @@ export async function removeCapabilityIndex(entityType: CapabilityEntityType, en
 
 export type CapabilityMatch = { entityType: CapabilityEntityType; entityId: string; score: number; content: string }
 
+// Gap closure, 2026-07-09 (AUDIT_2026-07-09.md): mirrors
+// assistant-memory-service.ts's RELEVANCE_THRESHOLD. Without a floor, both
+// functions below always return `limit` rows even when nothing in the
+// index is actually related to the query (pgvector's <=> just returns the
+// *closest* rows, not necessarily *close* ones) -- silently feeding VERI
+// FDE's duplicate-check and the Prompt Directory's "similar patterns"
+// surface a low-relevance match dressed up as a real one.
+const RELEVANCE_THRESHOLD = 0.5
+
 // Over-fetches from findSimilar() since it isn't type-filtered, then keeps
 // only the 3 capability entity types and the requested limit.
 export async function findSimilarCapabilities(query: string, orgId: string, limit = 10): Promise<CapabilityMatch[]> {
   const results = await findSimilar(query, orgId, limit * 3)
   return results
-    .filter((r): r is CapabilityMatch => isCapabilityEntityType(r.entityType))
+    .filter((r): r is CapabilityMatch => isCapabilityEntityType(r.entityType) && r.score > RELEVANCE_THRESHOLD)
     .slice(0, limit)
 }
 
@@ -72,7 +81,7 @@ export async function findSimilarCapabilities(query: string, orgId: string, limi
 export async function findSimilarPromptPatterns(query: string, orgId: string, limit = 5): Promise<CapabilityMatch[]> {
   const results = await findSimilar(query, orgId, limit * 3)
   return results
-    .filter((r): r is CapabilityMatch => r.entityType === "prompt_pattern")
+    .filter((r): r is CapabilityMatch => r.entityType === "prompt_pattern" && r.score > RELEVANCE_THRESHOLD)
     .slice(0, limit)
 }
 
