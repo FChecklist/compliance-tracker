@@ -233,10 +233,16 @@ export async function categoryProgressReport(ctx: { orgId: string }, projectId: 
     const activities = await activityIdsForProject(db, ctx.orgId, projectId)
     if (activities.length === 0) return { categories: categories.map((c) => ({ categoryId: c.id, name: c.name, percentComplete: 0 })) }
     const ids = activities.map((a) => a.id)
+    // Same fix as construction-dashboard-service.ts's getProjectDashboard()
+    // (verified live in production 2026-07-08) -- a plain JS array as a
+    // single sql`` parameter doesn't serialize as a Postgres array; build a
+    // real ARRAY[...] literal instead (still individually bound, no
+    // injection risk).
+    const idsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
     const rows = (await db.execute(sql`
       SELECT DISTINCT ON (activity_id) activity_id, percent_complete
       FROM compliance.construction_work_progress_entries
-      WHERE activity_id = ANY(${ids})
+      WHERE activity_id = ANY(ARRAY[${idsSql}])
       ORDER BY activity_id, entry_date DESC
     `)) as { activity_id: string; percent_complete: number }[]
     const percentByActivity = new Map(rows.map((r) => [r.activity_id, Number(r.percent_complete)]))

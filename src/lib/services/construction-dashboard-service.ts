@@ -57,10 +57,19 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
     if (activityIds.length > 0) {
       // Latest logged entry per activity, then averaged -- a daily-log table
       // shouldn't have every historical entry weighted equally.
+      //
+      // Bug fix (verified live in production 2026-07-08): passing a plain JS
+      // array as a single sql`` template parameter does NOT serialize it as
+      // a Postgres array -- postgres.js binds it as a scalar, and
+      // `= ANY($1)` then fails with "malformed array literal" trying to
+      // parse the first element's string value as array syntax. sql.join()
+      // building a real ARRAY[...] literal (each element still its own
+      // bound parameter, so no injection risk) is the correct fix.
+      const idsSql = sql.join(activityIds.map((id) => sql`${id}`), sql`, `)
       const rows = (await db.execute(sql`
         SELECT DISTINCT ON (activity_id) percent_complete
         FROM compliance.construction_work_progress_entries
-        WHERE activity_id = ANY(${activityIds})
+        WHERE activity_id = ANY(ARRAY[${idsSql}])
         ORDER BY activity_id, entry_date DESC
       `)) as { percent_complete: number }[]
       if (rows.length > 0) progressPercent = rows.reduce((sum, r) => sum + Number(r.percent_complete), 0) / rows.length
