@@ -132,8 +132,71 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
     const complianceItemNodes = await buildComplianceItemNodes(db, ctx.orgId)
     const calculatorNodes = await buildCalculatorNodes(db)
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
-    return [...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes]
+    const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
+    return [...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes]
   })
+}
+
+// Construction Intelligence (PROJEXA), Wave 128. Mirrors
+// buildGstReconciliationNodes()'s shape: check the worker_agents actually
+// exist for this platform tier first (empty tree if this wave hasn't been
+// applied), then build real per-project leaf nodes. Unlike the GST tree,
+// these don't need dynamic batch-pairing -- each is a single project-scoped
+// (or org-wide) read query, so this reuses genericProjectActions()'s
+// projectId-carrying leaf shape rather than a bespoke structure. Project
+// scoping here is generic `projects` (there's no dedicated "construction
+// project" flag -- a project becomes construction-flavored simply by having
+// constructionBoqs/constructionCategories rows, matching how buildProductNodes
+// above also lists all active projects without a domain filter).
+async function buildConstructionNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
+  const codeRefs = [
+    "get_construction_project_dashboard", "get_construction_budget_status", "get_construction_kpi_status",
+    "generate_construction_progress_summary", "detect_construction_budget_schedule_risk",
+    "list_delayed_activities", "list_over_budget_projects",
+  ]
+  const agents = await db.query.workerAgents.findMany({
+    where: and(inArray(workerAgents.codeReference, codeRefs), eq(workerAgents.tier, "global")),
+  })
+  if (agents.length === 0) return []
+  const agentByRef = new Map(agents.map((a) => [a.codeReference, a]))
+
+  const children: CapabilityNode[] = []
+
+  const orgWideRefs: { ref: string; label: string }[] = [
+    { ref: "list_delayed_activities", label: "Delayed Activities (all projects)" },
+    { ref: "list_over_budget_projects", label: "Over-Budget Projects" },
+  ]
+  for (const { ref, label } of orgWideRefs) {
+    const agent = agentByRef.get(ref)
+    if (agent) children.push({ key: ref, label, leaf: true, codeReference: ref, agentId: agent.id })
+  }
+
+  const projectScopedRefs: { ref: string; label: string }[] = [
+    { ref: "get_construction_project_dashboard", label: "Project Dashboard" },
+    { ref: "get_construction_budget_status", label: "Budget Status" },
+    { ref: "get_construction_kpi_status", label: "KPI Status" },
+    { ref: "generate_construction_progress_summary", label: "AI Progress Summary" },
+    { ref: "detect_construction_budget_schedule_risk", label: "AI Budget/Schedule Risk" },
+  ]
+  const availableProjectRefs = projectScopedRefs.filter(({ ref }) => agentByRef.has(ref))
+  if (availableProjectRefs.length > 0) {
+    const activeProjects = await db.query.projects.findMany({ where: and(eq(projects.orgId, orgId), eq(projects.isActive, true)), limit: 50 })
+    if (activeProjects.length > 0) {
+      children.push({
+        key: "construction_projects", label: "By Project", leaf: false,
+        children: activeProjects.map((p) => ({
+          key: p.id, label: p.name, leaf: false,
+          children: availableProjectRefs.map(({ ref, label }) => ({
+            key: `${p.id}_${ref}`, label, leaf: true, codeReference: ref, agentId: agentByRef.get(ref)!.id,
+            fixedInputs: { projectId: p.id },
+          })),
+        })),
+      })
+    }
+  }
+
+  if (children.length === 0) return []
+  return [{ key: "construction_intelligence", label: "Construction Intelligence", leaf: false, children }]
 }
 
 // Calculators -- sourced from the real computation_engines registry (VCEL),

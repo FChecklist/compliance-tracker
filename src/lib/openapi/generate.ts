@@ -20,7 +20,7 @@ import {
   createBudgetSchema, recordStockReceiptSchema, recordStockIssueSchema,
   createPurchaseRequisitionSchema, createMeetingSchema, logTimeSchema,
 } from "@/lib/schemas/erp-pms-v1"
-import { createVendorSchema, createProjectBudgetSchema } from "@/lib/schemas/projexa-aliases"
+import { createVendorSchema, createProjectBudgetSchema, assistantQuerySchema, diffDrawingsSchema } from "@/lib/schemas/projexa-aliases"
 
 function toSchema(schema: z.ZodType) {
   return z.toJSONSchema(schema, { target: "draft-2020-12" })
@@ -75,6 +75,8 @@ export function generateOpenApiDocument() {
         LogTime: toSchema(logTimeSchema),
         CreateVendor: toSchema(createVendorSchema),
         CreateProjectBudget: toSchema(createProjectBudgetSchema),
+        AssistantQuery: toSchema(assistantQuerySchema),
+        DiffDrawings: toSchema(diffDrawingsSchema),
       },
     },
     security: [{ bearerAuth: [] }],
@@ -229,6 +231,15 @@ export function generateOpenApiDocument() {
       "/projexa/ai/progress-summary": { get: { tags: ["PROJEXA"], summary: "AI-generated progress summary, grounded in real project numbers", operationId: "projexaAiProgressSummary", parameters: [{ name: "projectId", in: "query", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" }, "400": { description: "Requires a real user session, not an API key" } } } },
       "/projexa/ai/risk-detection": { get: { tags: ["PROJEXA"], summary: "AI budget/schedule risk detection, grounded in real project numbers", operationId: "projexaAiRiskDetection", parameters: [{ name: "projectId", in: "query", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" }, "400": { description: "Requires a real user session, not an API key" } } } },
       "/projexa/ai/estimate-progress": { post: { tags: ["PROJEXA"], summary: "AI photo-based progress estimation for a logged activity", operationId: "projexaAiEstimateProgress", responses: { "200": { description: "OK" }, "400": { description: "Requires a real user session, not an API key" } } } },
+      "/projexa/predictions/{activityId}": { get: { tags: ["PROJEXA"], summary: "Deterministic predicted completion date for an activity (velocity-based, no AI)", operationId: "projexaPredictCompletion", parameters: [{ name: "activityId", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "OK" } } } },
+      "/projexa/ai/diff-drawings": { post: { tags: ["PROJEXA"], summary: "AI diff between two drawing revision images", operationId: "projexaDiffDrawings", requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/DiffDrawings" } } } }, responses: { "200": { description: "OK" }, "400": { description: "Requires a real user session, not an API key" } } } },
+      "/projexa/assistant": {
+        post: {
+          tags: ["PROJEXA"], summary: "Structured construction data assistant -- dispatches one of the 7 registered construction worker agents by codeReference", operationId: "projexaAssistant",
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/AssistantQuery" } } } },
+          responses: { "200": { description: "OK" }, "400": { description: "Unknown codeReference or missing required input" } },
+        },
+      },
     },
   }
 }

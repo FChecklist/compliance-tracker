@@ -23,6 +23,15 @@ export type BoqLineItemInput = {
   unit: string
   quantity: number
   rate: number
+  // Wave 125 (rate analysis / cost buildup): all optional. When supplied,
+  // `rate` above is still the authoritative stored/quoted rate -- these
+  // are the cost components that justified it, surfaced separately via
+  // computedRate() rather than silently overwriting a caller-supplied rate.
+  materialCost?: number
+  labourCost?: number
+  equipmentCost?: number
+  overheadPercent?: number
+  profitPercent?: number
 }
 
 export type BoqInput = {
@@ -33,6 +42,15 @@ export type BoqInput = {
 
 function withAmount(item: BoqLineItemInput) {
   return { ...item, amount: item.quantity * item.rate }
+}
+
+/** material+labour+equipment costs, then +overhead%, then +profit% -- the standard construction rate-buildup order. Returns null when no cost-component fields are set (a plain BOQ line item with just a quoted rate). */
+function computedRate(item: { materialCost: string | null; labourCost: string | null; equipmentCost: string | null; overheadPercent: string | null; profitPercent: string | null }): number | null {
+  if (item.materialCost === null && item.labourCost === null && item.equipmentCost === null) return null
+  const base = Number(item.materialCost ?? 0) + Number(item.labourCost ?? 0) + Number(item.equipmentCost ?? 0)
+  const withOverhead = base * (1 + Number(item.overheadPercent ?? 0) / 100)
+  const withProfit = withOverhead * (1 + Number(item.profitPercent ?? 0) / 100)
+  return withProfit
 }
 
 async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemInput[]) {
@@ -47,8 +65,17 @@ async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemIn
       quantity: String(item.quantity),
       rate: String(item.rate),
       amount: String(withAmount(item).amount),
+      materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
+      labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
+      equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
+      overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
+      profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
     }))
   )
+}
+
+function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
+  return { ...item, computedRate: computedRate(item) }
 }
 
 export async function listBoqs(ctx: { orgId: string }, projectId: string) {
@@ -65,7 +92,7 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("BOQ not found", 404)
     const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
-    return { ...boq, lineItems }
+    return { ...boq, lineItems: lineItems.map(withComputedRate) }
   })
 }
 
@@ -90,7 +117,7 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
 async function getBoqRow(db: TenantDb, boqId: string) {
   const boq = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.id, boqId) })
   const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
-  return { ...boq, lineItems }
+  return { ...boq, lineItems: lineItems.map(withComputedRate) }
 }
 
 export async function createBoqRevision(ctx: BoqContext, parentBoqId: string, input: { title?: string; lineItems: BoqLineItemInput[] }) {
@@ -165,13 +192,29 @@ export async function compareBoq(ctx: { orgId: string }, boqId: string): Promise
 }
 
 export async function submitBoq(ctx: { orgId: string }, boqId: string) {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  const row = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("BOQ not found", 404)
     if (boq.status !== "draft") throw new ServiceError("Only a draft BOQ can be submitted", 400)
-    const [row] = await db.update(constructionBoqs).set({ status: "submitted", updatedAt: new Date() }).where(eq(constructionBoqs.id, boqId)).returning()
-    return row
+    const [updated] = await db.update(constructionBoqs).set({ status: "submitted", updatedAt: new Date() }).where(eq(constructionBoqs.id, boqId)).returning()
+    return updated
   })
+
+  // Wave 126: fire-and-forget automation trigger -- a revision touching
+  // already-executed scope should be discoverable by an automation rule,
+  // not just the soft warning compareBoq() already returns in its response.
+  if (row.parentBoqId) {
+    void compareBoq({ orgId: ctx.orgId }, row.id).then((comparison) => {
+      if (comparison.warnings.length > 0) {
+        void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+          evaluateAndRunRules({ orgId: ctx.orgId }, "construction_boq.variation_on_completed_scope", {
+            boqId: row.id, projectId: row.projectId, warningCount: comparison.warnings.length,
+          })
+        )
+      }
+    })
+  }
+  return row
 }
 
 export async function approveBoq(ctx: { orgId: string; userId: string }, boqId: string) {

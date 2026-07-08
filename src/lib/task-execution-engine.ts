@@ -180,6 +180,64 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
     return generateReviewReportCore(db, { orgId, userId, dbUser }, returnPeriodId);
   }
 
+  // Construction Intelligence (PROJEXA), Wave 128. All read-only, matching
+  // this function's read-only-auto-dispatch contract. Each independently
+  // opens its own withTenantContext transaction via the service call
+  // (not the `db` already open here) -- same posture as list_gst_import_batches
+  // above, acceptable for read-only queries per that branch's own comment.
+  if (codeReference === "get_construction_project_dashboard") {
+    const projectId = String(context?.inputs?.projectId ?? "");
+    if (!projectId) throw new Error("Missing projectId");
+    const { getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
+    return getProjectDashboard({ orgId }, projectId);
+  }
+
+  if (codeReference === "list_delayed_activities") {
+    const { getOrgDashboard } = await import("@/lib/services/construction-dashboard-service");
+    const dashboard = await getOrgDashboard({ orgId });
+    return dashboard.projects.filter((p) => p.delayedTaskCount > 0);
+  }
+
+  if (codeReference === "get_construction_budget_status") {
+    const projectId = String(context?.inputs?.projectId ?? "");
+    if (!projectId) throw new Error("Missing projectId");
+    const { budgetVsActual } = await import("@/lib/services/construction-reports-service");
+    return budgetVsActual({ orgId }, projectId);
+  }
+
+  if (codeReference === "list_over_budget_projects") {
+    const { getOrgDashboard, getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
+    const orgDashboard = await getOrgDashboard({ orgId });
+    // N+1, capped -- matches buildComplianceItemNodes()'s "quick-action
+    // list, not a browse view" posture (see capability-tree-service.ts),
+    // since getOrgDashboard()'s per-project summary doesn't carry budget.
+    const results = await Promise.all(
+      orgDashboard.projects.slice(0, 20).map((p) => getProjectDashboard({ orgId }, p.id))
+    );
+    return results.filter((p) => p.budget > 0 && p.expenses > p.budget);
+  }
+
+  if (codeReference === "get_construction_kpi_status") {
+    const projectId = String(context?.inputs?.projectId ?? "");
+    if (!projectId) throw new Error("Missing projectId");
+    const { kpiReport } = await import("@/lib/services/construction-reports-service");
+    return kpiReport({ orgId }, projectId);
+  }
+
+  if (codeReference === "generate_construction_progress_summary") {
+    const projectId = String(context?.inputs?.projectId ?? "");
+    if (!projectId) throw new Error("Missing projectId");
+    const { generateProgressSummary } = await import("@/lib/services/construction-ai-service");
+    return generateProgressSummary({ orgId, userId }, projectId);
+  }
+
+  if (codeReference === "detect_construction_budget_schedule_risk") {
+    const projectId = String(context?.inputs?.projectId ?? "");
+    if (!projectId) throw new Error("Missing projectId");
+    const { detectBudgetScheduleRisk } = await import("@/lib/services/construction-ai-service");
+    return detectBudgetScheduleRisk({ orgId, userId }, projectId);
+  }
+
   throw new Error(`No dispatcher implemented for ${codeReference}`);
 }
 

@@ -89,5 +89,17 @@ export async function createProgressEntry(
       remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
     return row
+  }).then((row) => {
+    // Wave 126: fire-and-forget automation trigger, matching
+    // pms-issue-service.ts's updateIssue() status-change trigger posture
+    // (dynamic import, void, never blocks/breaks the write it enriches).
+    if (row.percentComplete >= 100) {
+      void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+        evaluateAndRunRules({ orgId: ctx.orgId }, "construction_work_progress.completed", {
+          activityId: row.activityId, projectId: row.projectId, percentComplete: row.percentComplete,
+        })
+      )
+    }
+    return row
   })
 }

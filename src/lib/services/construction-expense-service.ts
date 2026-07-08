@@ -49,6 +49,24 @@ export async function createExpenseEntry(ctx: { orgId: string; userId: string },
       recordedById: ctx.userId,
     }).returning()
     return row
+  }).then((row) => {
+    // Wave 126: fire-and-forget automation trigger. Threshold check
+    // (actual > budget) happens here in the calling service, not in the
+    // generic automation-rule-service.ts engine, since TriggerCondition
+    // only supports operator "equals" -- passing a pre-resolved boolean
+    // avoids extending that shared engine's condition grammar.
+    void import("./construction-dashboard-service").then(({ getProjectDashboard }) =>
+      getProjectDashboard({ orgId: ctx.orgId }, row.projectId).then((dashboard) => {
+        if (dashboard.budget > 0 && dashboard.expenses > dashboard.budget) {
+          void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+            evaluateAndRunRules({ orgId: ctx.orgId }, "construction_expense.budget_exceeded", {
+              projectId: row.projectId, budget: dashboard.budget, expenses: dashboard.expenses,
+            })
+          )
+        }
+      })
+    )
+    return row
   })
 }
 

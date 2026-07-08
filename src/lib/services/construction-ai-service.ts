@@ -136,3 +136,58 @@ export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: str
   })
   return data
 }
+
+export type DrawingDescription = { drawingType: string | null; elements: string[]; dimensions: string[]; annotations: string[]; notes: string }
+export type DrawingDiff = { added: string[]; removed: string[]; changed: string[]; summary: string }
+
+// Wave 127: callLLMVision() accepts exactly one image, so a two-image diff
+// is done as describe(A) + describe(B) + diff(textA, textB) -- 3 calls,
+// each individually logged -- rather than extending that shared,
+// platform-wide function's signature for one feature's sake.
+export async function diffDrawingRevisions(
+  ctx: { orgId: string; userId: string },
+  input: { imageBase64A: string; mimeTypeA: string; imageBase64B: string; mimeTypeB: string }
+): Promise<DrawingDiff> {
+  const modelConfig = await resolveModelConfig(ctx.orgId, "customer_account_oa")
+  if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
+  const visionModel = VISION_MODEL_OVERRIDES[modelConfig.provider]
+  if (!visionModel) throw new ServiceError("No vision-capable model available for this organisation's configured provider", 400)
+
+  const describePrompt = await resolvePromptTemplate("construction.describe_drawing")
+
+  async function describe(imageBase64: string, mimeType: string, label: string): Promise<DrawingDescription> {
+    const startedAt = Date.now()
+    const { content, usage } = await callLLMVision(
+      modelConfig!.provider, visionModel!, modelConfig!.apiKey,
+      describePrompt, imageBase64, mimeType,
+      "Analyze this drawing and respond with the required JSON.",
+      { jsonMode: true, temperature: 0.1, maxTokens: 768 }
+    )
+    recordOrchestraExecution({
+      orgId: ctx.orgId, userId: ctx.userId, layerKey: "customer_account_oa", eventType: "construction.describe_drawing",
+      input: { label }, output: {}, status: "completed", durationMs: Date.now() - startedAt,
+      provider: modelConfig!.provider, model: visionModel!, usage,
+    })
+    return JSON.parse(content) as DrawingDescription
+  }
+
+  const [descA, descB] = await Promise.all([
+    describe(input.imageBase64A, input.mimeTypeA, "revisionA"),
+    describe(input.imageBase64B, input.mimeTypeB, "revisionB"),
+  ])
+
+  const diffStartedAt = Date.now()
+  const diffPrompt = await resolvePromptTemplate("construction.diff_drawing_descriptions")
+  const { data, usage } = await callLLMJson<DrawingDiff>(
+    modelConfig.provider, modelConfig.model, modelConfig.apiKey, diffPrompt,
+    `Earlier revision (JSON): ${JSON.stringify(descA)}\n\nLater revision (JSON): ${JSON.stringify(descB)}`,
+    { temperature: 0.2, maxTokens: 600, expectedKeys: ["summary"] }, modelConfig.fallback
+  )
+  recordOrchestraExecution({
+    orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "construction.diff_drawing_descriptions",
+    input: {}, output: { addedCount: data.added?.length ?? 0, removedCount: data.removed?.length ?? 0 },
+    status: "completed", durationMs: Date.now() - diffStartedAt,
+    provider: modelConfig.provider, model: modelConfig.model, usage,
+  })
+  return data
+}

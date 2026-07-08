@@ -82,5 +82,15 @@ export async function recordAttendance(
       dailyCost: String(dailyCost),
     }).returning()
     return row
+  }).then((row) => {
+    // Wave 126: fire-and-forget automation trigger.
+    if (row.status === "absent") {
+      void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+        evaluateAndRunRules({ orgId: ctx.orgId }, "construction_attendance.worker_absent", {
+          rosterId: row.rosterId, projectId: row.projectId, attendanceDate: row.attendanceDate,
+        })
+      )
+    }
+    return row
   })
 }

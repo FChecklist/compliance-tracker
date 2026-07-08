@@ -7128,6 +7128,17 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   quantity: numeric('quantity').notNull().default('0'),
   rate: numeric('rate').notNull().default('0'),
   amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (not a DB generated column, matching this codebase's convention elsewhere)
+  // Wave 125 (OpenConstructionERP-style rate analysis/cost buildup, studied
+  // the concept only -- OpenConstructionERP is AGPL-3.0, no code copied):
+  // all nullable, so plain BOQ line items (no rate breakdown) keep working
+  // unchanged. When present, computedRate() in construction-boq-service.ts
+  // derives rate = (material+labour+equipment) * (1+overhead%) * (1+profit%)
+  // at read time -- not stored redundantly against the existing `rate` column.
+  materialCost: numeric('material_cost'),
+  labourCost: numeric('labour_cost'),
+  equipmentCost: numeric('equipment_cost'),
+  overheadPercent: numeric('overhead_percent'),
+  profitPercent: numeric('profit_percent'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

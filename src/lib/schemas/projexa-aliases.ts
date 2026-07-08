@@ -22,3 +22,24 @@ export const createProjectBudgetSchema = z.object({
   actionIfExceeded: z.enum(["ignore", "warn", "stop"]).optional(),
   lineItems: z.array(z.object({ accountId: z.string(), annualAmount: z.number() })),
 })
+
+// Wave 129: the assistant's codeReference allowlist is enforced in the
+// route (src/app/api/v1/projexa/assistant/route.ts), not duplicated here --
+// this schema documents the request shape only.
+export const assistantQuerySchema = z.object({
+  codeReference: z.enum([
+    "get_construction_project_dashboard",
+    "list_delayed_activities",
+    "get_construction_budget_status",
+    "list_over_budget_projects",
+    "get_construction_kpi_status",
+    "generate_construction_progress_summary",
+    "detect_construction_budget_schedule_risk",
+  ]),
+  inputs: z.object({ projectId: z.string().optional() }).optional(),
+})
+
+export const diffDrawingsSchema = z.object({
+  documentIdA: z.string(),
+  documentIdB: z.string(),
+})
