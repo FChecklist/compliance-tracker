@@ -22,8 +22,10 @@ Each entry has a **maturity tag**:
 | [`MODULE_MAP.md`](MODULE_MAP.md) | 🆕 | The canonical "where does X live" reference — every domain → its tables/services/routes/pages. Read this before grepping. |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | 🆕 | Consolidated architecture reference — merges 4 previously-separate governance docs into one, de-duplicated. |
 | [`AUDIT_2026-07-09.md`](AUDIT_2026-07-09.md) | 🆕 | The deep, severity-rated gap-analysis audit (executive summary through roadmap), module-by-module. |
-| [`CRITICAL_GAPS.md`](CRITICAL_GAPS.md) | 🆕 | Running punch list of confirmed, severity-tagged problems — the thing to actually act on. |
+| [`CRITICAL_GAPS.md`](CRITICAL_GAPS.md) | 🆕 | Running punch list of confirmed, severity-tagged problems — the thing to actually act on. Now annotated with every closure from the autonomous gap-closure pass. |
 | [`ROADMAP.md`](ROADMAP.md) | 🆕 | Immediate / 30-day / 90-day / 1-year plan, synthesized from every finding above. |
+| [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md) | 🆕 | Append-only record of every fix made during the autonomous gap-closure pass — 6 batches, exact files/verification/commit per fix. |
+| [`FINAL_STATUS_REPORT_2026-07-09.md`](FINAL_STATUS_REPORT_2026-07-09.md) | 🆕 | Closing report for the gap-closure pass: 21 findings fully closed, 4 partially closed, and an explicit list of what's left open and why (decision-gated vs. large-effort vs. deliberately scoped out). Start here if you're picking up where this pass left off. |
 
 ---
 
