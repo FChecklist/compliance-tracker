@@ -13,6 +13,7 @@ import { runKnowledgeFlowAudit } from "@/lib/loops/knowledge-flow-audit";
 import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit";
 import { runTierIntegrityAudit } from "@/lib/loops/tier-integrity-audit";
 import { runCapabilityIndexFreshnessAudit } from "@/lib/loops/capability-index-freshness-audit";
+import { purgeExpiredLlmResponseCache } from "@/lib/llm-response-cache";
 
 /**
  * Cron-triggered entry point for Wave 5's active self-improvement loops.
@@ -94,6 +95,12 @@ async function runActiveLoops() {
   // 6th cron entry to vercel.json for something this cheap to run alongside
   // the others. Gap-closure fix, 2026-07-09.
   results.capabilityIndexFreshnessAudit = await runCapabilityIndexFreshnessAudit();
+
+  // Gap closure, 2026-07-09: llmResponseCache now has a real caller
+  // (fde-service.ts), so its purge function -- built but never called --
+  // now has expired rows worth cleaning up. Same "piggyback the existing
+  // daily cron" reasoning as above.
+  results.llmResponseCachePurged = await purgeExpiredLlmResponseCache();
 
   return results;
 }

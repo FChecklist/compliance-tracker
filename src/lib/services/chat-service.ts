@@ -236,6 +236,17 @@ export async function getMessages(ctx: ChatContext, conversationId: string) {
 // extractedData both already existed but were never connected to a chat
 // reply until now.
 const HISTORY_LIMIT = 20
+// Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Token Utilization
+// Engineering section): HISTORY_LIMIT bounds turn *count*, not content
+// *size* -- a message can carry any number of attachments, and while each
+// attachment's extracted text is capped at 2000 chars, nothing capped the
+// aggregate across a whole history window. A document-heavy conversation
+// could still send a very large prompt on every reply with no visibility
+// into how large until a provider's context-window error. Same lesson
+// already learned from a separate, already-fixed unbounded-history-growth
+// incident elsewhere in this codebase's AI-workforce tooling, applied here
+// before it becomes a real incident rather than after.
+const HISTORY_CHAR_BUDGET = 12000
 
 async function buildConversationHistory(
   orgId: string, userId: string, conversationId: string, excludeMessageId: string
@@ -259,7 +270,7 @@ async function buildConversationHistory(
       attachmentsByMessage.set(row.messageId, list)
     }
 
-    return turns.map((m) => {
+    const history: ChatTurn[] = turns.map((m) => {
       const attached = attachmentsByMessage.get(m.id) ?? []
       const attachmentContext = attached
         .map((a) => {
@@ -274,6 +285,17 @@ async function buildConversationHistory(
         content: attachmentContext ? `${m.content}\n${attachmentContext}` : m.content,
       }
     })
+
+    // Aggregate character budget, oldest-first trim -- see HISTORY_CHAR_BUDGET
+    // comment above. Always keeps at least the single most recent turn, even
+    // if it alone exceeds the budget (better to send one long turn than none).
+    let totalChars = history.reduce((sum, t) => sum + t.content.length, 0)
+    let start = 0
+    while (totalChars > HISTORY_CHAR_BUDGET && start < history.length - 1) {
+      totalChars -= history[start].content.length
+      start++
+    }
+    return start > 0 ? history.slice(start) : history
   })
 }
 

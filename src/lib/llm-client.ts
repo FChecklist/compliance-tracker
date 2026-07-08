@@ -434,7 +434,7 @@ export async function callLLMVision(
 // upstream provider it routes to. Strips a leading/trailing ``` fence
 // (with or without a "json" language tag) before parsing, so a
 // spec-compliant model's untouched output and a fenced one both parse.
-function stripJsonFence(content: string): string {
+export function stripJsonFence(content: string): string {
   const trimmed = content.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   return fenced ? fenced[1].trim() : trimmed;

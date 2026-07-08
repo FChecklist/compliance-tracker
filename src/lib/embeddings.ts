@@ -2,23 +2,7 @@ import { db, embeddings } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import { createHash } from "crypto";
-
-// Re-use the same connection string logic as db/index.ts
-function getConnectionString(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const dbPassword = process.env.SUPABASE_DB_PASSWORD;
-  if (supabaseUrl && dbPassword) {
-    const ref = supabaseUrl.replace("https://", "").split(".")[0];
-    // Wave 103: fixed the same wrong-region fallback as db/index.ts -- see
-    // the comment there (aws-0-ap-northeast-2 was the deleted MeetTrack
-    // project's region, Wave 45's root-caused bug).
-    return `postgresql://postgres.${ref}:${dbPassword}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres`;
-  }
-
-  throw new Error("No database connection string available.");
-}
+import { getConnectionString } from "@/lib/db/connection-string";
 
 // Raw SQL client for vector operations (Drizzle doesn't support vector type)
 let rawClient: ReturnType<typeof postgres> | null = null;
@@ -27,6 +11,14 @@ function getRawClient() {
     rawClient = postgres(getConnectionString(), {
       prepare: false,
       ssl: { rejectUnauthorized: false },
+      // Gap closure, 2026-07-09: explicit low cap -- this client backs
+      // occasional embedding reads/writes, not hot-path query traffic, and
+      // previously had no max (defaulting to postgres.js's own cap of 10).
+      // A single serverless invocation touching db/index.ts (max 1) +
+      // tenant-scoped.ts (max 5) + this file + ai-config-crypto.ts could
+      // otherwise open up to 26 connections, exhausting Supavisor pooler
+      // headroom well before its nominal capacity under concurrent load.
+      max: 2,
     });
   }
   return rawClient;

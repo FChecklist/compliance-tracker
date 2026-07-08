@@ -160,7 +160,7 @@ export async function createPayrollRun(ctx: ErpContext, input: { month: number; 
 function computeEarning(componentType: string, calcType: string, amount: string | null, percentage: string | null, basic: number) {
   if (calcType === "flat") return Number(amount ?? 0)
   if (calcType === "percentage_of_basic") return basic * (Number(percentage ?? 0) / 100)
-  return 0 // percentage_of_gross resolved in a second pass once gross is known -- not used for the earning components that determine gross itself
+  return 0 // percentage_of_gross resolved in the explicit second pass below, once gross-so-far is known
 }
 
 /**
@@ -199,9 +199,27 @@ export async function processPayrollRun(ctx: ErpContext, runId: string) {
       let grossEarnings = 0
       let pfWage = 0
 
+      // Gap closure, 2026-07-09: split into two passes -- flat/
+      // percentage_of_basic components first (contribute to gross), then
+      // percentage_of_gross components against that gross-so-far. Before
+      // this fix, computeEarning() returned 0 for percentage_of_gross with
+      // no second pass ever actually implemented -- any component
+      // configured that way silently zeroed out and inserted a real
+      // 0-amount payslip line with no error, understating net pay.
+      const grossPendingComponents: typeof structure.components = []
       for (const sc of structure.components) {
         if (sc.component.componentType !== "earning") continue
+        if (sc.component.calculationType === "percentage_of_gross") {
+          grossPendingComponents.push(sc)
+          continue
+        }
         const value = computeEarning(sc.component.componentType, sc.component.calculationType, sc.amount, sc.percentage, basic)
+        grossEarnings += value
+        if (sc.component.includeInPfWage) pfWage += value
+        lines.push({ componentId: sc.componentId, label: sc.component.name, lineType: "earning", amount: value })
+      }
+      for (const sc of grossPendingComponents) {
+        const value = grossEarnings * (Number(sc.percentage ?? 0) / 100)
         grossEarnings += value
         if (sc.component.includeInPfWage) pfWage += value
         lines.push({ componentId: sc.componentId, label: sc.component.name, lineType: "earning", amount: value })
@@ -233,10 +251,21 @@ export async function processPayrollRun(ctx: ErpContext, runId: string) {
 
       const ptRule = await findActiveRule(db, ctx.orgId, "professional_tax", runDate, structure.state)
       if (ptRule?.slabs) {
-        const slab = [...ptRule.slabs].sort((a, b) => a.uptoAmount - b.uptoAmount).find((s) => grossEarnings <= s.uptoAmount)
-        const ptAmount = slab?.taxAmount ?? ptRule.slabs[ptRule.slabs.length - 1]?.taxAmount ?? 0
-        lines.push({ componentId: null, label: "Professional Tax", lineType: "deduction", amount: ptAmount })
-        totalDeductions += ptAmount
+        const sortedSlabs = [...ptRule.slabs].sort((a, b) => a.uptoAmount - b.uptoAmount)
+        const slab = sortedSlabs.find((s) => grossEarnings <= s.uptoAmount)
+        if (slab) {
+          lines.push({ componentId: null, label: "Professional Tax", lineType: "deduction", amount: slab.taxAmount })
+          totalDeductions += slab.taxAmount
+        } else {
+          // Gap closure, 2026-07-09: previously silently fell back to the
+          // highest configured slab's rate when gross exceeded every slab's
+          // uptoAmount -- indistinguishable from a genuinely-intended
+          // top-band rate, masking a real admin misconfiguration (the slab
+          // table should have a final open-ended "and above" band). Now
+          // surfaces the same way the TDS line already does when
+          // unconfigured, instead of guessing a number.
+          lines.push({ componentId: null, label: "Professional Tax (slab table has no open-ended top band for this gross -- enter manually)", lineType: "deduction", amount: 0 })
+        }
       }
 
       // Wave 68: if this employee has an income tax slab assigned, auto-

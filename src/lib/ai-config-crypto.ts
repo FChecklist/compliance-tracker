@@ -1,19 +1,10 @@
 import postgres from "postgres"
+import { getConnectionString } from "@/lib/db/connection-string"
 
-// Same connection-string resolution as lib/db/index.ts and lib/embeddings.ts —
-// pgcrypto calls need a raw SQL round-trip since Drizzle has no pgp_sym_encrypt helper.
-function getConnectionString(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const dbPassword = process.env.SUPABASE_DB_PASSWORD
-  if (supabaseUrl && dbPassword) {
-    const ref = supabaseUrl.replace("https://", "").split(".")[0]
-    return `postgresql://postgres.${ref}:${dbPassword}@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`
-  }
-
-  throw new Error("No database connection string available.")
-}
+// pgcrypto calls need a raw SQL round-trip since Drizzle has no
+// pgp_sym_encrypt helper. Connection-string resolution shared with
+// lib/db/index.ts and lib/embeddings.ts (gap closure, 2026-07-09 -- this
+// file's own copy had the stale, pre-Wave-45 pooler region until now).
 
 let rawClient: ReturnType<typeof postgres> | null = null
 function getRawClient() {
@@ -21,6 +12,10 @@ function getRawClient() {
     rawClient = postgres(getConnectionString(), {
       prepare: false,
       ssl: { rejectUnauthorized: false },
+      // Gap closure, 2026-07-09: explicit low cap -- occasional BYOK
+      // encrypt/decrypt calls, not hot-path traffic. See embeddings.ts's
+      // matching comment for the pooler-exhaustion reasoning.
+      max: 2,
     })
   }
   return rawClient

@@ -15,7 +15,7 @@ import { fdeRequests, workerAgents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
-import { callLLMJson } from "@/lib/llm-client"
+import { callLLMJsonCached } from "@/lib/llm-response-cache"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
@@ -163,13 +163,22 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     // proceeding with an undefined matchType/responseToUser that could
     // otherwise mis-route into the wrong branch below (e.g.
     // `undefined !== "no_match"` would wrongly look like a real match).
-    const { data: evaluation, usage } = await callLLMJson<FdeEvaluation>(
+    //
+    // Gap closure, 2026-07-09: this is the exact call site
+    // llm-response-cache.ts's own header comment named as the intended
+    // first caller, which never happened -- callLLMJsonCached instead of
+    // callLLMJson, org-scoped 24h cache. Safe here specifically because the
+    // full candidate list from findSimilarCapabilities() is baked into
+    // userMessage, so a changed capability catalog produces a different
+    // cache key automatically rather than serving a stale evaluation.
+    const { data: evaluation, usage, cached } = await callLLMJsonCached<FdeEvaluation>(
+      { orgId: ctx.orgId },
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
       { temperature: 0.3, maxTokens: 700, expectedKeys: ["matchType", "responseToUser"] }, modelConfig.fallback
     )
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",
-      input: { requestText, candidateCount: candidates.length }, output: { matchType: evaluation.matchType },
+      input: { requestText, candidateCount: candidates.length }, output: { matchType: evaluation.matchType, cached },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })
