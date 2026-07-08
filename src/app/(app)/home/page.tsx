@@ -26,6 +26,9 @@ import { cn } from "@/lib/utils";
 // any render tree — rendered here on the home page alongside the briefing
 // stats so users see their compliance progress at a glance.
 import AchievementCard from "@/components/home/AchievementCard";
+// Wave 113 (VERI Treasure): points/streaks teaser, placed next to
+// AchievementCard so both at-a-glance cards sit together.
+import VeriTreasureWidget from "@/components/home/VeriTreasureWidget";
 
 type AiMessage = { id: string; senderId: string | null; content: string; createdAt: string };
 type Stats = { total: number; overdue: number; dueThisWeek: number; completed: number; dueIn30Days?: number; safe?: number };
@@ -240,8 +243,9 @@ export default function HomePage() {
             </div>
           </div>
         )}
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
           <AchievementCard />
+          <VeriTreasureWidget />
         </div>
       </div>
     );
@@ -312,8 +316,9 @@ export default function HomePage() {
             {/* AchievementCard: compliance progress card, placed here between
                 the briefing stats and the composer so users see their
                 completion rate at a glance before engaging with the assistant. */}
-            <div className="mt-4">
+            <div className="mt-4 space-y-3">
               <AchievementCard />
+              <VeriTreasureWidget />
             </div>
 
             {/* Composer */}

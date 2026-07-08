@@ -61,6 +61,7 @@ import {
   Undo2,
   Fingerprint,
   FlaskConical,
+  Gem,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +98,18 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         ...(accountType !== "company"
           ? [{ label: "VERI CUSTOMERS AI", href: "/clients", icon: Building2 }]
           : []),
+      ],
+    },
+    // VERI Treasure (Wave 113): the 'veri_reward' product branch, free and
+    // on-by-default for every org (points/achievements/streaks/referrals)
+    // -- shown unconditionally for everyone, same posture as 'office'/'erp'
+    // below rather than gated behind an opt-in enablement flag, since this
+    // branch has no disable-toggle UI built and defaults to enabled for
+    // every org (existing + new) at signup time.
+    {
+      title: "REWARDS",
+      items: [
+        { label: "VERI TREASURE", href: "/rewards", icon: Gem },
       ],
     },
     // Wave 105 (demo UX feedback #12): CRM was previously hidden for plain

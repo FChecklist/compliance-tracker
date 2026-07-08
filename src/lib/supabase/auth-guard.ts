@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "./server"
-import { db, users, organisations, departments, aiAssistants } from "@/lib/db"
+import { db, users, organisations, departments, aiAssistants, productBranches, orgProductBranchEnablements } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
@@ -76,7 +76,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
 
@@ -96,6 +96,26 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
       slug,
       plan: "free",
     }).returning()
+
+    // Wave 113 (VERI Treasure): free/on-by-default for every org, unlike
+    // opt-in branches like PMS -- 0098_veri_reward_branch.sql backfills
+    // orgs that already existed before this wave; every org created from
+    // here on gets it via this insert instead. Uses the same raw db this
+    // whole function already deliberately uses (org doesn't exist in any
+    // tenant context until this point). Never blocks signup on failure.
+    try {
+      const veriRewardBranch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_reward") })
+      if (veriRewardBranch) {
+        await db.insert(orgProductBranchEnablements).values({
+          orgId: org.id,
+          productBranchId: veriRewardBranch.id,
+          isEnabled: true,
+          enabledAt: new Date(),
+        })
+      }
+    } catch (err) {
+      console.warn("VERI Treasure auto-enablement failed (non-fatal):", err)
+    }
 
     const [dept] = await db.insert(departments).values({
       name: "General",
@@ -160,6 +180,38 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         await recordVisitorConversion(vid, org.id)
       } catch (err) {
         console.warn("Visitor conversion linking failed (non-fatal):", err)
+      }
+    }
+
+    // Wave 113 (VERI Treasure): refer-and-earn counterpart to ref above --
+    // resolves a /vr/[token] click into a veri_reward_referrals row and
+    // credits the referrer's points ledger. Points-only (Boss decision
+    // 2026-07-08, no cash bridge), so this can run in the same raw-db,
+    // best-effort style as ref/vid: never blocks signup on failure.
+    const vref = meta?.vref?.trim()
+    if (vref) {
+      try {
+        const { recordReferralSignupCompleted, awardPoints } = await import("@/lib/services/veri-reward-service")
+        const { withTenantContext } = await import("@/lib/db/tenant-scoped")
+        const referral = await recordReferralSignupCompleted({
+          refToken: vref,
+          referredUserId: newUser.id,
+          referredOrgId: org.id,
+        })
+        if (referral?.rewardPoints) {
+          await withTenantContext({ orgId: referral.orgId, userId: referral.referrerUserId }, (tdb) =>
+            awardPoints(tdb, {
+              orgId: referral.orgId,
+              userId: referral.referrerUserId,
+              delta: referral.rewardPoints!,
+              sourceType: "referral",
+              sourceId: referral.id,
+              reason: `Referral signup: ${orgName}`,
+            })
+          )
+        }
+      } catch (err) {
+        console.warn("VERI Treasure referral linking failed (non-fatal):", err)
       }
     }
 

@@ -18,6 +18,10 @@ function SignupForm() {
   // threaded into signUp()'s options.data so autoProvisionUser() can
   // resolve it into a sales_referrals row at org-creation time.
   const ref = searchParams.get("ref");
+  // Wave 113 (VERI Treasure): a /vr/[token] redirect appends ?vref=<token>
+  // -- the refer-and-earn counterpart to ref above, resolved into a
+  // veri_reward_referrals row instead of sales_referrals.
+  const vref = searchParams.get("vref");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -51,6 +55,7 @@ function SignupForm() {
           organisation,
           ...(ref ? { ref } : {}),
           ...(vid ? { vid } : {}),
+          ...(vref ? { vref } : {}),
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
