@@ -10,6 +10,8 @@
 // continuing it genuinely requires both sides to agree on what's open.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+export type CapabilityInputField = { key: string; label: string; type: "number" | "text" };
+
 export type CapabilityNode = {
   key: string;
   label: string;
@@ -17,6 +19,11 @@ export type CapabilityNode = {
   multi?: boolean;
   codeReference?: string | null;
   projectId?: string | null;
+  // Set on VCEL calculator leaves (capability-tree-service.ts's Calculators
+  // branch) -- identifies which computation_engines row to dispatch, paired
+  // with inputFields describing what the composer must collect before send.
+  engineKey?: string | null;
+  inputFields?: CapabilityInputField[];
   children?: CapabilityNode[];
 };
 

@@ -17,10 +17,12 @@
 // rather than needing a taxonomy maintainer.
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
-  workerAgents, erpCustomers, erpSuppliers, products, projects,
+  workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
+
+export type CapabilityInputField = { key: string; label: string; type: "number" | "text" }
 
 export type CapabilityNode = {
   key: string
@@ -29,7 +31,32 @@ export type CapabilityNode = {
   multi?: boolean
   codeReference?: string | null
   projectId?: string | null
+  engineKey?: string | null
+  inputFields?: CapabilityInputField[]
   children?: CapabilityNode[]
+}
+
+// First VCEL slice wired into real dispatch (see task-execution-engine.ts's
+// dispatchEngine() -- a small reviewed allowlist, not a generic resolver).
+// Only these 3 of the 247 registered computation_engines rows are exposed
+// here; the rest need the same input-capture treatment before they're safe
+// to surface as a leaf a visitor can actually click and run.
+const WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  gst_split_engine: [
+    { key: "taxableAmount", label: "Taxable amount (₹)", type: "number" },
+    { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
+    { key: "supplierStateCode", label: "Supplier state code", type: "text" },
+    { key: "buyerStateCode", label: "Buyer state code", type: "text" },
+  ],
+  gst_calculation_engine: [
+    { key: "taxableAmount", label: "Amount (₹)", type: "number" },
+    { key: "gstRatePercent", label: "GST rate (%)", type: "number" },
+    { key: "supplierStateCode", label: "Supplier state code", type: "text" },
+    { key: "buyerStateCode", label: "Buyer state code", type: "text" },
+  ],
+  hsn_validation_engine: [
+    { key: "hsn", label: "HSN code", type: "text" },
+  ],
 }
 
 // Generic entity actions -- real Worker Agents that operate "on a specific
@@ -60,8 +87,39 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
     const productNodes = await buildProductNodes(db, ctx.orgId)
     const entityNodes = await buildEntityNodes(db, ctx.orgId)
-    return [...branchNodes, ...productNodes, ...entityNodes]
+    const calculatorNodes = await buildCalculatorNodes(db)
+    return [...branchNodes, ...productNodes, ...entityNodes, ...calculatorNodes]
   })
+}
+
+// Calculators -- sourced from the real computation_engines registry (VCEL),
+// scoped to just the engine_keys dispatchTool() actually knows how to run
+// (WIRED_ENGINE_INPUT_FIELDS above). Not org-scoped like the other branches
+// (a calculator isn't a per-org capability), so this doesn't need a
+// productBranch/enablement check the way buildBranchNodes does.
+async function buildCalculatorNodes(db: TenantDb): Promise<CapabilityNode[]> {
+  const wiredKeys = Object.keys(WIRED_ENGINE_INPUT_FIELDS)
+  const engines = await db.query.computationEngines.findMany({
+    where: and(inArray(computationEngines.engineKey, wiredKeys), eq(computationEngines.status, "implemented")),
+  })
+  if (engines.length === 0) return []
+
+  const byCategory = new Map<string, CapabilityNode[]>()
+  for (const engine of engines) {
+    const leaf: CapabilityNode = {
+      key: engine.engineKey, label: engine.name, leaf: true,
+      engineKey: engine.engineKey, inputFields: WIRED_ENGINE_INPUT_FIELDS[engine.engineKey],
+    }
+    const bucket = byCategory.get(engine.category) ?? []
+    bucket.push(leaf)
+    byCategory.set(engine.category, bucket)
+  }
+
+  const categoryNodes: CapabilityNode[] = Array.from(byCategory.entries()).map(([category, leaves]) => ({
+    key: category, label: category, leaf: false, children: leaves,
+  }))
+
+  return [{ key: "calculators", label: "Calculators", leaf: false, children: categoryNodes }]
 }
 
 async function buildBranchNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {

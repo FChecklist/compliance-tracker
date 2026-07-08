@@ -8,7 +8,7 @@ function getResend(): Resend | null {
   return resend
 }
 
-const FROM = process.env.EMAIL_FROM ?? "VERIDIAN AI <noreply@veridian-compliance.ai>"
+export const FROM = process.env.EMAIL_FROM ?? "VERIDIAN AI <noreply@veridian-compliance.ai>"
 
 export interface EmailPayload {
   to: string

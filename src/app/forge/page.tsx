@@ -26,7 +26,8 @@
 // (site-wide "we discuss cost" positioning) — quote it directly when asked.
 
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -49,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { ProductSalesSection } from "@/components/ProductSalesSection";
 import { VisitorIntelligence } from "@/components/VisitorIntelligence";
 import { LegalBar } from "@/components/LegalBar";
+import { ForgeIntakeComposer } from "@/components/ForgeIntakeComposer";
 
 // --- Editable content -------------------------------------------------------
 
@@ -238,6 +240,21 @@ function Nav() {
   );
 }
 
+function ConfirmedBanner() {
+  const params = useSearchParams();
+  const confirmed = params.get("confirmed");
+  if (!confirmed) return null;
+  return confirmed === "1" ? (
+    <div className="mx-auto mb-6 max-w-xl rounded-xl border border-emerald-600/30 bg-emerald-600/10 px-5 py-3 text-sm text-emerald-800">
+      Your email is confirmed — thanks! We&apos;ll be in touch.
+    </div>
+  ) : (
+    <div className="mx-auto mb-6 max-w-xl rounded-xl border border-red-600/30 bg-red-600/10 px-5 py-3 text-sm text-red-800">
+      That confirmation link isn&apos;t valid or has expired.
+    </div>
+  );
+}
+
 function Hero() {
   return (
     <section className="relative overflow-hidden">
@@ -246,55 +263,38 @@ function Hero() {
         <div className="absolute top-40 -left-24 size-[380px] rounded-full bg-ct-teal/10 blur-3xl" />
       </div>
 
-      <div className="mx-auto max-w-6xl px-5 pt-12 pb-14 md:pt-16 md:pb-20">
-        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-12">
-          {/* the message */}
-          <div className="text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
-              <span className="size-1.5 rounded-full bg-ct-teal" />
-              AI Engineering, Not an Agency · Part of VERIDIAN AI OS
-            </div>
-
-            <h1 className="mt-6 font-heading text-4xl leading-[1.08] text-ct-navy sm:text-5xl xl:text-6xl">
-              Custom software shouldn&apos;t
-              <br />
-              <span className="text-ct-saffron">cost lakhs. Or months.</span>
-            </h1>
-
-            <p className="mx-auto lg:mx-0 mt-5 max-w-xl text-lg text-ct-slate">
-              A custom build shouldn&apos;t cost you months of requirements meetings and status calls. FORGE runs
-              the entire engineering process on AI — requirements to architecture to deployment — so your time goes
-              into the decisions that shape the system, not into managing a bench of billable consultants.{" "}
-              <span className="font-semibold text-ct-navy">One flat fee. Bring your own AI.</span> Zero recurring
-              charges, ever.
-            </p>
-            <p className="mx-auto lg:mx-0 mt-3 max-w-xl text-sm font-medium text-ct-teal">
-              It doesn&apos;t replace engineering judgment — it removes the billable-hours tax on getting your say.
-            </p>
-
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
-              <Link href="/signup">
-                <Button className="h-12 rounded-full bg-ct-saffron hover:bg-ct-saffron-hover px-7 text-base text-white shadow-saffron">
-                  Start your project <ArrowRight className="ml-1 size-4" />
-                </Button>
-              </Link>
-              <a href="#how">
-                <Button variant="outline" className="h-12 rounded-full px-7 text-base border-ct-border text-ct-navy">
-                  See how it works
-                </Button>
-              </a>
-            </div>
-            <p className="mt-4 text-sm text-ct-muted">Flat one-time fee · BYOK · No recurring platform fee · Built on VERIDIAN AI OS</p>
-          </div>
-
-          {/* the proof — AI actually engineering the system, live */}
-          <div>
-            <BuildLog />
-            <p className="mt-3 text-center text-sm text-ct-muted">
-              ↑ This is the actual engineering process — schema to deploy, run by AI.
-            </p>
-          </div>
+      <div className="mx-auto max-w-3xl px-5 pt-12 pb-16 md:pt-16 md:pb-20 text-center">
+        <Suspense fallback={null}>
+          <ConfirmedBanner />
+        </Suspense>
+        <div className="inline-flex items-center gap-2 rounded-full border border-ct-border bg-white/70 px-4 py-1.5 text-xs font-medium text-ct-slate">
+          <span className="size-1.5 rounded-full bg-ct-teal" />
+          AI Engineering, Not an Agency · Part of VERIDIAN AI OS
         </div>
+
+        <h1 className="mt-6 font-heading text-4xl leading-[1.08] text-ct-navy sm:text-5xl xl:text-6xl">
+          Custom software shouldn&apos;t
+          <br />
+          <span className="text-ct-saffron">cost lakhs. Or months.</span>
+        </h1>
+
+        <p className="mx-auto mt-5 max-w-xl text-lg text-ct-slate">
+          FORGE AI is your software development partner. Most people don&apos;t know how to describe the system
+          they need in words — so don&apos;t. Click through what you&apos;re building below, and FORGE AI does the
+          rest.
+        </p>
+        <p className="mx-auto mt-3 max-w-xl text-sm font-medium text-ct-teal">
+          It doesn&apos;t replace engineering judgment — it removes the billable-hours tax on getting your say.
+        </p>
+
+        <div className="mt-10">
+          <ForgeIntakeComposer />
+        </div>
+
+        <p className="mt-5 text-sm text-ct-muted">
+          Flat one-time fee · BYOK · No recurring platform fee ·{" "}
+          <a href="#how" className="underline hover:text-ct-navy">See how it works</a>
+        </p>
       </div>
     </section>
   );
@@ -495,6 +495,13 @@ function How() {
           </div>
         ))}
       </div>
+
+      <div className="mt-14">
+        <BuildLog />
+        <p className="mt-3 text-center text-sm text-ct-muted">
+          ↑ Once you submit, this is the actual engineering process — schema to deploy, run by AI.
+        </p>
+      </div>
     </section>
   );
 }
@@ -554,6 +561,9 @@ function Pricing() {
         <p className="mx-auto mt-3 max-w-2xl text-ct-slate">
           No hourly billing, no change-request invoices, no recurring platform fee. Bring your own AI provider key
           and the system is entirely yours. Tell us about the build and we&apos;ll give you a number.
+        </p>
+        <p className="mx-auto mt-3 max-w-2xl text-sm font-medium text-ct-saffron">
+          Your dreams are more precious. Our cost is far lesser.
         </p>
       </div>
 

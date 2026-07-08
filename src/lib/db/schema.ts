@@ -721,6 +721,10 @@ export const tasks = complianceSchemaDB.table('tasks', {
   assignedById: text('assigned_by_id'),
   projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope
   dueDate: timestamp('due_date'), // Wave 44: generalized from meettrack-v2's per-action-item target_date
+  // When set, this task was created from a completed VERI Chat chain
+  // selection -- the worker agent is already known, so executeTask() skips
+  // LLM planning entirely and dispatches directly (zero-LLM-cost path).
+  resolvedWorkerAgentId: text('resolved_worker_agent_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -6583,6 +6587,26 @@ export const contactSubmissions = complianceSchemaDB.table('contact_submissions'
   email: text('email'),
   mobile: text('mobile'),
   message: text('message'),
+  status: text('status').notNull().default('draft'), // 'draft' | 'submitted'
+  confirmToken: text('confirm_token'),
+  emailConfirmedAt: timestamp('email_confirmed_at'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// FORGE intake requests -- same platform-owned, service_role_bypass posture
+// as contactSubmissions above. selectionPath is the ordered Mode Pill +
+// Chain Selector walk (node keys); selectionLabels is the same walk in
+// human-readable form, denormalized so the FORGE team never has to re-derive
+// labels from a taxonomy that may have since changed.
+export const forgeProjectRequests = complianceSchemaDB.table('forge_project_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  visitorId: text('visitor_id').notNull(),
+  selectionPath: jsonb('selection_path').notNull().default([]),
+  selectionLabels: jsonb('selection_labels').notNull().default([]),
+  notes: text('notes'),
+  email: text('email'),
   status: text('status').notNull().default('draft'), // 'draft' | 'submitted'
   confirmToken: text('confirm_token'),
   emailConfirmedAt: timestamp('email_confirmed_at'),

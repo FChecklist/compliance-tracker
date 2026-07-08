@@ -81,6 +81,7 @@ export default function VeriComposer() {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
   const [queue, setQueue] = useState<{ path: PathSegment[]; text: string; display: string }[]>([]);
+  const [engineInputValues, setEngineInputValues] = useState<Record<string, string>>({});
   const textareaRef = useAutoGrowTextarea(value, 160);
 
   const chainModes = tree.filter((n) => !FIXED_MODES.includes(n.key as never)).map((n) => n.key);
@@ -96,6 +97,7 @@ export default function VeriComposer() {
   useEffect(() => {
     const preseed = preseedKeyForMode(composerMode);
     setSelectedPath(preseed ? [preseed] : []);
+    setEngineInputValues({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerMode]);
 
@@ -107,6 +109,9 @@ export default function VeriComposer() {
   const { children: currentChildren } = tree.length ? nodeChildrenAt(tree, selectedPath, selectedPath.length) : { children: [] };
   const chainComplete = !treeLoading && !activeTaskId && (currentChildren === null || (currentChildren?.length ?? 0) === 0) && selectedPath.length > 0;
   const isThreadOpen = Boolean(activeTaskId || activeConversationId);
+  const completedLeaf = chainComplete && tree.length ? resolveLeaf(tree, selectedPath) : null;
+  const needsEngineInputs = Boolean(completedLeaf?.inputFields?.length);
+  const engineInputsFilled = !needsEngineInputs || (completedLeaf!.inputFields!.every((f) => engineInputValues[f.key]?.trim()));
 
   function toggleSingle(depth: number, key: string) {
     setSelectedPath((prev) => {
@@ -126,17 +131,25 @@ export default function VeriComposer() {
     });
   }
 
-  async function dispatchInstruction(path: PathSegment[], text: string) {
+  async function dispatchInstruction(path: PathSegment[], text: string, engineInputs?: Record<string, string>) {
     const displayCrumb = pathDisplayString(path);
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
       const leaf = resolveLeaf(tree, p);
+      const body: Record<string, unknown> = { title: crumb, description: text, projectId: leaf?.projectId ?? undefined };
+      // Structured (non-LLM) dispatch: a worker-agent leaf carries its real
+      // id as `key` whenever it has a codeReference (capability-tree-
+      // service.ts), and a calculator leaf carries its engineKey -- passing
+      // either through means task-execution-engine.ts can skip LLM planning
+      // entirely instead of re-guessing intent from the breadcrumb text.
+      if (leaf?.codeReference) body.workerAgentId = leaf.key;
+      if (leaf?.engineKey && engineInputs) { body.engineKey = leaf.engineKey; body.engineInputs = engineInputs; }
       try {
         const res = await fetch("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: crumb, description: text, projectId: leaf?.projectId ?? undefined }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error();
       } catch {
@@ -149,8 +162,27 @@ export default function VeriComposer() {
   }
 
   async function send() {
+    if (sending) return;
+    // Calculator leaves: the structured inputs ARE the instruction -- free
+    // text is optional context, not required, unlike every other chain mode.
+    if (isChainMode && chainComplete && needsEngineInputs) {
+      if (!engineInputsFilled) return;
+      setSending(true);
+      try {
+        await dispatchInstruction(selectedPath, value.trim(), engineInputValues);
+        setValue("");
+        setEngineInputValues({});
+        setSelectedPath(preseedKeyForMode(composerMode) ? [preseedKeyForMode(composerMode)!] : []);
+      } catch {
+        toast.error("Failed to send — please try again");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const text = value.trim();
-    if (!text || sending) return;
+    if (!text) return;
     setSending(true);
     try {
       if (activeTaskId) {
@@ -206,16 +238,18 @@ export default function VeriComposer() {
     setQueue([]);
   }
 
-  const disabled = !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete);
+  const disabled = !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete) && !needsEngineInputs;
   const placeholder = isThreadOpen
     ? "Message…"
     : composerMode === "discuss"
       ? "Ask me anything — no task selection needed…"
       : composerMode === "chats"
         ? "Pick a conversation in VERI Chat to start typing"
-        : chainComplete
-          ? "Tell your AI Assistant what to do…"
-          : "Select a task above to begin…";
+        : needsEngineInputs
+          ? "Anything else? (optional)"
+          : chainComplete
+            ? "Tell your AI Assistant what to do…"
+            : "Select a task above to begin…";
 
   return (
     <div className="shrink-0 border-t border-ct-border bg-white/95 backdrop-blur px-6 py-3">
@@ -253,6 +287,25 @@ export default function VeriComposer() {
               </span>
             </div>
             <ChainRows tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti} />
+          </div>
+        )}
+
+        {needsEngineInputs && !isThreadOpen && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 mb-2">
+            <span className="text-[13px] font-semibold text-ct-navy">{completedLeaf!.label} — enter the details</span>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {completedLeaf!.inputFields!.map((field) => (
+                <div key={field.key}>
+                  <label className="text-[10.5px] text-ct-muted">{field.label}</label>
+                  <input
+                    type={field.type === "number" ? "number" : "text"}
+                    value={engineInputValues[field.key] ?? ""}
+                    onChange={(e) => setEngineInputValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    className="mt-0.5 w-full rounded-lg border border-ct-border2 bg-white px-2.5 py-1.5 text-[13px] text-ct-navy focus:outline-none focus:ring-2 focus:ring-ct-navy/20"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -295,7 +348,7 @@ export default function VeriComposer() {
                   + Add another
                 </button>
               )}
-              <button type="button" onClick={send} disabled={disabled || sending || !value.trim()}
+              <button type="button" onClick={send} disabled={disabled || sending || (needsEngineInputs ? !engineInputsFilled : !value.trim())}
                 className="grid size-9 place-items-center rounded-lg bg-ct-saffron text-white hover:bg-ct-saffron-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-[18px]" />}
               </button>

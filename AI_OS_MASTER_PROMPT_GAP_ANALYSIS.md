@@ -28,7 +28,7 @@ This document is that evaluation, grounded in direct code reads (not the 2-day-o
 
 ## Genuine gaps, confirmed absent
 
-1. **No pre-LLM routing cascade for cost/latency** — nothing checks "can cache/rules/memory answer this before spending an LLM call" as a *general* pattern across call sites (the policy gate checks *safety*, not *necessity*).
+1. **No pre-LLM routing cascade for cost/latency** — nothing checks "can cache/rules/memory answer this before spending an LLM call" as a *general* pattern across call sites (the policy gate checks *safety*, not *necessity*). **Partially closed, Wave 114** (`WAVE_114_DETERMINISTIC_DISPATCH.md`): the one specific path this applies to most directly — VERI Chat's chain-selector completing at a known worker agent or VCEL calculator — now skips the LLM entirely (structured dispatch, zero `orchestra_executions` cost). Still absent as a *general* pattern: chat, VERI FDE, and Page Agent's free-text call sites have no cache/rules-before-LLM check.
 2. **No LLM response cache** — `embedding_cache` caches embeddings only; identical prompts still re-call the LLM every time.
 3. **Policy enforcement coverage is partial** — real, but only 3 of N LLM call sites are wired (VERI Chat, VERI FDE, Page Agent). Internal loops, document extraction, and the Level 1 orchestrator are unguarded (VERIDIAN_AI_CONSTITUTION.md itself names this gap).
 4. **No knowledge graph** — confirmed absent again; `knowledgeBasePages` is plain markdown with ILIKE search, not a graph.

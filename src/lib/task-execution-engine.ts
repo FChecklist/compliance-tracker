@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
@@ -37,7 +37,7 @@ import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/a
  * write-then-read loop for that assistant's future tasks.
  */
 
-export async function dispatchTool(db: TenantDb, orgId: string, codeReference: string): Promise<unknown> {
+export async function dispatchTool(db: TenantDb, orgId: string, codeReference: string, context?: { taskId?: string }): Promise<unknown> {
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
@@ -69,7 +69,131 @@ export async function dispatchTool(db: TenantDb, orgId: string, codeReference: s
     });
   }
 
+  if (codeReference === "list_compliance_items") {
+    return db.query.complianceItems.findMany({
+      where: eq(complianceItems.orgId, orgId),
+      columns: { id: true, title: true, complianceType: true, status: true, dueDate: true },
+      orderBy: asc(complianceItems.dueDate),
+      limit: 20,
+    });
+  }
+
+  if (codeReference === "list_notices") {
+    return db.query.notices.findMany({
+      where: eq(notices.orgId, orgId),
+      columns: { id: true, noticeNumber: true, authority: true, status: true, replyDeadline: true },
+      orderBy: asc(notices.replyDeadline),
+      limit: 20,
+    });
+  }
+
+  if (codeReference === "get_task_status") {
+    // Contextual, zero-argument by design -- "what's the status of the task
+    // I'm in", not an arbitrary lookup (structured dispatch has no argument-
+    // capture UI yet; a task-id-taking version can be added once it does).
+    if (!context?.taskId) throw new Error("get_task_status requires task context");
+    const task = await db.query.tasks.findFirst({
+      where: eq(tasks.id, context.taskId),
+      columns: { id: true, title: true, status: true, updatedAt: true },
+    });
+    if (!task) throw new Error("Task not found");
+    return task;
+  }
+
   throw new Error(`No dispatcher implemented for ${codeReference}`);
+}
+
+// Deliberately a small, explicit allowlist switch -- not a generic resolver
+// that dynamic-imports whatever computation_engines.implementation_ref says.
+// Letting a database row control which file gets imported and which export
+// gets called would be a real code-execution surface; each case here is a
+// real, reviewed import instead. First slice: 3 GST Engine functions,
+// proving both the numeric-calculation and string-validation input shapes
+// before extending to the other ~200 registered engines in a later wave.
+async function dispatchEngine(engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+  switch (engineKey) {
+    case "gst_split_engine": {
+      const { splitGst } = await import("@/lib/engines/gst-engine");
+      return splitGst({
+        taxableAmount: Number(inputs.taxableAmount),
+        gstRatePercent: Number(inputs.gstRatePercent),
+        supplierStateCode: String(inputs.supplierStateCode ?? ""),
+        buyerStateCode: String(inputs.buyerStateCode ?? ""),
+      });
+    }
+    case "gst_calculation_engine": {
+      const { calculateGst } = await import("@/lib/engines/gst-engine");
+      return calculateGst({
+        taxableAmount: Number(inputs.taxableAmount),
+        gstRatePercent: Number(inputs.gstRatePercent),
+        supplierStateCode: String(inputs.supplierStateCode ?? ""),
+        buyerStateCode: String(inputs.buyerStateCode ?? ""),
+      });
+    }
+    case "hsn_validation_engine": {
+      const { isValidHsnFormat } = await import("@/lib/engines/gst-engine");
+      return { valid: isValidHsnFormat(String(inputs.hsn ?? "")) };
+    }
+    default:
+      throw new Error(`No engine dispatcher implemented for ${engineKey}`);
+  }
+}
+
+// Structured dispatch: the worker agent is already known (a human clicked it
+// via the chain selector, re-verified server-side in task-service.ts), so
+// there's no LLM discretion to guard against -- deliberately does NOT run
+// isToolAllowedForDomain() here (that allowlist exists to stop an LLM from
+// picking an inappropriate tool; it has nothing to check when a human
+// already picked the exact tool by name). The free-text/LLM-planning path
+// below is completely unchanged and still enforces it.
+async function executeStructuredDispatch(orgId: string, userId: string, taskId: string, workerAgentId: string): Promise<void> {
+  await withTenantContext({ orgId, userId }, async (db) => {
+    const agent = await db.query.workerAgents.findFirst({ where: eq(workerAgents.id, workerAgentId) });
+    if (!agent?.codeReference || agent.tier !== "global" || !["approved", "published"].includes(agent.lifecycleStatus)) {
+      await db.insert(taskChatMessages).values({ taskId, role: "system", content: "The selected capability is no longer available. Please try again." });
+      await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      return;
+    }
+
+    const [planRow] = await db.insert(taskExecutionPlan).values({
+      taskId, stepNumber: 1, workerAgentId: agent.id, description: agent.name, status: "completed",
+    }).returning();
+
+    const startedAt = new Date();
+    try {
+      const output = await dispatchTool(db, orgId, agent.codeReference, { taskId });
+      await db.insert(taskAgentExecutions).values({
+        taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
+        status: "completed", input: {}, output: output as object,
+      });
+      await db.insert(taskChatMessages).values({
+        taskId, role: "assistant", content: `${agent.name}: ${JSON.stringify(output).slice(0, 800)}`,
+      });
+      await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+    } catch (dispatchErr) {
+      const message = dispatchErr instanceof Error ? dispatchErr.message : "unknown error";
+      await db.insert(taskAgentExecutions).values({
+        taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
+        status: "failed", input: {}, errorMessage: message,
+      });
+      await db.insert(taskChatMessages).values({ taskId, role: "system", content: `${agent.name} couldn't complete: ${message}` });
+      await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+    }
+  });
+}
+
+async function executeEngineDispatch(orgId: string, userId: string, taskId: string, engineKey: string, engineInputs: Record<string, unknown>): Promise<void> {
+  await withTenantContext({ orgId, userId }, async (db) => {
+    try {
+      const output = await dispatchEngine(engineKey, engineInputs);
+      await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "unknown error";
+      await db.insert(taskChatMessages).values({ taskId, role: "system", content: `Calculation failed: ${message}` });
+      await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+    }
+  });
 }
 
 export async function executeTask(
@@ -79,8 +203,26 @@ export async function executeTask(
   title: string,
   description: string | null,
   projectId?: string | null,
-  assistantId?: string | null
+  assistantId?: string | null,
+  // Structured (non-LLM) dispatch: set when this task came from a completed
+  // VERI Chat chain selection rather than free text. resolvedWorkerAgentId
+  // (already re-verified by task-service.ts) skips straight to dispatchTool;
+  // engineKey/engineInputs do the same for a VCEL calculator leaf. Either
+  // path means zero LLM calls and zero orchestra_executions cost row --
+  // the whole point of a structured selection over typed prose.
+  resolvedWorkerAgentId?: string | null,
+  engineKey?: string,
+  engineInputs?: Record<string, unknown>
 ): Promise<void> {
+  if (engineKey) {
+    await executeEngineDispatch(orgId, userId, taskId, engineKey, engineInputs ?? {});
+    return;
+  }
+  if (resolvedWorkerAgentId) {
+    await executeStructuredDispatch(orgId, userId, taskId, resolvedWorkerAgentId);
+    return;
+  }
+
   try {
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
     if (!modelConfig) {

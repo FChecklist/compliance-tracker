@@ -1,5 +1,7 @@
 # Veridian AI — Agent Task List
 
+> ⚠️ **ARCHIVED — do not execute against current reality.** Last updated 2026-06-28, describing an early, much smaller version of this product (before ERP/GRC/PMS/FM&CS/THE FIRM/FORGE/VERI Chat/VCEL existed). Every task below (checklists, tasks, reports, penalties, team pages, base schema/seed) has long since been superseded by later waves. Kept for history only — do not pick up TASK-001 through TASK-016 as if they were still pending. For current platform status, see `WAVE_114_DETERMINISTIC_DISPATCH.md` and `AI_OS_MASTER_PROMPT_GAP_ANALYSIS.md`.
+
 > **Repo:** https://github.com/FChecklist/compliance-tracker  
 > **Purpose:** Every pending task is listed here with full instructions so any AI agent (Claude Code via z.ai or otherwise) can pick up and execute autonomously.  
 > **Rule:** After completing each task, the agent MUST update this file — fill in ✅ Status, Date/Time, Completed By, and Comments.

@@ -1,8 +1,8 @@
 // Wave 11 service layer -- extracted from src/app/api/tasks/{route,
 // [id]/route}.ts verbatim (behavior-identical refactor).
-import { tasks, aiAssistants } from "@/lib/db"
+import { tasks, aiAssistants, workerAgents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { desc, eq, asc, and, ne } from "drizzle-orm"
+import { desc, eq, asc, and, ne, inArray } from "drizzle-orm"
 import { executeTask } from "@/lib/task-execution-engine"
 import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
@@ -27,7 +27,17 @@ export async function listTasks(ctx: ReadContext & { userId?: string }, filters:
   }
 }
 
-export async function createTask(ctx: ServiceContext, input: { title: string; description?: string; assistantId?: string; projectId?: string }) {
+export async function createTask(ctx: ServiceContext, input: {
+  title: string; description?: string; assistantId?: string; projectId?: string
+  // Structured (non-LLM) dispatch: set when the task was created from a
+  // completed VERI Chat chain selection rather than free text -- the worker
+  // agent (or VCEL calculator) is already known, so executeTask() can skip
+  // LLM planning entirely. Never trust these IDs from the client alone --
+  // re-verified against the real registry below before being trusted.
+  workerAgentId?: string
+  engineKey?: string
+  engineInputs?: Record<string, unknown>
+}) {
   const { orgId, actor } = ctx
   if (!actor.dbUser) throw new ServiceError("Task creation requires a real user session, not an API key", 400)
   const dbUser = actor.dbUser
@@ -43,13 +53,39 @@ export async function createTask(ctx: ServiceContext, input: { title: string; de
       const assistant = await db.query.aiAssistants.findFirst({ where: eq(aiAssistants.id, assistantId) })
       if (!assistant) return null
     }
-    const [created] = await db.insert(tasks).values({ orgId, userId: dbUser.id, assignedById: dbUser.id, assistantId, projectId, title, description, status: "in_progress" }).returning()
+
+    // Defense in depth: the composer already only ever sends a workerAgentId
+    // it pulled off a real capability-tree leaf, but a client is never
+    // trusted for authorization -- re-verify server-side that this id
+    // resolves to a real, human-approved, dispatchable agent before storing
+    // it as the task's resolved dispatch target. If it doesn't check out,
+    // silently fall through to the ordinary LLM-planning path rather than
+    // failing the whole task creation.
+    let resolvedWorkerAgentId: string | null = null
+    if (input.workerAgentId) {
+      const agent = await db.query.workerAgents.findFirst({
+        where: and(
+          eq(workerAgents.id, input.workerAgentId),
+          eq(workerAgents.tier, "global"),
+          inArray(workerAgents.lifecycleStatus, ["approved", "published"])
+        ),
+      })
+      if (agent?.codeReference) resolvedWorkerAgentId = agent.id
+    }
+
+    const [created] = await db.insert(tasks).values({
+      orgId, userId: dbUser.id, assignedById: dbUser.id, assistantId, projectId, title, description,
+      status: "in_progress", resolvedWorkerAgentId,
+    }).returning()
     return created
   })
 
   if (!result) throw new ServiceError("Assistant not found", 404)
 
-  await executeTask(orgId, dbUser.id, result.id, result.title, result.description, result.projectId, result.assistantId)
+  await executeTask(
+    orgId, dbUser.id, result.id, result.title, result.description, result.projectId, result.assistantId,
+    result.resolvedWorkerAgentId, input.engineKey, input.engineInputs
+  )
   const final = await withTenantContext({ orgId, userId: dbUser.id }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, result.id) }))
 
   return {

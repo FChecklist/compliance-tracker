@@ -6,11 +6,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { StatusPill } from "@/components/SimpleModulePage";
 import { formatDistanceToNow } from "date-fns";
 
-type TodoTask = { id: string; title: string; description: string | null; status: string; createdAt: string; updatedAt: string };
-type DelegatedTask = TodoTask & { assigneeId: string };
+type VeriTodoItem = {
+  id: string; source: "task" | "instruction" | "pms_issue"; title: string; description: string | null;
+  status: string; dueDate: string | null; createdAt: string; href: string;
+};
+type DelegatedTask = { id: string; title: string; description: string | null; status: string; createdAt: string; updatedAt: string; assigneeId: string };
 
 export function ToDoTab() {
-  const [myTasks, setMyTasks] = useState<TodoTask[]>([]);
+  const [items, setItems] = useState<VeriTodoItem[]>([]);
   const [delegated, setDelegated] = useState<DelegatedTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +23,7 @@ export function ToDoTab() {
       fetch("/api/home/assigned-by-me").then((r) => r.json()),
     ])
       .then(([mine, byMe]) => {
-        setMyTasks(mine.tasks ?? []);
+        setItems(mine.items ?? []);
         setDelegated(byMe.tasks ?? []);
       })
       .catch(() => {})
@@ -29,10 +32,14 @@ export function ToDoTab() {
 
   useEffect(load, []);
 
-  async function toggleComplete(task: TodoTask) {
-    const nextStatus = task.status === "completed" ? "in_progress" : "completed";
-    setMyTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
-    await fetch(`/api/tasks/${task.id}`, {
+  // Only real `tasks` rows have a /api/tasks/:id PATCH target -- an
+  // instruction_commitment or pms_issue sourced item isn't a task and can't
+  // be toggled the same way, so those render read-only (via their own href).
+  async function toggleComplete(item: VeriTodoItem) {
+    if (item.source !== "task") return;
+    const nextStatus = item.status === "completed" ? "in_progress" : "completed";
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, status: nextStatus } : i)));
+    await fetch(`/api/tasks/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: nextStatus }),
@@ -46,18 +53,26 @@ export function ToDoTab() {
       <div>
         <h2 className="font-heading text-lg text-ct-navy mb-2">My To Do</h2>
         <Card className="rounded-xl shadow-card bg-white divide-y divide-ct-border">
-          {myTasks.length === 0 ? (
+          {items.length === 0 ? (
             <p className="p-4 text-sm text-ct-muted">Nothing on your plate right now.</p>
           ) : (
-            myTasks.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 p-3">
-                <Checkbox checked={t.status === "completed"} onCheckedChange={() => toggleComplete(t)} />
+            items.map((item) => (
+              <a key={item.id} href={item.href} className="flex items-center gap-3 p-3 hover:bg-ct-cloud/40">
+                {item.source === "task" ? (
+                  <Checkbox
+                    checked={item.status === "completed"}
+                    onCheckedChange={() => toggleComplete(item)}
+                    onClick={(e) => e.preventDefault()}
+                  />
+                ) : (
+                  <span className="size-4 shrink-0 rounded-full border border-ct-border" title={item.source === "instruction" ? "Assigned to you" : "PMS issue"} />
+                )}
                 <div className="flex-1 min-w-0">
-                  <p className={t.status === "completed" ? "text-sm text-ct-muted line-through" : "text-sm text-ct-navy"}>{t.title}</p>
-                  <p className="text-xs text-ct-muted">{formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}</p>
+                  <p className={item.status === "completed" ? "text-sm text-ct-muted line-through" : "text-sm text-ct-navy"}>{item.title}</p>
+                  <p className="text-xs text-ct-muted">{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</p>
                 </div>
-                <StatusPill value={t.status} />
-              </div>
+                <StatusPill value={item.status} />
+              </a>
             ))
           )}
         </Card>
