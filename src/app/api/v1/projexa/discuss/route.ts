@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa discuss error:", error)
-    return NextResponse.json({ error: "Failed to generate a reply" }, { status: 500 })
+    const message = error instanceof Error ? error.message : "Failed to generate a reply"
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 }
