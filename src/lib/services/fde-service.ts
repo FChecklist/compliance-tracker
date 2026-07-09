@@ -57,6 +57,15 @@ function labelFromContent(content: string): string {
   return content.split(" | ")[0] || content.slice(0, 60)
 }
 
+// Wave 144: shared shape for the top-K candidates persisted alongside every
+// FDE request, per the joint implementation plan (Phase 1 item 5) -- lets a
+// future UI surface "here's what else looked close" instead of a single
+// verdict, without a second embedding search.
+type TopCandidate = { entityType: string; entityId: string; score: number; label: string }
+function toTopCandidates(candidates: { entityType: string; entityId: string; score: number; content: string }[]): TopCandidate[] {
+  return candidates.map((c) => ({ entityType: c.entityType, entityId: c.entityId, score: Math.round(c.score * 100) / 100, label: labelFromContent(c.content) }))
+}
+
 export type SubmitFdeRequestOptions = {
   // Real bug found + fixed 2026-07-08: chat-service.ts's inline background
   // FDE evaluation (fires on EVERY AI-thread chat message, not just
@@ -136,6 +145,8 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       matchedWorkerAgentId: topMatch.entityType === "worker_agent" ? topMatch.entityId : null,
       matchedLabel: label,
       responseText,
+      reuseLevel: "exact_match",
+      topCandidates: toTopCandidates(candidates),
     })
   }
 
@@ -189,6 +200,8 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
         matchedWorkerAgentId: evaluation.matchType === "existing_agent" ? evaluation.matchedId : null,
         matchedLabel: evaluation.matchedLabel,
         responseText: evaluation.responseToUser,
+        reuseLevel: "llm_assisted_match",
+        topCandidates: toTopCandidates(candidates),
       })
     }
 
@@ -214,6 +227,8 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       status: "proposed_agent",
       createdWorkerAgentId: proposed.id,
       responseText: evaluation.responseToUser,
+      reuseLevel: "new_proposal",
+      topCandidates: toTopCandidates(candidates),
     })
   } catch (err) {
     console.error("VERI FDE evaluation failed:", err)
@@ -232,7 +247,10 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
 async function recordFdeRequest(
   ctx: { orgId: string; userId: string },
   requestText: string,
-  fields: { status: string; matchedWorkerAgentId?: string | null; matchedLabel?: string | null; createdWorkerAgentId?: string | null; responseText: string }
+  fields: {
+    status: string; matchedWorkerAgentId?: string | null; matchedLabel?: string | null; createdWorkerAgentId?: string | null; responseText: string
+    reuseLevel?: "exact_match" | "llm_assisted_match" | "new_proposal"; topCandidates?: TopCandidate[]
+  }
 ) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [record] = await db.insert(fdeRequests).values({
@@ -240,6 +258,8 @@ async function recordFdeRequest(
       status: fields.status, matchedWorkerAgentId: fields.matchedWorkerAgentId || null,
       matchedLabel: fields.matchedLabel || null, createdWorkerAgentId: fields.createdWorkerAgentId || null,
       responseText: fields.responseText,
+      reuseLevel: fields.reuseLevel ?? null,
+      topCandidates: fields.topCandidates ?? null,
     }).returning()
     return record
   })
