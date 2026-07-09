@@ -1723,3 +1723,87 @@ Principles 14 and 17 (AI Coding Directive, Platform Evolution Principle) require
 ### The gate before any of the above begins
 
 Per the source document's own opening instructions, this study is one half of a required pair. The next step is **not** to start Phase 0 — it's to obtain the independent `Study_by_zaizlm5.2.md` (z.ai GLM/ZLM-5.2 via OpenRouter, a separate track not run by this session), cross-review both studies' findings, jointly audit the live system, and produce one joint implementation document before either AI starts implementing. This document is written to be ready for that cross-review, not to be executed unilaterally.
+
+---
+
+## Addendum: Proposed VERIDIAN AI OS Multi-Repo "Brain" Architecture (added 2026-07-09, per Boss request)
+
+The repo owner asked directly: how should GitHub repositories be architected so that VERIDIAN AI OS — a self-learning, self-evolving, self-developing cognitive AI OS, "THE BRAIN" — stays structurally separate from modules/functionalities/projects/products, while controlling every FChecklist repository, with modules free to live in their own repos, everything connected by APIs, full reuse with no duplication, a directory that supports "what do we already have" analysis before any new development, and a full AI agent team running it? This addendum answers that directly, building on the gap analysis above (this is a proposal, not something implemented in this PR — no code changes are made here either).
+
+### 1. Why the current repo topology doesn't satisfy this yet
+
+Today, the "brain" (Capability Registry, Worker Agent registry, the 25-file deterministic engine library, FDE capability search, prompt/conversation infrastructure) lives inside `compliance-tracker`'s `src/lib/` — the same codebase as VERIDIAN's own compliance product logic. PROJEXA reuses it only because it's aliased into the same Next.js process (`/api/v1/projexa/*`), not because it's calling a genuinely separate, independently-versioned service. `veda-advisors` is a separate repo but has no wiring to any of this intelligence at all. There is no single place a new repo, or a new feature inside an existing repo, can query to ask "does this capability already exist anywhere in FChecklist?" — the registry that exists is trapped inside one product's codebase. This is the structural reason the Constitution's Principle 14 (AI Coding Directive — "check before you build") and Principle 16 (Universal Asset Registry) can't yet be enforced platform-wide: there is no platform-wide anything, only one big repo and a couple of unconnected smaller ones.
+
+### 2. Proposed repo topology
+
+**`FChecklist/veridian-brain`** — THE BRAIN. A new, standalone repo containing only cognition and governance, no business/product logic:
+- Capability Registry + Asset Registry (generalizing the existing `worker_agents` schema shape — tier/version/lifecycleStatus/usageCount/qualityScore — into the shared `platform_assets` table proposed in Phase 2 above, covering modules, worker agents, integrations, APIs, templates, forms, dashboards, reports, prompt patterns, and every other category Principle 16 lists)
+- Worker Agent registry + runtime dispatch (today's `worker_agents` table, `worker-agent-service.ts`, and the `/api/ai/team/dispatch` pattern, generalized to serve every repo, not just `compliance-tracker`)
+- The deterministic engine library (today's 25-file `src/lib/engines/`, the `computation_engines` tracking table, and FDE's embedding-based capability search — `fde-service.ts` — which is already the closest real match to the document's "Software First, AI Last" philosophy found anywhere in the study)
+- Intent Engine, Conversation OS/Knowledge Base/State Machine (net-new — see Phase 2/3 above)
+- The Enterprise Cognitive Graph (`entityRelationships` edge table, per the cross-cutting synthesis above) — the one graph substrate serving Intent/State/Wisdom/Innovation/Foresight graph use cases
+- Model Router / LLM Gateway (today's `llm-client.ts`, OpenRouter integration, `llm-response-cache.ts`)
+- SENTINEL governance (today's `ai-os/sentinel/`), but scoped platform-wide instead of per-repo
+- A cross-repo `BOARD.yaml`/task board that every module repo's local board syncs into, so the Brain has a single global view of what's in flight everywhere — this is the literal "VERIDIAN AI OS is the boss" mechanism: the Brain repo is where cross-repo work gets analyzed, approved/rejected/modified, and tracked, mirroring the single-gateway pipeline the source document's own opening instructions call for
+
+**Product/module repos** (`compliance-tracker`, `projexa`, `veda-advisors`, and future ones — e.g. a future dedicated HRMS or CRM module) — each stays a normal application repo: its own UI, its own product-specific database tables, its own deploy pipeline. The only thing that changes is that anywhere these repos currently import `src/lib/engines/*`, `capability-registry-service.ts`, `worker-agent-service.ts`, or `fde-service.ts` directly, they instead call the Brain's API through a published SDK.
+
+**`@veridian/brain-sdk`** — a small, versioned npm package (published from the Brain repo, consumed by every module repo) wrapping the Brain's API: typed client functions (`findSimilarCapabilities()`, `dispatchWorkerAgent()`, `classifyIntent()`, `runEngine()`, `queryGraph()`), with local response caching and retry/fallback logic built in, so module repos get a typed, ergonomic interface instead of hand-rolled `fetch()` calls. This is also where the "search before you build" directive becomes mechanically enforceable — a lint rule or CI check in module repos can require `findSimilarCapabilities()` to have been called (via the SDK, so it's traceable) before a new service file is added.
+
+### 3. Integration contract — how repos talk to the Brain
+
+- **Primary interface**: versioned REST API (`/api/v1/brain/*`) exposed by the Brain repo's own Next.js/API deployment, authenticated via service-to-service tokens (each module repo gets its own credential, scoped and revocable — extending the existing `worker_agents.tier` model of global/customer/client/user scoping to repo-level scoping).
+- **Secondary interface**: an MCP server wrapping the same API, so AI coding agents (Claude Code, z.ai, Codex, etc.) working in *any* FChecklist repo can query the Brain's registry directly from their tool-use loop — "does this capability exist?" becomes a tool call, not a manual grep. This directly operationalizes Principle 14 for AI agents specifically, which is exactly who's doing nearly all the coding here per `AGENTS.md`.
+- **Event Bus**: the Constitution (Principle 3, 15) calls for an Event Bus and currently has none anywhere in the platform (confirmed absent in Part 1 of this study). This is the natural place to add it — the Brain repo hosts a lightweight pub/sub layer (e.g., Postgres `LISTEN/NOTIFY` via Supabase realtime, or a queue) so module repos can publish events ("Invoice Approved," "Project Created") without knowing who else consumes them, and the Brain can react (e.g., trigger a worker agent, log to the knowledge graph) without the publishing module repo needing to know the Brain exists beyond "publish this event."
+- **No direct module-to-module calls, ever**: this is the literal enforcement of Principle 15 (Universal Dependency Rules). If `projexa` needs something from `compliance-tracker`'s domain, it goes through the Brain (a shared capability, worker agent, or event) — never a direct API call between the two product repos. This is easy to enforce structurally once they're genuinely separate repos with separate deploy targets (today it's only a convention inside one Next.js app, which is why Part 1 of this study found it isn't actually enforced).
+
+### 4. Registry as the pre-development analysis gate
+
+The specific thing requested — "a proper directory where before any new development, the analysis can happen what we have and what we need" — is the Brain's Capability/Asset Registry, made mandatory rather than optional:
+
+1. Before scoping any new module, feature, or repo, the first step is a Brain API/SDK query: `findSimilarCapabilities(description)`. This already works today as `capability-registry-service.ts`'s embedding-based search (0.92 similarity threshold) — the only change needed is making it the *required first step*, platform-wide, not a tool that happens to exist.
+2. If a match exists: extend/configure it (per the Constitution's own "Build once, configure many" mantra) — no new code.
+3. If no match exists: build it *inside the Brain* if it's genuinely cross-product-reusable (an engine, a worker agent, a capability), or *inside the specific module repo* if it's genuinely product-specific business logic (a compliance checklist type, a construction BOQ field) — and either way, register it in the Asset Registry on completion, closing the loop Principle 17 (Platform Evolution Principle) describes.
+4. This sequence should be a literal PR template checklist item in every module repo (`AGENTS.md` already exists in `compliance-tracker` and sets a precedent for this kind of enforced-process document) and, ideally, a CI check that fails a PR if no Brain registry query is evidenced for new service-layer files.
+
+### 5. AI agent team to run the Brain
+
+This is distinct from the existing 27-role "AI Dev Team" (`src/lib/ai-team/roster.ts`), which — as flagged earlier in this study — is a build-time engineering org chart (Engineering/QA/Finance-style roles), not a runtime team that operates the cognitive platform itself. Recommend a separate, smaller roster scoped specifically to running the Brain day-to-day, extending the existing `ai-os/boss/ROSTER.yaml` pattern (today: only 3 infra agents — VEDABOSS, ZAI, SENTINEL):
+
+- **SENTINEL** (exists today) — supreme governance guardian, unchanged in role, but its authority becomes platform-wide (spans every repo) instead of per-repo.
+- **BRAIN-ARCHITECT** — owns the Brain repo's own internal architecture and evolution; the one role allowed to approve changes to the Brain's own schema/API contract, since a breaking change there ripples to every module repo.
+- **CAPABILITY-CURATOR** — maintains the Asset Registry; runs `auditDuplicateCapabilities()` on a schedule; is the role that actually enforces step 1 of the pre-development gate above rather than leaving it to convention.
+- **KNOWLEDGE-GRAPH-KEEPER** — owns the `entityRelationships` graph once built; ingests new relationships as modules report events/usage; the role most directly responsible for closing the "no knowledge graph exists" gap found repeatedly throughout this study.
+- **WORKER-AGENT-MANAGER** — owns the worker agent lifecycle (propose → test → approve → publish → retire) across *all* module repos, not just one.
+- **INTEGRATION-GATEKEEPER** — owns the Brain's API/SDK versioning and backward-compatibility; the role a module repo's PR pipeline effectively answers to when it changes how it talks to the Brain.
+- **MODULE-LIAISON** (one instance per product repo, e.g. `PROJEXA-LIAISON`, `COMPLIANCE-LIAISON`) — lives conceptually in the module repo, is the one that calls up to the Brain, proposes new capabilities for promotion into the Brain when something built product-specific turns out to be reusable (operationalizing Principle 17).
+- **PERFORMANCE-ENGINEER** — owns latency/token budget across the whole system; directly answers "make the system faster" by tuning the Model Router, SDK caching, and watching for exactly the kind of token-inefficiency bug found in this study (`buildConversationHistory`'s full-history resend).
+- **EVOLUTION-ANALYST** — mines usage telemetry (worker agent usage logs, engine call volume, cache hit rates) into actual entries in the self-improvement loop table — directly targeting the gap found in this study where `loopImprovements` has zero rows ever despite loops running daily.
+
+### 6. Making it faster, not just cleaner
+
+Splitting into real repos risks making things *slower* (network hops replace in-process function calls) unless this is designed for deliberately:
+
+- The `@veridian/brain-sdk` caches aggressively client-side (capability lookups, engine metadata, worker agent definitions change far less often than they're read) — most calls should resolve from a local cache, not a network round-trip, most of the time.
+- High-frequency, latency-sensitive operations (the deterministic engines themselves — GST calculation, EMI, payroll math) should be *pure functions* published as a shared npm package (`@veridian/engines`) that module repos run **in-process**, not as network calls to the Brain — only the *registry/metadata about* which engines exist needs to be a network call, not every invocation of a fast deterministic calculation. This distinction (registry lookups over the network, hot-path execution in-process via a shared package) is the single most important design decision for making this architecture faster rather than slower than today's monolith.
+- The Model Router / LLM Gateway is a genuinely good candidate for staying centralized in the Brain (it's already inherently a network call to an external LLM provider, so routing it through the Brain first adds negligible relative latency, while unlocking cross-repo prompt caching, cost tracking, and the "Need LLM?" gate working platform-wide instead of per-repo).
+
+### 7. Migration path — strangler-fig, not a rewrite
+
+Given `compliance-tracker` is a live, working system, this should not be a big-bang extraction:
+
+1. **Phase A (inside `compliance-tracker`, no new repo yet)**: wrap `capability-registry-service.ts`, `worker-agent-service.ts`, `src/lib/engines/*`, and `fde-service.ts` behind a clean internal `/api/v1/brain/*` route namespace (even though it's still the same deploy). This proves the API contract without any cross-repo risk.
+2. **Phase B**: point `projexa` and `veda-advisors` at that same `/api/v1/brain/*` namespace over the network (instead of `projexa`'s current alias-based reuse, which only works because it's not actually a separate repo yet) — this validates the contract works cross-repo before any code physically moves.
+3. **Phase C**: stand up `FChecklist/veridian-brain` as its own repo/deploy, move the wrapped services there, publish `@veridian/brain-sdk` and `@veridian/engines`, and repoint all module repos at the new service. `compliance-tracker` itself becomes a module repo at this point, on equal footing with `projexa` and `veda-advisors`, rather than the "flagship that happens to also host the brain."
+4. **Phase D**: build the net-new Brain components that don't have a today-equivalent to migrate (Intent Engine, Conversation OS/State Machine, Enterprise Cognitive Graph, Event Bus) directly inside the new Brain repo, per the phased plan in the Cross-Cutting Synthesis above.
+
+This mirrors the Constitution's own "Build once, configure many, reuse everywhere, govern centrally, improve continuously" mantra (Principle 19) applied to the migration itself, not just to the end state.
+
+### 8. Open decisions for Boss sign-off
+
+- Repo name/ownership for the Brain (`veridian-brain` used here as a placeholder).
+- Whether the Event Bus is built on Supabase realtime/Postgres LISTEN-NOTIFY (fits the existing stack with no new infra) or a dedicated queue (more scalable, more operational overhead) — recommend starting with the former given current scale.
+- Whether `compliance-tracker` is renamed/reorganized once it's "just another module repo," or keeps its name for continuity while its role changes internally.
+- Timeline/sequencing of Phase A-D above relative to the rest of the phased implementation plan in the Cross-Cutting Synthesis — this addendum's Phase A is compatible with (and arguably a prerequisite for) that plan's Phase 2.
+
+As with the rest of this document, this addendum does not implement anything — it is written to feed the joint implementation plan that follows cross-review with `Study_by_zaizlm5.2.md`, per the source document's own process.
