@@ -33,6 +33,15 @@ type ConversationSummary = {
 
 const POLL_MS = 6000;
 
+// Phase 2 (VERIDIAN.docx Study 30.3/32.9 "AI Thinking" pattern): an explicit
+// alternative to a plain spinner -- VERI narrates what it's doing while the
+// user waits for a reply. Rotated through every ~1.2s by the effect below.
+const THINKING_PHASES = [
+  "VERI is understanding...",
+  "Building context...",
+  "Preparing a reply...",
+];
+
 export function ThreadView({
   conversation, currentUserId, highlightMismatchId,
 }: {
@@ -47,6 +56,7 @@ export function ThreadView({
   const [isInstruction, setIsInstruction] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [sending, setSending] = useState(false);
+  const [thinkingPhase, setThinkingPhase] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const hasScrolledToHighlight = useRef(false);
@@ -76,6 +86,20 @@ export function ThreadView({
       bottomRef.current?.scrollIntoView({ block: "end" });
     }
   }, [messages.length, highlightMismatchId]);
+
+  // Phase 2: rotate the "VERI is thinking" phase text while we wait for an
+  // AI reply. Only active in AI threads, and only while a send is in flight.
+  const showThinking = sending && conversation.isAiThread;
+  useEffect(() => {
+    if (!showThinking) {
+      setThinkingPhase(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setThinkingPhase((p) => (p + 1) % THINKING_PHASES.length);
+    }, 1200);
+    return () => clearInterval(id);
+  }, [showThinking]);
 
   async function send() {
     const trimmed = content.trim();
@@ -132,6 +156,14 @@ export function ThreadView({
               )}
             </div>
           ))
+        )}
+        {showThinking && (
+          <div className="flex justify-start my-1.5">
+            <div className="flex items-center gap-1.5 rounded-xl border border-ct-teal/30 bg-ct-teal/10 px-3.5 py-2">
+              <Bot className="size-3.5 text-ct-teal" />
+              <span className="text-xs text-ct-teal">{THINKING_PHASES[thinkingPhase]}</span>
+            </div>
+          </div>
         )}
         <div ref={bottomRef} />
       </ScrollArea>
