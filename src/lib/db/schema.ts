@@ -3078,6 +3078,63 @@ export const pmsMeetingParticipantsRelations = relations(pmsMeetingParticipants,
   meeting: one(pmsMeetings, { fields: [pmsMeetingParticipants.meetingId], references: [pmsMeetings.id] }),
 }))
 
+// ─── PMS Scheduling (Wave 140, PROJEXA gap analysis: Gantt/critical-path/
+// baseline/resource-leveling parity with Asana/Monday/MS Project). Pure
+// additive layer over the existing pms_issues + pms_issue_relations graph
+// (start/due dates, completion%, typed blocks/blocked_by relations with
+// lagDays already existed from Wave 25/116) -- critical-path is a stateless
+// computation in schedule-service.ts, not stored here. Only baselines
+// (a frozen snapshot, since "vs actual" needs something fixed to compare
+// against) and resource allocations (planned capacity, distinct from
+// pms_time_entries' already-spent hours) need real tables. ─────────────────
+export const pmsScheduleBaselines = complianceSchemaDB.table('pms_schedule_baselines', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  capturedById: text('captured_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsBaselineIssueSnapshots = complianceSchemaDB.table('pms_baseline_issue_snapshots', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  baselineId: text('baseline_id').notNull(),
+  issueId: text('issue_id').notNull(),
+  baselineStartDate: date('baseline_start_date', { mode: 'string' }),
+  baselineDueDate: date('baseline_due_date', { mode: 'string' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Planned allocation, not actual hours (pms_time_entries already owns
+// actuals) -- lets a workload view sum allocatedHoursPerDay across every
+// person's active date ranges and flag over-allocation against a capacity
+// ceiling, independent of whether time has actually been logged yet.
+export const pmsResourceAllocations = complianceSchemaDB.table('pms_resource_allocations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  userId: text('user_id').notNull(),
+  issueId: text('issue_id'), // nullable -- a blanket project-level allocation when not tied to one issue
+  allocatedHoursPerDay: numeric('allocated_hours_per_day').notNull(),
+  startDate: date('start_date', { mode: 'string' }).notNull(),
+  endDate: date('end_date', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pmsScheduleBaselinesRelations = relations(pmsScheduleBaselines, ({ many }) => ({
+  snapshots: many(pmsBaselineIssueSnapshots),
+}))
+
+export const pmsBaselineIssueSnapshotsRelations = relations(pmsBaselineIssueSnapshots, ({ one }) => ({
+  baseline: one(pmsScheduleBaselines, { fields: [pmsBaselineIssueSnapshots.baselineId], references: [pmsScheduleBaselines.id] }),
+  issue: one(pmsIssues, { fields: [pmsBaselineIssueSnapshots.issueId], references: [pmsIssues.id] }),
+}))
+
+export const pmsResourceAllocationsRelations = relations(pmsResourceAllocations, ({ one }) => ({
+  project: one(projects, { fields: [pmsResourceAllocations.projectId], references: [projects.id] }),
+  issue: one(pmsIssues, { fields: [pmsResourceAllocations.issueId], references: [pmsIssues.id] }),
+}))
+
 // ─── Knowledge Base (Wave 29, AppFlowy-inspired page-hierarchy pattern) ──
 // Deliberately NOT a reuse of pms_wiki_pages -- that table's projectId is
 // NOT NULL and every route is requirePmsEnabled()-gated, making it
