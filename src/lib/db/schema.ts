@@ -663,6 +663,15 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   lifecycleStatus: text('lifecycle_status').notNull().default('published'),
   // Self-FK for the constitution's "Digital Department" grouping -- a
   // supervisor agent one or more subordinate agents report to.
+  // STATUS (confirmed 2026-07-09, VERIDIAN.docx joint implementation plan,
+  // z.ai's independent gap analysis finding): this column exists and is
+  // wired into a Drizzle relation (see `supervisor`/`subordinates` below)
+  // but is genuinely never populated -- live query confirms 0 of 27 real
+  // worker_agents rows have it set. No code path writes to it. Treat as
+  // reserved/not-yet-implemented, not evidence that agent supervision is a
+  // working feature -- building that (assignment UI, dispatch-time
+  // supervisor routing, etc.) is a real, separate feature, not something to
+  // infer is "almost done" from this column's presence.
   supervisorWorkerAgentId: text('supervisor_worker_agent_id'),
   proposedById: text('proposed_by_id'),
   projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope -- distinct from tier='client' (a broader client-account scope)
@@ -2441,6 +2450,17 @@ export const conversations = complianceSchemaDB.table('conversations', {
   // conversations (Wave 12-13) have no context and stay that way.
   contextEntityType: text('context_entity_type'),
   contextEntityId: text('context_entity_id'),
+  // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 2): both
+  // independent studies (Study_by_Claude.md CSV 206, Study_by_zaizlm5.2.md
+  // §3.1) flagged conversations as having no state-machine columns at all --
+  // additive only, nothing writes to these yet. `currentState`/`previousState`
+  // are free-text on purpose (not an enum) since no state taxonomy has been
+  // designed/agreed yet -- adding a real state machine is Phase 2+ work, this
+  // just gives it somewhere to land without a second migration later.
+  currentState: text('current_state'),
+  previousState: text('previous_state'),
+  workflowId: text('workflow_id'),
+  status: text('status').notNull().default('active'), // 'active' | 'paused' | 'completed' | 'archived'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -3268,6 +3288,18 @@ export const fdeRequests = complianceSchemaDB.table('fde_requests', {
   matchedLabel: text('matched_label'), // free text -- e.g. a matched module/automation-rule name, when the match isn't a worker agent row
   createdWorkerAgentId: text('created_worker_agent_id'), // set when a new proposal was drafted
   responseText: text('response_text').notNull(),
+  // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 items 5-6):
+  // both independent studies flagged that FDE discarded every candidate but
+  // the #1 match. topCandidates stores the full ranked list (entityType/
+  // entityId/score/label) findSimilarCapabilities() already computed, so a
+  // future UI can show "here's what else looked close" instead of a single
+  // verdict. reuseLevel makes the actual reuse tier explicit/auditable:
+  // 'exact_match' (embedding score cleared HIGH_CONFIDENCE_THRESHOLD, zero
+  // LLM calls), 'llm_assisted_match' (LLM picked an existing capability from
+  // the candidate list), or 'new_proposal' (no existing capability covered
+  // it). Both additive/nullable -- existing rows are simply unset.
+  topCandidates: jsonb('top_candidates'),
+  reuseLevel: text('reuse_level'), // 'exact_match' | 'llm_assisted_match' | 'new_proposal'
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
