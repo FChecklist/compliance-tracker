@@ -7,9 +7,8 @@
 import {
   db, firmClientPortalLinks, clients, firmEngagements, firmEngagementDeliverables, firmInvoices, documents,
 } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, ne } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { createId } from "@paralleldrive/cuid2"
@@ -22,9 +21,9 @@ function assertValidToken(link: typeof firmClientPortalLinks.$inferSelect | unde
   }
 }
 
-export async function createClientPortalLink(ctx: { orgId: string; userId: string }, clientId: string, expiresInDays = DEFAULT_EXPIRY_DAYS) {
+export async function createClientPortalLink(ctx: FirmServiceContext, clientId: string, expiresInDays = DEFAULT_EXPIRY_DAYS) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const client = await db.query.clients.findFirst({ where: and(eq(clients.id, clientId), eq(clients.orgId, ctx.orgId)) })
     if (!client) throw new ServiceError("Client not found", 404)
 
@@ -36,16 +35,16 @@ export async function createClientPortalLink(ctx: { orgId: string; userId: strin
   })
 }
 
-export async function listClientPortalLinks(ctx: { orgId: string }, clientId: string) {
+export async function listClientPortalLinks(ctx: FirmServiceContext, clientId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+  return withFirmTenantContext(ctx, (db) =>
     db.query.firmClientPortalLinks.findMany({ where: and(eq(firmClientPortalLinks.clientId, clientId), eq(firmClientPortalLinks.orgId, ctx.orgId)), orderBy: (t, { desc }) => desc(t.createdAt) })
   )
 }
 
-export async function revokeClientPortalLink(ctx: { orgId: string }, linkId: string) {
+export async function revokeClientPortalLink(ctx: FirmServiceContext, linkId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const [updated] = await db.update(firmClientPortalLinks).set({ revokedAt: new Date() })
       .where(and(eq(firmClientPortalLinks.id, linkId), eq(firmClientPortalLinks.orgId, ctx.orgId))).returning()
     if (!updated) throw new ServiceError("Portal link not found", 404)

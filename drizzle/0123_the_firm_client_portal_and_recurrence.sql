@@ -7,8 +7,16 @@
 -- were committed to git. A concurrent gap-closure pass (0117_wave135) found
 -- it with zero rows and zero repo references and dropped it as orphaned
 -- cruft -- a reasonable call given what was visible at the time. Renumbered
--- to 0121 (past the concurrent session's 0112-0120 range) and reapplied
--- alongside the now-committed consuming code so it won't look orphaned again.
+-- to 0123 (past the concurrent session's 0112-0122 range, including its
+-- own 0121_wave139_firm_client_scoping_rls) and reapplied alongside the
+-- now-committed consuming code so it won't look orphaned again.
+--
+-- 0121_wave139 added client_id = ANY(current_client_ids()) RLS scoping to
+-- the Firm module's 9 tables (CRITICAL_GAPS.md #2) but couldn't include
+-- this table since it didn't exist yet. Applying the same posture here:
+-- portal links are per-client data (a link only ever exposes one client's
+-- engagements/invoices/documents), so a staffer restricted to a subset of
+-- clients must not be able to list or revoke another client's portal link.
 
 ALTER TABLE compliance.firm_engagements ADD COLUMN IF NOT EXISTS recurrence_type text NOT NULL DEFAULT 'none';
 ALTER TABLE compliance.firm_engagements ADD COLUMN IF NOT EXISTS next_occurrence_date date;
@@ -32,12 +40,13 @@ CREATE INDEX IF NOT EXISTS idx_firm_client_portal_links_client_id ON compliance.
 CREATE INDEX IF NOT EXISTS idx_firm_client_portal_links_org_id ON compliance.firm_client_portal_links(org_id);
 CREATE INDEX IF NOT EXISTS idx_firm_engagements_next_occurrence ON compliance.firm_engagements(next_occurrence_date) WHERE recurrence_type <> 'none';
 
--- RLS: app_runtime tenant isolation by org_id, service_role bypass -- same
--- pattern every other THE FIRM table already uses (Wave 108 migration).
+-- RLS: app_runtime tenant + client isolation, service_role bypass -- same
+-- client_id = ANY(current_client_ids()) pattern 0121_wave139 applied to the
+-- Firm module's other 9 tables.
 ALTER TABLE compliance.firm_client_portal_links ENABLE ROW LEVEL SECURITY;
-DO $$ BEGIN
-  CREATE POLICY app_runtime_tenant_isolation ON compliance.firm_client_portal_links FOR ALL TO app_runtime USING (org_id = compliance.current_org_id());
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DROP POLICY IF EXISTS app_runtime_tenant_isolation ON compliance.firm_client_portal_links;
+CREATE POLICY app_runtime_tenant_isolation ON compliance.firm_client_portal_links FOR ALL TO app_runtime
+USING (org_id = compliance.current_org_id() AND client_id = ANY (compliance.current_client_ids()));
 DO $$ BEGIN
   CREATE POLICY service_role_bypass_firm_client_portal_links ON compliance.firm_client_portal_links FOR ALL TO service_role USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
