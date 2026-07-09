@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Client = { id: string; name: string };
 type StaffUser = { id: string; name: string };
-type Engagement = { id: string; title: string; serviceLine: string; status: string; feeType: string; feeAmount: string | null };
+type Engagement = { id: string; title: string; serviceLine: string; status: string; feeType: string; feeAmount: string | null; recurrenceType: string; budgetedHours: string | null; actualHours: number };
 type Deliverable = { id: string; title: string; dueDate: string | null; status: string };
 type TaxCase = { id: string; assessmentYear: string; caseType: string; forum: string; stage: string; dueDate: string | null; limitationDate: string | null };
 type StaffAssignment = { id: string; userId: string; role: string; allocatedHoursPerWeek: string | null };
@@ -52,6 +52,7 @@ export default function TheFirmPracticePage() {
   const [engagementOpen, setEngagementOpen] = useState(false);
   const [engTitle, setEngTitle] = useState(""); const [engServiceLine, setEngServiceLine] = useState("ca_services");
   const [engFeeType, setEngFeeType] = useState("fixed"); const [engFeeAmount, setEngFeeAmount] = useState(""); const [engStartDate, setEngStartDate] = useState("");
+  const [engRecurrenceType, setEngRecurrenceType] = useState("none"); const [engBudgetedHours, setEngBudgetedHours] = useState("");
 
   const [taxCaseOpen, setTaxCaseOpen] = useState(false);
   const [tcYear, setTcYear] = useState(""); const [tcType, setTcType] = useState("scrutiny"); const [tcForum, setTcForum] = useState("ao");
@@ -62,6 +63,9 @@ export default function TheFirmPracticePage() {
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [invNumber, setInvNumber] = useState(""); const [invIssueDate, setInvIssueDate] = useState(new Date().toISOString().slice(0, 10)); const [invThroughDate, setInvThroughDate] = useState(new Date().toISOString().slice(0, 10)); const [invTaxRate, setInvTaxRate] = useState("18");
   const [generating, setGenerating] = useState(false);
+
+  const [portalLink, setPortalLink] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
   const loadEnablement = useCallback(() => {
     fetch("/api/the-firm/enablement").then(r => r.json()).then(d => setEnabled(!!d.isEnabled)).catch(() => setEnabled(false));
@@ -102,10 +106,10 @@ export default function TheFirmPracticePage() {
     if (!selectedClientId || !engTitle || !engStartDate) { toast.error("Client, title, and start date are required"); return; }
     const res = await fetch(`/api/the-firm/clients/${selectedClientId}/engagements`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: engTitle, serviceLine: engServiceLine, feeType: engFeeType, feeAmount: engFeeAmount ? Number(engFeeAmount) : null, startDate: engStartDate }),
+      body: JSON.stringify({ title: engTitle, serviceLine: engServiceLine, feeType: engFeeType, feeAmount: engFeeAmount ? Number(engFeeAmount) : null, startDate: engStartDate, recurrenceType: engRecurrenceType, budgetedHours: engBudgetedHours ? Number(engBudgetedHours) : null }),
     });
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create engagement"); return; }
-    toast.success("Engagement created"); setEngagementOpen(false); setEngTitle(""); setEngFeeAmount(""); loadClientData(selectedClientId);
+    toast.success("Engagement created"); setEngagementOpen(false); setEngTitle(""); setEngFeeAmount(""); setEngRecurrenceType("none"); setEngBudgetedHours(""); loadClientData(selectedClientId);
   };
 
   const createTaxCase = async () => {
@@ -122,6 +126,19 @@ export default function TheFirmPracticePage() {
     const res = await fetch(`/api/the-firm/tax-cases/${caseId}/stage`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage }) });
     if (!res.ok) { toast.error("Failed to update stage"); return; }
     toast.success("Stage updated"); loadClientData(selectedClientId);
+  };
+
+  const generatePortalLink = async () => {
+    if (!selectedClientId) return;
+    setGeneratingLink(true);
+    const res = await fetch(`/api/the-firm/clients/${selectedClientId}/portal-links`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    setGeneratingLink(false);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to create portal link"); return; }
+    const d = await res.json();
+    const url = `${window.location.origin}/client-portal/${d.link.token}`;
+    setPortalLink(url);
+    navigator.clipboard?.writeText(url).catch(() => {});
+    toast.success("Portal link created and copied to clipboard (valid 30 days)");
   };
 
   const startTimer = async () => {
@@ -232,12 +249,20 @@ export default function TheFirmPracticePage() {
         </TabsContent>
 
         <TabsContent value="engagements" className="space-y-4">
-          <div className="w-72"><Label>Client</Label>
-            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-              <SelectTrigger><SelectValue placeholder="Select a client" /></SelectTrigger>
-              <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="flex items-end gap-3">
+            <div className="w-72"><Label>Client</Label>
+              <Select value={selectedClientId} onValueChange={(v) => { setSelectedClientId(v); setPortalLink(null); }}>
+                <SelectTrigger><SelectValue placeholder="Select a client" /></SelectTrigger>
+                <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {selectedClientId && (
+              <Button variant="outline" onClick={generatePortalLink} disabled={generatingLink}>{generatingLink && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}Generate Client Portal Link</Button>
+            )}
           </div>
+          {portalLink && (
+            <Card className="rounded-xl shadow-card bg-white"><CardContent className="p-3 text-xs text-ct-navy break-all">{portalLink} <span className="text-ct-muted">(copied to clipboard, valid 30 days)</span></CardContent></Card>
+          )}
 
           {selectedClientId && (
             <>
@@ -267,6 +292,22 @@ export default function TheFirmPracticePage() {
                             <div className="flex-1"><Label>Fee Amount (₹)</Label><Input type="number" value={engFeeAmount} onChange={e => setEngFeeAmount(e.target.value)} /></div>
                           </div>
                           <div><Label>Start Date</Label><Input type="date" value={engStartDate} onChange={e => setEngStartDate(e.target.value)} /></div>
+                          <div className="flex gap-3">
+                            <div className="flex-1"><Label>Recurrence</Label>
+                              <Select value={engRecurrenceType} onValueChange={setEngRecurrenceType}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">One-off</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                                  <SelectItem value="half_yearly">Half-yearly</SelectItem>
+                                  <SelectItem value="annually">Annually</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex-1"><Label>Budgeted Hours</Label><Input type="number" value={engBudgetedHours} onChange={e => setEngBudgetedHours(e.target.value)} /></div>
+                          </div>
+                          {engRecurrenceType !== "none" && <p className="text-xs text-ct-muted">A new engagement will be auto-generated each {engRecurrenceType.replace(/_/g, "-")} period after the start date.</p>}
                         </div>
                         <DialogFooter><Button onClick={createEngagement} className="bg-ct-teal hover:bg-ct-teal-hover text-white">Create</Button></DialogFooter>
                       </DialogContent>
@@ -276,7 +317,16 @@ export default function TheFirmPracticePage() {
                     <div className="space-y-1.5">
                       {engagements.map(e => (
                         <div key={e.id} className="flex items-center justify-between text-sm border-b border-ct-border pb-1.5">
-                          <div><span className="text-ct-navy font-medium">{e.title}</span><span className="text-ct-muted text-xs ml-2">{e.serviceLine.replace(/_/g, " ")}</span></div>
+                          <div>
+                            <span className="text-ct-navy font-medium">{e.title}</span>
+                            <span className="text-ct-muted text-xs ml-2">{e.serviceLine.replace(/_/g, " ")}</span>
+                            {e.recurrenceType !== "none" && <Badge className="bg-blue-50 text-blue-700 ml-2">{e.recurrenceType.replace(/_/g, "-")}</Badge>}
+                            {e.budgetedHours && (
+                              <span className={`text-xs ml-2 ${e.actualHours > Number(e.budgetedHours) ? "text-red-600" : "text-ct-muted"}`}>
+                                {e.actualHours.toFixed(1)}h / {Number(e.budgetedHours).toFixed(1)}h budgeted
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2"><span className="text-ct-muted text-xs">{e.feeType}{e.feeAmount ? ` · ₹${Number(e.feeAmount).toLocaleString("en-IN")}` : ""}</span><Badge className="bg-ct-cloud text-ct-muted">{e.status}</Badge></div>
                         </div>
                       ))}

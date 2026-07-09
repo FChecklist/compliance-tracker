@@ -6310,6 +6310,16 @@ export const firmClientServiceLines = complianceSchemaDB.table('firm_client_serv
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// recurrenceType/nextOccurrenceDate/budgetedHours (added alongside the
+// Client Portal): recurrenceType follows complianceItems.recurrenceType's
+// exact enum precedent (free text, not a pg enum, since this table
+// predates that convention decision too) -- the recurrence cron finds rows
+// where nextOccurrenceDate <= today, clones a fresh engagement for the new
+// period, then advances THIS row's own nextOccurrenceDate forward -- the
+// same row stays the one "generator" indefinitely rather than each clone
+// needing to carry recurrence itself. budgetedHours enables a real
+// budget-vs-actual comparison against firm_time_entries.hours, which
+// previously only fed billing, never a budget check.
 export const firmEngagements = complianceSchemaDB.table('firm_engagements', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -6324,6 +6334,9 @@ export const firmEngagements = complianceSchemaDB.table('firm_engagements', {
   endDate: date('end_date', { mode: 'string' }),
   status: text('status').notNull().default('active'), // 'active'|'on_hold'|'completed'|'terminated' -- matches legalMatters.status's free-text precedent
   leadPartnerUserId: text('lead_partner_user_id'),
+  recurrenceType: text('recurrence_type').notNull().default('none'), // 'none'|'monthly'|'quarterly'|'half_yearly'|'annually'
+  nextOccurrenceDate: date('next_occurrence_date', { mode: 'string' }),
+  budgetedHours: numeric('budgeted_hours'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -6334,6 +6347,13 @@ export const firmEngagements = complianceSchemaDB.table('firm_engagements', {
 // record (compliance_item/legal_matter/audit_engagement/firm_tax_case/
 // notice) so an engagement's deliverable checklist doesn't duplicate data
 // that already lives in those modules; null = a standalone deliverable.
+// clientVisible/submittedAt (added alongside the Client Portal): a
+// deliverable defaults to client-visible (most are "send us X" requests),
+// but internal-only checklist items (e.g. "partner sign-off") can be
+// excluded from the portal view. submittedAt is set when the CLIENT
+// (not staff) marks it done through the portal -- kept distinct from
+// completedAt (staff-side completion) so "client says they sent it" and
+// "we've actually reviewed and accepted it" stay two different facts.
 export const firmEngagementDeliverables = complianceSchemaDB.table('firm_engagement_deliverables', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -6344,9 +6364,27 @@ export const firmEngagementDeliverables = complianceSchemaDB.table('firm_engagem
   linkedEntityType: text('linked_entity_type'), // 'compliance_item'|'legal_matter'|'audit_engagement'|'firm_tax_case'|'notice'|null
   linkedEntityId: text('linked_entity_id'), // no FK -- polymorphic, follows documents' precedent
   assignedToId: text('assigned_to_id'),
+  clientVisible: boolean('client_visible').notNull().default(true),
+  submittedAt: timestamp('submitted_at'),
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Client Portal magic-link access -- exact same shape/posture as
+// erpSupplierPortalLinks (Wave 80's vendor portal): a token-bearer, no
+// session, gets a scoped read-only (+ narrow self-service write) view of
+// their own client record. One client can have multiple active links
+// (e.g. reissued after expiry) -- token is the only secret, not the row id.
+export const firmClientPortalLinks = complianceSchemaDB.table('firm_client_portal_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id'),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // The genuine new domain this wave: Indian income-tax/GST notice,
