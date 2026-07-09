@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 type FdeRequest = {
   id: string; requestText: string; status: string; matchedLabel: string | null;
   createdWorkerAgentId: string | null; responseText: string; createdAt: string;
+  reuseLevel: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
@@ -31,6 +32,15 @@ const STATUS_META: Record<string, { label: string; color: string; icon: typeof C
   // NOT labeled "Denied" in this user-facing badge.
   not_part_of_work: { label: "Not Part of Work", color: "bg-ct-cloud text-ct-muted", icon: AlertCircle },
   error: { label: "Error", color: "bg-red-100 text-red-700", icon: AlertCircle },
+};
+
+// Wave 144 (Phase 2): AI Confidence badge vocabulary. Mirrors VERIDIAN.docx
+// Study 32.16 ("✓ High Confidence / 🟡 Needs Confirmation"). reuseLevel is
+// computed on the backend per request row; we only surface it here.
+const REUSE_LEVEL_META: Record<string, { label: string; color: string }> = {
+  exact_match: { label: "High Confidence", color: "bg-ct-teal/20 text-ct-teal" },
+  llm_assisted_match: { label: "Needs Confirmation", color: "bg-ct-saffron/20 text-ct-saffron" },
+  new_proposal: { label: "New Capability", color: "bg-ct-cloud text-ct-muted" },
 };
 
 export default function FdePage() {
@@ -103,14 +113,22 @@ export default function FdePage() {
           {requests.map((req) => {
             const meta = STATUS_META[req.status] ?? STATUS_META.error;
             const Icon = meta.icon;
+            const reuseMeta = req.reuseLevel ? REUSE_LEVEL_META[req.reuseLevel] : null;
             return (
               <Card key={req.id} className="rounded-xl shadow-card bg-white">
                 <CardContent className="pt-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm font-medium text-ct-navy">{req.requestText}</p>
-                    <Badge className={`text-xs border-0 shrink-0 ${meta.color}`}>
-                      <Icon className="size-3 mr-1" /> {meta.label}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Badge className={`text-xs border-0 ${meta.color}`}>
+                        <Icon className="size-3 mr-1" /> {meta.label}
+                      </Badge>
+                      {reuseMeta && (
+                        <Badge className={`text-xs border-0 ${reuseMeta.color}`}>
+                          {reuseMeta.label}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <p className="text-sm text-ct-muted">{req.responseText}</p>
                   <p className="text-[11px] text-ct-muted">{new Date(req.createdAt).toLocaleString()}</p>
