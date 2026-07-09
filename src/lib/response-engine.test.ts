@@ -16,7 +16,7 @@ describe("formatShortReply / renderShortReply", () => {
   })
 
   test("covers every label in the predefined vocabulary", () => {
-    const labels = ["yes", "no", "ok", "pending", "completed", "need_clarity", "require_input", "wrong_data", "incomplete_instructions"] as const
+    const labels = ["yes", "no", "ok", "pending", "completed", "failed", "need_clarity", "require_input", "wrong_data", "incomplete_instructions"] as const
     for (const label of labels) {
       const reply = formatShortReply(label)
       expect(reply.text.length).toBeGreaterThan(0)
@@ -43,12 +43,19 @@ describe("suggestResponseForTaskStatus", () => {
     expect(reply.detail).toContain("in progress")
   })
 
-  test("maps failed status to Wrong Data", () => {
-    expect(suggestResponseForTaskStatus("failed").label).toBe("wrong_data")
+  // Wave 154 audit fix (AUDIT_wave154_claude_items.md): failed/cancelled
+  // used to borrow wrong_data/incomplete_instructions, both flagged as
+  // semantic stretches (a failure isn't necessarily bad input data; a
+  // cancellation is often the user's own deliberate choice). Failed now
+  // gets its own exact label; cancelled maps to an acknowledging "OK".
+  test("maps failed status to the Failed label", () => {
+    expect(suggestResponseForTaskStatus("failed").label).toBe("failed")
   })
 
-  test("maps cancelled status to Incomplete Instructions", () => {
-    expect(suggestResponseForTaskStatus("cancelled").label).toBe("incomplete_instructions")
+  test("maps cancelled status to OK (acknowledgment, not blame)", () => {
+    const reply = suggestResponseForTaskStatus("cancelled")
+    expect(reply.label).toBe("ok")
+    expect(reply.detail).toContain("cancelled")
   })
 
   test("falls back to Pending with the raw status as detail for an unknown status", () => {

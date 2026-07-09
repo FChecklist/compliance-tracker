@@ -17,8 +17,18 @@
 // reply, it only needs to relay/confirm a label software already chose,
 // so even a lower-tier model can do the job with high confidence. This
 // directly reduces token consumption, the doc's own stated goal.
+// Wave 154 audit fix (AUDIT_wave154_claude_items.md, z.ai CONCERN):
+// "failed" was originally mapped to "Wrong Data" and "cancelled" to
+// "Incomplete Instructions" -- both flagged as semantic stretches (a task
+// can fail from a timeout/outage with nothing wrong about its input data;
+// cancellation is frequently the user's own deliberate choice, not a
+// consequence of incomplete instructions). Added a real "failed" label
+// so failed tasks get an exact, honest mapping instead of a borrowed one.
+// The doc's own list is introduced with "such as", explicitly inviting
+// extension. "Cancelled" tasks now map to "ok" (an acknowledgment, not an
+// accusation) -- see suggestResponseForTaskStatus below.
 export type ResponseLabel =
-  | "yes" | "no" | "ok" | "pending" | "completed"
+  | "yes" | "no" | "ok" | "pending" | "completed" | "failed"
   | "need_clarity" | "require_input" | "wrong_data" | "incomplete_instructions"
 
 const RESPONSE_TEXT: Record<ResponseLabel, string> = {
@@ -27,6 +37,7 @@ const RESPONSE_TEXT: Record<ResponseLabel, string> = {
   ok: "OK",
   pending: "Pending",
   completed: "Completed",
+  failed: "Failed",
   need_clarity: "Need Clarity",
   require_input: "Require Input",
   wrong_data: "Wrong Data",
@@ -66,9 +77,11 @@ export function suggestResponseForTaskStatus(status: string, taskTitle?: string)
     case "in_progress":
       return formatShortReply("pending", taskTitle ? `${taskTitle} (in progress)` : "in progress")
     case "failed":
-      return formatShortReply("wrong_data", taskTitle ? `${taskTitle} failed` : "task failed")
+      return formatShortReply("failed", taskTitle)
     case "cancelled":
-      return formatShortReply("incomplete_instructions", taskTitle ? `${taskTitle} cancelled` : "cancelled")
+      // Cancellation is frequently the user's own deliberate choice, not a
+      // problem to flag -- "OK" acknowledges it without implying blame.
+      return formatShortReply("ok", taskTitle ? `${taskTitle} cancelled` : "cancelled")
     default:
       return formatShortReply("pending", taskTitle ? `${taskTitle}: ${status}` : status)
   }
