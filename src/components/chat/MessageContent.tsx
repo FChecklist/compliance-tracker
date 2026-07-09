@@ -6,8 +6,20 @@
 // react-markdown was already an installed, unused dependency (^10.1.0)
 // before this wave; every message everywhere rendered as plain text.
 import ReactMarkdown from "react-markdown";
+import { parseStructuredMessage } from "@/lib/structured-message";
+import { StructuredMessageContent } from "@/components/chat/StructuredMessageContent";
 
 export function MessageContent({ content }: { content: string }) {
+  // Wave 151: if the content is structured JSON (summary/confirmation),
+  // render it via the structured renderer; otherwise fall back to the
+  // exact same ReactMarkdown block below. parseStructuredMessage returns
+  // null for any non-structured input (incl. all existing plain-text
+  // messages), so this is 100% backward compatible.
+  const structured = parseStructuredMessage(content);
+  if (structured) {
+    return <StructuredMessageContent data={structured} />;
+  }
+
   return (
     <div className="text-sm break-words [&_p]:whitespace-pre-wrap [&_p:not(:last-child)]:mb-2">
       <ReactMarkdown
