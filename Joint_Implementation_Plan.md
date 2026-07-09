@@ -50,11 +50,20 @@ Boss directive 2026-07-09: "you can parallelly start also on phase 3 yourself to
 
 Cross-audited by z.ai (`AUDIT_phase3_claude_items.md`) — one CONCERN found (misleading log status on gated replies) and fixed same-day.
 
-## Phase 4 — Product/brand decisions (repo owner sign-off required, not an engineering task)
+## Phase 4 — Boss decisions made 2026-07-09, now an engineering task
 
-- Lavender/CIDS design language vs. live Navy/Saffron/Teal/Cream identity.
-- Single AI thread vs. parallel per-workflow conversations.
-- Whether/when to pursue the multi-repo "Brain" architecture proposal.
+`VERIDIAN_Status_Review_2026-07-09.md` listed 8 pending items (3 Phase 4 product decisions + 5 previously-out-of-scope large items). Boss resolved all 8 in one message:
+
+1. **Design language** — resolved as: build a user-selectable color theme in Settings instead of picking one system over the other. **Deferred, not urgent** — documented as a backlog item, not started this wave. See `Phase4_Implementation_Plan.md`.
+2. **Conversation model** — resolved as: build it. Task queue (one task after another, user-reorderable priority) + multi-thread conversations. **Approved, in progress.**
+3. **Multi-repo Brain architecture** — **approved, in progress.** Scoped to groundwork (internal API namespace + repo/SDK scaffold), not a full extraction — see plan doc for why.
+4. **Intent Engine** — **approved, in progress.**
+5. **Central "Need LLM?" routing gate** — **approved, in progress.** Still has a real dependency on OpenRouter credits for live-path testing; architecture/logic is buildable and testable without them.
+6. **Full structured-response renderer** — **approved, in progress.** Scoped to a v1 slice (a few content types), not the complete document vision — see plan doc.
+7. **Wisdom/Innovation/Prediction Engines** — **approved, in progress.** Real usage data didn't exist before this wave; building narrow v1s now, seeded by real data as items 2/4/6 land.
+8. **`ANTHROPIC_API_KEY` missing** — **deferred, not urgent.** Still requires a human to buy API credits; no agent action possible.
+
+Full task breakdown, sequencing, and honest per-item scoping: `Phase4_Implementation_Plan.md`.
 
 ---
 
