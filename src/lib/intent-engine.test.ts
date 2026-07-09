@@ -46,4 +46,19 @@ describe("classifyIntent", () => {
     const result = classifyIntent("remind me to call the vendor")
     expect(result.matchedPhrase).toBe("remind me to")
   })
+
+  // Wave 149 audit fix (AUDIT_wave149_claude_items.md, z.ai CONCERN): the
+  // original "how is" trigger fired on completely unrelated everyday
+  // phrasing. Narrowed to "how is the status" / "how is it going" -- these
+  // regression cases pin the fix.
+  test("does not false-positive on ordinary 'how is' phrasing unrelated to status", () => {
+    expect(classifyIntent("How is your day going?").intent).toBe("unknown")
+    expect(classifyIntent("How is the weather there?").intent).toBe("unknown")
+    expect(classifyIntent("How is she feeling now?").intent).toBe("unknown")
+  })
+
+  test("still classifies the narrowed 'how is' status phrasing", () => {
+    expect(classifyIntent("How is the status of my GST filing?").intent).toBe("check_status")
+    expect(classifyIntent("How is it going with the onboarding task?").intent).toBe("check_status")
+  })
 })
