@@ -1,23 +1,23 @@
 # VERIDIAN AI OS — Autonomous Gap-Closure: Final Status Report
 
-**Date:** 2026-07-09
-**Mandate:** "Based on the deep audit, plan and execute to fill the gaps. After every point you close, write proper documentation of what you did. Close all the gaps which you can one by one. Don't wait for my inputs, you are the boss. Whatever will be left, make note of it — we'll check it after the rest is completed by you."
+**Date:** 2026-07-09 (updated same day after closing CRITICAL #2)
+**Mandate:** "Based on the deep audit, plan and execute to fill the gaps. After every point you close, write proper documentation of what you did. Close all the gaps which you can one by one. Don't wait for my inputs, you are the boss. Whatever will be left, make note of it — we'll check it after the rest is completed by you." Extended same day: "You are the Product manager and the full stack developer, you take your own call... Please do what is correct" — explicit authorization to execute The Firm `clientIds` fix, the one item this report originally flagged as awaiting sign-off.
 
-This report is the closing deliverable for that mandate. Full evidence and per-finding detail live in [`AUDIT_2026-07-09.md`](AUDIT_2026-07-09.md) (the original 40-section audit) and [`CRITICAL_GAPS.md`](CRITICAL_GAPS.md) (the live punch list, now annotated with every closure). The blow-by-blow of what changed in each fix is in [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md), 6 batches, all committed and pushed to `main`.
+This report is the closing deliverable for that mandate. Full evidence and per-finding detail live in [`AUDIT_2026-07-09.md`](AUDIT_2026-07-09.md) (the original 40-section audit) and [`CRITICAL_GAPS.md`](CRITICAL_GAPS.md) (the live punch list, now annotated with every closure). The blow-by-blow of what changed in each fix is in [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md), 7 batches, all committed and pushed to `main`.
 
 ## Headline numbers
 
 | Severity | Total findings | Fully closed | Partially closed | Open |
 |---|---|---|---|---|
-| 🔴 Critical | 4 | 2 | 0 | 2 |
+| 🔴 Critical | 4 | 3 | 0 | 1 |
 | 🟠 High | 15 | 4 | 3 | 8 |
 | 🟡 Medium (selected set) | ~29 | 13 | 1 | ~15 |
 
-**21 findings fully closed, 4 partially closed, across 6 commits (`2f5fad4` → `86e5b8f`), all live in production** (code deploys via Vercel auto-deploy on push to `main`; 5 database migrations applied directly via Supabase MCP and verified live).
+**22 findings fully closed, 4 partially closed, across 7 commits (`2f5fad4` → `17f6211`), all live in production** (code deploys via Vercel auto-deploy on push to `main`; 6 database migrations applied directly via Supabase MCP and verified live).
 
 ## What got closed (by theme, not by finding number — see CRITICAL_GAPS.md for the full numbered list)
 
-- **Security:** cross-tenant IDOR in the MCP write tool, `FORCE ROW LEVEL SECURITY` on all 357 tables (was 0), an orphaned live table investigated and dropped, a migration-numbering collision fixed.
+- **Security:** cross-tenant IDOR in the MCP write tool, `FORCE ROW LEVEL SECURITY` on all 357 tables (was 0), an orphaned live table investigated and dropped, a migration-numbering collision fixed, **The Firm practice module's per-client access control gap (CRITICAL #2) — real RLS added to all 9 `firm_*` tables plus a new `resolveAccessibleClientIds()` resolver threaded through all 8 service files and 25 routes, live-verified via a role-switch test.**
 - **Correctness bugs:** two real payroll calculation bugs (silent-zero on gross-percentage components, silent wrong-rate fallback on Professional Tax), a false Razorpay claim on the pricing page, a stale `product_branches` catalog entry.
 - **Reliability infrastructure that didn't exist before this pass:** durable error tracking (`application_errors` table + `instrumentation.ts`), a daily missing-secrets check, a Capability Registry staleness-reconciliation loop, a self-healing middleware route allowlist (generated from the real directory listing instead of hand-maintained — this bug had recurred 4 times).
 - **API correctness:** 16 of 16 routes that silently downgraded errors to generic 500s, now fixed.
@@ -30,13 +30,16 @@ Every one of these has its own dated entry in `GAP_CLOSURE_LOG.md` with exact fi
 
 This is the honest half of the mandate: not everything gets fixed by an AI agent working alone, and pretending otherwise would be worse than saying so plainly.
 
+### CLOSED same day, on explicit authorization
+
+**The Firm practice module's `clientIds` access-control gap** (CRITICAL #2) — originally listed here as awaiting sign-off. Boss authorized full execution ("You are the Product manager and the full stack developer, you take your own call... Please do what is correct"). Real RLS added to all 9 `firm_*` tables, `resolveAccessibleClientIds()` threaded through all 8 service files and 25 routes, product decision documented inline (`branch_manager`+ sees every client, everyone else needs an explicit `user_client_access` grant, fail-closed by default), live-verified via a role-switch test. Full detail: `GAP_CLOSURE_LOG.md` Batch 7, commit `17f6211`.
+
 ### Needs a human product/architecture decision (not attempted — genuinely not mine to decide)
 
-1. **The Firm practice module's `clientIds` access-control gap** (CRITICAL #2). ~25 routes never scope by client, so a staffer restricted to one client can read another client's data through this module. This is the single most consequential open item — it's the root cause of the external CA evaluator's 5.5/10 rating. Medium effort (3-5 days), technically AI-automatable, but it touches access control on ~25 routes plus schema/RLS — I judged this needs a design review before a wave of automated edits, not a unilateral fix. **Recommend this is the next thing tackled, with your sign-off on the approach first.**
-2. **Worker agent execution engine doesn't execute worker agents** (CRITICAL #1). Outside ~20 hardcoded branches, an approved/published agent is only ever planned against, never invoked. This is a 3-4 week architectural build (a real dispatch/sandboxing/safety-rail system), self-disclosed in the product's own `/orchestra` UI copy already. Not something to auto-build without a design conversation.
-3. **PROJEXA has zero consuming UI** despite a fully-built backend (55 routes, real AI features) — and **PROJEXA costs never post to the General Ledger**, so Finance and Construction report different numbers for the same project. Both are real, scoped efforts (Medium-to-Large) that need a UI/roadmap decision, not a unilateral build.
-4. **Broader multi-client UX is shallow** — no client detail page, no client-context switcher, most of ~460 tables have no client-scoping dimension. Distinct from #1 above (this is the product-shape question, #1 is the security bug). Needs a product decision on how deep multi-client goes.
-5. **`CLAUDE.md`/`AGENTS.md` stale-claim corrections** — explicitly skipped. `CLAUDE.md` itself states "DO NOT touch: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `SENTINEL.md`, `ai-os/`," a standing written rule I treated as taking precedence over the general "close all gaps" instruction, since that instruction didn't explicitly name this exception. **If you want these corrected (e.g. the false `DataTable`/`StatusBadge`/`DashboardCard` shared-component claim), say so explicitly and I'll do it in the next pass.**
+1. **Worker agent execution engine doesn't execute worker agents** (CRITICAL #1). Outside ~20 hardcoded branches, an approved/published agent is only ever planned against, never invoked. This is a 3-4 week architectural build (a real dispatch/sandboxing/safety-rail system), self-disclosed in the product's own `/orchestra` UI copy already. Not something to auto-build without a design conversation.
+2. **PROJEXA has zero consuming UI** despite a fully-built backend (55 routes, real AI features) — and **PROJEXA costs never post to the General Ledger**, so Finance and Construction report different numbers for the same project. Both are real, scoped efforts (Medium-to-Large) that need a UI/roadmap decision, not a unilateral build.
+3. **Broader multi-client UX is shallow** — no client detail page, no client-context switcher, most of ~460 tables have no client-scoping dimension. Distinct from the now-closed CRITICAL #2 (that was the access-control bug specifically; this is the product-shape question — how deep multi-client goes, e.g. a client-context switcher in the UI). Needs a product decision.
+4. **`CLAUDE.md`/`AGENTS.md` stale-claim corrections** — explicitly skipped. `CLAUDE.md` itself states "DO NOT touch: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `SENTINEL.md`, `ai-os/`," a standing written rule I treated as taking precedence over the general "close all gaps" instruction, since that instruction didn't explicitly name this exception. **If you want these corrected (e.g. the false `DataTable`/`StatusBadge`/`DashboardCard` shared-component claim), say so explicitly and I'll do it in the next pass.**
 
 ### Large, multi-wave efforts correctly left for the roadmap (not a decision gate — just genuinely big)
 
@@ -60,4 +63,4 @@ Every code batch passed `bun x tsc --noEmit` clean before commit. Every database
 
 ## Recommended next conversation
 
-Start with **The Firm `clientIds` scoping fix** (open item #1 above) — it's the highest real-world consequence of anything left open, has a bounded scope (~25 routes + schema), and just needs your go-ahead on approach before I execute it the same way as this pass.
+With CRITICAL #2 now closed, the next highest-consequence open item is **the worker agent execution engine** (open item #1 above) — but that's a genuine architecture decision (sandboxing/safety rails for autonomous execution), not something to greenlight in the same breath as a scoped fix. Recommend a dedicated design conversation before touching it.

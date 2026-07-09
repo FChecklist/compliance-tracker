@@ -109,4 +109,4 @@ Boss-authorized, explicit go-ahead ("Please do what is correct") after the final
 
 **Verification:** `bun x tsc --noEmit -p tsconfig.json` clean across the whole repo. `get_advisors(security)` re-run post-migration — zero new findings. Live role-switch test via Supabase MCP (temporarily granted `postgres` membership in `app_runtime`, same technique as the original Wave 1 proof): inserted a real `firm_engagements` row for client A, confirmed 0 rows visible when the session's `current_client_ids` GUC was restricted to client B, confirmed 1 row visible once restricted to client A, then deleted the test row and revoked the temporary grant. Confirmed live: `firm_engagements`/`firm_time_entries` had 0 real rows in production and `user_client_access` had 0 grants — this module has never carried real customer data, so the fix landed with zero migration/backfill risk.
 
-**Commit:** (pending, see next push)
+**Commit:** `17f6211`
