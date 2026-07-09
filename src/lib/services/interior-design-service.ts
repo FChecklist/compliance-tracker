@@ -80,7 +80,7 @@ export async function updateMoodBoardStatus(ctx: { orgId: string }, moodBoardId:
 export type FfeItemInput = {
   projectId: string; itemName: string; roomOrArea?: string; category?: string; description?: string
   vendorId?: string; sku?: string; quantity?: number; unitCost?: number; unitPrice?: number
-  leadTimeDays?: number; documentId?: string
+  leadTimeDays?: number; documentId?: string; widthCm?: number; depthCm?: number; heightCm?: number
 }
 
 export async function createFfeItem(ctx: { orgId: string; userId: string }, input: FfeItemInput) {
@@ -93,7 +93,24 @@ export async function createFfeItem(ctx: { orgId: string; userId: string }, inpu
       description: input.description ?? null, vendorId: input.vendorId ?? null, sku: input.sku ?? null,
       quantity: input.quantity ?? 1, unitCost: String(input.unitCost ?? 0), unitPrice: String(input.unitPrice ?? 0),
       leadTimeDays: input.leadTimeDays ?? null, documentId: input.documentId ?? null, createdById: ctx.userId,
+      widthCm: input.widthCm != null ? String(input.widthCm) : null,
+      depthCm: input.depthCm != null ? String(input.depthCm) : null,
+      heightCm: input.heightCm != null ? String(input.heightCm) : null,
     }).returning()
+    return row
+  })
+}
+
+// Sets/updates an FF&E item's footprint dimensions -- needed once an item
+// is placed into a Wave 143 floor plan (a purely-specified item has none).
+export async function updateFfeItemDimensions(ctx: { orgId: string }, itemId: string, dims: { widthCm?: number; depthCm?: number; heightCm?: number }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [row] = await db.update(interiorFfeItems).set({
+      widthCm: dims.widthCm != null ? String(dims.widthCm) : undefined,
+      depthCm: dims.depthCm != null ? String(dims.depthCm) : undefined,
+      heightCm: dims.heightCm != null ? String(dims.heightCm) : undefined,
+    }).where(and(eq(interiorFfeItems.id, itemId), eq(interiorFfeItems.orgId, ctx.orgId))).returning()
+    if (!row) throw new ServiceError("FF&E item not found", 404)
     return row
   })
 }

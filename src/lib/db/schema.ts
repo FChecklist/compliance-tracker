@@ -7582,7 +7582,73 @@ export const interiorFfeItems = complianceSchemaDB.table('interior_ffe_items', {
   leadTimeDays: integer('lead_time_days'),
   status: interiorFfeStatusEnum('status').notNull().default('specified'),
   documentId: text('document_id'), // nullable FK -- spec sheet/product image
+  // Footprint dimensions (cm) -- nullable, only needed once an item is placed
+  // in a Wave 143 floor plan; a specified-but-not-yet-placed item has none.
+  widthCm: numeric('width_cm'),
+  depthCm: numeric('depth_cm'),
+  heightCm: numeric('height_cm'),
   createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── Wave 143 (PROJEXA gap analysis, visual design authoring): 2D floor
+// plan editor + 3D walkthrough. Rooms are stored as a simple closed
+// polygon (jsonb array of {x,y} points, cm) rather than separate wall
+// entities with connectivity graphs -- walls are derived as polygon edges
+// at render time, matching this codebase's query-time-rollup convention
+// and keeping the schema proportionate to an MVP editor, not a full CAD
+// tool. Furniture placement reuses Wave 142's interiorFfeItems (a placed
+// item is still the same FF&E line item, now with x/y/rotation) rather
+// than duplicating item data into a new table. 3D representation is
+// primitive-based (extruded polygon + boxes, materials via flat
+// color/texture), not glTF asset import -- no OSS 3D-asset pipeline is
+// adopted this wave. ───────────────────────────────────────────────────
+export const interiorFloorPlans = complianceSchemaDB.table('interior_floor_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  floorLevel: text('floor_level'), // free text, e.g. "Ground Floor" -- matches roomOrArea's free-text precedent
+  status: text('status').notNull().default('draft'), // draft | final
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const interiorMaterialCategoryEnum = complianceSchemaDB.enum('interior_material_category', ['flooring', 'wall', 'ceiling'])
+
+export const interiorMaterials = complianceSchemaDB.table('interior_materials', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  category: interiorMaterialCategoryEnum('category').notNull(),
+  colorHex: text('color_hex').notNull().default('#cccccc'), // always-available fallback render even without a texture
+  textureDocumentId: text('texture_document_id'), // nullable FK into `documents` -- an uploaded texture/swatch image
+  roughness: numeric('roughness').notNull().default('0.8'), // react-three-fiber MeshStandardMaterial props (0-1)
+  metalness: numeric('metalness').notNull().default('0'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const interiorFloorPlanRooms = complianceSchemaDB.table('interior_floor_plan_rooms', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  floorPlanId: text('floor_plan_id').notNull(),
+  name: text('name').notNull(),
+  polygon: jsonb('polygon').notNull().$type<{ x: number; y: number }[]>(), // closed polygon, cm, >=3 points
+  ceilingHeightCm: numeric('ceiling_height_cm').notNull().default('270'),
+  floorMaterialId: text('floor_material_id'), // nullable FK -> interior_materials
+  wallMaterialId: text('wall_material_id'),
+  ceilingMaterialId: text('ceiling_material_id'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const interiorFurniturePlacements = complianceSchemaDB.table('interior_furniture_placements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  floorPlanId: text('floor_plan_id').notNull(),
+  roomId: text('room_id'), // nullable -- a placement can exist before being assigned to a specific room
+  ffeItemId: text('ffe_item_id').notNull(), // FK -> interior_ffe_items (Wave 142) -- one placement per FF&E line item
+  x: numeric('x').notNull().default('0'), // cm, room-local coordinate space
+  y: numeric('y').notNull().default('0'),
+  rotationDeg: numeric('rotation_deg').notNull().default('0'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
