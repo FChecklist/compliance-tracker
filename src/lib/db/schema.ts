@@ -765,6 +765,13 @@ export const tasks = complianceSchemaDB.table('tasks', {
   // selection -- the worker agent is already known, so executeTask() skips
   // LLM planning entirely and dispatches directly (zero-LLM-cost path).
   resolvedWorkerAgentId: text('resolved_worker_agent_id'),
+  // Wave 148 (Phase4_Implementation_Plan.md, "task queue + priority"):
+  // higher = more urgent. Default 0 so every existing row sorts exactly
+  // where createdAt already put it -- purely additive, no reordering of
+  // existing data. Queue order is priority DESC, createdAt ASC (oldest
+  // first within the same priority) -- no separate queue table, this
+  // column plus an orderBy is the whole "queue."
+  priority: integer('priority').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
