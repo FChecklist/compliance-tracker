@@ -41,12 +41,14 @@ Each item below: (a) doesn't require the graph store or event bus to exist first
 - Confidence badge UI + "VERI is thinking" phase state in chat context — UI-only, wiring the Phase 1 confidence field (construction predictor) as the first real input.
 - Give conversations' `current_state`/`previous_state`/`workflow_id` columns (Wave 144) an actual writer, or explicitly document why waiting for the full Conversation State Machine (Phase 3) is the right call instead.
 
-## Phase 3 — Foundational substrate decisions (explicitly deferred, multi-week scope)
+## Phase 3 — Foundational substrate decisions — **Done** (Wave 147, PR #80)
 
-Not started in this pass — these require dedicated design work, not something to bootstrap inside an implementation sprint:
-- **Graph store decision** (one `entityRelationships`-style store, designed for the Enterprise Cognitive Graph's unified-node model, serving as the substrate for every "Enterprise * Graph" proposal across both studies).
-- **Event bus** (one pub/sub layer, unblocking SPOE/EEOE/ECCC-equivalent work).
-- **Structured-response contract + software-first gate + renderer on the chat path** (the single largest drift both studies found — the LLM currently talks to the user directly in violation of the document's own golden rule). This is the highest-leverage fix in both gap analyses but is a genuinely large, cross-cutting change to the core chat experience — requires its own design/rollout plan, explicitly not attempted as part of "quick wins."
+Boss directive 2026-07-09: "you can parallelly start also on phase 3 yourself to complete it," while z.ai finished Phase 2's cross-audit. Design rationale: `Phase3_Design_by_Claude.md`. All 3 decisions shipped as real, tested, narrowly-scoped foundations — explicitly NOT the full multi-week builds each could grow into; see the design doc and `VERIDIAN_Status_Review_2026-07-09.md` for exactly what's still open on each.
+- ~~Graph store decision~~ **Done**: `entity_relationships` table (migration 0129) + `entity-graph-service.ts`. Zero production consumers wired in by design.
+- ~~Event bus~~ **Done**: `event-bus.ts`, typed in-process pub/sub, explicitly not a durable cross-invocation queue. Zero production consumers wired in by design.
+- ~~Structured-response contract + software-first gate~~ **Partially done**: `ai-reply-gate.ts` ships the contract type and one real, narrow, deterministic gate (catches hallucinated claims of completed action). The full renderer + per-content-type UI rewrite remains explicitly out of scope — see status review.
+
+Cross-audited by z.ai (`AUDIT_phase3_claude_items.md`) — one CONCERN found (misleading log status on gated replies) and fixed same-day.
 
 ## Phase 4 — Product/brand decisions (repo owner sign-off required, not an engineering task)
 
