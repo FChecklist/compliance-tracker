@@ -1,4 +1,4 @@
 stages: [UNDERSTAND, RESEARCH, DESIGN, VALIDATE, IMPLEMENT, TEST, REVIEW, DEPLOY, MONITOR, LEARN, IMPROVE]
-current_stage: DEPLOY
-engine: zai
-note: "Z.ai completed full rebuild 2026-06-28. Next: Supabase PostgreSQL migration + Vercel deploy."
+current_stage: MONITOR
+engine: shared (zai + claude-code)
+note: "Corrected 2026-07-09 (was stuck at DEPLOY since 2026-06-29, describing a rebuild that finished long ago). The platform has been live and iterating continuously since -- ~114 further waves (git log: Wave 30 through at least Wave 143), an AI OS Certification audit (2026-07-04/05, gate result FAIL, see AI_OS_CERTIFICATION.md), and this VERIDIAN.docx constitution study. MONITOR/LEARN/IMPROVE better describes ongoing operation than a one-time DEPLOY stage. See ai-os/boss/BOARD.yaml's staleness notice for why this wasn't caught sooner."

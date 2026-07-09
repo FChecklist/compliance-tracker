@@ -11,8 +11,10 @@ sentinel:
   scope:
     repositories:
       - FChecklist/compliance-tracker
-      - FChecklist/meettrack-v2
       - FChecklist/veda-advisors
+      - FChecklist/projexa
+    # meettrack-v2 removed 2026-07-09 (retired 2026-07-04, repo deleted) --
+    # see the matching correction in ai-os/engines/ENGINES.yaml for detail.
 
 # ─── Authorized Agents ─────────────────────────────────────────
 authorized_agents:
