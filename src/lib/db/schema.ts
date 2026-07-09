@@ -7527,6 +7527,65 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Wave 142 (PROJEXA gap analysis: interior design workflow -- mood
+// boards, FF&E specification, procurement markup). Confirmed via research:
+// no OSS library exists for either (the one loosely-related repo found,
+// a small moodboard image-aggregator, was low-activity/toy-project-grade,
+// not production-usable) -- genuine differentiation territory, first-party
+// build. Mood board items reuse `documents` for the actual image files
+// (same linkedEntityType convention already used for permits/drawings/
+// site photos), this table is just the board's own item ordering/labels.
+// Procurement markup isn't a separate table -- unitCost (trade/wholesale)
+// vs unitPrice (client-billed) sit on the same FF&E line item, margin is
+// computed at read time (matches this codebase's query-time-rollup
+// convention, e.g. kpi-hub-service.ts), not stored redundantly. ─────────
+export const interiorMoodBoardStatusEnum = complianceSchemaDB.enum('interior_mood_board_status', ['draft', 'shared', 'approved'])
+
+export const interiorMoodBoards = complianceSchemaDB.table('interior_mood_boards', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  roomOrArea: text('room_or_area'), // free text, e.g. "Living Room" -- not an enum, matches documents.category's precedent
+  title: text('title').notNull(),
+  description: text('description'),
+  status: interiorMoodBoardStatusEnum('status').notNull().default('draft'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const interiorMoodBoardItems = complianceSchemaDB.table('interior_mood_board_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  moodBoardId: text('mood_board_id').notNull(),
+  documentId: text('document_id'), // nullable FK into `documents` (the actual image) -- null while a placeholder/text-only item
+  label: text('label'),
+  notes: text('notes'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const interiorFfeCategoryEnum = complianceSchemaDB.enum('interior_ffe_category', ['furniture', 'fixture', 'equipment', 'finish', 'textile', 'lighting', 'other'])
+export const interiorFfeStatusEnum = complianceSchemaDB.enum('interior_ffe_status', ['specified', 'ordered', 'received', 'installed'])
+
+export const interiorFfeItems = complianceSchemaDB.table('interior_ffe_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  roomOrArea: text('room_or_area'),
+  category: interiorFfeCategoryEnum('category').notNull().default('furniture'),
+  itemName: text('item_name').notNull(),
+  description: text('description'),
+  vendorId: text('vendor_id'), // nullable FK into erp_suppliers
+  sku: text('sku'),
+  quantity: integer('quantity').notNull().default(1),
+  unitCost: numeric('unit_cost').notNull().default('0'), // trade/wholesale cost -- never shown to the client
+  unitPrice: numeric('unit_price').notNull().default('0'), // client-billed price
+  leadTimeDays: integer('lead_time_days'),
+  status: interiorFfeStatusEnum('status').notNull().default('specified'),
+  documentId: text('document_id'), // nullable FK -- spec sheet/product image
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Logging & Monitoring
 // section) ───────────────────────────────────────────────────────────────
 // No APM/error-tracking service exists anywhere in this codebase -- 527
