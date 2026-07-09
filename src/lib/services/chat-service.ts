@@ -77,6 +77,27 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
   })
 }
 
+// Wave 148 (Phase4_Implementation_Plan.md, "multi-thread conversations"):
+// unlike ensureAiThread() above (a hard singleton -- finds-or-creates
+// exactly ONE AI thread per user), this ALWAYS creates a genuinely new
+// conversation row. Does not touch or interact with the singleton lookup
+// logic, so the default/primary thread's existing behavior is completely
+// unaffected -- purely additive. workflowId reuses the column Wave 144
+// added (previously unwritten, exactly the kind of real consumer that
+// wave's own audit flagged as missing).
+export async function createWorkflowThread(ctx: ChatContext, input: { workflowId?: string; title?: string }): Promise<string> {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const newConversationId = createId()
+    await db.insert(conversations).values({
+      id: newConversationId, orgId: ctx.orgId, type: "ai", isAiThread: true,
+      title: input.title?.trim() || "New workflow",
+      workflowId: input.workflowId ?? null,
+    })
+    await db.insert(conversationParticipants).values({ conversationId: newConversationId, userId: ctx.userId })
+    return newConversationId
+  })
+}
+
 export async function listConversations(ctx: ChatContext) {
   const aiThreadId = await ensureAiThread(ctx)
 
@@ -101,6 +122,11 @@ export async function listConversations(ctx: ChatContext) {
       lastMessage: { content: string; createdAt: string; senderId: string | null } | null
       unreadCount: number
       updatedAt: string
+      // Wave 148: distinguishes the singleton default thread (ensureAiThread)
+      // from workflow-specific threads (createWorkflowThread) so the UI can
+      // group/label them -- both are still isAiThread: true.
+      isPrimary: boolean
+      workflowId: string | null
     }[] = []
     for (const convo of convos) {
       const [lastMessage] = await db.query.messages.findMany({
@@ -130,6 +156,8 @@ export async function listConversations(ctx: ChatContext) {
         lastMessage: lastMessage ? { content: lastMessage.content, createdAt: lastMessage.createdAt.toISOString(), senderId: lastMessage.senderId } : null,
         unreadCount: unread.length,
         updatedAt: convo.updatedAt.toISOString(),
+        isPrimary: convo.id === aiThreadId,
+        workflowId: convo.workflowId,
       })
     }
 

@@ -292,6 +292,70 @@ entries:
         fixed-literal-with-\b-boundary pattern (no quantifier, no
         backtracking risk), confirmed no behavioral regression against the
         prior \s+-collapse chain. Full report: AUDIT_phase3_claude_items.md.
+  - id: WAVE-148
+    title: "Task queue + priority, multi-thread AI conversations (Phase4_Implementation_Plan.md item 2)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 82
+      summary: >
+        Boss resolved Phase 4 item 2 as "user can give one task after
+        another all tasks become in queue... can prioritize which task to
+        be done earlier... complex multi-thread will be required. Lets do
+        this." Task queue + priority: tasks.priority (integer, default 0,
+        migration 0130, purely additive). listTasks/listMyTodos/
+        listAssignedByMe and veri-todo-service.ts's unified Home queue all
+        order by [desc(priority), asc(createdAt)] -- higher priority first,
+        oldest-first (FIFO) within a tier. updateTask bounds priority to
+        0-3 (Low/Normal/High/Urgent), rejects anything else with 400.
+        ToDoTab.tsx gets a priority selector. Multi-thread conversations:
+        createWorkflowThread() in chat-service.ts creates a genuinely new
+        AI conversation, completely independent of ensureAiThread()'s
+        existing singleton (zero behavior change for default-thread users)
+        -- reuses the Wave 144 workflowId column that had no writer until
+        now. New POST /api/conversations/workflow-thread, session-scoped
+        (orgId/userId only from auth, never from the request body).
+        veri-chat-context.tsx gets activeAiThreadId/aiThreads/
+        switchAiThread/createNewAiThread; VeriComposer.tsx gets an
+        AiThreadSwitcher dropdown in discuss mode, with a null-guard so no
+        send fires before threads resolve. GlobalChatDock.tsx deliberately
+        untouched (its own header comment already scopes per-thread
+        routing there as separate future work). bun x tsc --noEmit and
+        bun run lint both clean. Full test suite: 39/40 pass (1
+        pre-existing DB-connectivity failure, unrelated). Live browser
+        verification blocked by the same pre-existing local DATABASE_URL
+        limitation documented in every prior UI wave -- confirmed via
+        network panel that /api/me itself 500s (same root cause across
+        every route, not specific to this change) -- verified via code
+        review + typecheck instead.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: approve
+      summary: >
+        Dispatched via ai-team-workforce.yml with a tightened brief (8-file
+        cap, schema.ts excerpt inlined, iteration checkpoints) -- succeeded
+        first try. Item 1 (queue+priority): PASS -- confirmed
+        Array.includes uses strict equality so a string/float/out-of-range
+        priority is correctly rejected with 400, confirmed all 4 sort
+        sites (3 DB queries + veri-todo-service's JS union sort +
+        ToDoTab's optimistic client sort) use the identical
+        higher-priority-then-oldest-first comparator, confirmed
+        instruction/pms_issue items are explicitly set to priority: null
+        (never read off a missing column) and coerced to 0 only at sort
+        time, confirmed the priority UI control is gated to task-sourced
+        items only so no PATCH is ever attempted against a non-task id.
+        Item 2 (multi-thread): PASS -- confirmed createWorkflowThread has
+        no call path through or into ensureAiThread(), confirmed the
+        composer's activeAiThreadId ?? aiThreadId fallback prevents any
+        POST to a null conversation id during the pre-fetch window,
+        confirmed the new route derives orgId/userId only from
+        requireAuth() (never the request body) so no cross-tenant
+        conversation creation is possible -- one metadata-only note
+        (workflowId isn't validated against a real workflow, but it's
+        never used to fetch anything, so not an IDOR). Independently
+        confirmed GlobalChatDock.tsx has zero coupling to any Wave 148
+        state. Full report: AUDIT_wave148_claude_items.md.
   - id: WAVE-149
     title: "Intent Engine v1 (Phase4_Implementation_Plan.md item 4)"
     doer:
