@@ -30,4 +30,38 @@ date: 2026-06-28
 # Do not backfill this with placeholder entries -- only real completed,
 # audited tasks go here, consistent with the "verify before you claim done"
 # standard applied throughout Study_by_Claude.md.
-entries: []
+entries:
+  - id: WAVE-145
+    title: "Phase 2 breadcrumb rendering: PathBreadcrumb component in VeriComposer.tsx (Joint_Implementation_Plan.md)"
+    doer:
+      agent: zai
+      date: "2026-07-09"
+      pr: 73
+      summary: >
+        z.ai GLM-5.2, dispatched by Claude Code running scripts/ai-workforce-agent.mjs
+        LOCALLY against an isolated git worktree (GitHub Actions was in a sustained
+        partial outage, so this bypassed the usual CI-hosted dispatch to keep making
+        progress). Replaced the flat pathDisplayString text rendering with a real
+        PathBreadcrumb component (per-segment spans + chevron separators), reusing
+        pathSegmentDisplay() and the file's existing Tailwind conventions. Claude
+        reviewed the raw diff and reverted one unrequested edit (an unrelated
+        placeholder-text tweak) the model made despite explicit instructions not to
+        touch anything else, before this commit. bun x tsc --noEmit and bun run lint
+        both clean. Full browser verification was attempted but blocked by an
+        unrelated local DATABASE_URL resolution issue in the ad-hoc worktree's
+        .env.local (confirmed via server logs affecting unrelated API routes too,
+        not this change) -- verified via code review + typecheck instead.
+    auditor:
+      agent: claude-code
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched z.ai (security_code_reviewer role) to independently audit,
+        also run locally against the same worktree given the ongoing outage.
+        Verdict APPROVE WITH NOTES: empty-path handling, pathSegmentDisplay reuse,
+        between-only chevron separators, !chainComplete "Building:" label gating,
+        and emerald/muted color-class parity with the old flat-string version all
+        confirmed correct. No bugs, no XSS/injection surface, no auth-scope change
+        (purely presentational, no new routes). One valid a11y nit raised (decorative
+        chevron missing aria-hidden) -- applied before this commit. Full report:
+        AUDIT_wave145.md.

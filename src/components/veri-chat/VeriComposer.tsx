@@ -33,7 +33,7 @@ function PathBreadcrumb({ path, chainComplete }: { path: PathSegment[]; chainCom
       {!chainComplete && <span className="opacity-70">Building:</span>}
       {path.map((seg, i) => (
         <span key={i} className="inline-flex items-center gap-0.5">
-          {i > 0 && <span className="opacity-50 text-[9px]">›</span>}
+          {i > 0 && <span className="opacity-50 text-[9px]" aria-hidden="true">›</span>}
           <span>{pathSegmentDisplay(seg)}</span>
         </span>
       ))}
