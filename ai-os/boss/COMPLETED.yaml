@@ -395,3 +395,127 @@ entries:
         03918a8): narrowed to "how is the status" / "how is it going",
         with regression tests for both the fix and the still-working
         narrowed phrasing. Full report: AUDIT_wave149_claude_items.md.
+  - id: WAVE-150
+    title: "Central 'Need LLM?' routing gate (Phase4_Implementation_Plan.md item 5)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 85
+      summary: >
+        GapAnalysis_by_Claude.md's P0 item 3. Corrected an earlier status-
+        review note: this is NOT blocked on OpenRouter credits (that
+        blocker is specific to this session's z.ai dispatch automation,
+        not the app's own already-working runtime LLM calls). Takes Wave
+        149's intent classification, checks a small handler registry, and
+        routes matched intents to a deterministic handler (zero LLM cost)
+        or falls through to the existing callLLM path completely unchanged
+        when unmatched. v1 ships exactly one real handler (check_status --
+        a direct DB lookup), the other 3 intents correctly stay on the LLM
+        path since they need real argument extraction from free text
+        first. DB access is dynamically imported inside the handler, not
+        at module top-level, so the dominant unmatched-intent path never
+        resolves a database connection. Wired into chat-service.ts's
+        generateAiReply() immediately after the policy gate, before
+        resolveModelConfig/prompt-template resolution/history building.
+        5 unit tests prove unmatched intents return handled:false without
+        DB access. bun x tsc --noEmit and bun run lint both clean.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched via ai-team-workforce.yml, 4-file cap, succeeded first
+        try. Confirmed the lazy-import claim both structurally (traced
+        HANDLERS lookup -- unmatched intents never reach a dynamic
+        import()) and environmentally (the test suite's own ability to run
+        without DATABASE_URL set is independent corroboration the entire
+        static import graph, including intent-engine.ts, is DB-free at
+        load time). Confirmed the gate is wired before resolveModelConfig/
+        prompt-template/history-building, not after. Confirmed check_status
+        is isolated on both orgId (via withTenantContext RLS) and userId
+        (explicit WHERE clause) -- traced that a cross-org or cross-user
+        task leak is not possible. Confirmed the zero-tasks fallback
+        message is accurate, not misleading. 3 non-blocking notes for when
+        the handler set grows: tighten tests with an explicit import()
+        spy, re-evaluate passesReplyGate applicability for future handlers
+        that compose user-controlled data, note that handler output is
+        currently trusted as-is. No OWASP-class issues. Full report:
+        AUDIT_wave150_claude_items.md.
+  - id: WAVE-152A
+    title: "Prediction Engine v2 -- task completion time (Phase4_Implementation_Plan.md item 7, Prediction slice)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 87
+      summary: >
+        Generalizes construction-prediction-service.ts's proven
+        deterministic velocity-based pattern to a second real domain --
+        not a new ML model, same philosophy that file's header comment
+        already commits this codebase to. predictTaskCompletion() computes
+        an average completion duration from the caller's own historical
+        completed tasks (updatedAt - createdAt, since tasks has no
+        dedicated completedAt column), projects it onto a pending task's
+        createdAt, tiered confidence by sample size. Deliberately scoped
+        to the caller's own completed tasks, not org-wide. New GET
+        /api/tasks/:id/prediction mirrors the construction predictor's
+        route exactly. bun x tsc --noEmit and bun run lint both clean. No
+        test file, consistent with the reference service's own convention.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: approve
+      summary: >
+        Dispatched via ai-team-workforce.yml, 3-file cap, succeeded first
+        try. Confirmed the "generalizes the same philosophy" claim is
+        substantiated by the code (deterministic-no-ML, early-return-with-
+        reason, confidence-tiering, tenant-scoped compute all carry over),
+        not merely asserted -- the honest domain divergence (velocity-
+        toward-target vs. average-duration-from-history) is justified, not
+        a defect. Confirmed isolation is per-userId within tenant context,
+        arguably stricter than the reference service. Traced all 3 edge
+        cases (already-completed, zero completed-task history, zero-
+        duration task) and confirmed none produce NaN, negative values, or
+        a throw. Confirmed the 5/15 confidence thresholds are standard
+        small-sample-statistics cutoffs, not arbitrary. Confirmed the API
+        route is requireAuth-guarded with orgId/userId sourced only from
+        the session, never request params. No OWASP-class issues, no
+        changes requested. Full report:
+        AUDIT_wave152_prediction_claude_items.md.
+  - id: WAVE-153
+    title: "Brain architecture groundwork, Phase A only (Phase4_Implementation_Plan.md item 3)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 90
+      summary: >
+        Scoped to Phase A only (wrap in place) of the 4-phase strangler-fig
+        migration in Study_by_Claude.md's architecture addendum. New
+        /api/v1/brain/* namespace mirroring /api/v1/projexa/capability-
+        tree/route.ts's exact thin-wrapper pattern (requireAuthOrApiKey ->
+        requireRoleOrScope -> call existing service -> JSON response): GET
+        /api/v1/brain/capabilities wraps findSimilarCapabilities(), GET
+        /api/v1/brain/entity-relationships wraps getNeighbors() (Phase 3's
+        graph store). New repo FChecklist/veridian-brain: honest README
+        stating nothing has been extracted yet, stub @veridian/brain-sdk
+        where every method throws rather than faking a response. Phases
+        B/C/D (cross-repo validation, physical extraction, net-new
+        components) explicitly not started. bun x tsc --noEmit and bun run
+        lint both clean.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched via ai-team-workforce.yml, 3-file cap, succeeded first
+        try. Confirmed both new routes reproduce the reference route's
+        full auth chain (requireAuthOrApiKey -> requireRoleOrScope ->
+        orgId guard) with no step skipped, confirmed orgId is sourced
+        exclusively from the authenticated session in both routes (never
+        from a query param/header/body), confirmed required inputs
+        (query; entityType+entityId) are validated with 400s before
+        reaching the service layer. Notable finding in Claude's favor: the
+        new routes' generic-error-message pattern is actually STRICTER
+        than the reference route they mirror, which leaks error.message
+        to the client -- flagged as a worthwhile future backport to the
+        reference route, not a defect in this wave. No OWASP-class issue
+        in either audited file. Full report: AUDIT_wave153_claude_items.md.
