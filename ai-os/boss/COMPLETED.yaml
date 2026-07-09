@@ -356,3 +356,42 @@ entries:
         never used to fetch anything, so not an IDOR). Independently
         confirmed GlobalChatDock.tsx has zero coupling to any Wave 148
         state. Full report: AUDIT_wave148_claude_items.md.
+  - id: WAVE-149
+    title: "Intent Engine v1 (Phase4_Implementation_Plan.md item 4)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 84
+      summary: >
+        Both VERIDIAN.docx studies independently flagged this as the
+        biggest missing piece; high-impact-action-detector.ts's own header
+        comment names this as the Intent Engine it stands in for. Same
+        deterministic word-boundary-regex approach, no LLM call.
+        intent-engine.ts's classifyIntent() covers a starter set
+        (create_task, check_status, create_contact, generate_report,
+        unknown-fallback). Zero existing call sites -- purely additive
+        (Wave 150 is the first real consumer). 9 initial unit tests, all
+        passing. bun x tsc --noEmit and bun run lint both clean.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched via ai-team-workforce.yml, 2-file cap, succeeded first
+        try. Confirmed classifyIntent() is genuinely deterministic (no
+        fetch/random/Date/crypto, stable Object.entries iteration order).
+        Confirmed toWordBoundaryRegex's character class correctly escapes
+        the full standard set of JS regex metacharacters. Traced the
+        "matches on word boundaries" test line-by-line and confirmed the
+        assertion is correct (though the multi-word " of" suffix, not the
+        \b anchors alone, is what actually prevents the false match in
+        that specific case -- a rationale nicety, not a defect). CONCERN:
+        the "how is" trigger fires on completely unrelated everyday
+        phrasing ("How is your day going?", "How is the weather?") -- a
+        real classification-accuracy risk, not a security issue (pure
+        classifier, no I/O, user text is only ever a regex TARGET never a
+        regex SOURCE, so no ReDoS/injection surface exists here regardless).
+        Confirmed zero existing call sites. Claude fixed same-day (commit
+        03918a8): narrowed to "how is the status" / "how is it going",
+        with regression tests for both the fix and the still-working
+        narrowed phrasing. Full report: AUDIT_wave149_claude_items.md.
