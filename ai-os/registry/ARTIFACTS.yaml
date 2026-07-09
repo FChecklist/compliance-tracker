@@ -1,0 +1,52 @@
+# ai-os/registry/ARTIFACTS.yaml
+# Enterprise Asset Registry scaffold — created 2026-07-09 during the VERIDIAN.docx
+# constitution study (see Study_by_Claude.md, Principle 16 gap analysis:
+# "Universal Asset Registry").
+#
+# STATUS: NOT YET POPULATED. ai-os/OS.yaml referenced this file's path since at
+# least 2026-06-25, and ai-os/boss/BOARD.yaml's task AIOS-003 claimed populating
+# it was "completed" on 2026-06-25 -- but the file did not exist on disk until
+# this scaffold was created. That claim has been corrected in BOARD.yaml. This
+# file exists so the OS.yaml reference resolves to something real, and so a
+# genuine registry has a place to grow into -- it intentionally does NOT
+# enumerate assets yet. Populating it with real, verified data (not aspirational
+# placeholders) is future work, gated on the joint implementation plan described
+# in Study_by_Claude.md (cross-review with z.ai's independent study must happen
+# first).
+#
+# Known REAL registries that already exist elsewhere in this repo and are the
+# natural candidates to be indexed here once this file is genuinely populated:
+#   - worker_agents table (src/lib/db/schema.ts) -- tier/version/lifecycleStatus/
+#     usageCount/accuracyScore columns; the closest existing match to what this
+#     file is meant to become, scoped to one asset type.
+#   - capability-registry-service.ts -- embedding-based capability search
+#     (findSimilarCapabilities/auditDuplicateCapabilities) over worker_agent/
+#     automation_rule/module/prompt_pattern entities via the embeddings table.
+#   - computation_engines table -- tracks the 25-file src/lib/engines/
+#     deterministic computation library (GST, payroll, EMI, etc.).
+#
+# Do not hand-fill the arrays below with placeholder/aspirational entries --
+# only add a row once it's been verified to actually exist, the same standard
+# applied throughout Study_by_Claude.md.
+
+version: 0.1.0-scaffold
+populated: false
+last_verified: "2026-07-09"
+
+modules: []
+features: []
+components: []
+worker_agents: []
+integrations: []
+apis: []
+templates: []
+forms: []
+dashboards: []
+reports: []
+calculators: []
+policies: []
+knowledge_packs: []
+prompt_libraries: []
+conversation_templates: []
+ui_components: []
+automation_recipes: []
