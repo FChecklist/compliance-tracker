@@ -187,9 +187,13 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
       { temperature: 0.3, maxTokens: 700, expectedKeys: ["matchType", "responseToUser"] }, modelConfig.fallback
     )
+    // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 3):
+    // store the actual prompt/response content, not just token/cost
+    // metadata -- see the matching change in chat-service.ts for why.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",
-      input: { requestText, candidateCount: candidates.length }, output: { matchType: evaluation.matchType, cached },
+      input: { requestText, candidateCount: candidates.length, systemPrompt, userMessage },
+      output: { matchType: evaluation.matchType, cached, responseToUser: evaluation.responseToUser },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })

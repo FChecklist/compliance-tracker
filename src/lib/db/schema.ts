@@ -663,6 +663,15 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   lifecycleStatus: text('lifecycle_status').notNull().default('published'),
   // Self-FK for the constitution's "Digital Department" grouping -- a
   // supervisor agent one or more subordinate agents report to.
+  // STATUS (confirmed 2026-07-09, VERIDIAN.docx joint implementation plan,
+  // z.ai's independent gap analysis finding): this column exists and is
+  // wired into a Drizzle relation (see `supervisor`/`subordinates` below)
+  // but is genuinely never populated -- live query confirms 0 of 27 real
+  // worker_agents rows have it set. No code path writes to it. Treat as
+  // reserved/not-yet-implemented, not evidence that agent supervision is a
+  // working feature -- building that (assignment UI, dispatch-time
+  // supervisor routing, etc.) is a real, separate feature, not something to
+  // infer is "almost done" from this column's presence.
   supervisorWorkerAgentId: text('supervisor_worker_agent_id'),
   proposedById: text('proposed_by_id'),
   projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope -- distinct from tier='client' (a broader client-account scope)

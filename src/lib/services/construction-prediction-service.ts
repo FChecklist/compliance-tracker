@@ -18,6 +18,20 @@ export type CompletionPrediction = {
   dailyVelocity: number | null
   predictedCompletionDate: string | null
   reason?: string
+  // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 4):
+  // z.ai's independent gap analysis flagged this predictor as having no
+  // confidence signal at all -- a 2-entry, 1-day-spanned velocity trend was
+  // presented identically to a 20-entry, 60-day one. Deterministic, not a
+  // model -- same philosophy as the predictor itself. Only set when a real
+  // velocity was actually computed (undefined in every early-return branch,
+  // which already explain themselves via `reason`).
+  confidence?: "low" | "medium" | "high"
+}
+
+function computeConfidence(entryCount: number, daysSpanned: number): "low" | "medium" | "high" {
+  if (entryCount >= 8 && daysSpanned >= 21) return "high"
+  if (entryCount >= 4 && daysSpanned >= 7) return "medium"
+  return "low"
 }
 
 export async function predictActivityCompletion(ctx: { orgId: string }, activityId: string): Promise<CompletionPrediction> {
@@ -58,6 +72,7 @@ export async function predictActivityCompletion(ctx: { orgId: string }, activity
     return {
       activityId, plannedQuantity, quantityDoneSoFar, dailyVelocity,
       predictedCompletionDate: predictedDate.toISOString().slice(0, 10),
+      confidence: computeConfidence(entries.length, daysSpanned),
     }
   })
 }
