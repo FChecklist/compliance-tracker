@@ -30,6 +30,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const result = await createTask({ orgId: ctx.orgId, actor: { dbUser: ctx.dbUser }, request }, body)
+    // Wave 146: high-impact confirmation gate -- nothing was created yet, so
+    // this is intentionally NOT a 201. The caller resubmits the same body
+    // plus `confirmed: true` to actually create+execute the task.
+    if ("needsConfirmation" in result && result.needsConfirmation) {
+      return NextResponse.json(result, { status: 200 })
+    }
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

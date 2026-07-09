@@ -25,15 +25,21 @@ Each item below: (a) doesn't require the graph store or event bus to exist first
 7. **Mandate a Capability Registry lookup before new service files, as a PR template checklist item.** (Both studies flagged this as the cheapest platform-wide risk reduction — process fix, not code.)
 8. **Correct `workerAgents.supervisorWorkerAgentId`'s dead-column status** — either wire it into the worker-agent hierarchy display/logic minimally, or explicitly document it as reserved/not-yet-used so future readers don't assume a supervision feature exists. (z.ai's finding, confirmed live: 27 agents, 0 with a supervisor set.)
 
-## Phase 2 — Next (not started this session): requires small design decisions first
+## Phase 2 — In progress
 
-- Filler-word/phrase-normalization preprocessor (Study 1 Level 2) — self-contained, but needs the "never strip these words" safety list built alongside it, so scoped as one slightly-larger unit, not a Phase 1 quick win.
-- Context Path breadcrumb UI component (`PathSegment` data already exists per both studies — only rendering is missing).
-- Confidence badge UI + "VERI is thinking" phase state in chat context (z.ai's suggestions — UI-only, needs the backend confidence field from Phase 1 item 4/6 as a real input first for at least one surface).
+- ~~Context Path breadcrumb UI component~~ **Done** — Wave 145 (PR #73), `PathBreadcrumb` in `VeriComposer.tsx`.
+
+**Division of the remaining 5 items** (2026-07-09, Boss: "divide between you and z.ai... finish phase 2 remaining items"):
+
+**Claude — safety/backend-judgment items** (matches Wave 144's pattern: direct implementation, z.ai audits):
 - High-impact-action confirmation gate (Delete/Payment/Approval keyword detection forcing a confirmation card) — both studies flag this, needs a short design pass on the keyword list.
-- Close the CLEE capture→apply gap: make the daily loops emit structured Improvement Proposals into `loopImprovements` (currently zero rows despite loops running) — human-gated, no new infra, but touches the loop-running code directly so warrants its own careful PR rather than bundling with Phase 1.
-- **PII redaction for LLM-call content logging** (added 2026-07-09, direct result of z.ai's audit of Phase 1/Wave 144, `AUDIT_wave144.md`): Wave 144 started storing full `systemPrompt`/`userMessage`/`reply` content in `orchestra_executions` for two call sites (chat, FDE), which the auditor correctly flagged as intentional-but-unredacted — table is RLS/tenant-scoped, which mitigates cross-tenant exposure, but full prompt content (including raw user text) is now persisted in plaintext with no redaction. Needs a real design pass (what counts as PII in this context, redact-at-write vs. redact-at-read, retention policy), not a Phase 1-sized fix.
-- **Give conversations' `current_state`/`previous_state`/`workflow_id` columns (Wave 144) an actual writer**, or explicitly revisit whether they should exist yet — same audit flagged them as inert scaffolding with no code path writing to them. Not urgent (nullable, `status` already defaults safely), but shouldn't sit indefinitely without either a writer or a documented reason to wait for the full Conversation State Machine (Phase 3).
+- **PII redaction for LLM-call content logging** (added after z.ai's Wave 144 audit, `AUDIT_wave144.md`): needs a real design pass (what counts as PII in this context, redact-at-write vs. redact-at-read, retention policy).
+- Close the CLEE capture→apply gap: make the daily loops emit structured Improvement Proposals into `loopImprovements` (currently zero rows despite loops running) — human-gated, no new infra.
+
+**z.ai — self-contained/UI items** (matches Wave 145's pattern: z.ai implements, Claude audits):
+- Filler-word/phrase-normalization preprocessor (Study 1 Level 2) + the "never strip these words" safety list built alongside it.
+- Confidence badge UI + "VERI is thinking" phase state in chat context — UI-only, wiring the Phase 1 confidence field (construction predictor) as the first real input.
+- Give conversations' `current_state`/`previous_state`/`workflow_id` columns (Wave 144) an actual writer, or explicitly document why waiting for the full Conversation State Machine (Phase 3) is the right call instead.
 
 ## Phase 3 — Foundational substrate decisions (explicitly deferred, multi-week scope)
 

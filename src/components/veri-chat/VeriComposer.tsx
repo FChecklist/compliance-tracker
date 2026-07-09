@@ -12,6 +12,10 @@ import { Send, Loader2, Paperclip, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { useVeriChat, FIXED_MODES, type CapabilityNode, type PathSegment } from "./veri-chat-context";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -101,6 +105,18 @@ export default function VeriComposer() {
   const [queue, setQueue] = useState<{ path: PathSegment[]; text: string; display: string }[]>([]);
   const [engineInputValues, setEngineInputValues] = useState<Record<string, string>>({});
   const textareaRef = useAutoGrowTextarea(value, 160);
+  // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2, High-Impact
+  // Action Confirmation Gate): set when POST /api/tasks responds with
+  // needsConfirmation -- holds the exact same body dispatchInstruction sent,
+  // so confirming resubmits it verbatim plus `confirmed: true` rather than
+  // re-deriving it. Cleared (and its promise resolved false) on cancel.
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    categoryLabel: string | null; matchedPhrase: string | null; resolve: (confirmed: boolean) => void
+  } | null>(null);
+
+  function requestHighImpactConfirmation(categoryLabel: string | null, matchedPhrase: string | null): Promise<boolean> {
+    return new Promise((resolve) => setPendingConfirmation({ categoryLabel, matchedPhrase, resolve }));
+  }
 
   const chainModes = tree.filter((n) => !FIXED_MODES.includes(n.key as never)).map((n) => n.key);
   const preseedKeyForMode = (mode: string): string | null => {
@@ -182,11 +198,30 @@ export default function VeriComposer() {
         body.engineInputs = merged;
       }
       try {
-        const res = await fetch("/api/tasks", {
+        let res = await fetch("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        if (res.ok) {
+          const json = await res.json();
+          // Wave 146: the gate never creates/executes anything on this first
+          // response -- ask the user, then resubmit the SAME body with
+          // confirmed: true only if they say yes. Saying no skips this one
+          // task without affecting any other concrete path in this loop.
+          if (json?.needsConfirmation) {
+            const confirmed = await requestHighImpactConfirmation(json.categoryLabel ?? null, json.matchedPhrase ?? null);
+            if (!confirmed) {
+              toast(`Skipped — ${crumb}`);
+              continue;
+            }
+            res = await fetch("/api/tasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...body, confirmed: true }),
+            });
+          }
+        }
         if (!res.ok) throw new Error();
       } catch {
         toast.error(`Couldn't create task for ${crumb}`);
@@ -288,6 +323,7 @@ export default function VeriComposer() {
             : "Select a task above to begin…";
 
   return (
+    <>
     <div className="shrink-0 border-t border-ct-border bg-white/95 backdrop-blur px-6 py-3">
       <div className="w-full max-w-5xl mx-auto">
         {/* Mode pills */}
@@ -420,6 +456,28 @@ export default function VeriComposer() {
         )}
       </div>
     </div>
+
+    {/* Wave 146: High-Impact Action Confirmation Gate -- VERIDIAN.docx CSV
+        205 §26's Human-in-Control Rules require explicit confirmation
+        before Delete/Payment/Approval/Rejection/Compliance-Submission/
+        Access-Change/Data-Export/Configuration-Change intents execute. */}
+    <AlertDialog open={pendingConfirmation !== null} onOpenChange={(open) => { if (!open) pendingConfirmation?.resolve(false); setPendingConfirmation(null); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm {pendingConfirmation?.categoryLabel ?? "this action"}</AlertDialogTitle>
+          <AlertDialogDescription>
+            This looks like a {pendingConfirmation?.categoryLabel?.toLowerCase() ?? "high-impact"} action
+            {pendingConfirmation?.matchedPhrase ? ` ("${pendingConfirmation.matchedPhrase}")` : ""}. VERIDIAN never
+            runs actions like this without your explicit go-ahead. Continue?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => { pendingConfirmation?.resolve(false); setPendingConfirmation(null); }}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => { pendingConfirmation?.resolve(true); setPendingConfirmation(null); }}>Confirm</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

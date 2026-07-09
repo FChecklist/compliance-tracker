@@ -8,6 +8,7 @@ import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
+import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
 
 const VALID_STATUSES = ["pending", "in_progress", "completed", "failed", "cancelled"]
 
@@ -38,6 +39,11 @@ export async function createTask(ctx: ServiceContext, input: {
   agentInputs?: Record<string, unknown>
   engineKey?: string
   engineInputs?: Record<string, unknown>
+  // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2, High-Impact
+  // Action Confirmation Gate): set true only on the caller's SECOND request,
+  // after the user has explicitly confirmed a high-impact action detected on
+  // the first request (see the detectHighImpactAction() check below).
+  confirmed?: boolean
 }) {
   const { orgId, actor } = ctx
   if (!actor.dbUser) throw new ServiceError("Task creation requires a real user session, not an API key", 400)
@@ -47,6 +53,25 @@ export async function createTask(ctx: ServiceContext, input: {
   if (!title) throw new ServiceError("title is required", 400)
   const description = input.description?.trim() || null
   const assistantId = input.assistantId ?? null
+
+  // Wave 146: VERIDIAN.docx CSV 205 §26's Human-in-Control Rules --
+  // Delete/Payment/Approval/Rejection/Compliance-Submission/Access-Change/
+  // Data-Export/Configuration-Change intents must never execute silently.
+  // Deterministic keyword gate (no LLM call, cannot be prompt-injected
+  // around) -- checked against title+description, the same text the task is
+  // actually created from. Returns early with NO task row inserted and NO
+  // execution triggered until the caller resubmits with confirmed: true.
+  if (!input.confirmed) {
+    const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
+    if (detection.isHighImpact) {
+      return {
+        needsConfirmation: true as const,
+        category: detection.category,
+        categoryLabel: detection.category ? HIGH_IMPACT_CATEGORY_LABELS[detection.category] : null,
+        matchedPhrase: detection.matchedPhrase,
+      }
+    }
+  }
   const projectId = input.projectId ?? null // Wave 19: optional Product/Project (L2) scope
 
   const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {

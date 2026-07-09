@@ -19,6 +19,7 @@ import { callLLMJsonCached } from "@/lib/llm-response-cache"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
+import { redactPii } from "@/lib/pii-redaction"
 import { hasRole } from "@/lib/supabase/auth-guard"
 import { proposeWorkerAgent } from "./worker-agent-service"
 import { findSimilarCapabilities } from "./capability-registry-service"
@@ -190,10 +191,11 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 3):
     // store the actual prompt/response content, not just token/cost
     // metadata -- see the matching change in chat-service.ts for why.
+    // Wave 146 (Phase 2): redact before write -- see pii-redaction.ts.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",
-      input: { requestText, candidateCount: candidates.length, systemPrompt, userMessage },
-      output: { matchType: evaluation.matchType, cached, responseToUser: evaluation.responseToUser },
+      input: { requestText: redactPii(requestText), candidateCount: candidates.length, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(userMessage) },
+      output: { matchType: evaluation.matchType, cached, responseToUser: redactPii(evaluation.responseToUser) },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })
@@ -236,9 +238,13 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     })
   } catch (err) {
     console.error("VERI FDE evaluation failed:", err)
+    // Wave 146 audit (AUDIT_wave146_claude_items.md, z.ai): the success path
+    // above redacts requestText before logging, but this failure path didn't --
+    // an FDE request containing PII that then hit an LLM error would persist
+    // unredacted into orchestra_executions. Match the success path.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",
-      input: { requestText }, status: "failed", durationMs: Date.now() - startedAt,
+      input: { requestText: redactPii(requestText) }, status: "failed", durationMs: Date.now() - startedAt,
       output: { error: err instanceof Error ? err.message : String(err) },
     })
     return recordFdeRequest(ctx, requestText, {

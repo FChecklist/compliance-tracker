@@ -1,6 +1,11 @@
 completed_count: 7
 last_completed: AIOS-007
 date: 2026-06-28
+# Note: the `entries:` list below (WAVE-* ids) is the joint VERIDIAN.docx
+# implementation plan's real completion log, tracked separately from the
+# completed_count/last_completed/date rollup above (those 3 fields cover a
+# different, earlier task-numbering scheme -- AIOS-*). Latest entry as of
+# 2026-07-09: WAVE-146B.
 
 # Schema extended 2026-07-09 (VERIDIAN.docx constitution study — see
 # Study_by_Claude.md addendum "End-to-End Study -> Audit -> Implementation ->
@@ -108,3 +113,111 @@ entries:
         (purely presentational, no new routes). One valid a11y nit raised (decorative
         chevron missing aria-hidden) -- applied before this commit. Full report:
         AUDIT_wave145.md.
+  - id: WAVE-146
+    title: "Phase 2 remaining 5 items, divided Claude/z.ai (high-impact confirmation gate, PII redaction, CLEE capture->apply gap / filler-word preprocessor, confidence badge + thinking indicator, conversation state-column decision)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: TBD
+      summary: >
+        Implemented the 3 items assigned to Claude in Joint_Implementation_Plan.md's
+        Phase 2 division. (1) High-impact action confirmation gate:
+        high-impact-action-detector.ts (deterministic keyword categories --
+        delete/archive/payment/approval/rejection/compliance_submission/
+        access_changes/data_export/configuration_changes), wired into
+        task-service.ts's createTask() (returns needsConfirmation without
+        inserting anything on the first unconfirmed call), api/tasks/route.ts
+        (200 not 201 on the confirmation branch), and VeriComposer.tsx (an
+        AlertDialog gates dispatchInstruction's loop per concrete path, so
+        declining one task in a multi-task dispatch only skips that one).
+        (2) PII redaction: pii-redaction.ts (GSTIN/PAN/IFSC/CARD/AADHAAR/
+        EMAIL/PHONE regex patterns, CARD ordered before AADHAAR after finding
+        a real bug where AADHAAR's 12-digit pattern partially matched inside
+        longer card numbers), applied at the orchestra_executions logging
+        call sites in chat-service.ts and fde-service.ts only -- the actual
+        stored messages/fde_requests rows keep raw, unredacted text so users
+        still see their real conversation history. (3) CLEE capture->apply
+        gap: loop-improvement-proposer.ts (shared helper, isDeployed always
+        hardcoded false -- human-gated, no autonomous-apply path), wired into
+        2 of ~13 loop files (api-token-audit.ts, tier-integrity-audit.ts) as
+        a first slice, explicitly disclosed as not yet covering the rest.
+        bun x tsc --noEmit and bun run lint both clean on the combined branch
+        (feature/phase2-claude-items) after merging all 6 Phase 2 items
+        together. One post-audit fix applied (see auditor summary below):
+        fde-service.ts's failure-path log wasn't redacting requestText,
+        fixed in commit d69e981 same-day.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched twice via ai-team-workforce.yml against
+        feature/phase2-claude-items (first dispatch exhausted its 40-iteration
+        budget without calling finish -- too many files in one brief; redispatched
+        with a tightened, file-capped, iteration-checkpointed brief, which
+        succeeded). Reviewed all 9 files across the 3 items. Item 1 (confirmation
+        gate): PASS -- confirmed the needsConfirmation return sits before both
+        the tasks insert and executeTask(), confirmed 200-vs-201 status codes,
+        traced VeriComposer's confirm/cancel/escape-dismiss paths for the
+        pendingConfirmation promise (no dangling promise, cancel only skips the
+        one concrete path). Item 2 (PII redaction): CONCERN -- traced the CARD
+        regex against a concrete 16-digit example to confirm the AADHAAR-partial-
+        match bug is actually prevented by the ordering, confirmed redaction is
+        scoped to orchestra_executions logging only on every path checked --
+        except fde-service.ts's catch block, which logged raw requestText on
+        LLM-call failure. Claude verified this independently against the live
+        code and fixed it same-day (commit d69e981) before this PR merged --
+        the CONCERN is resolved as of that commit, not deferred. Item 3 (CLEE
+        gap): PASS -- confirmed isDeployed has no code path to true, confirmed
+        the beforeState/afterState values in api-token-audit.ts are read
+        directly from the query result rows, not fabricated. Full report:
+        AUDIT_wave146_claude_items.md.
+  - id: WAVE-146B
+    title: "Phase 2 remaining 3 items owned by z.ai (filler-word/phrase-normalization preprocessor, confidence badge + VERI-is-thinking indicator, conversation state-column writer decision)"
+    doer:
+      agent: zai
+      date: "2026-07-09"
+      pr: TBD
+      summary: >
+        Implemented via 3 separate ai-team-workforce.yml dispatches, merged
+        together with Claude's 3 items on feature/phase2-claude-items. (1)
+        prompt-normalizer.ts: normalizeForLlm() strips greetings/politeness/
+        conversational filler/AI-addresses/meta-phrases before text reaches
+        the LLM, reusing the exact denylist Claude specified from VERIDIAN.docx
+        Study 1 Level 6, with correct denylist-precedence handling for phrases
+        like "may you"/"if possible" (contain denylisted words, so never
+        stripped even though nominally filler) and whole-segment-only address-
+        word matching (so "AI" inside "AI cognitive research" isn't touched).
+        Wired into chat-service.ts ahead of callLLM only -- enforcePolicy still
+        sees the original unmodified userMessage. (2) fde/page.tsx +
+        ThreadView.tsx: reuseLevel badge (exact_match/llm_assisted_match/
+        new_proposal -> High Confidence/Needs Confirmation/New Capability,
+        VERIDIAN.docx Study 32.16 vocabulary) reusing the existing Badge
+        component and color-token conventions; a "VERI is thinking" rotating-
+        phase indicator gated on sending && conversation.isAiThread, hooked
+        into the pre-existing sending state with proper interval cleanup. (3)
+        docs/wave146-state-columns-decision.md: chose not to force a writer
+        onto the Wave 144 conversations.currentState/previousState/workflowId
+        columns, since no real state taxonomy/consumer exists yet -- documented
+        as Outcome B with concrete Phase 3 prerequisites instead of fabricating
+        a fake writer that nothing would read.
+    auditor:
+      agent: claude-code
+      date: "2026-07-09"
+      verdict: approve
+      summary: >
+        Reviewed all 3 items directly (no dispatch needed -- local repo
+        access). Item 1: PASS, no bugs, denylist-precedence tradeoff is the
+        correct conservative choice and is documented rather than silent;
+        enforcePolicy/normalizeForLlm scoping matches the task brief exactly.
+        Item 2: PASS, confirmed backend already returned reuseLevel before
+        this change (no backend changes needed or made), confirmed the Bot
+        icon was already imported pre-change (not silently added), no memory-
+        leak risk in the interval cleanup. Item 3: PASS -- independently
+        re-verified both of the document's load-bearing factual claims against
+        the live code myself (dispatchInstruction's POST body has no
+        conversationId/aiThreadId field; ensureAiThread seeds its welcome
+        message unconditionally in the same code path as conversation
+        creation, so there's no observable "created but inactive" window).
+        Both claims checked out exactly as stated. Full report:
+        AUDIT_wave146_zai_items.md.

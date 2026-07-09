@@ -1,4 +1,5 @@
 import { db, loopExecutions } from "@/lib/db";
+import { proposeLoopImprovement } from "@/lib/loop-improvement-proposer";
 
 /**
  * Loop 13: Data/Process Separation.
@@ -58,6 +59,23 @@ export async function runTierIntegrityAudit(loopId: string): Promise<{
     measurementResult: {},
     executionTimeMs,
   });
+
+  // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2): CLEE
+  // capture->apply gap. afterState is deliberately null, not a guessed
+  // fix -- for some violation types (e.g. tier='customer' with no orgId)
+  // there's no way to safely infer the correct value from the malformed
+  // row alone; proposing a specific wrong fix would be worse than
+  // proposing "this needs human review." Still human-gated either way.
+  for (const agent of malformed) {
+    await proposeLoopImprovement({
+      loopId,
+      improvementType: "fix_tier_scoping_mismatch",
+      targetType: "worker_agent",
+      targetId: agent.id,
+      beforeState: { tier: agent.tier, orgId: agent.orgId, clientId: agent.clientId, userId: agent.userId, name: agent.name },
+      afterState: null,
+    })
+  }
 
   return { agentsChecked: agents.length, malformedCount: malformed.length, executionTimeMs };
 }
