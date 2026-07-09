@@ -27,7 +27,9 @@
 // regressing something that currently works, for no functional gain.
 // Matches the same "ship real infrastructure, don't force a contrived
 // consumer" discipline Phase 3's graph store and event bus already
-// established in this codebase.
+// established in this codebase. Tracked as FOLLOWUP-1 in FOLLOWUPS.md
+// (per Wave 157 audit, AUDIT_wave157_claude_items.md section 5) so this
+// deferral stays a tracked item, not a comment-only promise.
 export type GuardrailPhase = "input" | "process" | "output" | "logic"
 
 export type GuardrailCheckResult =

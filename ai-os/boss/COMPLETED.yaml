@@ -560,3 +560,57 @@ entries:
         (the doc's own list says "such as", inviting extension) and
         remapped cancelled to an acknowledging "OK" instead of an
         implicit accusation. Full report: AUDIT_wave154_claude_items.md.
+  - id: WAVE-157
+    title: "Guardrail Engine v1 -- opt-in, per-capability-leaf validation framework (TaskDocx_Evaluation.md items 4/5/6/7/8)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 102
+      summary: >
+        Boss's document asked for input/process/output/logic validation
+        "for every task", unique per Dynamic Mode Pills/Chain Selection,
+        with a predefined polite violation message and violations feeding
+        a learning loop. Read literally this would be a large, brittle,
+        unscoped effort contradicting the document's own "should not make
+        system rigid" constraint. Shipped instead: a small, generic,
+        opt-in framework (src/lib/guardrail-engine.ts) generalizing the
+        pattern high-impact-action-detector.ts already proves works --
+        deterministic, keyed by capability-tree leaf, human-readable
+        message, no LLM call. Registry starts empty by design (nothing
+        gated by default). recordGuardrailViolation() feeds the existing
+        Wave 146 CLEE pipeline (loop-improvement-proposer.ts), reused not
+        duplicated, human-gated via isDeployed:false. Explicitly not
+        wired into high-impact-action-detector.ts this wave -- deferred
+        deliberately to avoid risking a regression in an already-audited
+        safety-critical gate for zero functional gain, matching the "ship
+        real infrastructure, don't force a contrived consumer" discipline
+        Phase 3's graph store/event bus established. 7 unit tests, all
+        passing. Post-audit: added FOLLOWUPS.md (FOLLOWUP-1) and a header
+        comment reference so the deferral is a tracked item, not just a
+        comment-only promise.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: approve-with-notes
+      summary: >
+        Dispatched via ai-team-workforce.yml, 3-file cap, succeeded first
+        try. Traced (not just trusted the test) that evaluateGuardrails()
+        for an unregistered leaf/phase always returns {passed:true} with
+        zero side effects -- confirmed structurally via Map-keyed
+        isolation. Confirmed registerGuardrail() isolates rules per leaf
+        AND per phase, both by trace and by test. Flagged a real nuance:
+        check()'s signature enforces synchronous return (a Promise-
+        returning check fails to type-check) but cannot enforce
+        determinism/purity -- that half is convention + review, not the
+        type system; the JSDoc's "deterministic" claim should be read as
+        "synchronous by construction, deterministic by convention."
+        Confirmed recordGuardrailViolation()'s call to
+        proposeLoopImprovement() shape-matches the real
+        LoopImprovementProposal type field-for-field, including the
+        human-gating isDeployed:false posture. Agreed the deferral of the
+        high-impact-action-detector.ts retrofit is the right call (same
+        Phase-3-precedent reasoning as the doer), on the explicit
+        condition it becomes a tracked follow-up rather than a comment-
+        only promise -- Claude added FOLLOWUPS.md FOLLOWUP-1 in response.
+        No OWASP-class issue, no route/auth surface, no injection vector.
+        Full report: AUDIT_wave157_claude_items.md.
