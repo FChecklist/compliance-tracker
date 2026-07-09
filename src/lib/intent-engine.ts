@@ -20,7 +20,12 @@ export type Intent =
 
 const TRIGGERS: Record<Exclude<Intent, "unknown">, string[]> = {
   create_task: ["create a task", "add a task", "new task", "remind me to", "give me a task", "assign a task"],
-  check_status: ["what's the status", "check status", "check the status", "is this done", "how is", "status of", "what is the status"],
+  // Wave 149 audit fix (AUDIT_wave149_claude_items.md, z.ai CONCERN): "how
+  // is" on its own fires on completely unrelated everyday phrasing ("How
+  // is your day going?", "How is the weather?") -- narrowed to "how is the
+  // status" / "how is it going" so it stays scoped to an actual status
+  // question rather than matching any "how is ..." sentence.
+  check_status: ["what's the status", "check status", "check the status", "is this done", "how is the status", "how is it going", "status of", "what is the status"],
   create_contact: ["add a customer", "add a contact", "new customer", "new contact", "add a client", "create a customer", "create a contact"],
   generate_report: ["generate a report", "create a report", "show me a report", "summarize this week", "summarise this week", "give me a summary"],
 }
