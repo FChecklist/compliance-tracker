@@ -1,10 +1,25 @@
 # BOSS Task Board — ComplianceTrack
 # Updated: 2026-06-29 | Launch-readiness sprint complete
+#
+# STALENESS NOTICE (added 2026-07-09, VERIDIAN.docx constitution study): the
+# `completed:` list below stops at 2026-06-29 and does NOT reflect the ~114
+# waves of work (Wave 30 through at least Wave 143, per git log and session
+# memory) that have shipped since -- GST/HR/CRM/procurement engines, PROJEXA
+# (20-module construction ERP), the AI Dev Team, VCEL computation registry,
+# the AI OS Certification audit, and this study itself. This board was not
+# kept current during that period; wave-level history instead lives in git
+# log and session memory. Rather than fabricate ~114 backfilled entries, the
+# 5 previously-`open` items below were individually re-verified against the
+# live repo/GitHub on 2026-07-09 and corrected (see each entry's `note`).
+# Going forward, Operating Rule 7 in AGENTS.md (added 2026-07-09) asks both
+# agents to log completed implementation work in ai-os/boss/COMPLETED.yaml
+# with doer+auditor entries -- resume using that mechanism in real time
+# rather than letting this board go stale again.
 
 completed:
   - { id: AIOS-001, title: "Bootstrap AI-OS governance files", status: completed, date: "2026-06-25" }
   - { id: AIOS-002, title: "Deploy module specs", status: completed, date: "2026-06-25" }
-  - { id: AIOS-003, title: "Populate ARTIFACTS.yaml knowledge graphs", status: completed, date: "2026-06-25" }
+  - { id: AIOS-003, title: "Populate ARTIFACTS.yaml knowledge graphs", status: corrected, date: "2026-06-25", corrected_date: "2026-07-09", corrected_by: claude-code, correction: "Marked completed 2026-06-25, but ai-os/registry/ARTIFACTS.yaml did not exist on disk until this correction -- found false during the VERIDIAN.docx constitution study (see Study_by_Claude.md). A scaffold now exists at ai-os/registry/ARTIFACTS.yaml (version 0.1.0-scaffold, populated: false). Real population is future work per the joint implementation plan, not yet done." }
   - { id: AIOS-004, title: "CI pipelines passing (all 3 repos)", status: completed, date: "2026-06-26" }
   - { id: AIOS-005, title: "Migrate all secrets to GitHub Secrets (27+ per repo)", status: completed, date: "2026-06-28" }
   - { id: AIOS-006, title: "Claude Code + AI dispatch integration (all 3 repos)", status: completed, date: "2026-06-28" }
@@ -35,39 +50,41 @@ open:
     status: open
     priority: high
     notes: "Buy $5 credits at console.anthropic.com. Add sk-ant-... key to GitHub Secrets: ANTHROPIC_API_KEY. Required for AI assistant features in TOOLS sidebar."
+    verified_2026-07-09: "STILL OPEN -- confirmed via `gh secret list`: no ANTHROPIC_API_KEY secret exists in this repo as of 2026-07-09, despite AGENTS.md describing it as already configured (\"API key: stored as ANTHROPIC_API_KEY in GitHub Secrets\") and ai-os/engines/ENGINES.yaml listing claude_code's api.secret_key as ANTHROPIC_API_KEY. The repository_dispatch `claude-task` trigger path described in AGENTS.md/BOSS.yaml cannot actually authenticate to the Anthropic API until this is added -- a real, currently-live gap, not a stale one."
 
   - id: AIOS-027
     title: "Verify API returns 200 after pooler URL fix"
     agent: human-or-zai
-    status: open
-    priority: high
-    notes: "Call GET /api/compliance/stats on compliance-tracker-ai.vercel.app after logging in. Should return JSON with total, overdue, completed counts. If still 500, check Vercel DATABASE_URL env var in project settings."
+    status: completed
+    date: "2026-07-06"
+    verified_2026-07-09: "Superseded by the Wave 100-102 E2E test pass (2026-07-06, see session memory 'VERIDIAN E2E Test Pass'), which went well beyond a single endpoint check -- found and fixed 3 real production bugs (unset CRON_SECRET, PageAgent provider map, hardcoded GROQ_API_KEY in bulk-import) and confirmed the API layer working end-to-end."
 
   - id: AIOS-028
     title: "End-to-end login test on live site"
     agent: zai
-    status: open
-    priority: high
-    notes: "Login at compliance-tracker-ai.vercel.app with a Supabase Auth user. Verify dashboard loads with real data. Test compliance CRUD: create item, change status, view detail. Seed user creds: raajat.agarwal@gmail.com or use magic link."
+    status: completed
+    date: "2026-07-06"
+    verified_2026-07-09: "Superseded by the same Wave 100-102 E2E pass, plus the 2026-07-06 Demo Company seed (10 test-persona logins, password DemoVeridian2026!, full-module seed data) confirmed working across roles -- a stronger version of this check than the original single-login test."
 
   - id: AIOS-029
-    title: "Run remaining 32 QA test cases from Testing/test_execution_log.md"
+    title: "Run remaining QA test cases from Testing/test_execution_log.md"
     agent: zai
-    status: open
-    priority: medium
-    notes: "46 total tests. 5 PASSED, 6 FAIL+fix applied, 35 pending. Focus on TC-CM-01 to TC-CM-14 (compliance CRUD), TC-SEC-01 to TC-SEC-04 (auth enforcement), TC-PF-01 (page load <3s)."
+    status: in_progress
+    verified_2026-07-09: "Re-counted directly from Testing/test_execution_log.md (last git-modified 2026-07-04, so this DOES reflect real progress since the 2026-06-29 board update, just never synced back here): 12 PASS, 7 FAIL, 12 PENDING (was 5 PASS / 6 FAIL+fixed / 35 PENDING at board-update time). Genuinely still open, not stale -- update the notes field with real numbers rather than trusting the count below."
+    notes: "12 PASS, 7 FAIL, 12 PENDING as of 2026-07-04 (re-verified 2026-07-09) -- re-check Testing/test_execution_log.md directly for current per-test-case detail rather than relying on this summary."
 
   - id: AIOS-030
     title: "Wire file upload to Supabase Storage (Documents tab)"
     agent: zai
-    status: open
-    priority: medium
-    notes: "Documents tab in compliance detail shows Upload UI but files are stored as URLs only. Implement Supabase Storage upload in a new POST /api/documents route. Return signed URLs."
+    status: completed
+    date: "unknown -- found already done, not logged"
+    verified_2026-07-09: "Confirmed via direct code read: src/app/api/documents/route.ts uses `admin.storage.from(BUCKET).upload(...)` for real Supabase Storage uploads, and src/app/api/documents/[id]/route.ts returns short-lived signed URLs (createSignedUrl), never raw storage paths. This was done at some point but never marked complete here -- exactly the kind of drift Operating Rule 7's doer+auditor logging in COMPLETED.yaml is meant to prevent going forward."
 
 ai_os_score:
   before: 4/10
-  current: 9.8/10
+  current_2026-06-29_claim: "9.8/10 -- REMOVED 2026-07-09, see below"
+  correction_2026-07-09: "The 9.8/10 self-reported score above was not backed by an independent evaluation and is superseded by AI_OS_CERTIFICATION.md (first pass 2026-07-04, most recent evidence 2026-07-05) -- a 51-category, evidence-cited audit (real code + live-DB queries, not aspiration) whose own stated conclusion is: 'Overall gate result today: FAIL... VERIDIAN is not yet certifiable as an AI-native multi-agent OS against the standard the user is proposing. It is a strong, secure, well-governed multi-tenant compliance platform with a well-architected foundation for AI-native features, most of which are not yet built on top of that foundation.' Treat AI_OS_CERTIFICATION.md as the authoritative maturity assessment, not this line. Do not restate a numeric score here without the same evidence standard."
   remaining:
-    - ANTHROPIC_API_KEY for Claude (human action, AIOS-018)
-    - Verify API working end-to-end (AIOS-027)
-    - Full QA pass (AIOS-029)
+    - ANTHROPIC_API_KEY for Claude autonomous dispatch (still open, AIOS-018, re-confirmed 2026-07-09)
+    - Full QA pass (in progress, AIOS-029, 12/31 counted tests still not PASS as of 2026-07-04)
+    - See AI_OS_CERTIFICATION.md for the full, current gap list -- this board's remaining-list was last accurate 2026-06-29

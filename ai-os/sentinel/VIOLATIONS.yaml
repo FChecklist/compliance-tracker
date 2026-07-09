@@ -1,3 +1,4 @@
 violations: []
-last_scan: 2026-06-28
+last_scan: 2026-07-09
 status: clean
+scan_method_2026-07-09: "Spot-check only, not a full SENTINEL rule sweep: git-tracked-file scan for committed .env files (none found) and a regex pass for obvious secret patterns (sk-ant-*, sk-*, AKIA* -- none found). Does not cover the full validation_rules set in SENTINEL.yaml (e.g. AR-001 no direct DB access from UI, AC-002 all changes logged) -- those were not re-audited in this pass. Previous entry was unchanged for 11 days across ~114 waves; corrected during the VERIDIAN.docx constitution study's ai-os/ governance cleanup, 2026-07-09."

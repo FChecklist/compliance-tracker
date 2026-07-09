@@ -41,8 +41,12 @@ engines:
     scope: ALL_REPOSITORIES
     repositories:
       - FChecklist/compliance-tracker
-      - FChecklist/meettrack-v2
       - FChecklist/veda-advisors
+      - FChecklist/projexa
+    # meettrack-v2 removed 2026-07-09: that repo was retired 2026-07-04 (product
+    # merged into compliance-tracker, repo + infra deleted) -- this scope list
+    # still granted FULL_ACCESS to a repository that no longer exists. projexa
+    # added since it's a real, current FChecklist repo this scope should cover.
 
     capabilities:
       - code_generation
