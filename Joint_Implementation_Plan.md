@@ -8,11 +8,15 @@ Both AIs independently arrived at the same meta-finding: VERIDIAN's real infrast
 
 ---
 
+## Note added during implementation: a parallel session already closed some of this
+
+While starting Phase 1, discovered a **separate, earlier session today** (`docs/master/FINAL_STATUS_REPORT_2026-07-09.md`, `AUDIT_2026-07-09.md`, `CRITICAL_GAPS.md`, `GAP_CLOSURE_LOG.md`) ran its own independent 9-agent audit and closed 22 findings, live on `main` before this branch was cut. Directly overlapping with this plan: **Phase 1 item 1 (`buildConversationHistory` capping) is already done** (`HISTORY_CHAR_BUDGET`, commit `9a32cce`) — removed from the list below. Also relevant but not fully overlapping: a relevance-floor threshold was added to `capability-registry-service.ts`'s similarity searches (not FDE's own top-K surfacing, which is still open, item 5 below), and the LLM response cache was wired into FDE (unrelated to items 5/6). Checked each remaining item against current code before implementing — items 2-8 below are confirmed still open as of this check.
+
 ## Phase 1 — Implement now (this session): cheap, independent, both-AIs-agree wins
 
 Each item below: (a) doesn't require the graph store or event bus to exist first, (b) is scoped to hours not days, (c) both gap analyses flagged it directly or it's a direct, uncontroversial consequence of a shared finding. Implemented as separate PRs, each cross-audited (I implement → z.ai audits, or vice versa).
 
-1. **Cap `buildConversationHistory` instead of full-history replay.** (Both studies' #1 actionable item.) `chat-service.ts` currently resends up to 20 messages/12k chars every turn. Cap to last N turns + note that a full state-machine-based context-reference fix is Phase 2+ work, not attempted here.
+1. ~~Cap `buildConversationHistory` instead of full-history replay.~~ **Already done** by the parallel gap-closure session (`HISTORY_CHAR_BUDGET = 12000`, commit `9a32cce`) — see note above. Left numbered for traceability against both studies' findings.
 2. **Add `current_state`/`workflow_id`/`status` columns to `conversations`.** Additive migration (Claude's Study finding, z.ai's #4 priority item). Enables Phase 2 state-machine work later without redesign; the columns themselves are inert until something writes to them, so this is safe to land now.
 3. **Store the actual prompt/message content per LLM call** (with basic PII awareness), not just cost/model/tokens. z.ai's finding: currently you can prove *what it cost* but not *what was asked* — a prerequisite for any future explainability work and a real, current audit gap.
 4. **Add a numeric `confidence` field to the construction predictor**, derived from entry-count + days-spanned (z.ai's concrete suggestion — first real step toward a Confidence Framework, fully scoped, no dependencies).
