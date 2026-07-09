@@ -4,10 +4,10 @@
 // overallocated." allocatedHoursPerWeek is capacity; actual hours come
 // from firm_time_entries (see firm-time-tracking-service.ts) -- the two
 // are compared, not conflated, in computeStaffUtilization below.
-import { firmStaffAssignments, firmTimeEntries, clients } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { firmStaffAssignments, firmTimeEntries, clients, userClientAccess } from "@/lib/db"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, gte, lte, sum } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -23,11 +23,11 @@ export type FirmStaffAssignmentInput = {
   endDate?: string | null
 }
 
-export async function assignStaffToClient(ctx: { orgId: string }, clientId: string, userId: string, input: FirmStaffAssignmentInput) {
+export async function assignStaffToClient(ctx: FirmServiceContext, clientId: string, userId: string, input: FirmStaffAssignmentInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.startDate) throw new ServiceError("startDate is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, clientId, ctx.orgId)
 
     const [assignment] = await db.insert(firmStaffAssignments).values({
@@ -40,13 +40,27 @@ export async function assignStaffToClient(ctx: { orgId: string }, clientId: stri
       endDate: input.endDate ?? null,
     }).returning()
 
+    // Gap closure, 2026-07-09 (CRITICAL_GAPS.md #2): staffing someone on a
+    // client with no matching user_client_access grant would silently lock
+    // them out of that client's own Firm data under the new RLS below --
+    // being staffed on a client is exactly the real-world signal that
+    // access should follow. Idempotent (checked, not blind insert) so
+    // re-assigning the same person doesn't create duplicate grant rows or
+    // downgrade an existing 'full' grant.
+    const existingAccess = await db.query.userClientAccess.findFirst({
+      where: and(eq(userClientAccess.userId, userId), eq(userClientAccess.clientId, clientId)),
+    })
+    if (!existingAccess) {
+      await db.insert(userClientAccess).values({ userId, clientId, accessLevel: "full" })
+    }
+
     return assignment
   })
 }
 
-export async function endStaffAssignment(ctx: { orgId: string }, assignmentId: string, endDate: string) {
+export async function endStaffAssignment(ctx: FirmServiceContext, assignmentId: string, endDate: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const existing = await db.query.firmStaffAssignments.findFirst({ where: and(eq(firmStaffAssignments.id, assignmentId), eq(firmStaffAssignments.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Staff assignment not found", 404)
 
@@ -55,23 +69,23 @@ export async function endStaffAssignment(ctx: { orgId: string }, assignmentId: s
   })
 }
 
-export async function listAssignmentsForClient(ctx: { orgId: string }, clientId: string) {
+export async function listAssignmentsForClient(ctx: FirmServiceContext, clientId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmStaffAssignments.findMany({ where: and(eq(firmStaffAssignments.clientId, clientId), eq(firmStaffAssignments.orgId, ctx.orgId)) })
   })
 }
 
-export async function listAssignmentsForStaff(ctx: { orgId: string }, userId: string) {
+export async function listAssignmentsForStaff(ctx: FirmServiceContext, userId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmStaffAssignments.findMany({ where: and(eq(firmStaffAssignments.userId, userId), eq(firmStaffAssignments.orgId, ctx.orgId)) })
   })
 }
 
-export async function computeStaffUtilization(ctx: { orgId: string }, userId: string, periodStart: string, periodEnd: string) {
+export async function computeStaffUtilization(ctx: FirmServiceContext, userId: string, periodStart: string, periodEnd: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const assignments = await db.query.firmStaffAssignments.findMany({ where: and(eq(firmStaffAssignments.userId, userId), eq(firmStaffAssignments.orgId, ctx.orgId)) })
     const totalAllocatedPerWeek = assignments.reduce((acc, a) => acc + (a.allocatedHoursPerWeek ? Number(a.allocatedHoursPerWeek) : 0), 0)
 

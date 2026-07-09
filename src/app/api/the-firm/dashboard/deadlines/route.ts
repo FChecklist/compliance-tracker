@@ -4,13 +4,13 @@ import { getUpcomingDeadlines } from "@/lib/services/firm-practice-dashboard-ser
 import { ServiceError } from "@/lib/services/compliance-service"
 
 export async function GET(req: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const withinDays = Number(req.nextUrl.searchParams.get("withinDays") ?? "14")
-    const deadlines = await getUpcomingDeadlines({ orgId }, withinDays)
+    const deadlines = await getUpcomingDeadlines({ orgId, userId: dbUser.id, dbUser }, withinDays)
     return NextResponse.json({ deadlines })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

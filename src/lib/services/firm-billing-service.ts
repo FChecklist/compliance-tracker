@@ -5,9 +5,9 @@
 // the same transaction that creates the invoice + line items -- a re-run
 // for the same client/range always finds zero remaining unbilled rows.
 import { firmInvoices, firmInvoiceLineItems, firmTimeEntries, firmBillableRates, clients } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, isNull, lte } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -23,12 +23,12 @@ export type SetBillableRateInput = {
   validFrom: string
 }
 
-export async function setBillableRate(ctx: { orgId: string }, input: SetBillableRateInput) {
+export async function setBillableRate(ctx: FirmServiceContext, input: SetBillableRateInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.hourlyRate || input.hourlyRate <= 0) throw new ServiceError("hourlyRate must be a positive number", 400)
   if (!input.validFrom) throw new ServiceError("validFrom is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const [rate] = await db.insert(firmBillableRates).values({
       orgId: ctx.orgId,
       userId: input.userId ?? null,
@@ -78,12 +78,12 @@ export type GenerateInvoiceInput = {
   fixedFeeLine?: { description: string; amount: number } | null
 }
 
-export async function generateInvoiceFromUnbilledTime(ctx: { orgId: string; userId: string }, input: GenerateInvoiceInput) {
+export async function generateInvoiceFromUnbilledTime(ctx: FirmServiceContext, input: GenerateInvoiceInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.invoiceNumber?.trim()) throw new ServiceError("invoiceNumber is required", 400)
   if (!input.issueDate) throw new ServiceError("issueDate is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, input.clientId, ctx.orgId)
 
     const rateRows = await db.query.firmBillableRates.findMany({ where: eq(firmBillableRates.orgId, ctx.orgId) })
@@ -157,12 +157,12 @@ export async function generateInvoiceFromUnbilledTime(ctx: { orgId: string; user
   })
 }
 
-export async function addFixedFeeLineToInvoice(ctx: { orgId: string }, invoiceId: string, input: { description: string; amount: number }) {
+export async function addFixedFeeLineToInvoice(ctx: FirmServiceContext, invoiceId: string, input: { description: string; amount: number }) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.description?.trim()) throw new ServiceError("description is required", 400)
   if (!input.amount || input.amount <= 0) throw new ServiceError("amount must be a positive number", 400)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const invoice = await db.query.firmInvoices.findFirst({ where: and(eq(firmInvoices.id, invoiceId), eq(firmInvoices.orgId, ctx.orgId)) })
     if (!invoice) throw new ServiceError("Invoice not found", 404)
     if (invoice.status !== "draft") throw new ServiceError("Only draft invoices can be modified", 409)
@@ -182,9 +182,9 @@ export async function addFixedFeeLineToInvoice(ctx: { orgId: string }, invoiceId
   })
 }
 
-async function transitionInvoiceStatus(ctx: { orgId: string }, invoiceId: string, from: Array<typeof firmInvoices.$inferSelect["status"]>, to: typeof firmInvoices.$inferSelect["status"]) {
+async function transitionInvoiceStatus(ctx: FirmServiceContext, invoiceId: string, from: Array<typeof firmInvoices.$inferSelect["status"]>, to: typeof firmInvoices.$inferSelect["status"]) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const invoice = await db.query.firmInvoices.findFirst({ where: and(eq(firmInvoices.id, invoiceId), eq(firmInvoices.orgId, ctx.orgId)) })
     if (!invoice) throw new ServiceError("Invoice not found", 404)
     if (!from.includes(invoice.status)) throw new ServiceError(`Cannot transition invoice from '${invoice.status}' to '${to}'`, 409)
@@ -194,21 +194,21 @@ async function transitionInvoiceStatus(ctx: { orgId: string }, invoiceId: string
   })
 }
 
-export async function markInvoiceSent(ctx: { orgId: string }, invoiceId: string) {
+export async function markInvoiceSent(ctx: FirmServiceContext, invoiceId: string) {
   return transitionInvoiceStatus(ctx, invoiceId, ["draft"], "sent")
 }
 
-export async function markInvoicePaid(ctx: { orgId: string }, invoiceId: string) {
+export async function markInvoicePaid(ctx: FirmServiceContext, invoiceId: string) {
   return transitionInvoiceStatus(ctx, invoiceId, ["sent", "overdue"], "paid")
 }
 
-export async function voidInvoice(ctx: { orgId: string }, invoiceId: string) {
+export async function voidInvoice(ctx: FirmServiceContext, invoiceId: string) {
   return transitionInvoiceStatus(ctx, invoiceId, ["draft", "sent", "overdue"], "void")
 }
 
-export async function listInvoicesForClient(ctx: { orgId: string }, clientId: string) {
+export async function listInvoicesForClient(ctx: FirmServiceContext, clientId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmInvoices.findMany({
       where: and(eq(firmInvoices.clientId, clientId), eq(firmInvoices.orgId, ctx.orgId)),
       with: { lineItems: true },

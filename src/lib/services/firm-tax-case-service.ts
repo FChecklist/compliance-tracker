@@ -5,9 +5,9 @@
 // a CA firm's tax practice actually needs day to day. linkedNoticeId
 // references the existing notice rather than duplicating it.
 import { firmTaxCases, clients, notices } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, lte, isNotNull } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -31,11 +31,11 @@ export type FirmTaxCaseInput = {
   responsibleUserId?: string | null
 }
 
-export async function createTaxCase(ctx: { orgId: string; userId: string }, input: FirmTaxCaseInput) {
+export async function createTaxCase(ctx: FirmServiceContext, input: FirmTaxCaseInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.assessmentYear?.trim()) throw new ServiceError("assessmentYear is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, input.clientId, ctx.orgId)
 
     if (input.linkedNoticeId) {
@@ -64,9 +64,9 @@ export async function createTaxCase(ctx: { orgId: string; userId: string }, inpu
   })
 }
 
-export async function updateTaxCaseStage(ctx: { orgId: string }, caseId: string, stage: string, outcome?: string | null) {
+export async function updateTaxCaseStage(ctx: FirmServiceContext, caseId: string, stage: string, outcome?: string | null) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const existing = await db.query.firmTaxCases.findFirst({ where: and(eq(firmTaxCases.id, caseId), eq(firmTaxCases.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Tax case not found", 404)
 
@@ -80,9 +80,9 @@ export async function updateTaxCaseStage(ctx: { orgId: string }, caseId: string,
   })
 }
 
-export async function listTaxCasesForClient(ctx: { orgId: string }, clientId: string) {
+export async function listTaxCasesForClient(ctx: FirmServiceContext, clientId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmTaxCases.findMany({
       where: and(eq(firmTaxCases.clientId, clientId), eq(firmTaxCases.orgId, ctx.orgId)),
       orderBy: (t, { asc }) => asc(t.limitationDate),
@@ -90,13 +90,13 @@ export async function listTaxCasesForClient(ctx: { orgId: string }, clientId: st
   })
 }
 
-export async function listUpcomingLimitationDates(ctx: { orgId: string }, withinDays: number) {
+export async function listUpcomingLimitationDates(ctx: FirmServiceContext, withinDays: number) {
   await requireFirmEnabled(ctx.orgId)
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() + withinDays)
   const cutoffStr = cutoff.toISOString().slice(0, 10)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmTaxCases.findMany({
       where: and(eq(firmTaxCases.orgId, ctx.orgId), isNotNull(firmTaxCases.limitationDate), lte(firmTaxCases.limitationDate, cutoffStr)),
       orderBy: (t, { asc }) => asc(t.limitationDate),

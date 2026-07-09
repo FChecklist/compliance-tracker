@@ -4,9 +4,9 @@
 // project/issue-scoped, and conflating the two would give one table two
 // incompatible meanings depending on which FK is populated.
 import { firmTimeEntries, clients } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, isNull } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -21,11 +21,11 @@ export type StartTimerInput = {
   taskDescription: string
 }
 
-export async function startTimer(ctx: { orgId: string; userId: string }, input: StartTimerInput) {
+export async function startTimer(ctx: FirmServiceContext, input: StartTimerInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.taskDescription?.trim()) throw new ServiceError("taskDescription is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, input.clientId, ctx.orgId)
 
     const alreadyRunning = await db.query.firmTimeEntries.findFirst({
@@ -50,9 +50,9 @@ export async function startTimer(ctx: { orgId: string; userId: string }, input: 
   })
 }
 
-export async function stopTimer(ctx: { orgId: string; userId: string }, timeEntryId: string) {
+export async function stopTimer(ctx: FirmServiceContext, timeEntryId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const entry = await db.query.firmTimeEntries.findFirst({ where: and(eq(firmTimeEntries.id, timeEntryId), eq(firmTimeEntries.orgId, ctx.orgId)) })
     if (!entry) throw new ServiceError("Time entry not found", 404)
     if (!entry.isRunning || !entry.startedAt) throw new ServiceError("This time entry has no running timer", 409)
@@ -82,13 +82,13 @@ export type FirmTimeEntryInput = {
   billable?: boolean
 }
 
-export async function logManualTimeEntry(ctx: { orgId: string; userId: string }, input: FirmTimeEntryInput) {
+export async function logManualTimeEntry(ctx: FirmServiceContext, input: FirmTimeEntryInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.taskDescription?.trim()) throw new ServiceError("taskDescription is required", 400)
   if (!input.hours || input.hours <= 0) throw new ServiceError("hours must be a positive number", 400)
   if (!input.spentOn) throw new ServiceError("spentOn is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, input.clientId, ctx.orgId)
 
     const [entry] = await db.insert(firmTimeEntries).values({
@@ -106,9 +106,9 @@ export async function logManualTimeEntry(ctx: { orgId: string; userId: string },
   })
 }
 
-export async function listTimeEntries(ctx: { orgId: string }, filters: { clientId?: string; engagementId?: string; userId?: string; billable?: boolean; unbilledOnly?: boolean }) {
+export async function listTimeEntries(ctx: FirmServiceContext, filters: { clientId?: string; engagementId?: string; userId?: string; billable?: boolean; unbilledOnly?: boolean }) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const conditions = [eq(firmTimeEntries.orgId, ctx.orgId)]
     if (filters.clientId) conditions.push(eq(firmTimeEntries.clientId, filters.clientId))
     if (filters.engagementId) conditions.push(eq(firmTimeEntries.engagementId, filters.engagementId))
@@ -124,9 +124,9 @@ export async function listTimeEntries(ctx: { orgId: string }, filters: { clientI
 
 export type FirmTimeEntryPatch = Partial<Pick<FirmTimeEntryInput, "taskDescription" | "hours" | "spentOn" | "billable">>
 
-export async function updateTimeEntry(ctx: { orgId: string }, timeEntryId: string, patch: FirmTimeEntryPatch) {
+export async function updateTimeEntry(ctx: FirmServiceContext, timeEntryId: string, patch: FirmTimeEntryPatch) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const existing = await db.query.firmTimeEntries.findFirst({ where: and(eq(firmTimeEntries.id, timeEntryId), eq(firmTimeEntries.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Time entry not found", 404)
     if (existing.invoiceLineItemId) throw new ServiceError("This time entry has already been billed and cannot be edited", 409)

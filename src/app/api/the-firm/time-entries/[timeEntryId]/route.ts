@@ -3,14 +3,14 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { updateTimeEntry, ServiceError } from "@/lib/services/firm-time-tracking-service"
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ timeEntryId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { timeEntryId } = await ctx.params
     const body = await req.json()
-    const entry = await updateTimeEntry({ orgId }, timeEntryId, body)
+    const entry = await updateTimeEntry({ orgId, userId: dbUser.id, dbUser }, timeEntryId, body)
     return NextResponse.json(entry)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

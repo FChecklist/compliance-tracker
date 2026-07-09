@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { logManualTimeEntry, listTimeEntries, ServiceError } from "@/lib/services/firm-time-tracking-service"
 
 export async function GET(req: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const sp = req.nextUrl.searchParams
-    const timeEntries = await listTimeEntries({ orgId }, {
+    const timeEntries = await listTimeEntries({ orgId, userId: dbUser.id, dbUser }, {
       clientId: sp.get("clientId") ?? undefined,
       engagementId: sp.get("engagementId") ?? undefined,
       userId: sp.get("userId") ?? undefined,
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const entry = await logManualTimeEntry({ orgId, userId: dbUser.id }, body)
+    const entry = await logManualTimeEntry({ orgId, userId: dbUser.id, dbUser }, body)
     return NextResponse.json(entry, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

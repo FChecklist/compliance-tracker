@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { generateInvoiceFromUnbilledTime, listInvoicesForClient, ServiceError } from "@/lib/services/firm-billing-service"
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ clientId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { clientId } = await ctx.params
-    const invoices = await listInvoicesForClient({ orgId }, clientId)
+    const invoices = await listInvoicesForClient({ orgId, userId: dbUser.id, dbUser }, clientId)
     return NextResponse.json({ invoices })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ clientId: 
   try {
     const { clientId } = await ctx.params
     const body = await req.json()
-    const invoice = await generateInvoiceFromUnbilledTime({ orgId, userId: dbUser.id }, { ...body, clientId })
+    const invoice = await generateInvoiceFromUnbilledTime({ orgId, userId: dbUser.id, dbUser }, { ...body, clientId })
     return NextResponse.json(invoice, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

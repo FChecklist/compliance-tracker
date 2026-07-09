@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { setBillableRate, ServiceError } from "@/lib/services/firm-billing-service"
 
 export async function POST(req: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const body = await req.json()
-    const rate = await setBillableRate({ orgId }, body)
+    const rate = await setBillableRate({ orgId, userId: dbUser.id, dbUser }, body)
     return NextResponse.json(rate, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const entry = await startTimer({ orgId, userId: dbUser.id }, body)
+    const entry = await startTimer({ orgId, userId: dbUser.id, dbUser }, body)
     return NextResponse.json(entry, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

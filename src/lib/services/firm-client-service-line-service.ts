@@ -1,9 +1,9 @@
 // Wave 108 (THE FIRM AI OS) -- per-client toggle for which of the 5
 // service lines (CA/CS/Legal/GRC/Audit) a client actually receives.
 import { firmClientServiceLines, clients } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -20,9 +20,9 @@ export type SetServiceLineInput = {
   notes?: string | null
 }
 
-export async function setServiceLineForClient(ctx: { orgId: string }, clientId: string, serviceLine: FirmServiceLine, input: SetServiceLineInput) {
+export async function setServiceLineForClient(ctx: FirmServiceContext, clientId: string, serviceLine: FirmServiceLine, input: SetServiceLineInput) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, clientId, ctx.orgId)
 
     const existing = await db.query.firmClientServiceLines.findFirst({
@@ -51,18 +51,18 @@ export async function setServiceLineForClient(ctx: { orgId: string }, clientId: 
   })
 }
 
-export async function listServiceLinesForClient(ctx: { orgId: string }, clientId: string) {
+export async function listServiceLinesForClient(ctx: FirmServiceContext, clientId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmClientServiceLines.findMany({
       where: and(eq(firmClientServiceLines.clientId, clientId), eq(firmClientServiceLines.orgId, ctx.orgId)),
     })
   })
 }
 
-export async function listClientsForServiceLine(ctx: { orgId: string }, serviceLine: FirmServiceLine) {
+export async function listClientsForServiceLine(ctx: FirmServiceContext, serviceLine: FirmServiceLine) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmClientServiceLines.findMany({
       where: and(eq(firmClientServiceLines.orgId, ctx.orgId), eq(firmClientServiceLines.serviceLine, serviceLine), eq(firmClientServiceLines.isEnabled, true)),
       with: { client: true },

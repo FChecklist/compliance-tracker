@@ -6,9 +6,9 @@
 // the same linkedEntityType/linkedEntityId pattern `documents` already
 // uses -- no duplication of what those modules already track.
 import { firmEngagements, firmEngagementDeliverables, clients } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
-import { requireFirmEnabled } from "./firm-enablement-service"
+import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -30,12 +30,12 @@ export type FirmEngagementInput = {
   leadPartnerUserId?: string | null
 }
 
-export async function createEngagement(ctx: { orgId: string; userId: string }, input: FirmEngagementInput) {
+export async function createEngagement(ctx: FirmServiceContext, input: FirmEngagementInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
   if (!input.startDate) throw new ServiceError("startDate is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     await assertClientBelongsToOrg(db, input.clientId, ctx.orgId)
 
     const [engagement] = await db.insert(firmEngagements).values({
@@ -59,9 +59,9 @@ export async function createEngagement(ctx: { orgId: string; userId: string }, i
 
 export type FirmEngagementPatch = Partial<Omit<FirmEngagementInput, "clientId">> & { status?: string }
 
-export async function updateEngagement(ctx: { orgId: string }, engagementId: string, patch: FirmEngagementPatch) {
+export async function updateEngagement(ctx: FirmServiceContext, engagementId: string, patch: FirmEngagementPatch) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const existing = await db.query.firmEngagements.findFirst({ where: and(eq(firmEngagements.id, engagementId), eq(firmEngagements.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Engagement not found", 404)
 
@@ -81,9 +81,9 @@ export async function updateEngagement(ctx: { orgId: string }, engagementId: str
   })
 }
 
-export async function listEngagementsForClient(ctx: { orgId: string }, clientId: string) {
+export async function listEngagementsForClient(ctx: FirmServiceContext, clientId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     return db.query.firmEngagements.findMany({
       where: and(eq(firmEngagements.clientId, clientId), eq(firmEngagements.orgId, ctx.orgId)),
       orderBy: (t, { desc }) => desc(t.startDate),
@@ -99,11 +99,11 @@ export type FirmDeliverableInput = {
   assignedToId?: string | null
 }
 
-export async function addDeliverable(ctx: { orgId: string }, engagementId: string, input: FirmDeliverableInput) {
+export async function addDeliverable(ctx: FirmServiceContext, engagementId: string, input: FirmDeliverableInput) {
   await requireFirmEnabled(ctx.orgId)
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const engagement = await db.query.firmEngagements.findFirst({ where: and(eq(firmEngagements.id, engagementId), eq(firmEngagements.orgId, ctx.orgId)) })
     if (!engagement) throw new ServiceError("Engagement not found", 404)
 
@@ -121,9 +121,9 @@ export async function addDeliverable(ctx: { orgId: string }, engagementId: strin
   })
 }
 
-export async function completeDeliverable(ctx: { orgId: string }, deliverableId: string) {
+export async function completeDeliverable(ctx: FirmServiceContext, deliverableId: string) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const deliverable = await db.query.firmEngagementDeliverables.findFirst({
       where: and(eq(firmEngagementDeliverables.id, deliverableId), eq(firmEngagementDeliverables.orgId, ctx.orgId)),
     })
@@ -140,9 +140,9 @@ export async function completeDeliverable(ctx: { orgId: string }, deliverableId:
   })
 }
 
-export async function listUpcomingDeliverables(ctx: { orgId: string }, filters?: { assignedToId?: string }) {
+export async function listUpcomingDeliverables(ctx: FirmServiceContext, filters?: { assignedToId?: string }) {
   await requireFirmEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+  return withFirmTenantContext(ctx, async (db) => {
     const conditions = [eq(firmEngagementDeliverables.orgId, ctx.orgId)]
     if (filters?.assignedToId) conditions.push(eq(firmEngagementDeliverables.assignedToId, filters.assignedToId))
     return db.query.firmEngagementDeliverables.findMany({

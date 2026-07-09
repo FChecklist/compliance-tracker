@@ -3,14 +3,14 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { addFixedFeeLineToInvoice, ServiceError } from "@/lib/services/firm-billing-service"
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ invoiceId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { invoiceId } = await ctx.params
     const body = await req.json()
-    const lineItem = await addFixedFeeLineToInvoice({ orgId }, invoiceId, body)
+    const lineItem = await addFixedFeeLineToInvoice({ orgId, userId: dbUser.id, dbUser }, invoiceId, body)
     return NextResponse.json(lineItem, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

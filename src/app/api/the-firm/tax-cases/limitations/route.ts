@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listUpcomingLimitationDates, ServiceError } from "@/lib/services/firm-tax-case-service"
 
 export async function GET(req: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const withinDays = Number(req.nextUrl.searchParams.get("withinDays") ?? "30")
-    const taxCases = await listUpcomingLimitationDates({ orgId }, withinDays)
+    const taxCases = await listUpcomingLimitationDates({ orgId, userId: dbUser.id, dbUser }, withinDays)
     return NextResponse.json({ taxCases })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

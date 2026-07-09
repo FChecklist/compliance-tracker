@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listAssignmentsForStaff, ServiceError } from "@/lib/services/firm-staff-assignment-service"
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ userId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { userId } = await ctx.params
-    const assignments = await listAssignmentsForStaff({ orgId }, userId)
+    const assignments = await listAssignmentsForStaff({ orgId, userId: dbUser.id, dbUser }, userId)
     return NextResponse.json({ assignments })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

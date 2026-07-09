@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listUpcomingDeliverables, ServiceError } from "@/lib/services/firm-engagement-service"
 
 export async function GET(req: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const assignedToId = req.nextUrl.searchParams.get("assignedToId") ?? undefined
-    const deliverables = await listUpcomingDeliverables({ orgId }, { assignedToId })
+    const deliverables = await listUpcomingDeliverables({ orgId, userId: dbUser.id, dbUser }, { assignedToId })
     return NextResponse.json({ deliverables })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

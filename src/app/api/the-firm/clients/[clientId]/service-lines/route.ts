@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { setServiceLineForClient, listServiceLinesForClient, ServiceError, type FirmServiceLine } from "@/lib/services/firm-client-service-line-service"
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ clientId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { clientId } = await ctx.params
-    const serviceLines = await listServiceLinesForClient({ orgId }, clientId)
+    const serviceLines = await listServiceLinesForClient({ orgId, userId: dbUser.id, dbUser }, clientId)
     return NextResponse.json({ serviceLines })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -19,16 +19,16 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ clientId: 
 }
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ clientId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { clientId } = await ctx.params
     const body = await req.json()
     if (!body.serviceLine) return NextResponse.json({ error: "serviceLine is required" }, { status: 400 })
 
-    const result = await setServiceLineForClient({ orgId }, clientId, body.serviceLine as FirmServiceLine, {
+    const result = await setServiceLineForClient({ orgId, userId: dbUser.id, dbUser }, clientId, body.serviceLine as FirmServiceLine, {
       isEnabled: body.isEnabled, leadStaffUserId: body.leadStaffUserId, notes: body.notes,
     })
     return NextResponse.json(result)

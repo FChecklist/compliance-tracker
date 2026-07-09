@@ -3,13 +3,13 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { completeDeliverable, ServiceError } from "@/lib/services/firm-engagement-service"
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ deliverableId: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const { deliverableId } = await ctx.params
-    const deliverable = await completeDeliverable({ orgId }, deliverableId)
+    const deliverable = await completeDeliverable({ orgId, userId: dbUser.id, dbUser }, deliverableId)
     return NextResponse.json(deliverable)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

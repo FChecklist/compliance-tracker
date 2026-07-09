@@ -4,15 +4,15 @@ import { getStaffUtilizationSummary } from "@/lib/services/firm-practice-dashboa
 import { ServiceError } from "@/lib/services/compliance-service"
 
 export async function GET(req: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const periodStart = req.nextUrl.searchParams.get("periodStart")
     const periodEnd = req.nextUrl.searchParams.get("periodEnd")
     if (!periodStart || !periodEnd) return NextResponse.json({ error: "periodStart and periodEnd are required" }, { status: 400 })
-    const summary = await getStaffUtilizationSummary({ orgId }, periodStart, periodEnd)
+    const summary = await getStaffUtilizationSummary({ orgId, userId: dbUser.id, dbUser }, periodStart, periodEnd)
     return NextResponse.json({ summary })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
