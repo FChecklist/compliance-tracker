@@ -238,9 +238,13 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     })
   } catch (err) {
     console.error("VERI FDE evaluation failed:", err)
+    // Wave 146 audit (AUDIT_wave146_claude_items.md, z.ai): the success path
+    // above redacts requestText before logging, but this failure path didn't --
+    // an FDE request containing PII that then hit an LLM error would persist
+    // unredacted into orchestra_executions. Match the success path.
     recordOrchestraExecution({
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "fde.evaluate_request",
-      input: { requestText }, status: "failed", durationMs: Date.now() - startedAt,
+      input: { requestText: redactPii(requestText) }, status: "failed", durationMs: Date.now() - startedAt,
       output: { error: err instanceof Error ? err.message : String(err) },
     })
     return recordFdeRequest(ctx, requestText, {
