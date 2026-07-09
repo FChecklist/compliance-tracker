@@ -664,3 +664,40 @@ entries:
         only promise -- Claude added FOLLOWUPS.md FOLLOWUP-1 in response.
         No OWASP-class issue, no route/auth surface, no injection vector.
         Full report: AUDIT_wave157_claude_items.md.
+  - id: WAVE-156
+    title: "Report PDF/Excel export -- main compliance reports dashboard (TaskDocx_Evaluation.md item 15)"
+    doer:
+      agent: zai
+      date: "2026-07-09"
+      pr: 104
+      summary: >
+        Dispatched via ai-team-workforce.yml with a scoped brief: add real
+        PDF and Excel export to src/app/(app)/reports/page.tsx only,
+        reusing the already-installed xlsx package and adding
+        jspdf+jspdf-autotable for PDF generation, matching exportCSV's
+        existing columns exactly. Word export and email delivery
+        explicitly out of scope (per TaskDocx_Evaluation.md, deferred/
+        rejected). Added a shared buildExportRows() helper so all three
+        export formats (CSV/Excel/PDF) draw from one column definition.
+        New buttons match the existing CSV button's styling exactly,
+        changing only icon/label. Succeeded first try (no iteration-
+        budget exhaustion).
+    auditor:
+      agent: claude-code
+      date: "2026-07-09"
+      verdict: approve
+      summary: >
+        Claude wrote the dispatch brief but did not implement -- audited
+        per Rule 7 since z.ai built it. Confirmed scope discipline (only
+        package.json + reports/page.tsx touched, no other report surface,
+        no Word export, no email wiring). Confirmed all three export
+        formats are structurally guaranteed to stay column-consistent via
+        the shared buildExportRows() helper. Ran bun install (clean,
+        bun.lock updated) and bun x tsc --noEmit independently -- clean,
+        zero errors, despite the dispatch brief's concern that
+        jspdf-autotable's types can be finicky. Ran bun run lint -- 0
+        errors, 3 pre-existing warnings unrelated to this change.
+        Confirmed exportPDF() guards against an empty items array (no
+        crash on data[0] being undefined). No auth/security surface --
+        pure client-side export of data already visible to the
+        authenticated user. Full report: AUDIT_wave156_zai_items.md.
