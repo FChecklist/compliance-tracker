@@ -72,6 +72,14 @@ type VeriChatState = {
   aiThreadId: string | null;
   refreshCounter: number;
   bumpRefresh: () => void;
+  // Wave 148 (Phase4_Implementation_Plan.md, "multi-thread conversations"):
+  // aiThreadId above stays the singleton default thread, unchanged --
+  // activeAiThreadId is what the composer actually sends to, defaulting to
+  // aiThreadId but switchable to any workflow thread the user opens/creates.
+  activeAiThreadId: string | null;
+  aiThreads: { id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[];
+  switchAiThread: (id: string) => void;
+  createNewAiThread: (title?: string, workflowId?: string) => Promise<string | null>;
 };
 
 const VeriChatContext = createContext<VeriChatState | null>(null);
@@ -85,6 +93,8 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
   const [rightPanelView, setRightPanelView] = useState<"overview" | "tasks" | "chats" | "todo">("overview");
   const [aiThreadId, setAiThreadId] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
+  const [aiThreads, setAiThreads] = useState<{ id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[]>([]);
 
   useEffect(() => {
     fetch("/api/capability-tree")
@@ -95,11 +105,33 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
     fetch("/api/conversations")
       .then((r) => r.json())
       .then((d) => {
-        const ai = (d?.conversations ?? []).find((c: { isAiThread: boolean }) => c.isAiThread);
-        if (ai) setAiThreadId(ai.id);
+        const all: { id: string; isAiThread: boolean; title: string | null; workflowId: string | null; isPrimary: boolean }[] = d?.conversations ?? [];
+        const ai = all.filter((c) => c.isAiThread);
+        setAiThreads(ai.map((c) => ({ id: c.id, title: c.title, workflowId: c.workflowId, isPrimary: c.isPrimary })));
+        const primary = ai.find((c) => c.isPrimary) ?? ai[0];
+        if (primary) { setAiThreadId(primary.id); setActiveAiThreadId(primary.id); }
       })
       .catch(() => {});
   }, []);
+
+  const switchAiThread = (id: string) => setActiveAiThreadId(id);
+
+  const createNewAiThread = async (title?: string, workflowId?: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/conversations/workflow-thread", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, workflowId }),
+      });
+      if (!res.ok) return null;
+      const { id } = await res.json();
+      setAiThreads((prev) => [...prev, { id, title: title ?? "New workflow", workflowId: workflowId ?? null, isPrimary: false }]);
+      setActiveAiThreadId(id);
+      return id;
+    } catch {
+      return null;
+    }
+  };
 
   const setComposerMode = (mode: string) => {
     setComposerModeState(mode);
@@ -133,8 +165,9 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
       tree, treeLoading, composerMode, setComposerMode,
       activeTaskId, activeConversationId, openTask, openConversation, closeThread,
       rightPanelView, setRightPanelView, aiThreadId, refreshCounter, bumpRefresh,
+      activeAiThreadId, aiThreads, switchAiThread, createNewAiThread,
     }),
-    [tree, treeLoading, composerMode, activeTaskId, activeConversationId, rightPanelView, aiThreadId, refreshCounter]
+    [tree, treeLoading, composerMode, activeTaskId, activeConversationId, rightPanelView, aiThreadId, refreshCounter, activeAiThreadId, aiThreads]
   );
 
   return <VeriChatContext.Provider value={value}>{children}</VeriChatContext.Provider>;

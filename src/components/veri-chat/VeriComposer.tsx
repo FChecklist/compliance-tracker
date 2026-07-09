@@ -8,7 +8,7 @@
 // POST /api/tasks (task-service.ts:createTask, which already dispatches the
 // real task-execution engine) -- no new task-creation logic was needed.
 import { useEffect, useState } from "react";
-import { Send, Loader2, Paperclip, Zap } from "lucide-react";
+import { Send, Loader2, Paperclip, Zap, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { useVeriChat, FIXED_MODES, type CapabilityNode, type PathSegment } from "./veri-chat-context";
@@ -16,6 +16,7 @@ import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -42,6 +43,48 @@ function PathBreadcrumb({ path, chainComplete }: { path: PathSegment[]; chainCom
         </span>
       ))}
     </span>
+  );
+}
+
+// Wave 148 (Phase4_Implementation_Plan.md, "multi-thread conversations"):
+// lets the user switch which AI thread "Discuss" mode sends to, or spin up
+// a new workflow-specific one. Only rendered in discuss mode -- doesn't
+// touch task/chain dispatch, which is unaffected by which AI thread is
+// "active" (they don't use activeAiThreadId at all).
+function AiThreadSwitcher() {
+  const { aiThreads, activeAiThreadId, switchAiThread, createNewAiThread } = useVeriChat();
+
+  async function handleCreate() {
+    const title = window.prompt("Name this workflow thread (e.g. \"Setting up payroll\"):");
+    if (title === null) return; // cancelled
+    await createNewAiThread(title.trim() || undefined);
+  }
+
+  if (aiThreads.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <Select value={activeAiThreadId ?? undefined} onValueChange={switchAiThread}>
+        <SelectTrigger className="h-8 w-[220px] text-xs">
+          <SelectValue placeholder="VERIDIAN AI" />
+        </SelectTrigger>
+        <SelectContent>
+          {aiThreads.map((t) => (
+            <SelectItem key={t.id} value={t.id}>
+              {t.isPrimary ? "VERIDIAN AI (default)" : (t.title || "Untitled workflow")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <button
+        type="button"
+        onClick={handleCreate}
+        className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-saffron hover:text-ct-saffron/80"
+        title="Start a new workflow thread"
+      >
+        <Plus className="size-3.5" /> New thread
+      </button>
+    </div>
   );
 }
 
@@ -97,7 +140,7 @@ function expandPathsForSend(path: PathSegment[]): PathSegment[][] {
 }
 
 export default function VeriComposer() {
-  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, bumpRefresh } = useVeriChat();
+  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh } = useVeriChat();
 
   const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
   const [value, setValue] = useState("");
@@ -275,8 +318,12 @@ export default function VeriComposer() {
         setValue("");
         bumpRefresh();
       } else if (composerMode === "discuss") {
-        if (!aiThreadId) { toast.error("VERI AI isn't ready yet — try again in a moment"); return; }
-        const res = await fetch(`/api/conversations/${aiThreadId}/messages`, {
+        // Wave 148: sends to whichever AI thread is active -- the singleton
+        // default thread unless the user has switched to (or created) a
+        // workflow-specific one via the thread switcher.
+        const targetThreadId = activeAiThreadId ?? aiThreadId;
+        if (!targetThreadId) { toast.error("VERI AI isn't ready yet — try again in a moment"); return; }
+        const res = await fetch(`/api/conversations/${targetThreadId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: text }),
@@ -349,6 +396,10 @@ export default function VeriComposer() {
             </button>
           ))}
         </div>
+
+        {composerMode === "discuss" && !isThreadOpen && (
+          <AiThreadSwitcher />
+        )}
 
         {isChainMode && !isThreadOpen && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 mb-2">

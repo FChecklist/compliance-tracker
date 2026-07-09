@@ -17,12 +17,17 @@ export async function listTasks(ctx: ReadContext & { userId?: string }, filters:
   const result = await withTenantContext({ orgId, userId }, (db) =>
     db.query.tasks.findMany({
       where: filters.assistantId ? eq(tasks.assistantId, filters.assistantId) : undefined,
-      orderBy: desc(tasks.createdAt),
+      // Wave 148 (Phase4_Implementation_Plan.md, "task queue + priority"):
+      // higher priority first, oldest-first as the tiebreaker within the
+      // same priority -- this ordering IS the queue, no separate queue
+      // table. Every existing row has priority 0, so this is a no-op
+      // reorder for pre-Wave-148 data (falls back to pure createdAt order).
+      orderBy: [desc(tasks.priority), asc(tasks.createdAt)],
     })
   )
   return {
     tasks: result.map((t) => ({
-      id: t.id, title: t.title, description: t.description, status: t.status,
+      id: t.id, title: t.title, description: t.description, status: t.status, priority: t.priority,
       assistantId: t.assistantId, createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
     })),
   }
@@ -116,7 +121,7 @@ export async function createTask(ctx: ServiceContext, input: {
 
   return {
     id: result.id, title: result.title, description: result.description,
-    status: final?.status ?? result.status, assistantId: result.assistantId, createdAt: result.createdAt.toISOString(),
+    status: final?.status ?? result.status, priority: result.priority, assistantId: result.assistantId, createdAt: result.createdAt.toISOString(),
   }
 }
 
@@ -136,14 +141,16 @@ export async function getTask(ctx: ReadContext & { userId?: string }, id: string
   const { task, plan, chat } = result
 
   return {
-    id: task.id, title: task.title, description: task.description, status: task.status, assistantId: task.assistantId,
+    id: task.id, title: task.title, description: task.description, status: task.status, priority: task.priority, assistantId: task.assistantId,
     createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(),
     executionPlan: plan.map((p) => ({ id: p.id, stepNumber: p.stepNumber, workerAgentId: p.workerAgentId, description: p.description, status: p.status })),
     chat: chat.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt.toISOString() })),
   }
 }
 
-export async function updateTask(ctx: ServiceContext, id: string, input: { status?: string; title?: string; description?: string }) {
+const VALID_PRIORITIES = [0, 1, 2, 3] // Low, Normal, High, Urgent
+
+export async function updateTask(ctx: ServiceContext, id: string, input: { status?: string; title?: string; description?: string; priority?: number }) {
   const { orgId, actor } = ctx
   const userId = actor.dbUser?.id
   const result = await withTenantContext({ orgId, userId }, async (db) => {
@@ -161,6 +168,13 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
       updates.title = trimmed
     }
     if (input.description !== undefined) updates.description = input.description?.trim() ?? null
+    // Wave 148: user-controlled queue reordering. Bounded to a known small
+    // range (0-3) rather than accepting an arbitrary integer -- keeps the
+    // "queue" meaningfully ordered instead of drifting to unbounded values.
+    if (input.priority !== undefined) {
+      if (!VALID_PRIORITIES.includes(input.priority)) return { ok: false as const, error: `priority must be one of: ${VALID_PRIORITIES.join(", ")}` }
+      updates.priority = input.priority
+    }
 
     const [updated] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning()
     return { ok: true as const, updated }
@@ -169,7 +183,7 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
   if (!result) throw new ServiceError("Task not found", 404)
   if (!result.ok) throw new ServiceError(result.error, 400)
   const { updated } = result
-  return { id: updated.id, title: updated.title, description: updated.description, status: updated.status, updatedAt: updated.updatedAt.toISOString() }
+  return { id: updated.id, title: updated.title, description: updated.description, status: updated.status, priority: updated.priority, updatedAt: updated.updatedAt.toISOString() }
 }
 
 // Wave 11: a lightweight status-only read, for the new MCP get_task_status
@@ -190,12 +204,12 @@ export async function listMyTodos(ctx: ReadContext & { userId: string }) {
   const result = await withTenantContext({ orgId, userId }, (db) =>
     db.query.tasks.findMany({
       where: eq(tasks.userId, userId),
-      orderBy: desc(tasks.createdAt),
+      orderBy: [desc(tasks.priority), asc(tasks.createdAt)],
     })
   )
   return {
     tasks: result.map((t) => ({
-      id: t.id, title: t.title, description: t.description, status: t.status,
+      id: t.id, title: t.title, description: t.description, status: t.status, priority: t.priority,
       createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
     })),
   }
@@ -209,12 +223,12 @@ export async function listAssignedByMe(ctx: ReadContext & { userId: string }) {
   const result = await withTenantContext({ orgId, userId }, (db) =>
     db.query.tasks.findMany({
       where: and(eq(tasks.assignedById, userId), ne(tasks.userId, userId)),
-      orderBy: desc(tasks.createdAt),
+      orderBy: [desc(tasks.priority), asc(tasks.createdAt)],
     })
   )
   return {
     tasks: result.map((t) => ({
-      id: t.id, title: t.title, description: t.description, status: t.status,
+      id: t.id, title: t.title, description: t.description, status: t.status, priority: t.priority,
       assigneeId: t.userId, createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
     })),
   }

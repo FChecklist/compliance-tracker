@@ -24,6 +24,11 @@ export type VeriTodoItem = {
   dueDate: string | null
   createdAt: string
   href: string
+  // Wave 148 (Phase4_Implementation_Plan.md, "task queue + priority"): only
+  // `task`-sourced items have a real priority column today (instructions/
+  // pms_issues don't) -- null for those, treated as priority 0 for sorting
+  // so they don't jump ahead of or fall behind a default-priority task.
+  priority: number | null
 }
 
 export async function listVeriTodos(ctx: VeriTodoContext): Promise<{ items: VeriTodoItem[] }> {
@@ -59,20 +64,29 @@ export async function listVeriTodos(ctx: VeriTodoContext): Promise<{ items: Veri
     const items: VeriTodoItem[] = [
       ...taskRows.map((t) => ({
         id: t.id, source: "task" as const, title: t.title, description: t.description, status: t.status,
-        dueDate: null, createdAt: t.createdAt.toISOString(), href: "/tasks",
+        dueDate: null, createdAt: t.createdAt.toISOString(), href: "/tasks", priority: t.priority,
       })),
       ...commitmentRows.map((c) => ({
         id: c.id, source: "instruction" as const, title: c.describedAction, description: null, status: c.status,
-        dueDate: c.dueDate?.toISOString() ?? null, createdAt: c.createdAt.toISOString(), href: "/chat",
+        dueDate: c.dueDate?.toISOString() ?? null, createdAt: c.createdAt.toISOString(), href: "/chat", priority: null,
       })),
       ...openIssues.map((i) => ({
         id: i.id, source: "pms_issue" as const, title: i.title, description: i.description, status: statusById.get(i.statusId)?.name ?? "Open",
         dueDate: i.dueDate ? new Date(i.dueDate).toISOString() : null, createdAt: i.createdAt.toISOString(),
-        href: `/pms/${projectById.get(i.projectId)?.id ?? i.projectId}/issues`,
+        href: `/pms/${projectById.get(i.projectId)?.id ?? i.projectId}/issues`, priority: null,
       })),
     ]
 
-    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    // Wave 148: this is the real "queue" -- higher priority first, then
+    // oldest-first within the same priority (first in, first out), matching
+    // "user can give one task after another, all tasks become in queue...
+    // can prioritize which task to be done earlier." Previously sorted
+    // newest-first by createdAt alone; a deliberate behavior change.
+    items.sort((a, b) => {
+      const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0)
+      if (priorityDiff !== 0) return priorityDiff
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
     return { items }
   })
 }

@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusPill } from "@/components/SimpleModulePage";
 import { formatDistanceToNow } from "date-fns";
 
 type VeriTodoItem = {
   id: string; source: "task" | "instruction" | "pms_issue"; title: string; description: string | null;
-  status: string; dueDate: string | null; createdAt: string; href: string;
+  status: string; dueDate: string | null; createdAt: string; href: string; priority: number | null;
 };
+
+// Wave 148 (Phase4_Implementation_Plan.md): matches task-service.ts's
+// VALID_PRIORITIES (0-3).
+const PRIORITY_LABELS: Record<number, string> = { 0: "Low", 1: "Normal", 2: "High", 3: "Urgent" };
 type DelegatedTask = { id: string; title: string; description: string | null; status: string; createdAt: string; updatedAt: string; assigneeId: string };
 
 export function ToDoTab() {
@@ -46,6 +51,25 @@ export function ToDoTab() {
     }).catch(() => {});
   }
 
+  // Wave 148: only `task`-sourced items have a real priority column --
+  // instructions/pms_issues render without this control.
+  async function changePriority(item: VeriTodoItem, priority: number) {
+    setItems((prev) => {
+      const next = prev.map((i) => (i.id === item.id ? { ...i, priority } : i));
+      next.sort((a, b) => {
+        const diff = (b.priority ?? 0) - (a.priority ?? 0);
+        if (diff !== 0) return diff;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+      return next;
+    });
+    await fetch(`/api/tasks/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priority }),
+    }).catch(() => {});
+  }
+
   if (loading) return <p className="text-sm text-ct-muted">Loading...</p>;
 
   return (
@@ -71,6 +95,24 @@ export function ToDoTab() {
                   <p className={item.status === "completed" ? "text-sm text-ct-muted line-through" : "text-sm text-ct-navy"}>{item.title}</p>
                   <p className="text-xs text-ct-muted">{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</p>
                 </div>
+                {item.source === "task" && (
+                  <Select
+                    value={String(item.priority ?? 0)}
+                    onValueChange={(v) => changePriority(item, Number(v))}
+                  >
+                    <SelectTrigger
+                      className="h-7 w-[92px] text-xs shrink-0"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent onClick={(e) => e.stopPropagation()}>
+                      {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <StatusPill value={item.status} />
               </a>
             ))
