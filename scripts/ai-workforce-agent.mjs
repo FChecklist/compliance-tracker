@@ -172,9 +172,18 @@ async function execTool(name, args) {
 // billing API directly (which is how the $11.44-of-$12.34 Claude Sonnet 5
 // cost concentration was actually discovered). Best-effort, never fatal:
 // a logging failure must never break the actual agent run.
+//
+// 12th real bug found (2026-07-09, VERIDIAN.docx study dispatch): every
+// single call hit "Header 'x-ai-team-secret' has invalid value" -- the
+// exact same GitHub-Secret-values-wrapped-in-literal-quotes failure mode
+// this file already found and fixed for SUPABASE_URL/SERVICE_ROLE_KEY (see
+// stripQuotes() above), but the fix was never applied here. A header value
+// containing literal `"` characters is invalid, so this failed on 100% of
+// calls, not intermittently -- confirming the pattern rather than being a
+// one-off.
 async function logUsageToLedger(usage) {
-  const logUrl = process.env.AI_TEAM_LOG_URL
-  const logSecret = process.env.AI_TEAM_LOG_SECRET
+  const logUrl = stripQuotes(process.env.AI_TEAM_LOG_URL)
+  const logSecret = stripQuotes(process.env.AI_TEAM_LOG_SECRET)
   if (!logUrl || !logSecret || !usage) return
   try {
     await fetch(logUrl, {
@@ -194,21 +203,59 @@ async function logUsageToLedger(usage) {
   }
 }
 
+// 11th real bug found running this pipeline (2026-07-09, VERIDIAN.docx study
+// dispatch): a real run crashed the ENTIRE process with an uncaught
+// SyntaxError from `res.json()` after ~4 minutes and multiple iterations --
+// `res.ok` was true (so it wasn't an HTTP error status) but the body wasn't
+// valid JSON, consistent with a gateway/proxy timeout truncating the stream
+// mid-response on a long-running completion (large multi-file context +
+// reasoning-heavy model + a big write_file argument). Unlike the malformed
+// tool-call-arguments case a few iterations later in this same file (which
+// already retries gracefully), this failure happened one layer up, in the
+// HTTP call itself, with no retry at all -- one transient network hiccup
+// threw away the whole session's progress. Now retries transient failures
+// (network errors and unparseable-response bodies) up to 3 times with a
+// short backoff before giving up, and reads the body as text first so a
+// parse failure can still report a diagnostic snippet instead of just
+// "Failed to parse JSON" with no context.
+const OPENROUTER_MAX_RETRIES = 3
+const OPENROUTER_RETRY_DELAY_MS = 3000
+
 async function callOpenRouter(messages) {
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://veridian-compliance-ai.vercel.app",
-      "X-Title": "VERIDIAN AI Workforce",
-    },
-    body: JSON.stringify({ model: role.model, messages, tools: TOOLS, temperature: 0.2 }),
-  })
-  if (!res.ok) throw new Error(`OpenRouter HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`)
-  const json = await res.json()
-  await logUsageToLedger(json.usage)
-  return json
+  let lastErr
+  for (let attempt = 1; attempt <= OPENROUTER_MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://veridian-compliance-ai.vercel.app",
+          "X-Title": "VERIDIAN AI Workforce",
+        },
+        body: JSON.stringify({ model: role.model, messages, tools: TOOLS, temperature: 0.2 }),
+      })
+      const bodyText = await res.text()
+      if (!res.ok) throw new Error(`OpenRouter HTTP ${res.status}: ${bodyText.slice(0, 500)}`)
+      let json
+      try {
+        json = JSON.parse(bodyText)
+      } catch (parseErr) {
+        throw new Error(
+          `OpenRouter returned HTTP ${res.status} but an unparseable body (likely a truncated/gateway-timeout response, ${bodyText.length} chars received): ${parseErr.message}. Body snippet: ${bodyText.slice(0, 300)}`
+        )
+      }
+      await logUsageToLedger(json.usage)
+      return json
+    } catch (err) {
+      lastErr = err
+      if (attempt < OPENROUTER_MAX_RETRIES) {
+        console.error(`[ai-workforce-agent] OpenRouter call failed (attempt ${attempt}/${OPENROUTER_MAX_RETRIES}), retrying in ${OPENROUTER_RETRY_DELAY_MS}ms: ${err.message}`)
+        await new Promise((r) => setTimeout(r, OPENROUTER_RETRY_DELAY_MS))
+      }
+    }
+  }
+  throw new Error(`OpenRouter call failed after ${OPENROUTER_MAX_RETRIES} attempts: ${lastErr.message}`)
 }
 
 // 10th real bug found running this pipeline (2026-07-08): chat-completion
