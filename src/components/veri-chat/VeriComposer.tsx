@@ -23,6 +23,24 @@ function pathDisplayString(path: PathSegment[]): string {
   return path.map(pathSegmentDisplay).join("-");
 }
 
+// Breadcrumb rendering for a capability-chain path — each segment is its own
+// styled span with a chevron separator, replacing the old flat string.
+function PathBreadcrumb({ path, chainComplete }: { path: PathSegment[]; chainComplete: boolean }) {
+  if (!path.length) return null;
+  const colorClass = chainComplete ? "text-emerald-700" : "text-ct-muted";
+  return (
+    <span className={`text-[11px] font-medium ${colorClass} inline-flex items-center gap-0.5`}>
+      {!chainComplete && <span className="opacity-70">Building:</span>}
+      {path.map((seg, i) => (
+        <span key={i} className="inline-flex items-center gap-0.5">
+          {i > 0 && <span className="opacity-50 text-[9px]">›</span>}
+          <span>{pathSegmentDisplay(seg)}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 // Walk the tree following `path`; returns the node list for the NEXT row,
 // or null once a leaf has been reached (path complete).
 function nodeChildrenAt(tree: CapabilityNode[], path: PathSegment[], depth: number): { children: CapabilityNode[] | null; isMulti: boolean } {
@@ -300,9 +318,7 @@ export default function VeriComposer() {
           <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 mb-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[13px] font-semibold text-ct-navy">Select the task you want me to do.</span>
-              <span className={`text-[11px] font-medium ${chainComplete ? "text-emerald-700" : "text-ct-muted"}`}>
-                {selectedPath.length ? (chainComplete ? "" : "Building: ") + pathDisplayString(selectedPath) : ""}
-              </span>
+              <PathBreadcrumb path={selectedPath} chainComplete={chainComplete} />
             </div>
             <ChainRows tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti} />
           </div>
