@@ -16,6 +16,7 @@ import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
+import { redactPii } from "@/lib/pii-redaction"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
@@ -347,10 +348,13 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // reply are now stored in full (this table is already tenant-scoped/RLS-
     // protected like every other table in this schema); no redaction applied
     // since none was requested and building one is its own design task.
+    // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2): redact
+    // before write, not after -- see pii-redaction.ts's header comment for
+    // the full design reasoning (direct follow-up to z.ai's Wave 144 audit).
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
-      input: { conversationId, systemPrompt, userMessage, historyTurnCount: history.length },
-      output: { reply, replyLength: reply.length },
+      input: { conversationId, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(userMessage), historyTurnCount: history.length },
+      output: { reply: redactPii(reply), replyLength: reply.length },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })
