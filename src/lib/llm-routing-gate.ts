@@ -17,6 +17,7 @@
 // -- purely additive, zero regression risk for every intent this doesn't
 // recognize.
 import { classifyIntent, type Intent } from "./intent-engine"
+import { suggestResponseForTaskStatus, renderShortReply } from "./response-engine"
 
 export type RoutingResult =
   | { handled: true; reply: string }
@@ -48,11 +49,11 @@ const HANDLERS: Partial<Record<Intent, DeterministicHandler>> = {
         orderBy: desc(tasks.createdAt),
       })
     )
-    if (!latest) return "You don't have any tasks yet -- give me something to do and I'll track it here."
-    const statusLabel: Record<string, string> = {
-      pending: "pending", in_progress: "in progress", completed: "completed", failed: "failed", cancelled: "cancelled",
-    }
-    return `Your most recent task, "${latest.title}", is ${statusLabel[latest.status] ?? latest.status}.`
+    if (!latest) return "No tasks yet"
+    // Wave 154 (TaskDocx_Evaluation.md, Response Engine): software decides
+    // the label from real status, zero LLM call -- the real proof this
+    // vocabulary isn't unused infrastructure.
+    return renderShortReply(suggestResponseForTaskStatus(latest.status, latest.title))
   },
 }
 
