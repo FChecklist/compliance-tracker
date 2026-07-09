@@ -1,7 +1,13 @@
-# Phase 4 Implementation Plan
+# Phase 4 Implementation Plan — **All 6 waves complete** (2026-07-09)
 
 **Author:** Claude Code Sonnet Desktop | **Date:** 2026-07-09
 **Source:** Boss resolved all 8 items from `VERIDIAN_Status_Review_2026-07-09.md` in one message. 6 approved for build now, 2 deferred. This plan breaks the 6 into small, real, independently-shippable tasks — same discipline as Phase 3: each ships a genuine working v1 slice with an honest statement of what's NOT attempted, rather than a fabricated "full" version of something that's realistically multi-week.
+
+**Status: all 6 waves (148-153) implemented, cross-audited, and merged to `main` the same day.** Every wave's audit came back APPROVE or APPROVE WITH NOTES; two real findings surfaced and were fixed before merge (a CodeQL-adjacent ReDoS-style regression was NOT found here — see the two real fixes below, both from manual cross-audit, not automated scanning this time):
+- Wave 149's `check_status` trigger "how is" was too broad (false-positived on ordinary phrasing like "How is your day going?") — narrowed same-day, regression tests added.
+- Wave 148 was clean; Waves 150/151/152/153 were all clean on first audit pass with no code changes required.
+
+See `ai-os/boss/COMPLETED.yaml` (WAVE-148 through WAVE-153) for full doer+auditor documentation, and the `AUDIT_wave*.md` files at repo root for the complete audit reports.
 
 **Codebase survey inputs** (full detail available on request, summarized inline per wave below): `tasks` table has no priority/queue column, ordered purely by `createdAt`. `conversations.workflowId/currentState/previousState` exist but nothing writes to them (Wave 144, still true). No intent-classification code exists anywhere; `high-impact-action-detector.ts` is an explicit deterministic stand-in whose own header comment calls out the deferred Intent Engine. `llm-response-cache.ts` exists, org-scoped, opt-in, wired only into `fde-service.ts`. Chat renders `message.content` as Markdown via `react-markdown`; no structured/card rendering exists anywhere. `/api/v1/projexa/*` is a proven thin-wrapper-over-existing-services pattern (48 routes) with no separate data model — the template to reuse for Brain groundwork. No monorepo/workspaces setup.
 
@@ -16,7 +22,7 @@
 
 ---
 
-## Wave 148 — Task queue + priority + multi-thread conversations (item 2)
+## Wave 148 — Task queue + priority + multi-thread conversations (item 2) — **Done** (PR #82)
 
 **Task queue + priority:**
 1. Migration: add `priority` (integer, default 0, higher = more urgent) to `tasks`.
@@ -35,7 +41,7 @@
 
 ---
 
-## Wave 149 — Intent Engine v1 (item 4)
+## Wave 149 — Intent Engine v1 (item 4) — **Done** (PR #84)
 
 `src/lib/intent-engine.ts`: deterministic-first classifier, same word-boundary-regex approach as `high-impact-action-detector.ts` (explicitly the pattern that file's own header comment calls out as the Intent Engine stand-in to replace). `classifyIntent(text): {intent, confidence, matchedPhrase?}` against a registry of common intents (create_task, check_status, ask_question, create_contact, generate_report, unknown/fallback). Unknown falls through to existing behavior unchanged — zero regression risk, purely additive.
 
@@ -45,7 +51,7 @@
 
 ---
 
-## Wave 150 — Central "Need LLM?" routing gate (item 5)
+## Wave 150 — Central "Need LLM?" routing gate (item 5) — **Done** (PR #85)
 
 `src/lib/llm-routing-gate.ts`: takes Wave 149's intent classification, checks a small registry of intents that have a deterministic handler (e.g. `check_status` → direct DB lookup, formatted reply, zero LLM call), routes there when matched; otherwise falls through to the existing `generateAiReply`/`callLLM` path unchanged. Wired into `chat-service.ts` ahead of the existing LLM call, fully backward compatible (unmatched intents behave exactly as today).
 
@@ -55,7 +61,7 @@
 
 ---
 
-## Wave 151 — Structured-response renderer v1 (item 6)
+## Wave 151 — Structured-response renderer v1 (item 6) — **Done** (PR #91)
 
 Extends `ai-reply-gate.ts`'s existing `aiReplyEnvelopeSchema`. Additive, zero-regression design: the reply is still generated as today; a new parser attempts to interpret it as one of a few structured content types (summary card, confirmation card) via `JSON.parse` + Zod validation — if it doesn't parse/match, falls through to today's plain-Markdown rendering exactly as now. New `StructuredMessageContent.tsx` renders the matched types using existing shadcn `Card` primitives (`ui/card.tsx`, already in the codebase).
 
@@ -65,7 +71,7 @@ Extends `ai-reply-gate.ts`'s existing `aiReplyEnvelopeSchema`. Additive, zero-re
 
 ---
 
-## Wave 152 — Wisdom / Innovation / Prediction Engines v1 (item 7)
+## Wave 152 — Wisdom / Innovation / Prediction Engines v1 (item 7) — **Done** (Prediction: PR #87, Wisdom+Innovation: PR #92)
 
 Real, narrow, deterministic v1s — not the document's full multi-domain reasoning-engine vision, and explicitly seeded by real data from Waves 148-151 rather than synthetic examples:
 
@@ -77,7 +83,7 @@ Real, narrow, deterministic v1s — not the document's full multi-domain reasoni
 
 ---
 
-## Wave 153 — Brain architecture groundwork (item 3)
+## Wave 153 — Brain architecture groundwork (item 3) — **Done** (PR #90)
 
 Scoped to **Phase A only** of the original 4-phase strangler-fig proposal (`Study_by_Claude.md`'s architecture addendum): wrap in place, no extraction yet.
 1. New repo `FChecklist/veridian-brain` — scaffold only (README describing the architecture, `package.json`, a stub `@veridian/brain-sdk` client package with typed method signatures but no real HTTP calls yet).

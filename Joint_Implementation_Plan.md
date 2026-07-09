@@ -50,20 +50,20 @@ Boss directive 2026-07-09: "you can parallelly start also on phase 3 yourself to
 
 Cross-audited by z.ai (`AUDIT_phase3_claude_items.md`) — one CONCERN found (misleading log status on gated replies) and fixed same-day.
 
-## Phase 4 — Boss decisions made 2026-07-09, now an engineering task
+## Phase 4 — Boss decisions made 2026-07-09 — **6 of 8 items done, 2 deferred**
 
-`VERIDIAN_Status_Review_2026-07-09.md` listed 8 pending items (3 Phase 4 product decisions + 5 previously-out-of-scope large items). Boss resolved all 8 in one message:
+`VERIDIAN_Status_Review_2026-07-09.md` listed 8 pending items (3 Phase 4 product decisions + 5 previously-out-of-scope large items). Boss resolved all 8 in one message; all 6 approved items shipped the same day as narrow, real, cross-audited v1 slices (Waves 148-153, PRs #82/#84/#85/#87/#90/#91/#92, all merged to `main`):
 
-1. **Design language** — resolved as: build a user-selectable color theme in Settings instead of picking one system over the other. **Deferred, not urgent** — documented as a backlog item, not started this wave. See `Phase4_Implementation_Plan.md`.
-2. **Conversation model** — resolved as: build it. Task queue (one task after another, user-reorderable priority) + multi-thread conversations. **Approved, in progress.**
-3. **Multi-repo Brain architecture** — **approved, in progress.** Scoped to groundwork (internal API namespace + repo/SDK scaffold), not a full extraction — see plan doc for why.
-4. **Intent Engine** — **approved, in progress.**
-5. **Central "Need LLM?" routing gate** — **approved, in progress.** Still has a real dependency on OpenRouter credits for live-path testing; architecture/logic is buildable and testable without them.
-6. **Full structured-response renderer** — **approved, in progress.** Scoped to a v1 slice (a few content types), not the complete document vision — see plan doc.
-7. **Wisdom/Innovation/Prediction Engines** — **approved, in progress.** Real usage data didn't exist before this wave; building narrow v1s now, seeded by real data as items 2/4/6 land.
-8. **`ANTHROPIC_API_KEY` missing** — **deferred, not urgent.** Still requires a human to buy API credits; no agent action possible.
+1. **Design language** — resolved as: build a user-selectable color theme in Settings instead of picking one system over the other. **Still deferred, not urgent** — documented as a backlog item, not started. See `Phase4_Implementation_Plan.md`.
+2. **Conversation model** — **Done (Wave 148, PR #82).** Task queue (priority-ordered, FIFO within a tier) + multi-thread conversations (thread switcher, `createWorkflowThread`).
+3. **Multi-repo Brain architecture** — **Done, Phase A only (Wave 153, PR #90).** `/api/v1/brain/*` namespace + `FChecklist/veridian-brain` scaffold repo. Phases B-D (cross-repo validation, physical extraction, net-new components) remain explicitly deferred, as always planned.
+4. **Intent Engine** — **Done (Wave 149, PR #84).** `intent-engine.ts`, deterministic classifier. One post-audit fix: the `check_status` "how is" trigger was too broad, narrowed same-day.
+5. **Central "Need LLM?" routing gate** — **Done (Wave 150, PR #85).** Correction confirmed during implementation: not actually blocked on OpenRouter credits (that blocker is specific to this session's z.ai dispatch automation) — built and tested against the app's own working runtime LLM path.
+6. **Full structured-response renderer** — **Done, v1 slice (Wave 151, PR #91).** Summary + confirmation card types, 100% backward-compatible parse-and-fallback design.
+7. **Wisdom/Innovation/Prediction Engines** — **Done, 3 narrow v1s (Wave 152, PRs #87 and #92).** Prediction Engine generalizes the construction predictor to task completion time; Wisdom Engine summarizes gated-reply reasons; Innovation Engine proposes (human-gated, never auto-applies) automation candidates for recurring task patterns.
+8. **`ANTHROPIC_API_KEY` missing** — **Still deferred, not urgent.** Still requires a human to buy API credits; no agent action possible.
 
-Full task breakdown, sequencing, and honest per-item scoping: `Phase4_Implementation_Plan.md`.
+Full task breakdown, sequencing, and honest per-item scoping: `Phase4_Implementation_Plan.md`. Full doer+auditor documentation: `ai-os/boss/COMPLETED.yaml` (WAVE-148 through WAVE-153).
 
 ---
 
