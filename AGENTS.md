@@ -9,14 +9,16 @@
 - **Authority**: FULL_ACCESS — all repositories, all files, all operations
 - **Owner**: raajat.agarwal@gmail.com (user_id: 9f3b0147-85ba-4461-9e27-aa782b313285)
 - **Trigger**: `repository_dispatch` event type `zai-task`
-- **Can**: read/write all code, create/push/merge branches, delete branches, deploy, run migrations, seed DB
+- **Can**: read/write all code, create branches, open PRs, deploy, run migrations, seed DB
+- **Cannot**: push or merge directly to `main` (see Operating Rule 6, added 2026-07-10)
 - **API key**: stored as `ZAI_API_KEY` in GitHub Secrets
 
 ### Claude Code (Secondary Agent)
 - **Authority**: FULL_ACCESS — all repositories, all files, all operations
 - **Owner**: raajat.agarwal@gmail.com
 - **Trigger**: `repository_dispatch` event type `claude-task`
-- **Can**: read/write all code, create/push/merge branches, architecture decisions, code review
+- **Can**: read/write all code, create branches, open PRs, architecture decisions, code review
+- **Cannot**: push or merge directly to `main` (see Operating Rule 6, added 2026-07-10)
 - **API key**: stored as `ANTHROPIC_API_KEY` in GitHub Secrets
 
 ## Operating Rules
@@ -25,6 +27,7 @@
 3. BOSS agent (ai-os/boss/BOARD.yaml) tracks all tasks
 4. Both agents have identical repo-level permissions via PAT_FCHECKLIST
 5. GitHub is the single source of truth — all work committed here
+6. **Added 2026-07-10 (Boss directive, after two concurrent full-access agents collided on `main` — one agent's uncommitted work got silently swept into the other's unrelated commit): `main` now has GitHub branch protection requiring every change to go through a pull request that passes CI (Lint/Type Check/Build/Unit Tests) before it can merge. Direct pushes to `main`, including from a full-access agent's own PAT, will be rejected (`enforce_admins` is on — there is no bypass). No human approval is required on the PR itself (there's no dedicated reviewer to bottleneck on), so this doesn't slow down single-agent work — it only prevents two agents from silently overwriting each other's in-flight changes. Work on a branch, open a PR, let CI run, merge once green.
 
 ## Contact
 Repository owner: raajat.agarwal@gmail.com | Z.ai user_id: 9f3b0147-85ba-4461-9e27-aa782b313285
