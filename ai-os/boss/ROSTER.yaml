@@ -1,4 +1,15 @@
 agents:
-  - { id: VEDABOSS, provider: claude, role: architect }
+  - { id: VEDABOSS, provider: claude, role: architect, status: active }
   - { id: ZAI, provider: zai-glm, role: fullstack_developer, status: active }
-  - { id: SENTINEL, provider: system, role: guardian }
+  - { id: SENTINEL, provider: system, role: guardian, status: active }
+
+# Verified accurate 2026-07-09 against AGENTS.md's 2 authorized coding agents
+# (Z.ai GLM = ZAI, Claude Code = VEDABOSS for this repo) + SENTINEL's guardian
+# role in ai-os/sentinel/SENTINEL.yaml -- only added missing `status` fields
+# for consistency. This is a DIFFERENT roster from src/lib/ai-team/roster.ts
+# (the 27-role build-time "AI Dev Team" org chart) -- do not merge the two;
+# see Study_by_Claude.md's note on that naming collision. A further roster
+# for a proposed "VERIDIAN Brain" runtime agent team (Capability Curator,
+# Knowledge-Graph Keeper, etc.) is documented in that same study as a
+# proposal only -- deliberately not added here since none of those roles
+# exist yet; this file should only list agents that are actually real.
