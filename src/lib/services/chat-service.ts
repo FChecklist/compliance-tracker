@@ -18,6 +18,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { redactPii } from "@/lib/pii-redaction"
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
+import { passesReplyGate } from "@/lib/ai-reply-gate"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
@@ -374,6 +375,27 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })
+    // Phase 3 (Phase3_Design_by_Claude.md, software-first gate): this call
+    // path has no tool-calling capability -- the reply is only ever stored
+    // as a chat message -- so the one provable risk in the raw LLM text is
+    // a hallucinated claim of completed action ("I've approved this") when
+    // nothing in the system actually did anything. Deterministic, narrow
+    // check; on failure the raw claim never reaches the user.
+    const gateResult = passesReplyGate(reply)
+    if (!gateResult.passed) {
+      recordOrchestraExecution({
+        orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
+        input: { conversationId }, status: "gated",
+        output: { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
+        durationMs: Date.now() - startedAt,
+      })
+      return withTenantContext({ orgId, userId }, (db) =>
+        db.insert(messages).values({
+          conversationId, senderId: null,
+          content: "I wasn't able to give a reliable answer to that. Please rephrase, or check the relevant page directly.",
+        }).returning()
+      )
+    }
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({ conversationId, senderId: null, content: reply }).returning()
     )
