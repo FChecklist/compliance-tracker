@@ -9,8 +9,12 @@ import {
   CheckCircle2,
   Download,
   FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -269,6 +273,19 @@ export default function ReportsPage() {
     }));
   }, [stats]);
 
+  // Shared row builder so all three exports use identical columns/data.
+  const buildExportRows = () =>
+    items.map((item) => ({
+      Title: item.title,
+      Type: item.complianceType,
+      Status: item.status,
+      Priority: item.priority,
+      Department: item.department.name,
+      "Assigned To": item.assignedTo?.name ?? "Unassigned",
+      "Due Date": item.dueDate ? format(new Date(item.dueDate), "yyyy-MM-dd") : "",
+      Created: format(new Date(item.createdAt), "yyyy-MM-dd"),
+    }));
+
   // CSV Export
   const exportCSV = () => {
     const headers = [
@@ -303,6 +320,57 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Excel Export (xlsx)
+  const exportExcel = () => {
+    const data = buildExportRows();
+    const ws = XLSX.utils.json_to_sheet(data);
+    // Reasonable column widths for readability.
+    ws["!cols"] = [
+      { wch: 36 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Compliance Report");
+    XLSX.writeFile(wb, `compliance-report-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
+
+  // PDF Export (jspdf + jspdf-autotable)
+  const exportPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const generatedAt = format(new Date(), "yyyy-MM-dd HH:mm");
+
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text("VERIDIAN Compliance Report", 40, 40);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Generated: ${generatedAt}`, 40, 58);
+    doc.text(`Total Items: ${items.length}`, 40, 72);
+
+    const data = buildExportRows();
+    const head = [Object.keys(data[0] ?? { Title: "" })];
+    const body = data.map((row) => Object.values(row));
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: 90,
+      styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 40, right: 40 },
+    });
+
+    doc.save(`compliance-report-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+  };
+
   if (loading) return <ReportsSkeleton />;
 
   return (
@@ -317,13 +385,29 @@ export default function ReportsPage() {
             Compliance performance overview
           </p>
         </div>
-        <Button
-          onClick={exportCSV}
-          className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
-        >
-          <Download className="size-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={exportCSV}
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <Download className="size-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button
+            onClick={exportExcel}
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <FileSpreadsheet className="size-4 mr-2" />
+            Export Excel
+          </Button>
+          <Button
+            onClick={exportPDF}
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <FileText className="size-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards */}
