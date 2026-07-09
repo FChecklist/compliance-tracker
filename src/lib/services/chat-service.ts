@@ -340,9 +340,17 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       { temperature: 0.4, maxTokens: 800, history },
       modelConfig.fallback
     )
+    // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 3):
+    // both independent studies flagged that orchestra_executions could prove
+    // *cost/model* per LLM call but not *what was actually asked/answered* --
+    // a real gap for any future explainability work. systemPrompt/userMessage/
+    // reply are now stored in full (this table is already tenant-scoped/RLS-
+    // protected like every other table in this schema); no redaction applied
+    // since none was requested and building one is its own design task.
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
-      input: { conversationId }, output: { replyLength: reply.length },
+      input: { conversationId, systemPrompt, userMessage, historyTurnCount: history.length },
+      output: { reply, replyLength: reply.length },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })
