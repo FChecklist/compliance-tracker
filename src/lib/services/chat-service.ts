@@ -19,6 +19,7 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 import { redactPii } from "@/lib/pii-redaction"
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
 import { passesReplyGate } from "@/lib/ai-reply-gate"
+import { tryDeterministicRoute } from "@/lib/llm-routing-gate"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
@@ -347,6 +348,18 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   if (!policyDecision.allowed) {
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({ conversationId, senderId: null, content: refusalMessageFor(policyDecision) }).returning()
+    )
+  }
+
+  // Wave 150 (Phase4_Implementation_Plan.md, "central 'Need LLM?' routing
+  // gate"): checked before resolveModelConfig/prompt-template resolution/
+  // history building even runs -- a matched deterministic route skips all
+  // of that plus the actual LLM call entirely. Falls through completely
+  // unchanged for anything unmatched.
+  const routed = await tryDeterministicRoute({ orgId, userId }, userMessage)
+  if (routed.handled) {
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({ conversationId, senderId: null, content: routed.reply }).returning()
     )
   }
 
