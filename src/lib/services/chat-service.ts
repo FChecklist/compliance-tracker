@@ -18,6 +18,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { redactPii } from "@/lib/pii-redaction"
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
+import { passesReplyGate } from "@/lib/ai-reply-gate"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
@@ -353,6 +354,14 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       { temperature: 0.4, maxTokens: 800, history },
       modelConfig.fallback
     )
+    // Phase 3 (Phase3_Design_by_Claude.md, software-first gate): this call
+    // path has no tool-calling capability -- the reply is only ever stored
+    // as a chat message -- so the one provable risk in the raw LLM text is
+    // a hallucinated claim of completed action ("I've approved this") when
+    // nothing in the system actually did anything. Deterministic, narrow
+    // check; on failure the raw claim never reaches the user. Runs BEFORE
+    // the orchestra_executions log below (see that log's comment for why).
+    const gateResult = passesReplyGate(reply)
     // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 3):
     // both independent studies flagged that orchestra_executions could prove
     // *cost/model* per LLM call but not *what was actually asked/answered* --
@@ -367,13 +376,32 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // the redacted-at-write logging (Claude) apply here together -- log the
     // normalized text (what was actually sent to callLLM, per Wave 144's
     // "prove what was actually asked" intent), redacted for PII.
+    // Phase 3 audit fix (AUDIT_phase3_claude_items.md, z.ai CONCERN): this
+    // used to unconditionally log status "completed" with the full reply
+    // BEFORE the gate ran, so a gated reply still ended up with a
+    // "completed" row containing its full (redacted) text -- misleading
+    // status, and the raw reply retained despite being blocked from the
+    // user. Now there is exactly one log per reply: "completed" with the
+    // full reply when the gate passes, "gated" with only the reason/matched
+    // phrase (no reply text at all) when it doesn't.
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
       input: { conversationId, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(normalizedMessage), historyTurnCount: history.length },
-      output: { reply: redactPii(reply), replyLength: reply.length },
-      status: "completed", durationMs: Date.now() - startedAt,
+      output: gateResult.passed
+        ? { reply: redactPii(reply), replyLength: reply.length }
+        : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
+      status: gateResult.passed ? "completed" : "gated",
+      durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
     })
+    if (!gateResult.passed) {
+      return withTenantContext({ orgId, userId }, (db) =>
+        db.insert(messages).values({
+          conversationId, senderId: null,
+          content: "I wasn't able to give a reliable answer to that. Please rephrase, or check the relevant page directly.",
+        }).returning()
+      )
+    }
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({ conversationId, senderId: null, content: reply }).returning()
     )

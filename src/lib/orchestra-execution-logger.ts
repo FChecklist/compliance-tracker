@@ -23,7 +23,12 @@ export type RecordOrchestraExecutionInput = {
   // Wave 46 (VERIDIAN AI Constitution + Policy Enforcement Engine): "denied"
   // records a policy-engine refusal -- the request never reached an LLM at
   // all, so promptTokens/completionTokens/costUsd stay null (zero real cost).
-  status: "completed" | "failed" | "denied";
+  // Phase 3 (software-first gate, Phase3_Design_by_Claude.md): "gated"
+  // records a real LLM reply that reached this helper but was blocked by
+  // ai-reply-gate.ts before being shown to the user (e.g. a hallucinated
+  // claim of completed action) -- distinct from "failed" (the LLM call
+  // itself errored) and "denied" (never reached the LLM at all).
+  status: "completed" | "failed" | "denied" | "gated";
   durationMs: number;
   provider?: string;
   model?: string;

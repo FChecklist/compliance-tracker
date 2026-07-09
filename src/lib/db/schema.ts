@@ -530,6 +530,30 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Entity Relationships (Phase 3 graph store, Phase3_Design_by_Claude.md) ──
+// Generic typed-edge table -- the substrate every "Enterprise * Graph"
+// proposal in both VERIDIAN.docx studies needs and none of them has today.
+// sourceType/targetType/relationshipType are free text, not enums, same
+// choice `embeddings.entityType` makes above: the set of entity kinds that
+// might need linking already spans dozens of tables and keeps growing, and
+// an enum would need a migration every time a new module wants to
+// participate. orgId is NOT nullable (unlike embeddings.orgId) -- every
+// relationship this table is meant to express links two entities that
+// belong to a specific tenant; there is no platform-level use case for this
+// table the way there is for global-tier embeddings.
+export const entityRelationships = complianceSchemaDB.table('entity_relationships', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  sourceType: text('source_type').notNull(),
+  sourceId: text('source_id').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id').notNull(),
+  relationshipType: text('relationship_type').notNull(),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Wave 99 (alibaba/zvec evaluation -- rejected as incompatible with
 // Vercel Edge/Supabase Edge Functions, see PLATFORM_STRATEGY.md): a real
 // exact-match cache so generateEmbedding() can skip the OpenRouter network

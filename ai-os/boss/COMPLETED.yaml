@@ -5,7 +5,7 @@ date: 2026-06-28
 # implementation plan's real completion log, tracked separately from the
 # completed_count/last_completed/date rollup above (those 3 fields cover a
 # different, earlier task-numbering scheme -- AIOS-*). Latest entry as of
-# 2026-07-09: WAVE-146B.
+# 2026-07-09: WAVE-147.
 
 # Schema extended 2026-07-09 (VERIDIAN.docx constitution study — see
 # Study_by_Claude.md addendum "End-to-End Study -> Audit -> Implementation ->
@@ -221,3 +221,74 @@ entries:
         creation, so there's no observable "created but inactive" window).
         Both claims checked out exactly as stated. Full report:
         AUDIT_wave146_zai_items.md.
+  - id: WAVE-147
+    title: "Phase 3 foundational substrate: graph store, event bus, software-first reply gate (Phase3_Design_by_Claude.md), plus a CodeQL-flagged ReDoS fix in Phase 2's prompt-normalizer.ts"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: TBD
+      summary: >
+        Boss directive: "you can parallelly start also on phase 3 yourself to
+        complete it" while z.ai finished Phase 2's cross-audit. Design doc
+        Phase3_Design_by_Claude.md scopes all 3 decisions narrowly and
+        explicitly documents what's deliberately NOT attempted in this pass.
+        (1) Graph store: entity_relationships table (migration 0129, RLS
+        matching interior_mood_boards' app_runtime_tenant_isolation +
+        service_role_bypass pattern) + entity-graph-service.ts
+        (createRelationship/deleteRelationship/getOutgoing/getIncoming/
+        getNeighbors, all tenant-scoped via withTenantContext). Zero
+        production consumers wired in by design. (2) Event bus: event-bus.ts,
+        typed in-process pub/sub with per-handler fault isolation via
+        Promise.all + try/catch, explicitly documented as NOT a durable
+        cross-invocation queue (no shared memory across Vercel serverless
+        invocations). 7 passing unit tests prove publish/subscribe/
+        unsubscribe/error-isolation actually work. (3) Software-first reply
+        gate: ai-reply-gate.ts. Confirmed generateAiReply()'s LLM call has
+        zero tool-calling capability, so the real risk is a hallucinated
+        CLAIM of completed action, not unauthorized action -- a narrow,
+        first-person-past-tense-verb detector (passesReplyGate) blocks such
+        replies before the messages insert, replacing them with a safe
+        fallback. 10 passing unit tests. Also fixed, same session: PR #78's
+        CodeQL scan flagged a high-severity polynomial-regex (ReDoS) alert in
+        z.ai's Phase 2 prompt-normalizer.ts (\s+-based replace() chain on
+        user-controlled chat input) -- rewritten as
+        collapseWhitespaceAndPunctuation(), a zero-regex single-pass scan,
+        with a new prompt-normalizer.test.ts (none existed before) including
+        a regression check on 50,000 repeated spaces. bun x tsc --noEmit and
+        bun run lint both clean; 25 new/changed unit tests all passing.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched via ai-team-workforce.yml against phase3/foundational-
+        substrate, tightened brief (7-file cap, iteration checkpoints,
+        schema.ts excerpt inlined rather than read directly) after the
+        lesson learned from Wave 146's first dispatch attempt. Succeeded on
+        first try. Item 1 (graph store): PASS -- verified every migration
+        column matches the schema exactly, confirmed RLS policies correctly
+        scope both reads and writes to org_id (FOR ALL policy's implicit
+        WITH CHECK), confirmed deleteRelationship's id-only WHERE clause is
+        not an IDOR risk because RLS makes cross-tenant rows invisible to
+        app_runtime, confirmed getNeighbors genuinely merges both edge
+        directions. One cosmetic note (cuid2 vs gen_random_uuid() default
+        mismatch between ORM and raw SQL, inert since there are no raw-SQL
+        writers). Item 2 (event bus): PASS -- traced that Promise.all never
+        rejects because each handler's rejection is caught internally, so
+        one throwing subscriber can't block others or fail publish();
+        confirmed the file's non-durability comments are accurate, not
+        oversold. Item 3 (reply gate): CONCERN -- found the pre-gate
+        recordOrchestraExecution call logged the full raw reply under status
+        "completed" BEFORE the gate ran, so a gated reply's text was still
+        retained in a "completed"-labeled row even though the gate's own
+        "gated" row correctly omitted it. Not a security breach (RLS-
+        protected, PII-redacted, never reached the user) but a real
+        audit-hygiene defect. Claude fixed same-day (commit b3a4749):
+        reordered so the gate runs first and exactly one log is written per
+        reply, "completed" with full text only when the gate passes. Item 4
+        (ReDoS fix): PASS -- confirmed zero regex remains in
+        collapseWhitespaceAndPunctuation's hot path, traced all 4 remaining
+        regex uses elsewhere in normalizeForLlm and confirmed each is a
+        fixed-literal-with-\b-boundary pattern (no quantifier, no
+        backtracking risk), confirmed no behavioral regression against the
+        prior \s+-collapse chain. Full report: AUDIT_phase3_claude_items.md.
