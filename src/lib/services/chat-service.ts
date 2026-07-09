@@ -16,6 +16,7 @@ import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
+import { normalizeForLlm } from "@/lib/prompt-normalizer"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
@@ -333,10 +334,21 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system")
     const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
     const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
+    // VERIDIAN.docx Study 1 Level 2 / Joint_Implementation_Plan.md Phase 2
+    // (z.ai-owned item): normalize the user's message before it reaches the
+    // LLM -- strip conversational filler (greetings, hedges, politeness,
+    // AI-addresses, meta-phrases) so fewer tokens leave the tenant on every
+    // call. The ORIGINAL `userMessage` is still what the caller persisted
+    // and what `enforcePolicy` above saw (policy/injection checks must see
+    // the real text); only the copy handed to callLLM is normalized. The
+    // same normalized copy is what gets logged to orchestra_executions,
+    // matching Wave 144's stated intent for that field ("prove what was
+    // actually asked of the LLM").
+    const normalizedMessage = normalizeForLlm(userMessage)
     const { content: reply, usage } = await callLLM(
       modelConfig.provider, modelConfig.model, modelConfig.apiKey,
       systemPrompt,
-      userMessage,
+      normalizedMessage,
       { temperature: 0.4, maxTokens: 800, history },
       modelConfig.fallback
     )
@@ -349,7 +361,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // since none was requested and building one is its own design task.
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
-      input: { conversationId, systemPrompt, userMessage, historyTurnCount: history.length },
+      input: { conversationId, systemPrompt, userMessage: normalizedMessage, historyTurnCount: history.length },
       output: { reply, replyLength: reply.length },
       status: "completed", durationMs: Date.now() - startedAt,
       provider: modelConfig.provider, model: modelConfig.model, usage,
