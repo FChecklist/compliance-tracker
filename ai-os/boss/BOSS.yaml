@@ -11,6 +11,6 @@ boss:
 stack:
   frontend: "Next.js 16 App Router"
   runtime: "Bun"
-  database: "Prisma → Supabase PostgreSQL"
+  database: "Drizzle ORM + postgres.js → Supabase PostgreSQL"  # corrected 2026-07-09: was "Prisma -> Supabase PostgreSQL", but ai-os/boss/BOARD.yaml's own AIOS-008/AIOS-020 entries record Prisma was migrated to Drizzle and removed entirely on 2026-06-28/29 -- this file was never updated to match
   ui: "shadcn/ui + Tailwind CSS 4"
-  design: "Navy #1C2B3A | Saffron #F5820A | Teal #0E7C6E"
+  design: "Navy #1C2B3A | Saffron #F5820A | Teal #0E7C6E | Cream #FFFDF9"  # Cream added 2026-07-09 to match CLAUDE.md's 4-color token set

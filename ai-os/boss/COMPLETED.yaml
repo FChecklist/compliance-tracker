@@ -1,3 +1,33 @@
 completed_count: 7
 last_completed: AIOS-007
 date: 2026-06-28
+
+# Schema extended 2026-07-09 (VERIDIAN.docx constitution study — see
+# Study_by_Claude.md addendum "End-to-End Study -> Audit -> Implementation ->
+# Deploy Workflow"). This file previously held only the rollup counters above,
+# with no real per-task entries -- that gap was found while checking this file
+# during the study.
+#
+# Going forward, every completed implementation task arising from the joint
+# Claude/z.ai implementation plan gets one entry under `entries:` below, with
+# TWO blocks written by TWO DIFFERENT agents -- whichever agent did not
+# implement the task is the mandatory auditor for it (no self-certification):
+#
+# entries:
+#   - id: <task id, e.g. from Joint_Implementation_Plan.md>
+#     title: <what was built>
+#     doer:
+#       agent: <claude-code|zai>
+#       date: <YYYY-MM-DD>
+#       pr: <PR number>
+#       summary: <what was built, why, links to relevant files>
+#     auditor:
+#       agent: <the OTHER agent>
+#       date: <YYYY-MM-DD>
+#       verdict: <pass|fail|pass-with-notes>
+#       summary: <what was checked, how, any follow-up filed>
+#
+# Do not backfill this with placeholder entries -- only real completed,
+# audited tasks go here, consistent with the "verify before you claim done"
+# standard applied throughout Study_by_Claude.md.
+entries: []
