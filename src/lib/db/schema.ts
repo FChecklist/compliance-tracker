@@ -7435,6 +7435,98 @@ export const constructionExpenseEntries = complianceSchemaDB.table('construction
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Wave 141 (PROJEXA gap analysis: RFIs/Submittals/Punch Lists/Change
+// Orders). None of these exist as OSS libraries (confirmed via research --
+// "genuine differentiation territory, build in-house"), so this is a
+// first-party implementation, matching the exact CRUD/status-workflow
+// pattern already used across construction_boq/site_diary/kpi tables.
+// Photos/attachments reuse `documents` via its existing linkedEntityType
+// convention (category='rfi_attachment' etc.), not new file-storage tables.
+// Change Orders reuse esignature-service.ts's real signing workflow
+// (extended to accept linkedEntityType='change_order', see that file) --
+// not a bespoke approval mechanism. ───────────────────────────────────────
+export const constructionRfiStatusEnum = complianceSchemaDB.enum('construction_rfi_status', ['open', 'answered', 'closed'])
+export const constructionBallInCourtEnum = complianceSchemaDB.enum('construction_ball_in_court', ['contractor', 'architect', 'owner', 'consultant'])
+
+export const constructionRfis = complianceSchemaDB.table('construction_rfis', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  number: integer('number').notNull(),
+  subject: text('subject').notNull(),
+  question: text('question').notNull(),
+  status: constructionRfiStatusEnum('status').notNull().default('open'),
+  ballInCourt: constructionBallInCourtEnum('ball_in_court').notNull().default('architect'),
+  raisedById: text('raised_by_id').notNull(),
+  assignedToId: text('assigned_to_id'),
+  dueDate: date('due_date', { mode: 'string' }),
+  answer: text('answer'),
+  answeredById: text('answered_by_id'),
+  answeredAt: timestamp('answered_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionSubmittalTypeEnum = complianceSchemaDB.enum('construction_submittal_type', ['shop_drawing', 'product_data', 'sample', 'other'])
+export const constructionSubmittalStatusEnum = complianceSchemaDB.enum('construction_submittal_status', ['pending', 'approved', 'approved_as_noted', 'revise_resubmit', 'rejected'])
+
+export const constructionSubmittals = complianceSchemaDB.table('construction_submittals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  specSection: text('spec_section'),
+  type: constructionSubmittalTypeEnum('type').notNull().default('shop_drawing'),
+  status: constructionSubmittalStatusEnum('status').notNull().default('pending'),
+  submittedById: text('submitted_by_id').notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  reviewedById: text('reviewed_by_id'),
+  reviewedAt: timestamp('reviewed_at'),
+  reviewComments: text('review_comments'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionPunchStatusEnum = complianceSchemaDB.enum('construction_punch_status', ['open', 'ready_for_review', 'verified_closed'])
+export const constructionPunchPriorityEnum = complianceSchemaDB.enum('construction_punch_priority', ['low', 'medium', 'high'])
+
+export const constructionPunchListItems = complianceSchemaDB.table('construction_punch_list_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  number: integer('number').notNull(),
+  description: text('description').notNull(),
+  location: text('location'),
+  trade: text('trade'),
+  priority: constructionPunchPriorityEnum('priority').notNull().default('medium'),
+  status: constructionPunchStatusEnum('status').notNull().default('open'),
+  assignedToId: text('assigned_to_id'),
+  dueDate: date('due_date', { mode: 'string' }),
+  verifiedById: text('verified_by_id'),
+  verifiedAt: timestamp('verified_at'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionChangeOrderStatusEnum = complianceSchemaDB.enum('construction_change_order_status', ['draft', 'pending_approval', 'approved', 'rejected'])
+
+export const constructionChangeOrders = complianceSchemaDB.table('construction_change_orders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  number: integer('number').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  reason: text('reason'),
+  costImpact: numeric('cost_impact').notNull().default('0'), // +/- amount
+  scheduleImpactDays: integer('schedule_impact_days').notNull().default(0), // +/- days
+  status: constructionChangeOrderStatusEnum('status').notNull().default('draft'),
+  requestedById: text('requested_by_id').notNull(),
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  esignatureRequestId: text('esignature_request_id'), // nullable FK -- set once sent for signature
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Logging & Monitoring
 // section) ───────────────────────────────────────────────────────────────
 // No APM/error-tracking service exists anywhere in this codebase -- 527

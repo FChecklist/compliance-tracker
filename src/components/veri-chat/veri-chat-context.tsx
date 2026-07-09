@@ -10,7 +10,18 @@
 // continuing it genuinely requires both sides to agree on what's open.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type CapabilityInputField = { key: string; label: string; type: "number" | "text"; optional?: boolean };
+// "select" renders as a dropdown of fixed choices (a click, never typed
+// text) -- used when one engine bundles several related functions (e.g.
+// Basic Arithmetic Engine covers add/subtract/multiply/divide) so the user
+// still never has to type something that could be spelled wrong. "number_list"
+// is a comma-separated list of numbers, parsed server-side into number[].
+export type CapabilityInputField = {
+  key: string;
+  label: string;
+  type: "number" | "text" | "select" | "number_list";
+  optional?: boolean;
+  options?: { value: string; label: string }[];
+};
 
 export type CapabilityNode = {
   key: string;
@@ -35,6 +46,10 @@ export type CapabilityNode = {
   // compliance item, which target status) -- sent through untouched, unlike
   // inputFields which the composer still has to prompt the user to type.
   fixedInputs?: Record<string, string>;
+  // True when this leaf carries a real codeReference or engineKey -- the
+  // selection is guaranteed to run as real software with zero AI
+  // involvement, computed server-side in capability-tree-service.ts.
+  deterministic?: boolean;
   children?: CapabilityNode[];
 };
 

@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
@@ -8,6 +8,9 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
+import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
+import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
+import { logActivity } from "@/lib/audit";
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
@@ -122,6 +125,67 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
       .where(eq(complianceItems.id, complianceItemId))
       .returning({ id: complianceItems.id, title: complianceItems.title, status: complianceItems.status });
     return { ...updated, previousStatus: existing.status };
+  }
+
+  // Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): create_compliance_item
+  // was registered with zero implementation. Safe to auto-dispatch here for
+  // the same reason update_compliance_status is -- capability-tree-service.ts's
+  // "Create New" leaf collects title/type/dueDate/amount through inputFields
+  // (a validated form, never LLM-guessed) and bakes departmentId into
+  // fixedInputs (a real click, not typed text). Mirrors createComplianceItem()
+  // in compliance-service.ts's own validation/insert shape, inlined here
+  // rather than calling that function directly since it expects a fuller
+  // ServiceContext (actor/request) this dispatch path doesn't carry.
+  if (codeReference === "create_compliance_item") {
+    const departmentId = String(context?.inputs?.departmentId ?? "");
+    const title = String(context?.inputs?.title ?? "").trim();
+    const complianceType = String(context?.inputs?.complianceType ?? "");
+    const dueDateRaw = String(context?.inputs?.dueDate ?? "");
+    const amountRaw = context?.inputs?.amount;
+    if (!departmentId || !title || !(VALID_COMPLIANCE_TYPES as readonly string[]).includes(complianceType)) {
+      throw new Error("Missing or invalid departmentId/title/complianceType");
+    }
+    const parsedDueDate = new Date(dueDateRaw);
+    if (isNaN(parsedDueDate.getTime())) throw new Error("A valid dueDate (YYYY-MM-DD) is required");
+    const dept = await db.query.departments.findFirst({ where: and(eq(departments.id, departmentId), eq(departments.orgId, orgId)) });
+    if (!dept) throw new Error("Department not found");
+
+    const [item] = await db.insert(complianceItems).values({
+      title, complianceType: complianceType as typeof VALID_COMPLIANCE_TYPES[number],
+      dueDate: parsedDueDate, departmentId, orgId,
+      amount: amountRaw != null && amountRaw !== "" ? String(amountRaw) : null,
+    }).returning({ id: complianceItems.id, title: complianceItems.title, dueDate: complianceItems.dueDate });
+
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (dbUser) {
+      await logActivity({ tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id, details: `Created compliance item: ${item.title}`, orgId, dbUser });
+    }
+    return item;
+  }
+
+  // Gap closure, 2026-07-10: get_penalty_estimate was registered with zero
+  // implementation. Uses complianceItems.amount ("Amount for penalty
+  // calculation" per its own schema comment) and the item's real due/
+  // completed date to compute real days-late, then the existing generic
+  // simple-interest calculator (compliance-engine.ts, already used
+  // elsewhere) -- the only value a human types is the interest rate itself,
+  // since statutory rates vary per compliance type and aren't modeled in
+  // this schema yet.
+  if (codeReference === "get_penalty_estimate") {
+    const complianceItemId = String(context?.inputs?.complianceItemId ?? "");
+    const annualRatePercent = Number(context?.inputs?.annualRatePercent);
+    if (!complianceItemId || !Number.isFinite(annualRatePercent)) throw new Error("Missing complianceItemId or annualRatePercent");
+    const item = await db.query.complianceItems.findFirst({
+      where: and(eq(complianceItems.id, complianceItemId), eq(complianceItems.orgId, orgId)),
+      columns: { id: true, title: true, amount: true, dueDate: true, completedAt: true },
+    });
+    if (!item) throw new Error("Compliance item not found");
+    if (item.amount == null) throw new Error("This item has no amount set -- penalty cannot be estimated");
+    const asOf = item.completedAt ?? new Date();
+    const daysLate = Math.max(0, Math.floor((asOf.getTime() - item.dueDate.getTime()) / 86400000));
+    const { calculateComplianceInterest } = await import("@/lib/engines/compliance-engine");
+    const estimatedPenalty = calculateComplianceInterest(Number(item.amount), annualRatePercent, daysLate);
+    return { itemTitle: item.title, amount: Number(item.amount), daysLate, annualRatePercent, estimatedPenalty };
   }
 
   // GST Reconciliation Engine dispatchers (Finance > GST Reconciliation).
@@ -246,15 +310,119 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
 // that dynamic-imports whatever computation_engines.implementation_ref says.
 // Letting a database row control which file gets imported and which export
 // gets called would be a real code-execution surface; each case here is a
-// real, reviewed import instead. First slice: 3 GST Engine functions,
-// proving both the numeric-calculation and string-validation input shapes
-// before extending to the other ~200 registered engines in a later wave.
+// real, reviewed import instead. GST Engine (16/16) and Mathematical
+// Computation Engine (10/13) are the two categories wired so far --
+// CAPABILITY_COVERAGE.md tracks exactly which of the other ~185 registered
+// engines are still unwired and why.
 function truthy(v: unknown): boolean {
   const s = String(v ?? "").trim().toLowerCase();
   return s === "yes" || s === "true" || s === "1";
 }
 
-async function dispatchEngine(engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+// Backs every `number_list` CapabilityInputField -- the composer sends the
+// raw comma-separated text unparsed, this is the one place it becomes a
+// real number[], with a clear error on a malformed entry rather than
+// silently coercing "abc" to NaN and letting a bad value flow into a
+// calculation undetected.
+function parseNumberList(v: unknown): number[] {
+  const raw = String(v ?? "").trim();
+  if (!raw) return [];
+  return raw.split(",").map((part) => {
+    const n = Number(part.trim());
+    if (!Number.isFinite(n)) throw new Error(`"${part.trim()}" is not a valid number`);
+    return n;
+  });
+}
+
+async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+  // Zero typed fields -- validates a real GST return period's own confirmed
+  // sales invoices, never a human-typed line-items list. Completes the GST
+  // Engine category (16/16).
+  if (engineKey === "gst_return_validation_engine") {
+    const returnPeriodId = String(inputs.returnPeriodId ?? "");
+    if (!returnPeriodId) throw new Error("Missing returnPeriodId");
+    const period = await db.query.gstReturnPeriods.findFirst({ where: and(eq(gstReturnPeriods.id, returnPeriodId), eq(gstReturnPeriods.orgId, orgId)) });
+    if (!period) throw new Error("Return period not found");
+    const invoices = await db.query.gstCanonicalInvoices.findMany({
+      where: and(eq(gstCanonicalInvoices.orgId, orgId), eq(gstCanonicalInvoices.period, period.period), eq(gstCanonicalInvoices.direction, "sales")),
+    });
+    const totalTaxableValue = invoices.reduce((sum, i) => sum + Number(i.taxableValue), 0);
+    const totalTaxPaid = invoices.reduce((sum, i) => sum + Number(i.cgstAmount) + Number(i.sgstAmount) + Number(i.igstAmount), 0);
+    const { validateGstReturn } = await import("@/lib/engines/gst-engine");
+    return validateGstReturn({
+      gstin: period.gstin, period: period.period,
+      totalTaxableValue, totalTaxPaid,
+      lineItems: invoices.map((i) => ({ invoiceNumber: i.invoiceNumber, taxableValue: Number(i.taxableValue), totalValue: Number(i.totalValue) })),
+    });
+  }
+
+  switch (engineKey) {
+    // Mathematical Computation Engine (10 of 13 -- see capability-tree-
+    // service.ts's comment for the 3 deferred, matrix/model-input ones).
+    case "basic_arithmetic_engine": {
+      const { add, subtract, multiply, divide } = await import("@/lib/engines/mathematical-engine");
+      const a = Number(inputs.a), b = Number(inputs.b);
+      const fn = { add, subtract, multiply, divide }[String(inputs.operation)];
+      if (!fn) throw new Error("Invalid operation");
+      return { result: fn(a, b) };
+    }
+    case "scientific_calculator_engine": {
+      const { evaluateExpression } = await import("@/lib/engines/mathematical-engine");
+      return { result: evaluateExpression(String(inputs.expr ?? "")) };
+    }
+    case "financial_mathematics_engine": {
+      const { presentValue, futureValue, compoundInterest } = await import("@/lib/engines/mathematical-engine");
+      const amount = Number(inputs.amount), rate = Number(inputs.rate), periods = Number(inputs.periodsOrYears);
+      switch (inputs.operation) {
+        case "present_value": return { result: presentValue(amount, rate, periods) };
+        case "future_value": return { result: futureValue(amount, rate, periods) };
+        case "compound_interest": return { result: compoundInterest(amount, rate, Number(inputs.timesCompoundedPerYear) || 1, periods) };
+        default: throw new Error("Invalid operation");
+      }
+    }
+    case "percentage_engine": {
+      const { percentageOf, percentageChange } = await import("@/lib/engines/mathematical-engine");
+      const value1 = Number(inputs.value1), value2 = Number(inputs.value2);
+      if (inputs.operation === "percentage_of") return { result: percentageOf(value1, value2) };
+      if (inputs.operation === "percentage_change") return { result: percentageChange(value1, value2) };
+      throw new Error("Invalid operation");
+    }
+    case "ratio_engine": {
+      const { simplifyRatio } = await import("@/lib/engines/mathematical-engine");
+      const [num, den] = simplifyRatio(Number(inputs.a), Number(inputs.b));
+      return { numerator: num, denominator: den };
+    }
+    case "fraction_engine": {
+      const { addFractions } = await import("@/lib/engines/mathematical-engine");
+      const [num, den] = addFractions(Number(inputs.n1), Number(inputs.d1), Number(inputs.n2), Number(inputs.d2));
+      return { numerator: num, denominator: den };
+    }
+    case "statistical_engine": {
+      const { statisticalSummary } = await import("@/lib/engines/mathematical-engine");
+      return statisticalSummary(parseNumberList(inputs.values));
+    }
+    case "probability_engine": {
+      const { combinations, permutations, normalCdf } = await import("@/lib/engines/mathematical-engine");
+      switch (inputs.operation) {
+        case "combinations": return { result: combinations(Number(inputs.n), Number(inputs.k)) };
+        case "permutations": return { result: permutations(Number(inputs.n), Number(inputs.k)) };
+        case "normal_cdf": return { result: normalCdf(Number(inputs.n), inputs.k ? Number(inputs.k) : undefined, inputs.stdDev ? Number(inputs.stdDev) : undefined) };
+        default: throw new Error("Invalid operation");
+      }
+    }
+    case "regression_engine": {
+      const { linearRegression } = await import("@/lib/engines/mathematical-engine");
+      const xs = parseNumberList(inputs.xValues), ys = parseNumberList(inputs.yValues);
+      if (xs.length !== ys.length || xs.length === 0) throw new Error("X and Y value lists must be the same non-zero length");
+      const { slope, intercept } = linearRegression(xs.map((x, i) => [x, ys[i]] as [number, number]));
+      return { slope, intercept };
+    }
+    case "time_series_engine": {
+      const { movingAverage } = await import("@/lib/engines/mathematical-engine");
+      return { movingAverage: movingAverage(parseNumberList(inputs.values), Number(inputs.windowSize)) };
+    }
+  }
+
   const gstSplitInput = () => ({
     taxableAmount: Number(inputs.taxableAmount),
     gstRatePercent: Number(inputs.gstRatePercent),
@@ -353,6 +521,7 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
     const startedAt = new Date();
     try {
       const output = await dispatchTool(db, orgId, userId, agent.codeReference, { taskId, inputs: agentInputs });
+      assertValidDispatchOutput(output);
       await db.insert(taskAgentExecutions).values({
         taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
         status: "completed", input: {}, output: output as object,
@@ -376,7 +545,8 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
 async function executeEngineDispatch(orgId: string, userId: string, taskId: string, engineKey: string, engineInputs: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     try {
-      const output = await dispatchEngine(engineKey, engineInputs);
+      const output = await dispatchEngine(db, orgId, engineKey, engineInputs);
+      assertValidDispatchOutput(output);
       await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
       await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
     } catch (err) {

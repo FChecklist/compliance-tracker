@@ -18,16 +18,32 @@
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
   workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
-  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods,
+  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
+import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
 
 // The 6 real compliance_status enum values -- shown as clickable targets,
 // not a free-text field, so "update status" dispatch needs zero typing.
 const COMPLIANCE_STATUS_VALUES = ["pending", "in_progress", "completed", "overdue", "not_applicable", "draft"] as const
 
-export type CapabilityInputField = { key: string; label: string; type: "number" | "text"; optional?: boolean }
+// Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): "select" is a fixed
+// set of choices rendered as a dropdown, not a free-text field the user has
+// to type correctly -- used for engines that bundle several related
+// functions behind one engine_key (e.g. Basic Arithmetic Engine covers
+// add/subtract/multiply/divide) so picking the operation stays a click, not
+// typing. "number_list" is a comma-separated list of numbers, parsed
+// server-side into number[] -- covers functions whose real argument is an
+// array (statistics, moving average, regression) without needing a grid/
+// matrix editor UI.
+export type CapabilityInputField = {
+  key: string
+  label: string
+  type: "number" | "text" | "select" | "number_list"
+  optional?: boolean
+  options?: { value: string; label: string }[] // required when type === "select"
+}
 
 export type CapabilityNode = {
   key: string
@@ -40,7 +56,26 @@ export type CapabilityNode = {
   inputFields?: CapabilityInputField[]
   agentId?: string | null
   fixedInputs?: Record<string, string>
+  // Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): true when this leaf
+  // carries a real codeReference or engineKey -- the selection is
+  // guaranteed to run as real software with zero AI involvement. False (or
+  // unset, for a non-leaf) means this selection currently falls back to the
+  // free-text/AI-planning path. Computed once in buildCapabilityTree() via
+  // markDeterministic(), not hand-set per leaf, so it can never drift out of
+  // sync with what's actually dispatchable.
+  deterministic?: boolean
   children?: CapabilityNode[]
+}
+
+function markDeterministic(nodes: CapabilityNode[]): CapabilityNode[] {
+  for (const node of nodes) {
+    if (node.leaf) {
+      node.deterministic = Boolean(node.codeReference || node.engineKey)
+    } else if (node.children) {
+      markDeterministic(node.children)
+    }
+  }
+  return nodes
 }
 
 // First VCEL slice wired into real dispatch (see task-execution-engine.ts's
@@ -99,7 +134,83 @@ const WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
     { key: "blockedCreditAmount", label: "Blocked credit amount (₹)", type: "number" },
     { key: "exemptSupplyRatio", label: "Exempt supply ratio 0-1 (optional)", type: "number", optional: true },
   ],
+  // Gap closure, 2026-07-10: completes GST Engine 16/16 -- the one holdout
+  // (`lineItems: unknown[]`) is resolved by NOT asking the user to type
+  // line items at all. This leaf only ever appears under a specific real
+  // return period (buildGstReconciliationNodes' "Validate Return" branch,
+  // fixedInputs carries returnPeriodId) -- dispatchEngine() fetches the
+  // real gstin/period/taxable value/tax paid/line items from that period's
+  // own confirmed invoices. Zero typed fields, matching the "AI Review"
+  // leaf's zero-inputFields shape.
+  gst_return_validation_engine: [],
 }
+
+// Mathematical Computation Engine -- second full category wired end to end
+// (proves the pattern generalizes past GST), 10 of 13 registered engines.
+// The other 3 (Matrix Computation, Linear Algebra, Optimization) take a
+// real matrix or an LP model as input -- there's no grid/JSON-editor UI in
+// the composer yet, so those stay honestly unwired rather than forced into
+// a bad-fit text field; see CAPABILITY_COVERAGE.md.
+const ARITHMETIC_OPS = [
+  { value: "add", label: "Add" }, { value: "subtract", label: "Subtract" },
+  { value: "multiply", label: "Multiply" }, { value: "divide", label: "Divide" },
+]
+const FINANCIAL_MATH_OPS = [
+  { value: "present_value", label: "Present value" }, { value: "future_value", label: "Future value" },
+  { value: "compound_interest", label: "Compound interest" },
+]
+const PERCENTAGE_OPS = [
+  { value: "percentage_of", label: "X% of a value" }, { value: "percentage_change", label: "% change between two values" },
+]
+const PROBABILITY_OPS = [
+  { value: "combinations", label: "Combinations (nCr)" }, { value: "permutations", label: "Permutations (nPr)" },
+  { value: "normal_cdf", label: "Normal CDF" },
+]
+
+const MATH_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  basic_arithmetic_engine: [
+    { key: "operation", label: "Operation", type: "select", options: ARITHMETIC_OPS },
+    { key: "a", label: "First number", type: "number" },
+    { key: "b", label: "Second number", type: "number" },
+  ],
+  scientific_calculator_engine: [{ key: "expr", label: "Expression (e.g. 2*(3+4)/5)", type: "text" }],
+  financial_mathematics_engine: [
+    { key: "operation", label: "Calculation", type: "select", options: FINANCIAL_MATH_OPS },
+    { key: "amount", label: "Amount (present or principal, ₹)", type: "number" },
+    { key: "rate", label: "Rate (decimal, e.g. 0.08 for 8%)", type: "number" },
+    { key: "periodsOrYears", label: "Periods / years", type: "number" },
+    { key: "timesCompoundedPerYear", label: "Times compounded per year (compound interest only)", type: "number", optional: true },
+  ],
+  percentage_engine: [
+    { key: "operation", label: "Calculation", type: "select", options: PERCENTAGE_OPS },
+    { key: "value1", label: "Value (or old value for % change)", type: "number" },
+    { key: "value2", label: "Percent (or new value for % change)", type: "number" },
+  ],
+  ratio_engine: [
+    { key: "a", label: "First number", type: "number" },
+    { key: "b", label: "Second number", type: "number" },
+  ],
+  fraction_engine: [
+    { key: "n1", label: "First numerator", type: "number" }, { key: "d1", label: "First denominator", type: "number" },
+    { key: "n2", label: "Second numerator", type: "number" }, { key: "d2", label: "Second denominator", type: "number" },
+  ],
+  statistical_engine: [{ key: "values", label: "Values (comma-separated, e.g. 4, 8, 15, 16, 23)", type: "number_list" }],
+  probability_engine: [
+    { key: "operation", label: "Calculation", type: "select", options: PROBABILITY_OPS },
+    { key: "n", label: "n (or x, for Normal CDF)", type: "number" },
+    { key: "k", label: "k (or mean, for Normal CDF, optional)", type: "number", optional: true },
+    { key: "stdDev", label: "Std deviation (Normal CDF only, optional)", type: "number", optional: true },
+  ],
+  regression_engine: [
+    { key: "xValues", label: "X values (comma-separated)", type: "number_list" },
+    { key: "yValues", label: "Y values (comma-separated, same count as X)", type: "number_list" },
+  ],
+  time_series_engine: [
+    { key: "values", label: "Values (comma-separated)", type: "number_list" },
+    { key: "windowSize", label: "Window size", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, MATH_WIRED_ENGINE_INPUT_FIELDS)
 
 // Generic entity actions -- real Worker Agents that operate "on a specific
 // customer/vendor" (invoice prep, reminders, GST filing) aren't domain-
@@ -133,7 +244,7 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
     const calculatorNodes = await buildCalculatorNodes(db)
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
-    return [...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes]
+    return markDeterministic([...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes])
   })
 }
 
@@ -208,7 +319,11 @@ export async function buildConstructionNodes(db: TenantDb, orgId: string): Promi
 // (a calculator isn't a per-org capability), so this doesn't need a
 // productBranch/enablement check the way buildBranchNodes does.
 async function buildCalculatorNodes(db: TenantDb): Promise<CapabilityNode[]> {
-  const wiredKeys = Object.keys(WIRED_ENGINE_INPUT_FIELDS)
+  // gst_return_validation_engine is deliberately excluded here -- it needs
+  // a real return-period picker (see buildGstReconciliationNodes' "Validate
+  // Return" branch), not a typed-fields form; its zero-length inputFields
+  // entry in WIRED_ENGINE_INPUT_FIELDS exists only for that branch to reuse.
+  const wiredKeys = Object.keys(WIRED_ENGINE_INPUT_FIELDS).filter((k) => k !== "gst_return_validation_engine")
   const engines = await db.query.computationEngines.findMany({
     where: and(inArray(computationEngines.engineKey, wiredKeys), eq(computationEngines.status, "implemented")),
   })
@@ -333,31 +448,78 @@ async function buildEntityNodes(db: TenantDb, orgId: string): Promise<Capability
 // not-yet-completed items -- an org's full register can run into the
 // thousands, and this is a quick-action list, not a browse view (the real
 // /compliance page already exists for that).
+// Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): create_compliance_item
+// was a registered worker agent with zero implementation -- clicking it
+// threw "No dispatcher implemented". Fixed via the same structured-inputs
+// mechanism VCEL calculator leaves already use (inputFields), so the
+// human-typed values still arrive as a validated form submission, never as
+// LLM-guessed free text -- matches this file's own "never AI-guessed"
+// discipline for every other write dispatcher.
+const CREATE_COMPLIANCE_ITEM_FIELDS: CapabilityInputField[] = [
+  { key: "title", label: "Title", type: "text" },
+  { key: "complianceType", label: "Type", type: "select", options: VALID_COMPLIANCE_TYPES.map((t) => ({ value: t, label: t })) },
+  { key: "dueDate", label: "Due date (YYYY-MM-DD)", type: "text" },
+  { key: "amount", label: "Amount, ₹ (optional -- enables penalty estimation later)", type: "number", optional: true },
+]
+
 async function buildComplianceItemNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
-  const updateAgent = await db.query.workerAgents.findFirst({
-    where: and(eq(workerAgents.codeReference, "update_compliance_status"), eq(workerAgents.tier, "global")),
-  })
-  if (!updateAgent) return [] // agent not registered for this org's platform tier -- nothing to dispatch
+  const [updateAgent, createAgent] = await Promise.all([
+    db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "update_compliance_status"), eq(workerAgents.tier, "global")) }),
+    db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "create_compliance_item"), eq(workerAgents.tier, "global")) }),
+  ])
 
   const items = await db.query.complianceItems.findMany({
     where: and(eq(complianceItems.orgId, orgId), ne(complianceItems.status, "completed")),
-    columns: { id: true, title: true, status: true },
+    columns: { id: true, title: true, status: true, amount: true },
     orderBy: asc(complianceItems.dueDate),
     limit: 20,
   })
-  if (items.length === 0) return []
 
-  return [{
-    key: "compliance_item", label: "Compliance Item", leaf: false,
-    children: items.map((item) => ({
-      key: item.id, label: item.title, leaf: false,
-      children: COMPLIANCE_STATUS_VALUES.filter((s) => s !== item.status).map((status) => ({
-        key: `${item.id}::${status}`, label: `Mark as ${status.replace("_", " ")}`, leaf: true,
-        codeReference: "update_compliance_status", agentId: updateAgent.id,
-        fixedInputs: { complianceItemId: item.id, newStatus: status },
-      })),
-    })),
-  }]
+  const children: CapabilityNode[] = []
+
+  if (createAgent) {
+    // First-class department picker so departmentId is a real click, not
+    // typed text a human could get wrong -- one leaf per active department.
+    const depts = await db.query.departments.findMany({ where: eq(departments.orgId, orgId), columns: { id: true, name: true }, limit: 30 })
+    if (depts.length > 0) {
+      children.push({
+        key: "compliance_item_create", label: "Create New", leaf: false,
+        children: depts.map((d) => ({
+          key: `create::${d.id}`, label: d.name, leaf: true,
+          codeReference: "create_compliance_item", agentId: createAgent.id,
+          fixedInputs: { departmentId: d.id },
+          inputFields: CREATE_COMPLIANCE_ITEM_FIELDS,
+        })),
+      })
+    }
+  }
+
+  for (const item of items) {
+    const itemChildren: CapabilityNode[] = updateAgent
+      ? COMPLIANCE_STATUS_VALUES.filter((s) => s !== item.status).map((status) => ({
+          key: `${item.id}::${status}`, label: `Mark as ${status.replace("_", " ")}`, leaf: true,
+          codeReference: "update_compliance_status", agentId: updateAgent.id,
+          fixedInputs: { complianceItemId: item.id, newStatus: status },
+        }))
+      : []
+    if (item.amount != null) {
+      const penaltyAgent = await db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "get_penalty_estimate"), eq(workerAgents.tier, "global")) })
+      if (penaltyAgent) {
+        itemChildren.push({
+          key: `${item.id}::penalty`, label: "Estimate Penalty", leaf: true,
+          codeReference: "get_penalty_estimate", agentId: penaltyAgent.id,
+          fixedInputs: { complianceItemId: item.id },
+          inputFields: [{ key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" }],
+        })
+      }
+    }
+    if (itemChildren.length > 0) {
+      children.push({ key: item.id, label: item.title, leaf: false, children: itemChildren })
+    }
+  }
+
+  if (children.length === 0) return []
+  return [{ key: "compliance_item", label: "Compliance Item", leaf: false, children }]
 }
 
 // GST Reconciliation -- unconditional like buildComplianceItemNodes (the
@@ -374,7 +536,10 @@ async function buildGstReconciliationNodes(db: TenantDb, orgId: string): Promise
     db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "generate_gst_return"), eq(workerAgents.tier, "global")) }),
     db.query.workerAgents.findFirst({ where: and(eq(workerAgents.codeReference, "generate_gst_ai_review"), eq(workerAgents.tier, "global")) }),
   ])
-  if (!confirmAgent && !reconcileAgent && !generateReturnAgent && !aiReviewAgent) return []
+  const validationEngine = await db.query.computationEngines.findFirst({
+    where: and(eq(computationEngines.engineKey, "gst_return_validation_engine"), eq(computationEngines.status, "implemented")),
+  })
+  if (!confirmAgent && !reconcileAgent && !generateReturnAgent && !aiReviewAgent && !validationEngine) return []
 
   const children: CapabilityNode[] = []
 
@@ -446,6 +611,27 @@ async function buildGstReconciliationNodes(db: TenantDb, orgId: string): Promise
         children: returns.map((r) => ({
           key: r.id, label: `${r.returnType.toUpperCase()} — ${r.period}`, leaf: true,
           codeReference: "generate_gst_ai_review", agentId: aiReviewAgent.id, fixedInputs: { returnPeriodId: r.id },
+        })),
+      })
+    }
+  }
+
+  // Validate Return -> [generated return] -> Validate (VCEL
+  // gst_return_validation_engine, the GST category's last unwired engine).
+  // Zero typed fields: dispatchEngine() fetches this return period's real
+  // gstin/period/taxable value/tax paid/line items from its own confirmed
+  // sales invoices, never asks a human to type a line-items list.
+  if (validationEngine) {
+    const returnsToValidate = await db.query.gstReturnPeriods.findMany({
+      where: and(eq(gstReturnPeriods.orgId, orgId), inArray(gstReturnPeriods.status, ["generated", "filed"])),
+      orderBy: desc(gstReturnPeriods.createdAt), limit: 20,
+    })
+    if (returnsToValidate.length > 0) {
+      children.push({
+        key: "gst_validate_return", label: "Validate Return", leaf: false,
+        children: returnsToValidate.map((r) => ({
+          key: r.id, label: `${r.returnType.toUpperCase()} — ${r.period}`, leaf: true,
+          engineKey: "gst_return_validation_engine", fixedInputs: { returnPeriodId: r.id }, inputFields: [],
         })),
       })
     }

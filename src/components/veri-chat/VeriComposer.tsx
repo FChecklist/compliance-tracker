@@ -8,7 +8,7 @@
 // POST /api/tasks (task-service.ts:createTask, which already dispatches the
 // real task-execution engine) -- no new task-creation logic was needed.
 import { useEffect, useState } from "react";
-import { Send, Loader2, Paperclip } from "lucide-react";
+import { Send, Loader2, Paperclip, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { useVeriChat, FIXED_MODES, type CapabilityNode, type PathSegment } from "./veri-chat-context";
@@ -151,7 +151,18 @@ export default function VeriComposer() {
         const merged = { ...leaf.fixedInputs, ...engineInputs };
         if (Object.keys(merged).length > 0) body.agentInputs = merged;
       }
-      if (leaf?.engineKey && engineInputs) { body.engineKey = leaf.engineKey; body.engineInputs = engineInputs; }
+      // Gap closure, 2026-07-10: this used to only fire when engineInputs
+      // was truthy, so an engine leaf with zero typed fields (everything
+      // derived from fixedInputs, e.g. GST return validation's returnPeriodId)
+      // could never actually reach dispatchEngine() -- it silently fell back
+      // to the free-text AI path despite carrying a real engineKey. Always
+      // send engineKey once the leaf carries one; fixedInputs alone can be
+      // the whole payload.
+      if (leaf?.engineKey) {
+        const merged = { ...leaf.fixedInputs, ...engineInputs };
+        body.engineKey = leaf.engineKey;
+        body.engineInputs = merged;
+      }
       try {
         const res = await fetch("/api/tasks", {
           method: "POST",
@@ -304,15 +315,35 @@ export default function VeriComposer() {
               {completedLeaf!.inputFields!.map((field) => (
                 <div key={field.key}>
                   <label className="text-[10.5px] text-ct-muted">{field.label}</label>
-                  <input
-                    type={field.type === "number" ? "number" : "text"}
-                    value={engineInputValues[field.key] ?? ""}
-                    onChange={(e) => setEngineInputValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                    className="mt-0.5 w-full rounded-lg border border-ct-border2 bg-white px-2.5 py-1.5 text-[13px] text-ct-navy focus:outline-none focus:ring-2 focus:ring-ct-navy/20"
-                  />
+                  {field.type === "select" ? (
+                    <select
+                      value={engineInputValues[field.key] ?? ""}
+                      onChange={(e) => setEngineInputValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      className="mt-0.5 w-full rounded-lg border border-ct-border2 bg-white px-2.5 py-1.5 text-[13px] text-ct-navy focus:outline-none focus:ring-2 focus:ring-ct-navy/20"
+                    >
+                      <option value="" disabled>Choose…</option>
+                      {(field.options ?? []).map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type === "number" ? "number" : "text"}
+                      value={engineInputValues[field.key] ?? ""}
+                      onChange={(e) => setEngineInputValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={field.type === "number_list" ? "e.g. 4, 8, 15, 16" : undefined}
+                      className="mt-0.5 w-full rounded-lg border border-ct-border2 bg-white px-2.5 py-1.5 text-[13px] text-ct-navy focus:outline-none focus:ring-2 focus:ring-ct-navy/20"
+                    />
+                  )}
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {chainComplete && !isThreadOpen && completedLeaf && !completedLeaf.deterministic && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-1.5 mb-2 text-[11.5px] text-ct-slate">
+            This will be handled by your AI Assistant, not run as a fixed calculation.
           </div>
         )}
 
@@ -437,12 +468,14 @@ function ChainRows({
                 key={opt.key}
                 type="button"
                 onClick={() => (row.isMulti ? onToggleMulti(row.depth, opt.key) : onToggleSingle(row.depth, opt.key))}
-                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${
+                title={opt.leaf ? (opt.deterministic ? "Runs instantly — no AI guessing" : "This will be handled by your AI Assistant, not run as a fixed calculation") : undefined}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${
                   isSelected
                     ? opt.leaf ? "bg-emerald-700 border-emerald-700 text-white" : "bg-ct-navy border-ct-navy text-white"
                     : "bg-white border-ct-border2 text-ct-navy"
                 }`}
               >
+                {opt.leaf && opt.deterministic && <Zap className="size-3 shrink-0" fill="currentColor" />}
                 {opt.label}
               </button>
             );

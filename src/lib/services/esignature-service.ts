@@ -5,7 +5,7 @@
 // real, first-party signing workflow: a tamper-evident audit trail
 // (signer identity, IP, user agent, timestamp, and a document-hash
 // comparison) rather than a DocuSign/Documenso API wrapper.
-import { esignatureRequests, esignatureSigners, documents, erpContracts, users, db as rawDb } from "@/lib/db"
+import { esignatureRequests, esignatureSigners, documents, erpContracts, constructionChangeOrders, users, db as rawDb } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -55,12 +55,27 @@ async function computeDocumentHash(orgId: string, linkedEntityType: string, link
     return createHash("sha256").update(canonical).digest("hex")
   }
 
+  // Wave 141 (PROJEXA gap analysis: Change Orders): same canonical-JSON-
+  // snapshot approach as erp_contract above -- a Change Order is a DB
+  // record, not a file, so there's no bytes to hash directly.
+  if (linkedEntityType === "change_order") {
+    const changeOrder = await withTenantContext({ orgId }, (db) =>
+      db.query.constructionChangeOrders.findFirst({ where: and(eq(constructionChangeOrders.id, linkedEntityId), eq(constructionChangeOrders.orgId, orgId)) })
+    )
+    if (!changeOrder) throw new ServiceError("Change order not found", 404)
+    const canonical = JSON.stringify({
+      title: changeOrder.title, description: changeOrder.description, reason: changeOrder.reason,
+      costImpact: changeOrder.costImpact, scheduleImpactDays: changeOrder.scheduleImpactDays, status: changeOrder.status,
+    })
+    return createHash("sha256").update(canonical).digest("hex")
+  }
+
   throw new ServiceError("Unsupported linkedEntityType for e-signature", 400)
 }
 
 export async function createSignatureRequest(
   ctx: ErpContext,
-  input: { linkedEntityType: "document" | "erp_contract"; linkedEntityId: string; title: string; signers: { name: string; email: string; order?: number }[] }
+  input: { linkedEntityType: "document" | "erp_contract" | "change_order"; linkedEntityId: string; title: string; signers: { name: string; email: string; order?: number }[] }
 ) {
   if (!input.signers?.length) throw new ServiceError("At least one signer is required", 400)
 

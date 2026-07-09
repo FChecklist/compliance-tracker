@@ -24,8 +24,9 @@ Each entry has a **maturity tag**:
 | [`AUDIT_2026-07-09.md`](AUDIT_2026-07-09.md) | 🆕 | The deep, severity-rated gap-analysis audit (executive summary through roadmap), module-by-module. |
 | [`CRITICAL_GAPS.md`](CRITICAL_GAPS.md) | 🆕 | Running punch list of confirmed, severity-tagged problems — the thing to actually act on. Now annotated with every closure from the autonomous gap-closure pass. |
 | [`ROADMAP.md`](ROADMAP.md) | 🆕 | Immediate / 30-day / 90-day / 1-year plan, synthesized from every finding above. |
-| [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md) | 🆕 | Append-only record of every fix made during the autonomous gap-closure pass — 6 batches, exact files/verification/commit per fix. |
-| [`FINAL_STATUS_REPORT_2026-07-09.md`](FINAL_STATUS_REPORT_2026-07-09.md) | 🆕 | Closing report for the gap-closure pass: 21 findings fully closed, 4 partially closed, and an explicit list of what's left open and why (decision-gated vs. large-effort vs. deliberately scoped out). Start here if you're picking up where this pass left off. |
+| [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md) | 🆕 | Append-only record of every fix made during the autonomous gap-closure pass — 8 batches, exact files/verification/commit per fix. |
+| [`FINAL_STATUS_REPORT_2026-07-09.md`](FINAL_STATUS_REPORT_2026-07-09.md) | 🆕 | Closing report for the 2026-07-09 gap-closure pass: 22 findings fully closed, 4 partially closed. Superseded on the worker-agent-execution item by `CAPABILITY_COVERAGE.md` (2026-07-10). |
+| [`CAPABILITY_COVERAGE.md`](CAPABILITY_COVERAGE.md) | 🆕 | Live-queried source of truth for CRITICAL_GAPS #1: exactly which worker agents/VCEL calculators are wired into deterministic Chain Selector dispatch vs. still AI-fallback, by domain/category, with the prioritized roadmap for the rest. Re-run its own SQL before trusting any number in it if time has passed. |
 
 ---
 
