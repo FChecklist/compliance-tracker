@@ -59,6 +59,37 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
+const PUNCTUATION_CHARS = new Set([".", ",", ";", "!", "?"])
+const WHITESPACE_CHARS = new Set([" ", "\t", "\n", "\r", "\f", "\v", " "])
+
+// Collapses any run of whitespace to a single space, drops a space that
+// immediately precedes punctuation, and strips leading whitespace/
+// punctuation -- equivalent to the previous regex chain, but one linear
+// pass over the characters with no backtracking possible, and no regex
+// at all (not even a per-character one).
+function collapseWhitespaceAndPunctuation(s: string): string {
+  let result = ""
+  let pendingSpace = false
+  let sawContent = false
+  for (const ch of s) {
+    if (WHITESPACE_CHARS.has(ch)) {
+      if (sawContent) pendingSpace = true
+      continue
+    }
+    if (!sawContent && PUNCTUATION_CHARS.has(ch)) {
+      // Leading punctuation, before any real content -- drop it too.
+      continue
+    }
+    if (pendingSpace && !PUNCTUATION_CHARS.has(ch)) {
+      result += " "
+    }
+    result += ch
+    pendingSpace = false
+    sawContent = true
+  }
+  return result
+}
+
 // Does the matched span contain any denylist word as a whole word?
 function spanContainsDenylistedWord(span: string): boolean {
   const lower = span.toLowerCase()
@@ -115,11 +146,11 @@ export function normalizeForLlm(text: string): string {
   working = rebuilt.join("")
 
   // --- Phase C: collapse whitespace + tidy punctuation artifacts ---
-  working = working
-    .replace(/\s+/g, " ")
-    .replace(/\s+([.,;!?])/g, "$1") // no space before punctuation
-    .replace(/^[\s.,;!?]+/, "") // strip leading whitespace/punctuation
-    .trim()
+  // Hand-written single-pass scan, not regex -- CodeQL flagged the previous
+  // \s+ based replace() chain as a polynomial-time ReDoS risk on
+  // user-controlled input (many repeated spaces). This is O(n), one pass,
+  // no backtracking possible by construction.
+  working = collapseWhitespaceAndPunctuation(working).trim()
 
   // Never send an empty / near-empty prompt to the LLM. If nothing with a
   // word/digit character survived (e.g. the whole message was "hi thanks"),
