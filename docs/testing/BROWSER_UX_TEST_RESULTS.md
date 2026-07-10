@@ -10,9 +10,9 @@ First genuine **browser-level** test in this series (the two prior tests — PRO
 - **Confirmed with real data: mode pills and chain options genuinely change per company/module context** — not a static list (§4).
 - **VERI Chat replies in 1.3–2.3 seconds** (median 2.3s) to realistic, LLM-composed user requests — fast, real-time UX (§5).
 - **All 80 sampled module pages loaded successfully** (100%), median load 804ms (§3).
-- Two harness-level selector bugs found post-hoc reduced data quality in 2 of 6 categories (pill capture, bad-input capture) — root-caused and disclosed transparently below rather than silently reported as product failures (§2, §6).
+- Three harness-level selector/timing bugs found post-hoc reduced data quality in 3 of 6 categories (pill capture, bad-input capture, reports-download capture) — root-caused and disclosed transparently below rather than silently reported as product failures (§2, §6).
 - One real product ambiguity found: only 3/10 "start a chat" checks found the CTA — traced to a genuine UI-state difference (personas with existing conversations don't show the empty-state CTA), not a bug (§7).
-- **Confirmed, not permission-scoped**: reports page shows **no visible download/export affordance** for either role tested — `rohit.sharma.0` is `admin`-role (checked directly against `compliance.users`, 2026-07-10), so this genuinely isn't gated behind a higher permission tier that wasn't tested. Real gap. Tracked as task T5.2 in `docs/infra/TOOL_INTEGRATION_PLAN.md` (LibreOffice Headless wires an actual export path here) (§8).
+- **CORRECTED 2026-07-10 (was: "confirmed, not permission-scoped"):** the "no visible download/export affordance" finding was a harness bug, not a product gap. `/reports` fetches its data client-side and shows a loading skeleton until the fetch resolves; the test checked for export buttons immediately after `domcontentloaded`, before they existed in the DOM. `src/app/(app)/reports/page.tsx` has fully-implemented CSV/Excel/PDF export buttons (client-side `jsPDF`/`xlsx` generation), unconditionally rendered once loading completes. Harness fixed (explicit `waitFor` on the button) in the same PR that fixed this doc. No product fix was needed (§8).
 
 ## 2. Test design (as executed)
 
@@ -71,7 +71,7 @@ Neither bug affects MODULE_NAV, CHAT_TEAM, or REPORTS_DOWNLOAD's results, which 
 
 ## 8. Reports & downloads
 
-15/15 `/reports` pages loaded; **0/15 showed a detected download/export button**. **Confirmed not a permission gap**: `rohit.sharma.0` is `admin`-role (checked directly against `compliance.users`, 2026-07-10) and was one of the two roles this category tested, so this isn't a case of only testing lower-privilege accounts — an admin genuinely sees no export affordance either. Remaining uncertainty is narrower: either export is genuinely not built on this page yet, or the button exists but isn't labeled with text my selector (`/download|export|csv|pdf/i`) matched. **Tracked as task T5.2 in `docs/infra/TOOL_INTEGRATION_PLAN.md`** (LibreOffice Headless integration wires a real PDF/XLSX export path here) rather than left as an open question.
+**CORRECTED 2026-07-10**: originally read as 15/15 `/reports` pages loaded with 0/15 showing a detected download/export button, tentatively attributed to a missing feature. Root cause found on follow-up audit: `/reports` (`src/app/(app)/reports/page.tsx`) fetches its stats via client-side `useEffect` + 2 `fetch()` calls and renders a loading skeleton until they resolve; the harness navigated with `waitUntil: "domcontentloaded"` and checked for the export buttons immediately, before React had mounted, fetched, and cleared the skeleton. The buttons (`Export CSV`/`Export Excel`/`Export PDF`, using `jsPDF`/`xlsx` client-side generation) are fully implemented and unconditionally rendered once loading completes — the selector regex (`/download|export|csv|pdf/i`) was always correct, it just never got the chance to run against the real DOM. Harness fixed with an explicit `waitFor` on the button; no product change was needed. The T5.2 LibreOffice-export tracking item in `docs/infra/TOOL_INTEGRATION_PLAN.md` remains valid for *other* export surfaces, but not this page.
 
 ## 9. Bad-input handling
 
@@ -79,10 +79,9 @@ Captured but **low-confidence** given the composer-targeting bug (§6.2) — the
 
 ## 10. Recommendations
 
-1. **Fix the 2 harness selector bugs** (§6) and re-run PILL_DYNAMISM + BAD_INPUT specifically — cheap (35 tests, not 200) now that the root causes are known.
-2. **Re-run REPORTS_DOWNLOAD with an admin-tier persona** to distinguish "no export feature" from "role-gated, correctly hidden from this role."
-3. **Investigate the 10% CHAT_AI empty-completion rate** concentrated on "finance manager"/"CRM lead" role phrasings — likely a prompt-shape issue on the harness side (my system prompt), not a VERIDIAN bug, but worth a quick look since it recurred identically in 2 separate runs.
-4. **A reply-quality judge pass** (a follow-up LLM call scoring VERI's actual reply content for correctness/helpfulness) would close the one part of "is VERI able to communicate like Claude" this run couldn't measure — latency and reachability are confirmed, content quality isn't yet.
+1. **Fix the 3 harness selector/timing bugs** (§6, §8) and re-run PILL_DYNAMISM + BAD_INPUT + REPORTS_DOWNLOAD specifically — cheap (50 tests, not 200) now that the root causes are known. (REPORTS_DOWNLOAD fix already applied 2026-07-10.)
+2. **Investigate the 10% CHAT_AI empty-completion rate** concentrated on "finance manager"/"CRM lead" role phrasings — likely a prompt-shape issue on the harness side (my system prompt), not a VERIDIAN bug, but worth a quick look since it recurred identically in 2 separate runs.
+3. **A reply-quality judge pass** (a follow-up LLM call scoring VERI's actual reply content for correctness/helpfulness) would close the one part of "is VERI able to communicate like Claude" this run couldn't measure — latency and reachability are confirmed, content quality isn't yet.
 
 ## 11. Data retention
 

@@ -2,6 +2,11 @@ fastapi==0.110.0
 uvicorn[standard]==0.27.0
 paddlepaddle==2.6.2
 paddleocr==2.7.0.2
-PyMuPDF==1.28.0
+# Pinned to 1.20.2, not 1.28.0: paddleocr==2.7.0.2 hard-requires PyMuPDF<1.21.0
+# (see Dockerfile comment for the full history -- this was pinned to 1.28.0
+# to dodge a source-compile failure, which created this new conflict once
+# paddleocr's own PyMuPDF constraint surfaced on a real build). 1.20.2 is the
+# newest release in the <1.21.0 range with a prebuilt cp310 manylinux wheel.
+PyMuPDF==1.20.2
 docling==2.94.0
 whisper-cpp-python==0.2.0
