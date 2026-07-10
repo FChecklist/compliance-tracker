@@ -53,6 +53,22 @@ export function platformApiKeyFor(provider: LLMProvider): string | undefined {
   }
 }
 
+// Wave (2026-07-10, founder directive): the model a floor-tier call escalates
+// TO when src/lib/floor-tier-escalation.ts's deterministic signals fire.
+// GLM-5.2, already pinned to OpenRouter provider "DeepInfra" in
+// llm-client.ts's OPENROUTER_PROVIDER_PREFERENCE. Callers must only use this
+// for requests that resolved to `isCustomerConfigured: false` -- never
+// overrides an org's own BYO model choice.
+const ESCALATED_PROVIDER: LLMProvider = "openrouter"
+const ESCALATED_MODEL = "z-ai/glm-5.2"
+
+/** Returns the escalation target for a floor-tier call, or null if OPENROUTER_API_KEY isn't configured (nothing sensible to escalate to). */
+export function escalatedPlatformConfig(): ResolvedModelConfig | null {
+  const apiKey = platformApiKeyFor(ESCALATED_PROVIDER)
+  if (!apiKey) return null
+  return { provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL, apiKey, isCustomerConfigured: false }
+}
+
 /**
  * Resolves which provider/model/key an org should use for a given Orchestra
  * Layer: a customer's own `customer_model_config` row (BYO) if one is active
