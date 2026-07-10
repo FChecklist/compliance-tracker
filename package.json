@@ -70,6 +70,8 @@
     "framer-motion": "^12.23.2",
     "input-otp": "^1.4.2",
     "javascript-lp-solver": "^1.0.3",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
     "libphonenumber-js": "^1.13.8",
     "lucide-react": "^0.525.0",
     "mathjs": "^15.2.0",
@@ -112,7 +114,7 @@
     "eslint-config-next": "^16.1.1",
     "promptfoo": "^0.121.17",
     "tailwindcss": "^4",
-    "tw-animate-css": "^1.3.5",
+    "tw-animate-css": "^1.0.7",
     "typescript": "^5"
   },
   "overrides": {
