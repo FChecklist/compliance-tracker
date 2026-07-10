@@ -519,6 +519,56 @@ entries:
         to the client -- flagged as a worthwhile future backport to the
         reference route, not a defect in this wave. No OWASP-class issue
         in either audited file. Full report: AUDIT_wave153_claude_items.md.
+  - id: WAVE-155
+    title: "Guardrail message quality + assumption-clarification prompt (TaskDocx_Evaluation.md item 3/4-8)"
+    doer:
+      agent: claude-code
+      date: "2026-07-09"
+      pr: 100
+      summary: >
+        Extended the existing high-impact-action gate
+        (high-impact-action-detector.ts) with a HIGH_IMPACT_CATEGORY_GUIDANCE
+        map -- one genuine, category-specific "why this matters + what
+        confirm/cancel means" message per HighImpactCategory, replacing the
+        single generic templated sentence VeriComposer.tsx previously showed
+        for every category. Also added a one-line assumption-clarification
+        clause to the chat system prompt ("if you are about to assume
+        something the user did not actually say, ask a short clarifying
+        question instead of guessing"), shipped as a new versioned
+        prompt_versions row (migration 0131) via the same
+        demote-old-production-then-promote-new pattern prompt-os-service.ts
+        already uses, {{PURPOSE_CLAUSE}} preserved verbatim. New unit tests
+        cover category-guidance completeness. bun x tsc --noEmit and
+        bun run lint both clean.
+    auditor:
+      agent: zai
+      date: "2026-07-09"
+      verdict: pass-with-notes
+      summary: >
+        Dispatched via ai-team-workforce.yml, 3-file cap, succeeded first
+        try. Confirmed all nine HIGH_IMPACT_CATEGORY_GUIDANCE keys match
+        HighImpactCategory exactly (TypeScript's Record<> also enforces this
+        at compile time), no typos/missing/extra categories. Confirmed each
+        message is genuinely category-specific (not boilerplate with
+        find-replace) -- verified against the actual consequence of each
+        category (irreversibility for delete/payment/compliance_submission,
+        notification side-effect for rejection, blast radius for
+        configuration_changes, etc). Traced the SQL migration line-by-line:
+        the single DO $$ block is one implicit transaction, so demote-all-
+        production-labels-for-this-template then insert-new-as-production is
+        atomic -- exactly one row holds label='production' after it runs.
+        {{PURPOSE_CLAUSE}} confirmed preserved verbatim inside the $tpl$
+        dollar-quoted body. Confirmed the new ask-before-assume prompt clause
+        does not contradict the existing "concise and practical" instruction
+        -- a short clarifying question is itself a concise reply. CONCERN
+        (minor, not a blocker): payment/compliance_submission guidance
+        messages don't literally contain the word "cancel" (implied via
+        "confirm only if..." framing instead) -- both still satisfy the
+        test's confirm-OR-cancel requirement. No OWASP-class issue, no
+        auth/RBAC surface (detector map + unit test + content-version SQL,
+        no routes touched), no injection vector (parameterized WHERE lookup,
+        no string interpolation of user input into the SQL). Full report:
+        AUDIT_wave155_claude_items.md.
   - id: WAVE-154
     title: "Response Engine (TaskDocx_Evaluation.md, Boss's post-Phase-4 requirements doc)"
     doer:
