@@ -34,14 +34,21 @@ async def ocr_endpoint(payload: dict):
     except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid image data") from e
 
-    # Run OCR
+    # Run OCR. PaddleOCR's .ocr() returns a list of PAGES, each page being a
+    # list of line-results [bbox, (text, confidence)] -- not a flat list of
+    # lines directly. Confirmed live (2026-07-10 E2E test): treating the
+    # top-level list as lines caused "bbox, (text, conf) = line[0], line[1]"
+    # to IndexError on any single-page image with exactly 1 detection
+    # (result[0] IS the single line, so line[1] doesn't exist). result[0] can
+    # also be None for a page with zero detections.
     result = _ocr_engine.ocr(img_np, cls=False)
+    page = result[0] if result and result[0] else []
 
     regions = []
     full_text_parts = []
     confidences = []
-    for line in result:
-        # PaddleOCR returns [bbox, (text, confidence)]
+    for line in page:
+        # Each line is [bbox, (text, confidence)]
         bbox, (text, conf) = line[0], line[1]
         xs = [point[0] for point in bbox]
         ys = [point[1] for point in bbox]
