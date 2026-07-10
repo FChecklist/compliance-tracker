@@ -732,13 +732,49 @@ export async function executeTask(
     }
 
     const planningStartedAt = Date.now();
-    let { data: result, usage } = await callLLMJson<{
-      summary: string;
-      steps: { agentName: string | null; description: string }[];
-    }>(effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage, {
-      temperature: 0.3,
-      maxTokens: 800,
-    }, effectiveConfig.fallback);
+    type PlanningResult = { summary: string; steps: { agentName: string | null; description: string }[] };
+    let result: PlanningResult;
+    let usage: Awaited<ReturnType<typeof callLLMJson<PlanningResult>>>["usage"];
+    try {
+      ({ data: result, usage } = await callLLMJson<PlanningResult>(
+        effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
+        { temperature: 0.3, maxTokens: 800 }, effectiveConfig.fallback
+      ));
+    } catch (err) {
+      // PROJEXA load test finding (2026-07-10, PROJEXA_LOAD_TEST_RESULTS.md
+      // §4.2): GPT-OSS-120B (a reasoning model) sometimes truncates its JSON
+      // answer after spending completion-token budget on hidden
+      // chain-of-thought -- callLLMJson's JSON.parse throws a plain
+      // SyntaxError in that case (not a network/auth error, which we don't
+      // want to blindly retry). One same-input retry is cheap and usually
+      // succeeds since the truncation is a token-budget fluke, not a
+      // deterministic failure. If the retry also fails, let it propagate to
+      // this function's own outer catch (unchanged "edit and resave"
+      // behavior) rather than retrying indefinitely.
+      if (!(err instanceof SyntaxError)) throw err;
+      try {
+        ({ data: result, usage } = await callLLMJson<PlanningResult>(
+          effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
+          { temperature: 0.3, maxTokens: 800 }, effectiveConfig.fallback
+        ));
+      } catch (retryErr) {
+        // PROJEXA load test finding §4.2 (2nd half): a planning-call failure
+        // that happens before the success path's recordOrchestraExecution()
+        // (below) previously left NO orchestra_executions row at all --
+        // invisible to both cost accounting and failure debugging. Write a
+        // best-effort failed row (no token counts available, since the call
+        // never completed) before re-throwing to this function's own outer
+        // catch, which still handles the task-level "edit and resave"
+        // messaging unchanged.
+        recordOrchestraExecution({
+          orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.planning",
+          input: { title, description }, status: "failed", durationMs: Date.now() - planningStartedAt,
+          provider: effectiveConfig.provider, model: effectiveConfig.model,
+          output: { error: retryErr instanceof Error ? retryErr.message : String(retryErr) },
+        });
+        throw retryErr;
+      }
+    }
 
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(result.summary ?? "");

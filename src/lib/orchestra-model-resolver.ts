@@ -31,6 +31,18 @@ const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 // api.groq.com/openai/v1/models 2026-07-10 as "openai/gpt-oss-120b".
 const PLATFORM_DEFAULT_PROVIDER: LLMProvider = "groq"
 const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
+// PROJEXA load test finding (2026-07-10, PROJEXA_LOAD_TEST_RESULTS.md §5
+// Incident 4): Groq's free tier for openai/gpt-oss-120b has a 200,000
+// tokens/day (TPD) cap, on top of its 30 RPM / 8,000 TPM limits --
+// confirmed live by exhausting it with a single 100-persona synthetic-data
+// generation batch. GPT-OSS-120B is a reasoning model, so real completion
+// tokens go to hidden chain-of-thought before the visible answer, burning
+// through all three limits faster than the visible response size would
+// suggest. RPM/TPM throttling alone cannot compensate for an already-
+// exhausted daily cap -- any same-day batch job heavy enough to approach
+// ~200K tokens against this floor-tier key should fail over to Cerebras
+// (see platformFallbackFor() below, already same-model failover) rather
+// than retry-loop against Groq for the rest of the day.
 
 // Wave (2026-07-10, founder directive): Cerebras added as a second host for
 // the SAME floor-tier model -- "Groq is free, Cerebras is paid," loaded
