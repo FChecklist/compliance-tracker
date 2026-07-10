@@ -11,4 +11,4 @@ PyMuPDF==1.20.2
 docling==2.94.0
 whisper-cpp-python==0.2.0
 numpy==1.26.4
-Pillow==10.2.0
+Pillow==12.2.0
