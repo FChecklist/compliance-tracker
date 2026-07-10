@@ -441,6 +441,12 @@ function reportsDownloadTest(id, persona) {
     id, category: "REPORTS_DOWNLOAD", persona, detail: "reports",
     async run(page, result) {
       await page.goto(`${BASE_URL}/reports`, { waitUntil: "domcontentloaded", timeout: PER_TEST_TIMEOUT_MS });
+      // /reports fetches its data client-side (useEffect + 2x fetch) and shows
+      // a loading skeleton until it resolves -- the export buttons don't exist
+      // in the DOM until then. Wait for one of them explicitly instead of
+      // checking immediately after domcontentloaded (harness bug found
+      // 2026-07-10: this previously reported a false "no export affordance").
+      await page.getByRole("button", { name: /export csv/i }).waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
       const bodyText = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
       result.reportsPageLoaded = bodyText.trim().length > 50;
       const downloadButtons = await page.getByRole("button", { name: /download|export|csv|pdf/i }).count().catch(() => 0);
