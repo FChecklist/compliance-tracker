@@ -49,8 +49,8 @@ Each tool maps to a real, code-confirmed gap found during this session's testing
 - **T2.2** `[AGENT]` Extend `ocr-client.ts` (or a new `docling-client.ts`, agent's call which is cleaner) with a `parseDocument()` function.
 - **T2.3** `[AGENT]` Wire into `src/lib/ingest/parser.ts`'s PDF path — replace naive text extraction with Docling's structured output for tables specifically (fall back to existing naive extraction if Docling's call fails, don't regress the working path).
 
-### Phase 3 — Meilisearch — **DEFERRED, see §5**
-- **T3.1** `[SUPERVISOR]` Decide card-free persistent hosting (Meilisearch Cloud free tier is the leading candidate — needs live verification it doesn't require a card, same check that just failed for Fly.io) — document the decision and why in `docs/infra/meilisearch.md`. Provision whichever is chosen, store `MEILISEARCH_URL` + `MEILISEARCH_API_KEY` as secrets. **Not started — Meilisearch is a genuine persistent server (index storage), the on-demand GitHub Actions pattern (§2) doesn't apply to it.**
+### Phase 3 — Meilisearch — **hosting decided 2026-07-10, ready to start**
+- **T3.1** `[SUPERVISOR]` **DECIDED: Render free tier** (not Meilisearch Cloud, not Fly.io). Verified 2026-07-10: Meilisearch Cloud's "free tier" is actually a 14-day trial that requires converting to a paid plan ($23-30+/mo) afterward — not a genuine permanent free tier, so it doesn't fit "free tier only" from the original directive. Render's free tier (750 hrs/month, 512MB RAM, no credit card) is a real permanent free tier and fits Meilisearch's resource footprint; it sleeps after 15 min idle with a 30-50s cold start on wake, an acceptable tradeoff for a search index (occasional slow first query, not a hard failure). Deploy Meilisearch's official Docker image to a Render free Web Service, store `MEILISEARCH_URL` + `MEILISEARCH_API_KEY` as GitHub/Vercel secrets.
 - **T3.2** `[AGENT]` New `src/lib/services/meilisearch-client.ts` — index/search wrapper functions.
 - **T3.3** `[AGENT]` Extend `/api/search/semantic/route.ts`'s entity coverage (or add a sibling `/api/search/keyword` route) to also cover `users`, `tasks`, `clients`, and whatever else is cheap to add first — expand incrementally, not all 70+ modules in one task.
 - **T3.4** `[AGENT]` Indexing pipeline: a small script/cron job that keeps Meilisearch's index in sync with new rows (start with a simple on-write hook, not a full CDC pipeline).
@@ -63,10 +63,10 @@ Each tool maps to a real, code-confirmed gap found during this session's testing
 - **T5.1** `[AGENT]` Add `POST /convert` to the FastAPI app: accepts a file + target format, runs `libreoffice --headless --convert-to`, returns the converted file.
 - **T5.2** `[AGENT]` Wire into the `/reports` page's export path (the browser test found no download affordance today — this task is what actually adds one) — generate a PDF/XLSX export via this service.
 
-### Phase 6 — Temporal (last, biggest commitment) — **DEFERRED, see §5**
-- **T6.1** `[SUPERVISOR]` Decide card-free persistent hosting for `temporalio/auto-setup` (self-hosted server + its own state store) vs. Temporal Cloud's trial terms — document the decision in `docs/infra/temporal.md`. **Not started — same persistent-server constraint as Meilisearch.**
-- **T6.2** `[AGENT]` Define ONE real workflow first (not a framework migration): the exact 5-step OCR pipeline the Boss specified (read → extract → confidence-gate → populate table → trigger next task), as a Temporal workflow + activities, using the Phase 1 OCR client as one activity.
-- **T6.3** `[SUPERVISOR]` Deploy, wire the workflow trigger into the document-upload path, live-verify.
+### Phase 6 — Temporal — **REPLACED with a native pattern, 2026-07-10 (see reasoning below)**
+- **T6.1** `[SUPERVISOR]` **DECIDED: not adopting Temporal.** `temporalio/auto-setup` needs its own persistent state store (Postgres/Cassandra + the Temporal server itself, not just one container) — meaningfully heavier than Meilisearch, and none of the card-free free tiers found (Render/Koyeb, both 512MB/shared-CPU, scale-to-zero) can run a Temporal server reliably; a workflow engine whose whole value is durability shouldn't sit on infra that sleeps after 15 minutes. This is the same call already made for Langfuse (replaced by native `promptTemplates`/`orchestraExecutions`) and n8n (replaced by native `automation-rule-service.ts`) — a native, right-sized pattern beats standing up a heavy framework on fragile hosting.
+- **T6.2** `[AGENT]` Native replacement: the exact 5-step OCR pipeline the Boss specified (read → extract → confidence-gate → populate table → trigger next task) as a single FastAPI endpoint on the existing doc-processing service (§2's on-demand GitHub Actions pattern already covers "run this job somewhere free"), with each step's outcome recorded as its own row in `orchestraExecutions` (already the platform's execution-tracking table) so a failed step is visible and re-triggerable by re-dispatching the job — durability via an audit trail + idempotent re-run, not a workflow engine.
+- **T6.3** `[SUPERVISOR]` Wire the trigger into the document-upload path, live-verify one real document end-to-end.
 
 ## 4. Guardrails for every `tool_integration_engineer` dispatch
 
@@ -80,9 +80,10 @@ Each tool maps to a real, code-confirmed gap found during this session's testing
 ## 5. Status
 
 As of 2026-07-10:
-- **Phase 0**: T0.2 (container skeleton) and T0.3 (build workflow) done and merged, validated via 2 real build-failure-fix iterations (hallucinated `paddlepaddle` version, missing `swig`). T0.1 superseded (Fly.io needs a card). T0.4 (on-demand dispatch workflow, revised architecture) — next up.
+- **Phase 0**: T0.2 (container skeleton) and T0.3 (build workflow) done and merged, validated via 4 real build-failure-fix iterations (hallucinated `paddlepaddle` version, missing `swig`, PyMuPDF source-compile incompatibility, PyMuPDF/paddleocr version conflict). T0.1 superseded (Fly.io needs a card). T0.4 (on-demand dispatch workflow, revised architecture) — next up.
 - **Phases 1, 2, 4, 5** (PaddleOCR, Docling, Whisper.cpp, LibreOffice): ready to proceed once T0.4 lands, using the on-demand GitHub Actions pattern.
-- **Phase 3 (Meilisearch) and Phase 6 (Temporal): deferred.** Both need a genuine persistent, stateful host; Fly.io (the original plan) needs a card. Open question for Boss: add a card to Fly.io for just these two (their state genuinely needs it, unlike the other 4 tools), or find/confirm a card-free managed alternative (Meilisearch Cloud, Temporal Cloud) first.
+- **Phase 3 (Meilisearch): hosting decided (Render free tier, no card) — ready to proceed once T3.1's deploy step runs.**
+- **Phase 6 (Temporal): replaced with a native pattern (§3, T6.2) — same call already made for Langfuse and n8n. Not blocked on hosting anymore; ready to proceed once Phase 1's pattern is proven.**
 
 This doc is the live source of truth — update task status here as each completes.
 
