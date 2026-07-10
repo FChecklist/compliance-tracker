@@ -312,11 +312,6 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Settings,
         },
         {
-          label: "VERI CONNECT",
-          href: "/connectors",
-          icon: Link2,
-        },
-        {
           label: "Audit Log",
           href: "/audit",
           icon: History,
@@ -421,7 +416,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
   const pathname = usePathname();
   const sections = getNavSections(overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled);
 
@@ -495,6 +490,28 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
             </Badge>
           )}
         </Link>
+        {/* Connectors (Connectors.docx wave, 2026-07-10): promoted from a
+            buried ADMIN-section link ("VERI CONNECT") to a top-level entry so
+            users can actually discover VERI Connect exists -- mirrors why
+            Home/Dashboard/VERI Chat are promoted here instead of living in a
+            collapsible section. */}
+        <Link
+          href="/connectors"
+          className={cn(
+            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
+            pathname.startsWith("/connectors")
+              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
+              : "text-ct-navy hover:bg-ct-cloud"
+          )}
+        >
+          <Link2 className={cn("size-3.5 shrink-0", pathname.startsWith("/connectors") && "text-ct-saffron")} />
+          <span className="flex-1">Connectors</span>
+          {connectedConnectorsCount > 0 && (
+            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
+              {connectedConnectorsCount}
+            </Badge>
+          )}
+        </Link>
         <Link
           href="/fde"
           className={cn(
@@ -559,23 +576,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -593,7 +610,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
       </SheetContent>
     </Sheet>
   );
