@@ -732,13 +732,58 @@ export async function executeTask(
     }
 
     const planningStartedAt = Date.now();
-    let { data: result, usage } = await callLLMJson<{
-      summary: string;
-      steps: { agentName: string | null; description: string }[];
-    }>(effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage, {
-      temperature: 0.3,
-      maxTokens: 800,
-    }, effectiveConfig.fallback);
+    type PlanningResult = { summary: string; steps: { agentName: string | null; description: string }[] };
+    // Definite-assignment (!): every code path past the try/catch below
+    // either assigns both via a successful callPlanning() or throws --
+    // TS's narrowing can't see that through the nested retry try/catch.
+    let result!: PlanningResult;
+    let usage!: Awaited<ReturnType<typeof callLLMJson<PlanningResult>>>["usage"];
+    const callPlanning = () => callLLMJson<PlanningResult>(
+      effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
+      { temperature: 0.3, maxTokens: 800 }, effectiveConfig.fallback
+    );
+    try {
+      ({ data: result, usage } = await callPlanning());
+    } catch (err) {
+      // PROJEXA load test finding (2026-07-10, PROJEXA_LOAD_TEST_RESULTS.md
+      // §4.2): GPT-OSS-120B (a reasoning model) sometimes truncates its JSON
+      // answer after spending completion-token budget on hidden
+      // chain-of-thought -- callLLMJson's JSON.parse throws a plain
+      // SyntaxError in that case. One same-input retry is cheap and usually
+      // succeeds since the truncation is a token-budget fluke, not a
+      // deterministic failure -- but only for that specific error shape;
+      // a network/auth error is retried by callLLMJson's own lower-level
+      // machinery already, so retrying it again here would just double a
+      // failure that's already final.
+      let finalErr = err;
+      if (err instanceof SyntaxError) {
+        try {
+          ({ data: result, usage } = await callPlanning());
+          finalErr = null;
+        } catch (retryErr) {
+          finalErr = retryErr;
+        }
+      }
+      if (finalErr) {
+        // PROJEXA load test finding §4.2 (2nd half): ANY planning-call
+        // failure that reaches here -- whether the SyntaxError retry above
+        // also failed, or the original error wasn't a SyntaxError at all --
+        // previously left NO orchestra_executions row (the success path's
+        // recordOrchestraExecution() below never runs). Invisible to both
+        // cost accounting and failure debugging. Write a best-effort failed
+        // row (no token counts available, since the call never completed)
+        // before re-throwing to this function's own outer catch, which
+        // still handles the task-level "edit and resave" messaging
+        // unchanged.
+        recordOrchestraExecution({
+          orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.planning",
+          input: { title, description }, status: "failed", durationMs: Date.now() - planningStartedAt,
+          provider: effectiveConfig.provider, model: effectiveConfig.model,
+          output: { error: finalErr instanceof Error ? finalErr.message : String(finalErr) },
+        });
+        throw finalErr;
+      }
+    }
 
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(result.summary ?? "");
