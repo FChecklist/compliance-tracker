@@ -7,17 +7,17 @@ jobs:
     name: Secret Scanning
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - name: Scan for secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         continue-on-error: true
   docs-check:
     name: Documentation Sentinel Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check SENTINEL.md exists
         run: |
           if [ ! -f SENTINEL.md ]; then echo "::error::SENTINEL.md missing"; exit 1; fi
@@ -26,7 +26,7 @@ jobs:
     name: Security Pattern Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check for hardcoded credentials
         run: |
           if grep -rn --include="*.ts" --include="*.tsx" -E "(password|secret|apikey)\s*=\s*[a-zA-Z0-9+/]{20,}" \
