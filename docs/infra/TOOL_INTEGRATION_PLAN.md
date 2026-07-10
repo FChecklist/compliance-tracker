@@ -85,3 +85,20 @@ As of 2026-07-10:
 - **Phase 3 (Meilisearch) and Phase 6 (Temporal): deferred.** Both need a genuine persistent, stateful host; Fly.io (the original plan) needs a card. Open question for Boss: add a card to Fly.io for just these two (their state genuinely needs it, unlike the other 4 tools), or find/confirm a card-free managed alternative (Meilisearch Cloud, Temporal Cloud) first.
 
 This doc is the live source of truth — update task status here as each completes.
+
+## 6. 46-tool sweep evaluation (2026-07-10)
+
+Boss provided a 46-tool open-source/free-tier list to evaluate against VERIDIAN, PROJEXA, GRC, SALES, ACCOUNTING, ERP. Verdict per tool, grounded in an actual codebase audit (package.json/requirements.txt/docs grep), not assumption. **Evaluation only — nothing below is implemented yet.**
+
+**Already integrated (skip, no duplicate work):** Groq/OpenAI/Claude/Gemini (via OpenRouter), Whisper.cpp, PostHog (SDK present, verify live usage), Supabase pgvector, Playwright, LibreOffice Headless, FFmpeg, Docling, Sharp, Resend, Docker, FastAPI, PaddleOCR.
+
+**Evaluated, native replacement already built (skip):** LiteLLM (multi-provider routing lives in `orchestra-model-resolver.ts`/`roster.ts`), Langfuse (native `promptTemplates`/`promptVersions` + `orchestraExecutions` cost/token tracking, Waves 22-23), n8n (native `automation-rule-service.ts`, deliberately smaller + avoids n8n's dynamic-code-execution risk).
+
+**Skip — redundant with an existing choice or architecture mismatch (serverless/Vercel, no persistent workers):** Apache Tika (Docling covers this), Browser Use (Playwright already covers this, Python/serverless mismatch), Celery/RabbitMQ/Kafka (using `after()` + `vercel.json` cron instead), MinIO (Supabase Storage), OpenSearch/Chroma/Milvus (pgvector), Keycloak/Authentik (Supabase Auth SSR), NocoDB/Appsmith/Budibase/Directus/Strapi (VERIDIAN is deliberately code-first, these are no-code platforms competing with the product itself), Haystack/LlamaIndex/Flowise/Activepieces (Python/persistent-runtime RAG+workflow frameworks, native equivalents already built), OnlyOffice Docs/Collabora Online (real-time co-editing — no product line has asked for this, heavy persistent hosting), Gotenberg (just wraps LibreOffice, which is already integrated directly), Paperless-ngx (competes with VERIDIAN's own document/compliance core, Tesseract OCR redundant with PaddleOCR), Excalidraw/Draw.io (no explicit ask yet; revisit only if PROJEXA site-diagram annotation becomes a real requirement).
+
+**Genuine new candidates — added to backlog (task #17 covers PostHog verification; new items below):**
+1. **Sentry** — real, unclosed gap. `src/lib/db/schema.ts` already flags it as "a reasonable next step"; current error handling is a DB table + `instrumentation.ts` hook, not live alerting/stack-trace grouping. Free tier covers this scale. Fits every product line (platform-wide observability). **Recommend: integrate next, low effort, high value for the 90-day quality mandate (AGENTS.md Rule 8).**
+2. **Neo4j (or equivalent graph capability)** — VERIDIAN AI OS Certification (prior session) flagged "knowledge graph" as a named, unbuilt gap; a graph DB would serve GRC (regulatory relationship mapping), ERP/PROJEXA (BOM/dependency graphs), SALES (account/relationship graphs). Same blocker as Meilisearch/Temporal: needs persistent, card-free hosting. **Bundled into task #21, not a separate integration decision.**
+3. **Upstash Redis** — no urgent gap today, but genuinely serverless-friendly (HTTP-based, real free tier) if AI-endpoint rate-limiting or cross-instance caching becomes a real operational problem. **Not actioned now — noted for if/when that need appears, not speculative infra.**
+
+Everything else on the 46-tool list: not touched, and evaluated as not fitting — either the capability already exists natively, or the tool needs a persistent server this architecture deliberately avoids, or it competes with VERIDIAN's own product surface rather than filling a gap in it.
