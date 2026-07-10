@@ -49,6 +49,16 @@ ENV CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download PaddleOCR model weights at BUILD time, not container-start
+# time. main.py instantiates PaddleOCR(...) at module scope, which downloads
+# 3 separate model files (det/rec/cls) from a Baidu CDN on first run --
+# confirmed live (2026-07-10, doc-processing-job.yml E2E test, 3rd attempt)
+# that this can exceed the job's health-check budget under normal network
+# variance (worked fine once, then took longer than 60s the next run).
+# Placed before COPY so app-code changes don't invalidate this layer and
+# force a redundant re-download on every rebuild.
+RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(lang='en', use_gpu=False)"
+
 # Copy application code
 COPY . .
 

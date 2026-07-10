@@ -60,14 +60,23 @@ jobs:
       - name: Start container and wait for health
         run: |
           docker run -d --name docproc -p 8080:8080 ghcr.io/fchecklist/veridian-doc-processing:latest
-          for i in $(seq 1 30); do
+          # 180s, not 60s: /health can't respond until the whole module has
+          # finished importing, and _ocr_engine = PaddleOCR(...) at module
+          # scope downloads 3 separate model files (det/rec/cls) from
+          # paddleocr.bj.bcebos.com on first run. Confirmed live (2026-07-10,
+          # E2E test attempt 3): this took under 60s on a fast run but
+          # exceeded it on a slower one -- the flagged startup-time risk from
+          # code review was real, just network-variance-dependent, not a
+          # fixed cost. 180s gives real headroom without being unbounded (the
+          # job itself still has its own 10-minute ceiling as a backstop).
+          for i in $(seq 1 60); do
             if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
-              echo "Container healthy after ${i}x2s"
+              echo "Container healthy after ${i}x3s"
               exit 0
             fi
-            sleep 2
+            sleep 3
           done
-          echo "::error::container did not become healthy within 60s"
+          echo "::error::container did not become healthy within 180s"
           docker logs docproc || true
           exit 1
 
