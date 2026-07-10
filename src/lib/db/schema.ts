@@ -7740,3 +7740,24 @@ export const applicationErrors = complianceSchemaDB.table('application_errors', 
   digestId: text('digest_id'), // Next.js's own error digest, for cross-referencing Vercel's log output to this row
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// T0.4 (docs/infra/TOOL_INTEGRATION_PLAN.md): tracking table for on-demand
+// doc-processing jobs (PaddleOCR/Docling/Whisper.cpp/LibreOffice). The app
+// creates a row (status='pending') before dispatching a repository_dispatch
+// event, then polls (or subscribes via Realtime once task #14 lands) for
+// the GitHub Actions runner's service-role write to flip status to
+// completed/failed and populate result. Tenant-isolated like normal org
+// data (unlike applicationErrors above) -- a job always has a known org_id
+// from the moment the app creates the row, before dispatch even happens.
+export const docProcessingJobs = complianceSchemaDB.table('doc_processing_jobs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  operation: text('operation').notNull(), // 'ocr' | 'parse-document' | 'transcribe' | 'convert'
+  status: text('status').notNull().default('pending'), // 'pending' | 'running' | 'completed' | 'failed'
+  inputRef: text('input_ref').notNull(), // Supabase Storage path/signed URL -- never the raw file
+  result: jsonb('result'),
+  error: text('error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
