@@ -47,7 +47,7 @@ export function MismatchBubble({ mismatch, onResolved }: { mismatch: MismatchInf
       <div className="max-w-[80%] rounded-xl border border-ct-saffron/40 bg-ct-saffron/10 px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
           <Bot className="size-4 text-ct-saffron" />
-          <span className="text-[11px] font-bold uppercase tracking-wide text-ct-saffron">VERIDIAN AI -- possible mismatch</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-ct-saffron">VERI -- possible mismatch</span>
         </div>
         <p className="text-sm text-ct-navy">{mismatch.comparisonSummary}</p>
         {!resolved ? (

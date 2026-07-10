@@ -128,7 +128,7 @@ export function ThreadView({
   }
 
   const otherName = conversation.otherParticipants[0]?.name;
-  const title = conversation.isAiThread ? "VERIDIAN AI" : conversation.title || otherName || "Conversation";
+  const title = conversation.isAiThread ? "VERI" : conversation.title || otherName || "Conversation";
 
   return (
     <div className="flex flex-col h-full">
@@ -234,7 +234,7 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
         {isAi && (
           <div className="flex items-center gap-1 mb-1">
             <Bot className="size-3.5 text-ct-teal" />
-            <span className="text-[10px] font-bold uppercase tracking-wide text-ct-teal">VERIDIAN AI</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-ct-teal">VERI</span>
           </div>
         )}
         {isGuest && (

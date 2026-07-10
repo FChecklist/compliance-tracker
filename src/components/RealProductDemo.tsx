@@ -78,7 +78,7 @@ function FrameHome() {
           <div>
             <div className="font-heading text-lg text-ct-navy">Good evening.</div>
             <div className="mt-1 text-sm text-ct-muted max-w-sm">
-              I&apos;m VERIDIAN, your AI assistant — tell me what you need and I&apos;ll do it for you. Here&apos;s where
+              I&apos;m VERI, your assistant — tell me what you need and I&apos;ll do it for you. Here&apos;s where
               things stand.
             </div>
           </div>

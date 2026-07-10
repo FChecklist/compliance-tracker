@@ -130,7 +130,7 @@ export function enforcePolicy(ctx: PolicyEnforcementContext, userMessage: string
 export function refusalMessageFor(decision: PolicyDecision): string {
   switch (decision.category) {
     case "personal_use":
-      return "VERIDIAN AI is an enterprise platform scoped to authorized business activities for your organisation. I can't help with personal or recreational requests -- happy to help with anything work-related instead."
+      return "I'm VERI, your assistant on the VERIDIAN AI OS platform, scoped to authorized business activities for your organisation. I can't help with personal or recreational requests -- happy to help with anything work-related instead."
     case "prompt_injection":
       return "I can't override my operating instructions or reveal internal configuration. I'm glad to help with any legitimate business task within my scope."
     case "out_of_domain":
