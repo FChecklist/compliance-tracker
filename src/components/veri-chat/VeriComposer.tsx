@@ -8,7 +8,8 @@
 // POST /api/tasks (task-service.ts:createTask, which already dispatches the
 // real task-execution engine) -- no new task-creation logic was needed.
 import { useEffect, useState } from "react";
-import { Send, Loader2, Paperclip, Zap, Plus } from "lucide-react";
+import Link from "next/link";
+import { Send, Loader2, Paperclip, Zap, Plus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { useVeriChat, FIXED_MODES, type CapabilityNode, type PathSegment } from "./veri-chat-context";
@@ -140,7 +141,7 @@ function expandPathsForSend(path: PathSegment[]): PathSegment[][] {
   });
 }
 
-export default function VeriComposer() {
+export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
   const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh } = useVeriChat();
 
   const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
@@ -497,9 +498,21 @@ export default function VeriComposer() {
             </div>
           </div>
         </div>
-        <p className="text-[11px] text-ct-muted mt-1.5 px-1">
-          {isThreadOpen ? "Enter sends" : isChainMode ? (chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing") : composerMode === "discuss" ? "Enter sends — ask anything, no task selection needed" : "Pick a conversation on the right to start typing"}
-        </p>
+        <div className="flex items-center justify-between mt-1.5 px-1">
+          <p className="text-[11px] text-ct-muted">
+            {isThreadOpen ? "Enter sends" : isChainMode ? (chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing") : composerMode === "discuss" ? "Enter sends — ask anything, no task selection needed" : "Pick a conversation on the right to start typing"}
+          </p>
+          {/* Connectors.docx wave (2026-07-10): minimal discovery affordance
+              -- most users never open the sidebar's ADMIN section, so VERI
+              Connect (13 one-click OAuth toolkits) was effectively
+              undiscoverable. Plain link to /connectors, not a popover --
+              real data-ingestion through these connections isn't built yet,
+              so there's nothing to preview inline here. */}
+          <Link href="/connectors" className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron transition-colors shrink-0" title="Connect your tools">
+            <Link2 className="size-3.5" />
+            {connectedConnectorsCount > 0 && <span className="font-semibold">{connectedConnectorsCount}</span>}
+          </Link>
+        </div>
 
         {isThreadOpen && (
           <button type="button" onClick={closeThread} className="text-[11.5px] font-semibold text-ct-saffron mt-1">
