@@ -17,7 +17,20 @@ export type ResolvedModelConfig = {
   fallback?: LLMFallback;
 };
 
-const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+
+// Wave (2026-07-10, founder directive): platform-default floor for text
+// orchestration, replacing the OpenRouter llama-3.3-70b-instruct default
+// (Wave 45) now that GROQ_API_KEY is live. GPT-OSS-120B is meaningfully
+// stronger than llama-3.3-70b while staying just as fast/cheap on Groq's
+// hardware -- this is the FLOOR every org gets before configuring anything
+// of their own, not a ceiling: GLM-5.2/DeepSeek/Claude remain available
+// higher up this same resolution chain (customer BYO config, shared pool)
+// for anything needing real reasoning, per the founder's explicit 90-day
+// "don't cut corners on cost" directive. Verified live against
+// api.groq.com/openai/v1/models 2026-07-10 as "openai/gpt-oss-120b".
+const PLATFORM_DEFAULT_PROVIDER: LLMProvider = "groq"
+const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
 
 function platformFallbackFor(primary: { provider: LLMProvider; model: string }): LLMFallback | undefined {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -95,8 +108,8 @@ export async function resolveModelConfig(orgId: string, layerKey: string): Promi
   }
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  const provider = (defaultConfig.provider as LLMProvider) ?? "groq";
-  const model = defaultConfig.model ?? "llama-3.3-70b-versatile";
+  const provider = (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
+  const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
   const apiKey = platformApiKeyFor(provider);
   if (!apiKey) return null;
 
@@ -162,8 +175,8 @@ export async function resolvePlatformModelConfig(layerKey: string): Promise<Reso
   if (!layer) return null;
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  const provider = (defaultConfig.provider as LLMProvider) ?? "groq";
-  const model = defaultConfig.model ?? "llama-3.3-70b-versatile";
+  const provider = (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
+  const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
   const platformApiKey = platformApiKeyFor(provider);
   if (platformApiKey) {
     return { provider, model, apiKey: platformApiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) };

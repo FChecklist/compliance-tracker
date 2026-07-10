@@ -119,6 +119,11 @@ async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
 const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: number }> = {
   "llama-3.3-70b-versatile": { promptPer1k: 0.00059, completionPer1k: 0.00079 }, // Groq
   "llama-3.1-8b-instant": { promptPer1k: 0.00005, completionPer1k: 0.00008 }, // Groq
+  // Groq (Wave 2026-07-10, new platform-default floor -- orchestra-model-
+  // resolver.ts's PLATFORM_DEFAULT_MODEL) -- verified live via
+  // openrouter.ai/api/v1/models 2026-07-10 as a reference point (Groq is
+  // itself a listed provider there for this model).
+  "openai/gpt-oss-120b": { promptPer1k: 0.000036, completionPer1k: 0.00018 }, // Groq
   "gpt-4o": { promptPer1k: 0.0025, completionPer1k: 0.01 },
   "gpt-4o-mini": { promptPer1k: 0.00015, completionPer1k: 0.0006 },
   "claude-sonnet-5": { promptPer1k: 0.003, completionPer1k: 0.015 },
@@ -156,6 +161,25 @@ function extraHeadersFor(baseUrl: string): Record<string, string> {
   return { "HTTP-Referer": "https://veridian-compliance-ai.vercel.app", "X-Title": "VERIDIAN AI OS" }
 }
 
+// Wave (2026-07-10, founder directive): pin specific OpenRouter models to a
+// preferred upstream provider rather than letting OpenRouter pick among
+// whichever of the model's ~15-25 listed providers happens to be cheapest/
+// fastest at request time -- both confirmed live as real provider options
+// via openrouter.ai/api/v1/models/{model}/endpoints 2026-07-10.
+// `allow_fallbacks` stays true (OpenRouter's own default): this is a
+// preference, not a hard requirement -- a DeepInfra/DeepSeek outage falls
+// back to another listed provider rather than failing the whole request.
+const OPENROUTER_PROVIDER_PREFERENCE: Record<string, string> = {
+  "z-ai/glm-5.2": "DeepInfra",
+  "deepseek/deepseek-v4-pro": "DeepSeek",
+}
+
+function openRouterProviderFor(baseUrl: string, model: string): { order: string[] } | undefined {
+  if (!baseUrl.includes("openrouter.ai")) return undefined
+  const preferred = OPENROUTER_PROVIDER_PREFERENCE[model]
+  return preferred ? { order: [preferred] } : undefined
+}
+
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,
@@ -175,6 +199,8 @@ async function callOpenAICompatible(
     max_tokens: options?.maxTokens ?? 2048,
   };
   if (options?.jsonMode) body.response_format = { type: "json_object" };
+  const providerPreference = openRouterProviderFor(baseUrl, model);
+  if (providerPreference) body.provider = providerPreference;
 
   const res = await fetch(baseUrl, {
     method: "POST",
@@ -334,6 +360,8 @@ async function callVisionOpenAICompatible(
     max_tokens: options?.maxTokens ?? 2048,
   };
   if (options?.jsonMode) body.response_format = { type: "json_object" };
+  const providerPreference = openRouterProviderFor(baseUrl, model);
+  if (providerPreference) body.provider = providerPreference;
 
   const res = await fetch(baseUrl, {
     method: "POST",
