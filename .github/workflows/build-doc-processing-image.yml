@@ -1,0 +1,42 @@
+name: Build & Push Doc Processing Image
+
+# Builds services/doc-processing/Dockerfile and pushes to GitHub Container
+# Registry. Written directly by the supervisor (not dispatched to
+# tool_integration_engineer/GPT-OSS-120B): the AI Workforce pipeline's
+# GITHUB_TOKEN has contents+pull-requests write only, not `workflows` --
+# GitHub hard-blocks any repo-write agent from creating or modifying a
+# workflow file at all, confirmed live via a failed T0.3 dispatch
+# (docs/infra/TOOL_INTEGRATION_PLAN.md), regardless of task wording. Every
+# workflow-file task in that plan is [SUPERVISOR], not [AGENT].
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/doc-processing/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: services/doc-processing
+          push: true
+          tags: |
+            ghcr.io/fchecklist/veridian-doc-processing:latest
+            ghcr.io/fchecklist/veridian-doc-processing:${{ github.sha }}
