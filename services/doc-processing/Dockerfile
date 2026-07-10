@@ -8,9 +8,13 @@ FROM python:3.11-slim
 # (2026-07-10): the original Dockerfile only installed libreoffice, which
 # would make `pip install -r requirements.txt` fail as soon as it reached
 # whisper-cpp-python on any platform without a prebuilt wheel.
+# swig: confirmed live (first real build attempt, 2026-07-10) that both
+# whisper-cpp-python AND PyMuPDF (a transitive dependency of docling, used
+# for its PDF parsing) fail to build their C-extension wheels without it --
+# "error: command 'swig' failed: No such file or directory".
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libreoffice build-essential cmake && \
+        libreoffice build-essential cmake swig && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
