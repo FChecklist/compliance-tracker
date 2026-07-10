@@ -158,6 +158,17 @@ async function escalateToGlm(systemPrompt, userMessage, opts = {}) {
   return content;
 }
 
+// Browser UX test findings (2026-07-10, docs/testing/BROWSER_UX_TEST_RESULTS.md
+// §6): plain `getByRole("textbox").first()` sometimes matched the global
+// Search box instead of the actual AI composer (confirmed via BAD_INPUT's
+// captured page state showing search/dashboard chrome, not composer
+// content). The composer's real placeholder text ("Tell your AI Assistant
+// what to do…" / "Select a task above to begin…") is distinctive --
+// matching on that instead of positional `.first()` removes the ambiguity.
+function getComposer(page) {
+  return page.getByPlaceholder(/tell your ai assistant|select a task above/i).first();
+}
+
 // ── Demo persona pool -- excludes gmail.com and bare veridianai.dev (real
 // accounts, never touched by automated testing) ────────────────────────
 const COMPANY_DOMAINS = [
@@ -291,7 +302,7 @@ const CHROME_DENYLIST = [
   /^[A-Za-z]$/, // bare single-letter avatar buttons
 ];
 async function capturePillsNearComposer(page) {
-  const composer = page.getByRole("textbox").first();
+  const composer = getComposer(page);
   const composerBox = await composer.boundingBox().catch(() => null);
   const allButtons = await page.getByRole("button").all();
   const names = [];
@@ -314,7 +325,12 @@ function pillDynamismTest(id, persona) {
     id, category: "PILL_DYNAMISM", persona, detail: persona.company,
     async run(page, result) {
       await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded", timeout: PER_TEST_TIMEOUT_MS });
-      await page.waitForSelector('textbox, [contenteditable], input[type="text"]', { timeout: 10000 }).catch(() => {});
+      // Browser UX test finding (§6.1): the previous wait used an invalid
+      // CSS selector ('textbox' isn't an HTML tag), so it silently did
+      // nothing -- under real concurrency, pill capture often ran before
+      // the client-side composer had actually hydrated. Waiting on the
+      // real composer element (by its distinctive placeholder) instead.
+      await getComposer(page).waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
       const pillStart = Date.now();
       result.pillCandidates = await capturePillsNearComposer(page);
       result.captureMs = Date.now() - pillStart;
@@ -352,7 +368,7 @@ function chatAiTest(id, persona, roleHint) {
       if (!result.composedMessage) throw new Error("Failed to compose a user message via any tier");
 
       await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded", timeout: PER_TEST_TIMEOUT_MS });
-      const composer = page.getByRole("textbox").first();
+      const composer = getComposer(page);
       await composer.click({ timeout: 8000 });
       await composer.fill(result.composedMessage);
       const submitStart = Date.now();
@@ -401,7 +417,7 @@ function badInputTest(id, persona) {
     id, category: "BAD_INPUT", persona, detail: "empty-submit",
     async run(page, result) {
       await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded", timeout: PER_TEST_TIMEOUT_MS });
-      const composer = page.getByRole("textbox").first();
+      const composer = getComposer(page);
       await composer.click({ timeout: 8000 });
       const beforeText = await page.locator("body").innerText().catch(() => "");
       // Deliberately NOT using submitComposer's send-button fallback here --
