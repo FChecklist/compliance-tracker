@@ -131,7 +131,7 @@ export async function parseAndExtractFromFile(
       })
     }
 
-    await db.update(fmRegisterDigitizationBatches).set({ status: "under_review", totalRowsExtracted: totalExtracted }).where(eq(fmRegisterDigitizationBatches.id, batch.id))
+    await db.update(fmRegisterDigitizationBatches).set({ status: "under_review", totalRowsExtracted: totalRowsExtracted }).where(eq(fmRegisterDigitizationBatches.id, batch.id))
     return { batchId: batch.id, totalRowsExtracted: totalExtracted }
   })
 }
@@ -147,13 +147,36 @@ export async function parseAndExtractFromPhoto(
   await requireFmEnabled(ctx.orgId)
   const modelConfig = await resolveModelConfig(ctx.orgId, LAYER_KEY)
   if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
-  const visionModel = VISION_MODEL_OVERRIDES[modelConfig.provider]
-  if (!visionModel) throw new ServiceError("This organisation's configured AI provider has no confirmed vision-capable model", 503)
+
+  // Same fallback discipline as document-extraction-service.ts: if the
+  // resolved provider has no confirmed-vision-capable model (e.g. the
+  // platform-default Groq, which has no vision model referenced in this
+  // codebase), fall back to the resolved config's own fallback provider
+  // (present on every resolved config) before giving up. Unlike
+  // document-extraction-service.ts (which is fire-and-forget and so records
+  // a failed orchestra_executions row on the genuine no-vision case), this
+  // is a synchronous request handler -- the 503 ServiceError below is
+  // already the discoverable signal to the caller, so no separate failed
+  // row is needed here.
+  let visionProvider: LLMProvider = modelConfig.provider
+  let visionApiKey: string = modelConfig.apiKey
+  let visionModel: string | undefined = VISION_MODEL_OVERRIDES[modelConfig.provider]
+
+  if (!visionModel && modelConfig.fallback) {
+    const fallbackVisionModel = VISION_MODEL_OVERRIDES[modelConfig.fallback.provider]
+    if (fallbackVisionModel) {
+      visionProvider = modelConfig.fallback.provider
+      visionApiKey = modelConfig.fallback.apiKey
+      visionModel = fallbackVisionModel
+    }
+  }
+
+  if (!visionModel) throw new ServiceError(`This organisation's configured AI provider${modelConfig.fallback ? ` and its fallback (${modelConfig.fallback.provider})` : ""} have no confirmed vision-capable model`, 503)
 
   const systemPrompt = await resolvePromptTemplate("fm.register_digitize_extract")
   const startedAt = Date.now()
   const { content, usage } = await callLLMVision(
-    modelConfig.provider, visionModel, modelConfig.apiKey,
+    visionProvider, visionModel, visionApiKey,
     systemPrompt, input.imageBase64, input.mimeType,
     'Extract every identifiable asset row from this photo of a physical asset register. Respond with ONLY JSON: { "rows": [ ...one object per row matching the extraction schema... ] }',
     { jsonMode: true, temperature: 0.1, maxTokens: 2048 }
@@ -179,7 +202,7 @@ export async function parseAndExtractFromPhoto(
       orgId: ctx.orgId, userId: ctx.userId, layerKey: LAYER_KEY, eventType: EVENT_TYPE,
       input: { documentId: input.documentId, mimeType: input.mimeType }, output: { extractedCount: extracted.length },
       status: "completed", durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: visionModel, usage,
+      provider: visionProvider, model: visionModel, usage,
     })
 
     return { batchId: batch.id, totalRowsExtracted: extracted.length }

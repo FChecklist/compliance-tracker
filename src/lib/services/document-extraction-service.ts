@@ -36,6 +36,18 @@ const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 // entry here, so visionModel was always undefined and every extraction
 // returned early with zero work done). openai/gpt-4o-mini confirmed
 // vision-capable live via https://openrouter.ai/api/v1/models 2026-07-04.
+//
+// Load-test fix (PR #117 follow-up): the platform default for
+// customer_account_oa is now groq/openai-gpt-oss-120b (text-only). Groq
+// has no entry here, so the old `if (!visionModel) return` made extraction
+// exit SILENTLY -- no model call, no error, no orchestra_executions row --
+// leaving Document AI vision extraction completely dead and invisible for
+// every org on the platform default. Now, when the resolved provider has no
+// vision override, we fall back to the resolved config's own fallback
+// provider (present on every resolved config) before giving up; and even in
+// the genuine no-vision case we record a status="failed"
+// orchestra_executions row so the skip is at minimum discoverable instead
+// of invisible. See the fallback block in extractDocumentContent() below.
 const VISION_MODEL_OVERRIDES: Partial<Record<LLMProvider, string>> = {
   openai: "gpt-4o",
   anthropic: "claude-sonnet-5",
@@ -70,14 +82,43 @@ export async function extractDocumentContent(
 
   // Whatever model was resolved (default or the org's own BYO config) was
   // chosen for text tasks on this layer -- never assume it can see an image.
-  // Always route to the known-vision-capable model for this provider instead.
-  const visionModel = VISION_MODEL_OVERRIDES[modelConfig.provider]
-  if (!visionModel) return // no confirmed vision-capable model for this provider -- skip rather than guess
+  // Always route to the known-vision-capable model for this provider
+  // instead. If the resolved provider has no confirmed-vision-capable model
+  // (e.g. the platform-default Groq), fall back to the resolved config's
+  // own fallback provider (present on every resolved config) before giving
+  // up. Previously this returned silently when the primary provider had no
+  // override -- leaving document AI vision extraction completely dead and
+  // invisible for every org on the platform default.
+  let visionProvider: LLMProvider = modelConfig.provider
+  let visionApiKey: string = modelConfig.apiKey
+  let visionModel: string | undefined = VISION_MODEL_OVERRIDES[modelConfig.provider]
+
+  if (!visionModel && modelConfig.fallback) {
+    const fallbackVisionModel = VISION_MODEL_OVERRIDES[modelConfig.fallback.provider]
+    if (fallbackVisionModel) {
+      visionProvider = modelConfig.fallback.provider
+      visionApiKey = modelConfig.fallback.apiKey
+      visionModel = fallbackVisionModel
+    }
+  }
+
+  if (!visionModel) {
+    // Genuine no-vision-capable-model case: record a discoverable failed
+    // row instead of exiting silently, so an operator can see WHY
+    // extraction didn't run rather than the upload appearing to succeed
+    // with no extracted data and no explanation.
+    recordOrchestraExecution({
+      orgId: ctx.orgId, userId: ctx.userId, layerKey: "customer_account_oa", eventType: "document.extract_content",
+      input: { documentId: ctx.documentId, mimeType: ctx.mimeType }, status: "failed", durationMs: Date.now() - startedAt,
+      output: { error: `No vision-capable model configured for provider "${modelConfig.provider}"${modelConfig.fallback ? ` or fallback provider "${modelConfig.fallback.provider}"` : ""} -- document extraction skipped` },
+    })
+    return
+  }
 
   try {
     const systemPrompt = await resolvePromptTemplate("document.extract_content")
     const { content, usage } = await callLLMVision(
-      modelConfig.provider, visionModel, modelConfig.apiKey,
+      visionProvider, visionModel, visionApiKey,
       systemPrompt, ctx.imageBase64, ctx.mimeType,
       "Analyze this document and respond with the required JSON.",
       { jsonMode: true, temperature: 0.1, maxTokens: 1024 }
@@ -92,7 +133,7 @@ export async function extractDocumentContent(
       orgId: ctx.orgId, userId: ctx.userId, layerKey: "customer_account_oa", eventType: "document.extract_content",
       input: { documentId: ctx.documentId, mimeType: ctx.mimeType }, output: { documentType: extracted.documentType },
       status: "completed", durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: visionModel, usage,
+      provider: visionProvider, model: visionModel, usage,
     })
   } catch (err) {
     console.error("Document extraction failed:", err)
