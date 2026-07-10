@@ -27,6 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [accountType, setAccountType] = useState("company");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [unreadAiCount, setUnreadAiCount] = useState(0);
+  const [connectedConnectorsCount, setConnectedConnectorsCount] = useState(0);
   const [pmsEnabled, setPmsEnabled] = useState(false);
   const [veriChatV2Enabled, setVeriChatV2Enabled] = useState(false);
   const [firmEnabled, setFirmEnabled] = useState(false);
@@ -49,6 +50,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setVeriChatV2Enabled(d.veriChatV2Enabled ?? false);
         setFirmEnabled(d.firmEnabled ?? false);
         setOrgName(d.orgName ?? "");
+      })
+      .catch(() => {});
+    // Connectors sidebar/composer badge (Connectors.docx wave, 2026-07-10):
+    // one-shot fetch, not polled -- connection status changes rarely enough
+    // (a user connecting/disconnecting a toolkit) that a 15s interval like
+    // unread chat counts would be pure waste; the /connectors page itself
+    // already polls live during an active OAuth handshake.
+    fetch("/api/connectors")
+      .then((r) => r.json())
+      .then((d) => {
+        const toolkits: { connected: boolean }[] = d.toolkits ?? [];
+        setConnectedConnectorsCount(toolkits.filter((t) => t.connected).length);
       })
       .catch(() => {});
 
@@ -90,7 +103,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             on the veriChatV2 branch; sidebarCollapsed stays false for every
             other org since the toggle button isn't rendered for them. */}
         {!(veriChatV2Enabled && sidebarCollapsed) && (
-          <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+          <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
         )}
         {veriChatV2Enabled ? (
           <ResizablePanelGroup direction="horizontal" autoSaveId="veridian-shell-panels" className="flex-1 overflow-hidden">
@@ -101,7 +114,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <TrialBanner />
                   {children}
                 </main>
-                <VeriComposer />
+                <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
               </div>
             </ResizablePanel>
             <ResizableHandle withHandle />
