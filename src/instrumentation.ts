@@ -12,9 +12,28 @@
 // throw again (that would make error *reporting* itself a source of
 // errors) and this file must not import anything Edge-incompatible at
 // module scope, since Next.js loads instrumentation.ts for every runtime.
+//
+// Sentry added 2026-07-10 (46-tool sweep, docs/infra/TOOL_INTEGRATION_PLAN.md
+// §6): captured ALONGSIDE the existing applicationErrors DB write below, not
+// instead of it -- Sentry gives live alerting/stack-trace grouping that a
+// plain DB table can't, but the DB write stays as the zero-dependency
+// fallback (matters if SENTRY_DSN is ever unset/misconfigured). Sentry.init
+// with an undefined dsn safely no-ops, so this whole file behaves exactly as
+// before until a real SENTRY_DSN secret is added.
 import type { Instrumentation } from "next"
+import * as Sentry from "@sentry/nextjs"
 
-export const onRequestError: Instrumentation.onRequestError = async (err, request) => {
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("../sentry.server.config")
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("../sentry.edge.config")
+  }
+}
+
+export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
+  Sentry.captureRequestError(err, request, context)
   try {
     // Dynamic import so a DB-import failure in an Edge context (e.g. the
     // MCP route, which deliberately runs on Edge and doesn't have Node's
