@@ -32,7 +32,29 @@ const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 const PLATFORM_DEFAULT_PROVIDER: LLMProvider = "groq"
 const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
 
+// Wave (2026-07-10, founder directive): Cerebras added as a second host for
+// the SAME floor-tier model -- "Groq is free, Cerebras is paid," loaded
+// with $10 of prepaid credit specifically as a reliability backstop, not a
+// second cheap option to shop between. Cerebras's own API returns this
+// model under a different id than Groq's ("gpt-oss-120b", no "openai/"
+// prefix -- confirmed live via api.cerebras.ai/v1/models). Kept as its own
+// named constant rather than inlined so platformFallbackFor() below reads
+// as an obvious one-line policy: same model, different (paid) infra, only
+// when the free primary is actually down.
+const CEREBRAS_GPT_OSS_MODEL = "gpt-oss-120b"
+
 function platformFallbackFor(primary: { provider: LLMProvider; model: string }): LLMFallback | undefined {
+  // Same-model failover for the floor tier specifically: if Groq's
+  // gpt-oss-120b is the primary and it fails, retry the SAME model on
+  // Cerebras rather than dropping to a weaker free OpenRouter model --
+  // preserves quality on failover, not just uptime. Falls through to the
+  // generic OpenRouter fallback below for every other primary (including
+  // when CEREBRAS_API_KEY isn't configured).
+  if (primary.provider === PLATFORM_DEFAULT_PROVIDER && primary.model === PLATFORM_DEFAULT_MODEL) {
+    const cerebrasKey = platformApiKeyFor("cerebras")
+    if (cerebrasKey) return { provider: "cerebras", model: CEREBRAS_GPT_OSS_MODEL, apiKey: cerebrasKey }
+  }
+
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return undefined;
   if (primary.provider === "openrouter" && primary.model === PLATFORM_FALLBACK_MODEL) return undefined;
@@ -50,6 +72,7 @@ export function platformApiKeyFor(provider: LLMProvider): string | undefined {
     case "openai": return process.env.OPENAI_API_KEY;
     case "anthropic": return process.env.ANTHROPIC_API_KEY;
     case "google": return process.env.GOOGLE_API_KEY;
+    case "cerebras": return process.env.CEREBRAS_API_KEY;
   }
 }
 
