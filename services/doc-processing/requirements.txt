@@ -1,0 +1,7 @@
+fastapi==0.110.0
+uvicorn[standard]==0.27.0
+paddlepaddle==2.6.2
+paddleocr==2.7.0.2
+PyMuPDF==1.28.0
+docling==2.94.0
+whisper-cpp-python==0.2.0
