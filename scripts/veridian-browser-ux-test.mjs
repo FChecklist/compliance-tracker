@@ -121,10 +121,19 @@ async function throttleCerebras() {
 // under the same $3 cap used throughout this whole test series. A second
 // low-confidence/failure signal escalates once to GLM-5.2 under its own $1
 // cap -- same tiered-budget model as the two service-layer load tests.
+// Smoke-test finding (2026-07-10): a Groq call can return HTTP 200 with an
+// empty/whitespace completion (no error thrown), which withRetry treats as
+// success -- silently skipping the Cerebras/GLM fallback chain entirely.
+// nonEmpty() turns that into an explicit failure so the same retry/fallover
+// logic below actually engages instead of returning "" as if it worked.
+function nonEmpty(content) {
+  if (!content || !content.trim()) throw new Error("LLM returned empty content");
+  return content;
+}
 async function generateUserAction(systemPrompt, userMessage, opts = {}) {
   totalLlmCalls++;
   try {
-    return (await withRetry("groq gen", () => callLLM("groq", "openai/gpt-oss-120b", GROQ_KEY, systemPrompt, userMessage, opts), 2)).content;
+    return nonEmpty((await withRetry("groq gen", async () => { const r = await callLLM("groq", "openai/gpt-oss-120b", GROQ_KEY, systemPrompt, userMessage, opts); nonEmpty(r.content); return r; }, 2)).content);
   } catch (groqErr) {
     log(`Groq failed, falling over to Cerebras: ${String(groqErr).slice(0, 150)}`);
     if (cerebrasSpend >= CEREBRAS_BUDGET_USD) {
@@ -132,14 +141,19 @@ async function generateUserAction(systemPrompt, userMessage, opts = {}) {
       return escalateToGlm(systemPrompt, userMessage, opts);
     }
     await throttleCerebras();
-    const { content, usage } = await withRetry("cerebras gen", () => callLLM("cerebras", "gpt-oss-120b", CEREBRAS_KEY, systemPrompt, userMessage, opts), 2);
-    cerebrasSpend += estimateCostUsd("gpt-oss-120b", usage);
-    return content;
+    try {
+      const { content, usage } = await withRetry("cerebras gen", async () => { const r = await callLLM("cerebras", "gpt-oss-120b", CEREBRAS_KEY, systemPrompt, userMessage, opts); nonEmpty(r.content); return r; }, 2);
+      cerebrasSpend += estimateCostUsd("gpt-oss-120b", usage);
+      return content;
+    } catch (cerebrasErr) {
+      log(`Cerebras also failed, escalating to GLM-5.2: ${String(cerebrasErr).slice(0, 150)}`);
+      return escalateToGlm(systemPrompt, userMessage, opts);
+    }
   }
 }
 async function escalateToGlm(systemPrompt, userMessage, opts = {}) {
   if (glmSpend >= GLM_BUDGET_USD) { log("GLM-5.2 budget hit -- skipping escalation, using last-known content"); return null; }
-  const { content, usage } = await withRetry("glm escalate", () => callLLM("openrouter", "z-ai/glm-5.2", OPENROUTER_KEY, systemPrompt, userMessage, opts), 2);
+  const { content, usage } = await withRetry("glm escalate", async () => { const r = await callLLM("openrouter", "z-ai/glm-5.2", OPENROUTER_KEY, systemPrompt, userMessage, opts); nonEmpty(r.content); return r; }, 2);
   glmSpend += estimateCostUsd("z-ai/glm-5.2", usage);
   return content;
 }
@@ -263,6 +277,38 @@ function moduleNavTest(id, persona, moduleName) {
 // PILL_DYNAMISM: capture the mode-pill set + chain options on Home for a
 // given persona/company, so results can be diffed across companies/modules
 // to confirm the set genuinely changes (not a static, hardcoded list).
+// Smoke-test finding (2026-07-10): collecting every button on the page
+// pulled in top-bar chrome (search shortcut, avatar/name button) that isn't
+// a mode pill at all, and the "click the first non-excluded button" logic
+// then clicked search chrome instead of a real module pill. Fixed with (a)
+// a denylist of known non-pill chrome text and (b) restricting candidates
+// to buttons positioned near the composer textbox specifically (pills
+// render directly above/around it, not in the top bar or sidebar).
+const CHROME_DENYLIST = [
+  /^search/i, /^switch to (dark|light) mode$/i, /^open help$/i, /^attach a document$/i,
+  /^open next\.js dev tools$/i, /^hide sidebar$/i, /^show sidebar$/i,
+  /^[A-Z][a-z]+\.[a-z0-9.]+$/, // avatar-initial+username buttons, e.g. "Rrohit.sharma.0" (initial glued to the persona's dotted email-style username)
+  /^[A-Za-z]$/, // bare single-letter avatar buttons
+];
+async function capturePillsNearComposer(page) {
+  const composer = page.getByRole("textbox").first();
+  const composerBox = await composer.boundingBox().catch(() => null);
+  const allButtons = await page.getByRole("button").all();
+  const names = [];
+  for (const b of allButtons) {
+    const name = (await b.textContent().catch(() => null))?.trim();
+    if (!name || name.length === 0 || name.length >= 40) continue;
+    if (CHROME_DENYLIST.some((re) => re.test(name))) continue;
+    if (composerBox) {
+      const box = await b.boundingBox().catch(() => null);
+      if (!box) continue;
+      const verticalDistance = Math.abs((box.y + box.height / 2) - (composerBox.y + composerBox.height / 2));
+      if (verticalDistance > 500) continue; // outside the composer/pill/chain region
+    }
+    names.push(name);
+  }
+  return [...new Set(names)];
+}
 function pillDynamismTest(id, persona) {
   return {
     id, category: "PILL_DYNAMISM", persona, detail: persona.company,
@@ -270,17 +316,7 @@ function pillDynamismTest(id, persona) {
       await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded", timeout: PER_TEST_TIMEOUT_MS });
       await page.waitForSelector('textbox, [contenteditable], input[type="text"]', { timeout: 10000 }).catch(() => {});
       const pillStart = Date.now();
-      // Mode pills render as buttons in the composer chain area -- collect
-      // every visible button whose name isn't a known non-pill chrome
-      // element, since the pill set is genuinely dynamic per org/module
-      // (that dynamism is exactly what's under test, so no fixed allowlist).
-      const allButtons = await page.getByRole("button").all();
-      const names = [];
-      for (const b of allButtons) {
-        const name = await b.textContent().catch(() => null);
-        if (name && name.trim().length > 0 && name.trim().length < 40) names.push(name.trim());
-      }
-      result.pillCandidates = [...new Set(names)];
+      result.pillCandidates = await capturePillsNearComposer(page);
       result.captureMs = Date.now() - pillStart;
       // Try selecting the first module-like pill (not Discuss/Chats/To Do,
       // which are fixed navigation tabs, not module-specific) to capture
@@ -289,14 +325,8 @@ function pillDynamismTest(id, persona) {
       if (modulePill) {
         await page.getByRole("button", { name: modulePill, exact: true }).first().click({ timeout: 8000 }).catch(() => {});
         await page.waitForTimeout(800);
-        const chainButtons = await page.getByRole("button").all();
-        const chainNames = [];
-        for (const b of chainButtons) {
-          const name = await b.textContent().catch(() => null);
-          if (name && name.trim().length > 0 && name.trim().length < 40) chainNames.push(name.trim());
-        }
         result.chainAfterSelectingPill = modulePill;
-        result.chainOptions = [...new Set(chainNames)].filter((n) => !result.pillCandidates.includes(n));
+        result.chainOptions = (await capturePillsNearComposer(page)).filter((n) => !result.pillCandidates.includes(n));
       }
       if (result.pillCandidates.length === 0) throw new Error("No mode pills found on Home page");
     },
