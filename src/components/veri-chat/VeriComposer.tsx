@@ -68,12 +68,12 @@ function AiThreadSwitcher() {
     <div className="flex items-center gap-2 mb-2">
       <Select value={activeAiThreadId ?? undefined} onValueChange={switchAiThread}>
         <SelectTrigger className="h-8 w-[220px] text-xs">
-          <SelectValue placeholder="VERIDIAN AI" />
+          <SelectValue placeholder="VERI" />
         </SelectTrigger>
         <SelectContent>
           {aiThreads.map((t) => (
             <SelectItem key={t.id} value={t.id}>
-              {t.isPrimary ? "VERIDIAN AI (default)" : (t.title || "Untitled workflow")}
+              {t.isPrimary ? "VERI (default)" : (t.title || "Untitled workflow")}
             </SelectItem>
           ))}
         </SelectContent>
@@ -536,7 +536,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
                 for every category -- predefined text, not generated. */}
             {pendingConfirmation?.category && pendingConfirmation.category in HIGH_IMPACT_CATEGORY_GUIDANCE
               ? HIGH_IMPACT_CATEGORY_GUIDANCE[pendingConfirmation.category as HighImpactCategory]
-              : "VERIDIAN never runs actions like this without your explicit go-ahead. Continue?"}
+              : "VERI never runs actions like this without your explicit go-ahead. Continue?"}
             {pendingConfirmation?.matchedPhrase && (
               <span className="block mt-1.5 text-xs text-ct-muted">Matched: &quot;{pendingConfirmation.matchedPhrase}&quot;</span>
             )}

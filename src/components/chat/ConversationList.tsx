@@ -32,7 +32,7 @@ export function ConversationList({
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {conversations.map((c) => {
-        const name = c.isAiThread ? "VERIDIAN AI" : c.title || c.otherParticipants[0]?.name || "Conversation";
+        const name = c.isAiThread ? "VERI" : c.title || c.otherParticipants[0]?.name || "Conversation";
         const isActive = c.id === selectedId;
         return (
           <button

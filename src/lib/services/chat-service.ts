@@ -50,7 +50,7 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
     // instead of reading it back from RETURNING sidesteps that entirely.
     const newConversationId = createId()
     await db.insert(conversations).values({
-      id: newConversationId, orgId: ctx.orgId, type: "ai", isAiThread: true, title: "VERIDIAN AI",
+      id: newConversationId, orgId: ctx.orgId, type: "ai", isAiThread: true, title: "VERI",
     })
     await db.insert(conversationParticipants).values({ conversationId: newConversationId, userId: ctx.userId })
 
@@ -66,7 +66,7 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
       conversationId: newConversationId,
       senderId: null,
       content:
-        `Hi${first ? ` ${first}` : ""} — I'm **VERIDIAN**, your new assistant, reporting for work. 👋\n\n` +
+        `Hi${first ? ` ${first}` : ""} — I'm **VERI**, your assistant, reporting for work. 👋\n\n` +
         `Your workspace is set up and all your modules are switched on — finance, sales, CRM, HR, operations, compliance. From today, you tell me what you need in plain words, and I do it.\n\n` +
         `Three easy ways to start:\n` +
         `1. **Give me a task** — "raise an invoice", "add my first customer", "set up payroll".\n` +
@@ -368,7 +368,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({
         conversationId, senderId: null,
-        content: "No AI model is configured for this organisation yet. Set one up in Settings -> AI Configuration to chat with VERIDIAN AI.",
+        content: "No AI model is configured for this organisation yet. Set one up in Settings -> AI Configuration to chat with VERI.",
       }).returning()
     )
   }
