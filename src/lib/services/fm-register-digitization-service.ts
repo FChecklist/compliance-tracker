@@ -131,7 +131,7 @@ export async function parseAndExtractFromFile(
       })
     }
 
-    await db.update(fmRegisterDigitizationBatches).set({ status: "under_review", totalRowsExtracted: totalRowsExtracted }).where(eq(fmRegisterDigitizationBatches.id, batch.id))
+    await db.update(fmRegisterDigitizationBatches).set({ status: "under_review", totalRowsExtracted: totalExtracted }).where(eq(fmRegisterDigitizationBatches.id, batch.id))
     return { batchId: batch.id, totalRowsExtracted: totalExtracted }
   })
 }
