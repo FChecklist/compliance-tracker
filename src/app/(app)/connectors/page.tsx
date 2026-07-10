@@ -11,7 +11,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
   Mail, HardDrive, Calendar, Check, Loader2,
-  MailOpen, Cloud, Share2, Users, Slack, FileText, Github, Package, Box, BookOpen,
+  MailOpen, Cloud, Share2, Users, MessageSquare, FileText, GitBranch, Package, Box, BookOpen,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,9 +33,9 @@ const TOOLKIT_ICONS: Record<string, React.ElementType> = {
   one_drive: Cloud,
   share_point: Share2,
   microsoft_teams: Users,
-  slack: Slack,
+  slack: MessageSquare,
   notion: FileText,
-  github: Github,
+  github: GitBranch,
   dropbox: Package,
   box: Box,
   confluence: BookOpen,
