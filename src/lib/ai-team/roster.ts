@@ -91,6 +91,12 @@ const GLM_5V_TURBO = "z-ai/glm-5v-turbo" // vision-capable: reads designs/screen
 const GLM_5_TURBO = "z-ai/glm-5-turbo" // high-volume/low-stakes: fast, cheap, bulk work
 const GEMINI_25_PRO = "google/gemini-2.5-pro" // deep research/analysis, kept from the original roster
 const GPT_55 = "openai/gpt-5.5" // genuinely independent second opinion (different vendor than the primary reviewer)
+// DEEPSEEK_V4_PRO (added 2026-07-10, founder decision): available model option, not yet
+// assigned to a role. Founder discarded the plan to fund a direct ANTHROPIC_API_KEY for a
+// headless "Claude" dispatch agent (AGENTS.md's claude-task path, which never had a working
+// job behind it anyway -- ai-dispatch.yml only implements a zai-agent stub) in favor of
+// this OpenRouter-routed model, verified live against openrouter.ai/api/v1/models 2026-07-10.
+const DEEPSEEK_V4_PRO = "deepseek/deepseek-v4-pro" // reserved for future role assignment, not wired to any role yet
 
 export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // ─── Human ───────────────────────────────────────────────────────────

@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 // screen, per the founder's "idiot proof, one button" requirement.
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Mail, HardDrive, Calendar, Check, Loader2 } from "lucide-react";
+import {
+  Mail, HardDrive, Calendar, Check, Loader2,
+  MailOpen, Cloud, Share2, Users, Slack, FileText, Github, Package, Box, BookOpen,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +29,16 @@ const TOOLKIT_ICONS: Record<string, React.ElementType> = {
   gmail: Mail,
   googledrive: HardDrive,
   googlecalendar: Calendar,
+  outlook: MailOpen,
+  one_drive: Cloud,
+  share_point: Share2,
+  microsoft_teams: Users,
+  slack: Slack,
+  notion: FileText,
+  github: Github,
+  dropbox: Package,
+  box: Box,
+  confluence: BookOpen,
 };
 
 export default function ConnectorsPage() {
