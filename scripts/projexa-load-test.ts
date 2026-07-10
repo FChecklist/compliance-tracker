@@ -7,7 +7,7 @@ import { db, organisations, users, products, projects, constructionBoqs, constru
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { createId } from "@paralleldrive/cuid2";
 import { createTask } from "../src/lib/services/task-service";
-import { callLLMJson } from "../src/lib/llm-client";
+import { callLLMJson, estimateCostUsd } from "../src/lib/llm-client";
 import { writeFileSync, appendFileSync, mkdirSync } from "fs";
 
 // ── Guardrails (docs/testing/PROJEXA_LOAD_TEST_PROTOCOL.md §5) ─────────────
@@ -21,6 +21,15 @@ const ERROR_RATE_WINDOW = 50;
 
 const GROQ_KEY = process.env.GROQ_API_KEY;
 if (!GROQ_KEY) throw new Error("GROQ_API_KEY not set");
+// Groq's free tier for openai/gpt-oss-120b turned out to have a 200,000
+// TPD (tokens/day) cap on top of RPM/TPM -- confirmed exhausted live during
+// this run's persona-generation phase (a real finding, see results report).
+// Per Boss's tiered budget ("free Groq and Cerebras first, then paid
+// Cerebras up to $3"), generation now runs on Cerebras instead -- same
+// gpt-oss-120b model, so "let these 100 users be created at GPT-OSS-120B"
+// still holds; only the hosting provider changed.
+const CEREBRAS_KEY = process.env.CEREBRAS_API_KEY;
+if (!CEREBRAS_KEY) throw new Error("CEREBRAS_API_KEY not set");
 
 // Retry wrapper for transient network/connection blips (seen repeatedly
 // this session against both GitHub and Supabase/Postgres connections --
@@ -40,6 +49,17 @@ async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 3): 
     }
   }
   throw lastErr;
+}
+
+// Cerebras rate limits for gpt-oss-120b are untested by us -- start with
+// light spacing (well under Groq's old 8s floor, since Cerebras is a paid
+// per-token API rather than a shared free RPM/TPM/TPD pool) and let
+// withRetry's backoff absorb any 429s we do hit.
+let lastCerebrasCallAt = 0;
+async function throttleCerebras() {
+  const wait = 1500 - (Date.now() - lastCerebrasCallAt);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastCerebrasCallAt = Date.now();
 }
 
 const dryRunArg = process.argv.find((a) => a.startsWith("--dry-run="));
@@ -71,6 +91,12 @@ type GeneratedTask = { title: string; description: string; kind: "normal" | "edi
 
 const startedAt = Date.now();
 let totalLlmCalls = 0;
+// Generation-phase calls (persona/task gen) now run on paid Cerebras and
+// don't pass through the app's orchestra_executions logging, so their spend
+// has to be tracked here and folded into the same $CEREBRAS_BUDGET_USD cap
+// the execution phase checks via providerSpend() -- one unified budget,
+// not two separate ones.
+let generationCerebrasSpend = 0;
 const recentOutcomes: boolean[] = []; // true = success, for the rolling error-rate window
 
 function timeExceeded(): boolean {
@@ -144,19 +170,28 @@ async function main() {
   }
   log(`Created ${userRows.length} synthetic users`);
 
-  // ── 2. Persona generation (GPT-OSS-120B via Groq) ───────────────────────
+  // ── 2. Persona generation (GPT-OSS-120B via Cerebras) ───────────────────
   const personas: Persona[] = [];
   for (let i = 0; i < userRows.length; i++) {
     const seed = personaSeeds[i];
     const u = userRows[i];
+    if (generationCerebrasSpend >= CEREBRAS_BUDGET_USD) {
+      log(`Cerebras generation budget ($${CEREBRAS_BUDGET_USD}) hit -- falling back to template context for remaining personas.`);
+      personas.push({ userId: u.id, name: u.name, role: seed.role, context: `${seed.role} on the Phase 2 tower block project.` });
+      continue;
+    }
     try {
-      const { data } = await withRetry(`persona gen ${u.id}`, () => callLLMJson<{ context: string }>(
-        "groq", "openai/gpt-oss-120b", GROQ_KEY,
-        "You generate a realistic 1-2 sentence work context for a construction-company employee, given their role. Respond as JSON: {\"context\": \"...\"}",
-        `Role: ${seed.role}. Company: mid-size construction firm running a tower-block project.`,
-        { temperature: 0.7, maxTokens: 120 }
-      ), 2);
+      const { data, usage } = await withRetry(`persona gen ${u.id}`, async () => {
+        await throttleCerebras();
+        return callLLMJson<{ context: string }>(
+          "cerebras", "gpt-oss-120b", CEREBRAS_KEY,
+          "You generate a realistic 1-2 sentence work context for a construction-company employee, given their role. Respond as JSON: {\"context\": \"...\"}",
+          `Role: ${seed.role}. Company: mid-size construction firm running a tower-block project.`,
+          { temperature: 0.7, maxTokens: 400 }
+        );
+      }, 4);
       totalLlmCalls++;
+      generationCerebrasSpend += estimateCostUsd("gpt-oss-120b", usage) ?? 0;
       personas.push({ userId: u.id, name: u.name, role: seed.role, context: data.context });
     } catch (err) {
       log(`Persona generation failed for ${u.id}: ${err instanceof Error ? err.message : err}`);
@@ -164,19 +199,27 @@ async function main() {
     }
     if (timeExceeded()) { log("Wall-clock limit hit during persona generation -- halting."); break; }
   }
-  log(`Generated ${personas.length} personas (${totalLlmCalls} LLM calls so far)`);
+  log(`Generated ${personas.length} personas (${totalLlmCalls} LLM calls so far, Cerebras gen spend=$${generationCerebrasSpend.toFixed(4)})`);
 
   // ── 3. Task generation per persona ──────────────────────────────────────
   const allTasks: { persona: Persona; task: GeneratedTask }[] = [];
   for (const persona of personas) {
+    if (generationCerebrasSpend >= CEREBRAS_BUDGET_USD) {
+      log(`Cerebras generation budget ($${CEREBRAS_BUDGET_USD}) hit -- skipping task gen for remaining personas (they contribute 0 tasks, not a fabricated fallback).`);
+      break;
+    }
     try {
-      const { data } = await withRetry(`task gen ${persona.userId}`, () => callLLMJson<{ tasks: GeneratedTask[] }>(
-        "groq", "openai/gpt-oss-120b", GROQ_KEY,
-        `You generate realistic work-task requests for a construction-company employee, phrased the way they'd actually type them into an internal AI assistant. Generate exactly ${TASKS_PER_PERSONA} tasks. ~10% should be "edit" kind (a correction/follow-up to a prior request, e.g. "actually, change that to..."), ~5% "ambiguous" kind (vague or referencing something that may not exist in the system), the rest "normal". Respond as JSON: {"tasks": [{"title": "...", "description": "...", "kind": "normal"|"edit"|"ambiguous"}]}`,
-        `Employee role: ${persona.role}. Context: ${persona.context}. Generate ${TASKS_PER_PERSONA} realistic tasks this person would ask a PROJEXA/construction AI assistant to help with (budget status, KPIs, progress summaries, risk detection, site diary, BOQ, procurement, etc. -- whatever fits this specific role).`,
-        { temperature: 0.8, maxTokens: 600 }
-      ), 2);
+      const { data, usage } = await withRetry(`task gen ${persona.userId}`, async () => {
+        await throttleCerebras();
+        return callLLMJson<{ tasks: GeneratedTask[] }>(
+          "cerebras", "gpt-oss-120b", CEREBRAS_KEY,
+          `You generate realistic work-task requests for a construction-company employee, phrased the way they'd actually type them into an internal AI assistant. Generate exactly ${TASKS_PER_PERSONA} tasks. ~10% should be "edit" kind (a correction/follow-up to a prior request, e.g. "actually, change that to..."), ~5% "ambiguous" kind (vague or referencing something that may not exist in the system), the rest "normal". Respond as JSON: {"tasks": [{"title": "...", "description": "...", "kind": "normal"|"edit"|"ambiguous"}]}`,
+          `Employee role: ${persona.role}. Context: ${persona.context}. Generate ${TASKS_PER_PERSONA} realistic tasks this person would ask a PROJEXA/construction AI assistant to help with (budget status, KPIs, progress summaries, risk detection, site diary, BOQ, procurement, etc. -- whatever fits this specific role). Keep each title/description brief (under 20 words) -- token budget is tight.`,
+          { temperature: 0.8, maxTokens: 900 }
+        );
+      }, 4);
       totalLlmCalls++;
+      generationCerebrasSpend += estimateCostUsd("gpt-oss-120b", usage) ?? 0;
       for (const t of (data.tasks ?? []).slice(0, TASKS_PER_PERSONA)) {
         allTasks.push({ persona, task: t });
       }
@@ -185,7 +228,7 @@ async function main() {
     }
     if (timeExceeded()) { log("Wall-clock limit hit during task generation -- halting."); break; }
   }
-  log(`Generated ${allTasks.length} tasks total (${totalLlmCalls} LLM calls so far)`);
+  log(`Generated ${allTasks.length} tasks total (${totalLlmCalls} LLM calls so far, Cerebras gen spend=$${generationCerebrasSpend.toFixed(4)})`);
 
   // ── 4. Execution, with concurrency cap + budget/time/error guardrails ──
   let executed = 0, succeeded = 0, failed = 0, overflowed = 0;
@@ -245,7 +288,7 @@ async function main() {
     if (timeExceeded()) { haltedReason = "wall-clock limit"; break; }
     if (errorRateExceeded()) { haltedReason = `error rate exceeded ${ERROR_RATE_HALT_THRESHOLD * 100}% over last ${ERROR_RATE_WINDOW} tasks`; break; }
 
-    const cerebrasSpend = await providerSpend(org.id, "cerebras");
+    const cerebrasSpend = (await providerSpend(org.id, "cerebras")) + generationCerebrasSpend;
     const glmSpend = await providerSpend(org.id, "openrouter");
     if (cerebrasSpend >= CEREBRAS_BUDGET_USD && glmSpend >= GLM_BUDGET_USD) {
       const remaining = allTasks.slice(cursor);
