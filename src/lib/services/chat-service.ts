@@ -4,13 +4,13 @@
 // exists to support the dual session/API-key actor shape those don't need).
 import {
   conversations, conversationParticipants, messages, messageAttachments, documents, conversationGuestAccess,
-  instructionCommitments, instructionMismatchDetections, users, taskExecutionPlan,
+  instructionCommitments, instructionMismatchDetections, users, taskExecutionPlan, tasks,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
-import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -20,6 +20,8 @@ import { redactPii } from "@/lib/pii-redaction"
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
 import { passesReplyGate } from "@/lib/ai-reply-gate"
 import { tryDeterministicRoute } from "@/lib/llm-routing-gate"
+import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
+import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { ServiceError } from "./compliance-service"
@@ -331,6 +333,26 @@ async function buildConversationHistory(
   })
 }
 
+// Escalation signal (2026-07-10, founder directive): `tasks` has no
+// conversationId column (checked directly, not assumed), so this can only
+// approximate "did the user's most recent task fail" org+user-wide, not
+// thread-scoped -- an honest limitation, not a precise signal. Bounded to
+// the last 10 minutes so a failure from days ago doesn't keep escalating
+// unrelated chat turns indefinitely.
+const RECENT_TASK_FAILURE_WINDOW_MS = 10 * 60 * 1000
+
+async function checkRecentTaskFailure(orgId: string, userId: string): Promise<boolean> {
+  return withTenantContext({ orgId, userId }, async (db) => {
+    const recent = await db.query.tasks.findFirst({
+      where: and(eq(tasks.orgId, orgId), eq(tasks.userId, userId)),
+      orderBy: (t, { desc }) => desc(t.updatedAt),
+      columns: { status: true, updatedAt: true },
+    })
+    if (!recent || recent.status !== "failed") return false
+    return Date.now() - recent.updatedAt.getTime() < RECENT_TASK_FAILURE_WINDOW_MS
+  })
+}
+
 async function generateAiReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
   // Wave 12: the first real call site for the User Assistant OA layer --
   // seeded since Wave 4 but dormant until now (no code path invoked it).
@@ -388,13 +410,63 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // matching Wave 144's stated intent for that field ("prove what was
     // actually asked of the LLM").
     const normalizedMessage = normalizeForLlm(userMessage)
-    const { content: reply, usage } = await callLLM(
-      modelConfig.provider, modelConfig.model, modelConfig.apiKey,
+
+    // Escalation (2026-07-10, founder directive): floor-tier calls
+    // (!isCustomerConfigured -- never overrides an org's own BYO model)
+    // check 3 deterministic pre-call signals; if any fire, this call skips
+    // the floor tier entirely rather than paying for it twice. Otherwise it
+    // runs the floor tier once, then checks ONE post-call signal (the
+    // reply hedging) and retries with the escalated model only if that
+    // fires -- so the common case (no signals) still costs exactly one
+    // cheap call, matching the whole reason GPT-OSS-120B was picked as the
+    // floor in the first place. See floor-tier-escalation.ts's header for
+    // the full reasoning (self-grading doesn't work, don't 2x every call).
+    let effectiveConfig = modelConfig
+    let escalation: { escalated: boolean; signals: EscalationSignal[]; matchedPhrase: string | null; originalModel: string } = {
+      escalated: false, signals: [], matchedPhrase: null, originalModel: modelConfig.model,
+    }
+
+    if (!modelConfig.isCustomerConfigured) {
+      const highImpact = detectHighImpactAction(userMessage)
+      const priorTaskFailed = await checkRecentTaskFailure(orgId, userId)
+      const preCall = checkPreCallEscalation({
+        userMessage, historyLength: history.length, isHighImpact: highImpact.isHighImpact, priorTaskFailed,
+      })
+      if (preCall.shouldEscalate) {
+        const escalated = escalatedPlatformConfig()
+        if (escalated) {
+          effectiveConfig = escalated
+          escalation = { escalated: true, signals: preCall.signals, matchedPhrase: preCall.matchedPhrase, originalModel: modelConfig.model }
+        }
+      }
+    }
+
+    let { content: reply, usage } = await callLLM(
+      effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
       systemPrompt,
       normalizedMessage,
       { temperature: 0.4, maxTokens: 800, history },
-      modelConfig.fallback
+      effectiveConfig.fallback
     )
+
+    if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
+      const lowConfidence = detectLowConfidenceResponse(reply)
+      if (lowConfidence.detected) {
+        const escalated = escalatedPlatformConfig()
+        if (escalated) {
+          const retried = await callLLM(
+            escalated.provider, escalated.model, escalated.apiKey,
+            systemPrompt, normalizedMessage,
+            { temperature: 0.4, maxTokens: 800, history },
+            escalated.fallback
+          )
+          reply = retried.content
+          usage = retried.usage
+          effectiveConfig = escalated
+          escalation = { escalated: true, signals: ["low_confidence"], matchedPhrase: lowConfidence.matchedPhrase, originalModel: modelConfig.model }
+        }
+      }
+    }
     // Phase 3 (Phase3_Design_by_Claude.md, software-first gate): this call
     // path has no tool-calling capability -- the reply is only ever stored
     // as a chat message -- so the one provable risk in the raw LLM text is
@@ -427,13 +499,19 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // phrase (no reply text at all) when it doesn't.
     recordOrchestraExecution({
       orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.ai_thread_reply",
-      input: { conversationId, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(normalizedMessage), historyTurnCount: history.length },
+      // `escalation` feeds Loop 14's (byo-model-audit.ts) pattern analysis --
+      // an org repeatedly escalating off the floor tier is a real signal its
+      // default should be raised, not something to leave buried per-call.
+      input: {
+        conversationId, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(normalizedMessage), historyTurnCount: history.length,
+        escalation,
+      },
       output: gateResult.passed
         ? { reply: redactPii(reply), replyLength: reply.length }
         : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
       status: gateResult.passed ? "completed" : "gated",
       durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
+      provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     })
     if (!gateResult.passed) {
       return withTenantContext({ orgId, userId }, (db) =>
