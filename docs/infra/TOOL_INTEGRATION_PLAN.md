@@ -80,7 +80,7 @@ Each tool maps to a real, code-confirmed gap found during this session's testing
 ## 5. Status
 
 As of 2026-07-10:
-- **Phase 0**: T0.2 (container skeleton) and T0.3 (build workflow) done and merged, validated via 4 real build-failure-fix iterations (hallucinated `paddlepaddle` version, missing `swig`, PyMuPDF source-compile incompatibility, PyMuPDF/paddleocr version conflict). T0.1 superseded (Fly.io needs a card). T0.4 (on-demand dispatch workflow, revised architecture) — next up.
+- **Phase 0: fully validated, first clean build confirmed 2026-07-10 17:49 UTC** (run `29111844037`, 8m19s, pushed to `ghcr.io/fchecklist/veridian-doc-processing:latest`). T0.2 (container skeleton) and T0.3 (build workflow) done and merged, validated via **5 real build-failure-fix iterations**: hallucinated `paddlepaddle` version → missing `swig` → PyMuPDF source-compile incompatibility (fixed via `python:3.10-slim` downgrade) → PyMuPDF/paddleocr version conflict (re-pinned to `1.20.2`) → `whisper-cpp-python`'s vendored CMakeLists.txt incompatible with modern CMake (fixed via `CMAKE_ARGS=-DCMAKE_POLICY_VERSION_MINIMUM=3.5`). T0.1 superseded (Fly.io needs a card). T0.4 (on-demand dispatch workflow) — next up.
 - **Phases 1, 2, 4, 5** (PaddleOCR, Docling, Whisper.cpp, LibreOffice): ready to proceed once T0.4 lands, using the on-demand GitHub Actions pattern.
 - **Phase 3 (Meilisearch): hosting decided (Render free tier, no card) — ready to proceed once T3.1's deploy step runs.**
 - **Phase 6 (Temporal): replaced with a native pattern (§3, T6.2) — same call already made for Langfuse and n8n. Not blocked on hosting anymore; ready to proceed once Phase 1's pattern is proven.**
