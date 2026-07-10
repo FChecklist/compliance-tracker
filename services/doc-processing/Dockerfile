@@ -1,4 +1,13 @@
-FROM python:3.11-slim
+# Pinned to 3.10, not 3.11: paddleocr==2.7.0.2 hard-requires PyMuPDF<1.21.0,
+# and no PyMuPDF release in that range ships a cp311 wheel (Python 3.11
+# support was added around PyMuPDF 1.21.x) -- would force a from-source build
+# that fails on modern GCC (confirmed live, 2026-07-10: "passing argument 1 of
+# 'delete_Font' from incompatible pointer type"). PyMuPDF 1.20.2 has a real
+# cp310 manylinux wheel, and every other pin here (docling>=3.10, paddlepaddle,
+# whisper-cpp-python>=3.9) supports 3.10, so downgrading the base image avoids
+# the conflict entirely instead of bumping paddleocr to a heavier 3.x/paddlex
+# dependency chain that nothing in the app has been written against yet.
+FROM python:3.10-slim
 
 # Install system dependencies
 # build-essential + cmake: whisper-cpp-python (requirements.txt) wraps the
