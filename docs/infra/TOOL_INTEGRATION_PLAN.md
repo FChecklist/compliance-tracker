@@ -30,7 +30,7 @@ Each tool maps to a real, code-confirmed gap found during this session's testing
 ### Phase 0 — shared foundation
 - **T0.1** `[SUPERVISOR]` Create Fly.io account, generate deploy API token, store as `FLY_API_TOKEN` GitHub secret. Create `ghcr.io` push access (uses existing `GITHUB_TOKEN`, no new secret needed).
 - **T0.2** `[AGENT]` Write `services/doc-processing/Dockerfile` — Python base image, installs PaddleOCR + Docling + a Whisper.cpp binary + LibreOffice (apt package `libreoffice`), exposes a FastAPI app on port 8080 with a `GET /health` endpoint returning `{"status":"ok"}`. No business logic yet — just the container skeleton + health check.
-- **T0.3** `[AGENT]` Write `.github/workflows/build-doc-processing-image.yml` — builds `services/doc-processing/Dockerfile` on changes to that path, pushes to `ghcr.io/fchecklist/veridian-doc-processing:latest` and `:${{ github.sha }}`.
+- **T0.3** `[SUPERVISOR]` (reclassified 2026-07-10 — see §6) `.github/workflows/build-doc-processing-image.yml` — builds `services/doc-processing/Dockerfile` on changes to that path, pushes to `ghcr.io/fchecklist/veridian-doc-processing:latest` and `:${{ github.sha }}`. **Done.**
 - **T0.4** `[SUPERVISOR]` First build + deploy of the skeleton service to Fly.io, confirm `/health` responds. Document the app name/URL in `docs/infra/doc-processing-service.md` (new file, agent creates the skeleton in T0.2's docs requirement, supervisor fills in the real deployed URL).
 
 ### Phase 1 — PaddleOCR (highest priority, confirmed gap)
@@ -71,6 +71,7 @@ Each tool maps to a real, code-confirmed gap found during this session's testing
 - Every PR audited by Super Boss before merge (same Rule 7c cross-audit already standard this session) — GPT-OSS-120B is smaller/cheaper than GLM-5.2, expect a higher rate of needed corrections, not a lower one.
 - No task proceeds to the next phase until the previous phase's `[SUPERVISOR]` step is confirmed live-working — Phase 1 (PaddleOCR) is the proof of the whole pattern before Phases 2-6 repeat it.
 - Real secrets never appear in task text, code, or commit messages — only referenced by env var / GitHub Secret name.
+- **Never dispatch a task that creates or modifies a `.github/workflows/*.yml` file.** Confirmed live (T0.3's first attempt, 2026-07-10): GitHub hard-blocks the AI Workforce pipeline's own `GITHUB_TOKEN` from pushing any change to a workflow file (`refusing to allow a GitHub App to create or update workflow ... without workflows permission`) — a repo-level security boundary, not something a task-instruction rewrite or retry fixes. Every workflow-file task in §3 is `[SUPERVISOR]`.
 
 ## 5. Status
 
