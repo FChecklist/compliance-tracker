@@ -75,11 +75,21 @@ jobs:
         id: op
         env:
           OPERATION: ${{ github.event.client_payload.operation }}
+          # Bug found via live E2E test (2026-07-10): this MUST be an env var,
+          # not inlined as `-d "${{ toJson(...) }}"` directly in the run
+          # script. toJson() produces a raw JSON string containing literal
+          # double-quote characters; embedding that inside a `-d "..."` shell
+          # string breaks out of the surrounding quotes and mangles the
+          # request body before curl ever sees valid JSON -- confirmed live:
+          # FastAPI returned 422 Unprocessable Entity on a request that should
+          # have been well-formed. Passing it via env + "$INPUT_JSON" avoids
+          # any shell re-parsing of the value's contents.
+          INPUT_JSON: ${{ toJson(github.event.client_payload.input) }}
         run: |
           set +e
           RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST "http://localhost:8080/${OPERATION}" \
             -H "Content-Type: application/json" \
-            -d "${{ toJson(github.event.client_payload.input) }}")
+            -d "$INPUT_JSON")
           CURL_EXIT=$?
           set -e
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
