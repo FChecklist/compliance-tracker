@@ -37,6 +37,15 @@ WORKDIR /app
 # Copy requirements first for caching
 COPY requirements.txt .
 
+# CMAKE_ARGS: 5th real build failure. whisper-cpp-python vendors whisper.cpp's
+# own CMakeLists.txt, which declares an old cmake_minimum_required() version;
+# pip's build-isolation `cmake` package installs a modern CMake (4.x) that
+# hard-removed support for configs below 3.5 ("Compatibility with CMake < 3.5
+# has been removed from CMake"). This is CMake's own suggested workaround from
+# the error output, applied globally via env var since whisper-cpp-python's
+# build doesn't expose a way to pass it through pip install flags directly.
+ENV CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
