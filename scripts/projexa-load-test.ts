@@ -28,8 +28,14 @@ if (!GROQ_KEY) throw new Error("GROQ_API_KEY not set");
 // Cerebras up to $3"), generation now runs on Cerebras instead -- same
 // gpt-oss-120b model, so "let these 100 users be created at GPT-OSS-120B"
 // still holds; only the hosting provider changed.
-const CEREBRAS_KEY = process.env.CEREBRAS_API_KEY;
-if (!CEREBRAS_KEY) throw new Error("CEREBRAS_API_KEY not set");
+const CEREBRAS_KEY_RAW = process.env.CEREBRAS_API_KEY;
+if (!CEREBRAS_KEY_RAW) throw new Error("CEREBRAS_API_KEY not set");
+// Reassigned to a definitely-string const: the guard above is enough at
+// runtime, but TS's narrowing of CEREBRAS_KEY_RAW doesn't survive into the
+// nested arrow-function closures below that reference it (confirmed via
+// CI's tsc --noEmit -- `string | undefined` leaked through into
+// callLLMJson's `apiKey: string` param despite the throw-guard).
+const CEREBRAS_KEY: string = CEREBRAS_KEY_RAW;
 
 // Retry wrapper for transient network/connection blips (seen repeatedly
 // this session against both GitHub and Supabase/Postgres connections --

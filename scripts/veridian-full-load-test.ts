@@ -50,8 +50,12 @@ const ERROR_RATE_WINDOW = 50;
 
 const DEMO_ORG_ID = "obux019rsc5nzxjx93rrpc1j"; // same demo company as the PROJEXA run
 
-const CEREBRAS_KEY = process.env.CEREBRAS_API_KEY;
-if (!CEREBRAS_KEY) throw new Error("CEREBRAS_API_KEY not set");
+const CEREBRAS_KEY_RAW = process.env.CEREBRAS_API_KEY;
+if (!CEREBRAS_KEY_RAW) throw new Error("CEREBRAS_API_KEY not set");
+// Reassigned to a definitely-string const -- see the identical comment in
+// scripts/projexa-load-test.ts for why (TS narrowing doesn't survive into
+// nested closures).
+const CEREBRAS_KEY: string = CEREBRAS_KEY_RAW;
 
 async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 4): Promise<T> {
   let lastErr: unknown;
