@@ -21,7 +21,15 @@
 // OpenRouter is OpenAI-compatible (same chat completions shape as Groq/
 // OpenAI already handled by callOpenAICompatible), so adding it here is a
 // one-branch addition, not a new code path.
-export type LLMProvider = "groq" | "openai" | "anthropic" | "google" | "openrouter";
+// Wave (2026-07-10, founder directive): "cerebras" added the same way --
+// OpenAI-compatible chat completions, confirmed live against
+// api.cerebras.ai/v1/chat/completions. Deliberately NOT added to the real
+// Postgres `ai_provider` enum (schema.ts's aiProviderEnum, which constrains
+// customer-facing BYO config tables only) -- this value only ever flows
+// through the in-memory ResolvedModelConfig/LLMFallback types as the
+// platform floor tier's own same-model failover target
+// (orchestra-model-resolver.ts), never through a customer's own config row.
+export type LLMProvider = "groq" | "openai" | "anthropic" | "google" | "openrouter" | "cerebras";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -124,6 +132,15 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   // openrouter.ai/api/v1/models 2026-07-10 as a reference point (Groq is
   // itself a listed provider there for this model).
   "openai/gpt-oss-120b": { promptPer1k: 0.000036, completionPer1k: 0.00018 }, // Groq
+  // Cerebras (Wave 2026-07-10): same underlying model as the Groq entry
+  // above, but Cerebras's own API returns it under a different id -- no
+  // "openai/" prefix (confirmed live via api.cerebras.ai/v1/models) -- so
+  // this needs its own pricing row, not a shared key. Verified via
+  // openrouter.ai/api/v1/models/openai%2Fgpt-oss-120b/endpoints, which
+  // lists Cerebras's own per-provider rate (paid, unlike Groq's free tier
+  // for this model -- see orchestra-model-resolver.ts's platformFallbackFor
+  // for why this exists at all: same-model failover, not a cost swap).
+  "gpt-oss-120b": { promptPer1k: 0.00035, completionPer1k: 0.00075 }, // Cerebras
   "gpt-4o": { promptPer1k: 0.0025, completionPer1k: 0.01 },
   "gpt-4o-mini": { promptPer1k: 0.00015, completionPer1k: 0.0006 },
   "claude-sonnet-5": { promptPer1k: 0.003, completionPer1k: 0.015 },
@@ -300,6 +317,8 @@ function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, syste
       return callOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "openrouter":
       return callOpenAICompatible("https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+    case "cerebras":
+      return callOpenAICompatible("https://api.cerebras.ai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "anthropic":
       return callAnthropic(apiKey, model, systemPrompt, userMessage, options);
     case "google":
@@ -447,6 +466,8 @@ export async function callLLMVision(
       return callVisionOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
     case "openrouter":
       return callVisionOpenAICompatible("https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+    case "cerebras":
+      return callVisionOpenAICompatible("https://api.cerebras.ai/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
     case "anthropic":
       return callVisionAnthropic(apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
     case "google":
