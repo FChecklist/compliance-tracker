@@ -17,6 +17,7 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/high-impact-action-detector";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -154,11 +155,11 @@ export default function VeriComposer() {
   // so confirming resubmits it verbatim plus `confirmed: true` rather than
   // re-deriving it. Cleared (and its promise resolved false) on cancel.
   const [pendingConfirmation, setPendingConfirmation] = useState<{
-    categoryLabel: string | null; matchedPhrase: string | null; resolve: (confirmed: boolean) => void
+    category: string | null; categoryLabel: string | null; matchedPhrase: string | null; resolve: (confirmed: boolean) => void
   } | null>(null);
 
-  function requestHighImpactConfirmation(categoryLabel: string | null, matchedPhrase: string | null): Promise<boolean> {
-    return new Promise((resolve) => setPendingConfirmation({ categoryLabel, matchedPhrase, resolve }));
+  function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<boolean> {
+    return new Promise((resolve) => setPendingConfirmation({ category, categoryLabel, matchedPhrase, resolve }));
   }
 
   const chainModes = tree.filter((n) => !FIXED_MODES.includes(n.key as never)).map((n) => n.key);
@@ -253,7 +254,7 @@ export default function VeriComposer() {
           // confirmed: true only if they say yes. Saying no skips this one
           // task without affecting any other concrete path in this loop.
           if (json?.needsConfirmation) {
-            const confirmed = await requestHighImpactConfirmation(json.categoryLabel ?? null, json.matchedPhrase ?? null);
+            const confirmed = await requestHighImpactConfirmation(json.category ?? null, json.categoryLabel ?? null, json.matchedPhrase ?? null);
             if (!confirmed) {
               toast(`Skipped — ${crumb}`);
               continue;
@@ -517,9 +518,15 @@ export default function VeriComposer() {
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm {pendingConfirmation?.categoryLabel ?? "this action"}</AlertDialogTitle>
           <AlertDialogDescription>
-            This looks like a {pendingConfirmation?.categoryLabel?.toLowerCase() ?? "high-impact"} action
-            {pendingConfirmation?.matchedPhrase ? ` ("${pendingConfirmation.matchedPhrase}")` : ""}. VERIDIAN never
-            runs actions like this without your explicit go-ahead. Continue?
+            {/* Wave 155 (TaskDocx_Evaluation.md): per-category polite guidance
+                (why it's flagged + what to do) instead of one generic sentence
+                for every category -- predefined text, not generated. */}
+            {pendingConfirmation?.category && pendingConfirmation.category in HIGH_IMPACT_CATEGORY_GUIDANCE
+              ? HIGH_IMPACT_CATEGORY_GUIDANCE[pendingConfirmation.category as HighImpactCategory]
+              : "VERIDIAN never runs actions like this without your explicit go-ahead. Continue?"}
+            {pendingConfirmation?.matchedPhrase && (
+              <span className="block mt-1.5 text-xs text-ct-muted">Matched: &quot;{pendingConfirmation.matchedPhrase}&quot;</span>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
