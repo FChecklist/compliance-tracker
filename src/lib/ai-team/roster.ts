@@ -97,6 +97,17 @@ const GPT_55 = "openai/gpt-5.5" // genuinely independent second opinion (differe
 // job behind it anyway -- ai-dispatch.yml only implements a zai-agent stub) in favor of
 // this OpenRouter-routed model, verified live against openrouter.ai/api/v1/models 2026-07-10.
 const DEEPSEEK_V4_PRO = "deepseek/deepseek-v4-pro" // reserved for future role assignment, not wired to any role yet. Pinned to OpenRouter provider "DeepSeek" (founder directive, 2026-07-10) -- see OPENROUTER_PROVIDER_PREFERENCE in llm-client.ts.
+// Founder directive, 2026-07-10 (6-tool infra integration: PaddleOCR,
+// Docling, Meilisearch, Whisper.cpp, LibreOffice Headless, Temporal):
+// explicitly "ask GPT-OSS-120B to do it... create new agents using
+// GPT-OSS-120B." Same model as the customer-facing floor tier
+// (orchestra-model-resolver.ts's PLATFORM_DEFAULT_MODEL), routed via
+// OpenRouter here (not Groq directly) to match every other AI Workforce
+// role's dispatch mechanism (ai-workforce-agent.mjs always calls
+// OpenRouter) -- confirmed live that OpenRouter lists "openai/gpt-oss-120b"
+// as a real, callable model id (it's how orchestra-model-resolver.ts's own
+// Cerebras/Groq failover routing was researched this same day).
+const GPT_OSS_120B = "openai/gpt-oss-120b" // founder-directed for the 6-tool infra integration wave (2026-07-10) -- smaller/cheaper than GLM-5.2, so tasks dispatched to it are kept deliberately small and closely audited.
 
 export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // ─── Human ───────────────────────────────────────────────────────────
@@ -120,6 +131,13 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   { roleKey: "research_analyst", team: "ENGINEERING", title: "Research Analyst", model: GEMINI_25_PRO, promptKey: "ai_team.research_analyst" },
   { roleKey: "documentation_specialist", team: "ENGINEERING", title: "Documentation Specialist", model: GLM_52, promptKey: "ai_team.documentation_specialist" },
   { roleKey: "escalation_second_opinion", team: "ENGINEERING", title: "Escalation / Second Opinion", model: GPT_55, promptKey: "ai_team.escalation_second_opinion" },
+  // Added 2026-07-10 for the 6-tool infra integration wave (PaddleOCR,
+  // Docling, Meilisearch, Whisper.cpp, LibreOffice Headless, Temporal) --
+  // see docs/infra/TOOL_INTEGRATION_PLAN.md. Reused across many small,
+  // narrowly-scoped dispatches (one per task in that plan), same "same
+  // role, many dispatch runs = many effective agent instances" pattern
+  // already proven by ceo_technical_director's repeated dispatches today.
+  { roleKey: "tool_integration_engineer", team: "ENGINEERING", title: "Tool Integration Engineer (GPT-OSS-120B)", model: GPT_OSS_120B, promptKey: "ai_team.tool_integration_engineer" },
 
   // ─── QUALITY & SAFETY (The Specialists) ─────────────────────────────
   { roleKey: "security_code_reviewer", team: "QUALITY_SAFETY", title: "Security & Code Reviewer", model: GLM_52, promptKey: "ai_team.security_code_reviewer" },
