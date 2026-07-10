@@ -11,4 +11,8 @@ PyMuPDF==1.20.2
 docling==2.94.0
 whisper-cpp-python==0.2.0
 numpy==1.26.4
-Pillow==10.2.0
+# Bumped from 10.2.0 (Dependabot alerts #31/#32/#33, 2026-07-10): buffer
+# overflow (high), font integer overflow, PDF trailer infinite-loop DoS.
+# All fixed by 12.2.0+; paddleocr's own Pillow constraint is unconstrained,
+# and 12.3.0 has a real cp310 manylinux wheel -- no conflict.
+Pillow==12.3.0
