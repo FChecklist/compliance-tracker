@@ -1,7 +1,7 @@
 import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
-import { eq, and, asc, gte, lte, ne, inArray, sql } from "drizzle-orm";
-import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
+import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
+import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
 import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
@@ -11,6 +11,8 @@ import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/a
 import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
 import { logActivity } from "@/lib/audit";
+import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
+import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
@@ -557,6 +559,44 @@ async function executeEngineDispatch(orgId: string, userId: string, taskId: stri
   });
 }
 
+// Escalation signal (2026-07-10, founder directive): two distinct "this
+// needs a stronger model" proxies, both mapped onto the same
+// checkPreCallEscalation() `priorTaskFailed` input floor-tier-escalation.ts
+// already exposes -- no need to widen that shared function's shape for a
+// task-specific concept.
+// 1. THIS task already has a system message recording a past failure --
+//    the concrete "task edit by end user" case the founder named: the
+//    existing recovery instruction ("You can retry by editing and
+//    resaving the task", line ~857 below) means a re-run of a
+//    previously-failed task IS the edit flow, not a separate thing to
+//    detect differently.
+// 2. A DIFFERENT recent task by this same user failed -- same rationale as
+//    chat-service.ts's checkRecentTaskFailure: a user in the middle of a
+//    rough patch is worth a stronger model, not just the one task that
+//    already failed.
+const RECENT_TASK_FAILURE_WINDOW_MS = 10 * 60 * 1000
+
+async function checkTaskEscalationContext(orgId: string, userId: string, taskId: string): Promise<{ priorTaskFailed: boolean; priorMessageCount: number }> {
+  return withTenantContext({ orgId, userId }, async (db) => {
+    const priorMessages = await db.query.taskChatMessages.findMany({
+      where: eq(taskChatMessages.taskId, taskId),
+      columns: { id: true, role: true },
+    })
+    const hasPriorFailureMessage = priorMessages.some((m) => m.role === "system")
+    if (hasPriorFailureMessage) return { priorTaskFailed: true, priorMessageCount: priorMessages.length }
+
+    const recentOtherTask = await db.query.tasks.findFirst({
+      where: and(eq(tasks.orgId, orgId), eq(tasks.userId, userId), ne(tasks.id, taskId)),
+      orderBy: (t, { desc }) => desc(t.updatedAt),
+      columns: { status: true, updatedAt: true },
+    })
+    const otherTaskFailedRecently = Boolean(
+      recentOtherTask?.status === "failed" && Date.now() - recentOtherTask.updatedAt.getTime() < RECENT_TASK_FAILURE_WINDOW_MS
+    )
+    return { priorTaskFailed: otherTaskFailedRecently, priorMessageCount: priorMessages.length }
+  })
+}
+
 export async function executeTask(
   orgId: string,
   userId: string,
@@ -664,19 +704,64 @@ export async function executeTask(
       : "";
     const userMessage = `Task: ${title}\n${description ? `Description: ${description}\n` : ""}\nAvailable agents:\n${agentList || "(none configured yet)"}${memoryBlock}`;
 
+    // Escalation (2026-07-10, founder directive): same pattern as
+    // chat-service.ts's generateAiReply -- deterministic pre-call signals
+    // skip the floor tier entirely for this call; the one post-call signal
+    // (the floor tier's own plan summary hedging) retries once on the
+    // escalated model only when it fires. See floor-tier-escalation.ts's
+    // header for the full "don't self-grade, don't 2x every call" reasoning.
+    let effectiveConfig = modelConfig;
+    let escalation: { escalated: boolean; signals: EscalationSignal[]; matchedPhrase: string | null; originalModel: string } = {
+      escalated: false, signals: [], matchedPhrase: null, originalModel: modelConfig.model,
+    };
+
+    if (!modelConfig.isCustomerConfigured) {
+      const highImpact = detectHighImpactAction(`${title}\n${description ?? ""}`);
+      const { priorTaskFailed, priorMessageCount } = await checkTaskEscalationContext(orgId, userId, taskId);
+      const preCall = checkPreCallEscalation({
+        userMessage: `${title}\n${description ?? ""}`, historyLength: priorMessageCount,
+        isHighImpact: highImpact.isHighImpact, priorTaskFailed,
+      });
+      if (preCall.shouldEscalate) {
+        const escalated = escalatedPlatformConfig();
+        if (escalated) {
+          effectiveConfig = escalated;
+          escalation = { escalated: true, signals: preCall.signals, matchedPhrase: preCall.matchedPhrase, originalModel: modelConfig.model };
+        }
+      }
+    }
+
     const planningStartedAt = Date.now();
-    const { data: result, usage } = await callLLMJson<{
+    let { data: result, usage } = await callLLMJson<{
       summary: string;
       steps: { agentName: string | null; description: string }[];
-    }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
+    }>(effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage, {
       temperature: 0.3,
       maxTokens: 800,
-    }, modelConfig.fallback);
+    }, effectiveConfig.fallback);
+
+    if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
+      const lowConfidence = detectLowConfidenceResponse(result.summary ?? "");
+      if (lowConfidence.detected) {
+        const escalated = escalatedPlatformConfig();
+        if (escalated) {
+          const retried = await callLLMJson<{ summary: string; steps: { agentName: string | null; description: string }[] }>(
+            escalated.provider, escalated.model, escalated.apiKey, systemPrompt, userMessage,
+            { temperature: 0.3, maxTokens: 800 }, escalated.fallback
+          );
+          result = retried.data;
+          usage = retried.usage;
+          effectiveConfig = escalated;
+          escalation = { escalated: true, signals: ["low_confidence"], matchedPhrase: lowConfidence.matchedPhrase, originalModel: modelConfig.model };
+        }
+      }
+    }
+
     recordOrchestraExecution({
       orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.planning",
-      input: { title, description }, output: { summary: result.summary, stepCount: result.steps?.length ?? 0 },
+      input: { title, description, escalation }, output: { summary: result.summary, stepCount: result.steps?.length ?? 0 },
       status: "completed", durationMs: Date.now() - planningStartedAt,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
+      provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     });
 
     const agentByName = new Map(agents.map((a) => [a.name.toLowerCase(), a]));

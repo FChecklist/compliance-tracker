@@ -14,7 +14,7 @@
 import { fdeRequests, workerAgents } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
-import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJsonCached } from "@/lib/llm-response-cache"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -164,6 +164,16 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       responseText: "No AI model is configured for this organisation yet. Set one up in Settings -> AI Configuration to use VERI FDE.",
     })
   }
+  // Founder directive (2026-07-10): FDE always runs on the escalated model
+  // (GLM-5.2), never the floor tier -- deciding whether a capability
+  // already exists, or drafting a brand-new Worker Agent proposal, is a
+  // higher-consequence, lower-frequency operation than ordinary chat, worth
+  // the extra cost every time rather than gating it behind a confidence
+  // signal the way chat-service.ts/task-execution-engine.ts do. Never
+  // overrides an org's own BYO choice -- falls straight through to
+  // `modelConfig` if escalatedPlatformConfig() has nothing configured
+  // (no OPENROUTER_API_KEY) rather than failing the request.
+  const effectiveConfig = modelConfig.isCustomerConfigured ? modelConfig : (escalatedPlatformConfig() ?? modelConfig)
 
   const startedAt = Date.now()
   try {
@@ -185,8 +195,8 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     // cache key automatically rather than serving a stale evaluation.
     const { data: evaluation, usage, cached } = await callLLMJsonCached<FdeEvaluation>(
       { orgId: ctx.orgId },
-      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
-      { temperature: 0.3, maxTokens: 700, expectedKeys: ["matchType", "responseToUser"] }, modelConfig.fallback
+      effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
+      { temperature: 0.3, maxTokens: 700, expectedKeys: ["matchType", "responseToUser"] }, effectiveConfig.fallback
     )
     // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 3):
     // store the actual prompt/response content, not just token/cost
@@ -197,7 +207,7 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       input: { requestText: redactPii(requestText), candidateCount: candidates.length, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(userMessage) },
       output: { matchType: evaluation.matchType, cached, responseToUser: redactPii(evaluation.responseToUser) },
       status: "completed", durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
+      provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     })
 
     if (evaluation.matchType !== "no_match" || !evaluation.proposal) {
