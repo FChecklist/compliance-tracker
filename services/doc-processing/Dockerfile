@@ -12,9 +12,14 @@ FROM python:3.11-slim
 # whisper-cpp-python AND PyMuPDF (a transitive dependency of docling, used
 # for its PDF parsing) fail to build their C-extension wheels without it --
 # "error: command 'swig' failed: No such file or directory".
+# ffmpeg: Phase 4 (Whisper.cpp) needs audio input, but meeting recordings
+# are typically video (.mp4) -- ffmpeg is the bridge that extracts/converts
+# audio before transcription. Added here (Phase 0 skeleton) rather than
+# deferred to Phase 4 since it's a cheap system package, not application
+# code, and avoids a second Dockerfile edit + rebuild later.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libreoffice build-essential cmake swig && \
+        libreoffice build-essential cmake swig ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
