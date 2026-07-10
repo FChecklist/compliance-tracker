@@ -12,7 +12,7 @@ First genuine **browser-level** test in this series (the two prior tests — PRO
 - **All 80 sampled module pages loaded successfully** (100%), median load 804ms (§3).
 - Two harness-level selector bugs found post-hoc reduced data quality in 2 of 6 categories (pill capture, bad-input capture) — root-caused and disclosed transparently below rather than silently reported as product failures (§2, §6).
 - One real product ambiguity found: only 3/10 "start a chat" checks found the CTA — traced to a genuine UI-state difference (personas with existing conversations don't show the empty-state CTA), not a bug (§7).
-- Reports page shows **no visible download/export affordance** for the two demo-persona roles tested (§8) — real finding, though role/permission-scoped, not yet confirmed against an admin-tier account.
+- **Confirmed, not permission-scoped**: reports page shows **no visible download/export affordance** for either role tested — `rohit.sharma.0` is `admin`-role (checked directly against `compliance.users`, 2026-07-10), so this genuinely isn't gated behind a higher permission tier that wasn't tested. Real gap. Tracked as task T5.2 in `docs/infra/TOOL_INTEGRATION_PLAN.md` (LibreOffice Headless wires an actual export path here) (§8).
 
 ## 2. Test design (as executed)
 
@@ -71,7 +71,7 @@ Neither bug affects MODULE_NAV, CHAT_TEAM, or REPORTS_DOWNLOAD's results, which 
 
 ## 8. Reports & downloads
 
-15/15 `/reports` pages loaded; **0/15 showed a detected download/export button** for either demo-persona role tested (`rohit.sharma.0`/`amit.sharma.2`, both appear to be non-admin roles). This could mean: (a) export is genuinely not available on this page for these roles, (b) it's gated to admin-tier accounts and wasn't tested here, or (c) the button exists but isn't labeled with "download/export/csv/pdf" text my selector matched. **Flagged as an open finding needing a follow-up check with an admin-tier persona before treating as a confirmed gap.**
+15/15 `/reports` pages loaded; **0/15 showed a detected download/export button**. **Confirmed not a permission gap**: `rohit.sharma.0` is `admin`-role (checked directly against `compliance.users`, 2026-07-10) and was one of the two roles this category tested, so this isn't a case of only testing lower-privilege accounts — an admin genuinely sees no export affordance either. Remaining uncertainty is narrower: either export is genuinely not built on this page yet, or the button exists but isn't labeled with text my selector (`/download|export|csv|pdf/i`) matched. **Tracked as task T5.2 in `docs/infra/TOOL_INTEGRATION_PLAN.md`** (LibreOffice Headless integration wires a real PDF/XLSX export path here) rather than left as an open question.
 
 ## 9. Bad-input handling
 
