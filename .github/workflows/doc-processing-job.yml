@@ -1,0 +1,133 @@
+name: Doc Processing Job
+
+# T0.4 (docs/infra/TOOL_INTEGRATION_PLAN.md): on-demand execution for the
+# doc-processing container (PaddleOCR/Docling/Whisper.cpp/LibreOffice). No
+# persistent host -- a fresh job pulls the pre-built ghcr.io image (built by
+# build-doc-processing-image.yml), runs the requested operation against it,
+# and writes the result to compliance.doc_processing_jobs (migration 0133)
+# via the Supabase REST API using the service role key. The app's client
+# (src/lib/services/ocr-client.ts, Phase 1) creates the pending row and
+# fires this dispatch; this workflow only ever updates that same row.
+#
+# Written directly by the supervisor, not dispatched to
+# tool_integration_engineer/GPT-OSS-120B -- same reason as
+# build-doc-processing-image.yml: the AI Workforce pipeline's GITHUB_TOKEN
+# cannot create or modify workflow files at all (confirmed live, T0.3).
+on:
+  repository_dispatch:
+    types: [doc-processing-job]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate payload
+        env:
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+          OPERATION: ${{ github.event.client_payload.operation }}
+        run: |
+          if [ -z "$JOB_ID" ] || [ -z "$OPERATION" ]; then
+            echo "::error::client_payload must include job_id and operation"
+            exit 1
+          fi
+          case "$OPERATION" in
+            ocr|parse-document|transcribe|convert) ;;
+            *) echo "::error::unknown operation '$OPERATION'"; exit 1 ;;
+          esac
+
+      - name: Mark job running
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+        run: |
+          curl -sf -X PATCH "${SUPABASE_URL}/rest/v1/doc_processing_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept-Profile: compliance" \
+            -H "Content-Profile: compliance" \
+            -d '{"status": "running"}'
+
+      - name: Pull doc-processing image
+        run: docker pull ghcr.io/fchecklist/veridian-doc-processing:latest
+
+      - name: Start container and wait for health
+        run: |
+          docker run -d --name docproc -p 8080:8080 ghcr.io/fchecklist/veridian-doc-processing:latest
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+              echo "Container healthy after ${i}x2s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::container did not become healthy within 60s"
+          docker logs docproc || true
+          exit 1
+
+      - name: Run operation
+        id: op
+        env:
+          OPERATION: ${{ github.event.client_payload.operation }}
+        run: |
+          set +e
+          RESPONSE=$(curl -sf -w "\n%{http_code}" -X POST "http://localhost:8080/${OPERATION}" \
+            -H "Content-Type: application/json" \
+            -d "${{ toJson(github.event.client_payload.input) }}")
+          CURL_EXIT=$?
+          set -e
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<DOCPROC_EOF"
+            echo "$BODY"
+            echo "DOCPROC_EOF"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$CURL_EXIT" -ne 0 ] || [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::operation '${OPERATION}' failed (curl exit $CURL_EXIT, HTTP $HTTP_CODE)"
+            docker logs docproc || true
+            exit 1
+          fi
+
+      - name: Write success result to Supabase
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+          RESULT_BODY: ${{ steps.op.outputs.body }}
+        run: |
+          PAYLOAD=$(jq -n --argjson result "$(echo "$RESULT_BODY" | jq -c .)" '{status: "completed", result: $result, completed_at: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))}')
+          curl -sf -X PATCH "${SUPABASE_URL}/rest/v1/doc_processing_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept-Profile: compliance" \
+            -H "Content-Profile: compliance" \
+            -d "$PAYLOAD"
+
+      - name: Write failure result to Supabase
+        if: failure()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+        run: |
+          curl -sf -X PATCH "${SUPABASE_URL}/rest/v1/doc_processing_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Accept-Profile: compliance" \
+            -H "Content-Profile: compliance" \
+            -d '{"status": "failed", "error": "Job failed -- see GitHub Actions run for details.", "completed_at": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f docproc || true
