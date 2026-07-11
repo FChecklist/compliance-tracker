@@ -15,9 +15,27 @@ on:
         description: "AI Workforce role_key from src/lib/ai-team/roster.ts"
         required: true
         default: "fullstack_developer"
-      task:
-        description: "Task description"
+      # VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, Objective/Scope/
+      # Instruction Validation Guardrails: a single free-text `task` field
+      # is exactly what produced this pipeline's real failures (see
+      # ai-workforce-agent.mjs's MAX_ITERATIONS comment) -- briefs with no
+      # explicit scope cap or completion definition burned the whole
+      # iteration budget with zero output. These 4 fields are now required
+      # (constraints optional) so a loose dispatch is rejected before the
+      # agent loop starts, not discovered 40 iterations in.
+      objective:
+        description: "Objective -- what should exist when this is done"
         required: true
+      scope:
+        description: "Scope -- exact file(s)/area to touch, nothing else"
+        required: true
+      success_criteria:
+        description: "Success criteria -- how to know it's done (call finish once met)"
+        required: true
+      constraints:
+        description: "Optional: iteration/file caps, explicit exclusions"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -49,7 +67,10 @@ jobs:
         id: agent
         env:
           AI_TEAM_ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
-          AI_TEAM_TASK: ${{ github.event.client_payload.task || github.event.inputs.task }}
+          AI_TEAM_TASK_OBJECTIVE: ${{ github.event.client_payload.objective || github.event.inputs.objective }}
+          AI_TEAM_TASK_SCOPE: ${{ github.event.client_payload.scope || github.event.inputs.scope }}
+          AI_TEAM_TASK_SUCCESS_CRITERIA: ${{ github.event.client_payload.success_criteria || github.event.inputs.success_criteria }}
+          AI_TEAM_TASK_CONSTRAINTS: ${{ github.event.client_payload.constraints || github.event.inputs.constraints }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           AI_TEAM_SUPABASE_URL: ${{ secrets.AI_TEAM_SUPABASE_URL }}
           AI_TEAM_SUPABASE_ANON_KEY: ${{ secrets.AI_TEAM_SUPABASE_ANON_KEY }}
@@ -89,7 +110,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ steps.branch.outputs.branch }}
           ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
-          TASK: ${{ github.event.client_payload.task || github.event.inputs.task }}
+          OBJECTIVE: ${{ github.event.client_payload.objective || github.event.inputs.objective }}
+          SCOPE: ${{ github.event.client_payload.scope || github.event.inputs.scope }}
+          SUCCESS_CRITERIA: ${{ github.event.client_payload.success_criteria || github.event.inputs.success_criteria }}
           SUMMARY: ${{ steps.agent.outputs.summary }}
           FILES_CHANGED: ${{ steps.agent.outputs.files_changed }}
         run: |
@@ -97,7 +120,9 @@ jobs:
           gh pr create \
             --title "AI Workforce (${ROLE_KEY}): ${SUMMARY:0:100}" \
             --body "**Role:** ${ROLE_KEY}
-          **Task:** ${TASK}
+          **Objective:** ${OBJECTIVE}
+          **Scope:** ${SCOPE}
+          **Success criteria:** ${SUCCESS_CRITERIA}
           **Files changed:** ${FILES_CHANGED}
           **Summary:** ${SUMMARY}
 

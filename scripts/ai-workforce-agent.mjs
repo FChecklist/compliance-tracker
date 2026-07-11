@@ -31,13 +31,41 @@ const MAX_ITERATIONS = 40
 const MAX_FILE_BYTES = 200_000
 
 const roleKey = process.env.AI_TEAM_ROLE_KEY
-const task = process.env.AI_TEAM_TASK
 const apiKey = process.env.OPENROUTER_API_KEY
 
-if (!roleKey || !task || !apiKey) {
-  console.error("Missing required env: AI_TEAM_ROLE_KEY, AI_TEAM_TASK, OPENROUTER_API_KEY")
+// VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, Objective/Scope/Instruction
+// Validation Guardrails: this is the exact script whose real incident
+// history motivated this change -- see task-tightening.ts's module header
+// for the two real z.ai dispatches that burned the whole MAX_ITERATIONS
+// budget with zero output because the brief had no explicit scope cap or
+// completion definition, and were only fixed by manually rewriting the
+// brief with those things spelled out. A single free-text AI_TEAM_TASK is
+// no longer accepted -- the three fields below are required, validated
+// with the same deterministic check the Next.js dispatch route uses,
+// before the agent loop (and any OpenRouter spend) starts.
+const { validateTightTask, assembleTightTaskPrompt } = await import(path.join(REPO_ROOT, "src/lib/task-tightening.ts"))
+
+const rawTask = {
+  objective: process.env.AI_TEAM_TASK_OBJECTIVE,
+  scope: process.env.AI_TEAM_TASK_SCOPE,
+  successCriteria: process.env.AI_TEAM_TASK_SUCCESS_CRITERIA,
+  constraints: process.env.AI_TEAM_TASK_CONSTRAINTS || undefined,
+}
+
+if (!roleKey || !apiKey) {
+  console.error("Missing required env: AI_TEAM_ROLE_KEY, OPENROUTER_API_KEY")
   process.exit(1)
 }
+
+const tightness = validateTightTask(rawTask)
+if (!tightness.valid) {
+  console.error(`[ai-workforce-agent] Task rejected -- not tight enough to dispatch: ${tightness.reason}`)
+  console.error(`[ai-workforce-agent] ${tightness.guidance}`)
+  console.error("[ai-workforce-agent] Required env vars: AI_TEAM_TASK_OBJECTIVE, AI_TEAM_TASK_SCOPE, AI_TEAM_TASK_SUCCESS_CRITERIA (AI_TEAM_TASK_CONSTRAINTS is optional).")
+  process.exit(1)
+}
+
+const task = assembleTightTaskPrompt(rawTask)
 
 const { AI_TEAM_ROSTER } = await import(path.join(REPO_ROOT, "src/lib/ai-team/roster.ts"))
 const role = AI_TEAM_ROSTER.find((r) => r.roleKey === roleKey)

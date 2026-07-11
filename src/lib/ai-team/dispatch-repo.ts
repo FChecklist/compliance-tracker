@@ -11,13 +11,25 @@
 // `gh api repos/FChecklist/compliance-tracker/dispatches` directly.
 
 import { getRole } from "./roster"
+import { validateTightTask, type TightTask } from "../task-tightening"
 
 const REPO = "FChecklist/compliance-tracker"
 
-export async function dispatchRepoTask(roleKey: string, task: string): Promise<void> {
+// VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md: this dispatcher has no live
+// callers yet (GITHUB_DISPATCH_PAT isn't set on Vercel), so this is a
+// zero-risk point to require a TightTask instead of a free-text string --
+// no existing caller to break. Validated here too (not just relying on
+// ai-workforce-agent.mjs's own validation) so a bad dispatch never even
+// reaches GitHub Actions.
+export async function dispatchRepoTask(roleKey: string, task: TightTask): Promise<void> {
   const role = getRole(roleKey)
   if (!role || role.isHuman || role.isCodeOnly || !role.model) {
     throw new Error(`Role '${roleKey}' is not a repo-write-capable AI Workforce role.`)
+  }
+
+  const validation = validateTightTask(task)
+  if (!validation.valid) {
+    throw new Error(`Task is not tight enough to dispatch: ${validation.reason} ${validation.guidance}`)
   }
 
   const token = process.env.GITHUB_DISPATCH_PAT
@@ -30,7 +42,16 @@ export async function dispatchRepoTask(roleKey: string, task: string): Promise<v
       Accept: "application/vnd.github+json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ event_type: "ai-team-task", client_payload: { role_key: roleKey, task } }),
+    body: JSON.stringify({
+      event_type: "ai-team-task",
+      client_payload: {
+        role_key: roleKey,
+        objective: task.objective,
+        scope: task.scope,
+        success_criteria: task.successCriteria,
+        constraints: task.constraints ?? "",
+      },
+    }),
   })
   if (!res.ok) throw new Error(`Failed to dispatch ai-team-task: HTTP ${res.status} ${await res.text()}`)
 }

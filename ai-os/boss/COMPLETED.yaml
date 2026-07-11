@@ -701,3 +701,74 @@ entries:
         crash on data[0] being undefined). No auth/security surface --
         pure client-side export of data already visible to the
         authenticated user. Full report: AUDIT_wave156_zai_items.md.
+  - id: WAVE-158
+    title: "Mandatory task-tightening guardrail + VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md (Consutitution.docx, AGCIF adoption)"
+    doer:
+      agent: claude-code
+      date: "2026-07-11"
+      pr: PENDING
+      summary: >
+        Boss supplied a new document (Consutitution.docx, "AI Governance
+        & Continuous Improvement Framework") diagnosing that AI-dispatched
+        tasks with loose free-text briefs failed while explicitly-tightened
+        briefs succeeded, and asked for this to be made mandatory. Checked
+        the live system first (Explore agent survey + direct reads) rather
+        than guessing: found the exact same pattern already recorded twice
+        in this codebase's own history (ai-workforce-agent.mjs's
+        MAX_ITERATIONS comment; two real z.ai dispatch retries that only
+        succeeded after a manually tightened brief), and found
+        guardrail-engine.ts's Wave 157 registry still empty in production
+        (FOLLOWUP-1, unchanged) -- the natural, already-designed-for-this
+        home for the fix. Shipped: src/lib/task-tightening.ts
+        (TightTask={objective,scope,successCriteria,constraints?},
+        deterministic validateTightTask()/assembleTightTaskPrompt(), no
+        LLM call, matching every other gate in this codebase);
+        src/lib/guardrail-registrations.ts (first real registry consumer,
+        additive -- does NOT touch high-impact-action-detector.ts,
+        FOLLOWUP-1 stays deliberately deferred per its own stated
+        reasoning); wired into src/app/api/ai/team/dispatch/route.ts
+        (structured body replaces free-text task, blocks with HTTP 422 +
+        guidance before any model call), scripts/ai-workforce-agent.mjs
+        (the actual script where the real incidents happened -- now
+        requires AI_TEAM_TASK_OBJECTIVE/SCOPE/SUCCESS_CRITERIA env vars,
+        fails fast before spending OpenRouter budget),
+        .github/workflows/ai-team-workforce.yml (workflow_dispatch inputs
+        split into 4 required-by-form fields), and
+        src/lib/ai-team/dispatch-repo.ts (zero live callers, confirmed by
+        repo-wide grep -- zero-risk to change its signature). Wrote
+        VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md as the 3rd constitutional
+        document (siblings: VERIDIAN_AI_CONSTITUTION.md governs AI
+        business-purpose/privacy; MASTER_AI_OS_ARCHITECTURE.md governs
+        platform architecture; this one governs task lifecycle/
+        orchestration), same [ENFORCED]/[PARTIALLY ENFORCED]/[POLICY
+        ONLY]/[NOT APPLICABLE YET] discipline as its siblings, including a
+        full 30-guardrail status table and an explicit correction: the
+        source document's literal GPT-OSS-120B/DeepSeek Pro V4/ZLM 5.2
+        role-to-model mapping is NOT applied literally to roster.ts, since
+        that would contradict the 2026-07-07 evidence-based decision to
+        move those roles to GLM-5.2 after a real cost/quality incident --
+        adopted conceptually (role responsibilities), not by renaming
+        models. 20 new unit tests (task-tightening.test.ts), all passing;
+        full existing suite re-run clean (104 pass / 1 fail / 1 error,
+        both pre-existing and unrelated -- confirmed identical on
+        unmodified main via git stash); tsc --noEmit clean; lint clean (0
+        errors, same 3 pre-existing unrelated warnings); bun run build
+        clean. Full 40-field task metadata schema on the customer tasks
+        table, generic per-task handover-shape validation, dynamic
+        AI-Team model escalation, numeric confidence thresholds, and the
+        three-hour cron governance cycle are all explicitly named
+        POLICY ONLY / deferred in the constitution doc, not silently
+        skipped or half-built.
+    auditor:
+      agent: PENDING
+      date: PENDING
+      verdict: PENDING
+      summary: >
+        No cross-audit run this session (interactive Claude Desktop
+        session, no z.ai dispatch performed for this wave specifically).
+        Per Operating Rule 7(c), whichever agent did not implement a task
+        is the mandatory auditor -- this entry is left honestly
+        incomplete rather than self-certified or fabricated. A future
+        session (or the Boss directly) should dispatch a z.ai audit of
+        this PR before treating it as fully cross-reviewed, consistent
+        with every other WAVE-* entry in this file.
