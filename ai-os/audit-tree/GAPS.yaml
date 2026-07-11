@@ -1,0 +1,361 @@
+# VERIDIAN Master Audit Tree -- GAPS.yaml
+# Started 2026-07-11. The real to-do list: every open item across all 9
+# source documents, deduplicated, each with a stable ID and the exact
+# evidence for why it's still open. See 00-INDEX.md for the honesty
+# discipline this file follows -- no item here is padding.
+#
+# status values: gap (nothing built) | partial (some real coverage,
+# named limitation) | blocked (needs a prior gap closed first)
+# priority: P0 (safety/correctness) | P1 (real user/business value) |
+# P2 (structural completeness, lower urgency)
+
+gaps:
+  # ── From Consutitution.docx / VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md ──
+  - id: G-001
+    source: "Consutitution.docx §Model Allocation Policy"
+    requirement: "Formal COO role with cross-agent-coordination/escalation-management authority"
+    status: gap
+    evidence: "chief_governance_officer and ceo_technical_director are partial matches, no distinct COO role exists"
+    priority: P2
+
+  - id: G-002
+    source: "Consutitution.docx §Performance Scoring"
+    requirement: "Generic per-task performance scoring updated automatically for every dispatch"
+    status: partial
+    evidence: "worker_agents.accuracyScore/usageCount exists but isn't updated per-dispatch automatically"
+    priority: P2
+    related: G-030  # Model Performance Scorecard, same underlying need
+
+  - id: G-003
+    source: "Consutitution.docx §3 Every Task MUST Contain"
+    requirement: "~40-field mandatory task metadata schema (Identity/Input/Process/Output/Handover/Closure) on every task including customer tasks"
+    status: gap
+    evidence: "tasks table has 13 columns. Deliberately not built -- disproportionate to the actual problem (AI-dispatch tightening, not customer task completeness)"
+    priority: P2
+    decision: "descoped, documented in constitution -- not silently dropped"
+
+  - id: G-004
+    source: "Consutitution.docx §Mandatory Handover Protocol"
+    requirement: "Handover-shape validation at the generic taskAgentExecutions row level (not just AI Dev Team dispatch)"
+    status: gap
+    evidence: "task-tightening.ts's TightTask output contract only covers AI Dev Team dispatch (G-fixed this session); task-execution-engine.ts's generic completion path has no output-shape check"
+    priority: P1
+
+  - id: G-005
+    source: "Consutitution.docx §AI Escalation Matrix"
+    requirement: "Dynamic model escalation within the internal AI Dev Team (low-confidence answer -> escalate to a different model)"
+    status: gap
+    evidence: "floor-tier-escalation.ts's pattern exists for customer-facing chat only, not generalized to AI Dev Team dispatch"
+    priority: P1
+
+  - id: G-006
+    source: "Consutitution.docx §Loop Engineering Framework"
+    requirement: "Universal per-task retrospective (what succeeded/failed/why/faster/cheaper) run automatically on every completed task"
+    status: partial
+    evidence: "CLEE (loop-improvement-proposer.ts) is real but reactive (violation/low-confidence triggered), not a universal per-task questionnaire"
+    priority: P2
+
+  - id: G-007
+    source: "Consutitution.docx §Three-Hour Governance Cycle"
+    requirement: "Scheduled/cron-triggered governance review every 3 hours"
+    status: gap
+    evidence: "No cron auto-dispatch exists anywhere; Super Boss performs this interactively/on-demand only"
+    priority: P2
+    blocked_by: "needs a real automated reviewer behind it, not just a timer -- fabricating the cron without one would be theater"
+
+  # ── From Audit Organization.docx / VERIDIAN_AUDIT_ORGANIZATION.md ──
+  - id: G-008
+    source: "Audit Organization.docx §Recommendation"
+    requirement: "'No task ever permanently complete' -- automatic re-audit trigger when requirements/code/production incidents change"
+    status: blocked
+    evidence: "Needs activity_log (built) plus a 'staleness' detector querying it -- not built"
+    priority: P2
+    blocked_by: G-toc-uwt  # Universal Task Wrapper Phase 2+
+
+  - id: G-009
+    source: "Audit Organization.docx §7-level cadence"
+    requirement: "L2 (continuous monitoring, scheduled), L3 (rolling health audit, 30-60min), L5/L6/L7 (daily/weekly/monthly governance reviews)"
+    status: gap
+    evidence: "L1 is real (this session). L2-L7 need the same cron-reviewer substrate as G-007, plus a real query surface over activity_log that doesn't fully exist cross-surface yet"
+    priority: P2
+
+  - id: G-010
+    source: "Audit Organization.docx §Global Revenue Assurance"
+    requirement: "Separate Global Revenue Operations (under COO) vs Global Revenue Assurance (under CAO) divisions"
+    status: gap
+    evidence: "No Global Revenue Operations division exists yet to split assurance from -- CRM/billing work is plain service-layer code today"
+    priority: P2
+
+  - id: G-011
+    source: "Audit Organization.docx (this session's own audit finding)"
+    requirement: "Independent second-agent cross-audit of the tier-routing/mandatory-audit-gate wave itself (PR #162)"
+    status: gap
+    evidence: "Claude wrote the code AND ran the CAO dispatch AND interpreted the verdict -- self-certification, exactly what Rule 7c exists to prevent"
+    priority: P0
+
+  # ── From Dynamic Mode Pills doc / VERIDIAN_DMP_DCF_CONSTITUTION.md ──
+  - id: G-012
+    source: "DMP-DCF §7 User Experience"
+    requirement: "Predictive/behavior-learning chain selection: keyboard shortcuts, Tab navigation, in-tree search, auto-select obvious single-option branches"
+    status: gap
+    evidence: "Tree renders live and org-filtered, but zero behavioral prediction, keyboard nav, or search exists"
+    priority: P1
+
+  - id: G-013
+    source: "DMP-DCF §8 Personalized Dynamic Library"
+    requirement: "Global Library (all approved chains) + User Library (auto-generated per role/dept/history/frequency)"
+    status: gap
+    evidence: "Zero 'library' concept exists. dynamic_chains (this session) is the prerequisite store -- now exists, library layer on top does not"
+    priority: P1
+
+  - id: G-014
+    source: "DMP-DCF §9 Context-Aware Adaptive UI"
+    requirement: "Mode Pills automatically realign per current module/screen/task/project/customer/document/report, without manual reset"
+    status: gap
+    evidence: "Tree changes at org-enablement level only, not per-screen. Explicitly reinforced as 'very important' by VERIDIAN AI is no longer a compliance tool.docx (G-035) -- two independent sources now ask for this"
+    priority: P1
+    upgraded: "P2->P1, reinforced by a second source document"
+
+  - id: G-015
+    source: "DMP-DCF §Primary Navigation"
+    requirement: "Dynamic Mode Pills become the primary navigation mechanism, replacing the traditional left-nav module tree"
+    status: gap
+    evidence: "Left nav (AppSidebar.tsx) and Mode Pills currently coexist as separate mechanisms"
+    priority: P2
+    note: "Large IA change to a live product -- needs its own scoped design pass, not a drive-by change"
+
+  - id: G-016
+    source: "DMP-DCF §DCMD rich schema"
+    requirement: "Full 10-sub-object chain definition (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge) per Dynamic Chain"
+    status: gap
+    evidence: "dynamic_chains table has the core queryable structure only (modePill/pathKeys/pathLabels/moduleRef/description/status), not the full rich schema"
+    priority: P2
+
+  - id: G-017
+    source: "DMP-DCF §DCMD as graph"
+    requirement: "entity_relationships actually wired as the DCMD graph (chain->module, chain->approval, chain->report edges)"
+    status: blocked
+    evidence: "entity_relationships table exists (Phase 3), zero consumers wired in by design. dynamic_chains (this session) is the first real node type it could hold edges for"
+    priority: P2
+    blocked_by: G-016
+
+  - id: G-018
+    source: "DMP-DCF §Directory Intelligence"
+    requirement: "Duplicate/missing/broken/obsolete Dynamic Chain detection"
+    status: partial
+    evidence: "capability-registry-service.ts's findSimilarCapabilities()/auditDuplicateCapabilities() exists for worker_agent/automation_rule/module/prompt_pattern -- dynamic_chain not yet a 5th CapabilityEntityType"
+    priority: P2
+
+  - id: G-019
+    source: "DMP-DCF §18 Integration"
+    requirement: "Every module/API/report/workflow routes through a Dynamic Chain -- literal 'no component outside the framework'"
+    status: gap
+    evidence: "Aspirational as stated. Dynamic Chain ID Phase 1 (tasks/conversations) is the only real linkage so far"
+    priority: P2
+
+  - id: G-020
+    source: "DMP-DCF §Multi-domain taxonomy"
+    requirement: "Real Sales/CRM/Finance/HR/Legal/Procurement business taxonomy content"
+    status: gap
+    evidence: "Platform is genuinely single-domain (compliance) today. This is business content the org must define, not code -- explicitly not fabricated"
+    priority: P2
+    decision: "descoped -- content, not code"
+
+  # ── From VERI AI and VERI Chat.docx / VERI_CHAT_GOVERNANCE.md ──
+  - id: G-021
+    source: "VERI Chat Governance §3"
+    requirement: "VERI proactively/unprompted participates in a conversation it's invited to (identify deadlines, recommend workflows, detect commitments) without being directly addressed"
+    status: gap
+    evidence: "Only reactive (answer-when-addressed) participation shipped this session; proactive reasoning over full conversation history is materially bigger scope"
+    priority: P2
+
+  - id: G-022
+    source: "VERI Chat Governance §5"
+    requirement: "Mandatory 2-level Dynamic Chain selection before starting any new VERI Chat conversation"
+    status: gap
+    evidence: "No conversation-creation flow requires a chain today. Deferred deliberately -- real UX change to a live, actively-used messaging surface"
+    priority: P1
+
+  - id: G-023
+    source: "VERI Chat Governance §Approval menu"
+    requirement: "Full approval-option menu: Edit & Approve, Approve Similar, Approve for This Conversation/Task/Workflow, Always Reject (UI-exposed)"
+    status: partial
+    evidence: "Approve Once + Always Approve (type-level only) shipped this session. Scope-specific approval (conversation/task/workflow) exists in schema/service but nothing calls it with a real scopeId yet"
+    priority: P1
+
+  # ── From Work requirement.docx (WGIEF) -- first pass, not yet its own tree file ──
+  - id: G-024
+    source: "Work requirement.docx §3-4 Universal Work Object / States"
+    requirement: "Every business activity (incl. MoM/email/documents/voice/OCR) becomes a governed Work Object with one of ~30 named states"
+    status: partial
+    evidence: "activity_log (this session) covers AI Dev Team dispatch only, with 8 collapsed states, not 30+. tasks/conversations have their own separate, narrower state sets. Large conceptual overlap with DMP-DCF's Dynamic Chain ID work -- same underlying gap, not double-counted"
+    priority: P1
+    duplicate_of: G-toc-uwt
+
+  - id: G-025
+    source: "Work requirement.docx §5/7/8/9 Intelligent Work Creation (MoM/Document/Email Intelligence)"
+    requirement: "VERI automatically detects actionable work (action items/decisions/deadlines/risks) from uploaded MoM, documents, and emails, proposes Work Objects for approval"
+    status: gap
+    evidence: "No MoM/email intelligence exists. document-extraction-service.ts does per-provider vision extraction for already-uploaded images only (facilities-digitization use case), not general action-item detection"
+    priority: P1
+    note: "Real, valuable, genuinely large scope -- OCR/parsing pipeline, not a small fix"
+
+  - id: G-026
+    source: "Work requirement.docx §6 Human Decision Protocol"
+    requirement: "Full action-option menu on every proposed Work Object: Approve/Approve All/Approve Similar/Edit/Delegate/Change Priority/Change Timeline/Assign/Share/Merge/Split/Archive/Mark Not Required"
+    status: partial
+    evidence: "Overlaps heavily with G-023 (VERI Chat's approval menu) -- same underlying approval_preferences infra, needs the fuller option set wired to task-level actions specifically"
+    priority: P2
+
+  - id: G-027
+    source: "Work requirement.docx §Constitutional Principle -- Human Authority & AI Delegation"
+    requirement: "Explicit, scoped, revocable delegation of decision-making authority to VERI for a specific task/workflow/project/module/function/communication-type/approval-type/time-period"
+    status: gap
+    evidence: "approval_preferences (this session) covers 'always approve this action category' -- a narrower, simpler mechanism than full scoped delegation with revocation and time-bounding"
+    priority: P1
+    note: "Genuinely new, valuable, well-scoped extension of approval_preferences -- good next-wave candidate"
+
+  - id: G-028
+    source: "Work requirement.docx §14 Universal Dashboard"
+    requirement: "Live Work Dashboard: To Do/Pending/WIP/Reviews/Approvals/Blocked/Delegated/Completed/Overdue/Upcoming/High Priority/Critical Risks/Escalations, real-time"
+    status: gap
+    evidence: "No unified cross-type dashboard exists. veri-todo-service.ts covers tasks only, not the full Work Object taxonomy"
+    priority: P1
+
+  - id: G-029
+    source: "Work requirement.docx §15 Continuous Planning"
+    requirement: "VERI continuously reprioritizes work based on deadlines/dependencies/resources/risk/SLA, recommends revised execution plans"
+    status: gap
+    evidence: "tasks.priority (Wave 148) is static, set at creation, never dynamically reprioritized"
+    priority: P2
+
+  # ── Cross-cutting, this session's own findings ──
+  - id: G-030
+    source: "Model routing strategy discussion (this session)"
+    requirement: "Model Performance Scorecard -- dispatch count/success rate/iterations-used/audit-finding-rate per model+tier"
+    status: gap
+    evidence: "token_usage_ledger captures cost only, not success/failure or audit outcomes. Discussed and agreed, not yet built"
+    priority: P1
+
+  - id: G-toc-uwt
+    source: "UNIVERSAL_TASK_WRAPPER_DESIGN.md Phases 2-4"
+    requirement: "activity_log wired into tasks/orchestraExecutions (Phase 2), a real query surface (Phase 3), recursive-delegation/circular-dependency detection (Phase 4)"
+    status: gap
+    evidence: "Only Phase 1 (ai_team_dispatch activity type) shipped. Phase 2+ explicitly deferred, approved-in-principle, not built"
+    priority: P1
+
+  # ── Cross-repo (already tracked as task #17, restated here for one master list) ──
+  - id: G-031
+    source: "Session-wide: 'across FChecklist' directive"
+    requirement: "Port the actual CODE (Guardrail Engine, task-tightening, anti-bypass CI check, tier routing) -- not just governance documents -- to veda-advisors and projexa"
+    status: gap
+    evidence: "Only documentation foundations ported (veda-advisors PR #15, projexa PR #1, both still open awaiting Owner review). Zero code-level rollout"
+    priority: P0
+    note: "The single largest, most load-bearing open gap -- everything else in this file only fully matters once it's true everywhere, not just in compliance-tracker"
+
+  # ── From Connectors.docx (re-verified this pass against live code) ──
+  - id: G-032
+    source: "Connectors.docx (analyzed prior session 2026-07-10, re-verified 2026-07-11)"
+    requirement: "Real data ingestion through connected Google/Microsoft/etc. toolkits (today: connect-status only, zero data pulled through any of the 13 connected toolkits)"
+    status: gap
+    evidence: "veridian_connectors_docx_analysis memory's own 'next highest-value step' note, unchanged"
+    priority: P1
+
+  - id: G-033
+    source: "Connectors.docx"
+    requirement: "Universal Connector normalization layer (Table/Document/Presentation/Communication types)"
+    status: gap
+    evidence: "Approved in the prior session, not yet built"
+    priority: P2
+
+  - id: G-034
+    source: "Connectors.docx"
+    requirement: "Business Digital Twin (per-document canonical representation)"
+    status: blocked
+    evidence: "Deferred in favor of extending entity_relationships (Phase 3) instead of a second graph engine -- same substrate as G-017"
+    priority: P2
+    blocked_by: G-017
+
+  # ── From Requirement.docx (brand new, first pass) ──
+  - id: G-036
+    source: "Requirement.docx §1-4"
+    requirement: "User registration management: secure invite links (WhatsApp+email), org account opening, license management, user-count management"
+    status: gap
+    evidence: "No invite-link flow, no license/seat-count management exists in the codebase today"
+    priority: P1
+
+  - id: G-037
+    source: "Requirement.docx §5"
+    requirement: "Session/device misuse management -- max 2 concurrent sessions per license (1 laptop + 1 mobile), exempted for VERIDIAN's own internal use/testing"
+    status: gap
+    evidence: "No session-limit enforcement exists anywhere"
+    priority: P1
+
+  - id: G-038
+    source: "Requirement.docx §6 Adoption Dashboard"
+    requirement: "Per-user and per-org adoption dashboard: activation status, adoption %, AI adoption %, meetings/tasks/hours-saved/reports/AI-conversations counts, department comparison, top/lowest performing team"
+    status: gap
+    evidence: "No adoption-metrics dashboard exists. Individual counters exist scattered (task counts, etc.) but not unified into this view"
+    priority: P1
+
+  # ── From Task.docx (brand new, mostly reinforces #1/#3) ──
+  - id: G-039
+    source: "Task.docx §Response Engine"
+    requirement: "Predefined short-response vocabulary (Yes/No/OK/Pending/Completed/Need Clarity/Require Input/Wrong Data/Incomplete Instructions), max ~4 words + specific detail, so cheap/low-tier models can respond with high confidence"
+    status: gap
+    evidence: "No structured/constrained-vocabulary response mechanism exists -- every AI reply today is free-form generation"
+    priority: P1
+    note: "Directly synergizes with this session's model-tier-eligibility.ts work -- exactly the kind of constrained, mechanical-tier task GPT-OSS-120B should be reliable at. Good next-wave candidate"
+
+  - id: G-040
+    source: "Task.docx §Calculators/Processes/Reports auto-linkage"
+    requirement: "Every new feature/functionality automatically gets a linked calculator/process/report entry in the Dynamic Mode Pills/Chain tree"
+    status: partial
+    evidence: "VCEL (computation_engines, 247 engines) + capability-tree-service.ts already do most of this for calculators; the 'automatic linkage on every new feature' as a standing rule/CI check does not exist"
+    priority: P2
+
+  - id: G-041
+    source: "Task.docx §Task automation tracking"
+    requirement: "Software (not AI) tracks task completion status and pings AI about pending work in a token-minimal way"
+    status: gap
+    evidence: "veri-todo-service.ts tracks tasks but there's no deterministic 'batch ping AI with pending work' mechanism designed for low token cost"
+    priority: P2
+
+  # ── From VERIDIAN AI is no longer a compliance tool.docx (brand new) ──
+  - id: G-042
+    source: "no-longer-a-compliance-tool.docx §Changes 1"
+    requirement: "Drop 'Get Started with VERIDIAN AI'/compliance-first onboarding framing; keep 'I am VERI, your assistant, you are my boss' welcome line; profile setup via Mode Pills multi-role selection without typing; auto-connect connectors during onboarding"
+    status: partial
+    evidence: "The VERI welcome line already exists (chat-service.ts, confirmed earlier this session). The compliance-first onboarding framing and no-typing profile setup have not been checked/changed"
+    priority: P1
+
+  - id: G-043
+    source: "no-longer-a-compliance-tool.docx §Changes 1"
+    requirement: "'Invite a team member' button (+  icon, minimalist) on every page, top-right"
+    status: gap
+    evidence: "No global invite affordance found; existing invite flow (if any) not surfaced this consistently"
+    priority: P1
+
+  - id: G-044
+    source: "no-longer-a-compliance-tool.docx §Changes 1"
+    requirement: "Move 'Set up AI configuration' into Settings (currently confusingly placed); remove 'Upload the document' onboarding step"
+    status: gap
+    evidence: "Not yet checked against current onboarding flow location"
+    priority: P2
+
+  - id: G-045
+    source: "no-longer-a-compliance-tool.docx §Changes 4"
+    requirement: "Sign-up flow: Google sign-in as 1st option, email/magic-link as 2nd, 4-digit passcode via email instead of password"
+    status: gap
+    evidence: "Current auth flow not yet compared against this exact ordering/passcode requirement"
+    priority: P1
+
+  - id: G-046
+    source: "no-longer-a-compliance-tool.docx §Changes 3"
+    requirement: "Chat box copy: 'I am your Assistant VERI, select a task above to tell me what to do'"
+    status: gap
+    evidence: "Not yet checked against VeriComposer.tsx's current placeholder copy"
+    priority: P2
+
+count: 46
+note: "46 genuine, atomic, non-duplicate items after one real pass across all 9 documents. This is the honest number for this pass, not a target -- it will grow as G-024/G-025 (Work Governance) and the newer documents get the same full atomization the first 4 documents already received. See 00-INDEX.md."
