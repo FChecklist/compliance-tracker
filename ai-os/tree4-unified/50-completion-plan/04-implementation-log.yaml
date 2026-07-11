@@ -380,3 +380,12 @@ next_session_should:
   - "tds_calculator remains deferred -- needs an Owner/design decision on whether to export erp-payroll-service.ts's private computeAnnualTds for general VCEL use, or build a dedicated non-payroll-coupled adapter."
   - "PLAN-16's remaining 7 re-scoped items (Authority/Delegation, Scope broadening, Knowledge-sufficiency gate, Risk Classification vs DEC-04, Prompt-Integrity/Tool-Usage, QA pre-completion gate ties to PLAN-17, universal improvement-capture) are still open -- U-D12.B4.S3 was only 1 of the 8."
   - "PLAN-17 (Handover Protocol) and PLAN-19 (chain gate on conversations) and PLAN-21 (30-state work-object model) are still fully unstarted."
+
+  - date: "2026-07-11 (continued, Super Boss direct work while 3 subagents run in parallel, round 2)"
+    session_summary: "Closed area 5's remaining D13 item directly, per the Owner's 'don't wait, keep going' directive."
+    phase2_code_changes:
+      - change: "D13's violation-message predefined/polite-text confirmation, RESOLVED. Every guardrail-violation guidance string in task-tightening.ts (10 sites) and loop-prevention.ts (1 site) reworked from blunt imperatives to a more considerate tone."
+        files: ["src/lib/task-tightening.ts", "src/lib/loop-prevention.ts"]
+        design_note: "Kept all interpolated runtime specifics (field labels, actual trimmed values, iteration counts) rather than fully de-interpolating to satisfy D13's literal 'predefined text' wording -- a prior investigation (this file, area-3 PLAN-16 entry) found these messages could not be made fully static without losing the specific context that makes them actionable. Same evidence-based-deviation-from-literal-spec precedent as PLAN-02's area-1 finding: adopt the requirement's intent (courteous, not robotic) without a literal reading that would regress real usability."
+        verification: "tsc --noEmit -p . -> exit 0 (after clearing a stale .next build-cache artifact from an unrelated branch that briefly caused a false-positive missing-module error, unrelated to this change). eslint . -> 0 errors. bun test src/lib/task-tightening.test.ts src/lib/loop-prevention.test.ts -> 44 pass, 0 fail (only 1 test asserts guidance text -- loop-prevention.test.ts's 'split it into smaller' substring match -- still matches after the rewording)."
+        tracker_update: "05-eighteen-areas-tracker.yaml area 5: status not_started -> complete (both remaining_work items now resolved -- the ~30-state model explicitly not built per DEC-03's ratification, and D13's message tone now fixed)."
