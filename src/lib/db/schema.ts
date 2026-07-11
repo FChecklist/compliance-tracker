@@ -874,6 +874,27 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Wave 166 (tree4-unified/10-merged-governance-layer.yaml U-D14.B1.S1 "Tool
+// Health" gap): a NEW table rather than columns on orchestraExecutions,
+// deliberately -- a single execution (one row there) can invoke several
+// tools, a many-to-one relationship a single boolean column can't
+// represent, and orchestra-execution-logger.ts itself is out of scope for
+// this wave (see tool-health-tracker.ts's header for the full rationale).
+// executionId is a soft reference (by convention, like activityLog's
+// detailId above) to orchestraExecutions.id -- not a DB-level FK, since a
+// tool call can also happen outside an orchestra-logged LLM call (e.g. a
+// deterministic engine invocation) and still be worth recording.
+export const toolHealthEvents = complianceSchemaDB.table('tool_health_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  executionId: text('execution_id'),
+  toolName: text('tool_name').notNull(),
+  succeeded: boolean('succeeded').notNull(),
+  errorMessage: text('error_message'),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): additive envelope,
 // NOT a replacement for tasks/orchestraExecutions -- see the design doc's
 // "Option A vs Option B" section for why forcing one of those existing
@@ -926,6 +947,15 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   description: text('description'),
   createdById: text('created_by_id'),
   status: text('status').notNull().default('approved'), // 'draft' | 'proposed' | 'approved' | 'retired'
+  // Wave 166 (tree4-unified U-D14.B2.S1: "Every Dynamic Chain contains
+  // predefined monitoring rules"): first-pass, additive-only field. Nullable
+  // JSON, not a new normalized table -- there is no confirmed monitoring
+  // agent yet that reads/enforces a chain-scoped rule set (Tree 3's
+  // evidence is task-level/org-level, not chain-scoped, per this
+  // sub-branch's own gap note), so this deliberately stops at "a place to
+  // put a rule set" rather than inventing the enforcement layer around it.
+  // Suggested (not yet enforced) shape: { rules: { metric: string; maxValue?: number; minValue?: number; action: "warn" | "escalate" }[] }.
+  monitoringRules: jsonb('monitoring_rules'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   // Wave 171 (tree4-unified/50-completion-plan area 1, U-D6.B1.S1): DCMD
