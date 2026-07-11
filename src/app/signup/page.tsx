@@ -15,6 +15,10 @@ type InvitePreview =
   | { valid: true; orgName: string; role: string }
   | { valid: false; reason: string };
 
+type JoinCodePreview =
+  | { valid: true; orgName: string; role: string }
+  | { valid: false; reason: string };
+
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,6 +55,34 @@ function SignupForm() {
 
   const hasValidInvite = invitePreview?.valid === true;
 
+  // Area 15 (self-registration via admin code, Path C): a code the user
+  // types in themselves, distinct from `invite` above (a link they clicked
+  // that pre-fills this same field's counterpart via a URL param). Only
+  // offered when there's no invite link already active, to avoid two
+  // competing "which org am I joining" signals on one form.
+  const [showJoinCodeField, setShowJoinCodeField] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinCodePreview, setJoinCodePreview] = useState<JoinCodePreview | null>(null);
+
+  useEffect(() => {
+    const trimmed = joinCode.trim();
+    if (trimmed.length < 6) { setJoinCodePreview(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetch("/api/join-code/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      })
+        .then((res) => res.json())
+        .then((data: JoinCodePreview) => { if (!cancelled) setJoinCodePreview(data); })
+        .catch(() => { if (!cancelled) setJoinCodePreview({ valid: false, reason: "not_found" }); });
+    }, 500);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [joinCode]);
+
+  const hasValidJoinCode = !hasValidInvite && joinCodePreview?.valid === true;
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -79,6 +111,7 @@ function SignupForm() {
           ...(vid ? { vid } : {}),
           ...(vref ? { vref } : {}),
           ...(hasValidInvite && invite ? { inviteToken: invite } : {}),
+          ...(hasValidJoinCode && joinCode ? { orgJoinCode: joinCode.trim() } : {}),
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -199,6 +232,23 @@ function SignupForm() {
                       <span className="font-semibold capitalize">{invitePreview.role}</span>.
                     </p>
                   </div>
+                ) : hasValidJoinCode && joinCodePreview?.valid ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-start gap-2.5 rounded-lg bg-ct-teal/10 border border-ct-teal/30 px-3 py-2.5">
+                      <Users className="size-4 text-ct-teal mt-0.5 shrink-0" />
+                      <p className="text-sm text-ct-navy">
+                        You&apos;re joining <span className="font-semibold">{joinCodePreview.orgName}</span> as{" "}
+                        <span className="font-semibold capitalize">{joinCodePreview.role}</span>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setJoinCode(""); setJoinCodePreview(null); }}
+                      className="text-xs text-ct-muted hover:underline"
+                    >
+                      Not your organisation? Clear code
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-1.5">
                     <Label htmlFor="org" className="text-xs font-semibold text-ct-muted uppercase">
@@ -216,6 +266,37 @@ function SignupForm() {
                       <p className="text-xs text-ct-error">
                         This invite link is no longer valid ({invitePreview.reason.replace(/_/g, " ")}) -- creating a new organisation instead.
                       </p>
+                    )}
+
+                    {showJoinCodeField ? (
+                      <div className="pt-2 space-y-1">
+                        <Label htmlFor="joinCode" className="text-xs font-semibold text-ct-muted uppercase">
+                          Organisation Join Code
+                        </Label>
+                        <Input
+                          id="joinCode"
+                          type="text"
+                          placeholder="ABCD-EFGH-JKMN"
+                          value={joinCode}
+                          onChange={(e) => setJoinCode(e.target.value)}
+                          className="h-10 uppercase"
+                        />
+                        {joinCode.trim().length >= 6 && joinCodePreview && !joinCodePreview.valid && (
+                          <p className="text-xs text-ct-error">
+                            {joinCodePreview.reason === "rate_limited"
+                              ? "Too many attempts -- please wait a few minutes and try again."
+                              : `That code isn't valid (${joinCodePreview.reason.replace(/_/g, " ")}).`}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowJoinCodeField(true)}
+                        className="text-xs text-ct-saffron font-medium hover:underline"
+                      >
+                        Have an organisation join code?
+                      </button>
                     )}
                   </div>
                 )}
