@@ -9,6 +9,7 @@
     { "path": "/api/internal/metric-alerts/run", "schedule": "0 5 * * *" },
     { "path": "/api/internal/the-firm/deadline-digest/run", "schedule": "0 6 * * *" },
     { "path": "/api/internal/secrets-audit/run", "schedule": "0 7 * * *" },
-    { "path": "/api/internal/the-firm/recur-engagements/run", "schedule": "30 7 * * *" }
+    { "path": "/api/internal/the-firm/recur-engagements/run", "schedule": "30 7 * * *" },
+    { "path": "/api/internal/audit-cadence/run", "schedule": "0 */3 * * *" }
   ]
 }
