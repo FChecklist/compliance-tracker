@@ -8,6 +8,7 @@ import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
 import { recordActivity } from "@/lib/activity-log-service"
+import { estimateCostUsd } from "@/lib/llm-client"
 
 registerAllGuardrails()
 
@@ -36,6 +37,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "AI Dev Team dispatch is veridian_admin-only" }, { status: 403 })
   }
 
+  // Wave 172 (area 12 "Loop Engineering"): real wall-clock duration for the
+  // reflection/directory pipeline -- measured here, not derived from
+  // activity_log's created_at/updated_at (those can span several
+  // stage-transition writes within this same request).
+  const dispatchStartedAt = Date.now()
+
   try {
     const body = await request.json()
     const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole } = body as Partial<TightTask> & {
@@ -55,7 +62,8 @@ export async function POST(request: NextRequest) {
     const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints })
     if (!tightness.passed) {
       void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
+      // No role resolved yet -- rejected before classification even runs.
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, errorReason: tightness.reason, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         blockedBy: { reason: tightness.reason, guidance: tightness.guidance },
@@ -84,7 +92,7 @@ export async function POST(request: NextRequest) {
     // rejected HERE, before any guardrail review or model call.
     const targetRole = getRole(classification.role)
     if (!targetRole?.model) {
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, errorReason: `Role "${classification.role}" could not be resolved to a callable model.`, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         classification,
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
     const tierCheck = checkTierEligibility(targetRole.model, complexityTier!)
     if (!tierCheck.eligible) {
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         classification,
@@ -104,6 +112,11 @@ export async function POST(request: NextRequest) {
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
     if (blocked) {
+      // Pre-existing gap closed in passing: this branch previously exited
+      // without ever writing activity_log at all, leaving a platform-
+      // guardrail block invisible to both the reflection pipeline and the
+      // per-agent directory's failure/common-errors data.
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, errorReason: `GUARDRAIL_PLATFORM: ${blocked.verdict}`, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         classification,
@@ -142,7 +155,16 @@ export async function POST(request: NextRequest) {
     // reviewer calls POST /api/ai/team/review (see that route + guardrail-
     // registrations.ts's AI_TEAM_CLOSURE_REVIEW_LEAF for the actual gate).
     const activityRow = orgId
-      ? await recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: requiresAudit ? "reviewing" : "completed", objective })
+      ? await recordActivity({
+          orgId, userId: dbUser.id, activityType: "ai_team_dispatch",
+          lifecycleStage: requiresAudit ? "reviewing" : "completed",
+          objective, roleKey: classification.role,
+          durationMs: Date.now() - dispatchStartedAt,
+          // Real cost when this model's pricing is known (estimateCostUsd
+          // returns null for an unpriced model) -- forwarded to the
+          // reflection row's cost verdict, never fabricated.
+          costUsd: estimateCostUsd(targetRole.model, execution.usage) ?? undefined,
+        })
       : null
 
     return NextResponse.json({
