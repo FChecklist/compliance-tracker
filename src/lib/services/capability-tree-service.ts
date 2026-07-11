@@ -874,7 +874,28 @@ function genericProjectActions(projectId: string): CapabilityNode[] {
   ]
 }
 
-export async function buildCapabilityTree(ctx: { orgId: string }): Promise<CapabilityNode[]> {
+// D5.B7 (tree4-unified 50-completion-plan area 1, "per-module/per-page Mode
+// Pill and Chain option auto-adaptation"): the capability tree used to be
+// fetched exactly once per session, with zero awareness of which page the
+// user was actually on. Only the routes below map cleanly onto a single
+// static top-level branch key -- every other route (dashboard, tasks,
+// settings, etc.) has no narrower "module" of its own inside the tree it
+// would be honest to filter down to, so an unrecognized/unmapped moduleScope
+// intentionally falls back to the full, unfiltered tree rather than a guess.
+// buildBranchNodes' own top-level keys are DB-driven productBranch.branchKey
+// values (no fixed set to map routes onto), so branch nodes are always kept
+// regardless of scope -- narrowing those would need a real DB-backed
+// route<->branch link, not a static map, and is out of scope here.
+const MODULE_SCOPE_TOP_LEVEL_KEYS: Record<string, string[]> = {
+  compliance: ["compliance_item", "calculators"],
+  checklists: ["compliance_item", "calculators"],
+  "gst-reconciliation": ["gst_reconciliation", "calculators"],
+  "tds-returns": ["calculators"],
+  crm: ["customer", "vendor"],
+  erp: ["customer", "vendor", "product"],
+}
+
+export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string }): Promise<CapabilityNode[]> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
     const productNodes = await buildProductNodes(db, ctx.orgId)
@@ -883,7 +904,12 @@ export async function buildCapabilityTree(ctx: { orgId: string }): Promise<Capab
     const calculatorNodes = await buildCalculatorNodes(db)
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
-    return markDeterministic([...branchNodes, ...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes])
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes]
+
+    const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
+    const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
+
+    return markDeterministic([...branchNodes, ...scopedStaticNodes])
   })
 }
 

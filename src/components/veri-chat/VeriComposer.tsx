@@ -225,6 +225,15 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   }
 
   async function dispatchInstruction(path: PathSegment[], text: string, engineInputs?: Record<string, string>) {
+    // D8/D5.B4.S2 minimum 2-level chain gate -- mirrors task-service.ts's
+    // createTask() server-side check so the user sees a clear message
+    // immediately instead of only after a rejected round-trip. This is the
+    // single function every send path (plain send, calculator-input send,
+    // queued sends) funnels through, so one check here covers all of them.
+    if (path.length < 2) {
+      toast.error("Select at least 2 levels — a category and a sub-option — before sending.");
+      return;
+    }
     const displayCrumb = pathDisplayString(path);
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
@@ -410,6 +419,14 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   function queueCurrent() {
     const text = value.trim();
     if (!text || !chainComplete) return;
+    // Same D8/D5.B4.S2 gate as dispatchInstruction() -- checked here too so
+    // a <2-level path never even makes it into the queue (dispatchInstruction
+    // would reject it later anyway, but silently from the queuer's point of
+    // view since sendAllQueued() doesn't surface which item failed).
+    if (selectedPath.length < 2) {
+      toast.error("Select at least 2 levels — a category and a sub-option — before queuing.");
+      return;
+    }
     setQueue((q) => [...q, { path: selectedPath, text, display: pathDisplayString(selectedPath) }]);
     setValue("");
     setSelectedPath(preseedKeyForMode(composerMode) ? [preseedKeyForMode(composerMode)!] : []);
