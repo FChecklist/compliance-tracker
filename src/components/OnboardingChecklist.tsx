@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { UserCheck, FileText, Upload, Users, Brain, X, PartyPopper, ChevronDown, ChevronUp } from "lucide-react";
+import { UserCheck, FileText, Users, Brain, X, PartyPopper, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,12 +11,21 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "veridian_onboarding_steps";
 
+// U-D28 (Onboarding & Sign-up UX): "Set up AI configuration" and "Upload a
+// document" were removed from this mandatory checklist per the source
+// requirement (ai-os/audit-tree/09-onboarding-ux.yaml, "Changes part 1" --
+// "Remove 'Set up AI configuration' as a top-level/onboarding item -- it
+// confuses users. Relocate ... into Settings instead" and "Remove the
+// 'Upload the document' onboarding step entirely"). AI configuration
+// already lives in Settings > AI Configuration (see
+// src/app/(app)/settings/page.tsx, SETTINGS_NAV "ai-config" entry) -- it
+// was never removed from the app, only from this blocking onboarding flow.
+// Document upload has no relocation target per the source doc; it is
+// discoverable organically once a user is working with compliance items.
 const STEPS = [
   { id: "profile", label: "Complete your profile", icon: UserCheck },
   { id: "compliance", label: "Add your first compliance item", icon: FileText },
-  { id: "upload", label: "Upload a document", icon: Upload },
   { id: "invite", label: "Invite a team member", icon: Users },
-  { id: "ai-config", label: "Set up AI configuration", icon: Brain },
 ];
 
 function readStorage(): { completed: string[]; dismissed: boolean } {
