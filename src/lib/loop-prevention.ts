@@ -36,6 +36,6 @@ export function checkLoopBudget(context: LoopBudgetContext): LoopBudgetResult {
   return {
     passed: false,
     reason: `Iteration budget exhausted (${context.iteration}/${context.maxIterations}) without completing.`,
-    guidance: "This usually means the task's scope was too broad for one dispatch -- split it into smaller, more tightly scoped tasks (see task-tightening.ts's Scope field), or raise the budget deliberately if the task is genuinely large and that's expected.",
+    guidance: "This usually means the task's scope was too broad for one dispatch. It may help to split it into smaller, more tightly scoped tasks (see task-tightening.ts's Scope field), or you can raise the budget deliberately if the task is genuinely large and that's expected.",
   }
 }
