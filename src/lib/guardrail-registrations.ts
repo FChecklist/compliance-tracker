@@ -22,6 +22,7 @@ import { validateHandoverFields, type HandoverFields } from "./handover-protocol
 import { bandConfidence } from "./confidence-banding"
 import { nextEscalationRung } from "./escalation-ladder"
 import { classifyAuditCadence } from "./audit-cadence"
+import { checkQaPreCompletionGate } from "./qa-precompletion-gate"
 import type { RiskLevel } from "./risk-classification"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
@@ -43,6 +44,16 @@ export const AI_TEAM_CLOSURE_REVIEW_LEAF = "ai_team.closure_review"
 // same "input phase validates the submission, not the surrounding
 // lifecycle stage" posture as AI_TEAM_CLOSURE_REVIEW_LEAF just above.
 export const HANDOVER_PROTOCOL_LEAF = "task_execution.handover"
+// tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16 original
+// item (f), "QA pre-completion gate distinct from GOV-08": HANDOVER_PROTOCOL_LEAF
+// just above only validates that a handover submission is well-formed
+// (all 9 fields present/real). This leaf validates something GOV-08 has
+// no opinion on -- whether the submission's reported Validation Passed
+// VALUE actually permits a 'completed' lifecycle_stage, or requires an
+// explicit, permanently-recorded override. See qa-precompletion-gate.ts's
+// own header for why this was previously not closeable (Handover
+// Protocol had zero live callers) and how it's wired now.
+export const QA_PRECOMPLETION_GATE_LEAF = "task_execution.qa_precompletion"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   // Wave 163 audit finding (chief_audit_officer's first real dispatch,
@@ -163,6 +174,21 @@ function handoverCheck(context: Record<string, unknown>) {
   return { passed: false as const, reason: result.reason, guidance: result.guidance }
 }
 
+// tree4-unified/50-completion-plan area 3, PLAN-16 item (f): only applies
+// when a closure decision is actually being made ('approved') -- mirrors
+// closureReviewCheck's own confidence-banding/risk-routing branches above,
+// which likewise only fire on reviewDecision === "approved" (rejecting
+// isn't "marking complete", so the gate has nothing to check).
+function qaPreCompletionCheck(context: Record<string, unknown>) {
+  if (context.reviewDecision !== "approved") return { passed: true as const }
+  const result = checkQaPreCompletionGate({
+    handoverValidationPassed: context.handoverValidationPassed as string | null | undefined,
+    overrideReason: context.overrideReason as string | null | undefined,
+  })
+  if (result.passed) return { passed: true as const }
+  return { passed: false as const, reason: result.reason, guidance: result.guidance }
+}
+
 let registered = false
 
 // Wave 167 real bug found while reviewing the Handover Protocol PR: CI
@@ -230,4 +256,11 @@ export function registerAllGuardrails(): void {
   // self_acceptance_not_allowed checks, which run at a later, separate
   // step -- ownership only transfers on that explicit accept call).
   registerGuardrail(HANDOVER_PROTOCOL_LEAF, { phase: "input", check: handoverCheck })
+
+  // QA pre-completion gate (PLAN-16 original item (f)) -- "input" phase,
+  // same posture as AI_TEAM_CLOSURE_REVIEW_LEAF just above: validates the
+  // closure decision itself before recordPeerReview()'s own fail-closed
+  // checks (not_found/not_in_review/self_review_not_allowed/
+  // handover_not_submitted) run against the actual activity_log row.
+  registerGuardrail(QA_PRECOMPLETION_GATE_LEAF, { phase: "input", check: qaPreCompletionCheck })
 }
