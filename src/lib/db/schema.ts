@@ -868,6 +868,17 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   detailId: text('detail_id'),
   lifecycleStage: text('lifecycle_stage').notNull().default('requested'), // requested | classified | validated | executing | reviewing | completed | failed | closed
   objective: text('objective'),
+  // Wave 165 (tree4-unified/50-completion-plan U-D12.B4.S3 finding: the
+  // "reviewing" stage above was already being set on low-confidence AI Team
+  // dispatches, but nothing ever read it back -- the dispatch response said
+  // status:"completed" regardless, no independent reviewer was ever
+  // required, no comments became a permanent record). All 4 nullable and
+  // additive -- existing rows are unaffected, this only gates NEW
+  // dispatches that land in "reviewing".
+  selfAssessment: jsonb('self_assessment'), // the executing role's own structured self-report: {taskStatus, outputProduced, validationPassed, knownRisks, confidence}
+  reviewedBy: text('reviewed_by'), // the independent reviewer's user id -- must differ from the dispatching user (no self-certification, mirrors AGENTS.md Rule 7c)
+  reviewNotes: text('review_notes'), // permanent record of the reviewer's comments -- required, not optional, when a decision is recorded
+  reviewDecision: text('review_decision'), // 'approved' | 'rejected', null until reviewed
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

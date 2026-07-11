@@ -1,0 +1,41 @@
+# 100% Completion Plan -- Phase 0: Owner Decisions Required Before Building
+#
+# These 6 decisions block downstream plan items. Each blocks specific plan
+# items in 02-plan-items.yaml (listed under `blocks`). None of these are
+# defaulted by this plan -- building ahead of a decision risks wasted work
+# in the wrong direction (e.g. building 150 named auditor roles the Owner
+# didn't actually want).
+
+decisions:
+  - id: DEC-01
+    question: "Audit Organization granularity: build the ~150 individually-named specialist auditor roles exactly as Audit Organization.docx specified, or a smaller number of broader roles covering the same 5 divisions?"
+    context: "roster.ts today has only 1 audit role (chief_audit_officer). Tree 1's D2.B4/D2.B5 spec names ~150 individual auditors (Software Quality Auditor, GST Auditor, Segregation of Duties Auditor, etc.) across 5 divisions. Building 150 distinct roster.ts entries + prompt templates is a large, ongoing maintenance commitment; a smaller set of broader, parameterized roles could cover the same functional ground with less overhead."
+    recommendation: "Pilot with 5-6 division-lead roles first (one per division: Engineering/Business/Knowledge/Governance/Revenue Assurance), each parameterized to audit within its division's scope, before committing to all 150 individually-named agents."
+    blocks: ["PLAN-51", "PLAN-36"]
+  - id: DEC-02
+    question: "Approval option vocabulary: keep the simpler binary always_approve/always_reject model that was actually built, or build the richer 9-option (communication) / 9-option (quick) / 16-option (work-object) vocabularies Tree 1 originally specified?"
+    context: "Tree 1 itself flagged this as an unresolved conflict between 2 source documents (open item R1). The real system resolved it empirically by building something simpler than either original proposal. The simpler model is faster/less intrusive (a real UX advantage) but doesn't offer the granular control (Merge/Split/Delegate/Change Priority, etc.) the richer vocabularies specified."
+    recommendation: "Keep the binary model as the default fast path; if granular control is genuinely needed for specific action types (e.g. Delegate, Change Priority), add those as additional named preference actions rather than rebuilding the full 16-option UI."
+    blocks: ["PLAN-58"]
+  - id: DEC-03
+    question: "Work Object unification: retrofit ERP/PMS/The Firm/Construction to be VIEWS over one unified Work Object table (per Tree 1's D4.B7 recommendation), or ratify the current architecture of independent domain-specific tables as the deliberate design?"
+    context: "This is the single largest architectural divergence found in the entire tree comparison. ERP alone has ~150 tables with their own status/lifecycle logic. A retrofit is a major, multi-month, high-risk migration touching the platform's largest subsystems. Ratifying the current design means several other gaps (a truly universal follow-up engine, D22; a truly universal dashboard, D23) can only ever be approximated, not fully realized, without touching many separate tables."
+    recommendation: "Ratify the current architecture for existing modules (ERP/PMS/Firm/Construction) as sunk cost not worth unwinding; apply the unification principle going forward for any genuinely NEW module, so the divergence doesn't keep growing."
+    blocks: ["PLAN-59", "PLAN-44"]
+  - id: DEC-04
+    question: "Is GOT-OSS/DeepSeek/ZLM/Claude's original percentage-based model allocation (D3) and the 4-band confidence-percentage escalation scheme (D12/D18, 98-100%/95-97%/90-94%/<90%) formally superseded by GOV-04's complexity-tier system (mechanical/integrative/judgment), or still wanted as a separate, additional mechanism?"
+    context: "GOV-04's tier system is real, working, and CI-enforced (mandatory-audit-check.yml). It serves a similar governance purpose (don't let underqualified models do overqualified work) via a materially different mechanism (categorical tier vs. numeric percentage). Building the literal percentage-band scheme ALONGSIDE the tier system would mean two parallel routing/escalation logics to keep consistent."
+    recommendation: "Formally deprecate D3.B1.S1's percentage split and D12/D18's percentage-banding language in favor of GOV-04's tier system; update Tree 1's own audit-tree/10-merged-tree.yaml to mark these sub-branches as superseded rather than open requirements."
+    blocks: ["PLAN-20", "PLAN-27"]
+  - id: DEC-05
+    question: "Build a distinct 'CSEO' (Chief Software Engineering Officer) role in roster.ts matching D2.B3.S4's 18 named responsibilities, or accept GLM-5.2's current generic usage across many engineering roles as sufficient?"
+    context: "Lowest-stakes decision in this list. 'ZLM 5.2' resolved to GLM-5.2 per this session's own memory, and GLM-5.2 is already roster.ts's primary model across most roles -- the model exists, but not as one consolidated 'CSEO' identity with its own authority matrix."
+    recommendation: "No action needed unless the Owner specifically wants a single named engineering-executive role for reporting/accountability purposes distinct from the individual engineering roles."
+    blocks: ["PLAN-23"]
+  - id: DEC-06
+    question: "Build the L0-L5 escalation ladder (D2.B1) as a queryable code structure (e.g. an escalationLevel field + lookup logic on roster.ts roles), or keep it as a working practice documented in AGENTS.md only?"
+    context: "The ladder concept (routine execution -> review -> QC -> COO -> Super Boss -> Owner) is followed in practice this session (e.g. via AGENTS.md's authority descriptions) but has no corresponding code artifact. Building it as code would let other gap-closure work (e.g. D15.B6's Peer Validation stage, D3.B2's chain-execution escalation) reference a real structure instead of an aspirational one."
+    recommendation: "Build it as code -- several other plan items (PLAN-23, PLAN-31 through PLAN-36's audit cadence work) are cleaner to implement against a real escalation-level field than against prose."
+    blocks: ["PLAN-23"]
+
+count_of_decisions: 6

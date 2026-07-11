@@ -1,0 +1,201 @@
+# Priority-1 tracker, created 2026-07-11 per the Owner's explicit directive:
+# "first complete these 18 items end to end, 100%. Dont assume, complete
+# them 100%. Thats the priority 1." This is the authoritative checklist for
+# that directive -- update `status` and `remaining_work` as each area is
+# genuinely built and verified, not when a plan for it exists. Cross-refs
+# back to 10-merged-governance-layer.yaml sub-branch ids and 02-plan-items.yaml
+# PLAN ids wherever real overlap exists -- this tracker does not duplicate
+# that detail, it aggregates it under the Owner's own 18 labels.
+#
+# status values: complete | in_progress | not_started
+# "complete" requires: real code/schema shipped, tsc+eslint clean (or
+# equivalent verification for non-code items), and either a passing test or
+# a directly-observed correct output -- matching this session's established
+# discipline (auth-guard fix, closure-review gate, TDS engines).
+
+areas:
+  - num: 1
+    name: "Dynamic Mode Pills & Dynamic Chain Option Selector"
+    tree1_domains: ["U-D5", "U-D6", "U-D9"]
+    status: not_started
+    baseline: "5 solid / 6 partial / 10 gap of 21 sub-branches (~24%)"
+    remaining_work:
+      - "DCMD (D6): rich, graph-structured Dynamic Chain Master Directory -- dynamic_chains is currently a flat find-or-create table, not the taxonomy/graph D6 specifies."
+      - "D5.B6: persistent visibility panel (Task Number/Priority/Owner/Workflow Status always shown) -- confirmed absent."
+      - "D5.B7: per-module/per-page Mode Pill and Chain option auto-adaptation -- capability tree is fetched once per session, zero route-awareness, confirmed absent."
+      - "D8/D5.B4.S2: minimum 2-level chain selection gate before a new conversation begins -- not confirmed enforced anywhere."
+
+  - num: 2
+    name: "VERI Chat and VERI"
+    tree1_domains: ["U-D7", "U-D8"]
+    status: not_started
+    baseline: "4 solid / 2 partial / 0 gap of 6 sub-branches (~67%)"
+    remaining_work:
+      - "Enforce the minimum 2-level chain selection gate before a new VERI Chat conversation begins (shared item with area 1)."
+
+  - num: 3
+    name: "Guardrails"
+    tree1_domains: ["U-D12", "U-D13", "U-D17", "U-D18"]
+    status: not_started
+    baseline: "6 solid / 13 partial / 2 gap of 21 sub-branches (~29%)"
+    remaining_work:
+      - "PLAN-16's 8 re-scoped items: Authority/Delegation guardrail beyond role-rank, broader Scope enforcement, real pre-execution Knowledge-sufficiency gate, Risk Classification (or Owner ruling merged with GOV-04 tiers -- DEC-04), Prompt-Integrity/Tool-Usage as distinct checks, universal improvement-capture at closure."
+      - "D17 AI Handover Protocol: confirmed zero-coverage gap -- build the 9-field structured handover + explicit receiving-agent acknowledgement."
+      - "D12.B2.S5: contradiction/ambiguity detection in instruction validation (see area 7, same underlying file)."
+      - "D18: confidence-percentage banding (98-100/95-97/90-94/<90) -- decide with Owner whether still wanted alongside GOV-04's tier system (DEC-04) before building."
+
+  - num: 4
+    name: "Agent management"
+    tree1_domains: ["U-D2"]
+    status: not_started
+    baseline: "1 solid / 4 partial / 7 gap of 12 sub-branches (~8%) -- tied for weakest"
+    remaining_work:
+      - "The ~150-named-specialist audit organization (5 divisions x departments x agents) as real dispatchable roster.ts roles -- currently only ~7 GUARDRAIL_*/AUDIT_EXECUTIVE roles exist."
+      - "Formal executive escalation ladder (Super Boss/COO/CEE/CSEO) as enforced code, not session-level working practice documented only in AGENTS.md."
+      - "DEC-05 (CSEO as a distinct role) needs an Owner decision before this can be built correctly."
+
+  - num: 5
+    name: "Task Lifecycle management with loop management"
+    tree1_domains: ["U-D4", "U-D13"]
+    status: not_started
+    baseline: "1 solid / 5 partial / 7 gap of 13 sub-branches (~8%) -- tied for weakest"
+    remaining_work:
+      - "The ~30-state Universal Work Object model -- tasks.status is currently a plain 5-value text field (pending/in_progress/completed/failed/cancelled), confirmed by direct schema read, not assumed."
+      - "The ~40-field Input/Process/Output/Handover/Closure schema -- tasks table has only 16 columns, 6-7 of which loosely match Tree 1's Identity group; the other 4 groups are entirely absent as columns."
+      - "Work-Object-as-single-source-of-truth -- Tree 3 shows the opposite architecture (dozens of separate domain-specific service+table pairs). DEC-03 (retrofit vs. ratify) needs an Owner decision before this is built, since retrofitting live tables vs. ratifying the current pattern are very different scopes."
+      - "Loop management (D13) largely covered by loop-prevention.ts -- remaining gap is D13's violation-message predefined/polite-text confirmation."
+
+  - num: 6
+    name: "Monitoring"
+    tree1_domains: ["U-D14"]
+    status: not_started
+    baseline: "2 solid / 1 partial / 1 gap of 4 sub-branches (~50%)"
+    remaining_work:
+      - "Per-Dynamic-Chain predefined monitoring rules (D14.B2) -- monitoring today is task-level/org-level (GOV-16's loops), not chain-scoped."
+      - "Reasoning Quality, Dependency Health, Tool Health, Instruction/Policy/Security Compliance as individually tracked metrics (D14.B1)."
+      - "A composite Performance Score (D14.B1)."
+      - "Circular-dependency and deadlock detection specifically, distinct from simple iteration/depth limits (D14.B4)."
+
+  - num: 7
+    name: "Narrow and tightened Instructions to Agents"
+    tree1_domains: ["U-D12.B2.S4", "U-D12.B2.S5"]
+    status: complete
+    baseline: "implemented / implemented -- first of the 18 areas fully closed"
+    remaining_work: []
+    resolution_note: "2026-07-11 (Wave 166): detectAmbiguousLanguage (hedge-phrase scan) and detectFieldContradiction (negation-vs-requirement word-overlap check) added to task-tightening.ts, wired into both validateTightTask and validateTaskBrief. 9 new tests (4 ambiguity, 4 contradiction, 1 taskBrief-ambiguity), all passing, including true-negative cases verified not to false-positive on legitimate specific text. First contradiction-check design was broken (exact-substring matching failed on ordinary sentence variation like an inserted adjective) -- caught by the test itself failing, not assumed correct, then fixed with a word-overlap approach and re-verified. tsc/eslint clean. CI manifest updated (45/45 markers). Full test suite: 146 pass / 1 fail / 1 error, both pre-existing and unrelated. Honest scope limit documented in Tree 4: this is deterministic pattern-based detection, not full logical contradiction detection (would need an LLM) -- matches every other guardrail's stated discipline in this codebase."
+
+  - num: 8
+    name: "Majority of work by Software"
+    tree1_domains: ["U-D3.B2.S1", "U-D25"]
+    status: in_progress
+    baseline: "9 of 24 categories substantially/fully wired: GST (16/16), Math (10/13), Income Tax (9/9), TDS/TCS (6/7), Accounting (11/20), Payroll (14/18), Inventory (15/15), HR (9/9), Banking (8/9) -- ~98 of ~247 functions reachable, up from ~41 at the start of this directive"
+    remaining_work:
+      - "Wire the remaining 15 categories into task-execution-engine.ts's dispatchEngine() + capability-tree-service.ts's WIRED_ENGINE_INPUT_FIELDS, following the now-8x-proven pattern (each verified by tsc/eslint AND direct execution against hand-computed correct values, not just type-checked). By size: Costing (8), Fixed Asset (8), Data Quality (7 remaining), Sales (7), Procurement (7), Security (7), Audit (7), AI Support (7), Project Management (6), Marketing (6), Logistics (6), Analytics (6), Compliance (6), CRM (5), Document Processing (1)."
+      - "The escalation-to-D2.B1-ladder step (D3.B2.S1) when software-first execution needs help -- depends on area 4's executive hierarchy being built first."
+      - "A real Owner decision needed eventually: several DB-registered engine_keys (tds_calculator, pf_calculator, esi_calculator, professional_tax_calculator, salary_calculator, and likely more as remaining categories are wired) are not simple pure functions -- they're coupled to admin-editable DB rule tables inside larger service files. Reaching genuine 100% on this area means either exporting/adapting each one, or the Owner formally accepting these as out-of-scope for the VCEL dispatch pattern (a different, real design decision, not a wiring gap)."
+
+  - num: 9
+    name: "Auditing"
+    tree1_domains: ["U-D15"]
+    status: not_started
+    baseline: "0 solid / 5 partial / 5 gap of 10 sub-branches (~0%) -- weakest area"
+    remaining_work:
+      - "The 7-level (L1-L7) audit cadence model with re-audit triggers -- not built as such; what exists (11 daily cron loops + 1 CI mandatory-audit gate) is a real but different continuous-audit mechanism."
+      - "U-D15.B3.S1: 'no task is EVER permanently complete' (re-audit on new evidence/changed requirements/incidents) -- zero code support today, confirmed structurally significant gap."
+      - "The 150-specialist audit organization (shared item with area 4)."
+
+  - num: 10
+    name: "AI router management"
+    tree1_domains: ["U-D3"]
+    status: not_started
+    baseline: "1 solid (superseded-by-better-design) / 1 partial of 2 sub-branches (~50%)"
+    remaining_work:
+      - "The escalation-to-D2.B1-ladder step (same item as area 8's second line, area 4's executive hierarchy)."
+
+  - num: 11
+    name: "Cost management"
+    tree1_domains: ["embedded in U-D14.B1.S1"]
+    status: not_started
+    baseline: "Tracking/logging solid (token_usage_ledger, orchestra-execution-logger.ts); active control absent"
+    remaining_work:
+      - "A real budget-cap/alert/spend-limit enforcement system -- today this is observability only (what got spent), not active cost control (stop spending before a limit is hit)."
+      - "Needs an Owner decision on what limits/scopes matter (per-org? per-user? per-task-type? daily/monthly?) before building -- this is new scope, not in any Tree 1 sub-branch literally, so the definition-of-done itself needs Owner input."
+
+  - num: 12
+    name: "Loop Engineering"
+    tree1_domains: ["U-D16.B1"]
+    status: not_started
+    baseline: "0 solid / 2 partial / 2 gap of 4 sub-branches (~0%)"
+    remaining_work:
+      - "Universal reflective-question mechanism running for EVERY completed task (what succeeded/failed/why, can this be faster/cheaper, should another AI do this, should this become reusable) -- currently the CLEE pipeline only fires on guardrail violations and audit-loop findings, not universally."
+      - "Per-AI-Agent permanent directory (Agent/Task/Version/Average Success/Average Time/Failures/Common Errors/Improvement Suggestions/Latest Prompt Version/Validation Rules/Loop Engineering Status) -- worker_agent_usage_log/worker_agent_learnings cover Worker Agents only, not AI Dev Team roles generally."
+
+  - num: 13
+    name: "4-layer orchestra management"
+    tree1_domains: ["not a dedicated Tree 1 domain -- real Tree 3 infrastructure"]
+    status: complete
+    baseline: "orchestra-model-resolver.ts's personal/client/org/platform routing is real and live"
+    remaining_work: []
+    resolution_note: "Owner confirmed 2026-07-11: already complete as-is, no further work needed. Never had its own Tree 1 requirement -- referenced only as supporting evidence for D3/D26."
+
+  - num: 14
+    name: "Common functionalities"
+    tree1_domains: ["new tracked domain -- no Tree 1 match", "informed by U-D23", "informed by U-D24 (fully_implemented)"]
+    status: not_started
+    baseline: "Undefined until this session -- Owner confirmed: cross-cutting shared features (search, notifications, comments/attachments, audit trail, export), overlapping D23/D24"
+    remaining_work:
+      - "Write a real definition pass first (this has no Tree 1 requirement text to reconcile against, unlike every other area) -- enumerate what 'common functionality' means per feature, then gap-check each against live code."
+      - "D24 (Response Engine) is already fully_implemented -- carries forward as-is."
+      - "D23 (Universal Dashboard) is largely implemented -- real-time-ness is the one unconfirmed piece."
+      - "New candidates needing their own gap-check: global search, notifications (in-app/email/push), comments/attachments on any object, universal audit-trail viewer (distinct from the raw audit_logs table), bulk export."
+
+  - num: 15
+    name: "End user lifecycle management"
+    tree1_domains: ["U-D27.B1.S1", "U-D28"]
+    status: not_started
+    baseline: "1 solid / 0 partial / 6 gap of 9 sub-branches (~11%)"
+    remaining_work:
+      - "3 of 4 spec'd invitation paths (Secure Invite Link via WhatsApp+email, self-registration-via-admin-code, self-registration-via-X) -- only Master-Admin-direct-add exists today, and that path's isActive bug was fixed this session (PLAN-12)."
+      - "Onboarding UX rebuild: 5 of 6 named specifics directly contradicted by live code -- no Google sign-in, password not passcode, no persistent 'Invite a team member' control, 'Set up AI configuration' and 'Upload a document' still present as onboarding steps."
+      - "D28.B1.S1: reposition away from 'compliance tool' framing per the Owner's stated requirement, replace the 'Get Started with VERIDIAN AI' CTA."
+
+  - num: 16
+    name: "Account / Organization lifecycle management"
+    tree1_domains: ["U-D27.B1.S1"]
+    status: not_started
+    baseline: "likely_gap -- only organisations.plan/subscriptionPlanId linkage exists"
+    remaining_work:
+      - "Org-level license management: assign/revoke/track per-seat licenses."
+      - "Active-user-count enforcement against the licensed seat count."
+      - "Defined org-account-opening process (currently informal/ad hoc)."
+      - "Note: broader org lifecycle beyond licensing (e.g. org settings, org deletion/archival) is Tree 3 business-platform scope, not Tree 1-sourced -- same treatment as billing (area 17)."
+
+  - num: 17
+    name: "Billing management"
+    tree1_domains: ["not in Tree 1's scope -- Tree 3 business-platform (ERP) content"]
+    status: complete
+    baseline: "Real, built ERP billing/invoicing exists (erp_* tables/routes)"
+    remaining_work: []
+    resolution_note: "Owner confirmed 2026-07-11: leave as Tree 3/ERP scope, do not build a parallel governance-layer billing capability. Tree 1's only billing-adjacent content is a recommendation to AUDIT billing (Global Revenue Assurance division, D2), not to build billing operations -- that recommendation is tracked under area 4/9 (Agent management / Auditing), not here."
+
+  - num: 18
+    name: "End user UI/UX management"
+    tree1_domains: ["U-D28"]
+    status: not_started
+    baseline: "1 solid / 0 partial / 3 gap of 4 sub-branches (~25%)"
+    remaining_work:
+      - "Same underlying work as area 15's onboarding UX rebuild -- Tree 1 only specifies onboarding-specific UX asks, not a broader ongoing UI/UX governance domain."
+
+execution_order_rationale: >
+  Ordered by tractability and dependency, not by the numbering above:
+  (1) area 7 first -- smallest gap, no Owner decision needed, self-contained file.
+  (2) area 8 -- mechanical, well-proven pattern, highest volume of real progress per hour spent.
+  (3) area 6 -- monitoring additions are additive, no architectural risk.
+  (4) area 3's Handover Protocol (D17) -- clearly scoped, no Owner decision needed for the core mechanism.
+  (5) areas 15/16/18 together -- overlapping onboarding/lifecycle work, do once.
+  (6) area 1 -- DCMD is a real, large, well-scoped build.
+  (7) areas 4/9/10/8's-second-item -- all depend on the SAME underlying executive-hierarchy-as-code build; sequenced together once that foundation exists.
+  (8) area 5 -- blocked on DEC-03 (Owner decision: retrofit vs. ratify Work Object model) -- flag for Owner before deep investment.
+  (9) area 12 -- Loop Engineering, depends on area 5's task lifecycle groundwork existing first for real per-task hooks.
+  (10) area 11 -- Cost management, needs an Owner decision on limit scope/values before the "100%" target is even defined.
+  (11) area 2's remaining item folds into area 1's chain-selection gate work.

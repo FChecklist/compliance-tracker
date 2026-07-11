@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "./server"
-import { db, users, organisations, departments, aiAssistants, productBranches, orgProductBranchEnablements } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { db, users, organisations, departments, aiAssistants, productBranches, orgProductBranchEnablements, accessReviewCertifications } from "@/lib/db"
+import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
 
@@ -269,8 +269,30 @@ export async function requireAuth(): Promise<AuthContext> {
   // review's "revoke" decision) had zero enforcement here -- the Supabase
   // Auth session alone still granted full access. A real revoke has to
   // actually cut off access, not just flip a display flag.
+  //
+  // Bug fix (2026-07-11, tree4-unified/50-completion-plan PLAN-12 finding):
+  // isActive=false is also the value POST /api/users sets on every newly
+  // invited user ("becomes active after they accept invite" -- but nothing
+  // ever performed that flip). That made this check block EVERY admin-
+  // invited user permanently, the moment they completed their invite and
+  // logged in for the first time -- the one real invite path in the app was
+  // silently broken end-to-end. Fix: an inactive user is only actually
+  // blocked if an access-review certification explicitly revoked them
+  // (accessReviewCertifications.decision = 'revoked' for this user) --
+  // that's the only mechanism in the codebase that's SUPPOSED to set
+  // isActive=false for a deliberate reason. Absent that record, isActive=
+  // false means "freshly invited, first login in progress" and this is
+  // exactly that first login completing -- activate them and let them in,
+  // instead of a revoke check that was never designed to gate signup at all.
   if (dbUser && !dbUser.isActive) {
-    return { user, dbUser: null, orgId: null, response: NextResponse.json({ error: "This account has been deactivated" }, { status: 401 }) }
+    const revocation = await db.query.accessReviewCertifications.findFirst({
+      where: and(eq(accessReviewCertifications.userId, dbUser.id), eq(accessReviewCertifications.decision, "revoked")),
+    })
+    if (revocation) {
+      return { user, dbUser: null, orgId: null, response: NextResponse.json({ error: "This account has been deactivated" }, { status: 401 }) }
+    }
+    await db.update(users).set({ isActive: true }).where(eq(users.id, dbUser.id))
+    dbUser.isActive = true
   }
 
   return { user, dbUser, orgId: dbUser?.orgId ?? null, response: null }

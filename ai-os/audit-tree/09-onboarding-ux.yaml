@@ -1,0 +1,51 @@
+# Source: VERIDIAN AI is no longer a compliance tool.docx (6 lines
+# extracted; the 131KB file size vs. tiny extracted-text volume means most
+# of the document's content is embedded images/screenshots this text
+# extraction cannot read -- flagged honestly, not silently ignored. What
+# follows is a complete transcription of the TEXT content only; the visual
+# mockups referenced (if any) are not represented here.
+# "Page" = each "Changes part N" heading in the source (the document's own
+# structural unit).
+
+document: "VERIDIAN AI is no longer a compliance tool.docx"
+extraction_caveat: "File is 131KB compressed but yielded only 6 paragraphs of text -- likely contains embedded screenshots/mockups not captured by this extraction method. Re-extraction with image/OCR support would be needed for full fidelity."
+parts:
+  - part: "Changes part 1"
+    items:
+      - "VERIDIAN AI is no longer a compliance tool -- don't use 'first compliance Item' as the framing"
+      - "Positioning must be driven by the user's actual stated requirement, not a fixed compliance-first assumption"
+      - "Replace 'Get Started with VERIDIAN AI' as the opening CTA/heading"
+      - "Keep unchanged: the welcome line 'I am VERI, your assistant, you are my boss. Tell me about you, so that I can assist you better.' shown when the user opens the account"
+      - "After the welcome line, flow into a Mode Pills + Chain Option Selector where the user selects the multiple roles they perform"
+      - "The flow must require no typing from the user -- should 'flow easily'"
+      - "System should infer/map the person's work, profile, gender, age without the user typing it in -- 'super simple'"
+      - "After profile setup, all connectors should already be connected -- e.g. Gmail connected during setup itself, not as a separate later step"
+      - "'Invite a team member' control must appear on every screen, on every webpage, upper-right corner"
+      - "That invite control must be minimalist, written in English, with a '+' sign, so anyone can invite easily"
+      - "Remove 'Set up AI configuration' as a top-level/onboarding item -- it confuses users"
+      - "Relocate 'Set up AI configuration' into Settings instead"
+      - "Remove the 'Upload the document' onboarding step entirely"
+
+  - part: "Changes Part 2"
+    items:
+      - "Mode Pills and Chain Option Selector options must automatically change based on which webpage/module the user is currently on"
+      - "For every module, the pill/chain options change automatically to match that module"
+      - "For every functionality within a module, the options change automatically to match that functionality"
+      - "This is described as 'a very important feature'"
+      - "A proper permutation-and-combination table for this is required -- stated to already exist in the system, needs verification it 'works properly'"
+      - "Without the right option menu, the user cannot work -- framed as a hard blocker, not a nice-to-have"
+
+  - part: "Changes 3"
+    items:
+      - "Chat box copy should read: 'I am your Assistant VERI, select a task above to tell me what to do'"
+
+  - part: "Changes 4"
+    items:
+      - "First-time account creation: offer 'Sign in with Google' as the FIRST option (matches convention of most software)"
+      - "Second option: sign in with email or magic link"
+      - "If the user manually enters an email and submits, the display must show 'check your email' (confirms the email came from Supabase authentication) and instruct the user to click to authenticate"
+      - "Replace password-based auth with a 4-digit passcode sent to the user's email, instead of a traditional password"
+      - "The sign-up process must be very fast and easy"
+      - "Design rationale given: most small businesses use Gmail, so Google-first sign-in matches the target user base"
+
+count_of_atomic_items: 26

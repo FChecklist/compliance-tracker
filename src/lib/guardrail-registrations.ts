@@ -23,6 +23,14 @@ export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
 export const AI_WORKFORCE_DISPATCH_LEAF = "ai_workforce.dispatch"
 export const TASK_FREE_TEXT_PLANNING_LEAF = "task_execution.free_text_planning"
 export const AI_WORKFORCE_LOOP_BUDGET_LEAF = "ai_workforce.loop_budget"
+// Wave 165 (tree4-unified/50-completion-plan U-D12.B4.S3): gates the
+// /api/ai/team/review endpoint's input, not the dispatch itself -- a
+// low-confidence AI Team dispatch already landed in activity_log's
+// 'reviewing' stage; this leaf validates the REVIEW submission that closes
+// it out (real reviewer comments + an explicit decision), before
+// recordPeerReview()'s own fail-closed checks (not_found/not_in_review/
+// self_review_not_allowed) run.
+export const AI_TEAM_CLOSURE_REVIEW_LEAF = "ai_team.closure_review"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   // Wave 163 audit finding (chief_audit_officer's first real dispatch,
@@ -55,6 +63,29 @@ function loopBudgetCheck(context: Record<string, unknown>) {
   return checkLoopBudget(context as unknown as LoopBudgetContext)
 }
 
+const MIN_REVIEW_NOTES_LENGTH = 10
+const VALID_REVIEW_DECISIONS = ["approved", "rejected"]
+
+function closureReviewCheck(context: Record<string, unknown>) {
+  const reviewNotes = context.reviewNotes as string | undefined
+  const reviewDecision = context.reviewDecision as string | undefined
+  if (!reviewNotes || reviewNotes.trim().length < MIN_REVIEW_NOTES_LENGTH) {
+    return {
+      passed: false as const,
+      reason: "review_notes_missing_or_too_short",
+      guidance: `A peer review must include real, substantive comments (at least ${MIN_REVIEW_NOTES_LENGTH} characters) -- this becomes the permanent record of why the reviewer approved or rejected the work, not a rubber stamp.`,
+    }
+  }
+  if (!reviewDecision || !VALID_REVIEW_DECISIONS.includes(reviewDecision)) {
+    return {
+      passed: false as const,
+      reason: "review_decision_missing_or_invalid",
+      guidance: `reviewDecision must be one of: ${VALID_REVIEW_DECISIONS.join(", ")}.`,
+    }
+  }
+  return { passed: true as const }
+}
+
 let registered = false
 
 export function registerAllGuardrails(): void {
@@ -83,4 +114,10 @@ export function registerAllGuardrails(): void {
   // comment for why it can't route through recordGuardrailViolation) gets
   // a consistent, reusable budget check + CLEE feed for free.
   registerGuardrail(AI_WORKFORCE_LOOP_BUDGET_LEAF, { phase: "logic", check: loopBudgetCheck })
+
+  // Self-Assessment / Peer Review closure gate (Wave 165, U-D12.B4.S3) --
+  // "input" phase since it validates the review SUBMISSION itself, before
+  // recordPeerReview()'s separate not_found/not_in_review/self_review
+  // checks run against the actual activity_log row.
+  registerGuardrail(AI_TEAM_CLOSURE_REVIEW_LEAF, { phase: "input", check: closureReviewCheck })
 }

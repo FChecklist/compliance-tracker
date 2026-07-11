@@ -1,0 +1,1059 @@
+# 4TH TREE (Unified) -- Section 10: Merged AI-Governance Layer (v3, sub-branch granularity)
+#
+# CORRECTION: v1/v2 of this file reconciled Tree 1 against Tree 3 at DOMAIN
+# granularity only (28 nodes), which did not satisfy the Owner's explicit
+# instruction for "extremely granular... don't leave anything... every
+# small detail is important." This version reconciles all 149 of Tree 1's
+# actual sub-branches individually (audit-tree/10-merged-tree.yaml's real
+# atomic requirement units), not just its 28 top-level domains.
+#
+# Every node carries: the requirement (from Tree 1, ids preserved as
+# U-<Tree1 sub-branch id>), input/output/guardrail (from Tree 1 where it
+# had them explicitly), a status, the specific Tree 3 evidence (if any),
+# and a workflow/instruction reconciling the two. Status values:
+# implemented | mostly_implemented | partial | superseded_by_better_design
+# | not_applicable_to_code (a working practice/documentation matter, not
+# something buildable in the app) | confirmed_gap | likely_gap |
+# duplicate_ref (Tree 1 itself marked this sub-branch as a cross-reference
+# to another one -- not re-analyzed independently, same as Tree 1's own
+# treatment).
+#
+# Domain-level summary judgments from v2 are preserved as `domain_note` on
+# the first sub-branch of each domain, not repeated per sub-branch.
+
+tree_version: 3
+round: 3
+domains:
+
+  - id: U-D1
+    name: "Governance Charter & Mission"
+    sub_branches:
+      - id: U-D1.B1.S1
+        requirement: "VERIDIAN AI OS's mission is highly predictable, reliable, continuously improving execution with minimal human intervention, measured by 6 named metrics, target 99.9% successful GPT-OSS-120B execution by 31 Aug 2026."
+        status: confirmed_gap
+        evidence: ["GOV-18"]
+        workflow: "ai-os/OS.yaml/LIFECYCLE.yaml exist as the machine-readable charter. Whether the specific 6 metrics and 99.9%-by-31-Aug-2026 target are tracked anywhere as measurable KPIs is unconfirmed -- Tree 3 didn't find a metrics dashboard against this exact target."
+        instruction: "Verify whether any dashboard/report tracks against this specific 99.9% target, or whether it exists only as prose."
+      - id: U-D1.B2.S1
+        requirement: "Every activity inside FChecklist/VERIDIAN/PROJEXA/VEDA ADVISORS is governed under one universal framework with no exceptions."
+        status: mostly_implemented
+        evidence: ["GOV-08", "DB-04"]
+        workflow: "GOV-08's executeTask() applies uniformly regardless of task origin -- confirmed by construction (no special-casing found). PROJEXA and veda-advisors are separate repos with their own governance layers (ported constitutional foundation, per this session's task list #15/#16), not literally the same runtime framework -- 'one universal framework' is true in spirit/pattern, not as one shared codebase."
+        instruction: "No action needed for compliance-tracker itself. Do not conflate 'ported the same pattern' with 'is the same enforced framework' when reporting on PROJEXA/veda-advisors specifically."
+      - id: U-D1.B2.S2
+        requirement: "This document set supersedes individual agent instructions and functions as VERIDIAN's Constitution, not an SOP."
+        status: confirmed_gap
+        evidence: []
+        workflow: "The 4 root .md constitution documents exist (this session's own work) but their exact supersession language wasn't verified in this pass -- Tree 3's agents didn't read root .md files."
+        instruction: "Cheap verification: read the 4 documents' opening sections directly to confirm supersession language is present."
+      - id: U-D1.B3.S1
+        requirement: "WGIEF's purpose: transform work from manual to decision-driven execution; predictable/governed/auditable/intelligent/autonomous; Classification: Constitutional Framework, Priority: Non-Negotiable."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No direct code evidence either way -- this is a framing/vision statement, not itself a buildable feature. Its operational consequences are tracked under D7/D4 instead."
+        instruction: "No independent action needed -- see U-D7 and U-D4 for the operational consequences of this vision."
+      - id: U-D1.B4.S1
+        requirement: "RECOMMENDATION: 3 additional constitutional documents (AI Constitution, AI Engineering Standards Manual, AI-QMS) would complete the governance stack."
+        status: confirmed_gap
+        evidence: []
+        workflow: "VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, VERIDIAN_AUDIT_ORGANIZATION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md, VERI_CHAT_GOVERNANCE.md (this session's work) substantially address this recommendation in spirit, not under the exact 3 proposed names/scopes."
+        instruction: "Consider this recommendation satisfied unless the Owner specifically wants the 3 documents split exactly as proposed (Constitution / Engineering Standards / QMS) rather than the 4 that were actually written."
+
+  - id: U-D2
+    name: "AI Organizational Hierarchy & Roles"
+    sub_branches:
+      - id: U-D2.B1.S1
+        requirement: "5-level escalation ladder: L0 Execution Agent (GPT-OSS-120B) -> L1 Reviewer -> L2 Quality Controller -> L3 COO (DeepSeek) -> L4 Super Boss (Claude) -> L5 Owner, each with a defined authority/cannot list."
+        status: confirmed_gap
+        evidence: ["GOV-05", "GOV-06"]
+        workflow: "roster.ts's 57 roles are organized by TEAM (16 teams), not by this specific 6-level (L0-L5) escalation ladder. No code structure maps a role to one of these 6 named levels with the specific authority/cannot lists described."
+        instruction: "If this exact ladder structure is wanted as a queryable code construct (not just working practice), it would need a new `escalationLevel` field on roster.ts entries -- a schema addition, not a redesign."
+      - id: U-D2.B2.S1
+        requirement: "A separate independent audit chain: Owner->Super Boss->COO->CAO->Audit Divisions->Departments->Audit Teams->Specialized Audit Agents, independent from operations per the doer!=certifier principle."
+        status: partial
+        evidence: ["GOV-05"]
+        workflow: "chief_audit_officer exists as a role (AUDIT_EXECUTIVE team) and IS organizationally separate from the operational teams in roster.ts's team taxonomy. The Divisions->Departments->Audit Teams substructure below the CAO does not exist -- see U-D2.B4.S2-S5."
+        instruction: "The doer!=certifier SEPARATION is real (see AGENTS.md Rule 7c, GOV-04's requiresMandatoryAudit). The ORG CHART depth below the CAO is not built -- see the Section 30 GAP-05 backlog item."
+      - id: U-D2.B2.S2
+        requirement: "Naming rationale for 'Chief Audit Officer'/'Chief X Officer' vs 'Audit Officer' -- these are AI executives running organizations of audit agents, not individual auditors."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "This is rationale/framing text, not a requirement with a build target. roster.ts's chief_audit_officer naming is consistent with this rationale."
+        instruction: "No action needed."
+      - id: U-D2.B3.S1
+        requirement: "Claude Desktop Sonnet 5.0 = Executive Director/Super Boss (L4): final AI escalation authority, architecture/governance/code-approval owner, 18 named responsibilities, a Decision Authority Matrix, specific KPIs."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "This describes a session-level working practice (documented in AGENTS.md, outside Tree 3's scanned scope: src/, ai-os/, scripts/), not a runtime code artifact. There is no 'Claude role' object in roster.ts -- Claude operates this session directly, not as a dispatched AI Dev Team role."
+        instruction: "Do not attempt to encode this as a roster.ts entry -- it describes the human-facing session operator, not a dispatchable AI role. If the Owner wants this formalized in code anyway (e.g. for an audit trail of Super-Boss-level decisions), that's a new, distinct feature, not a fix to an existing gap."
+      - id: U-D2.B3.S2
+        requirement: "GPT-OSS-120B = Chief Execution Engine (CEE, L0-2): default execution engine for >=95% of workload, 18 named responsibilities, an Authority Matrix, specific KPIs."
+        status: superseded_by_better_design
+        evidence: ["GOV-04"]
+        workflow: "GOV-04's tier system assigns GPT-OSS-120B to mechanical-tier work only, not a >=95%-of-everything allocation -- see U-D3's identical finding for the parent Model Allocation domain. The 18 named responsibilities (primary execution, workflow compliance, etc.) are functionally distributed across roster.ts's ~57 roles generally, not concentrated in one GPT-OSS-120B 'CEE' role."
+        instruction: "See U-D3's instruction -- do not retrofit the >=95% design."
+      - id: U-D2.B3.S3
+        requirement: "DeepSeek Pro V4 = Chief Operating Officer (COO, L3): runs the AI organization day-to-day, 18 named responsibilities, a Decision Authority Matrix, specific KPIs."
+        status: not_applicable_to_code
+        evidence: ["GOV-05"]
+        workflow: "DeepSeek V4 Pro exists in roster.ts as governance_backend_engineer's assigned model (ENGINEERING team) -- a single engineering role, not the COO-of-the-whole-organization role described here. Same category as U-D2.B3.S1: a working-practice-level executive role, not a coded org-chart position."
+        instruction: "No action needed unless the Owner wants an explicit 'COO' role object built into roster.ts."
+      - id: U-D2.B3.S4
+        requirement: "ZLM 5.2 = Chief Software Engineering Officer (CSEO, L3 specialized): principal engineering AI, 18 named responsibilities, a Decision Authority Matrix, Mandatory Engineering Principles, specific KPIs."
+        status: partial
+        evidence: ["GOV-05"]
+        workflow: "Per this session's own memory, 'ZLM 5.2' resolved to GLM-5.2, which IS roster.ts's primary model (GLM_52 constant) across most operational roles -- so the MODEL exists and does most of the engineering lifting. The specific 'CSEO' role identity with these 18 named responsibilities and its own Decision Authority Matrix does not exist as a distinct roster.ts entry."
+        instruction: "If a distinct CSEO role (vs. GLM-5.2 being used generically across many roles) is wanted, that's a roster.ts addition, not a gap in an existing near-miss."
+      - id: U-D2.B3.S5
+        requirement: "Organizational summary: Owner->Super Boss->COO->CEE->CSEO, vision->governance->operations->execution->engineering."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "Summary/framing text -- see the 4 sub-branches above for the individual reconciliations."
+        instruction: "No action needed."
+      - id: U-D2.B4.S1
+        requirement: "CAO (L3, reports to Claude, independent from COO/Engineering/Product/Sales/Operations): enterprise audit governance, independent assurance, audit resource allocation, enterprise risk monitoring, executive reporting; can reject deliverables/stop releases/reopen tasks; cannot modify production code/business rules/governance."
+        status: partial
+        evidence: ["GOV-05"]
+        workflow: "chief_audit_officer role exists and was actually dispatched once in this session (task list #29). Its full authority matrix (specifically the 'can'/'cannot' list) is not independently verified as enforced in code beyond the general doer!=certifier CI gate."
+        instruction: "Verify whether the CAO role's dispatch path has any code-level restriction preventing it from modifying production code, or whether that's currently just a documented expectation."
+      - id: U-D2.B4.S2
+        requirement: "Engineering Assurance Division: 5 departments (Software Quality, Software Verification, Security Assurance, Architecture Assurance, Engineering Evidence), each with 4-5 named specialist auditor agents."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No such department/agent structure exists in roster.ts -- only the single chief_audit_officer role exists under AUDIT_EXECUTIVE."
+        instruction: "See Section 30 GAP-05 -- do not build without an Owner decision on role granularity first."
+      - id: U-D2.B4.S3
+        requirement: "Business Assurance Division: 6 departments (Functional Assurance, Customer Experience, Business Process, Report & Analytics, Revenue Operations), each with named specialist auditors."
+        status: confirmed_gap
+        evidence: []
+        workflow: "Same as U-D2.B4.S2 -- no corresponding roster.ts structure."
+        instruction: "See Section 30 GAP-05."
+      - id: U-D2.B4.S4
+        requirement: "Knowledge & Intelligence Division: 5 departments (Knowledge Management, Documentation, AI Learning, AI Decision Intelligence, Continuous Improvement) -- the ORG STRUCTURE owning D16's processes."
+        status: confirmed_gap
+        evidence: ["GOV-16"]
+        workflow: "D16's PROCESSES exist functionally (loop_improvements, loop-improvement-proposer.ts) but no corresponding ORG STRUCTURE (named division/departments/agents) owns them in roster.ts -- the functional gap and the org-chart gap are distinct, and only the functional half is closed."
+        instruction: "If the Owner wants named roles owning these processes (vs. the current anonymous cron-loop ownership), that's new roster.ts work -- see GAP-05."
+      - id: U-D2.B4.S5
+        requirement: "Governance & Compliance Division: 5 departments (Governance, Compliance, Risk, Internal Controls, Organizational Performance)."
+        status: partial
+        evidence: ["GOV-05"]
+        workflow: "roster.ts DOES have a real, related structure here that Tree 1 couldn't have anticipated: 4 GUARDRAIL_* teams (PLATFORM/PRODUCT/ACCOUNT/USER, ~16 roles total) covering governance/compliance/risk/privacy/budget concerns. This is not the literal 5-department structure D2.B4.S5 describes, but it is a real, substantial, independently-built governance-role cluster serving a closely related purpose."
+        instruction: "Before building D2.B4.S5 as literally specified, map the existing 16 GUARDRAIL_* roles against its 5 departments -- there may be substantially more overlap than a 'confirmed gap' framing would suggest, once the naming difference is looked past."
+      - id: U-D2.B5.S1
+        requirement: "RECOMMENDATION: split into Global Revenue Operations Division (under COO) and Global Revenue Assurance Division (under CAO), 5 assurance departments (Sales/Billing/Subscription/Financial Intelligence/Customer Revenue Success)."
+        status: confirmed_gap
+        evidence: ["GOV-05"]
+        workflow: "roster.ts's FINANCE team has internal_auditor (partial overlap with 'assurance') but no formal Operations/Assurance split and no 5-department structure."
+        instruction: "See Section 30 GAP-05 -- bundle with the broader audit-org decision, don't build revenue-assurance roles in isolation from that decision."
+      - id: U-D2.B6.S1
+        requirement: "Every audit agent follows the same 3-phase protocol: Before (understand objective/review standards/load checklist/confirm scope/identify evidence), During (verify never assume/inspect/record/classify severity/link evidence), After (report/pass-fail/corrective actions/remediation ownership/schedule re-audit/update knowledge)."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No guardrail-engine.ts leaf or roster.ts mechanism enforces this specific 3-phase protocol structure on any audit-role dispatch. The CAO's one real dispatch (task list #29) followed reasonable audit practice in execution, but that was a single instance, not a codified, enforced protocol."
+        instruction: "If wanted as an enforced structure (not just good practice), this is a new guardrail leaf (e.g. 'audit.protocol_compliance') checking a dispatch's output against the 3-phase shape -- follow the same adapter pattern as GAP-02."
+      - id: U-D2.B6.S2
+        requirement: "9 non-negotiable audit guardrails: independence, evidence-based conclusions, no approval without verification, no silent overrides, no undocumented exceptions, rejections must state reason+corrective action, approvals must be evidence-traceable, repeated failures trigger escalation, all actions logged/retained."
+        status: confirmed_gap
+        evidence: ["GOV-01", "GOV-02"]
+        workflow: "None of these 9 are registered as guardrail-engine.ts leaves specifically for audit actions -- this is a specialization of the same GAP-02 finding (only 4 leaves registered total, platform-wide) applied to the audit domain specifically."
+        instruction: "Fold into GAP-02's broader guardrail-registration work rather than treating as a separate audit-specific initiative."
+
+  - id: U-D3
+    name: "Model Allocation & Routing Policy"
+    sub_branches:
+      - id: U-D3.B1.S1
+        requirement: "GPT-OSS-120B >=95% of workload, DeepSeek <=5%, ZLM=coding, Claude=governance. A Model Selection Guardrail as well as a policy."
+        status: superseded_by_better_design
+        evidence: ["GOV-04"]
+        workflow: "See U-D3's domain-level finding (unchanged at sub-branch granularity, since this domain has only 1 real requirement branch): GOV-04's 3-tier system fulfills the intent via a better mechanism."
+        instruction: "Treat as satisfied by GOV-04; do not retrofit the percentage split."
+      - id: U-D3.B2.S1
+        requirement: "Within a Dynamic Chain: software executes first; if software cannot, VERI coordinates GPT-OSS-120B agents; if that needs help, the escalation matrix (D2.B1) applies."
+        status: partial
+        evidence: ["GOV-08", "GOV-04"]
+        workflow: "The software-first principle is real (GOV-08's engine/worker-agent branches are tried before free-text LLM planning). The escalation-to-D2.B1's-specific-ladder step doesn't exist as such -- see U-D2.B1.S1's confirmed_gap."
+        instruction: "The software-first mechanism works. The escalation step's target (D2.B1's ladder) doesn't exist yet -- this sub-branch inherits that gap, not a new one."
+
+  - id: U-D4
+    name: "Universal Work Object / Task Data Model"
+    sub_branches:
+      - id: U-D4.B1.S1
+        requirement: "Identity field group -- Task/Work ID, Version, Timestamp, Request Source, Priority, Department, Module, Owner, Responsible AI, Supervisor AI, Approver, Dynamic Chain ID."
+        status: confirmed_gap
+        evidence: ["DB-04"]
+        workflow: "tasks table exists with a dynamicChainId link (confirmed). Full presence of all 11 named identity fields (Version, Request Source, Supervisor AI, Approver specifically) is UNCONFIRMED -- Tree 3's DB inventory didn't enumerate tasks' full column list."
+        instruction: "See Section 30 GAP-11 -- read the tasks table's Drizzle definition directly."
+      - id: U-D4.B1.S2
+        requirement: "Input field group -- Objective, Business Context, Scope, Expected Result, Success Criteria, Dependencies, Risks, Assumptions, Constraints, Reference Documents, Knowledge Sources, Allowed Tools, Allowed Models."
+        status: mostly_implemented
+        evidence: ["GOV-03"]
+        workflow: "TightTask's shape ({objective, scope, successCriteria, complexityTier, expectedOutput, constraints}) covers 5 of the 13 named fields directly (Objective, Scope, Success Criteria, Constraints, +complexityTier as a TightTask-specific addition beyond D4.B1.S2). Business Context, Expected Result, Dependencies, Risks, Assumptions, Reference Documents, Knowledge Sources, Allowed Tools, Allowed Models are NOT part of TightTask's validated shape -- either absent, or present only informally within the free-text fields."
+        instruction: "TightTask is real but narrower than D4.B1.S2's full 13-field ask. If the missing 8 fields matter, extend TightTask's schema and validateTightTask() accordingly -- a schema-widening task, not new architecture."
+      - id: U-D4.B1.S3
+        requirement: "Process field group -- Execution Plan, Decision Tree, Validation Rules, Retry Logic, Timeout, Failure Conditions, Fallback Logic, Escalation Rules."
+        input: "N/A"
+        guardrail: "Retry Logic/Timeout/Failure Conditions/Fallback Logic/Escalation Rules must be populated before execution begins."
+        status: confirmed_gap
+        evidence: ["GOV-11", "GOV-08"]
+        workflow: "Retry/timeout/fallback concepts exist at the SYSTEM level (loop-prevention.ts's checkLoopBudget, floor-tier-escalation.ts) but not confirmed as PER-TASK fields on the tasks table itself the way this sub-branch specifies. The guardrail (must be populated before execution) is not confirmed as enforced."
+        instruction: "Distinguish system-wide retry/timeout policy (which exists) from per-task-declared Process fields (which are unconfirmed) when reporting status here."
+      - id: U-D4.B1.S4
+        requirement: "Output field group -- Deliverables, Confidence Score, Evidence, Logs, Audit Trail, Completion Report."
+        status: confirmed_gap
+        evidence: ["GOV-12", "DB-03"]
+        workflow: "Evidence/hallucination discipline exists (ai-reply-gate.ts). audit_logs table exists (DB-03) for the audit trail. A per-task 'Confidence Score' FIELD specifically, and a structured 'Completion Report' artifact, are not confirmed as existing on the tasks table -- GOV-04's tier system doesn't produce a numeric confidence score, it produces a categorical tier."
+        instruction: "The literal 'Confidence Score' field (feeding D15.B1.S1's 95% threshold) is a genuine unconfirmed/likely-gap item distinct from GOV-04's tier categories -- worth a direct verification pass."
+      - id: U-D4.B1.S5
+        requirement: "Handover field group -- Current State, Remaining Work, Known Risks, Open Issues, Next Responsible AI, Acceptance Checklist, Confirmation Required."
+        status: confirmed_gap
+        evidence: []
+        workflow: "Same finding as U-D17 (AI Handover Protocol) -- no dedicated mechanism found. This sub-branch is the DATA SHAPE side of that same gap."
+        instruction: "See Section 30 GAP-04 -- building the handover guardrail leaf should also define this field group on the relevant table(s)."
+      - id: U-D4.B1.S6
+        requirement: "Closure field group -- Lessons Learned, Performance Metrics, Suggested Improvements, Knowledge Updates, Reusable Components, Loop Engineering Suggestions."
+        status: partial
+        evidence: ["GOV-16"]
+        workflow: "loop_improvements table captures some of this (Lessons Learned/Knowledge Updates equivalent) but scoped to guardrail-violation/loop-audit triggers specifically, not populated as a per-task closure field group universally -- same scope limitation as U-D16's finding."
+        instruction: "See U-D16's instruction -- widening GOV-16's trigger scope would also close this sub-branch's gap."
+      - id: U-D4.B2.S1
+        requirement: "18-stage lifecycle: Task Request -> Classification -> Risk Assessment -> Instruction Validation -> Resource Allocation -> Execution -> Continuous Monitoring -> Self Validation -> Peer Validation -> Escalation -> Completion -> Documentation -> Learning Capture -> Process Improvement -> Knowledge Update -> Performance Scoring -> Directory Update -> Continuous Loop Engineering -> Closed."
+        status: partial
+        evidence: ["GOV-08"]
+        workflow: "GOV-08's 3-way dispatch covers Execution and parts of Instruction Validation/Continuous Monitoring. Whether all 18 NAMED stages exist as distinct, trackable states (vs. being informally folded into fewer real states) is unconfirmed -- this is a granularity question Tree 3's DB inventory didn't resolve (tasks' status enum values weren't enumerated)."
+        instruction: "Read tasks' status enum (or equivalent) directly to see how many of the 18 named stages are distinct trackable values vs. collapsed."
+      - id: U-D4.B3.S1
+        requirement: "~30 governed work states across 8 categories (Planning 5, Action 8, Review 8, Approval 6, Completion 3, Exception 6, plus Deleted/Archived)."
+        status: likely_gap
+        evidence: []
+        workflow: "No evidence of a ~30-value state enum on tasks or any Work Object table. compliance_status (DB-02) has only 6 values (pending/in_progress/completed/overdue/not_applicable/draft) -- a much smaller state space than this requirement specifies, and scoped to compliance items only, not Work Objects generally."
+        instruction: "This is a real, likely gap distinct from the general D4.B7 unification finding -- even within a single domain (compliance), the state granularity is much coarser than specified."
+      - id: U-D4.B4.S1
+        requirement: "duplicate_ref -- structured handover mandatory before ownership transfer; 'Done' alone is never sufficient. See D17."
+        status: duplicate_ref
+        evidence: []
+        workflow: "See U-D17 -- confirmed_gap."
+        instruction: "See U-D17's instruction."
+      - id: U-D4.B5.S1
+        requirement: "A Work Object/Task may originate from: VERI, Human, AI Agent, API, Software Module, VERI Chat, Email, Uploaded File, MoM, Meeting Transcript, Voice Notes, OCR, Scanned Documents, Reports, Dashboards, Customer/Vendor Requests, Scheduled Jobs, Third-party Systems, External Integrations."
+        status: partial
+        evidence: ["GOV-08", "API-08", "API-12"]
+        workflow: "Confirmed origins with real code: API creation (any /api route), VERI Chat (API-08), MoM/meeting (veri-meetings/generate-intelligence), uploaded documents (documents/extract), scheduled jobs (cron internal/* routes). NOT confirmed: Email as a direct task-origin source (see U-D21's Email Intelligence gap), Voice Notes, OCR as standalone origin types."
+        instruction: "This sub-branch is mostly satisfied; the specific gaps (Email, Voice, OCR as task-creation triggers) trace back to U-D21's Email Intelligence gap, not a new finding."
+      - id: U-D4.B6.S1
+        requirement: "duplicate_ref -- customer actions follow the exact same lifecycle. See D20."
+        status: duplicate_ref
+        evidence: ["GOV-08"]
+        workflow: "Confirmed by construction, same as U-D20."
+        instruction: "No action needed."
+      - id: U-D4.B7.S1
+        requirement: "RECOMMENDATION: To Do/MoM/Email/Reviews/Approvals/Reports should be VIEWS of one Work Object, not separate modules."
+        guardrail: "Any new module creating its own independent tracking table for a work-adjacent concept violates this recommendation."
+        status: confirmed_gap
+        evidence: ["DB-15", "DB-12", "DB-18"]
+        workflow: "The opposite architecture was built: erp_*, pms_*, firm_*, construction_* each have independent tables/lifecycles. This is the single largest, most consequential architectural divergence found across the entire 4-tree comparison."
+        instruction: "See U-D4's domain-level instruction -- this is a deliberate design decision to revisit or ratify with the Owner, not a quick fix."
+
+  - id: U-D5
+    name: "Dynamic Mode Pills & Dynamic Chain Framework (DMP-DCF)"
+    sub_branches:
+      - id: U-D5.B1.S1
+        requirement: "DMP-DCF is the universal classification/execution/orchestration/intelligence framework -- every activity begins with a Mode Pill + Dynamic Chain selection, mandatory, no exceptions."
+        status: mostly_implemented
+        evidence: ["GOV-09", "UI-14"]
+        workflow: "The mechanism is real for TASK creation (GOV-09). Whether it's TRULY mandatory with no exceptions across every listed activity type (automation, scheduled jobs, third-party apps) is unconfirmed -- e.g. cron-triggered internal/* routes don't appear to go through chain selection, which may be a legitimate exception (they're system-triggered, not activity-initiated) or a literal violation of 'no exceptions,' depending on interpretation."
+        instruction: "Clarify with the Owner whether system/cron-triggered jobs are meant to be exempt from chain-selection (a sensible reading) or a literal gap (per the strict 'no exceptions' wording)."
+      - id: U-D5.B1.S2
+        requirement: "5 strategic objectives: Software First (99% target), Predictable AI, Standardized-yet-customizable Operations, Continuous Learning, Enterprise Governance."
+        status: partial
+        evidence: ["GOV-07", "GOV-03"]
+        workflow: "Software First is measurably NOT at 99% -- only 2/25 engine files are wired (GOV-07), a precise, quantifiable shortfall against this specific target. Predictable AI is served by TightTask (GOV-03). The other 3 objectives are broad and not independently measurable from Tree 3's evidence."
+        instruction: "Software First's 99% target and GOV-07's 2/25-wired reality are the same underlying fact stated from two directions -- see Section 30 GAP-01."
+      - id: U-D5.B1.S3
+        requirement: "Closing constitutional mandate: DMP-DCF is the operating language, compliance mandatory for every component, foundational constitutional requirement."
+        status: partial
+        evidence: ["GOV-09"]
+        workflow: "Same evidence and conclusion as U-D5.B1.S1 -- this restates the mandate at higher authority-emphasis, not a distinct technical requirement."
+        instruction: "No separate action -- see U-D5.B1.S1."
+      - id: U-D5.B2.S1
+        requirement: "Mode Pills = highest-level classification (Sales/CRM/Finance/HR/Compliance/Projects/Procurement/Support/Legal/Administration/Knowledge/Communication/Reports/Analytics); each expands into a progressively specific chain."
+        status: implemented_differently
+        evidence: ["GOV-09", "UI-14"]
+        workflow: "buildCapabilityTree() serves a real, non-hardcoded option tree (confirmed by code comment). Whether the tree's top level literally matches these 14 named Mode Pills, or uses a different taxonomy, is unconfirmed -- Tree 3 confirmed the MECHANISM is real but didn't transcribe the actual pill names."
+        instruction: "Cheap verification: read the actual Mode Pill list rendered by VeriComposer."
+      - id: U-D5.B2.S2
+        requirement: "The Dynamic Chain becomes the 'Business DNA' controlling: Software Module, Business Rules, Permissions, Workflow, AI Behaviour, Automation, Approvals, Notifications, Reports, Audit Rules, Monitoring Rules, Knowledge Capture, Escalation Matrix, KPIs, SLAs."
+        status: partial
+        evidence: ["GOV-09", "DB-04"]
+        workflow: "The chain leaf carries codeReference/engineKey/inputFields/fixedInputs (confirmed) -- controlling Software Module and some Workflow behavior directly. Whether it also controls Permissions, Escalation Matrix, KPIs, SLAs specifically (vs. those being governed by separate mechanisms) is unconfirmed."
+        instruction: "This is a broad claim; a full verification would need to trace whether each of the 14 named controlled concerns actually reads from the Dynamic Chain or from an independent source."
+      - id: U-D5.B2.S3
+        requirement: "UX requirements: predict likely selections, learn user behaviour, prioritize frequent chains, minimize clicks, keyboard/Tab navigation, search, recommend previous selections, auto-select obvious options."
+        status: likely_gap
+        evidence: ["UI-14"]
+        workflow: "VeriComposer's cascading picker is confirmed to exist, but none of these 8 specific intelligence/UX behaviors (prediction, learning, prioritization by frequency, auto-select) were confirmed as implemented -- Tree 3's UI inventory described the mechanism's structure, not its adaptive intelligence."
+        instruction: "Likely a real gap -- these are meaningful UX/ML features (usage-based ranking, prediction) that would need explicit implementation, not just verification."
+      - id: U-D5.B2.S4
+        requirement: "Two-tier library: Global Library (every approved chain) + per-user Library (auto-generated from Role/Department/Projects/Permissions/History/Behaviour/Teams/Location/Organization)."
+        status: likely_gap
+        evidence: ["DB-04"]
+        workflow: "dynamic_chains is a single flat table with no Global-vs-User-Library distinction confirmed -- no evidence of a per-user filtered/personalized view being generated."
+        instruction: "Related to but distinct from the DCMD gap (U-D6) -- DCMD is about chain DEFINITION richness, this is about chain DISCOVERY/personalization. Both likely gaps, worth tracking separately."
+      - id: U-D5.B3.S1
+        requirement: "Every task/object creation begins with Dynamic Chain selection; once submitted the chain becomes part of the permanent record."
+        input: "A new task/Work Object or automation-eligible request being created."
+        output: "The selected Dynamic Chain, permanently attached to the object's Identity field group."
+        status: implemented
+        evidence: ["GOV-09"]
+        workflow: "Confirmed, real, working -- resolveDynamicChainId() attaches dynamicChainId to created tasks."
+        instruction: "No action needed."
+      - id: U-D5.B4.S1
+        requirement: "VERI uses the Dynamic Chain to understand Business Context/Expected Outcome/Business Rules/Required Software/Applicable AI Agents/Escalation/Monitoring/Reports/Approvals/Knowledge Updates -- never guesses business context."
+        status: partial
+        evidence: ["GOV-09"]
+        workflow: "The chain leaf's codeReference/engineKey/inputFields fields do supply concrete business context to VERI (confirmed). Whether ALL 9 named informational uses (specifically Escalation and Knowledge Updates) are actually derived from the chain, or come from elsewhere, is unconfirmed."
+        instruction: "No high-priority action -- the core claim (VERI doesn't guess, the chain supplies context) is well-supported by GOV-09's evidence even if not every listed sub-use is individually verified."
+      - id: U-D5.B4.S2
+        requirement: "Every new VERI Chat conversation requires minimum 2-level Dynamic Chain selection before communication begins."
+        status: confirmed_gap
+        evidence: ["API-08"]
+        workflow: "Same finding as U-D8's identical requirement -- confirmed absent. Conversations can be created without chain selection."
+        instruction: "See Section 30 GAP-03."
+      - id: U-D5.B5.S1
+        requirement: "Missing-chain flow: user selects 'My Option Is Not Available' -> VERI captures/analyzes/proposes a new chain, routes for governance+audit, adds to Global Library on approval."
+        input: "User selection of 'My Option Is Not Available' during chain selection."
+        output: "A proposed new chain, routed for governance+audit, added to the Global Library on approval."
+        status: implemented
+        evidence: ["UI-14"]
+        workflow: "This session's own task list (#21) marks 'Wire My Option Is Not Available into the Chain Selector UI' as completed, so the UI entry point exists. Whether the full analyze-propose-route-for-governance-and-audit BACKEND flow is real (vs. just capturing the request for later manual handling) is unconfirmed -- Tree 3's evidence for GOV-09/UI-14 didn't describe this specific flow's backend depth."
+        instruction: "Verify the backend depth: does selecting this option actually trigger AI analysis and a governance/audit routing, or does it just log a request?"
+      - id: U-D5.B6.S1
+        requirement: "Interface must always display Task Number, Selected Mode Pill, Complete Chain, Workflow Status, Priority, Owner, visible throughout execution."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No confirmation this always-visible panel exists -- Tree 3's UI inventory didn't describe such a persistent status display."
+        instruction: "Cheap, bounded UI verification -- check whether any persistent chip/badge shows this info during task execution."
+      - id: U-D5.B7.S1
+        requirement: "Mode Pill/Chain options must auto-change per module/webpage/function (Automatic Context Switching); allow manual operation without forced selection; intelligently preselect and stay synchronized in real time."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No confirmation of context-adaptive Mode Pill switching per current page/module -- Tree 3's UI inventory described VeriComposer as globally mounted (same everywhere) rather than context-adaptive."
+        instruction: "Likely gap, framed by the Owner's own source docs as 'a hard blocker' and 'a very important feature' -- worth prioritizing verification (and likely, subsequent build work) over some of the other likely-gaps in this tree."
+      - id: U-D5.B8.S1
+        requirement: "Rigid-vs-open balance: the chain framework, its guardrails, and its automation must not be too rigid nor too 'open' (unconstrained) -- a deliberate balance."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "This is a design principle to be applied when building D5/D12/D13/D25, not itself a separately verifiable feature."
+        instruction: "Apply as a design lens when acting on Section 30's backlog items touching these domains, not as its own backlog item."
+
+  - id: U-D6
+    name: "Dynamic Chain Master Directory (DCMD)"
+    sub_branches:
+      - id: U-D6.B1.S1
+        requirement: "DCMD is the authoritative directory of every valid chain; every entry must contain Chain ID, Mode Pill/domain, full hierarchical path, linked module(s)/business rules/permissions/workflow/AI-behaviour/reports-KPIs-SLAs, version history/audit trail."
+        status: confirmed_gap
+        evidence: []
+        workflow: "dynamic_chains is a flat table (orgId, modePill, pathKeys, pathLabels, createdById, status) -- none of the 10 named sub-fields beyond the basics exist."
+        instruction: "See Section 30 GAP-07."
+      - id: U-D6.B2.S1
+        requirement: "Directory must support intelligent search/recommendation, missing-chain detection, version control."
+        status: confirmed_gap
+        evidence: ["GOV-09"]
+        workflow: "Missing-chain detection is real (feeds U-D5.B5's 'My Option Is Not Available' flow). Intelligent search/recommendation and version control are not confirmed."
+        instruction: "See Section 30 GAP-07 -- missing-chain detection is the one sub-piece already working."
+      - id: U-D6.B2.S2
+        requirement: "RECOMMENDATION: model DCMD as a graph structure rather than an enumerated permutation table."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "A design recommendation for GAP-07's eventual build, not independently verifiable against current code."
+        instruction: "Should inform GAP-07's design when undertaken."
+      - id: U-D6.B3.S1
+        requirement: "RECOMMENDATION: elevate the Dynamic Chain to the primary system object -- tasks/chats/reports/approvals/workflows/AI agents all reference the same Chain ID for end-to-end traceability."
+        guardrail: "Every object type listed must carry the Dynamic Chain ID field before this can be considered implemented -- a partial rollout does not satisfy the goal."
+        output: "A single immutable Chain ID value, propagated and queryable across every referencing object type."
+        status: partial
+        evidence: ["DB-04"]
+        workflow: "tasks carries dynamicChainId (confirmed). Whether conversations, approvals, reports, and audit records ALSO carry it (the guardrail's own completeness bar) is unconfirmed -- Tree 3 confirmed the task-level linkage specifically, not the other object types."
+        instruction: "Verify dynamicChainId presence on conversations/approval_preferences/reports tables specifically -- per this sub-branch's own guardrail, partial rollout (tasks only) does not satisfy the requirement."
+
+  - id: U-D7
+    name: "VERI -- Your Assistant: Identity & Behavior"
+    sub_branches:
+      - id: U-D7.B1.S1
+        requirement: "Official name 'VERI -- Your Assistant'; AI participant responsible for guidance/workflow execution/AI coordination/task monitoring/knowledge retrieval/recommendations/decision support; explicitly NOT a communication platform."
+        status: mostly_implemented
+        evidence: []
+        workflow: "No direct evidence either way -- Tree 3's UI inventory didn't transcribe VERI's displayed name/identity copy verbatim."
+        instruction: "See Section 30 GAP-10-adjacent verification: a 5-minute check of actual UI strings would resolve this."
+      - id: U-D7.B2.S1
+        requirement: "By default VERI does not make business decisions for the human -- default role is analyze/recommend/prepare/coordinate/execute-approved/monitor/communicate/improve. Human retains authority to Approve/Reject/Modify/Prioritize/Delegate/Escalate/Assign/Complete/Cancel/decide."
+        status: implemented
+        evidence: ["GOV-14"]
+        workflow: "Confirmed -- approval_preferences requires explicit user grants, matching this default posture directly."
+        instruction: "No action needed."
+      - id: U-D7.B2.S2
+        requirement: "Humans may explicitly delegate decision authority to VERI for a specific Task/Workflow/Project/Module/Business Function/Communication Type/Approval Type/Time Period/Category of Work; delegation must be explicit, scoped, time/event-bound, auditable, revocable."
+        status: mostly_implemented
+        evidence: ["GOV-14"]
+        workflow: "ApprovalScopeType covers 4 of the 9 named delegation scopes (communication_type/conversation/task/workflow) -- Project/Module/Business Function/Time Period/Category of Work are NOT distinct scope types in the current implementation. Explicitness/auditability/revocability of what scopes DO exist is confirmed correct."
+        instruction: "If the 5 missing scope types matter, extend ApprovalScopeType's enum and the corresponding lookup logic -- an additive schema change, not a redesign."
+      - id: U-D7.B3.S1
+        requirement: "VERI continuously: Reads, Understands, Analyzes, Classifies, Recommends, Drafts, Executes approved actions, Monitors, Follows up, Reports, Learns."
+        status: partial
+        evidence: ["GOV-08", "GOV-16"]
+        workflow: "Execute (GOV-08), Learns (GOV-16) are confirmed. Reads/Understands/Analyzes/Classifies/Recommends/Drafts/Monitors/Follows-up/Reports as a continuous, always-on background behavior (vs. only occurring at specific triggered points) is not independently confirmed."
+        instruction: "This is a broad behavioral claim better assessed by observing the running system than by code inventory -- lower priority than the more concrete gaps in this tree."
+      - id: U-D7.B3.S2
+        requirement: "Human-Centric Design Principle: reduce administrative effort so users spend most time on decisions, not repetitive tasks; VERI proactively performs preparation/coordination/monitoring/drafting/scheduling/organizing/communicating/documenting/follow-up."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "A design principle/outcome, not independently verifiable as a discrete feature -- its consequences are distributed across many other sub-branches already assessed (D21, D22, D10, etc.)."
+        instruction: "No independent action -- assess via the aggregate of D10/D21/D22's findings instead."
+
+  - id: U-D8
+    name: "VERI Chat: Platform Identity & Governance"
+    sub_branches:
+      - id: U-D8.B1.S1
+        requirement: "VERI Chat is VERIDIAN's enterprise business communication platform; VERI Chat and VERI are two distinct components; VERI Chat can function without VERI; VERI does not own VERI Chat."
+        status: implemented
+        evidence: ["API-08", "DB-10", "DB-14"]
+        workflow: "Confirmed -- the conversations/messages/participants architecture is real and substantial, independent of any single VERI-participation feature."
+        instruction: "No action needed."
+      - id: U-D8.B2.S1
+        requirement: "VERI may read/understand/answer/recommend/identify-action-items/summarize/suggest-follow-ups/recommend-workflows/identify-approvals/detect-deadlines/recommend-task-creation within a conversation, but shall NEVER auto-create/assign/modify/execute tasks from a conversation alone without explicit approval."
+        status: partial
+        evidence: ["GOV-09", "API-08"]
+        workflow: "The high-impact-action approval gate exists generally (GOV-09's detectHighImpactAction + GOV-14's approval check). Whether it specifically fires for the chat-to-task-creation path (vs. only other high-impact action types) was not traced end-to-end in this pass."
+        instruction: "Bounded verification: trace whether a chat-originated task-creation suggestion actually routes through the high-impact gate before creating anything."
+      - id: U-D8.B3.S1
+        requirement: "duplicate_ref -- see D5.B4.S2, min. 2-level chain selection before a new VERI Chat conversation begins."
+        status: duplicate_ref
+        evidence: ["API-08"]
+        workflow: "See U-D5.B4.S2 -- confirmed_gap."
+        instruction: "See Section 30 GAP-03."
+
+  - id: U-D9
+    name: "Approval & Confirmation UX"
+    sub_branches:
+      - id: U-D9.B1.S1
+        requirement: "Communication-approval option set (9): Approve Once, Edit & Approve, Reject, Approve Similar, Approve for This Conversation/Task/Workflow, Always Approve for This Communication Type, Cancel."
+        input: "A VERI-drafted communication awaiting send."
+        status: confirmed_gap
+        evidence: ["GOV-14"]
+        workflow: "Not built as a literal 9-option UI -- the real system built a simpler always_approve/always_reject binary instead (see U-D9's domain-level 'implemented_differently' finding). This specific 9-option vocabulary does not exist as UI choices."
+        instruction: "See U-D9's domain-level instruction and Section 30's open_decisions_needing_owner_input -- do not build this without confirming the Owner still wants it given the simpler system that already shipped."
+      - id: U-D9.B1.S2
+        requirement: "Quick/simplified option set (9): Yes, Yes to All, Approve All for This Task/Workflow, Approve All Similar Requests, Always Approve, No, Not Now, Review Before Sending."
+        status: confirmed_gap
+        evidence: ["GOV-14"]
+        workflow: "Same finding as U-D9.B1.S1 -- not built as specified."
+        instruction: "Same as U-D9.B1.S1."
+      - id: U-D9.B1.S3
+        requirement: "Work-object decision option set (16): Approve, Approve All, Approve Similar, Edit, Delegate, Change Priority/Timeline, Assign, Share, Reject, Ignore, Merge, Split, Archive, Delete, Mark Not Required."
+        status: confirmed_gap
+        evidence: ["GOV-14"]
+        workflow: "Same finding -- not built as specified. The real system's binary model covers 'approve' and 'reject' outcomes generically but not this specific 16-verb vocabulary (Merge/Split/Archive/Delegate etc. are not distinct approval-flow actions in approval_preferences)."
+        instruction: "Same as U-D9.B1.S1 -- and note some of these 16 verbs (Delegate, Assign) may be served by OTHER mechanisms outside the approval system specifically (e.g. task reassignment), worth checking before assuming total absence."
+      - id: U-D9.B2.S1
+        requirement: "VERI learns communication preferences and may recommend creating a reusable approval preference; never activates a persistent approval automatically -- always explicitly granted."
+        status: implemented
+        evidence: ["GOV-14"]
+        workflow: "Confirmed -- saveApprovalPreference() never auto-activates, matching this requirement precisely. Whether VERI actively RECOMMENDS creating a preference (vs. just supporting one being created) is a smaller unconfirmed detail."
+        instruction: "Core guarantee (never auto-activate) verified correct. Minor: check whether the system proactively suggests preference creation, or only supports it when the user initiates."
+      - id: U-D9.B3.S1
+        requirement: "The approval experience must be fast and minimally intrusive."
+        status: partial
+        evidence: ["GOV-14"]
+        workflow: "The binary always_approve/always_reject model IS simpler/faster than the 9/9/16-option vocabularies would have been -- arguably better satisfies THIS specific sub-requirement even though it diverges from D9.B1's literal option sets."
+        instruction: "Worth noting to the Owner as a point in favor of keeping the simpler built system, when making the open decision noted under U-D9.B1.S1-S3."
+
+  - id: U-D10
+    name: "Communication Governance (VERI-assisted messaging)"
+    sub_branches:
+      - id: U-D10.B1.S1
+        requirement: "VERI acts as a communication assistant FOR the end user, never independent decision-maker -- shall never initiate business communications independently unless explicitly authorized through approved automation rules."
+        status: partial
+        evidence: ["src/lib/email.ts", "automation_rules table"]
+        workflow: "email.ts's system-triggered notifications (notifyAssigned, notifyOverdue, etc.) ARE independently-initiated communications, but they're triggered by pre-approved automation_rules-style events (task assignment, overdue detection), which arguably satisfies 'unless explicitly authorized through approved automation rules' -- these are automated, rule-triggered, not spontaneous AI decisions."
+        instruction: "This sub-branch may already be satisfied by the existing transactional email system's rule-triggered nature -- re-classify from 'gap' to 'satisfied' if the Owner agrees automated transactional notifications count as 'approved automation rules.'"
+      - id: U-D10.B2.S1
+        requirement: "Upon instruction, VERI may prepare/send 25 named communication types (task updates, reports, meeting summaries, follow-ups, approval requests, reminders, escalations, etc.); may PREPARE automatically, but sending requires approval unless prior authorization."
+        status: likely_gap
+        evidence: ["src/lib/email.ts"]
+        workflow: "email.ts covers a handful of these 25 types (assignment, overdue, deadline-approaching, new-comment notifications) with fixed templates, no AI drafting, no approval-hold step. Most of the 25 named types (meeting summaries, escalation notifications, dashboard links, schedule updates, vendor communications) have no confirmed implementation."
+        instruction: "See Section 30 GAP-06 -- this is the fullest expression of the gap; U-D10.B3's send/draft half and U-D21.B4's detection half are its component pieces."
+      - id: U-D10.B3.S1
+        requirement: "For composed email: VERI prepares responses, drafts replies, recommends recipients/attachments/follow-up reminders/Work Objects."
+        guardrail: "No outgoing communication sent without user approval unless policy-authorized."
+        input: "A detected commitment/follow-up/approval/deadline, or a user instruction to compose."
+        output: "A drafted reply/recipient list/attachment set, held for user approval before send."
+        status: confirmed_gap
+        evidence: ["src/lib/email.ts"]
+        workflow: "No AI-drafting-then-hold-for-approval mechanism exists -- email.ts sends fixed templates immediately on trigger, with no draft/hold/approve stages."
+        instruction: "See Section 30 GAP-06's workflow -- reuse GOV-06's runRole() for drafting, GOV-14's approval_preferences for the hold/approve stage."
+      - id: U-D10.B4.S1
+        requirement: "VERI shall never: impersonate the user, modify intent, send to unauthorized recipients, forward confidential info without permission, escalate without approval, send external comms without permission; all VERI-initiated communications fully traceable and audit-logged."
+        guardrail: "TARGET guardrail (not yet enforced, since the feature isn't built): these 7 rules, listed in full."
+        status: confirmed_gap
+        evidence: []
+        workflow: "Cannot be enforced today since the underlying draft-then-send feature (U-D10.B3) doesn't exist. The 'fully traceable and audit-logged' half is PARTIALLY satisfiable today via audit_logs (DB-03) for whatever email.ts already sends, even without the AI-drafting feature."
+        instruction: "These 7 rules are the acceptance criteria for Section 30 GAP-06's eventual build -- not separately actionable until that feature exists, except for verifying email.ts's existing sends are already audit-logged."
+      - id: U-D10.B5.S1
+        requirement: "VERI is an intelligent communication ASSISTANT, not an autonomous communicator; drafts/organizes/schedules/recommends, but intent-bearing sends stay under governed approval that's fast/intuitive/minimally intrusive; goal: productivity without removing accountability."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "Closing framing/principle -- see U-D10.B1-B4 for the concrete, individually-assessed requirements this principle summarizes."
+        instruction: "No independent action."
+
+  - id: U-D11
+    name: "Human Authority & AI Delegation (constitutional layer)"
+    sub_branches:
+      - id: U-D11.B1.S1
+        requirement: "duplicate_ref -- see D7.B2 for the full requirement and its constitutional grounding (Guardrail 11)."
+        status: duplicate_ref
+        evidence: ["GOV-14"]
+        workflow: "See U-D7.B2.S1 (implemented) and U-D7.B2.S2 (mostly_implemented)."
+        instruction: "See U-D7.B2's instructions -- the constitutional-guardrail framing (Guardrail 11) specifically is not separately registered as a guardrail-engine.ts leaf, an instance of the broader GAP-02 finding."
+
+  - id: U-D12
+    name: "Guardrail Framework -- Constitutional Layer (30 Mandatory Guardrail Protocols)"
+    sub_branches:
+      - id: U-D12.B1.S1
+        requirement: "Guardrails are a constitutional layer applying to 100% of AI Models/Agents/Human Users/APIs/Modules/Workflows/Background Jobs/Customer Interactions. 3-layer architecture: Pre-Execution -> Execution -> Post-Execution. Failure pauses execution and escalates. No task may bypass; bypass attempts logged/blocked/treated as governance incident."
+        status: partial
+        evidence: ["GOV-01"]
+        workflow: "The 3-layer ARCHITECTURE is real (guardrail-engine.ts's phase model). The '100% applicability, no task may bypass' claim is mechanically true only for the 4 registered leaves -- see the domain-level U-D12 finding for the full nuance."
+        instruction: "See Section 30 GAP-02."
+      - id: U-D12.B2.S1
+        requirement: "1. Identity guardrail -- no anonymous execution, verified User/AI/Agent/Workspace/Org/Session/Auth/Role/Permissions required."
+        status: implemented
+        evidence: ["src/lib/supabase/auth-guard.ts"]
+        workflow: "requireAuth()/requireAuthOrApiKey() are called by 573 of 614 API routes (per Tree 3's API inventory) -- this specific guardrail is very well covered, arguably the best-covered of all 30, even though it's not registered as a guardrail-engine.ts leaf specifically (it's enforced at the route layer instead)."
+        instruction: "This is a case where 'not registered in guardrail-engine.ts' does NOT mean unenforced -- auth-guard.ts's near-universal route-level enforcement is a real, working, different mechanism achieving the same goal. Don't fold this into GAP-02's remediation list; it doesn't need it."
+      - id: U-D12.B2.S2
+        requirement: "2. Authority guardrail -- 'can I legally perform this task' check; insufficient authority = STOP + escalate."
+        status: partial
+        evidence: ["src/lib/supabase/auth-guard.ts"]
+        workflow: "requireRole()/requireRoleOrScope()/ROLE_RANK provide role-based authority checks on writes across many routes. Whether this constitutes the full 'Authority/Permission/Delegation/Business Rules/Org Policies' check breadth this guardrail specifies, or just role-rank checking, is a narrower question."
+        instruction: "Reasonably well covered; the 'Delegation' dimension specifically overlaps with U-D7.B2.S2's approval-preference delegation, already assessed."
+      - id: U-D12.B2.S3
+        requirement: "3. Scope guardrail -- if outside scope, don't guess, escalate."
+        status: partial
+        evidence: ["src/lib/purpose-bound-ai.ts"]
+        workflow: "DOMAIN_ALLOWED_TOOLS + isToolAllowedForDomain() enforce a scope boundary (which tools a domain may use), a real but narrower implementation of 'scope' than the general task-scope concept this guardrail describes."
+        instruction: "Domain-tool scoping exists; broader task-scope enforcement (e.g. an engineering role attempting a sales action) is not separately confirmed."
+      - id: U-D12.B2.S4
+        requirement: "4. Objective guardrail -- task objective must be explicit before execution, ambiguous objectives clarified first."
+        status: implemented
+        evidence: ["GOV-03"]
+        workflow: "validateTightTask() rejects missing/placeholder/too-short objective fields -- direct, confirmed match."
+        instruction: "No action needed."
+      - id: U-D12.B2.S5
+        requirement: "5. Instruction Validation guardrail -- validate missing inputs/contradictions/ambiguity/conflicts/unsupported requests/missing dependencies before execution."
+        status: implemented
+        evidence: ["GOV-02", "GOV-13", "src/lib/task-tightening.ts (detectAmbiguousLanguage, detectFieldContradiction)"]
+        workflow: "Wave 166 (tree4-unified/50-completion-plan area 7): tightTaskCheck/taskBriefCheck cover missing-field validation (unchanged). Ambiguity detection (hedge-phrase scan across all 4 TightTask fields + TaskBrief title/description) and cross-field contradiction detection (negation in constraints vs. word-overlap with objective/scope/successCriteria/expectedOutput) are now real, wired, and tested -- 9 new passing tests, verified against both true-positive and true-negative cases (does not false-positive on legitimate specific text)."
+        instruction: "No action needed. Honest scope note: this is deterministic keyword/pattern-based, not full logical contradiction detection (that would need an LLM) -- catches the clearest, narrowest cases by design, consistent with every other guardrail in this codebase."
+      - id: U-D12.B2.S6
+        requirement: "6. Knowledge guardrail -- confirm sufficient knowledge/current documentation before proceeding, retrieve or escalate if not."
+        status: partial
+        evidence: ["GOV-15"]
+        workflow: "embeddings/embedding_cache/search-semantic (DB-03, API-16) provide retrieval infrastructure. Whether a pre-execution check specifically gates on 'do I have sufficient knowledge' (vs. retrieval being available but not gating) is unconfirmed."
+        instruction: "Retrieval infrastructure exists; the GATING behavior (blocking execution on insufficient knowledge) is the unconfirmed part."
+      - id: U-D12.B3.S1
+        requirement: "7-9. Evidence/Hallucination/Confidence guardrails -- claims need evidence, no fabrication, confidence-banded escalation (98-100/95-97/90-94/<90%)."
+        status: partial
+        evidence: ["GOV-12"]
+        workflow: "Evidence/Hallucination detection is real (ai-reply-gate.ts). The specific 4-band CONFIDENCE PERCENTAGE scheme is not confirmed as coded -- see U-D18's identical finding, superseded-or-parallel to GOV-04's tier system."
+        instruction: "See U-D18 and Section 30's open_decisions_needing_owner_input on whether the percentage scheme is still wanted alongside GOV-04's tiers."
+      - id: U-D12.B3.S2
+        requirement: "10-11. Risk Classification / Human Override -- Low/Medium/High/Critical classification driving review depth; human decisions always override AI, AI cannot overrule human-approved governance."
+        status: partial
+        evidence: ["GOV-04"]
+        workflow: "GOV-04's tier system is a related but distinct classification (complexity, not risk level). A dedicated Low/Medium/High/Critical RISK classification is not confirmed to exist separately. Human Override is well-evidenced (GOV-14's never-auto-activate guarantee)."
+        instruction: "Human Override half: solid. Risk Classification half: worth verifying whether it's a distinct concept from GOV-04's tiers or effectively merged into it."
+      - id: U-D12.B3.S3
+        requirement: "12-15. Prompt Integrity / Tool Usage / Model Selection / Coding -- no removing mandatory instructions/bypassing safety/rewriting constitution; tool pre-verification; model routing per D3; code pre/post-validation, no deploy without approval."
+        status: partial
+        evidence: ["GOV-04", "CI-01"]
+        workflow: "Model Selection (GOV-04) is solidly implemented. Coding guardrail is partially covered by CI (build/lint/test gates, PR review requirement). Prompt Integrity and Tool Usage as DISTINCT enforced checks (vs. general good practice) are not confirmed."
+        instruction: "Model Selection and Coding: reasonably covered by existing CI infrastructure. Prompt Integrity/Tool Usage: worth a closer, dedicated look if prompt-injection or unauthorized-tool-use incidents are a live concern."
+      - id: U-D12.B3.S4
+        requirement: "16-17. Security / Privacy -- never expose secrets/credentials; never disclose customer/employee/financial/personal data without authorization."
+        status: mostly_implemented
+        evidence: ["src/lib/pii-redaction.ts", "src/lib/ai-config-crypto.ts"]
+        workflow: "pii-redaction.ts scrubs LLM-call content before logging. ai-config-crypto.ts encrypts API keys at rest via pgcrypto. This is one of the better-evidenced guardrail pairs in the whole comparison."
+        instruction: "No high-priority action needed."
+      - id: U-D12.B3.S5
+        requirement: "18-20. Audit / Monitoring / Loop Prevention -- every action produces a full audit record; continuous task monitoring; loop prevention with circuit breaker."
+        status: mostly_implemented
+        evidence: ["src/lib/audit.ts", "GOV-11", "GOV-14"]
+        workflow: "audit_logs (DB-03), activity_log (GOV-14), and loop-prevention.ts collectively cover this well -- one of the stronger-evidenced guardrail clusters."
+        instruction: "No high-priority action needed."
+      - id: U-D12.B4.S1
+        requirement: "21-22. Quality Assurance / Handover -- pre-completion verification; no task transfer without status/risks/actions/evidence/checklist and explicit receiving-agent acknowledgement."
+        status: partial
+        evidence: []
+        workflow: "QA half: general completion-checking exists informally within GOV-08's dispatch paths, not confirmed as a distinct pre-completion gate. Handover half: confirmed_gap, same as U-D17."
+        instruction: "See Section 30 GAP-04 for the Handover half specifically."
+      - id: U-D12.B4.S2
+        requirement: "23-25. Reporting / Continuous Improvement / Governance Compliance -- completion report + metrics + failure analysis + recommendations + lessons; no closure without improvement capture; pre-closure compliance verification."
+        status: partial
+        evidence: ["GOV-16"]
+        workflow: "Same scope-limitation finding as U-D16 -- the improvement pipeline exists but isn't triggered universally at every task's closure."
+        instruction: "See U-D16's instruction."
+      - id: U-D12.B4.S3
+        requirement: "26-27. Self-Evaluation / Peer Review -- mandatory structured self-assessment after each task; independent reviewer evaluation, comments part of permanent record."
+        status: mostly_implemented
+        evidence: ["src/lib/activity-log-service.ts", "src/app/api/ai/team/review/route.ts", "src/lib/guardrail-registrations.ts", "drizzle/0137_wave165_activity_log_review.sql"]
+        workflow: "Wave 165 built a real, verified gate: a low-confidence AI Team dispatch (detectLowConfidenceResponse) is honestly reported as 'pending_review', not 'completed', and can only close via POST /api/ai/team/review -- which requires a DIFFERENT reviewer (self-review blocked), substantive comments (guardrail-enforced, >=10 chars), and an explicit approved/rejected decision, all permanently stored on the activity_log row. Verified end to end: live migration applied + re-queried, tsc/eslint clean, 6/6 new unit tests pass, full suite shows no new regressions."
+        instruction: "Scoped to the AI Team dispatch path only, where the L1 audit trigger + activity_log infrastructure already existed -- NOT extended to the general customer-facing tasks table, which needs PLAN-21's larger work-object model first (tasks.status is still a plain 5-value text field, per PLAN-07's finding). That's why this is mostly_implemented, not fully_implemented -- the mechanism is real and enforced where it's wired, but doesn't yet cover every task in the platform."
+      - id: U-D12.B4.S4
+        requirement: "28-29. Knowledge Evolution / Failure Containment -- version-controlled improvements (previous/new version/reason/benefit/approver/date/rollback); on failure, stop propagation/preserve evidence/notify/root-cause/recommend action."
+        status: partial
+        evidence: ["GOV-16"]
+        workflow: "loop_improvements' human-gating (isDeployed:false) partially covers version-control discipline. Failure Containment's specific stop-propagation/preserve-evidence sequence is not confirmed as a distinct enforced flow."
+        instruction: "Knowledge Evolution half reasonably covered; Failure Containment half worth a closer look if cascading-failure incidents are a live concern."
+
+  - id: U-D13
+    name: "Guardrail Framework -- Per-Task / Per-Selection Layer"
+    sub_branches:
+      - id: U-D13.B1.S1
+        requirement: "For every Mode Pill/Chain selection, distinct predefined Input/Process/Output/Logic validation rules apply, backend-injected."
+        guardrail: "Validation rules are injected server-side, not left to AI improvisation."
+        input: "The current chain selection plus declared Input/Process/Output field values."
+        output: "A pass, or a preloaded/predefined, polite violation message."
+        status: partial
+        evidence: ["GOV-02"]
+        workflow: "tightTaskCheck is leaf-key-scoped and server-side, matching the architecture. Whether violation messages meet the 'preloaded/predefined, polite' bar specifically (vs. dynamically assembled) is a content question, not verified either way."
+        instruction: "Architecture: solid. Message-tone: a content audit of guardrail-registrations.ts's actual rejection strings would close this out."
+      - id: U-D13.B1.S2
+        requirement: "Assumption validation -- before AI makes any input/output/process assumption, it must validate with the user via chat, scoped to the current selection."
+        status: likely_gap
+        evidence: []
+        workflow: "No confirmed mechanism specifically detects an AI 'about to make an assumption' and pauses to check with the user -- this is a distinct, more sophisticated behavior than general input validation, and wasn't found in Tree 3's evidence."
+        instruction: "A real, likely gap -- would need new logic distinguishing 'assumption' from 'validated input' at the model-call layer, a non-trivial NLP/prompting problem, not just a schema check."
+      - id: U-D13.B1.S3
+        requirement: "Validation-failure handling -- feeds a learning-loop entry scoped to the selection's guardrails; objective: lower token usage, maximize deterministic software over AI."
+        status: partial
+        evidence: ["GOV-01"]
+        workflow: "recordGuardrailViolation() does feed the CLEE pipeline on failure (confirmed for the 4 registered leaves). The 'lower token usage, maximize deterministic software' objective is served generally by GOV-07/GOV-08's engine-first dispatch, not specifically triggered by validation failures."
+        instruction: "The violation-to-learning-loop link works for what's registered; extending guardrail registration (GAP-02) automatically extends this too."
+
+  - id: U-D14
+    name: "Monitoring (multi-scope)"
+    sub_branches:
+      - id: U-D14.B1.S1
+        requirement: "Every task monitored for: Execution Time, Retries, Failures, Token Usage, Reasoning Quality, Hallucination Risk, Loop Risk, Dependency Health, Tool Health, Instruction Compliance, Policy Compliance, Security Compliance, Performance Score."
+        status: partial
+        evidence: ["GOV-15", "GOV-11"]
+        workflow: "Token Usage/cost (orchestra-execution-logger.ts), Loop Risk (loop-prevention.ts) are solidly covered. Reasoning Quality, Dependency Health, Tool Health, Instruction/Policy/Security Compliance, and a composite 'Performance Score' are not confirmed as individually tracked metrics."
+        instruction: "This 13-dimension list is broader than what's confirmed built -- worth a dedicated metrics audit if comprehensive per-task observability is a priority, rather than assuming full coverage from the 2 well-evidenced dimensions."
+      - id: U-D14.B2.S1
+        requirement: "Every Dynamic Chain contains predefined monitoring rules; monitoring agents verify Task Progress/Missing I-O/Loop-Hallucination-Policy-SLA-Workflow Detection/Failure Prediction/Resource Utilization until closure."
+        status: likely_gap
+        evidence: ["GOV-09"]
+        workflow: "Chain leaves carry execution-relevant fields (codeReference/engineKey) but no confirmed 'predefined monitoring rules' attached per chain specifically -- monitoring in Tree 3's evidence is task-level or org-level (GOV-16's loops), not chain-scoped as this sub-branch specifies."
+        instruction: "Likely gap -- if genuinely wanted as a distinct chain-scoped monitoring layer (vs. the existing task/org-level monitoring), that's new design work, not a quick extension."
+      - id: U-D14.B3.S1
+        requirement: "Lightweight 'control room' monitoring agents run as-needed watching Hallucinations/False-completion/Infinite-loops/Stuck-workflows/Long-running-tasks/Missing-docs/Missing-tests/Security-violations/Failed-handovers/SLA-breaches."
+        status: mostly_implemented
+        evidence: ["GOV-16"]
+        workflow: "GOV-16's 13 daily audit loops cover most of these (instruction-mismatch, tier-integrity, output-delivery, process-turnaround audits map reasonably to several named concerns). Failed-handovers specifically can't be monitored since Handover itself isn't built (U-D17)."
+        instruction: "Solid coverage except for the handover-dependent piece, which inherits U-D17's gap rather than being a new one."
+      - id: U-D14.B4.S1
+        requirement: "Every workflow includes: max execution depth, max retry count, max recursive delegation count, max elapsed time, duplicate-task/circular-dependency/deadlock detection, automatic circuit breaker, escalation after threshold breach."
+        status: mostly_implemented
+        evidence: ["GOV-11"]
+        workflow: "checkLoopBudget() and the generalized MAX_ITERATIONS pattern cover retry/depth/elapsed-time limits with circuit-breaker behavior. Circular-dependency and deadlock detection specifically (vs. simple iteration/depth limits) are not confirmed as distinct checks."
+        instruction: "Core loop-budget mechanism is solid; circular-dependency/deadlock detection specifically would need verification or new work if that failure mode is a live concern."
+
+  - id: U-D15
+    name: "Audit & Review Governance"
+    sub_branches:
+      - id: U-D15.B1.S1
+        requirement: "L1 Real-Time Audit -- the mandatory completion gate, triggered by <95% confidence and/or any process/code change; no completed task bypasses; sequential gate through Completion Certificate."
+        status: partial
+        evidence: ["GOV-04"]
+        workflow: "The functional intent (block low-tier/unaudited work from shipping) is real via requiresMandatoryAudit()'s CI merge gate. But it fires on model-tier eligibility, not the literal 'confidence score <95%' trigger this sub-branch specifies (no confidence-score field is confirmed to exist per U-D4.B1.S4). The sequential Engineering->Functional->Knowledge->Governance Audit stages are not confirmed as distinct tracked steps."
+        instruction: "The GATE exists and works; its TRIGGER CONDITION and INTERNAL STAGES differ from the literal spec. Worth clarifying with the Owner whether GOV-04's tier-based trigger is an acceptable substitute for the confidence-score trigger."
+      - id: U-D15.B1.S2
+        requirement: "duplicate_ref -- L2 Continuous Monitoring, same mechanism as D14.B3."
+        status: duplicate_ref
+        evidence: ["GOV-16"]
+        workflow: "See U-D14.B3.S1 -- mostly_implemented."
+        instruction: "See U-D14.B3.S1."
+      - id: U-D15.B1.S3
+        requirement: "L3 Rolling Health Audit (~30-60 min) -- examines the whole org for patterns: which agent/prompt/department/workflow/report/task-type is failing repeatedly."
+        status: partial
+        evidence: ["GOV-16"]
+        workflow: "Some of GOV-16's 13 loops (tier-integrity, process-turnaround, user-behaviour audits) approximate this pattern-finding function, but on a DAILY cadence, not the specified ~30-60-minute rolling cadence."
+        instruction: "Cadence mismatch specifically (daily vs. 30-60min) is the concrete, actionable gap here, distinct from a total absence of the underlying capability."
+      - id: U-D15.B1.S4
+        requirement: "L4 Executive Audit Review (every 3 hours) -- Claude reviews critical issues/escalations/productivity/model-utilization/audit-findings/hallucination-trends/cost/queue-health/agent-performance/improvement-proposals; can reassign/escalate/pause/approve/investigate."
+        status: likely_gap
+        evidence: []
+        workflow: "No automated 3-hour review-generation mechanism confirmed -- this describes a session-level Claude activity (the Three-Hour Governance Cycle from D1/AGCIF), not something GOV-16's cron loops produce as a consolidated executive report."
+        instruction: "If wanted as an automated report (vs. an ad-hoc session practice), this is new work: aggregate GOV-16's loop outputs plus GOV-15's cost data into one 3-hourly digest."
+      - id: U-D15.B1.S5
+        requirement: "L5 Daily Governance Review / L6 Weekly Executive Review / L7 Monthly Organizational Audit -- strategic, org-level, and board-level review cadences respectively (source table vs. prose cadence conflict noted in Tree 1 itself)."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No weekly or monthly automated executive-review report confirmed to exist -- same finding as U-D19's Reporting Framework gap, at this specific cadence tier."
+        instruction: "See Section 30 GAP for reporting -- U-D19's instruction (extend GOV-16's cron infrastructure) applies here too."
+      - id: U-D15.B1.S6
+        requirement: "Rationale: continuous-plus-periodic beats daily-only for an AI-native OS, analogized to cloud/cybersecurity/financial-exchange operating models."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "Rationale text, not independently verifiable -- GOV-16's 13 daily loops ARE a real instance of 'continuous' auditing (even if not real-time), consistent with the spirit of this rationale."
+        instruction: "No independent action."
+      - id: U-D15.B2.S1
+        requirement: "Audits trigger automatically on 10 named events (Code Changed->Engineering Audit, Feature Completed->Functional Audit, etc.), not only on schedule."
+        status: partial
+        evidence: ["CI-01", "GOV-04"]
+        workflow: "Code-Changed->Audit exists concretely via CI (mandatory-audit-check.yml fires on PRs from cheap-tier dispatch branches). The other 9 named event-trigger pairs (Feature Completed, Report Generated, Knowledge Updated, SOP Changed, Revenue Posted, AI Escalation, Customer Complaint, Deployment, New Prompt) are not confirmed to have dedicated audit triggers."
+        instruction: "1 of 10 event-triggers confirmed; the other 9 would each need their own trigger wiring if genuinely wanted -- a real, quantifiable, multi-part gap."
+      - id: U-D15.B3.S1
+        requirement: "A task is re-audited whenever: code changes after approval, requirements change, a production bug/security issue is reported, a customer reports incorrect behavior, a report produces wrong numbers, a prompt is modified, a new model deployed. Constitutional rule: no task is EVER permanently complete."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No re-audit-triggering mechanism confirmed for any of these 7 named conditions -- once a task/PR passes its initial gate, no evidence exists of automatic re-evaluation later."
+        instruction: "A real, structurally significant gap -- 'no task ever permanently complete' is one of the more philosophically important principles in Tree 1 and has zero code support today. Worth flagging to the Owner as a priority discussion, even though the natural implementation (event-triggered re-audit jobs) is straightforward engineering once scoped."
+      - id: U-D15.B4.S1
+        requirement: "duplicate_ref -- every significant Work Object passes through governed review stages (Individual/Team/Functional/Technical/Cross-functional/Management/Executive/AI/Audit Review), each review recording Reviewer/Decision/Observations/Changes/Status/Timestamp. Executed by the D2.B4 audit organization."
+        status: confirmed_gap
+        evidence: ["DB-06"]
+        workflow: "board_evaluations and similar governance-review tables exist for SPECIFIC domains (board meetings) but not as a generic 9-type review-stage mechanism applicable to any Work Object. Also depends on D2.B4's audit organization, which is itself a confirmed gap (U-D2.B4.S2-S5)."
+        instruction: "This compounds two gaps (generic review-stage mechanism + the audit org that would staff it) -- sequence any build work behind the Owner's GAP-05 decision on audit-org granularity."
+      - id: U-D15.B5.S1
+        requirement: "Every completed task independently verified for Correct Chain/Workflow/Software/AI-Behaviour/Outputs/Documentation/Evidence/Reports/Learning/Governance; results become organizational knowledge."
+        status: partial
+        evidence: ["GOV-04", "GOV-16"]
+        workflow: "Partial coverage via the CI mandatory-audit gate (verifies SOME of these 10 dimensions implicitly through code review) plus GOV-16's loops. A comprehensive, explicit 10-dimension verification checklist per completed task is not confirmed as a discrete, tracked artifact."
+        instruction: "Related to but distinct from U-D15.B1.S1's confidence-gate finding -- this is about verification BREADTH (10 dimensions) rather than the gate's trigger condition."
+      - id: U-D15.B6.S1
+        requirement: "'Peer Validation' is an explicit, non-skippable stage in the Universal Task Lifecycle, performed by L1/L2 escalation-chain agents, feeding the CAO audit apparatus."
+        status: confirmed_gap
+        evidence: []
+        workflow: "Depends on both U-D4.B2.S1's 18-stage lifecycle (unconfirmed as literally coded) and U-D2.B1.S1's L1/L2 escalation ladder (confirmed_gap) -- since neither foundation is confirmed built, Peer Validation as a distinct, non-skippable stage cannot be confirmed either."
+        instruction: "This gap is downstream of two other gaps (the escalation ladder and the 18-stage lifecycle) -- don't attempt to build it in isolation; it depends on those being resolved first, or on an explicit decision to implement it independently of them."
+      - id: U-D15.B7.S1
+        requirement: "Every approval defines: Approval authority, Delegation rules, Escalation rules, Time limits, Reminder frequency, Auto-escalation policy, Approval history. VERI continuously monitors pending approvals and sends reminders."
+        status: partial
+        evidence: ["GOV-14"]
+        workflow: "approval_preferences captures scope and decision (a form of 'Approval authority' + 'Approval history'). Time limits, reminder frequency, and auto-escalation policy specifically are not confirmed as fields on this table -- and no active 'VERI monitors pending approvals and sends reminders' job was found (this is the same gap as U-D22's Follow-up domain, applied specifically to approvals)."
+        instruction: "The reminder/monitoring half of this requirement is the same underlying gap as Section 30's follow-up-engine discussion (U-D22) -- don't scope it as a separate build."
+
+  - id: U-D16
+    name: "Continuous Improvement & Knowledge Evolution"
+    sub_branches:
+      - id: U-D16.B1.S1
+        requirement: "Canonical cycle: Completed -> Audited -> Approved -> Lessons Learned -> Knowledge/Prompt/Workflow/Guardrail/SOP Updated -> Future Tasks Improve, for every completed unit, version-controlled and human-gated."
+        status: partial
+        evidence: ["GOV-16"]
+        workflow: "See U-D16's domain-level finding -- real, human-gated pipeline exists, scoped to guardrail-violations/loop-audit findings, not universally triggered by every completion."
+        instruction: "See U-D16's domain-level instruction (widen GOV-16's trigger scope into GOV-08's general task-completion path)."
+      - id: U-D16.B2.S1
+        requirement: "Loop Engineering: every completed task automatically answers a set of reflective questions (what succeeded/failed/why, can this be faster/cheaper, should another AI do this, should this become reusable, etc.), feeding structured knowledge."
+        status: confirmed_gap
+        evidence: ["GOV-16"]
+        workflow: "GOV-16's loop-engineering-audit.ts loop exists by name and touches this concept, but a per-TASK reflective-question-answering step (vs. an org-level daily audit) is not confirmed -- this is a finer distinction than the domain-level review captured."
+        instruction: "Worth verifying whether loop-engineering-audit.ts operates per-task or only at the aggregate/daily level -- if only the latter, the per-task reflective mechanism is a real, distinct gap."
+      - id: U-D16.B3.S1
+        requirement: "Every completed task generates a fixed-template Improvement Report (Task/Outcome/Root-Cause/Performance/Failure-Success-Analysis/Instruction-Prompt-Workflow-Guardrail-Validation-Improvements/Knowledge-Updates/Automation-Opportunities/Risk-Reduction/Confidence/Reviewer-Approval); no task closes until this exists."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No confirmed fixed-template report artifact gating task closure -- this is a stronger, more specific claim than U-D16.B1's general cycle, and no evidence supports it at this granularity."
+        instruction: "A real, specific gap distinct from the general cycle's partial implementation -- would need a new required field/artifact on task closure, gated by a guardrail leaf (fold into GAP-02's registration work as an additional leaf, or track separately given its distinct shape)."
+      - id: U-D16.B4.S1
+        requirement: "Every AI Agent owns a permanent directory: Agent/Task/Version/Average-Success/Average-Time/Failures/Common-Errors/Improvement-Suggestions/Latest-Prompt-Version/Validation-Rules/Loop-Engineering-Status. Governed by the COO."
+        status: partial
+        evidence: ["DB-04"]
+        workflow: "worker_agent_usage_log/worker_agent_learnings cover this concept but ONLY for Worker Agents specifically, not the AI Dev Team's 57 roster.ts roles generally -- same scope-limitation finding as the domain-level U-D16 conclusion, restated precisely at this sub-branch."
+        instruction: "If wanted for the 57 general roles (not just Worker Agents), this needs new tracking tables/logic mirroring the existing worker_agent_* pattern but scoped to roster.ts roles."
+
+  - id: U-D17
+    name: "AI Handover Protocol"
+    sub_branches:
+      - id: U-D17.B1.S1
+        requirement: "Mandatory structured handover -- no AI Agent may simply say 'Done'."
+        guardrail: "Ownership transfers only after the receiving agent explicitly acknowledges acceptance -- a handover sent but not acknowledged does not transfer ownership."
+        input: "A task at completion, or at any ownership-transfer point."
+        output: "9 required fields: Task Status, Output Produced, Validation Passed, Known Risks, Pending Items, Confidence, Next Responsible AI, Required Action, Escalation Required."
+        status: confirmed_gap
+        evidence: []
+        workflow: "Confirmed absent -- no registered guardrail leaf, table, or service corresponds to this pattern. GOV-02's exhaustive 4-leaf list doesn't include one."
+        instruction: "See Section 30 GAP-04 -- the single most well-scoped, bounded new-guardrail-leaf task in the whole backlog."
+
+  - id: U-D18
+    name: "Hallucination & Evidence Discipline"
+    sub_branches:
+      - id: U-D18.B1.S1
+        requirement: "Every critical task undergoes: input-completeness validation, policy/instruction validation, retrieval/source validation, self-review against success criteria, independent peer review for medium/high-risk, escalation on low confidence or insufficient evidence. No model assumed infallible."
+        status: partial
+        evidence: ["GOV-12", "GOV-10"]
+        workflow: "Detection mechanism (ai-reply-gate.ts) and input policy checking (policy-enforcement-engine.ts) are real. Independent peer review specifically for medium/high-risk tasks (vs. any task uniformly) is not confirmed as risk-differentiated. The confidence-percentage escalation trigger is the same unconfirmed mechanism noted under U-D12.B3.S1."
+        instruction: "Detection: solid. Risk-differentiated peer review and the specific confidence-percentage trigger: see U-D12.B3.S1 and Section 30's open_decisions_needing_owner_input on whether GOV-04's tiers supersede this design."
+
+  - id: U-D19
+    name: "Reporting Framework"
+    sub_branches:
+      - id: U-D19.B1.S1
+        requirement: "Every AI model reports on an identical cadence (Daily/Hourly/Per-Task/Weekly/Monthly/Quarterly/Annual), each covering Performance/Quality/Failures/Escalations/Token-Usage/Learning/Knowledge-Updates/Recommendations/Risk-Trends. Distinct from CAO Executive Reporting (D2.B4.S1)."
+        status: confirmed_gap
+        evidence: ["API-16"]
+        workflow: "saved_reports/custom-report-service.ts is user-authored ad-hoc BI querying, materially different from an automated multi-cadence AI-performance reporting pipeline. No evidence of the latter."
+        instruction: "See Section 30 GAP for reporting infrastructure -- pull from token_usage_ledger/loop_executions/roster usage logs, schedule via GOV-16's existing cron infrastructure rather than building new scheduling machinery."
+
+  - id: U-D20
+    name: "Customer/Business Task Governance"
+    sub_branches:
+      - id: U-D20.B1.S1
+        requirement: "duplicate_ref -- customer-originated actions follow the exact same universal lifecycle as any other task, with no separate track."
+        status: implemented
+        evidence: ["GOV-08"]
+        workflow: "Confirmed by construction -- executeTask() has no origin-based branching."
+        instruction: "No action needed."
+
+  - id: U-D21
+    name: "Intelligent Work Detection & Source Intelligence"
+    sub_branches:
+      - id: U-D21.B1.S1
+        requirement: "VERI auto-detects actionable work from MoM/transcripts/emails/uploaded-docs/OCR/VERI-Chat/voice/API-payloads/tickets/external-integrations, identifies Action-items/Decisions/Responsibilities/Deadlines/Risks/Follow-ups/Dependencies/Approvals/Deliverables, prepares PROPOSED Work Objects. No object created without approval unless policy-authorized."
+        status: partial
+        evidence: ["API-08", "API-12"]
+        workflow: "General principle confirmed for MoM and Documents specifically (see U-D21.B2/B3). Voice, OCR, and API-payload-triggered detection are not independently confirmed as distinct source types."
+        instruction: "The general principle is proven for 2 of the ~8 named source types; treat the others as unconfirmed rather than assuming coverage."
+      - id: U-D21.B2.S1
+        requirement: "On MoM upload/generation: read fully, identify attendees/decisions/action-items/owners/due-dates, detect unresolved-issues/risks/follow-up-meetings/dependencies, prepare a proposed Action Register for review/edit/approval -- only approved items become Work Objects."
+        status: partial
+        evidence: ["API-08"]
+        workflow: "generate-intelligence's transcription-to-minutes-to-action-items pipeline was already cross-referenced as matching this requirement 'almost exactly' when Tree 3 was built -- the strongest single match in this whole domain. Whether the intermediate 'Action Register' artifact is a distinct, separately-approvable object (vs. action items going straight into tasks) is a smaller unconfirmed detail."
+        instruction: "No high-priority action -- this is functioning well. Minor: verify the Action Register is a real intermediate review step, not just informal framing."
+      - id: U-D21.B3.S1
+        requirement: "On file upload: read, classify using the Dynamic Chain, extract business info, identify actionable items, generate summaries, identify approvals required, recommend workflows/reports, create proposed tasks, link related Work Objects. User approves/edits/rejects/shares before execution."
+        status: partial
+        evidence: ["API-12"]
+        workflow: "documents/extract provides AI field extraction (confirmed). Whether it also classifies via the Dynamic Chain specifically, recommends workflows, and creates proposed tasks (vs. just extracting fields) is a narrower, unconfirmed claim."
+        instruction: "Field extraction is proven; the fuller detect-and-propose pipeline (matching MoM's depth) is not confirmed to the same degree."
+      - id: U-D21.B4.S1
+        requirement: "For received email: understand context, identify commitments, detect follow-up/approval/deadline actions -- same detect-then-propose pattern as MoM/Document intelligence, applied to email."
+        input: "An incoming email."
+        output: "Identified commitments/follow-ups/approvals/deadlines, feeding a proposed Work Object."
+        status: confirmed_gap
+        evidence: ["DB-10"]
+        workflow: "instruction_commitments/instruction_mismatch_detections cover a related-but-different concept (chat commitment tracking after the fact), not inbound email parsing. No email-detection pipeline confirmed."
+        instruction: "See Section 30 -- genuinely new work following the proven MoM/Document detect-then-propose pattern, not a novel design."
+      - id: U-D21.B5.S1
+        requirement: "Document/Email Intelligence is the CONSUMER of the Universal Connector layer's normalized output -- cross-referenced with D26, not duplicated."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "A structural/architectural note, not independently testable -- see U-D26 for the connector layer's own status."
+        instruction: "No independent action."
+
+  - id: U-D22
+    name: "Follow-up, SLA & Continuous Planning"
+    sub_branches:
+      - id: U-D22.B1.S1
+        requirement: "VERI continuously monitors Pending-tasks/approvals, Missed-timelines, SLA-breaches, Blocked/Delegated-tasks, Waiting-dependencies, Inactive-Work-Objects, and recommends Reminders/Escalations/Reassignment/Extensions/Closure/Cancellation."
+        status: narrow_scope
+        evidence: ["API-01"]
+        workflow: "Only compliance/overdue exists, a domain-specific instance scoped to compliance items, covering roughly 2 of the 6 named monitored-state categories (Missed timelines/SLA breaches, loosely) and none of the 6 named recommended actions as an automated feature."
+        instruction: "See Section 30's follow-up-engine discussion -- this is the most under-built sub-branch in this domain specifically."
+      - id: U-D22.B2.S1
+        requirement: "VERI continuously reprioritizes work based on Deadlines/Business-priorities/Dependencies/Resource-availability/Org-objectives/User-preferences/Risk/SLA, recommends revised execution plans as conditions change."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No continuous re-planning/re-prioritization mechanism found anywhere in Tree 3's evidence -- this is a materially more sophisticated capability (dynamic scheduling/optimization) than anything else in this domain, and appears entirely unbuilt."
+        instruction: "This is a substantial, likely multi-week feature if genuinely wanted (a real scheduling/prioritization engine), not a quick addition -- flag as its own initiative rather than folding into the general follow-up-engine gap."
+
+  - id: U-D23
+    name: "Universal Dashboard"
+    sub_branches:
+      - id: U-D23.B1.S1
+        requirement: "A live, real-time Work Dashboard: To Do/Pending/WIP/Reviews/Approvals/Blocked/Delegated/Completed/Achieved/Overdue/Upcoming-Deadlines/Recently-Completed/High-Priority/Critical-Risks/Escalations."
+        status: mostly_implemented
+        evidence: ["UI-01"]
+        workflow: "See U-D23's domain-level finding -- /veri-todo's genuine 3-source merge (Tasks+Chat Instructions+PMS Issues) is real and strong, though it doesn't cover ERP/Firm/Construction items, and real-time-ness (push vs. poll) is unconfirmed."
+        instruction: "See U-D23's domain-level instruction -- extend the existing merge query for full universality rather than building a parallel dashboard."
+
+  - id: U-D24
+    name: "Response Engine & Predefined Short Responses"
+    sub_branches:
+      - id: U-D24.B1.S1
+        requirement: "Chat responses must be short/precise, max 4 words plus specifics, exception only for research/analysis; predefined polite responses required; software suggests, AI confirms/selects; design goal: lower-tier models handle more traffic confidently."
+        status: fully_implemented
+        evidence: ["GOV-13"]
+        workflow: "Exact match, including the design rationale transcribed nearly word-for-word in both trees."
+        instruction: "No action needed -- the reference example of a fully-implemented requirement in this whole tree."
+      - id: U-D24.B1.S2
+        requirement: "Relationship to D9's quick-approval options: both minimize chat friction via predefined short options, but serve different scopes (D9 = approval-specific, D24 = general chat)."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "A relationship/scoping note, not itself a build requirement."
+        instruction: "No action needed."
+      - id: U-D24.B1.S3
+        requirement: "Relationship to D13's predefined violation messages: both use predefined/canned text but for different purposes (D13 = guardrail-violation explanation, D24 = general short-answer). A shared text-library mechanism could plausibly serve both, but source material treats them as two requirements."
+        status: not_applicable_to_code
+        evidence: []
+        workflow: "A relationship/scoping note. Whether response-engine.ts and guardrail-registrations.ts's violation-message logic actually share underlying infrastructure (vs. being two separate string libraries) was not verified."
+        instruction: "Low-priority curiosity check: if consolidating the two into one shared predefined-text mechanism would reduce maintenance burden, worth a look, but not a functional gap."
+
+  - id: U-D25
+    name: "Task Automation, Predefined Calculators/Processes/Reports"
+    sub_branches:
+      - id: U-D25.B1.S1
+        requirement: "Software (without AI) tracks completed vs. pending tasks, pushes incomplete tasks toward completion; recurring AI-assisted tasks evaluated for automation conversion; software sends AI a single batched ping about all tasks (token-efficient); software multi-tasks for a user without AI, driven by the Dynamic Chain."
+        status: confirmed_gap
+        evidence: ["GOV-08", "UI-01"]
+        workflow: "Task tracking without AI is real (the tasks table + /veri-todo's software-rendered aggregate view, no LLM call needed to display status). 'Push incomplete tasks toward completion' as an active nudging behavior, the 'single batched ping' token-optimization pattern, and 'recurring task -> automation conversion' evaluation are not confirmed as distinct implemented behaviors."
+        instruction: "Passive tracking: solid. The 3 more active/optimizing behaviors named here are each individually unconfirmed and would need verification or new work if prioritized."
+      - id: U-D25.B2.S1
+        requirement: "Predefined calculators exist for all calculations, no AI needed; new functionality must get a corresponding calculator linked into the Mode Pill/Chain Options."
+        status: partial
+        evidence: ["GOV-07"]
+        workflow: "See U-D25's domain-level finding -- 247 functions exist, only 2/25 files wired. The 'must get a corresponding calculator when new functionality is added' FORWARD-GOING discipline (a process rule, not just a current-state fact) is not verifiable from Tree 3's evidence."
+        instruction: "See Section 30 GAP-01 for the wiring gap. The forward-going discipline requirement is a process/governance matter for future development, not a code gap to close now."
+      - id: U-D25.B3.S1
+        requirement: "Predefined processes exist to run all processes without AI; new functionality must get a corresponding process linked into the Mode Pill/Chain Options."
+        status: partial
+        evidence: ["src/lib/services/automation-rule-service.ts", "automation_rules table"]
+        workflow: "automation-rules (deterministic trigger->condition->action, no AI, per API-15) IS a real 'predefined process' mechanism -- a stronger match than initially credited at the domain level. Whether it covers 'all processes' or just a subset, and whether new features are disciplined to add corresponding automation rules, is unconfirmed."
+        instruction: "This sub-branch is better-evidenced than the domain-level summary suggested -- automation_rules is worth citing explicitly as a real, working 'predefined process' implementation."
+      - id: U-D25.B4.S1
+        requirement: "All predefined report types viewable/downloadable (PDF/Excel/Word/email) without AI; selecting the relevant chain option surfaces the report URL directly; new reports must be linked into Chain Options."
+        status: partial
+        evidence: ["API-16"]
+        workflow: "saved_reports/custom-report-service.ts provide report generation. Whether reports are downloadable in all 3 named formats (PDF/Excel/Word) and whether selecting a Chain option surfaces a report URL directly (vs. navigating to a separate reports page) is unconfirmed."
+        instruction: "Report generation exists; the specific chain-integration and multi-format-export claims need direct verification."
+      - id: U-D25.B5.S1
+        requirement: "User-given tasks are clickable; user can communicate with AI about a specific task and modify it; software (not AI) tracks status."
+        status: implemented
+        evidence: ["UI-01", "GOV-08"]
+        workflow: "Task detail views with AI chat and status tracking are core, confirmed platform features (this is one of the most basic, well-established parts of the whole system)."
+        instruction: "No action needed."
+
+  - id: U-D26
+    name: "Universal Connector Architecture / VERIDIAN Universal Workspace"
+    sub_branches:
+      - id: U-D26.B1.S1
+        requirement: "Layer 1 Cloud APIs (Microsoft Graph + Google Workspace, the backbone): 8 Microsoft apps + 7 Google apps, OAuth-based, persistent connection."
+        status: partial
+        evidence: ["src/lib/composio-connectors.ts"]
+        workflow: "Composio OAuth connectors are real (GOV-09/API-15's /connectors). Whether all 15 named specific apps (8 Microsoft + 7 Google) are individually connectable, vs. a smaller subset (Gmail/Drive/Calendar/Slack/Notion/GitHub were the specifically named toolkits in Tree 3's evidence), is unconfirmed -- likely narrower than the full 15-app list."
+        instruction: "Verify CONNECTOR_TOOLKITS' exact app list against the 15 named apps -- likely a partial-coverage finding, not a total gap."
+      - id: U-D26.B1.S2
+        requirement: "Layer 2 Office Add-ins: ONE single add-in for Excel/Word/PowerPoint/Outlook, ribbon button 'VERIDIAN' with 6 named actions."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No add-in manifest or related code found anywhere."
+        instruction: "See Section 30 GAP-08 -- its own separately-scoped initiative."
+      - id: U-D26.B1.S3
+        requirement: "Layer 3 Browser Extensions (Chrome/Edge/Firefox), working across M365/Google-Workspace/Web-ERP/Bank-portals/GST-portal/Government-sites/Vendor-portals."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No extension code found anywhere."
+        instruction: "See Section 30 GAP-08."
+      - id: U-D26.B1.S4
+        requirement: "Layer 4 Desktop Companion for offline/desktop-only Office installs -- watches files, syncs changes, sends events, indexes documents."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No desktop agent found anywhere."
+        instruction: "See Section 30 GAP-08."
+      - id: U-D26.B1.S5
+        requirement: "One-click simplicity: a non-technical user must be able to connect a source in one click, across all 4 layers."
+        status: partial
+        evidence: ["src/lib/composio-connectors.ts"]
+        workflow: "Composio's OAuth flow (Layer 1 only, since Layers 2-4 don't exist) is designed for exactly this kind of low-friction connection, though its actual click-count wasn't independently verified in this pass."
+        instruction: "Applies as an acceptance criterion to whatever gets built for Layers 2-4 (Section 30 GAP-08), not separately actionable today."
+      - id: U-D26.B2.S1
+        requirement: "Google Workspace app-specific behavior: Sheets understands business category and creates workflow/approvals/alerts/ERP-updates; Docs extracts policy fields and creates knowledge/tasks/reviews; Slides supplies KPIs for board decks; Gmail identifies type and creates workflows; Drive turns every document into a 'VERIDIAN Asset.'"
+        status: likely_gap
+        evidence: ["API-12"]
+        workflow: "documents/extract provides generic AI field extraction, which could plausibly serve some of these app-specific behaviors, but none of the 5 named app-specific behaviors (Sheets business-category detection, Slides board-deck generation, Gmail type-identification-to-workflow, Drive's 'VERIDIAN Asset' concept specifically) were confirmed as distinct implemented features."
+        instruction: "Likely gap, and dependent on U-D26.B1's Layer 1 being more fully built out (specific per-app integrations) before this app-specific intelligence layer makes sense to build."
+      - id: U-D26.B3.S1
+        requirement: "Universal Connector normalization layer -- every source becomes one of 4 Business Object types (Table/Document/Presentation/Communication), never branching on original file format."
+        guardrail: "No downstream code may branch on 'is this Excel or Google Sheets.'"
+        status: confirmed_gap
+        evidence: ["API-12", "src/lib/composio-connectors.ts"]
+        workflow: "documents (a generic table) and the connector layer both handle 'files' generically to some degree, but a formal, enforced 4-type normalization abstraction (with the stated guardrail against format-branching) was not confirmed as architecturally present."
+        instruction: "This is a meaningful architectural pattern (or its absence) worth a direct code check -- grep for format-specific branching logic (e.g. `if fileType === 'xlsx'`) in the document-handling code paths to see if the guardrail is being violated in practice."
+      - id: U-D26.B4.S1
+        requirement: "Every document receives a Business Digital Twin: Document-ID/Department/Financial-Year/Business-Objects/Linked-Projects/Approvals/Risk/Compliance/Workflow/AI-History/Discussion/Related-Emails/Meeting-References/Users/Permissions/Knowledge-Graph."
+        status: confirmed_gap
+        evidence: ["src/lib/composio-connectors.ts"]
+        workflow: "connector_accounts is a simple OAuth-account table -- nowhere near this 16-field rich per-document schema. entity_relationships (DB-03) provides SOME knowledge-graph infrastructure, but not wired specifically to a per-document Digital Twin concept."
+        instruction: "See Section 30 GAP-08 -- explicitly one of the 4 separately-scoped sub-initiatives (Digital Twin schema), largest single remaining piece of this domain."
+      - id: U-D26.B5.S1
+        requirement: "AI routing across connected sources is fully automatic: Excel->Microsoft-AI, Google-Sheet->Gemini, PDF->OCR-Worker->Knowledge-Worker->Compliance-Worker (chained pipeline)."
+        status: likely_gap
+        evidence: ["GOV-15"]
+        workflow: "orchestra-model-resolver.ts provides general 4-layer model routing (personal/client/org/platform scope), but not this SPECIFIC source-type-to-provider routing scheme (Excel->Microsoft AI specifically, etc.) -- a different routing axis than what's built."
+        instruction: "Likely gap, though the general model-routing INFRASTRUCTURE (GOV-15) could plausibly be extended to add source-type as a routing dimension rather than building something new from scratch."
+      - id: U-D26.B6.S1
+        requirement: "Roadmap: 21 named ecosystems targeted (M365/Google-Workspace/LibreOffice/ODF/PDF/CSV/Tally/ERPNext/SAP/Oracle/Zoho/Dropbox/Box/OneDrive/SharePoint/Drive/Slack/Teams/Notion/Confluence/GitHub/Email). Vision: 'VERIDIAN Universal Workspace,' vendor-neutral, connections persist once established."
+        status: partial
+        evidence: ["src/lib/composio-connectors.ts"]
+        workflow: "Composio's CONNECTOR_TOOLKITS covers a handful of these 21 (Gmail/Drive/Calendar/Slack/Notion/GitHub confirmed in Tree 3's evidence) -- roughly 6 of 21, with persistence confirmed real (Composio OAuth tokens persist)."
+        instruction: "This is the clearest quantifiable roadmap-completion metric in the whole tree (~6/21 ecosystems) -- straightforward to extend incrementally by adding more Composio toolkits, unlike Layers 2-4 which need new codebases entirely."
+
+  - id: U-D27
+    name: "User Registration, Licensing & Adoption Dashboard"
+    sub_branches:
+      - id: U-D27.B1.S1
+        requirement: "Org-level user registration management; defined org-account-opening process; license management (assign/revoke/track); active-user-count enforcement; misuse control (2-concurrent-session limit, 1 laptop + 1 mobile), EXCEPT VERIDIAN's own internal use/testing."
+        guardrail: "TARGET guardrail (not yet enforced): the 2-concurrent-session limit does NOT apply to VERIDIAN's own internal use/testing -- this exception must be present from day one of any implementation."
+        status: likely_gap
+        evidence: ["DB-01"]
+        workflow: "organisations.plan/subscriptionPlanId provide the most basic plan linkage. User registration itself works (org membership is clearly functional platform-wide, per multiple domains' evidence), but license-seat management, active-user-count enforcement, and session-concurrency misuse detection are not confirmed as existing anywhere."
+        instruction: "See Section 30 GAP-09 -- the internal-use exception must be built in from the start of any session-limit enforcement work, not retrofitted."
+      - id: U-D27.B2.S1
+        requirement: "Two dashboard views (individual + Org Master Admin/CEO), visually engaging, per-user fields (Name/Email/Activation-status/dates), org metrics (Adoption%/AI-Adoption%/Meetings-Managed/Tasks-Completed/Hours-Saved/Reports-Generated/AI-Conversations/Departments-Active/Top-Performing-Team/Lowest-Adoption)."
+        status: confirmed_gap
+        evidence: []
+        workflow: "No adoption-dashboard with this specific metric set was found -- UI-01's /dashboard and /veri-todo serve a different purpose (work-item tracking, not org-adoption analytics)."
+        instruction: "See Section 30 GAP-09 -- a new metrics-aggregation job plus a new dashboard view, distinct from the existing /dashboard."
+      - id: U-D27.B3.S1
+        requirement: "4 distinct invitation paths: Secure Invite Link (WhatsApp+email), Master-Admin-direct-add, self-registration-via-admin-code, self-registration-via-peer-code."
+        status: confirmed_gap
+        evidence: []
+        workflow: "SOME invite mechanism plausibly exists (org membership is functional), but the 4 SPECIFIC named paths (particularly WhatsApp delivery and peer-provided codes) were not confirmed."
+        instruction: "See Section 30 GAP-09's first recommended step -- audit what invite mechanism actually exists today before assuming the full 4-path design is missing; this may turn out to be more built than confirmed."
+
+  - id: U-D28
+    name: "Onboarding & Sign-up UX"
+    sub_branches:
+      - id: U-D28.B1.S1
+        requirement: "No longer positioned as a compliance tool; positioning driven by user's stated requirement; replace 'Get Started with VERIDIAN AI' CTA; keep VERI welcome line; flow into Mode Pills + Chain Selector with NO typing (system infers profile); connectors pre-connected during setup."
+        status: confirmed_gap
+        evidence: ["onboarding_steps table", "UI-13"]
+        workflow: "Generic onboarding-progress tracking is real. None of the specific UX asks (positioning copy, no-typing profile inference, pre-connected connectors during setup specifically) were confirmed either way."
+        instruction: "See Section 30 GAP-10 -- direct UI verification needed."
+      - id: U-D28.B1.S2
+        requirement: "'Invite a team member' control (minimalist, '+' icon) on every screen, upper-right; remove 'Set up AI configuration' from onboarding (relocate to Settings); remove 'Upload the document' step entirely."
+        status: confirmed_gap
+        evidence: ["UI-07"]
+        workflow: "Settings does have an AI Configuration section (UI-07's AiConfigSection.tsx) -- consistent with 'relocated to Settings' if it's NOT also duplicated in onboarding (unconfirmed). The persistent invite control and the removed upload-step are both unconfirmed."
+        instruction: "See Section 30 GAP-10 -- the AI-config relocation may already be satisfied; the invite control and upload-step removal need direct verification."
+      - id: U-D28.B2.S1
+        requirement: "Chat box copy: 'I am your Assistant VERI, select a task above to tell me what to do.'"
+        status: mostly_implemented
+        evidence: []
+        workflow: "No evidence either way -- exact copy strings were not transcribed by Tree 3's UI inventory."
+        instruction: "Trivial, cheap verification -- read the actual composer placeholder text."
+      - id: U-D28.B3.S1
+        requirement: "'Sign in with Google' as the FIRST option, then email/magic-link second; manual email shows 'check your email' with click-to-authenticate; replace password with a 4-digit emailed passcode; sign-up must be very fast/easy."
+        status: confirmed_gap
+        evidence: []
+        workflow: "CLAUDE.md documents auth only generically as 'Supabase Auth SSR,' consistent with either a passcode or password flow -- genuinely unconfirmed which was built."
+        instruction: "See Section 30 GAP-10 -- the highest-value single verification item in the whole tree per its own cost/benefit (cheapest check, resolves the most named specifics at once)."
+      - id: U-D28.B4.S1
+        requirement: "duplicate_ref -- see D5.B7, Mode Pill/Chain options auto-change per module/function; framed here as a hard onboarding/usability blocker."
+        status: duplicate_ref
+        evidence: []
+        workflow: "See U-D5.B7.S1 -- likely_gap."
+        instruction: "See U-D5.B7.S1's instruction."
+
+count_of_domains: 28
+count_of_sub_branches: 149

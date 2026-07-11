@@ -42,12 +42,31 @@ const REQUIRED_MARKERS = [
   // task-tightening.ts's validateTaskBrief()) than the AI Dev Team's
   // TightTask schema, since this gates a live product's real task titles.
   { file: "src/lib/task-tightening.ts", mustContain: ["export function validateTaskBrief"] },
+
+  // Ambiguity / contradiction detection (Wave 166, tree4-unified/50-
+  // completion-plan area 7): the completeness checks above (missing/
+  // placeholder/too-short) don't catch a field that's present but still
+  // vague ("handle edge cases as appropriate") or self-contradictory
+  // (constraints says not to do the exact thing objective requires).
+  { file: "src/lib/task-tightening.ts", mustContain: ["export function detectAmbiguousLanguage", "export function detectFieldContradiction"] },
   { file: "src/lib/task-execution-engine.ts", mustContain: ["TASK_FREE_TEXT_PLANNING_LEAF"] },
 
   // Generalized loop-prevention primitive (Wave 159, Guardrail #20).
   { file: "src/lib/loop-prevention.ts", mustContain: ["export function checkLoopBudget"] },
   { file: "scripts/ai-workforce-agent.mjs", mustContain: ["checkLoopBudget("] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["AI_WORKFORCE_LOOP_BUDGET_LEAF"] },
+
+  // Self-Assessment / Peer Review closure gate (Wave 165, U-D12.B4.S3):
+  // the dispatch route already flagged low-confidence AI Team output for
+  // review (activity_log.lifecycle_stage='reviewing'), but nothing ever
+  // required an independent reviewer to actually close it out. This is
+  // the real gate -- reviewNotes/reviewDecision required, self-review
+  // blocked, permanent record kept on the row.
+  { file: "src/lib/db/schema.ts", mustContain: ["reviewedBy: text('reviewed_by')", "reviewDecision: text('review_decision')"] },
+  { file: "src/lib/activity-log-service.ts", mustContain: ["export async function recordPeerReview", "self_review_not_allowed"] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["AI_TEAM_CLOSURE_REVIEW_LEAF"] },
+  { file: "src/app/api/ai/team/review/route.ts", mustContain: ["evaluateGuardrails(", "recordPeerReview("] },
+  { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["reviewActivityId"] },
 
   // Model-tier eligibility + mandatory audit (Wave 163, Boss directive:
   // "based on complexity given to the AI model" + gap-analysis callout
@@ -100,6 +119,41 @@ const REQUIRED_MARKERS = [
 
   // Multi-tenant isolation -- Constitution §8, PRODUCTION_PROVEN.
   { file: "src/lib/db/tenant-scoped.ts", mustContain: ["withTenantContext"] },
+
+  // Added 2026-07-11 (tree4-unified/50-completion-plan PLAN-16 finding):
+  // these 3 guardrails were real, wired code with zero CI presence
+  // protection -- unlike policy-enforcement-engine.ts/floor-tier-
+  // escalation.ts/loop-prevention.ts just above, which already had
+  // manifest entries. Deliberately NOT wrapped as guardrail-engine.ts
+  // registry leaves instead: that registry is an opt-in framework keyed by
+  // capability-tree leaf that only 4 leaves in the whole system ever
+  // query (see guardrail-registrations.ts) -- wrapping these 3 there
+  // without a real evaluateGuardrails() caller at their actual call sites
+  // would be a strictly weaker, redundant second layer. The manifest
+  // entry is what makes "no task may bypass these guardrails" true today
+  // for every other guardrail already in this file, so it's the
+  // consistent, real fix here too.
+
+  // AI Reply Gate (Phase 3) -- blocks hallucinated action-completion
+  // claims and malformed replies from reaching the user.
+  { file: "src/lib/ai-reply-gate.ts", mustContain: ["export function passesReplyGate"] },
+  { file: "src/lib/services/chat-service.ts", mustContain: ["passesReplyGate("] },
+
+  // PII Redaction (Wave 146) -- redact-at-write for LLM-call content
+  // logging, so raw PII is never persisted to orchestra_executions.
+  { file: "src/lib/pii-redaction.ts", mustContain: ["export function redactPii"] },
+  { file: "src/lib/services/chat-service.ts", mustContain: ["redactPii("] },
+  { file: "src/lib/services/fde-service.ts", mustContain: ["redactPii("] },
+
+  // Audit/activity logging (audit.ts's logActivity) -- the single call
+  // site every route uses so "every log of usage/change has a real
+  // time/date/user-ID/device" lives in one place. Not enumerating all 89
+  // real call sites (impractical, and not the point of this check) --
+  // this anchors the definition plus one high-traffic call site so the
+  // marker check still catches the function itself, or its use in the
+  // core task-execution path, being silently gutted.
+  { file: "src/lib/audit.ts", mustContain: ["export async function logActivity"] },
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["logActivity("] },
 ]
 
 let failed = false

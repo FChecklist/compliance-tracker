@@ -1,0 +1,17 @@
+# veridian-brain -- confirmed empty scaffold, not a working system yet.
+# Source: gh api repos/FChecklist/veridian-brain/contents (this session).
+
+repo: veridian-brain
+tree_version: 1
+domains:
+  - id: VB-01
+    name: "Entire repo (placeholder scaffold)"
+    objects: ["README.md (3218 bytes)", "package.json (232 bytes)", "packages/ (empty directory)"]
+    input: "N/A."
+    output: "N/A."
+    rules:
+      - "Repo description: \"VERIDIAN AI OS 'Brain' -- Phase A groundwork scaffold. Not yet extracted from compliance-tracker; see README.\" -- confirmed accurate: nothing beyond a README and package.json exists."
+      - "Not worth a granular tree yet -- there is no functional surface to decompose."
+    guardrails: []
+    workflow: []
+count_of_domains: 1

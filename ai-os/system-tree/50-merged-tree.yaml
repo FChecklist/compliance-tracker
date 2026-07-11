@@ -1,0 +1,2326 @@
+# 3RD TREE -- Optimized/Deduplicated Copy of the System Tree (Round 2)
+#
+# This is a COPY of the "2nd tree" (10/11/12/13/20/30/40-*.yaml, the
+# replica of the live FChecklist codebase built 2026-07-11), reorganized
+# to remove duplication -- WITHOUT re-comparing against the live system.
+# The 2nd tree's 7 files remain the source of record; this file is a
+# standalone reorganization pass on top of it, per the Owner's explicit
+# 4-step instruction (copy -> audit -> re-optimize -> audit again -> report).
+#
+# Every domain below keeps its original id (GOV-xx/API-xx/DB-xx/UI-xx/
+# PRX-xx/VA-xx/VB-xx) plus a `source`/`repo` field for full traceability
+# back to the 2nd tree.
+#
+# ROUND 1 CHANGELOG (see SYSTEM-AUDIT-ROUND-1.md for the full audit):
+#  - UI-14 restated GOV-09's "capability tree is not a hardcoded taxonomy"
+#    finding verbatim -- fixed to cross-reference GOV-09 instead.
+#  - DB-04 restated GOV-07's "only 2 of the 25 engine files are wired"
+#    fact verbatim -- fixed to cross-reference GOV-07 instead.
+#  - No other near-duplicate phrases found in a mechanical scan -- this
+#    tree's baseline duplication was already low (synthesized by one
+#    author with cross-references built in, unlike ai-os/audit-tree/'s
+#    9 independently-written source documents).
+#  - Domains reordered by repo instead of by source-file.
+#  - Round 1's audit found the REAL gap was incomplete guardrail/workflow
+#    field coverage (58/94 domains with empty guardrails, 31/94 empty
+#    workflow), not duplication -- carried into Round 2 below.
+#
+# ROUND 2 CHANGELOG (fixes applied after SYSTEM-AUDIT-ROUND-1.md's findings):
+#  - Added explicit `guardrails` content to 11 domains where the existing
+#    `rules` text already implied an enforcement mechanism but hadn't been
+#    split out: API-04/API-05 (opt-in module gating), API-08 (token-scoped
+#    guest access), API-12 (retention-before-disposal), DB-06 (publish
+#    requires approval), DB-17 (the schema-only gap IS its own guardrail
+#    finding), UI-06 (maker-checker/quorum dual control), UI-10 (a real,
+#    if minor, UX/security mismatch: non-admins see a dispatch UI that
+#    will reject their actions server-side, rather than not seeing it),
+#    PRX-05 (an auth guardrail protecting a page that doesn't exist),
+#    VA-01/VA-09 (the security finding's guardrail context: a rule exists
+#    on paper in SENTINEL.yaml but evidently didn't catch these 3 files).
+#  - This was a DELIBERATELY JUDGED subset (11 of 58 empty-guardrail
+#    domains), not a mechanical 100% fill -- the remaining 47 were
+#    reviewed and left empty because they genuinely have no enforcement
+#    mechanism to describe (e.g. DB-11's two plain lookup tables), not
+#    because they were skipped. See SYSTEM-AUDIT-ROUND-2.md for the
+#    verification of that judgment call.
+#  - Added the reverse cross-reference API-02/API-06 -> PRX-06 (Round 1
+#    Finding 4) so a reader starting from the compliance-tracker side of
+#    the construction API surface is pointed at its actual consumer.
+
+tree_version: 2
+round: 2
+copied_from:
+- 10-compliance-tracker-governance.yaml
+- 11-compliance-tracker-api.yaml
+- 12-compliance-tracker-database.yaml
+- 13-compliance-tracker-ui.yaml
+- 20-projexa.yaml
+- 30-veda-advisors.yaml
+- 40-veridian-brain.yaml
+domains:
+- id: GOV-01
+  name: Guardrail Engine -- the pluggable pre/process/output/logic check framework
+  objects:
+  - src/lib/guardrail-engine.ts
+  - src/lib/guardrail-registrations.ts
+  input: A capability-tree leaf key (e.g. 'ai_team.dispatch') + a phase ('input'|'process'|'output'|'logic')
+    + a context object at the call site.
+  output: '{passed:true} or {passed:false, reason, guidance} -- the first failing rule for that leaf+phase
+    short-circuits the rest.'
+  rules:
+  - REGISTRY is a Map<leafKey, GuardrailRule[]>, starts EMPTY by design -- silence means no constraint
+    registered for that leaf, not an implicit pass/fail.
+  - registerGuardrail(leafKey, rule) is purely additive -- no leaf's guardrail list is ever cleared except
+    via the test-only _clearAllGuardrailsForTests().
+  - A failed check is recorded via recordGuardrailViolation() into the CLEE loop-improvement pipeline
+    as improvementType:'guardrail_violation', always isDeployed:false (human-gated, never auto-applied).
+  guardrails:
+  - This IS the guardrail mechanism -- it has no guardrail above it except CI's Guardrail Presence Check
+    (see CI-01) which verifies named markers in this file's own source haven't disappeared.
+  workflow:
+  - 1. Caller determines the current leaf key (from the Dynamic Chain / capability tree).
+  - 2. Caller invokes evaluateGuardrails(leafKey, phase, context) at the appropriate lifecycle point.
+  - 3. On failure, execution stops and the caller surfaces {reason, guidance} to the user/model; a violation
+    record feeds the improvement pipeline.
+  - 4. On pass (including 'no rules registered'), execution proceeds.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-02
+  name: Registered guardrail leaves (exhaustive, as of this session)
+  objects:
+  - 'ai_team.dispatch (phase: input) -> tightTaskCheck'
+  - 'ai_workforce.dispatch (phase: input) -> tightTaskCheck (same check, second independent dispatch surface)'
+  - 'task_execution.free_text_planning (phase: input) -> taskBriefCheck'
+  - 'ai_workforce.loop_budget (phase: logic) -> loopBudgetCheck'
+  input: A dispatch or free-text-planning attempt at one of these 4 leaf keys.
+  output: Pass, or a structured rejection naming the missing/invalid field.
+  rules:
+  - tightTaskCheck wraps validateTightTask -- checks objective/scope/successCriteria/complexityTier/expectedOutput
+    are present, non-placeholder, and long enough (see GOV-03).
+  - taskBriefCheck wraps validateTaskBrief -- a deliberately LIGHTER gate for customer-created tasks (title/description
+    only, MIN_PLANNABLE_LENGTH=4 chars, not the full TightTask shape).
+  - 'loopBudgetCheck wraps checkLoopBudget -- Guardrail #20 (Infinite Loop Prevention) applied generically,
+    not just to the .mjs CI runner''s original MAX_ITERATIONS pattern.'
+  guardrails:
+  - high-impact-action-detector.ts's categories are DELIBERATELY NOT registered here yet -- tracked as
+    FOLLOWUP-1, to avoid regressing an already-audited working gate by wiring it in carelessly. This is
+    a known, intentional gap, not an oversight.
+  workflow:
+  - Same as GOV-01's generic workflow, specialized per leaf.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-03
+  name: TightTask -- the structured task envelope
+  objects:
+  - src/lib/task-tightening.ts
+  input: A proposed AI dispatch, as free-form fields.
+  output: Either a validated TightTask object ready for assembleTightTaskPrompt(), or a rejection.
+  rules:
+  - 'Shape: {objective, scope, successCriteria, complexityTier: ''mechanical''|''integrative''|''judgment'',
+    expectedOutput, constraints?}.'
+  - validateTightTask rejects if objective/scope/successCriteria/expectedOutput is missing, matches a
+    placeholder regex (tbd|todo|n/a|none|null|xxx+|...|fill.?in|same as above), or is under MIN_FIELD_LENGTH=10
+    chars.
+  - validateTightTask rejects if complexityTier is missing or not one of the 3 valid values.
+  - TaskBrief = {title, description?} is the lighter customer-facing shape, validated separately by validateTaskBrief
+    (MIN_PLANNABLE_LENGTH=4).
+  guardrails:
+  - assembleTightTaskPrompt() renders the validated task into a labeled prompt with an explicit 'stop
+    and say so' instruction rather than letting a model silently expand scope beyond what was declared.
+  workflow:
+  - 1. Caller assembles a TightTask candidate.
+  - 2. GOV-02's tightTaskCheck / GOV-04's tier check run against it.
+  - 3. On pass, assembleTightTaskPrompt() renders it for the model call.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-04
+  name: Model-tier eligibility -- complexity-tier-based model routing
+  objects:
+  - src/lib/model-tier-eligibility.ts
+  input: A model identifier + a ComplexityTier ('mechanical'|'integrative'|'judgment').
+  output: '{eligible:true} or {eligible:false, reason, guidance}; requiresMandatoryAudit(model) -> boolean.'
+  rules:
+  - JUDGMENT_ELIGIBLE = {z-ai/glm-5.2, openai/gpt-5.5} -- only these two may take judgment-tier (architecture/security/audit-verdict)
+    work.
+  - INTEGRATIVE_ELIGIBLE = JUDGMENT_ELIGIBLE plus {z-ai/glm-5v-turbo, z-ai/glm-5-turbo, google/gemini-2.5-pro,
+    deepseek/deepseek-v4-pro} -- multi-file work.
+  - 'Mechanical tier: every model eligible, including openai/gpt-oss-120b.'
+  - openai/gpt-oss-120b is explicitly excluded from integrative/judgment tiers -- confirmed twice in this
+    session's history to burn its full iteration budget on that shape of task.
+  - 'Default posture is most-restrictive-unless-proven-otherwise: an unrecognized model is not eligible
+    for anything above mechanical.'
+  guardrails:
+  - requiresMandatoryAudit(model) returns true for every model except the 2 judgment-eligible ones --
+    feeds .github/workflows/mandatory-audit-check.yml (a real CI merge gate, not just documentation).
+  workflow:
+  - 1. Dispatch surface (API route / dispatch-repo.ts / ai-workforce-agent.mjs) resolves the target role's
+    model from roster.ts.
+  - 2. checkTierEligibility(model, task.complexityTier) is called before the model is ever invoked.
+  - '3. If ineligible, dispatch is blocked with the reason+guidance; if eligible but requiresMandatoryAudit,
+    the resulting PR is CI-blocked from merge until an AUDIT: PASS/FAIL comment is posted.'
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-05
+  name: AI Dev Team roster -- 57 defined roles across 16 teams
+  objects:
+  - src/lib/ai-team/roster.ts
+  input: A roleKey lookup, or team-level enumeration.
+  output: A RoleDefinition {roleKey, team, title, model, promptKey, isCodeOnly?, isHuman?}.
+  rules:
+  - 'Teams: HUMAN, VERIDIAN_AI_OS, ENGINEERING, QUALITY_SAFETY, LEGAL_COMPLIANCE, DATA_TEAM, CUSTOMER_SETUP,
+    CUSTOMER_SUPPORT, SALES_MARKETING, FINANCE, HR, ADMIN, AUDIT_EXECUTIVE, GUARDRAIL_PLATFORM, GUARDRAIL_PRODUCT,
+    GUARDRAIL_ACCOUNT, GUARDRAIL_USER.'
+  - 'Model assignment by workload class: GLM_52 (primary lifting, most roles), GLM_5V_TURBO (vision),
+    GLM_5_TURBO (high-volume/low-stakes), GEMINI_25_PRO (research), GPT_55 (independent second opinion),
+    DEEPSEEK_V4_PRO (governance_backend_engineer only), GPT_OSS_120B (tool_integration_engineer only).'
+  - HUMAN team (founder_ceo, executive_advisor) is never API-dispatched -- present in the roster for completeness
+    of the org chart, not as a callable role.
+  - isCodeOnly roles (e.g. cost_policy_engine, user_permission_manager) are deterministic code, not LLM
+    calls, despite being modeled as 'roles' in the same roster.
+  - 4 GUARDRAIL_* teams (PLATFORM/PRODUCT/ACCOUNT/USER) exist specifically as the independent-assurance
+    layer distinct from the operational teams they audit.
+  - chief_audit_officer is deliberately GLM-5.2, not GPT-OSS-120B, since audit work is judgment-tier.
+  guardrails:
+  - Every role's model assignment must satisfy GOV-04's tier eligibility for whatever complexity of work
+    it's actually dispatched.
+  workflow:
+  - 1. A task is classified (see GOV-06's classifyTask).
+  - 2. getRole(roleKey) resolves the target role's model/prompt.
+  - 3. runRole() (GOV-06) executes; getRole/rolesForTeam/allGuardrailRoles/operationalRoles are the query
+    helpers used by dispatch and reporting surfaces.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-06
+  name: AI Team execution layer (beyond the roster itself)
+  objects:
+  - src/lib/ai-team/team-service.ts
+  - src/lib/ai-team/dispatch-repo.ts
+  - src/lib/ai-team/cost-policy.ts
+  input: A roleKey + input payload (team-service.ts), or a TightTask for a repo-write role (dispatch-repo.ts).
+  output: The role's LLM response (team-service.ts), or a fired GitHub repository_dispatch event (dispatch-repo.ts).
+  rules:
+  - 'runRole(roleKey, input): resolves the prompt-OS template, pre/post-flight cost-checks via cost-policy.ts,
+    calls OpenRouter, logs to the Token Usage Ledger fire-and-forget.'
+  - 'classifyTask(taskDescription): the AI Router, restricted to operationalRoles() only (never routes
+    to HUMAN/GUARDRAIL_* roles directly).'
+  - 'runGuardrailLevel(level, proposedAction): runs every LLM-backed role in one Guardrail team level,
+    collects each verdict.'
+  - RoleNotCallableError is thrown for human/code-only/unknown roles -- a caller cannot accidentally dispatch
+    to founder_ceo.
+  - checkCostPolicy(model, usage) blocks if estimated cost exceeds MAX_COST_PER_CALL_USD = 0.50.
+  guardrails:
+  - dispatchRepoTask(roleKey, task) validates the TightTask shape (GOV-03) AND tier eligibility (GOV-04)
+    BEFORE the GitHub event ever fires -- a bad dispatch never reaches the repo-write agent.
+  workflow:
+  - 1. classifyTask() or a direct caller picks a roleKey.
+  - 2. runRole() executes the LLM call with cost/prompt-template resolution.
+  - 3. For repo-write roles specifically, dispatchRepoTask() is the alternate path -- fires ai-team-task
+    repository_dispatch to trigger ai-workforce-agent.mjs (CI-01) instead of an inline call.
+  - 'Known limitation: dispatch-repo.ts currently has NO live caller in production -- GITHUB_DISPATCH_PAT
+    is not set on Vercel.'
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-07
+  name: VCEL Computation Engine registry -- 25 files, ~247 functions, all deterministic
+  objects:
+  - mathematical-engine.ts (22 fns)
+  - gst-engine.ts (14 fns, all 14/14 wired to dispatch)
+  - accounting-engine.ts (11 fns)
+  - income-tax-engine.ts (9 fns)
+  - tds-engine.ts (5 fns + TDS_SECTION_RATES table)
+  - payroll-engine.ts (14 fns)
+  - inventory-engine.ts (15 fns)
+  - fixed-asset-engine.ts (8 fns)
+  - banking-engine.ts (6 fns)
+  - costing-engine.ts (8 fns)
+  - audit-engine.ts (7 fns)
+  - hr-engine.ts (9 fns)
+  - crm-engine.ts (5 fns)
+  - sales-engine.ts (8 fns)
+  - marketing-engine.ts (6 fns)
+  - procurement-engine.ts (7 fns)
+  - logistics-engine.ts (6 fns)
+  - project-management-engine.ts (6 fns)
+  - grc-workflow-engine.ts (4 fns)
+  - data-quality-engine.ts (9 fns)
+  - analytics-engine.ts (7 fns)
+  - compliance-engine.ts (4 fns)
+  - security-engine.ts (5 fns)
+  - document-processing-engine.ts (1 fn, more planned)
+  - ai-support-engine.ts (2 fns)
+  input: Deterministic function arguments (numbers/dates/enums) -- no DB access, no LLM calls, no side
+    effects inside any engine file itself.
+  output: A computed value or structured result -- pure functions.
+  rules:
+  - Every engine function is pure and deterministic by design -- this is the concrete instantiation of
+    the 'software executes first, AI only where software cannot' principle (see audit-tree D3.B2/D25).
+  - task-execution-engine.ts's dispatchEngine() is the ONLY live consumer, via an explicit reviewed allowlist
+    switch -- deliberately NOT a dynamic-import-by-DB-value pattern, to avoid a code-execution surface.
+  guardrails:
+  - 'Currently only 2 of the 25 engine files are actually wired into dispatchEngine(): GST Engine (16/16
+    functions incl. split/interest/late-fee/hsn/sac/eway-bill/return-validation) and Mathematical Computation
+    Engine (10/13 functions -- 3 deferred: the matrix/model-input-shaped ones).'
+  - The remaining ~185 registered engines referenced by the DB's computation_engines registry table (distinct
+    from these 25 code files) remain unwired -- tracked in the repo's own CAPABILITY_COVERAGE.md, not
+    fabricated here.
+  workflow:
+  - 1. A Dynamic Chain leaf declares an engineKey.
+  - 2. task-execution-engine.ts's executeTask() sees engineKey set, branches to executeEngineDispatch().
+  - 3. dispatchEngine() looks up the allowlisted function and calls it with validated inputs.
+  - 4. Result returned directly, zero LLM involvement.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-08
+  name: Task execution engine -- the 3-way dispatch branch
+  objects:
+  - src/lib/task-execution-engine.ts
+  input: A Task row with either engineKey, resolvedWorkerAgentId, or neither set.
+  output: A completion result via one of 3 distinct execution paths.
+  rules:
+  - 'executeTask() branches: engineKey set -> executeEngineDispatch (GOV-07, zero-LLM); resolvedWorkerAgentId
+    set -> executeStructuredDispatch (zero-LLM, a pre-approved Worker Agent''s fixed logic); neither ->
+    free-text LLM planning path.'
+  - The free-text path is gated by the TASK_FREE_TEXT_PLANNING_LEAF guardrail (GOV-02) + enforcePolicy()
+    (GOV-10) + escalation logic (GOV-11) -- the most-constrained of the 3 paths, by design, since it's
+    the one with the least structure to validate against.
+  guardrails:
+  - dispatchTool() is an explicit allowlist of ~20 real dispatchable actions (compliance stats/items,
+    GST reconciliation actions, PROJEXA construction dashboard/budget/KPI queries) -- not an open tool-calling
+    surface.
+  workflow:
+  - 1. Task created (via task-service.ts's createTask(), see GOV-09).
+  - 2. executeTask() inspects the task shape and picks one of the 3 branches.
+  - 3. Engine/Worker-Agent paths return deterministic results; free-text path goes through policy+guardrail+escalation
+    before any model call.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-09
+  name: Dynamic Chain resolution + task creation (the 'Dynamic Mode Pills / Chain Selector' system object)
+  objects:
+  - src/lib/services/task-service.ts
+  - src/lib/services/capability-tree-service.ts
+  - dynamicChains table
+  input: A user's Mode Pill + cascading Chain selection (modePill, pathKeys, pathLabels) plus task content.
+  output: A created Task row with a resolved dynamicChainId, or a rejected creation (guardrail/policy
+    failure).
+  rules:
+  - 'resolveDynamicChainId(): find-or-create, deduplicated on (orgId, modePill, pathKeys) via jsonb equality
+    -- repeated identical chain selections do not grow the table unboundedly.'
+  - createTask() also runs the High-Impact Action Confirmation Gate (detectHighImpactAction, checked against
+    checkApprovalPreference/saveApprovalPreference for always-approve/reject shortcuts -- see GOV-14)
+    and re-verifies any client-supplied workerAgentId server-side (never trusted from the client).
+  - buildCapabilityTree() assembles the Chain Selector's actual option tree from REAL registered capabilities
+    (org's enabled product branches -> active modules -> real Worker Agents -> generic Product/Project/Customer/Vendor
+    leaves) -- not a hardcoded taxonomy, confirmed by direct code comment.
+  - A leaf carries codeReference/engineKey/inputFields/fixedInputs and a computed 'deterministic' flag,
+    which is what lets task-execution-engine.ts (GOV-08) decide its dispatch branch.
+  guardrails:
+  - See GOV-01/02/03/04 -- all apply at task creation time before executeTask() ever runs.
+  workflow:
+  - 1. User interacts with the Mode Pills + cascading Chain Selector (VeriComposer, see UI tree).
+  - 2. capability-tree-service.ts serves the real option tree.
+  - 3. On submission, task-service.ts's createTask() resolves/creates the Dynamic Chain, runs the high-impact
+    gate, and inserts the Task.
+  - 4. task-execution-engine.ts's executeTask() picks up the created task (GOV-08).
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-10
+  name: Policy & purpose-bound AI enforcement
+  objects:
+  - src/lib/policy-enforcement-engine.ts
+  - src/lib/purpose-bound-ai.ts
+  - src/lib/intent-engine.ts
+  input: A user message + the current domain context.
+  output: A PolicyDecision ('personal_use'|'prompt_injection'|'out_of_domain'|'ok') and, on non-ok, a
+    refusal message.
+  rules:
+  - classifyBusinessPurpose / checkPromptInjection / checkDomainValidity feed enforcePolicy(ctx, userMessage),
+    which returns the final decision.
+  - 'DOMAIN_ALLOWED_TOOLS is an allowlist map per domain (default domain: ''compliance'') -- isToolAllowedForDomain()
+    checks a tool''s codeReference against it before it can be offered to a model.'
+  - refusalMessageFor(decision) / policyDecisionDisplayLabel produce the user-facing text -- predefined,
+    not generated (consistent with the Response Engine principle, GOV-13).
+  guardrails:
+  - This is the guardrail that sits between raw user input and any model call -- runs before the free-text
+    planning path in GOV-08.
+  workflow:
+  - 1. User message arrives (chat, task creation, or free-text planning path).
+  - 2. enforcePolicy() classifies it.
+  - 3. On 'ok', proceeds to intent-engine.ts's classifyIntent() and onward. On any other decision, a predefined
+    refusal is returned immediately, no model call made.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-11
+  name: Floor-tier escalation & loop prevention
+  objects:
+  - src/lib/floor-tier-escalation.ts
+  - src/lib/loop-prevention.ts
+  - src/lib/llm-routing-gate.ts
+  input: A response from the platform-default floor-tier model (GPT-OSS-120B via Groq), or an in-progress
+    loop's execution count.
+  output: An EscalationSignal recommending escalation off the floor tier, or a loop-budget pass/fail.
+  rules:
+  - detectReaskOrCorrection / detectLowConfidenceResponse are deterministic pre/post-call signals -- e.g.
+    the user immediately re-asking the same thing is treated as a signal the floor-tier model's answer
+    was inadequate.
+  - 'checkLoopBudget (Guardrail #20) generalizes the original ai-workforce-agent.mjs MAX_ITERATIONS pattern
+    into a reusable primitive usable by any loop, not just the CI runner.'
+  - tryDeterministicRoute(ctx, text) is the central 'does this even need an LLM call' chokepoint -- checked
+    before floor-tier escalation logic runs at all.
+  guardrails:
+  - 'This is the mechanism that keeps the platform''s stated 90-day quality mandate (AGENTS.md Rule 8:
+    don''t default to cheapest model or cut a task short to save cost) enforceable in code, not just policy
+    text.'
+  workflow:
+  - 1. llm-routing-gate.ts checks if a deterministic route exists first (would bypass the LLM entirely).
+  - 2. If an LLM call is needed, it starts at the floor tier.
+  - 3. floor-tier-escalation.ts's signals monitor for inadequate responses and trigger escalation to a
+    higher tier when detected.
+  - 4. loop-prevention.ts's budget check runs throughout to prevent runaway iteration regardless of tier.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-12
+  name: 'Response integrity: reply gate, structured messages, hallucination controls'
+  objects:
+  - src/lib/ai-reply-gate.ts
+  - src/lib/structured-message.ts
+  - src/lib/dispatch-output-validator.ts
+  - src/lib/pii-redaction.ts
+  input: Raw LLM output text or a deterministic dispatch's raw output object.
+  output: A validated AiReplyEnvelope / parsed structured message, or a DispatchOutputError.
+  rules:
+  - passesReplyGate(replyText) + detectFalseActionClaim(replyText) sit between raw LLM text and the UI
+    -- a model claiming to have done something it didn't actually do is a specifically detected failure
+    mode.
+  - structuredMessageSchema (zod discriminated union) + parseStructuredMessage(content) let chat messages
+    carry machine-readable summary/confirmation payloads, not just prose.
+  - assertValidDispatchOutput() sanity-checks a deterministic (engine/worker-agent) dispatch's own output
+    for NaN/undefined/empty-object -- catching bugs in GOV-07/08's supposedly-safe paths too.
+  - redactPii(text) runs before any LLM call content is logged.
+  guardrails:
+  - 'This is the software gate implementing Guardrail #8 (Hallucination Prevention) and #16/17 (Security/Privacy
+    logging discipline) at the actual response-handling layer.'
+  workflow:
+  - 1. Model or engine produces raw output.
+  - 2. ai-reply-gate.ts / dispatch-output-validator.ts validate it before it reaches the caller.
+  - 3. pii-redaction.ts scrubs anything logged.
+  - 4. Only a passed, validated result is shown to the user or persisted.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-13
+  name: Response Engine -- predefined short replies
+  objects:
+  - src/lib/response-engine.ts
+  input: A task/conversation state needing a short acknowledgement.
+  output: A ResponseLabel-based short reply (Yes/No/OK/Pending/etc.).
+  rules:
+  - 'formatShortReply / renderShortReply / suggestResponseForTaskStatus implement the audit-tree''s D24
+    requirement: max-4-word predefined responses, software suggests, AI only confirms/selects.'
+  guardrails:
+  - Reduces token usage and lets lower-tier models handle more of the UI's routine acknowledgement traffic
+    with higher confidence, per the original design intent (audit-tree D24.B1.S1).
+  workflow:
+  - 1. A task/status change occurs.
+  - 2. suggestResponseForTaskStatus() proposes a predefined label.
+  - 3. Software (not AI) selects/renders it in the common case; AI is only consulted when no predefined
+    label fits.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-14
+  name: Activity log & approval preferences (Universal Task Lifecycle Phase 1)
+  objects:
+  - src/lib/activity-log-service.ts
+  - src/lib/approval-preference-service.ts
+  - activityLog table
+  - approvalPreferences table
+  input: A dispatch event (activity log), or a user's approve/reject decision on a proposed action (approval
+    preferences).
+  output: A fire-and-forget activityLog row, or a persisted always-approve/always-reject preference.
+  rules:
+  - ActivityType = 'ai_team_dispatch' -- the ONLY activity type wired so far. loop_run was deliberately
+    NOT added here since loopExecutions is cross-org and has no org_id, incompatible with this table's
+    tenant RLS.
+  - recordActivity() catches/warns on failure, never throws into the caller -- logging failure must never
+    break the calling flow.
+  - ApprovalScopeType = 'communication_type'|'conversation'|'task'|'workflow'. checkApprovalPreference()
+    does most-specific-scope-wins lookup (scopeId match beats scopeType-only beats null).
+  - saveApprovalPreference() uses find-then-insert-or-update, NOT a DB ON CONFLICT clause -- a nullable
+    scopeId unique index wouldn't NULL-match correctly, so this was deliberately hand-rolled.
+  guardrails:
+  - This is the code-level implementation of audit-tree D9 (Approval & Confirmation UX) and D16 (Continuous
+    Improvement -- activity log feeds organizational learning).
+  workflow:
+  - 1. An action needing approval is proposed (e.g. by GOV-09's high-impact gate).
+  - 2. checkApprovalPreference() checks for an existing always-approve/reject shortcut.
+  - 3. If none, the user is prompted; their response may be saved via saveApprovalPreference() for future
+    shortcuts.
+  - 4. Dispatches are logged via recordActivity() regardless of outcome.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-15
+  name: LLM provider plumbing & model routing (4-layer resolution)
+  objects:
+  - src/lib/llm-client.ts
+  - src/lib/llm-response-cache.ts
+  - src/lib/prompt-os-resolver.ts
+  - src/lib/prompt-normalizer.ts
+  - src/lib/orchestra-model-resolver.ts
+  - src/lib/personal-model-resolver.ts
+  - src/lib/orchestra-execution-logger.ts
+  - src/lib/ai-config-crypto.ts
+  - src/lib/module-rules-resolver.ts
+  input: A role/layer key + org/user context.
+  output: A resolved model config (provider, model id, API key) and, after the call, a logged execution
+    record.
+  rules:
+  - 'resolveModelConfig() implements 4-layer most-specific-scope-wins routing: personal -> client -> org
+    -> platform. resolvePageAgentModelConfig() is the per-user counterpart.'
+  - llm-client.ts is provider-agnostic across groq/openai/anthropic/google/openrouter/cerebras -- callLLM/callLLMVision/callLLMJson
+    are the 3 call shapes.
+  - llm-response-cache.ts (Wave 110) caches identical calls (callLLMCached/callLLMJsonCached) with a purge
+    job for expired entries.
+  - encryptApiKey/decryptApiKey use raw pgcrypto SQL, not application-layer crypto -- a deliberate choice
+    to keep keys encrypted at the DB layer.
+  guardrails:
+  - recordOrchestraExecution() is the shared fire-and-forget cost/usage logging call site every real LLM
+    call site is expected to use -- the single source of truth for GOV-16's token usage ledger.
+  workflow:
+  - 1. A caller needs a model for a given role/layer/context.
+  - 2. resolveModelConfig() (or its personal/client/platform variants) resolves which provider+model+key
+    to use.
+  - 3. llm-client.ts makes the actual call.
+  - 4. orchestra-execution-logger.ts records cost/usage regardless of success/failure.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-16
+  name: Audit loops -- 11+ daily automated audits
+  objects:
+  - src/lib/loops/api-token-audit.ts (Loop 9)
+  - src/lib/loops/automation-progress-audit.ts (Loop 11)
+  - src/lib/loops/byo-model-audit.ts (Loop 14)
+  - src/lib/loops/capability-index-freshness-audit.ts
+  - src/lib/loops/data-separation-audit.ts (Loop 13-related)
+  - src/lib/loops/input-quality-audit.ts (Loop 7)
+  - src/lib/loops/instruction-mismatch-audit.ts
+  - src/lib/loops/knowledge-flow-audit.ts (Loop 4)
+  - src/lib/loops/loop-engineering-audit.ts
+  - src/lib/loops/output-delivery-audit.ts (Loop 8)
+  - src/lib/loops/process-turnaround-audit.ts (Loop 5)
+  - src/lib/loops/tier-integrity-audit.ts (Loop 13)
+  - src/lib/loops/user-behaviour-audit.ts (Loop 10)
+  input: A scheduled cron trigger (via internal/loops/run, CRON_SECRET-gated) or a manual loopId.
+  output: Findings, written to the loopExecutions table.
+  rules:
+  - Each file exports exactly one run<Name>Audit() function, consistent naming/shape across all 13.
+  - This is the code-level implementation of audit-tree D15's continuous-audit-plus-periodic-review model
+    (Owner's own recommendation from Audit Organization.docx).
+  guardrails:
+  - loopExecutions is explicitly cross-org (no org_id column) -- deliberately excluded from GOV-14's tenant-scoped
+    activityLog, a documented architectural decision, not an inconsistency.
+  workflow:
+  - 1. CRON_SECRET-authenticated internal/loops/run endpoint fires on schedule.
+  - 2. The relevant run<Name>Audit() executes its deterministic checks.
+  - 3. Findings are written to loopExecutions for the governance review cycle (D15) to consume.
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-17
+  name: CI scripts -- the dispatch/audit/load-test tooling outside the app itself
+  objects:
+  - scripts/ai-workforce-agent.mjs
+  - scripts/check-guardrail-presence.mjs
+  - scripts/generate-protected-routes.mjs
+  - scripts/veridian-browser-ux-test.mjs
+  - scripts/gen-wave111-seed-sql.ts
+  - scripts/projexa-load-test.ts
+  - scripts/veridian-full-load-test.ts
+  - scripts/wave111-create-hero-logins.ts
+  input: A GitHub Actions repository_dispatch event (ai-workforce-agent.mjs), a CI job trigger (the other
+    scripts).
+  output: A committed/pushed branch+PR (ai-workforce-agent.mjs), a CI pass/fail, or seed data.
+  rules:
+  - ai-workforce-agent.mjs gives a roster.ts role real read/write repo access via OpenRouter tool-calling
+    inside a fresh GitHub Actions checkout, then hands off to the workflow to commit/push/PR -- this IS
+    the mechanism behind GOV-06's dispatch-repo.ts (currently unused in prod, but this script is what
+    would run if it were).
+  - check-guardrail-presence.mjs is a deterministic text-presence check -- explicitly documented in its
+    own header as a reviewable-diff guarantee, NOT a runtime-unbypassable lock.
+  - generate-protected-routes.mjs regenerates protected-routes.generated.ts from the real (app)/ directory
+    listing -- fixes a route-protection drift bug that recurred 4 times before this script existed.
+  - veridian-browser-ux-test.mjs is confirmed CI-only -- cannot run locally due to a sandbox restriction
+    on spawning Chromium.
+  guardrails:
+  - CI-01 = check-guardrail-presence.mjs -- referenced by GOV-01 and GOV-04's audit gate as the mechanical
+    backstop.
+  workflow:
+  - 'ai-workforce-agent.mjs: 1. GitHub Actions receives repository_dispatch. 2. Agent loop runs tool-calls
+    (read_file/write_file/list_dir/finish) up to MAX_ITERATIONS=40. 3. Workflow commits/pushes/opens PR.
+    4. mandatory-audit-check.yml CI gate applies per GOV-04.'
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: GOV-18
+  name: ai-os/ governance manifest files (not re-transcribed, indexed)
+  objects:
+  - ai-os/OS.yaml, ai-os/LIFECYCLE.yaml
+  - ai-os/boss/BOSS.yaml, BOARD.yaml, COMPLETED.yaml (1210 lines), ROSTER.yaml
+  - ai-os/sentinel/SENTINEL.yaml, HEALTH.yaml, VIOLATIONS.yaml
+  - ai-os/audit-tree/** (the requirement-document tree -- separate effort, see ai-os/audit-tree/00-INDEX.md)
+  - ai-os/engines/ENGINES.yaml (93 lines, DB-facing registry-level catalog, distinct from GOV-07's 25
+    code files)
+  - ai-os/registry/ARTIFACTS.yaml (52 lines)
+  input: N/A -- these are the persistent governance state files themselves.
+  output: N/A.
+  rules:
+  - ai-os/boss/ROSTER.yaml is the RUNTIME AI-OS agent roster (VEDABOSS/ZAI/SENTINEL) -- explicitly distinct
+    from src/lib/ai-team/roster.ts's 57-role build-time org chart (GOV-05). Two different things sharing
+    the word 'roster' -- do not conflate.
+  guardrails: []
+  workflow: []
+  source: 10-compliance-tracker-governance
+  repo: compliance-tracker
+- id: API-01
+  name: Core compliance (8 routes)
+  objects:
+  - GET,POST /api/compliance -- requireAuthOrApiKey + requireRoleOrScope(member,write) on POST
+  - GET,PATCH,DELETE /api/compliance/[id] -- requireAuth
+  - POST /api/compliance/[id]/comments
+  - GET,POST /api/compliance/[id]/costs
+  - POST /api/compliance-costs/[id]/payments
+  - POST /api/compliance/import
+  - POST /api/compliance/overdue, POST /api/compliance/recur
+  - GET /api/compliance/stats
+  input: A compliance item (title, type, dueDate, department, assignee, org/client scope) or a batch import
+    file.
+  output: compliance_items rows; on /overdue and /recur, batch status-transition/recurrence-instance side
+    effects.
+  rules:
+  - compliance is one of the few internal-app domains ALSO exposed at API-key scope (both compliance/route.ts
+    and v1/compliance/route.ts exist, independently).
+  - recurrenceType drives /recur's batch job -- generates the next instance of a recurring compliance
+    obligation.
+  guardrails:
+  - requireRoleOrScope(member,write) gates creation -- read-only roles cannot POST.
+  workflow:
+  - Create/import -> assign -> track status -> (if overdue) flagged by /overdue sweep -> comments/costs
+    attached -> closed.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-02
+  name: v1/* -- external/API-key surface, 77 routes
+  objects:
+  - v1/compliance, v1/compliance/[id], v1/compliance/stats
+  - v1/tasks, v1/tasks/[id], v1/tasks/[id]/status
+  - v1/notices, v1/notices/[id], v1/notices/stats
+  - v1/documents, v1/documents/expiring
+  - v1/brain/capabilities, v1/brain/entity-relationships (read-only AI-agent introspection)
+  - v1/erp/budgets(*), v1/erp/inventory/{issues,ledger,receipts}, v1/erp/procurement/requisitions
+  - v1/pms/meetings, v1/pms/time-entries
+  - 'v1/construction/* (8 routes: attendance, boq, kpi-definitions, kpi-entries, labour-roster, predictions/[activityId],
+    progress, site-diary)'
+  - 'v1/projexa/* (47 routes -- the largest single subtree, real-estate/interior-design rebrand of the
+    construction domain: floor-plans + rooms/placements/scene, ffe + margin-summary, mood-boards, design-materials,
+    change-orders, punch-list, submittals, rfis, schedule/{baselines,gantt,workload}, dashboard, expenses,
+    project-budgets, vendors, capability-tree, discuss, assistant, reports/[reportName], ai/*)'
+  - v1/openapi.json (public API spec)
+  input: Session cookie OR a vk_... API key against the api_keys table.
+  output: JSON matching the shapes documented in v1/openapi.json.
+  rules:
+  - requireAuthOrApiKey() + requireRoleOrScope() on writes -- this is THE external-integrator surface
+    (third-party integrations, GPT Actions, MCP).
+  - 12 of the 47 v1/projexa/* routes are pure one-line re-export aliases onto v1/construction/*'s already-authenticated
+    implementations -- not independently implemented.
+  - This is the API surface PROJEXA (the sibling repo) calls via its veridian-client.ts (see 20-projexa.yaml
+    GOV cross-reference).
+  - This is the API surface PROJEXA (the sibling repo) calls via its veridian-client.ts -- see PRX-06
+    for the client-side consumer of this exact route family.
+  guardrails:
+  - Every write requires requireRoleOrScope -- an API key with read-only scope cannot mutate.
+  workflow:
+  - External caller authenticates with API key -> calls the versioned endpoint -> gets a documented response
+    shape, independent of internal app UI changes.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-03
+  name: erp/* -- accounting/ops ERP, 138 routes
+  objects:
+  - 'buying/ (20): suppliers + bank-accounts/qualifications/sanction-checks/scorecards/portal-links/tax-withholding,
+    purchase-orders + submit/three-way-match, goods-receipts + submit/putaway/landed-costs'
+  - 'payroll/ (11): employees/[id]/{income-tax-slab,tax-exemptions}, income-tax-slabs, payslips/[id]/{finalize,tds},
+    runs/[id]/{payslips,process}, salary-components, salary-structures, statutory-rules'
+  - 'inventory/ (11): abc-classification, cycle-count-lines/[id]/{adjust,count}, cycle-count-plans, issues,
+    ledger, receipts, reorder-levels, reorder-suggestions, valuation'
+  - 'returns/ (10): purchase/[id]/{approve,credit-note,dispatch,reject}, sales/[id]/{approve,credit-note,receive,reject}'
+  - 'contracts/ (9): [id]/{amendments,billing-schedules,generate-from-template,negotiation-rounds,obligations,revenue-schedules}'
+  - 'periods/ (7): [id]/{checklist,close,reopen,sign-off}, checklist/[itemId]/complete, generate -- month-end
+    close workflow'
+  - stock/ (6), procurement/ (6), bank-reconciliation/ (6)
+  - 'budgets/ (5): [id], cancel, submit, variance'
+  - 'reports/ (4, read-only): balance-sheet, cash-flow, profit-and-loss, trial-balance'
+  - parties/[type]/[id]/{addresses,contacts} (4, polymorphic customer/supplier)
+  - '24 single/double-route master-data leaves: accounts, companies, cost-centers, currencies, fiscal-years,
+    tax-templates, tax-withholding-categories, pricing-rules, subscription-plans, sales-invoices, purchase-invoices,
+    sales-credit-notes, purchase-credit-notes, cash-vouchers, e-invoice-logs, exchange-rates, auctions'
+  input: Document-type CRUD payloads (invoices, POs, journal entries, payslips) or workflow-action triggers
+    (submit/approve/close).
+  output: erp_* table rows; status enum transitions (draft -> submitted -> approved -> closed, per document
+    type).
+  rules:
+  - 'Uniform CRUD-plus-submit pattern: collection route (GET list/POST create) + [id] route (GET/PATCH/DELETE)
+    + a /submit or workflow-action sub-route that transitions the document''s status enum.'
+  - periods/ implements the actual month-end close checklist workflow, mapping directly to erpAccountingPeriods/erpPeriodClosingChecklistItems.
+  guardrails:
+  - requireAuth uniformly; a handful of routes additionally require requireAuthOrApiKey for external ERP
+    integrations.
+  workflow:
+  - Create document (draft) -> submit (validation + status transition) -> approval workflow if configured
+    (see API-11's approval-workflows) -> posted to ledger -> period close sweeps it into the checklist.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-04
+  name: pms/* -- internal project-management suite, 31 routes
+  objects:
+  - issues, issues/[id], issues/[id]/relations, issue-statuses, issue-types, workflow-transitions, labels
+  - milestones, sprints, sprints/[id], sprints/[id]/issues, estimate-schemes
+  - saved-views, saved-views/[id]
+  - budgets, budgets/[id], budgets/[id]/line-items, billable-rates, time-entries, time-entries/[id]
+  - meetings, meetings/[id], meetings/[id]/outcomes
+  - wiki, wiki/[id], wiki/by-slug
+  - schedule/{baselines,baselines/[id],gantt,resource-allocations}
+  - enablement (GET/POST/DELETE -- module on/off toggle for an org)
+  input: Issue/sprint/meeting/time-entry data, or a schedule query.
+  output: pms_* rows; a Gantt/critical-path payload for the schedule/gantt route.
+  rules:
+  - requireAuth uniformly.
+  - enablement is opt-in per org -- the PMS module doesn't appear at all for orgs that haven't enabled
+    it (pmsEnabled flag).
+  guardrails:
+  - Both pms/* and the-firm/* (API-05) are opt-in per org (pmsEnabled/firmEnabled) -- an org that hasn't
+    enabled the module gets zero routes/pages, not a disabled/greyed-out view. This is an access guardrail
+    enforced at the feature-flag level, not per-request auth.
+  workflow:
+  - Issue created -> assigned -> moved through workflow-transitions -> tracked in a sprint -> time logged
+    against it -> rolled into schedule/budget reporting.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-05
+  name: the-firm/* -- professional-services practice management, 29 routes
+  objects:
+  - clients/[clientId]/{engagements,invoices,portal-links,service-lines,staff-assignments,tax-cases}
+  - engagements/[engagementId], engagements/[engagementId]/deliverables, deliverables, deliverables/[deliverableId]/complete
+  - invoices/[invoiceId]/{fixed-fee-line,paid,send,void}, billable-rates, time-entries, time-entries/start,
+    time-entries/[timeEntryId], time-entries/[timeEntryId]/stop
+  - staff/[userId]/{assignments,utilization}, staff-assignments/[assignmentId]/end
+  - tax-cases/[caseId]/stage, tax-cases/limitations
+  - dashboard/{deadlines,realization,utilization}
+  - portal-links/[linkId]/revoke, enablement
+  input: Client/engagement/tax-case data, time-entry start/stop events.
+  output: firm_* rows; dashboard aggregates (deadlines/realization/utilization).
+  rules:
+  - requireAuth uniformly; opt-in per org (firmEnabled flag), same pattern as PMS's enablement.
+  guardrails:
+  - Same opt-in guardrail as API-04 (firmEnabled) -- see API-04, not restated.
+  workflow:
+  - Client onboarded -> engagement created -> deliverables tracked -> time logged (start/stop) -> billed
+    via invoices -> staff utilization/realization reported on dashboard.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-06
+  name: construction/* + v1/construction + v1/projexa -- construction/interior-design domain, 32 direct
+    routes (+ 47 aliased, see API-02)
+  objects:
+  - boq + 5 sub-actions (approve, compare, revisions, submit, [id])
+  - ai/{diff-drawings,estimate-progress,progress-summary,risk-detection} -- AI-assisted site analysis
+  - dashboard, dashboard/[projectId], kpi-entries, kpi-entries/[id]/approve, site-diary, reports/[reportName],
+    progress, predictions/[activityId], labour-roster, kpi-definitions, expenses, categories, attendance,
+    activities
+  input: Site data, BOQ line items, drawing images (for AI diff), progress reports.
+  output: construction_* rows; AI-assisted analysis reports for the 4 ai/* routes.
+  rules:
+  - This is the domain PROJEXA (the sibling repo) proxies almost entirely -- see 20-projexa.yaml for the
+    client side -- see PRX-06 for the client-side implementation.
+  - boq has a full approve/revise/compare workflow, not just CRUD.
+  guardrails:
+  - kpi-entries/[id]/approve gates KPI entries behind an approval step before they count toward reporting.
+  workflow:
+  - 'BOQ drafted -> revised -> compared -> submitted -> approved. Separately: site-diary/attendance/progress
+    logged daily -> AI routes analyze drawings/progress -> KPIs entered -> approved -> dashboard aggregates.'
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-07
+  name: AI / orchestration platform routes, 17 routes
+  objects:
+  - POST,GET /api/ai/team/dispatch -- requireAuth + veridian_admin role required (platform-internal, not
+    customer-facing)
+  - POST /api/ai/team/log-usage -- AI_TEAM_LOG_SECRET header (called by ai-workforce-agent.mjs from GitHub
+    Actions, no session)
+  - GET /api/ai/team/token-usage
+  - POST /api/ai/orchestrate
+  - GET /api/orchestra/analytics
+  - GET,POST /api/worker-agents, PATCH /api/worker-agents/[id], PATCH /api/worker-agents/[id]/publish
+  - GET,POST /api/assistants, GET,PATCH /api/assistants/[id], GET,POST /api/assistants/[id]/memories,
+    GET /api/assistants/[id]/memories/search
+  - GET,POST /api/page-agent/config, POST /api/page-agent/proxy
+  - GET,POST /api/prompt-eval/cases, GET /api/prompt-eval/cases/[id]/runs, POST /api/prompt-eval/cases/[id]/run
+  input: A dispatch request (ai/team/dispatch), an assistant memory query, or a prompt-eval case definition.
+  output: A dispatched task, a memory search result, or a prompt-eval run result.
+  rules:
+  - ai/team/dispatch is the ONE route in the entire API surface gated to veridian_admin specifically --
+    it builds/governs the AI Dev Team itself, per its own header comment, not a customer-facing feature.
+  - worker-agents has an explicit publish lifecycle (draft -> published) distinct from plain CRUD.
+  guardrails:
+  - ai/team/dispatch is where GOV-03/GOV-04's TightTask + tier-eligibility checks are enforced (see 10-compliance-tracker-governance.yaml
+    GOV-06).
+  workflow:
+  - Platform admin dispatches a task -> classified -> routed to a role -> executed -> usage logged (log-usage,
+    cost-tracked via token-usage).
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-08
+  name: Chat / meetings / conversations, 31 routes
+  objects:
+  - conversations, conversations/[id]/{messages,read,regenerate}, conversations/workflow-thread
+  - veri-meetings, veri-meetings/[id]/{action-items,audit-log,export,generate-intelligence,minutes,publish,share-links}
+  - guest-chat/[token]/*, veri-chat/share-target, veri-chat/guest-access/[id], veri-chat/conversations/[id]/{guest-access,share-links},
+    veri-meetings/share/[token], veri-meetings/share-links/[linkId], shared/conversation/[token]
+  input: A message, or a meeting transcript/audio for AI processing.
+  output: conversations/messages rows; veri_meetings with generated minutes + action items.
+  rules:
+  - 'generate-intelligence is the AI meeting-intelligence pipeline: transcription -> minutes -> action
+    items, matching audit-tree D21.B2''s Minutes of Meeting Intelligence requirement almost exactly.'
+  - Guest/share-token routes are public-by-design (token-resolved), not an auth gap -- documented pattern
+    reused across 5+ route families.
+  guardrails:
+  - Guest/token-resolved routes (guest-chat, share-target, share-links) grant SCOPED access via an opaque
+    token, never a full session -- a guest cannot see anything outside what the token was minted for.
+    This is the guardrail behind every 'public' route in this domain.
+  workflow:
+  - Meeting recorded -> generate-intelligence processes it -> minutes + action items produced -> published
+    -> optionally shared via a token link with guests.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-09
+  name: HR / recruitment / performance, 30 routes
+  objects:
+  - hr/employees, hr/employees/[userId], hr/leave-requests(+[id]), hr/leave-balances, hr/org-chart
+  - recruitment/job-openings(+[id]), recruitment/candidates, recruitment/applications(+[id]), applications/[id]/{hire,interviews,stage},
+    interviews/[id]/feedback
+  - performance-reviews/cycles(+[id]/{activate,close}), reviews(+[id]/{acknowledge,submit})
+  - hr-compliance (labour-law compliance items, distinct from core compliance)
+  input: Employee/candidate/review data, leave requests, interview feedback.
+  output: employee_profiles / job_openings / candidates / performance_reviews rows.
+  rules:
+  - applications/[id]/hire is the terminal action converting a candidate into an employee -- a real state-machine
+    step, not just a status flag flip.
+  guardrails: []
+  workflow:
+  - 'Job opening posted -> candidates apply -> stage-tracked through interviews -> feedback collected
+    -> hire decision -> employee onboarded. Separately: performance review cycles activated -> reviews
+    submitted -> acknowledged -> cycle closed.'
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-10
+  name: CRM / Sales-HQ, 18 routes
+  objects:
+  - crm/leads(+[id]), leads/[id]/{convert,follow-up-task,score}
+  - crm/opportunities(+[id]), opportunities/[id]/{analyze,follow-up-task}
+  - sales-hq/overview, partners(+[id]), commission-plans, commission-accruals/[id]/{mark-paid,void}, referral-links,
+    visitors(+/analyze)
+  input: Lead/opportunity data, or a partner referral event.
+  output: crm_leads/crm_opportunities rows; commission accrual records.
+  rules:
+  - leads/[id]/score and opportunities/[id]/analyze are AI-assisted endpoints (lead scoring, opportunity
+    analysis) -- not plain CRUD.
+  - sales-hq is the internal partner/commission engine, admin-scoped, distinct from customer-facing CRM.
+  guardrails: []
+  workflow:
+  - 'Lead captured -> scored -> converted to opportunity -> analyzed -> won/lost. Separately: partner
+    refers a customer -> referral tracked -> commission accrued -> marked paid.'
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-11
+  name: GST reconciliation, 10 routes
+  objects:
+  - import (+[batchId], confirm, findings, mapping)
+  - reconcile (+[runId])
+  - returns (+[returnPeriodId], ai-review)
+  input: A GST/bank statement file (Excel/Tally XML) or an existing import batch.
+  output: gst_canonical_invoices, gst_reconciliation_matches, gst_ai_review_reports.
+  rules:
+  - 'This is a staged pipeline, not single-call CRUD: import (stage/map/confirm) -> reconcile (match)
+    -> returns (track period, AI-review).'
+  - 'ai-review is the ONE AI-touched step in the whole GST engine per the services inventory (GOV cross-reference:
+    src/lib/gst/ai-review-report.ts) -- it explains/prioritizes but never recomputes numbers.'
+  guardrails:
+  - The deterministic GST engine (GOV-07) does all actual computation; AI is confined to the review/explanation
+    layer, by design.
+  workflow:
+  - 1. File imported and staged. 2. Column-mapped, confirmed. 3. reconcile matches invoices/payments.
+    4. returns tracks the period and generates an AI review report explaining findings.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-12
+  name: Documents & knowledge base, 17 routes
+  objects:
+  - documents (+[id]/{dispose,retention,versions}, expiring, extract, pending-disposal, search)
+  - knowledge-base/pages(+[id], by-slug, search)
+  - ingest (+[batchId], confirm, items/[itemId]) -- generic staged ingestion, same pattern as GST import
+  input: An uploaded file, or a KB page edit.
+  output: documents rows with AI-extracted fields (extract route); knowledge_base_pages rows.
+  rules:
+  - documents/[id]/retention + dispose implements a real records-retention lifecycle, not just soft-delete.
+  guardrails:
+  - documents/[id]/retention + dispose implements a real records-retention lifecycle -- a document cannot
+    be disposed before its retention period, per the DB-02 rule this domain operates against.
+  workflow:
+  - Document uploaded -> AI extraction runs -> versioned -> tracked toward expiry/retention -> disposed
+    per policy when due.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-13
+  name: Governance / risk / legal / board, ~95 routes
+  objects:
+  - board, board-evaluation, committees, directors, doa, rpt, policies, risks, litigation, legal-matters,
+    legal-opinions, legal-vendors, ip-portfolio, whistleblower, posh, bcm, fraud-cases, it-dr, incidents,
+    contract-compliance, secretarial-audit, mca-filings, access-review, frameworks, audit, audit-engagements,
+    audit-findings, audit-points, esg, cap-table, charges, sebi, rbi, irdai, vendor-risk, clm
+  - 'Notable AI-assisted sub-routes: legal-opinions/[id]/generate, mca-filings/[id]/generate, vendor-risk/[id]/assess'
+  input: Governance-object data (a board meeting, a policy draft, a legal matter, a risk entry).
+  output: The corresponding table row; AI-generated drafts for the 3 generate/assess sub-routes.
+  rules:
+  - Almost entirely GET(list)/POST(create) + GET/PATCH(+DELETE) per governance domain object -- one CRUD
+    family per audit-tree D2's Audit Organization concept made concrete in code (board, risk, legal, whistleblower,
+    POSH, BCM, fraud, IT-DR, incidents, secretarial, MCA, access-review, frameworks, audit engagements/findings/points,
+    ESG, cap-table, sector regulators SEBI/RBI/IRDAI, vendor-risk, CLM).
+  - sebi/rbi/irdai are sector-gated in the UI (SectorGateNotice) even though the API routes themselves
+    are plain CRUD -- gating happens at the entity-type check, not the route.
+  guardrails:
+  - requireAuth uniformly across this domain.
+  workflow:
+  - Domain object created -> reviewed/tracked through its own status lifecycle -> where applicable, AI
+    drafts a first pass (legal opinion, MCA filing, vendor-risk assessment) for human review.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-14
+  name: Facilities / tickets / ops, 15 routes
+  objects:
+  - tickets (+[id]/{dispatches,guest-access,installed-product,surveys})
+  - problem-records (+[id]/tickets)
+  - field-service-dispatches/[dispatchId]
+  - installed-products
+  input: A support ticket, or a field-service dispatch event.
+  output: tickets/problem_records/field_service_dispatches rows.
+  rules:
+  - problem-records groups related tickets ITIL-style (one problem, many linked incidents/tickets) --
+    a real grouping relationship, not just a tag.
+  guardrails: []
+  workflow:
+  - Ticket raised -> linked to an installed product -> if it recurs, grouped under a problem record ->
+    field service dispatched if needed -> satisfaction survey on close.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-15
+  name: Settings / platform admin, 30 routes
+  objects:
+  - settings/{ai-config, api-keys(+[id],usage), model-config(+[id],pool-usage), modules, module-rules,
+    page-agent-config, prompts, sso, webhooks(+[id])}
+  - automation-rules(+[id],[id]/runs), metric-alert-rules(+[id])
+  - connectors(+[toolkit]/sync)
+  - mdm/duplicates(+scan,[id]/merge,[id]/review), quality-scores
+  - capability-registry/{backfill,duplicates}, capability-tree
+  input: Org/user configuration changes, or a trigger-condition-action automation rule.
+  output: Updated org settings; automation_rule_runs; MDM merge/review decisions.
+  rules:
+  - automation-rules implements deterministic (no-AI) trigger->condition->action rules -- the explicit
+    software-first counterpart to AI dispatch.
+  - mdm (Master Data Management) runs duplicate-detection scans over Customers/Suppliers and tracks merge/review
+    decisions -- a real dedup workflow, not just a report.
+  guardrails:
+  - settings routes are generally expected to be admin-role-gated, consistent with the platform's general
+    pattern, though not individually re-verified for all 14 files.
+  workflow:
+  - Admin configures org settings/connectors/automation rules -> MDM periodically flags duplicates ->
+    admin merges/reviews -> capability-registry backfill keeps the AI capability catalog in sync with
+    real registered capabilities.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-16
+  name: Miscellaneous / small utility domains, ~40 routes
+  objects:
+  - me, me/onboarding-stage, users, departments(+[id]), clients(+[id]/{access,entities})
+  - notifications(+[id]/read), home/{analytics,assigned-by-me,todos}
+  - search/semantic (embeddings-backed), reports/saved(+[id],[id]/run), kpi-hub
+  - veri-reward/{leaderboard,referral,route,streak} (gamification)
+  - veri-todo, instruction-mismatches(+[id]) (AI-instruction-drift detector, tied to instructionMismatchDetections
+    table)
+  - code-change-requests, products(+[id]/projects), projects(+[id]), tds-returns/{24q,26q}, challans(+[id]),
+    notices(+[id],[id]/dispatches,stats)
+  input: Varies per route -- current-user profile queries, notification reads, semantic search queries,
+    gamification events.
+  output: Varies -- see individual route purpose.
+  rules:
+  - 'instruction-mismatches is the API surface for GOV cross-reference: the instruction-mismatch-audit
+    loop''s findings (an AI-drift detector flagging when an AI''s stated action diverges from what a human
+    actually instructed).'
+  - search/semantic is the one route backed by the embeddings/embedding_cache tables rather than plain
+    SQL filtering.
+  guardrails: []
+  workflow:
+  - Varies per route -- mostly independent utility endpoints without a single unifying workflow.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: API-17
+  name: Cron/service-secret-gated internal jobs (7 routes)
+  objects:
+  - internal/metric-alerts/run, internal/loops/run, internal/instruction-audit/run, internal/secrets-audit/run
+  - internal/the-firm/deadline-digest/run, internal/the-firm/recur-engagements/run, internal/fm-ppm/generate-occurrences/run
+  - ai/team/log-usage (AI_TEAM_LOG_SECRET, not CRON_SECRET, but same category)
+  input: 'A scheduled cron trigger with Authorization: Bearer ${CRON_SECRET}.'
+  output: Side effects specific to each job (alert evaluation, loop execution, digest email, engagement
+    recurrence, PPM occurrence generation).
+  rules:
+  - These are the only routes gated by a shared service secret rather than a per-user session/API-key
+    -- correctly excluded from the requireAuth() count, not a gap.
+  guardrails:
+  - CRON_SECRET is the sole gate -- if leaked, all 7 jobs are triggerable externally; standard shared-secret
+    risk, not flagged as a defect here, just noted.
+  workflow:
+  - Vercel Cron (or equivalent scheduler) fires -> Bearer-authenticated request -> job runs -> side effects
+    applied.
+  source: 11-compliance-tracker-api
+  repo: compliance-tracker
+- id: DB-01
+  name: Core tenancy / identity (9 tables)
+  objects:
+  - organisations
+  - branches
+  - clients
+  - client_entities
+  - user_client_access
+  - subscription_plans
+  - departments
+  - users
+  - sso_configurations
+  input: Org signup, user invite/registration, SSO configuration.
+  output: The tenant root every other table's orgId points at.
+  rules:
+  - 'organisations verified in full: id, name, slug, logo, plan, entityType, accountType, address, cinNumber,
+    gstin, panNumber, regulatoryEntityType, isActive, trialStartsAt/EndsAt, isReadOnly, subscriptionPlanId,
+    pageAgentEnabled, createdAt, updatedAt. No FK constraint on subscriptionPlanId.'
+  - 'users verified in full: id, name, email(unique), passwordHash, role(userRoleEnum), avatarUrl, isActive,
+    lastLoginAt, orgId, departmentId, onboardingCompleted, onboardingStage, authUserId (links to Supabase
+    auth.users.id, cross-schema, unenforced), reportingToId (self-referential, unenforced).'
+  - 'user_role enum: admin, manager, member, viewer, veridian_admin, branch_manager, senior_professional,
+    team_member, client_viewer, external_auditor.'
+  guardrails:
+  - auth-guard.ts's requireAuth/requireRole/ROLE_RANK enforce this role hierarchy at the API layer since
+    the DB itself has no row-level role enforcement beyond RLS policies not detailed here.
+  workflow:
+  - Org created -> departments/branches structured -> users invited with a role -> optional SSO configured
+    -> optional multi-client (CA/legal firm) access granted via user_client_access.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-02
+  name: Compliance core (9 tables)
+  objects:
+  - compliance_items
+  - challans
+  - notices
+  - notice_dispatches
+  - audit_points
+  - compliance_costs
+  - cost_payments
+  - documents
+  - contract_compliance_items
+  input: A compliance obligation, a government notice, a payment challan.
+  output: The compliance_items row that API-01 operates on.
+  rules:
+  - 'compliance_items verified in full: id, title, description, complianceType(enum), status(enum), priority(enum),
+    dueDate, completedAt, filedDate, paidDate, departmentId, assignedToId, orgId, clientId, period, financialYear,
+    acknowledgementNumber, registrationNumber, recurrenceType(enum), recurrenceParentId (self-ref), isTemplateSuggested,
+    amount.'
+  - 'compliance_type enum: GST, TDS, MCA, PF, ESIC, INCOME_TAX, ROC, LABOUR, ENVIRONMENTAL, OTHER.'
+  - 'compliance_status enum: pending, in_progress, completed, overdue, not_applicable, draft.'
+  guardrails: []
+  workflow:
+  - See API-01's workflow -- this is the table it operates on.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-03
+  name: Comments / notifications / audit / API infra (9 tables)
+  objects:
+  - comments
+  - notifications
+  - audit_logs
+  - api_keys
+  - api_key_request_log
+  - webhooks
+  - webhook_deliveries
+  - ai_configurations
+  - embeddings/embedding_cache/entity_relationships
+  input: Any auditable action platform-wide; an API key creation/usage event.
+  output: audit_logs rows (feeds API-13's /audit route); embeddings for semantic search.
+  rules:
+  - audit_action enum drives audit_logs -- the DB-level record behind the /audit page's viewer.
+  - entity_relationships is the knowledge-graph table introspected read-only by v1/brain/entity-relationships
+    (API-02).
+  guardrails:
+  - api_key_request_log tracks every API-key-authenticated request -- the audit trail for the external
+    integrator surface (API-02).
+  workflow:
+  - Action occurs -> logActivity() writes to audit_logs -> visible in the /audit page.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-04
+  name: AI platform (~30 tables) -- the DB side of the governance core
+  objects:
+  - mcp_access_codes, onboarding_steps
+  - ai_assistants, assistant_memories, assistant_sessions, assistant_metrics_daily
+  - worker_agents, worker_agent_versions, worker_agent_usage_log, worker_agent_learnings, worker_agent_domain_index
+  - tasks, task_execution_plan, task_agent_executions, task_chat_messages
+  - orchestra_layers, orchestra_executions
+  - activity_log, dynamic_chains, approval_preferences
+  - customer_model_config, client_model_config, shared_pool_allocations
+  - module_registry, product_branches, product_branch_modules, module_rule_configs
+  - prompt_templates, prompt_versions, prompt_eval_cases, prompt_eval_runs
+  - personal_model_config, loop_definitions, loop_executions, loop_improvements, loop_health_metrics
+  - knowledge_flow_log, data_separation_audit, token_usage_ledger, computation_engines
+  - org_product_branch_enablements, llm_response_cache
+  input: See 10-compliance-tracker-governance.yaml -- this is the persistence layer behind GOV-05 through
+    GOV-16.
+  output: See same.
+  rules:
+  - tasks is the Universal Work Object -- dynamic_chains, activity_log, approval_preferences directly
+    implement audit-tree domains D4, D5, D9, D14, D16.
+  - loop_executions is explicitly cross-org (no org_id) -- see GOV-16's guardrail note.
+  - computation_engines is the DB-facing registry of ~185 engines, distinct from the 25 code files in
+    src/lib/engines/ (GOV-07) -- see GOV-07 for the exact wired-vs-registered count, not restated here.
+  guardrails:
+  - This whole domain IS the persisted state behind every guardrail described in 10-compliance-tracker-governance.yaml.
+  workflow:
+  - Cross-reference GOV-05 through GOV-16's workflows -- this table group is their storage layer, not
+    a separate flow.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-05
+  name: Access review, ingestion (4 tables)
+  objects:
+  - access_review_cycles
+  - access_review_certifications
+  - ingestion_batches
+  - ingestion_items
+  input: A periodic access-review cycle trigger; a bulk-import file.
+  output: Certification records; staged ingestion items awaiting confirm/reject.
+  rules:
+  - ingestion_batch_status / ingestion_item_status enums drive the shared staged-import pattern reused
+    by both compliance/import (API-01) and gst-reconciliation/import (API-11) and documents/ingest (API-12).
+  guardrails: []
+  workflow:
+  - File uploaded -> staged as ingestion_items -> reviewed row-by-row -> confirmed/rejected -> confirmed
+    rows promoted into their real target table.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-06
+  name: Board / governance (13 tables)
+  objects:
+  - board_meetings
+  - board_action_items
+  - committees
+  - related_party_transactions
+  - delegation_of_authority
+  - directors_kmp
+  - board_evaluations
+  - policies
+  - approval_requests
+  - cap_table_entries
+  - cap_table_events
+  - company_charges
+  - secretarial_audits
+  - mca_filings
+  input: Board meeting minutes/agendas, RPT disclosures, policy drafts, cap-table events.
+  output: The rows behind API-13's board/committees/rpt/doa/directors/board-evaluation/policies/cap-table/charges/secretarial-audit/mca-filings
+    routes.
+  rules:
+  - 'policy_status enum drives the draft -> publish -> attestation lifecycle (audit-tree-adjacent: ''publish
+    requires approval'').'
+  - rpt_approval_status enum separately gates related-party transaction disclosures.
+  guardrails:
+  - policy_status enum enforces draft -> publish -> attestation with publish requiring approval -- a policy
+    cannot go live by a single unilateral edit.
+  workflow:
+  - Governance object created -> reviewed -> approved per its own status enum -> visible in the relevant
+    page.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-07
+  name: Legal (7 tables)
+  objects:
+  - legal_vendors
+  - litigation_matters
+  - ip_portfolio
+  - legal_opinions
+  - legal_matters
+  - legal_arbitration_cases
+  - legal_spend_entries
+  input: A legal matter, litigation case, or IP asset.
+  output: Rows behind API-13's litigation/legal-matters/legal-opinions/legal-vendors/ip-portfolio routes.
+  rules:
+  - litigation_stage enum tracks case progression; legal_opinions/[id]/generate (API-13) drafts against
+    this table using AI, human-reviewed before finalization.
+  guardrails: []
+  workflow:
+  - Matter opened -> tracked through litigation_stage -> spend logged -> opinion drafted (AI-assisted)
+    and finalized.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-08
+  name: HR compliance / risk / frameworks (14 tables)
+  objects:
+  - hr_compliance_items
+  - leave_policy_entries
+  - holiday_list_filings
+  - posh_committee
+  - posh_complaints
+  - posh_annual_reports
+  - risks
+  - sebi_compliance_items
+  - rbi_compliance_items
+  - irdai_compliance_items
+  - compliance_frameworks
+  - framework_controls
+  - audit_engagements
+  - audit_findings
+  input: A labour-law obligation, a POSH complaint, a sector-regulator (SEBI/RBI/IRDAI) obligation, an
+    audit engagement plan.
+  output: Rows behind API-13's hr-compliance/posh/sebi/rbi/irdai/frameworks/audit-engagements/audit-findings
+    routes.
+  rules:
+  - posh_complaints is classified Confidential per the UI's own classification system (DB-09's classification
+    concept).
+  guardrails:
+  - Sector-regulator tables (sebi/rbi/irdai) are only relevant to orgs whose entityType/regulatoryEntityType
+    matches -- enforced at the UI layer via SectorGate, not a DB constraint.
+  workflow:
+  - 'Risk-based audit planning: audit_engagements defined -> findings recorded against framework_controls
+    -> CAPA (corrective action) tracked to closure.'
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-09
+  name: Risk / resilience (9 tables)
+  objects:
+  - vendor_risk_profiles
+  - esg_metrics
+  - whistleblower_cases
+  - bcm_plans
+  - bcm_business_impact_analyses
+  - bcm_recovery_procedures
+  - bcm_exercises
+  - fraud_cases
+  - it_dr_plans
+  - it_dr_backup_verifications
+  - it_dr_failover_tests
+  input: A vendor onboarding event (triggers risk assessment), a whistleblower report, a BCM plan/exercise,
+    an IT-DR test.
+  output: Rows behind API-13's vendor-risk/esg/whistleblower/bcm/fraud-cases/it-dr routes.
+  rules:
+  - vendor_risk_profiles/[id]/assess (API-13) is AI-assisted; bcm exercises/it-dr failover-tests model
+    real business-continuity testing cadence, not just static plans.
+  guardrails:
+  - whistleblower_cases implies anonymity/confidentiality handling -- not verified at the DB-constraint
+    level in this pass, flagged as worth a dedicated security review, not claimed as verified-safe here.
+  workflow:
+  - Plan defined -> tested periodically (BIA, exercises, failover tests) -> gaps found -> plan revised.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-10
+  name: MDM, incidents, conversations, code-change requests (~13 tables)
+  objects:
+  - mdm_duplicate_candidates
+  - mdm_merge_log
+  - incidents
+  - conversations
+  - conversation_participants
+  - messages
+  - instruction_commitments
+  - instruction_mismatch_detections
+  - code_change_requests
+  input: A duplicate-data scan result, a security incident, a chat message, a detected instruction/outcome
+    mismatch.
+  output: Rows behind API-15's mdm routes, API-13's incidents route, API-08's conversations routes, API-16's
+    instruction-mismatches route.
+  rules:
+  - instruction_commitments + instruction_mismatch_detections is the DB side of the chat-service.ts commitment-tracking
+    feature (feeds instruction-mismatch-audit, GOV-16) -- when a human commits to something in chat and
+    the AI's later action diverges, that's captured here.
+  - code_change_requests is the VAIOS code-change-request workflow (distinct from actual GitHub PRs) --
+    an internal request-tracking layer.
+  guardrails: []
+  workflow:
+  - Chat commitment made -> tracked -> later action compared against it -> mismatch (if any) detected
+    and logged for review.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-11
+  name: Products / projects (2 tables)
+  objects:
+  - products
+  - projects
+  input: A product/project definition.
+  output: The scope object PMS issues, ERP contracts, and construction domains attach to via projectId.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-12
+  name: PMS suite (~26 tables)
+  objects:
+  - pms_issue_types
+  - pms_issue_statuses
+  - pms_workflow_transitions
+  - pms_issues
+  - pms_issue_assignees
+  - pms_issue_relations
+  - pms_labels
+  - pms_issue_labels
+  - pms_estimate_schemes
+  - pms_estimate_points
+  - pms_milestones
+  - pms_sprints
+  - pms_sprint_issues
+  - pms_saved_views
+  - pms_wiki_pages
+  - pms_time_entries
+  - pms_billable_rates
+  - pms_budgets
+  - pms_budget_line_items
+  - pms_meetings
+  - pms_meeting_agenda_items
+  - pms_meeting_outcomes
+  - pms_meeting_participants
+  - pms_schedule_baselines
+  - pms_baseline_issue_snapshots
+  - pms_resource_allocations
+  input: See API-04.
+  output: See API-04.
+  rules:
+  - 'pms_issues verified in full: id, orgId, clientId, projectId, typeId, statusId, priority(enum), number
+    (per-project sequence), title, description, assigneeId (DENORMALIZED CACHE, kept in sync by the service
+    layer per an explicit code comment, NOT a DB trigger -- a real consistency risk worth knowing, not
+    asserted as a bug here, just noted), parentIssueId (self-FK), milestoneId, estimatePointId, position
+    (lexicographic rank for manual Kanban ordering), isArchived, completionPercentage.'
+  - pms_schedule_baselines + pms_baseline_issue_snapshots implement audit-tree-adjacent baseline-vs-actual
+    schedule tracking, same pattern PROJEXA's construction domain independently reimplements (see 20-projexa.yaml).
+  guardrails: []
+  workflow:
+  - See API-04's workflow.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-13
+  name: Knowledge / automation / reporting / CRM / HR-ticketing (~20 tables)
+  objects:
+  - knowledge_base_pages
+  - automation_rules
+  - automation_rule_runs
+  - saved_reports
+  - metric_alert_rules
+  - fde_requests
+  - crm_leads
+  - crm_opportunities
+  - employee_profiles
+  - leave_requests
+  - leave_balances
+  - tickets
+  - installed_products
+  - ticket_satisfaction_surveys
+  - field_service_dispatches
+  - problem_records
+  - problem_tickets
+  input: See API-10 (CRM), API-09 (HR), API-14 (tickets/FM), API-15 (automation), API-16 (KB/reports/alerts).
+  output: See same.
+  rules:
+  - fde_requests is the DB side of the /fde 'Do It For Me' feature -- a plain-language need is matched
+    to an existing capability or drafts a new Worker Agent proposal for human approval.
+  guardrails: []
+  workflow:
+  - See referenced API domains.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-14
+  name: Chat/meetings sharing, e-signature (8 tables)
+  objects:
+  - message_attachments
+  - conversation_share_links
+  - conversation_guest_access
+  - veri_meetings
+  - veri_meeting_share_links
+  - veri_meeting_action_items
+  - esignature_requests
+  - esignature_signers
+  input: A share-link creation, a document sent for e-signature.
+  output: Token-resolvable share/guest-access rows; signer status tracking.
+  rules:
+  - This is the DB side of the token-resolved public routes in API-08's guardrails list -- the tokens
+    themselves live in these tables, resolved server-side.
+  guardrails: []
+  workflow:
+  - Owner creates a share link/guest access grant -> external party uses the token -> scoped access granted
+    without a full account.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-15
+  name: ERP -- by far the largest single block (~150 tables)
+  objects:
+  - 'General ledger: erp_accounts, erp_fiscal_years, erp_currencies, erp_exchange_rates, erp_bank_accounts,
+    erp_tax_templates(+items), erp_journal_entries(+lines), erp_payment_entries'
+  - 'Sales: erp_sales_invoices(+items), erp_e_invoice_logs, erp_sales_orders(+items), erp_sales_credit_notes(+items),
+    erp_sales_returns(+items), erp_customers, erp_quotations(+items), erp_delivery_notes(+items)'
+  - 'Purchasing: erp_purchase_invoices(+items), erp_purchase_credit_notes(+items), erp_purchase_returns(+items),
+    erp_purchase_orders(+items), erp_purchase_receipts(+items), erp_purchase_requisitions(+items), erp_suppliers
+    (+5 detail tables), erp_rfqs (+8 RFQ/scoring/auction tables), erp_landed_cost_vouchers(+charges,allocations)'
+  - 'Fixed assets: erp_asset_categories, erp_fixed_assets, erp_depreciation_schedules, erp_asset_movements,
+    erp_asset_disposals'
+  - 'Inventory/stock: erp_warehouses, erp_item_groups, erp_items, erp_stock_ledger_entries, erp_stock_reconciliations(+items),
+    erp_stock_valuation_layers, erp_reorder_levels, erp_abc_classifications, erp_cycle_count_plans(+lines),
+    erp_item_uom_conversions, erp_item_batches, erp_item_serials'
+  - 'Periods/approvals: erp_accounting_periods, erp_period_closing_checklist_items, approval_workflow_definitions(+step_definitions,instances,step_instances,step_approvals)'
+  - 'Companies/cost-centers/cash: erp_companies, erp_cost_centers, erp_cash_accounts, erp_cash_vouchers'
+  - 'Parties: erp_addresses, erp_contacts'
+  - 'Contracts: erp_contracts, erp_contract_amendments, erp_contract_billing_schedules, erp_contract_revenue_schedules,
+    erp_contract_obligations, erp_subscription_plans, erp_subscriptions, erp_contract_negotiation_rounds'
+  - 'Bank reconciliation: erp_bank_statement_imports, erp_bank_statement_lines'
+  - 'Payroll: erp_salary_components, erp_salary_structures(+components with an explicit FK), erp_statutory_rules,
+    erp_payroll_runs, erp_payslips(+lines, FK+cascade), erp_income_tax_slabs(+rates), erp_employee_tax_exemptions,
+    erp_tax_withholding_categories(+rates)'
+  - 'Pricing: erp_pricing_rules'
+  input: See API-03.
+  output: See API-03.
+  rules:
+  - 'erp_journal_entries + erp_journal_entry_lines verified in full: entries carry entryNumber, postingDate,
+    referenceType/referenceId (polymorphic source-document link, same pattern reused by conversations/veriMeetings),
+    status(enum), totalDebit/totalCredit, companyId (nullable, multi-company). Lines carry accountId,
+    partyType(enum)/partyId (polymorphic customer-or-supplier), debit/credit, costCenter (legacy free
+    text) + costCenterId (a real FK added later, additive, alongside the legacy free-text field rather
+    than replacing it).'
+  - 10 of the platform's 11 total explicit FK constraints are in this ERP payroll/inventory block (e.g.
+    erpSalaryStructureComponents.employeeId -> employeeProfiles.id, erpPayslipLines.payslipId -> erpPayslips.id
+    ON DELETE CASCADE, erpItemBatches.itemId -> erpItems.id) -- this is the one area of the schema where
+    referential integrity is DB-enforced rather than purely convention-based.
+  - ~40 ERP-specific enums exist (erp_account_root_type, erp_journal_entry_status, erp_invoice_status,
+    erp_payment_type, erp_party_type, erp_asset_status, erp_depreciation_method, erp_period_status, approval_workflow_instance_status/step_status/condition_operator,
+    and ~28 more listed in full in the enum inventory).
+  guardrails: []
+  workflow:
+  - See API-03's workflow -- this is a genuine double-entry general ledger with real debit/credit line
+    items, not a simplified 'amount' model.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-16
+  name: CLM, recruitment/performance, e-signature -- see API-13/09 (already covered, listed for schema
+    completeness)
+  objects:
+  - clm_clauses
+  - clm_contract_templates
+  - clm_template_clauses
+  - job_openings
+  - candidates
+  - job_applications
+  - interview_feedback
+  - performance_review_cycles
+  - performance_reviews
+  input: See API-09/13.
+  output: See API-09/13.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-17
+  name: Facilities Management -- 'fm_' prefix, ~14 tables, SCHEMA-ONLY (no matching API routes found)
+  objects:
+  - fm_asset_categories
+  - fm_assets
+  - fm_checklist_templates
+  - fm_checklist_template_items
+  - fm_ppm_schedules
+  - fm_ppm_occurrences
+  - fm_ppm_occurrence_item_results
+  - fm_amc_contracts
+  - fm_asset_duplicate_candidates
+  - fm_register_digitization_batches
+  - fm_register_digitization_rows
+  - fm_visitors
+  - fm_visitor_logs
+  input: N/A -- no route surface found to feed this domain.
+  output: N/A.
+  rules:
+  - This domain has real service-layer code (fm-amc-service.ts, fm-asset-service.ts, fm-asset-dedup-service.ts,
+    fm-checklist-service.ts, fm-enablement-service.ts, fm-ppm-service.ts, fm-register-digitization-service.ts,
+    fm-visitor-service.ts -- see the services inventory) but NO corresponding src/app/api/** routes were
+    found in the 614-file sweep.
+  - internal/fm-ppm/generate-occurrences/run (API-17) IS a real cron route touching fm_ppm_occurrences
+    -- so this domain is not entirely unwired, just missing the interactive CRUD surface a user would
+    need to actually create/manage assets/checklists through the UI.
+  guardrails:
+  - 'This domain''s own gap (schema exists, no CRUD route found) IS its guardrail finding: fm_* data can
+    currently only be created/modified via direct DB access or a route this pass didn''t find, not through
+    the normal UI/API surface -- effectively un-operable end-to-end today.'
+  workflow:
+  - PPM occurrences are generated on a cron schedule against existing schedules -- but creating those
+    schedules/assets/checklists in the first place has no found API route, meaning this module cannot
+    currently be operated end-to-end without direct DB access or a route this pass didn't find.
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: DB-18
+  name: The-Firm, Sales-HQ, marketing/lead-capture, gamification, GST, construction -- see corresponding
+    API domains (schema completeness listing)
+  objects:
+  - 'The-Firm (11): firm_client_service_lines, firm_engagements, firm_engagement_deliverables, firm_client_portal_links,
+    firm_tax_cases, firm_staff_assignments, firm_time_entries, firm_billable_rates, firm_invoices, firm_invoice_line_items'
+  - 'Sales-HQ (5): sales_partners, sales_referral_links, sales_referrals, sales_commission_plans, sales_commission_accruals'
+  - 'Marketing/lead-capture (6): visitor_sessions, visitor_events, contact_submissions, forge_project_requests,
+    connector_accounts'
+  - 'Gamification (5): veri_reward_points_ledger, veri_reward_achievement_definitions, veri_reward_achievement_unlocks,
+    veri_reward_streaks, veri_reward_referrals'
+  - 'GST reconciliation (~12): gst_import_batches, gst_source_profiles, gst_import_staging_rows, gst_canonical_invoices(+items),
+    gst_gstin_master, gst_hsn_master, gst_validation_findings, gst_reconciliation_runs(+matches), gst_return_periods,
+    gst_ai_review_reports'
+  - 'Construction/Projexa (~22): construction_boqs(+line_items), construction_categories, construction_activities,
+    construction_work_progress_entries, construction_site_diaries, construction_labour_roster, construction_attendance,
+    construction_kpi_definitions(+entries), construction_expense_entries, construction_rfis, construction_submittals,
+    construction_punch_list_items, construction_change_orders, interior_mood_boards(+items), interior_ffe_items,
+    interior_floor_plans, interior_materials, interior_floor_plan_rooms, interior_furniture_placements'
+  - 'Application/system: application_errors, doc_processing_jobs'
+  input: See API-05, API-10, API-16, API-11, API-06 respectively.
+  output: See same.
+  rules:
+  - This is the DB source-of-truth PROJEXA's own client (20-projexa.yaml) reads/writes exclusively through
+    the v1/construction and v1/projexa API surface -- PROJEXA itself owns none of these tables.
+  guardrails: []
+  workflow: []
+  source: 12-compliance-tracker-database
+  repo: compliance-tracker
+- id: UI-01
+  name: Assistant / Home surfaces
+  objects:
+  - '/home -- assistant-first landing: VERI AI chat (left/center) + VERI Chat people-panel (right), AchievementCard
+    + VeriTreasureWidget teasers'
+  - '/dashboard -- classic tabbed workspace: Analytics, To Do, Approval tabs'
+  - /chat -- VERI Chat human/guest conversations (AI thread excluded)
+  - /veri-ai -- dedicated AI-thread page (legacy standalone, largely superseded by /home)
+  - /veri-todo -- unified pending-items feed (Tasks + Chat Instructions + PMS Issues merged)
+  input: User navigation; underlying data from API-08 (chat), API-16 (home/todos).
+  output: Rendered assistant/dashboard views.
+  rules:
+  - The Mode Pills + cascading Chain Selector (GOV-09) is mounted GLOBALLY in AppShell.tsx (org-gated
+    by veriChatV2Enabled), so it appears above EVERY authenticated page, not just these 5 -- listed here
+    because this is where it's most central to the page's purpose.
+  - VERI Chat is split across 3 surfaces (/chat, /veri-ai, /home) sharing the same underlying components
+    -- a real fragmentation the platform has been consolidating toward /home as primary.
+  guardrails: []
+  workflow:
+  - User lands on /home -> sees assistant + people panel -> can switch to /dashboard for the classic tabbed
+    view or /veri-todo for a merged pending-items list.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-02
+  name: Compliance core pages
+  objects:
+  - '/compliance, /compliance/[id] (tabs: Details, Audit Points, Documents, Activity, Challans, Comments),
+    /compliance/new'
+  - /checklists, /checklists/[id]
+  - /tasks, /reports (charts + DataTable + export + CustomReportsSection), /penalties (GST/TDS/PF/ESIC/MCA/Income-Tax
+    interest & penalty calculator)
+  - /notices, /notices/new, /notices/[id]
+  - /ingest -- bulk import wizard (row-by-row review/approve/reject)
+  - /frameworks -- Controls & Framework Library (ISO 27001, SOC 2, COSO, NIST CSF, India Statutory, DPDP,
+    PCI/HIPAA)
+  - /audit-engagements -- risk-based audit planning + CAPA-owned findings
+  - /audit -- Audit Trail viewer (filterable, paginated log)
+  input: User interaction against API-01 (compliance), API-12 (documents), API-11 (implicitly, via penalties).
+  output: Rendered compliance workspace.
+  rules:
+  - /penalties is a real calculator UI over GOV-07's tax engines (income-tax-engine.ts, tds-engine.ts,
+    gst-engine.ts), not a separate calculation implementation.
+  guardrails: []
+  workflow:
+  - Item created/imported -> tracked through /compliance/[id]'s tabs -> reported on via /reports -> penalties
+    calculated when overdue -> everything auditable via /audit.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-03
+  name: Governance / Company Secretarial / Legal pages
+  objects:
+  - /board, /board-evaluation, /committees, /rpt, /doa, /directors, /statutory-registers, /cap-table,
+    /charges, /secretarial-audit, /mca-filings (AOC-4/MGT-7/DIR-12/CHG-1 form-data prep, no live MCA submission)
+  - /legal-matters (unified matter register + arbitration + spend), /legal-vendors, /litigation, /ip-portfolio,
+    /legal-opinions (clause-library-backed AI draft generation)
+  - /policies -- draft -> publish -> attestation, publish requires approval
+  input: See API-13, DB-06/07.
+  output: Rendered governance workspace.
+  rules:
+  - Mostly SimpleModulePage-driven (list + inline add form) -- a shared generic component, not 18 bespoke
+    implementations.
+  guardrails: []
+  workflow:
+  - See DB-06/07/API-13 workflows.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-04
+  name: HR / People pages
+  objects:
+  - '/hr (tabs: Directory, Org Chart, Leave), /hr-compliance, /leave-holiday'
+  - '/posh (Confidential-classified), /recruitment (tabs: Job Openings, Candidates, Applications)'
+  - '/performance-reviews (tabs: Review Cycles, Reviews)'
+  input: See API-09.
+  output: Rendered HR workspace.
+  rules:
+  - /posh is explicitly classification-gated -- Confidential per the classification.ts CLASSIFICATION_LEVELS
+    system.
+  guardrails:
+  - classification.ts's canAccess() gates /posh visibility.
+  workflow:
+  - See API-09's workflow.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-05
+  name: Risk / Regulatory / Integrity pages
+  objects:
+  - /risks, /vendor-risk, /esg (BRSR, Social pillar computed from Policy+POSH data)
+  - /sebi, /rbi, /irdai -- sector-gated (SectorGateNotice shown when entity type doesn't match)
+  - /whistleblower, /bcm, /it-dr (+[id]), /fraud-cases, /contract-compliance, /incidents
+  input: See API-13, DB-08/09.
+  output: Rendered risk/regulatory workspace, or a SectorGateNotice for non-applicable orgs.
+  rules:
+  - /esg's Social pillar is COMPUTED (derived from Policy + POSH data), not independently entered -- a
+    real cross-module data dependency.
+  guardrails:
+  - SectorGate.tsx (SectorGateNotice) blocks sebi/rbi/irdai for orgs whose entityType doesn't match, at
+    the UI layer.
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-06
+  name: Access & Approvals pages
+  objects:
+  - /approvals -- ApprovalTab (single-step maker-checker queue) + WorkflowApprovalsSection (multi-step/quorum
+    workflow instances)
+  - /access-review, /access-review/[id] -- periodic RBAC certification cycles, admin-gated
+  input: A proposed action awaiting approval; an access-review cycle trigger.
+  output: Approved/rejected decisions; access certifications.
+  rules:
+  - This page is the DIRECT UI for audit-tree D9 (Approval & Confirmation UX) and D15.B7 (Approval Governance)
+    -- both option sets from that requirement tree converge here in practice.
+  guardrails:
+  - '/approvals enforces dual control by construction: ApprovalTab is maker-checker (the approver cannot
+    be the requester), WorkflowApprovalsSection is quorum-based for multi-step workflows -- neither allows
+    a single person to both request and approve.'
+  workflow:
+  - Action proposed -> appears in ApprovalTab (simple) or WorkflowApprovalsSection (multi-step) -> maker-checker
+    or quorum decision recorded.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-07
+  name: Admin pages
+  objects:
+  - /users, /departments (+[id], /new)
+  - '/settings -- side-nav: Profile, Organisation, Notifications, AI Configuration, AI Assistants, My
+    AI, Preferences, Project Management, Security/MFA, API Access, Webhooks, SSO'
+  input: Admin configuration changes.
+  output: Updated org/user settings.
+  rules:
+  - /settings is the single largest settings surface, backed by ~10 dedicated sub-panel components (AiConfigSection,
+    AiAssistantsSection, PersonalAiConfigSection, OrchestraModelConfigSection, ApiKeySection, WebhookSection,
+    MfaSection, SsoSection, PmsEnablementSection) -- see UI-13.
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-08
+  name: Finance / ERP pages -- 'VERI ERP AI', /erp/**
+  objects:
+  - 'journal-entries (tabs: Entries/Chart of Accounts/Cost Centers/Companies), budgets, reports (tabs:
+    Trial Balance/P&L/Balance Sheet/Cash Flow), cash-management'
+  - 'credit-notes (tabs: Sales/Purchase), inventory (tabs: Ledger/Items/Warehouses/UOM/Batches/Serials),
+    bank-reconciliation'
+  - 'gst-reconciliation (tabs: Imports/Reconcile 2B/Generate Return), tds-returns (Form 26Q/24Q)'
+  - 'procurement (tabs: Requisitions/RFQs/Quotations), goods-receipt (+[id], three-way-match/[id]), inventory-planning
+    (+[id], tabs: Replenishment/ABC/Cycle Count)'
+  - 'payroll (tabs: Runs/Structures/Components/Rules/Tax Slabs), invoicing (tabs: Sales/Purchase/Pricing/Tax/Currencies),
+    returns (tabs: Sales/Purchase)'
+  - 'contracts (tabs: Contracts/Subscriptions), clm-library (tabs: Clauses/Templates), customers (+[id]),
+    suppliers (+[id]), periods (month-end close checklist/sign-off/close)'
+  input: See API-03.
+  output: Rendered ERP workspace, one page per major ERP subdomain.
+  rules:
+  - Every tabbed page here maps 1:1 onto a DB-15 sub-domain -- the UI tab structure mirrors the schema's
+    own domain grouping almost exactly.
+  guardrails: []
+  workflow:
+  - See API-03/DB-15's workflow.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-09
+  name: Sales / CRM pages
+  objects:
+  - '/crm (tabs: Leads, Opportunities)'
+  - /sales-hq -- admin-only internal sales/partner/commission view with VisitorIntelligencePanel
+  input: See API-10.
+  output: Rendered CRM/Sales-HQ workspace.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-10
+  name: AI Operations / Dev-Team / Platform tool pages
+  objects:
+  - '/orchestra -- AI Dev Team dispatch UI: 5 real assistants x 4-tier worker-agent library; RealAssistantColumn
+    per assistant, AgentLibrarySheet browses global/customer/client/user-tier worker agents'
+  - /orchestra/analytics -- cost/latency/failure-rate over orchestra_executions
+  - '/fde -- ''VERI FDE'' / ''Do It For Me'': describe a need in plain language, matches existing capability
+    or drafts a Worker Agent proposal (human-approved)'
+  - /capability-registry -- semantic index of every worker agent/automation rule/module (admin backfill
+    + duplicate audit)
+  - /automation -- deterministic trigger->condition->action rules (no AI)
+  - /metric-alerts -- Grafana-style scheduled threshold alerts (cron-evaluated)
+  - /prompt-eval -- prompt/model evaluation lab (admin-gated, deterministic keyword scoring)
+  - /mdm-quality -- duplicate detection + completeness scoring for Customers/Suppliers
+  - /connectors -- VERI CONNECT, one-click OAuth (Gmail/Drive/Calendar/Slack/Notion/GitHub/etc. via Composio)
+  - /kpi-hub -- cross-module executive KPI scorecard (compliance/risk/revenue/tickets/AI-ops)
+  - /rewards -- VERI Treasure hub (points/achievements/streaks/refer-and-earn)
+  input: See API-07, API-15.
+  output: Rendered platform-tool workspaces -- this is where the governance core (10-compliance-tracker-governance.yaml)
+    becomes user-visible.
+  rules:
+  - /orchestra is THE UI for GOV-05/06's 57-role AI Dev Team roster and dispatch layer.
+  guardrails:
+  - '/orchestra''s underlying dispatch endpoint (API-07''s ai/team/dispatch) is veridian_admin-gated --
+    the page itself is reachable by any authenticated user per the sidebar, but actual dispatch actions
+    taken on it will fail server-side for non-admins. Worth flagging: this means the guardrail is enforced
+    at the API layer only, not also hidden from the UI for non-admin users -- a real, if minor, UX/security
+    mismatch (a non-admin sees a dispatch UI that will reject their actions rather than not seeing it
+    at all).'
+  workflow:
+  - See GOV-05/06/09's workflows -- this is their UI surface.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-11
+  name: Knowledge / support / meetings pages
+  objects:
+  - /knowledge-base, /knowledge-base/[slug]
+  - /help -- Help Centre
+  - /team -- team member directory (read view, distinct from /users admin CRUD)
+  - /tickets, /tickets/[id] -- customer support tickets, each backed by a VERI Chat conversation underneath,
+    guest access supported
+  - /problem-records -- ITIL-style problem management grouping tickets
+  - /veri-meetings, /veri-meetings/[id] -- AI-assisted meeting minutes with task-linked action items
+  - /clients -- client/entity roster (for multi-client accounts, e.g. CA/law firms)
+  input: See API-08, API-12, API-14.
+  output: Rendered knowledge/support workspace.
+  rules:
+  - Every ticket IS a VERI Chat conversation underneath -- not a separate messaging system, a real architectural
+    reuse.
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-12
+  name: Project Management (/pms/**, opt-in) and THE FIRM (/the-firm-practice, opt-in)
+  objects:
+  - '/pms -- project list. /pms/[projectId] + ProjectNav sub-tabs: Issues, Board, Sprints, Wiki, Time,
+    Budgets, Meetings, Roadmap, wiki/[slug]'
+  - '/the-firm-practice -- ''Practice Cockpit'', tabs: Dashboard, Client & Engagements, Tax Cases, Time
+    & Billing'
+  input: See API-04, API-05.
+  output: Rendered PMS/Firm workspace, only visible if pmsEnabled/firmEnabled.
+  rules:
+  - Both are opt-in per org -- absent from the sidebar entirely for orgs that haven't enabled them, not
+    just hidden/disabled.
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-13
+  name: Reusable components -- app shell & navigation
+  objects:
+  - 'AppShell.tsx -- root authenticated layout: sidebar + topbar + health ribbon + trial banner + onboarding
+    checklist + PageAgent + global chat dock/composer/panel + help widget'
+  - AppSidebar.tsx -- main left nav, ~19 sections built by getNavSections(), gated by accountType/pmsEnabled/firmEnabled
+  - AppTopbar.tsx, search-command.tsx (global cmd-K), theme-toggle.tsx, HealthRibbon.tsx, HelpWidget.tsx,
+    TrialBanner.tsx, OnboardingChecklist.tsx
+  input: Every authenticated page renders inside this shell.
+  output: The consistent app frame around all ~130 pages.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-14
+  name: Reusable components -- veri-chat/ (Dynamic Mode Pills + Chain Selector, the core VERI Chat mechanism)
+  objects:
+  - veri-chat-context.tsx -- VeriChatProvider, composerMode (what to DO) vs rightPanelView (what's LOOKED
+    AT), CapabilityNode/PathSegment types
+  - VeriComposer.tsx -- the persistent bottom composer (Mode Pills + cascading Chain rows), mounted once
+    in AppShell
+  - VeriChatPanel.tsx -- independent right-side panel (Overview/Tasks/Chats/To-Do views)
+  input: The user's Mode Pill + Chain selection UI event; underlying option-tree data is sourced live
+    from GOV-09 (capability-tree-service.ts) -- see GOV-09 for the 'not a hardcoded taxonomy' verification,
+    not restated here.
+  output: The user's Mode Pill + Chain selection, feeding task creation (GOV-09).
+  rules:
+  - Mounted globally in AppShell.tsx when veriChatV2Enabled -- appears above every (app) page.
+  guardrails: []
+  workflow:
+  - See GOV-09's workflow -- this is its primary UI.
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-15
+  name: Reusable components -- chat/, home/, orchestra/, pms/, erp/, esignature/
+  objects:
+  - 'chat/: ConversationList.tsx, ThreadView.tsx, MessageContent.tsx (shared across /chat, /veri-ai, /home),
+    StructuredMessageContent.tsx, MismatchBubble.tsx (flags an instruction/outcome mismatch to the assigner)'
+  - 'home/: ToDoTab.tsx, AnalyticsTab.tsx, ApprovalTab.tsx (doubles as /approvals'' queue), DashboardAnalytics.tsx,
+    WorkflowApprovalsSection.tsx, AchievementCard.tsx, VeriTreasureWidget.tsx'
+  - 'orchestra/: RealAssistantColumn.tsx, AgentLibrarySheet.tsx'
+  - 'pms/: ProjectNav.tsx, CreateIssueDialog.tsx, IssueDetailPanel.tsx'
+  - 'erp/: PartyAddressesAndContacts.tsx (polymorphic, shared by customers/[id] and suppliers/[id])'
+  - 'esignature/: RequestSignatureButton.tsx (polymorphic, shared by Documents and erp/contracts)'
+  input: Varies per component.
+  output: Varies per component.
+  rules:
+  - MismatchBubble.tsx is the UI surface for DB-10's instruction_mismatch_detections -- visible only to
+    the commitment's original assigner, a real privacy-scoped rendering decision.
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: UI-16
+  name: Reusable components -- shared top-level utilities & public-facing
+  objects:
+  - SectorGate.tsx, SimpleModulePage.tsx (+StatusPill, the generic list+inline-form CRUD pattern used
+    by ~18-24 simple modules)
+  - AiConfigSection.tsx, AiAssistantsSection.tsx, PersonalAiConfigSection.tsx, OrchestraModelConfigSection.tsx,
+    ApiKeySection.tsx, WebhookSection.tsx, MfaSection.tsx, SsoSection.tsx, PmsEnablementSection.tsx, CustomReportsSection.tsx,
+    DocumentUploadSection.tsx, ChallanSection.tsx
+  - 'Public (outside (app)): ContactUsForm.tsx, JoinUsSection.tsx, ForgeIntakeComposer.tsx (reuses the
+    Mode-Pills/Chain-Selector mechanism for public /forge lead intake), LegalBar.tsx, LegalShell.tsx,
+    ProductSalesSection.tsx, RealProductDemo.tsx, VisitorIntelligence.tsx (anonymous visitor tracking),
+    VisitorIntelligencePanel.tsx (the /sales-hq admin view of that data)'
+  - data-table.tsx, status-badge.tsx (StatusBadge/PriorityBadge), compliance-chart.tsx, dashboard-card.tsx
+    -- the 4 non-trivial shared ui/ primitives beyond the ~52 shadcn files
+  input: Varies.
+  output: Varies.
+  rules:
+  - SimpleModulePage is the single component behind roughly 18-24 of the ~130 pages (contract-compliance,
+    irdai, rbi, sebi, secretarial-audit, ip-portfolio, charges, directors, committees, doa, legal-vendors,
+    board, board-evaluation, cap-table, rpt, incidents, posh, whistleblower, bcm, hr-compliance, leave-holiday,
+    litigation, risks, etc.) -- a real, deliberate DRY pattern, not duplicated bespoke code per module.
+  - ForgeIntakeComposer.tsx explicitly reuses VeriComposer's Mode-Pills/Chain-Selector mechanism for the
+    PUBLIC (unauthenticated) lead-intake flow at /forge -- confirmed by code comment.
+  guardrails: []
+  workflow: []
+  source: 13-compliance-tracker-ui
+  repo: compliance-tracker
+- id: PRX-01
+  name: Architecture -- thin client, owns no construction database
+  objects:
+  - src/lib/veridian-client.ts
+  input: A construction-domain request from any PROJEXA page/API route.
+  output: A Bearer-authenticated fetch to VERIDIAN's API (default https://veridian-compliance-ai.vercel.app/api/v1/projexa).
+  rules:
+  - callVeridian(path, {method, body, apiKey, organizationId}) is the single chokepoint for all construction-domain
+    data/AI in this repo.
+  - getVeridianApiKey(organizationId) exists to look up a per-org key from veridian_credentials, but EVERY
+    route currently calls callVeridian with no apiKey/organizationId -- confirmed by grepping every route
+    -- so it silently falls back to the single shared process.env.VERIDIAN_API_KEY. This matches the codebase's
+    own 'MVP note' comments, not a hidden bug.
+  - 'PROJEXA''s own Postgres schema (Drizzle+postgres.js) holds ONLY tenant/auth/collaboration plumbing:
+    organizations, memberships, veridianCredentials, assistantQueries, conversations, conversationParticipants,
+    messages, profiles, todos. No BOQ/schedule/RFI/budget tables exist locally -- confirmed by the schema
+    file''s own header comment.'
+  - Zero direct LLM-provider calls anywhere in PROJEXA -- no OpenAI/Anthropic/etc. SDK or key found in
+    src/ or .env.local. /api/assistant and /api/discuss are pure proxies to VERIDIAN's /assistant and
+    /discuss endpoints.
+  guardrails:
+  - Auth is Supabase Auth (cookie-based), enforced in src/middleware.ts (route-prefix redirect) and requireAuth()
+    in src/lib/supabase/auth-guard.ts (RLS-scoped session read, not a service-role key).
+  workflow:
+  - Client component -> PROJEXA API route -> requireAuth() -> callVeridian() -> VERIDIAN's /api/v1/projexa/*
+    -> JSON passed back, occasionally reshaped.
+  source: 20-projexa
+  repo: projexa
+- id: PRX-02
+  name: Local database (tenant/auth/chat plumbing only, 8 tables)
+  objects:
+  - organizations
+  - memberships
+  - veridian_credentials
+  - assistant_queries
+  - conversations
+  - conversation_participants
+  - messages
+  - profiles (auto-populated via Supabase auth trigger)
+  - todos
+  input: Signup, chat messages, todo items -- nothing construction-domain.
+  output: The tables above.
+  rules:
+  - assistant_queries is a SYNCHRONOUS stand-in for VERIDIAN's real async task system, per its own code
+    comment in schema.ts and api/assistant/route.ts.
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-03
+  name: Public pages (login/signup)
+  objects:
+  - /login -- Supabase email/password; on first login, finishes org provisioning if signup deferred it
+    (email-confirmation flow) using a localStorage-stashed pending org name
+  - /signup -- creates a Supabase auth user, then an organizations row + memberships (role owner) row;
+    handles the confirm-your-email deferred path
+  input: Email/password.
+  output: An authenticated session + provisioned org.
+  rules: []
+  guardrails: []
+  workflow:
+  - Signup -> Supabase user created -> org+membership created (or deferred to first login if email confirmation
+    is pending) -> authenticated.
+  source: 20-projexa
+  repo: projexa
+- id: PRX-04
+  name: Authenticated app pages (11 pages)
+  objects:
+  - /dashboard -- org-wide KPI cards (projects, budget, revenue, expenses) + per-project table, from VERIDIAN
+    /dashboard
+  - /schedule -- ScheduleGanttClient (Gantt/critical path)
+  - /rfis, /submittals, /punch-list, /change-orders, /mood-boards, /ffe, /floor-plans, /floor-plans/[id],
+    /floor-plans/[id]/walkthrough
+  input: See PRX-01's workflow -- every list page loads the FIRST project in the org (no project-switcher
+    UI exists yet).
+  output: Rendered construction-domain UI, backed entirely by VERIDIAN's API.
+  rules:
+  - 'Every list page shares one pattern: server component calls callVeridian(''/dashboard''), takes data.projects[0],
+    passes projectId to a client component -- a real, confirmed gap: no project switcher exists.'
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-05
+  name: 'GAP: 12+ sidebar-linked modules with NO page implementation'
+  objects:
+  - /scope
+  - /work-progress
+  - /site-diary
+  - /documents
+  - /manpower
+  - /labour
+  - /materials
+  - /vendors
+  - /budgets
+  - /expenses
+  - /kpis
+  - /reports
+  - /ai-copilot
+  - /settings
+  input: N/A.
+  output: N/A -- a 404 today.
+  rules:
+  - src/middleware.ts protects these route prefixes AND AppSidebar.tsx links to all of them (Scope of
+    Work/BOQ, Work Progress, Site Diary, Documents, Manpower & Attendance, Materials, Vendors, Budgets,
+    Expenses, KPIs, Reports, AI Copilot, Settings) -- but NONE have a corresponding page under src/app/(app)/.
+    Confirmed by direct file-tree comparison, not inferred.
+  guardrails:
+  - 'This domain IS an absence-of-guardrail/absence-of-implementation finding, not a feature with its
+    own guardrail -- listed under guardrails for visibility: middleware protects these route prefixes
+    (an auth guardrail exists) but there is no page behind that guardrail to protect.'
+  workflow:
+  - This is a genuine, confirmed gap between the UI's own stated navigation and what's actually implemented
+    -- flagged for the Owner, not fixed by this tree.
+  source: 20-projexa
+  repo: projexa
+- id: PRX-06
+  name: VERIDIAN-proxy API routes (thin passthrough)
+  objects:
+  - /api/assistant (GET history, POST -> VERIDIAN /assistant), /api/discuss (POST -> VERIDIAN /discuss)
+  - /api/capability-tree (GET, keeps Bearer key server-side)
+  - /api/change-orders(+[id]) -- PATCH action:'submit' drives an e-signature workflow via signers
+  - /api/design-materials, /api/ffe(+[id],margin-summary), /api/floor-plans(+[id],rooms,rooms/[roomId],placements,placements/[placementId],scene)
+  - /api/mood-boards(+[id]) -- status transitions draft->shared->approved
+  - /api/punch-list(+[id]) -- status transitions open->ready_for_review->verified_closed
+  - /api/rfis(+[id]), /api/schedule/baselines(+[id]), /api/schedule/gantt, /api/schedule/workload, /api/submittals(+[id])
+    -- review outcomes approve/approve-as-noted/revise-resubmit/reject
+  input: See PRX-01.
+  output: VERIDIAN API responses, wrapped as 502 on error.
+  rules:
+  - All 20 of these routes call requireAuth() first, then are pure passthroughs to callVeridian -- matches
+    API-06/API-02(v1/projexa) on the VERIDIAN side exactly.
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-07
+  name: Local-DB API routes (Supabase/Drizzle, no VERIDIAN call)
+  objects:
+  - /api/conversations
+  - /api/conversations/[id]/messages
+  - /api/org-members
+  - /api/todos(+[id])
+  input: Chat/todo data.
+  output: PRX-02's local tables.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-08
+  name: App shell & navigation components
+  objects:
+  - 'AppSidebar.tsx (7 sections: Overview/Execution/Field/Design/Resources/Finance/Intelligence + Settings,
+    incl. the PRX-05 placeholder links)'
+  - AppTopbar.tsx
+  - sidebar-context.tsx
+  - theme-toggle.tsx
+  input: Every authenticated page renders inside this shell.
+  output: The consistent app frame.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-09
+  name: Domain feature client components (one per construction module)
+  objects:
+  - ChangeOrdersClient.tsx, FfeClient.tsx (margin cards + item table + 3D-relevant dimensions), PunchListClient.tsx
+  - RfisClient.tsx, SubmittalsClient.tsx (4 review outcome buttons), MoodBoardsClient.tsx (card grid,
+    no real image upload yet)
+  - 'FloorPlansClient.tsx, FloorPlanEditorClient.tsx (hand-rolled SVG 2D editor: click-to-draw rooms,
+    drag-to-place/rotate FF&E)'
+  - FloorPlanScene3D.tsx (@react-three/fiber -- triangulates room polygons into floor/ceiling meshes,
+    extrudes walls, places FF&E as colored boxes)
+  - FloorPlanWalkthroughClient.tsx (dynamically imports Scene3D with ssr:false, since WebGL needs a real
+    browser)
+  - ScheduleGanttClient.tsx (wraps @svar-ui/react-gantt, 'Critical Path' column, 'Capture Baseline' action
+    via window.prompt)
+  input: VERIDIAN API data (PRX-06).
+  output: Rendered feature UI, all following a load/create/transition/toast pattern.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-10
+  name: veri-chat/ components -- explicit UI port of VERIDIAN's own composer design
+  objects:
+  - veri-chat-context.tsx (VeriChatProvider, composerMode vs rightPanelView, renames VERIDIAN's 'tasks'
+    to 'queries' since PROJEXA has no async task system)
+  - VeriComposer.tsx (fixed mode pills + dynamic 'chain' modes from the capability tree, a queue of staged
+    queries, free-text Discuss chat with client-only history)
+  - VeriChatPanel.tsx (Overview/Queries/Chats/To Do)
+  input: PRX-06's /api/capability-tree, /api/discuss, /api/assistant.
+  output: The chat/query UI.
+  rules:
+  - Confirmed by its own code comments to be a deliberate UI port of VERIDIAN's design, not an independent
+    reimplementation.
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-11
+  name: ui/ components -- shadcn primitives plus 4 notable custom/dead-code cases
+  objects:
+  - ~40 shadcn primitives (unremarkable)
+  - dashboard-card.tsx (used only on /dashboard)
+  - status-badge.tsx (StatusBadge/PriorityBadge) -- confirmed DEAD CODE, no usage found anywhere outside
+    its own definition
+  - compliance-chart.tsx -- confirmed DEAD CODE, same
+  - data-table.tsx (DataTable, TanStack wrapper) -- confirmed UNREFERENCED anywhere, likely ported but
+    not yet wired into any feature client
+  input: N/A.
+  output: N/A.
+  rules:
+  - status-badge.tsx / compliance-chart.tsx / data-table.tsx all appear to be carried over from compliance-tracker
+    (they use ct-* Tailwind color tokens, not PROJEXA's own px-* tokens).
+  - 'src/app/globals.css explicitly documents this: it defines --color-ct-navy/--color-ct-teal/etc. as
+    aliases onto the px-* palette ''so copied VERIDIAN components don''t need hand-editing'' -- a DELIBERATE,
+    self-documented workaround, not an accidental oversight.'
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-12
+  name: Local lib/hooks
+  objects:
+  - src/lib/veridian-client.ts (PRX-01)
+  - src/lib/db/schema.ts, index.ts (lazy Postgres connection, falls back to building a Supabase pooler
+    URL if DATABASE_URL isn't set)
+  - src/lib/supabase/{client,server,auth-guard}.ts
+  - src/lib/utils.ts, use-autogrow-textarea.ts
+  - src/hooks/{use-mobile,use-toast}.ts
+  - src/middleware.ts
+  input: N/A -- infrastructure.
+  output: N/A.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: PRX-13
+  name: Construction-domain concepts encoded in the UI/API layer (even though owned by VERIDIAN's DB)
+  objects:
+  - 'Schedule/Gantt: tasks, dependencies, milestones, CRITICAL PATH (isCritical/floatDays), schedule baselines,
+    resource workload allocation'
+  - 'RFIs: subject/question/answer/status(open/answered/closed)/ballInCourt'
+  - 'Submittals: specSection/type/review outcomes/reviewComments'
+  - 'Punch List: priority/status(open->ready_for_review->verified_closed)/trade/location'
+  - 'Change Orders: costImpact/scheduleImpactDays/status lifecycle/e-signature with named signers'
+  - 'FF&E: category/unitCost vs unitPrice (margin tracking)/physical dimensions (feeds 3D scene)/status
+    lifecycle (specified->ordered->received->installed)'
+  - 'Mood Boards: per-room/area boards, status(draft->shared->approved) for client sign-off'
+  - 'Floor Plans: room polygons, ceilingHeightCm, per-room material assignment, furniture placements (x/y/rotation),
+    2D SVG editor + 3D three.js walkthrough'
+  - 'Design Materials: flooring/wall/ceiling swatches with PBR-style color/roughness/metalness'
+  - 'Org dashboard KPIs: total projects, budget, revenue, expenses, per-project revenue/expenses/task
+    count/delayed task count'
+  input: N/A -- this is the domain vocabulary the UI/API encode.
+  output: N/A.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 20-projexa
+  repo: projexa
+- id: VA-01
+  name: 'SECURITY FINDING (not fixed by this tree, flagged for the Owner): plaintext committed credentials'
+  objects:
+  - memory-notes/progress.md (Supabase anon key, SERVICE-ROLE key, DB password)
+  - MASTER_IMPLEMENTATION_PROMPT.md (a GitHub Personal Access Token)
+  - Linkedin.md (a Composio API key, entity/project/org IDs)
+  input: N/A.
+  output: N/A.
+  rules:
+  - 'The Supabase anon key is legitimately client-side already (also embedded in stage0/page.tsx) -- not
+    the issue. The SERVICE-ROLE key and DB password sitting in a plain markdown file IS the issue: either
+    is sufficient to bypass RLS entirely.'
+  - This is a genuine, real finding from this session's research, not carried over from a prior audit
+    -- surfaced here because a 'granular tree of everything' would be dishonest if it silently walked
+    past committed secrets.
+  guardrails:
+  - No guardrail currently prevents committing secrets to this repo -- confirmed by their presence. VEDA_ADVISORS_GOVERNANCE.md's
+    own SENTINEL.yaml DOES list 'no committed secrets' as a validation rule (see VA-09), meaning the rule
+    exists on paper but the 3 files in this finding predate or bypassed it.
+  workflow:
+  - 'Recommended remediation (not performed by this tree): rotate the exposed Supabase service-role key
+    + DB password + GitHub PAT + Composio API key, then remove them from these files'' git history, not
+    just the working tree.'
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-02
+  name: Top-level structure
+  objects:
+  - website/ (static generated demo site)
+  - docs/ (strategy.md, build-prompt.md)
+  - memory-notes/ (progress.md, see VA-01)
+  - code-by-zai/ (the REAL Next.js app + governance layer)
+  - root .md/.js files (MASTER_IMPLEMENTATION_PROMPT.md, Veda_Advisors_Master_Prompt.md, Linkedin.md,
+    LinkedIn_update.md, linkedin_auto_update.js)
+  input: N/A.
+  output: N/A.
+  rules:
+  - No repo-root .git -- code-by-zai/ is itself a separate git checkout of FChecklist/veda-advisors nested
+    inside this folder, which is the actual tracked repo.
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-03
+  name: website/ -- static, single-page HTML (NOT a Next.js app)
+  objects:
+  - 'website/index.html (3223 lines, 12 <section>s: hero/pain/numbers/proof/bscvi/rajat/audience/filter/stage0/global/whatsapp-cta/nav-footer)'
+  - website/images/ (26 files)
+  input: N/A -- no build step, meant to be opened directly in a browser.
+  output: A static marketing page.
+  rules:
+  - Near-identical (6-line diff) to code-by-zai/VedaAdvisors_Demo/index.html and code-by-zai/public/demo.html
+    -- 3 copies of the same generated demo site exist in the repo.
+  guardrails: []
+  workflow:
+  - Generated by '12 Python modules -> 12 HTML fragments -> 1 merged file' per its own header comment.
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-04
+  name: code-by-zai/src/app/ -- the real Next.js 16 App Router site
+  objects:
+  - / -- iframes /demo.html (the static generated site) -- the homepage is literally a wrapper, not a
+    native React homepage
+  - /founders -- '4 real reasons founders don't raise,' BSCVI 3.0 stage list, CTA
+  - /students -- myth/truth cards, Rajat Sir bio, 3-step how-it-works
+  - /india -- proof stats (UElement 15Cr, ARC Electric 3Cr, 400+ funded), India-specific fundraising differences
+  - /stage0 -- THE lead-capture funnel (see VA-07)
+  - layout.tsx (full SEO metadata for veda-advisors.vercel.app), sitemap.ts
+  input: Site visitors.
+  output: Rendered marketing pages.
+  rules:
+  - /founders, /students, /india share the same inline-style layout pattern (copy-pasted, not shared as
+    components) -- content differs, structure doesn't.
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-05
+  name: code-by-zai/src/app/api/ -- minimal, mostly stubs
+  objects:
+  - api/route.ts -- trivial GET hello-world stub, unused
+  - api/veda/route.ts -- GET, serves VedaAdvisors_Demo/index.html off disk as raw HTML
+  input: N/A.
+  output: N/A.
+  rules:
+  - No /api/contact, /api/consultation, /api/leads, or /api/health routes actually exist, DESPITE being
+    documented as IMPLEMENTED in ai-os/registry/ARTIFACTS.yaml -- that registry file is confirmed aspirational/stale,
+    not a description of real code. See VA-09.
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-06
+  name: Backend/DB reality
+  objects:
+  - Supabase (the REAL backing store)
+  - Prisma + SQLite (leftover template boilerplate, unused by any real route)
+  input: N/A.
+  output: N/A.
+  rules:
+  - stage0/page.tsx posts DIRECTLY (client-side fetch, no server route in between) to https://pcrjmlpuqsbocqfwoxod.supabase.co/rest/v1/stage0_submissions
+    using a HARDCODED anon key in source, rather than reading NEXT_PUBLIC_SUPABASE_URL/ANON_KEY from .env.local
+    (which exist but go unused by this specific code path).
+  - prisma/schema.prisma targets SQLite with generic unrelated User/Post models -- confirmed leftover
+    template boilerplate (a local db/custom.db SQLite file exists), NOT the live data layer. src/lib/db.ts
+    sets up a Prisma client singleton nothing actually imports.
+  - .env (DATABASE_URL only) and .env.local (Supabase keys) are BOTH tracked in the working tree -- 2
+    open PRs (#13/#14) exist to fix this, per VEDA_ADVISORS_GOVERNANCE.md's own honesty ledger.
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-07
+  name: Stage 0 lead-capture funnel -- the ONE real interactive business flow
+  objects:
+  - code-by-zai/src/app/stage0/page.tsx
+  - stage0_submissions (Supabase table)
+  input: 'A multi-step wizard: intro -> 7 questions (startup name/problem, current stage, investor-approach
+    history, biggest fear, funding urgency, amount+use, self-rated readiness 1-10) -> contact capture
+    (name/email required, WhatsApp optional).'
+  output: A row in stage0_submissions; on success, a 'what happens next' screen (acknowledgement email,
+    personalized-observation + free-session-booking email within 24h) + a WhatsApp fallback (wa.me/919650397480).
+  rules:
+  - No payment step anywhere in the code -- Stage 0 and the initial session are explicitly free/no-commitment.
+    No course-purchase/checkout flow exists (the only mention of payments is in docs/build-prompt.md,
+    which itself says the login/payments/portal backend is explicitly non-functional in the demo).
+  guardrails:
+  - Submits directly to Supabase REST client-side -- no server-side validation route sits between the
+    form and the DB write, meaning any RLS misconfiguration on stage0_submissions would be directly exploitable.
+    Not verified either way in this pass; flagged as worth checking, not asserted as broken.
+  workflow:
+  - Intro -> 7 questions -> contact info -> submit to Supabase -> confirmation screen with WhatsApp fallback.
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-08
+  name: BSCVI 3.0 -- the core advisory methodology (business content, not code, but repeated verbatim
+    across the codebase)
+  objects:
+  - Stage 0 (READINESS, free)
+  - Stage 1 (IDENTIFY -- 10 matched investors)
+  - Stage 2 (APPROACH -- personalized investor approach)
+  - Stage 3 (OFFER -- 'The Godfather Offer')
+  - Stage 4 (CLOSE -- docs, term sheets, negotiation)
+  - Stage 5 (SUSTAIN -- post-close structuring, next-round scouting)
+  input: N/A -- business methodology.
+  output: N/A.
+  rules:
+  - Repeated verbatim across /founders, docs/strategy.md, and linkedin_auto_update.js -- the canonical
+    description lives in docs/strategy.md.
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-09
+  name: Ported governance layer (code-by-zai/) -- a scaled-down version of compliance-tracker's pattern
+  objects:
+  - 'AGENTS.md (Z.ai GLM + Claude Code, both FULL_ACCESS; flags a standing item: agents self-granted FULL_ACCESS
+    incl. merge/delete via a bot-authored [skip ci] commit on 2026-06-28, needing Owner reconfirmation)'
+  - CLAUDE.md, SENTINEL.md (prime directives, pre-task checklist, human-approval-gate table, confidence
+    rules, hallucination-prevention, endless-loop escalation)
+  - VEDA_ADVISORS_GOVERNANCE.md (2026-07-11, newest -- a lighter single-document replacement for compliance-tracker's
+    3-document constitution; contains a 'guardrail honesty ledger' tagging each claim ENFORCED/PARTIALLY
+    ENFORCED/NOT ENFORCED/NOT APPLICABLE with evidence)
+  - ai-os/OS.yaml, LIFECYCLE.yaml (11-stage task lifecycle), boss/BOSS.yaml (VEDAADVISORBOSS + 5 sub-agent
+    roles), BOARD.yaml, ROSTER.yaml (confirmed EMPTY -- the 'register before working' rule has never been
+    followed), COMPLETED.yaml (near-empty)
+  - ai-os/engines/ENGINES.yaml, sentinel/{SENTINEL,VIOLATIONS,HEALTH}.yaml, registry/ARTIFACTS.yaml (see
+    VA-05's overstatement finding), specs/modules/SPEC-MOD-*.yaml (10 stubs, all DRAFT), schemas/*.schema.json,
+    secrets/SECRETS_REFERENCE.md
+  - .github/workflows/{ai-dispatch,ci,codeql,sentinel}.yml -- ci.yml's steps are mostly wrapped in '||
+    echo "::warning"' so they CANNOT actually fail the job, per the governance doc's own honesty ledger
+  input: N/A -- governance state.
+  output: N/A.
+  rules:
+  - 'VEDA_ADVISORS_GOVERNANCE.md confirms via code grep: NO AI-facing feature exists in the shipped product
+    (zero LLM SDK usage in src/).'
+  - This is the MOST self-critical governance documentation found across any of the 4 repos in this tree
+    -- it explicitly documents where its own CI is not a real gate, where ARTIFACTS.yaml overstates reality,
+    and an unresolved FULL_ACCESS self-grant needing Owner sign-off.
+  guardrails:
+  - VEDA_ADVISORS_GOVERNANCE.md's honesty-ledger + sentinel.yml's gitleaks/credential-pattern CI scan
+    are the closest thing to a guardrail against VA-01's finding -- evidently insufficient, since the
+    finding exists despite them (the flagged files may predate the scan, or the scan may not catch markdown-embedded
+    credentials as reliably as source code).
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-10
+  name: Tests (present, but disconnected from real routes)
+  objects:
+  - src/__tests__/api/contact.test.ts (Vitest -- generic validation/rate-limit logic, not wired to a real
+    /api/contact endpoint since one doesn't exist)
+  - src/__tests__/seo.test.ts (buildCanonical tests against vedaadvisors.com, a domain the live site doesn't
+    actually use)
+  - e2e/homepage.spec.ts (Playwright -- checks for a /consultation link/'Book' button that DOESN'T EXIST
+    in the real / page, which is just the demo.html iframe)
+  input: N/A.
+  output: N/A.
+  rules:
+  - All 3 test files exercise logic/assertions that don't correspond to the app's actual current routes
+    -- confirmed test/reality mismatch, not a false alarm.
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VA-11
+  name: Ancillary content/automation
+  objects:
+  - Linkedin.md / LinkedIn_update.md (Claude-facing reference docs)
+  - linkedin_auto_update.js (a browser-console script pasted directly into DevTools on Rajat's LinkedIn
+    profile page, working around Chrome MCP's LinkedIn domain block via clipboard-paste, rewrites Headline/About/a
+    job description entry/Featured link)
+  input: Manual execution in browser DevTools.
+  output: Rajat's LinkedIn profile updated to match the new BSCVI 3.0 brand copy.
+  rules: []
+  guardrails: []
+  workflow: []
+  source: 30-veda-advisors
+  repo: veda-advisors
+- id: VB-01
+  name: Entire repo (placeholder scaffold)
+  objects:
+  - README.md (3218 bytes)
+  - package.json (232 bytes)
+  - packages/ (empty directory)
+  input: N/A.
+  output: N/A.
+  rules:
+  - 'Repo description: "VERIDIAN AI OS ''Brain'' -- Phase A groundwork scaffold. Not yet extracted from
+    compliance-tracker; see README." -- confirmed accurate: nothing beyond a README and package.json exists.'
+  - Not worth a granular tree yet -- there is no functional surface to decompose.
+  guardrails: []
+  workflow: []
+  source: 40-veridian-brain
+  repo: veridian-brain
+count_of_domains: 94
+
+count_of_domains: 94

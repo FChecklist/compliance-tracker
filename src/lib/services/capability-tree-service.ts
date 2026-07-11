@@ -212,6 +212,603 @@ const MATH_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
 }
 Object.assign(WIRED_ENGINE_INPUT_FIELDS, MATH_WIRED_ENGINE_INPUT_FIELDS)
 
+// Income Tax Engine -- third full category wired end to end (9 of 9
+// registered engines; all already `status: 'implemented'` in
+// computation_engines, this closes the remaining code-side gap). Slab
+// rates/rebate rules are statutory data isolated in income-tax-engine.ts
+// itself, never re-typed in this UI-field layer.
+const QUARTER_OPTIONS = [
+  { value: "q1", label: "Q1" }, { value: "q2", label: "Q2" },
+  { value: "q3", label: "Q3" }, { value: "q4", label: "Q4" },
+]
+const SECTION_OPTIONS = [
+  { value: "234A", label: "234A -- late filing" }, { value: "234B", label: "234B -- short advance tax" },
+  { value: "234C", label: "234C -- deferred installment" },
+]
+const ASSET_TYPE_OPTIONS = [
+  { value: "equity", label: "Equity" }, { value: "other", label: "Other" },
+]
+
+const INCOME_TAX_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  income_tax_calculator: [{ key: "taxableIncome", label: "Taxable income (₹)", type: "number" }],
+  advance_tax_calculator: [
+    { key: "estimatedAnnualTax", label: "Estimated annual tax (₹)", type: "number" },
+    { key: "quarter", label: "Quarter", type: "select", options: QUARTER_OPTIONS },
+    { key: "alreadyPaid", label: "Already paid this year (₹)", type: "number" },
+  ],
+  self_assessment_tax_calculator: [
+    { key: "totalTaxLiability", label: "Total tax liability (₹)", type: "number" },
+    { key: "tdsDeducted", label: "TDS already deducted (₹)", type: "number" },
+    { key: "advanceTaxPaid", label: "Advance tax paid (₹)", type: "number" },
+    { key: "interestDue", label: "Interest due, if any (₹, optional)", type: "number", optional: true },
+  ],
+  income_tax_interest_calculator: [
+    { key: "unpaidAmount", label: "Unpaid amount (₹)", type: "number" },
+    { key: "monthsDelayed", label: "Months delayed", type: "number" },
+    { key: "section", label: "Section (optional, defaults to 234B)", type: "select", options: SECTION_OPTIONS, optional: true },
+  ],
+  income_tax_penalty_calculator: [
+    { key: "totalIncome", label: "Total income (₹)", type: "number" },
+    { key: "filedAfterDueDate", label: "Filed after due date? (yes/no)", type: "text" },
+  ],
+  capital_gains_calculator: [
+    { key: "saleValue", label: "Sale value (₹)", type: "number" },
+    { key: "costOfAcquisition", label: "Cost of acquisition (₹)", type: "number" },
+    { key: "costOfImprovement", label: "Cost of improvement (₹, optional)", type: "number", optional: true },
+    { key: "expensesOnTransfer", label: "Expenses on transfer (₹, optional)", type: "number", optional: true },
+    { key: "isLongTerm", label: "Long-term? (yes/no)", type: "text" },
+    { key: "assetType", label: "Asset type (optional)", type: "select", options: ASSET_TYPE_OPTIONS, optional: true },
+  ],
+  indexation_calculator: [
+    { key: "originalCost", label: "Original cost (₹)", type: "number" },
+    { key: "costInflationIndexAtPurchase", label: "Cost Inflation Index at purchase", type: "number" },
+    { key: "costInflationIndexAtSale", label: "Cost Inflation Index at sale", type: "number" },
+  ],
+  mat_calculator: [
+    { key: "bookProfit", label: "Book profit (₹)", type: "number" },
+    { key: "normalTaxLiability", label: "Normal tax liability (₹)", type: "number" },
+  ],
+  amt_calculator: [
+    { key: "adjustedTotalIncome", label: "Adjusted total income (₹)", type: "number" },
+    { key: "normalTaxLiability", label: "Normal tax liability (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, INCOME_TAX_WIRED_ENGINE_INPUT_FIELDS)
+
+// TDS/TCS Engine (tree4-unified/50-completion-plan PLAN-18 batch 2, Wave
+// 165) -- 6 of 7 registered engines wired here (all pure functions, all
+// already `status: 'implemented'`). tds_calculator (the 7th) deliberately
+// deferred -- it maps to erp-payroll-service.ts's computeAnnualTds, a
+// private, payroll-context-coupled function (needs employee/slab DB rows,
+// not a general-purpose pure calculator like the other 6), so wiring it
+// here would mean either exporting a payroll-internal function into a
+// general VCEL surface or building a real adapter -- a decision that
+// deserves its own pass, not a rushed addition at the end of this one.
+const TDS_SECTION_OPTIONS = [
+  { value: "194A", label: "194A -- Interest other than securities" },
+  { value: "194C", label: "194C -- Payment to contractors" },
+  { value: "194H", label: "194H -- Commission or brokerage" },
+  { value: "194I", label: "194I -- Rent (land/building/furniture)" },
+  { value: "194J", label: "194J -- Professional/technical fees" },
+  { value: "194Q", label: "194Q -- Purchase of goods" },
+]
+const TDS_DELAY_TYPE_OPTIONS = [
+  { value: "late_deduction", label: "Late deduction" },
+  { value: "late_deposit", label: "Late deposit" },
+]
+
+const TDS_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  tcs_calculator: [
+    { key: "saleValue", label: "Sale value (₹)", type: "number" },
+    { key: "ratePercent", label: "TCS rate (%)", type: "number" },
+    { key: "thresholdAmount", label: "Threshold amount (₹, optional)", type: "number", optional: true },
+  ],
+  tds_threshold_checker: [
+    { key: "section", label: "TDS section", type: "select", options: TDS_SECTION_OPTIONS },
+    { key: "cumulativePaymentAmount", label: "Cumulative payment amount this year (₹)", type: "number" },
+  ],
+  tds_section_validation_engine: [
+    { key: "section", label: "TDS section", type: "select", options: TDS_SECTION_OPTIONS },
+    { key: "paymentAmount", label: "Payment amount (₹)", type: "number" },
+    { key: "cumulativePaymentAmount", label: "Cumulative payment amount this year (₹)", type: "number" },
+    { key: "hasPan", label: "Payee has PAN on file? (yes/no, optional -- defaults yes)", type: "text", optional: true },
+  ],
+  tds_interest_engine: [
+    { key: "tdsAmount", label: "TDS amount (₹)", type: "number" },
+    { key: "monthsDelayed", label: "Months delayed", type: "number" },
+    { key: "delayType", label: "Delay type", type: "select", options: TDS_DELAY_TYPE_OPTIONS },
+  ],
+  pan_validation_engine: [{ key: "pan", label: "PAN number", type: "text" }],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, TDS_WIRED_ENGINE_INPUT_FIELDS)
+
+// Accounting Computation Engine (tree4-unified/50-completion-plan area 8,
+// Wave 167) -- UI fields only for the 5 of 11 wired engines with simple
+// scalar inputs. The other 6 (balance_verification/consolidation/
+// notes_to_accounts_generator/duplicate_entry_detection/ledger_reconciliation/
+// voucher_validation's `lines` array) take arrays of objects -- dispatchable
+// via dispatchEngine() but with no matching CapabilityInputField type today,
+// same situation as challan_matching_engine.
+const ACCOUNTING_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  opening_balance_engine: [{ key: "priorClosingBalance", label: "Prior period's closing balance (₹)", type: "number" }],
+  closing_balance_engine: [
+    { key: "openingBalance", label: "Opening balance (₹)", type: "number" },
+    { key: "totalDebits", label: "Total debits this period (₹)", type: "number" },
+    { key: "totalCredits", label: "Total credits this period (₹)", type: "number" },
+    { key: "isDebitNormal", label: "Debit-normal account? (yes/no)", type: "text" },
+  ],
+  fund_flow_engine: [
+    { key: "openingWorkingCapital", label: "Opening working capital (₹)", type: "number" },
+    { key: "closingWorkingCapital", label: "Closing working capital (₹)", type: "number" },
+  ],
+  statement_changes_equity_engine: [
+    { key: "openingBalance", label: "Opening equity balance (₹)", type: "number" },
+    { key: "profitForPeriod", label: "Profit for the period (₹)", type: "number" },
+    { key: "dividendsPaid", label: "Dividends paid (₹, optional)", type: "number", optional: true },
+    { key: "capitalIntroduced", label: "Capital introduced (₹, optional)", type: "number", optional: true },
+    { key: "otherComprehensiveIncome", label: "Other comprehensive income (₹, optional)", type: "number", optional: true },
+  ],
+  suspense_account_detection_engine: [{ key: "suspenseAccountBalance", label: "Suspense account balance (₹)", type: "number" }],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, ACCOUNTING_WIRED_ENGINE_INPUT_FIELDS)
+
+// Payroll Engine (tree4-unified/50-completion-plan area 8, Wave 167) --
+// UI fields for 12 of 14 wired engines. incentive_calculator (incentiveSlabs
+// array) and salary_revision_calculator (components object) take non-scalar
+// inputs -- dispatchable, no chat-composer form yet, same as other array-
+// shaped engines above.
+const PAYROLL_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  gratuity_calculator: [
+    { key: "lastDrawnMonthlySalary", label: "Last drawn monthly salary, basic+DA (₹)", type: "number" },
+    { key: "yearsOfService", label: "Years of service (fractional allowed, e.g. 7.6)", type: "number" },
+    { key: "isCoveredUnderAct", label: "Covered under Payment of Gratuity Act? (yes/no, optional -- defaults yes)", type: "text", optional: true },
+  ],
+  eps_calculator: [{ key: "monthlyBasicPlusDa", label: "Monthly basic + DA (₹)", type: "number" }],
+  labour_welfare_fund_calculator: [
+    { key: "employeeContribution", label: "Employee contribution (₹)", type: "number" },
+    { key: "employerContribution", label: "Employer contribution (₹)", type: "number" },
+  ],
+  bonus_calculator: [
+    { key: "annualBasicPlusDa", label: "Annual basic + DA (₹)", type: "number" },
+    { key: "bonusPercent", label: "Bonus percent (8.33 to 20)", type: "number" },
+  ],
+  commission_calculator: [
+    { key: "saleAmount", label: "Sale amount (₹)", type: "number" },
+    { key: "commissionRatePercent", label: "Commission rate (%)", type: "number" },
+  ],
+  overtime_calculator: [
+    { key: "monthlyBasicPlusDa", label: "Monthly basic + DA (₹)", type: "number" },
+    { key: "standardMonthlyHours", label: "Standard monthly hours", type: "number" },
+    { key: "overtimeHours", label: "Overtime hours", type: "number" },
+    { key: "multiplier", label: "Overtime multiplier (optional, defaults 2x)", type: "number", optional: true },
+  ],
+  shift_allowance_calculator: [
+    { key: "shiftDays", label: "Shift days", type: "number" },
+    { key: "allowancePerShift", label: "Allowance per shift (₹)", type: "number" },
+  ],
+  leave_encashment_calculator: [
+    { key: "lastDrawnMonthlySalary", label: "Last drawn monthly salary (₹)", type: "number" },
+    { key: "unusedLeaveDays", label: "Unused leave days", type: "number" },
+  ],
+  superannuation_calculator: [
+    { key: "annualBasic", label: "Annual basic (₹)", type: "number" },
+    { key: "contributionPercent", label: "Contribution percent (optional, defaults 15%)", type: "number", optional: true },
+  ],
+  full_final_settlement_calculator: [
+    { key: "unpaidSalary", label: "Unpaid salary (₹)", type: "number" },
+    { key: "leaveEncashment", label: "Leave encashment (₹)", type: "number" },
+    { key: "gratuity", label: "Gratuity (₹, optional)", type: "number", optional: true },
+    { key: "bonus", label: "Bonus (₹, optional)", type: "number", optional: true },
+    { key: "recoveries", label: "Recoveries (₹, optional)", type: "number", optional: true },
+  ],
+  arrear_calculator: [
+    { key: "revisedMonthlyPay", label: "Revised monthly pay (₹)", type: "number" },
+    { key: "originalMonthlyPay", label: "Original monthly pay (₹)", type: "number" },
+    { key: "affectedMonths", label: "Affected months", type: "number" },
+  ],
+  increment_calculator: [
+    { key: "currentSalary", label: "Current salary (₹)", type: "number" },
+    { key: "incrementPercent", label: "Increment percent", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, PAYROLL_WIRED_ENGINE_INPUT_FIELDS)
+
+// Inventory Engine (tree4-unified/50-completion-plan area 8, Wave 168) --
+// UI fields for 6 of 15 wired engines with simple scalar inputs. The other
+// 9 take arrays of lots/items -- dispatchable, no chat-composer form yet.
+const CYCLE_COUNT_ABC_OPTIONS = [{ value: "A", label: "A (highest value)" }, { value: "B", label: "B" }, { value: "C", label: "C (lowest value)" }]
+
+const INVENTORY_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  standard_cost_engine: [
+    { key: "actualCost", label: "Actual cost per unit (₹)", type: "number" },
+    { key: "standardCost", label: "Standard cost per unit (₹)", type: "number" },
+    { key: "quantity", label: "Quantity", type: "number" },
+  ],
+  moving_average_engine: [
+    { key: "currentQty", label: "Current quantity on hand", type: "number" },
+    { key: "currentAvgCost", label: "Current average cost (₹)", type: "number" },
+    { key: "receiptQty", label: "Quantity received", type: "number" },
+    { key: "receiptCost", label: "Cost of received quantity (₹)", type: "number" },
+  ],
+  eoq_calculator: [
+    { key: "annualDemand", label: "Annual demand (units)", type: "number" },
+    { key: "orderingCostPerOrder", label: "Ordering cost per order (₹)", type: "number" },
+    { key: "holdingCostPerUnitPerYear", label: "Holding cost per unit per year (₹)", type: "number" },
+  ],
+  reorder_level_calculator: [
+    { key: "avgDailyUsage", label: "Average daily usage", type: "number" },
+    { key: "leadTimeDays", label: "Lead time (days)", type: "number" },
+    { key: "safetyStock", label: "Safety stock", type: "number" },
+  ],
+  safety_stock_calculator: [
+    { key: "maxDailyUsage", label: "Max daily usage", type: "number" },
+    { key: "maxLeadTimeDays", label: "Max lead time (days)", type: "number" },
+    { key: "avgDailyUsage", label: "Average daily usage", type: "number" },
+    { key: "avgLeadTimeDays", label: "Average lead time (days)", type: "number" },
+  ],
+  cycle_counting_engine: [{ key: "abcClass", label: "ABC class", type: "select", options: CYCLE_COUNT_ABC_OPTIONS }],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, INVENTORY_WIRED_ENGINE_INPUT_FIELDS)
+
+// HR Engine (tree4-unified/50-completion-plan area 8, Wave 168) -- UI
+// fields for 6 of 9 wired engines. shift_planner/roster_engine/
+// performance_score_calculator take array inputs -- dispatchable, no
+// chat-composer form yet.
+const HR_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  attendance_calculator: [
+    { key: "presentDays", label: "Present days", type: "number" },
+    { key: "totalWorkingDays", label: "Total working days", type: "number" },
+  ],
+  leave_balance_engine: [
+    { key: "openingBalance", label: "Opening leave balance", type: "number" },
+    { key: "accrued", label: "Leave accrued", type: "number" },
+    { key: "taken", label: "Leave taken", type: "number" },
+  ],
+  experience_calculator: [
+    { key: "fromDate", label: "From date (YYYY-MM-DD)", type: "text" },
+    { key: "toDate", label: "To date (YYYY-MM-DD)", type: "text" },
+  ],
+  notice_period_calculator: [
+    { key: "resignationDate", label: "Resignation date (YYYY-MM-DD)", type: "text" },
+    { key: "noticePeriodDays", label: "Notice period (days)", type: "number" },
+  ],
+  probation_calculator: [
+    { key: "joiningDate", label: "Joining date (YYYY-MM-DD)", type: "text" },
+    { key: "probationMonths", label: "Probation period (months)", type: "number" },
+  ],
+  attrition_calculator: [
+    { key: "separations", label: "Separations in period", type: "number" },
+    { key: "openingHeadcount", label: "Opening headcount", type: "number" },
+    { key: "closingHeadcount", label: "Closing headcount", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, HR_WIRED_ENGINE_INPUT_FIELDS)
+
+// Banking Engine (tree4-unified/50-completion-plan area 8, Wave 168) --
+// UI fields for 5 of 8 wired engines. cash_flow_projection/
+// outstanding_cheque_engine take array inputs -- dispatchable, no
+// chat-composer form yet.
+const BANKING_INTEREST_METHOD_OPTIONS = [{ value: "simple", label: "Simple" }, { value: "compound_daily", label: "Compound (daily)" }]
+
+const BANKING_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  emi_calculator: [
+    { key: "principal", label: "Loan principal (₹)", type: "number" },
+    { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },
+    { key: "tenureMonths", label: "Tenure (months)", type: "number" },
+  ],
+  banking_interest_calculator: [
+    { key: "principal", label: "Principal (₹)", type: "number" },
+    { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },
+    { key: "days", label: "Number of days", type: "number" },
+    { key: "method", label: "Method (optional, defaults simple)", type: "select", options: BANKING_INTEREST_METHOD_OPTIONS, optional: true },
+  ],
+  deposit_maturity_engine: [
+    { key: "principal", label: "Deposit principal (₹)", type: "number" },
+    { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },
+    { key: "tenureMonths", label: "Tenure (months)", type: "number" },
+    { key: "compoundingFrequencyPerYear", label: "Compounding frequency per year (optional, defaults quarterly)", type: "number", optional: true },
+  ],
+  credit_limit_calculator: [
+    { key: "monthlyIncome", label: "Monthly income (₹)", type: "number" },
+    { key: "multiplier", label: "Income multiplier", type: "number" },
+    { key: "existingMonthlyObligations", label: "Existing monthly obligations (₹, optional)", type: "number", optional: true },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, BANKING_WIRED_ENGINE_INPUT_FIELDS)
+
+// Procurement Engine (tree4-unified/50-completion-plan area 8, Wave 169) --
+// UI fields for 4 of 7 wired engines. vendor_comparison_engine/
+// bid_evaluation_engine/freight_allocation_engine take array inputs --
+// dispatchable, no chat-composer form yet.
+const PROCUREMENT_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  purchase_cost_calculator: [
+    { key: "unitPrice", label: "Unit price (₹)", type: "number" },
+    { key: "quantity", label: "Quantity", type: "number" },
+    { key: "otherCharges", label: "Other charges (₹, optional)", type: "number", optional: true },
+  ],
+  purchase_price_variance_engine: [
+    { key: "standardPrice", label: "Standard price (₹)", type: "number" },
+    { key: "actualPrice", label: "Actual price (₹)", type: "number" },
+    { key: "quantity", label: "Quantity", type: "number" },
+  ],
+  landed_cost_engine: [
+    { key: "purchaseCost", label: "Purchase cost (₹)", type: "number" },
+    { key: "freight", label: "Freight (₹)", type: "number" },
+    { key: "insurance", label: "Insurance (₹, optional)", type: "number", optional: true },
+    { key: "customsDuty", label: "Customs duty (₹, optional)", type: "number", optional: true },
+    { key: "otherCharges", label: "Other charges (₹, optional)", type: "number", optional: true },
+    { key: "quantity", label: "Quantity", type: "number" },
+  ],
+  moq_optimizer: [
+    { key: "requiredQuantity", label: "Required quantity", type: "number" },
+    { key: "moq", label: "Minimum order quantity (MOQ)", type: "number" },
+    { key: "orderMultiple", label: "Order multiple (optional, defaults to MOQ)", type: "number", optional: true },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, PROCUREMENT_WIRED_ENGINE_INPUT_FIELDS)
+
+// Security Engine (tree4-unified/50-completion-plan area 8, Wave 169) --
+// UI fields for hash_generation_engine and access_control_evaluation_engine
+// only. digital_signature_engine's shape depends on mode (sign vs verify,
+// different field sets) -- dispatchable, no single static form fits both.
+const HASH_ALGORITHM_OPTIONS = [{ value: "sha256", label: "SHA-256" }, { value: "sha512", label: "SHA-512" }]
+
+const SECURITY_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  hash_generation_engine: [
+    { key: "input", label: "Text to hash", type: "text" },
+    { key: "algorithm", label: "Algorithm (optional, defaults SHA-256)", type: "select", options: HASH_ALGORITHM_OPTIONS, optional: true },
+    { key: "secret", label: "HMAC secret (optional -- if set, computes an HMAC instead of a plain hash)", type: "text", optional: true },
+  ],
+  access_control_evaluation_engine: [
+    { key: "domain", label: "Business domain", type: "text" },
+    { key: "codeReference", label: "Tool code reference", type: "text" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, SECURITY_WIRED_ENGINE_INPUT_FIELDS)
+
+// Audit Engine (tree4-unified/50-completion-plan area 8, Wave 169) -- UI
+// fields for 2 of 7 wired engines with simple scalar inputs. The rest take
+// arrays -- dispatchable, no chat-composer form yet.
+const MATERIALITY_BASE_TYPE_OPTIONS = [
+  { value: "revenue", label: "Revenue (0.75%)" }, { value: "net_profit", label: "Net profit (7.5%)" }, { value: "total_assets", label: "Total assets (1%)" },
+]
+
+const AUDIT_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  materiality_calculator: [
+    { key: "baseAmount", label: "Base amount (₹)", type: "number" },
+    { key: "baseType", label: "Base type", type: "select", options: MATERIALITY_BASE_TYPE_OPTIONS },
+  ],
+  journal_risk_analyzer: [
+    { key: "amount", label: "Journal entry amount (₹)", type: "number" },
+    { key: "postedAt", label: "Posted date (YYYY-MM-DD)", type: "text" },
+    { key: "isManual", label: "Manual entry? (yes/no)", type: "text" },
+    { key: "periodEndDate", label: "Period end date (YYYY-MM-DD)", type: "text" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, AUDIT_WIRED_ENGINE_INPUT_FIELDS)
+
+// Compliance Engine (tree4-unified/50-completion-plan area 8, Wave 169) --
+// UI fields for 2 of 4 wired engines with simple scalar inputs.
+const COMPLIANCE_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  compliance_interest_calculator: [
+    { key: "amount", label: "Amount (₹)", type: "number" },
+    { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },
+    { key: "daysLate", label: "Days late", type: "number" },
+  ],
+  compliance_risk_scoring: [
+    { key: "overdueItemsCount", label: "Overdue items count", type: "number" },
+    { key: "pastPenaltiesCount", label: "Past penalties count", type: "number" },
+    { key: "totalItemsCount", label: "Total items count", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, COMPLIANCE_WIRED_ENGINE_INPUT_FIELDS)
+
+// Analytics Engine (tree4-unified/50-completion-plan area 8, Wave 169) --
+// UI fields for 2 of 6 wired engines with simple scalar inputs. The rest
+// take arrays -- dispatchable, no chat-composer form yet.
+const ANALYTICS_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  analytics_variance_engine: [
+    { key: "actual", label: "Actual value", type: "number" },
+    { key: "expected", label: "Expected value", type: "number" },
+  ],
+  benchmark_comparison_engine: [
+    { key: "actualValue", label: "Actual value", type: "number" },
+    { key: "benchmarkValue", label: "Benchmark value", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, ANALYTICS_WIRED_ENGINE_INPUT_FIELDS)
+
+// Logistics Engine (tree4-unified/50-completion-plan area 8, Wave 169) --
+// UI fields for 5 of 6 wired engines. route_optimization_engine takes an
+// array of geo points -- dispatchable, no chat-composer form yet.
+const LOGISTICS_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  freight_calculator: [
+    { key: "actualWeightKg", label: "Actual weight (kg)", type: "number" },
+    { key: "volumeCbm", label: "Volume (cbm)", type: "number" },
+    { key: "ratePerKg", label: "Rate per kg (₹)", type: "number" },
+    { key: "volumetricDivisor", label: "Volumetric divisor (optional, defaults 167)", type: "number", optional: true },
+  ],
+  delivery_eta_engine: [
+    { key: "distanceKm", label: "Distance (km)", type: "number" },
+    { key: "avgSpeedKmh", label: "Average speed (km/h)", type: "number" },
+    { key: "handlingBufferHours", label: "Handling buffer (hours, optional, defaults 2)", type: "number", optional: true },
+  ],
+  vehicle_utilization_engine: [
+    { key: "loadedWeightKg", label: "Loaded weight (kg)", type: "number" },
+    { key: "vehicleCapacityKg", label: "Vehicle capacity (kg)", type: "number" },
+  ],
+  container_utilization_engine: [
+    { key: "loadedVolumeCbm", label: "Loaded volume (cbm)", type: "number" },
+    { key: "containerCapacityCbm", label: "Container capacity (cbm)", type: "number" },
+  ],
+  shipment_cost_calculator: [
+    { key: "freight", label: "Freight (₹)", type: "number" },
+    { key: "handling", label: "Handling (₹, optional)", type: "number", optional: true },
+    { key: "insurance", label: "Insurance (₹, optional)", type: "number", optional: true },
+    { key: "customs", label: "Customs (₹, optional)", type: "number", optional: true },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, LOGISTICS_WIRED_ENGINE_INPUT_FIELDS)
+
+// Marketing Engine (tree4-unified/50-completion-plan area 8, Wave 170) --
+// UI fields for 3 of 6 wired engines. attribution_engine/
+// campaign_scoring_engine/funnel_conversion_calculator take array/object
+// inputs -- dispatchable, no chat-composer form yet.
+const MARKETING_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  marketing_roi_calculator: [
+    { key: "revenueGenerated", label: "Revenue generated (₹)", type: "number" },
+    { key: "marketingSpend", label: "Marketing spend (₹)", type: "number" },
+  ],
+  cac_calculator: [
+    { key: "totalAcquisitionSpend", label: "Total acquisition spend (₹)", type: "number" },
+    { key: "newCustomersAcquired", label: "New customers acquired", type: "number" },
+  ],
+  roas_calculator: [
+    { key: "revenueFromAds", label: "Revenue from ads (₹)", type: "number" },
+    { key: "adSpend", label: "Ad spend (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, MARKETING_WIRED_ENGINE_INPUT_FIELDS)
+
+// Project Management Engine (tree4-unified/50-completion-plan area 8,
+// Wave 170) -- UI fields for 3 of 6 wired engines with simple scalar
+// inputs. critical_path_engine/resource_allocation_engine/
+// burndown_calculator take array inputs -- dispatchable, no chat-composer
+// form yet.
+const PM_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  cost_variance_engine: [
+    { key: "earnedValue", label: "Earned value (₹)", type: "number" },
+    { key: "actualCost", label: "Actual cost (₹)", type: "number" },
+  ],
+  schedule_variance_engine: [
+    { key: "earnedValue", label: "Earned value (₹)", type: "number" },
+    { key: "plannedValue", label: "Planned value (₹)", type: "number" },
+  ],
+  earned_value_calculator: [
+    { key: "plannedValue", label: "Planned value (₹)", type: "number" },
+    { key: "earnedValue", label: "Earned value (₹)", type: "number" },
+    { key: "actualCost", label: "Actual cost (₹)", type: "number" },
+    { key: "budgetAtCompletion", label: "Budget at completion (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, PM_WIRED_ENGINE_INPUT_FIELDS)
+
+// CRM Engine (tree4-unified/50-completion-plan area 8, Wave 170) -- UI
+// fields for 4 of 5 wired engines with simple scalar inputs.
+// rfm_scoring_engine takes an array of customers -- dispatchable, no
+// chat-composer form yet.
+const CRM_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  customer_lifetime_value_calculator: [
+    { key: "avgOrderValue", label: "Average order value (₹)", type: "number" },
+    { key: "purchaseFrequencyPerYear", label: "Purchase frequency per year", type: "number" },
+    { key: "customerLifespanYears", label: "Customer lifespan (years)", type: "number" },
+  ],
+  churn_probability_calculator: [
+    { key: "daysSinceLastActivity", label: "Days since last activity", type: "number" },
+    { key: "engagementDeclinePercent", label: "Engagement decline (%)", type: "number" },
+  ],
+  opportunity_score_calculator: [
+    { key: "budget", label: "Budget fit score (0-100)", type: "number" },
+    { key: "authority", label: "Authority score (0-100)", type: "number" },
+    { key: "need", label: "Need score (0-100)", type: "number" },
+    { key: "timeline", label: "Timeline score (0-100)", type: "number" },
+  ],
+  customer_health_score: [
+    { key: "usageScore", label: "Usage score (0-100)", type: "number" },
+    { key: "supportScore", label: "Support score (0-100)", type: "number" },
+    { key: "paymentScore", label: "Payment timeliness score (0-100)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, CRM_WIRED_ENGINE_INPUT_FIELDS)
+
+// Sales Engine (tree4-unified/50-completion-plan area 8, Wave 170) -- UI
+// fields for 4 of 7 wired engines. sales_incentive_calculator/
+// sales_forecast_engine/pipeline_probability_engine take array inputs --
+// dispatchable, no chat-composer form yet.
+const MARKUP_MODE_OPTIONS = [{ value: "markup_from_prices", label: "Compute markup % from prices" }, { value: "price_from_markup", label: "Compute price from cost + markup %" }]
+
+const SALES_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  margin_calculator: [
+    { key: "sellingPrice", label: "Selling price (₹)", type: "number" },
+    { key: "cost", label: "Cost (₹)", type: "number" },
+  ],
+  markup_calculator: [
+    { key: "mode", label: "Mode (optional, defaults to markup-from-prices)", type: "select", options: MARKUP_MODE_OPTIONS, optional: true },
+    { key: "sellingPrice", label: "Selling price (₹, for markup-from-prices mode)", type: "number", optional: true },
+    { key: "cost", label: "Cost (₹)", type: "number" },
+    { key: "markupPercent", label: "Markup % (for price-from-markup mode)", type: "number", optional: true },
+  ],
+  pricing_engine: [
+    { key: "cost", label: "Cost (₹)", type: "number" },
+    { key: "targetMarginPercent", label: "Target margin (%)", type: "number" },
+  ],
+  quote_optimizer: [
+    { key: "cost", label: "Cost (₹)", type: "number" },
+    { key: "listPrice", label: "List price (₹)", type: "number" },
+    { key: "minAcceptableMarginPercent", label: "Minimum acceptable margin (%)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, SALES_WIRED_ENGINE_INPUT_FIELDS)
+
+// Fixed Asset Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+// -- UI fields for all 8 wired engines, all scalar inputs.
+const FIXED_ASSET_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  straight_line_depreciation_engine: [
+    { key: "cost", label: "Asset cost (₹)", type: "number" },
+    { key: "salvageValue", label: "Salvage value (₹)", type: "number" },
+    { key: "usefulLifeYears", label: "Useful life (years)", type: "number" },
+  ],
+  wdv_depreciation_engine: [
+    { key: "cost", label: "Asset cost (₹)", type: "number" },
+    { key: "salvageValue", label: "Salvage value (₹)", type: "number" },
+    { key: "usefulLifeYears", label: "Useful life (years)", type: "number" },
+    { key: "rate", label: "Depreciation rate (optional, auto-derived if omitted)", type: "number", optional: true },
+  ],
+  useful_life_calculator: [
+    { key: "originalUsefulLifeYears", label: "Original useful life (years)", type: "number" },
+    { key: "ageInYears", label: "Current age (years)", type: "number" },
+  ],
+  asset_transfer_engine: [
+    { key: "netBookValue", label: "Net book value (₹)", type: "number" },
+    { key: "fromLocation", label: "From location", type: "text" },
+    { key: "toLocation", label: "To location", type: "text" },
+  ],
+  asset_disposal_engine: [
+    { key: "netBookValue", label: "Net book value (₹)", type: "number" },
+    { key: "saleProceeds", label: "Sale proceeds (₹)", type: "number" },
+  ],
+  capitalization_engine: [
+    { key: "expenseAmount", label: "Expense amount (₹)", type: "number" },
+    { key: "capitalizationThreshold", label: "Capitalization threshold (₹)", type: "number" },
+    { key: "extendsUsefulLife", label: "Extends useful life? (yes/no)", type: "text" },
+  ],
+  revaluation_engine: [
+    { key: "currentNetBookValue", label: "Current net book value (₹)", type: "number" },
+    { key: "fairValue", label: "Fair value (₹)", type: "number" },
+  ],
+  impairment_engine: [
+    { key: "carryingValue", label: "Carrying value (₹)", type: "number" },
+    { key: "recoverableAmount", label: "Recoverable amount (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, FIXED_ASSET_WIRED_ENGINE_INPUT_FIELDS)
+
+// Data Quality Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+// -- UI fields for all 7 wired engines, all scalar inputs.
+const DATA_QUALITY_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  pan_validation_engine_dq: [{ key: "pan", label: "PAN number", type: "text" }],
+  gstin_validation_engine: [{ key: "gstin", label: "GSTIN", type: "text" }],
+  ifsc_validation_engine: [{ key: "ifsc", label: "IFSC code", type: "text" }],
+  email_validation_engine: [{ key: "email", label: "Email address", type: "text" }],
+  phone_validation_engine: [
+    { key: "phone", label: "Phone number", type: "text" },
+    { key: "defaultCountry", label: "Default country code (optional, defaults IN)", type: "text", optional: true },
+  ],
+  bank_account_validation_engine: [{ key: "accountNumber", label: "Bank account number", type: "text" }],
+  address_standardization_engine: [{ key: "address", label: "Address", type: "text" }],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, DATA_QUALITY_WIRED_ENGINE_INPUT_FIELDS)
+
 // Costing Engine -- third full category wired end to end, 8 of 8 registered
 // engines (job/contract/service costing, allocation, variance). The two
 // array-of-objects inputs (activity_based_costing_engine's costPools/

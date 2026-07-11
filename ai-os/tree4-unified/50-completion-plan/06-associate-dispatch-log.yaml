@@ -1,0 +1,103 @@
+# Real dispatch log to GLM-5.2 as an "associate" (Owner's directive,
+# 2026-07-11): "you can use three models... give them very tightened
+# instructions with guardrails. They will submit work to you. You will
+# audit and review. And implement."
+#
+# Owner-confirmed scope after investigation (do not re-derive, this was
+# checked directly, not assumed):
+# - Claude Sonnet 5.0: NOT dispatchable. Removed from roster.ts 2026-07-10
+#   after 3 dispatches burned 93% of total OpenRouter spend, no cost
+#   guardrail existed. Owner decision: skip, don't redistribute its $2.
+# - Grok 4.5: NOT dispatchable. Zero presence anywhere in this codebase --
+#   no model string, no role, unverified even to exist on OpenRouter under
+#   that name from here. Owner decision: skip, redistribute its $2 to GLM-5.2.
+# - GLM-5.2: the only real, working dispatch path (gh workflow run
+#   ai-team-workforce.yml -> scripts/ai-workforce-agent.mjs -> real
+#   OpenRouter call -> real branch + PR, never auto-merged).
+# - Effective GLM-5.2 budget this round: $1 (original) + $2 (Grok's
+#   redistributed) = $3.
+# - Owner decision on sizing: small, cheap batches (one bounded engine
+#   category per dispatch), not one large multi-category batch.
+
+budget_calculation:
+  rate: "z-ai/glm-5.2 via DeepInfra (src/lib/llm-client.ts:162): $0.00042 / 1K prompt tokens, $0.00132 / 1K completion tokens"
+  iteration_cap: "MAX_ITERATIONS = 40 (scripts/ai-workforce-agent.mjs:30) -- the same iteration budget that, on Claude Sonnet's much higher per-token rate, caused the 93%-of-spend incident. On GLM-5.2's rate this is not the same risk class."
+  per_dispatch_estimate:
+    typical_case: "A well-scoped mechanical task (narrow file scope, pattern given directly in the prompt rather than requiring the model to re-derive it from a large file) should finish in 2-4 tool-calling iterations. Estimated ~6,000-15,000 cumulative prompt tokens (conversation history replays each iteration) + ~1,500-3,000 completion tokens -> roughly $0.005-0.026 per dispatch."
+    worst_case: "If a dispatch runs the full 40-iteration budget without calling finish (the exact historical failure mode), assuming ~15K average prompt tokens/iteration (history replay) and ~500 completion tokens/iteration: ~600,000 prompt tokens + ~20,000 completion tokens -> approx $0.252 + $0.026 = ~$0.28. Still small relative to budget because GLM-5.2's rate is roughly 2 orders of magnitude cheaper than what burned the Sonnet incident (that comparison is qualitative -- Sonnet's exact OpenRouter rate wasn't pulled from a live source for this calculation, the conclusion rests on the documented 93%-of-spend-in-3-dispatches fact alone, not a re-derived Sonnet price)."
+  conclusion: >-
+    Even at worst-case cost per dispatch (~$0.28), the $3 effective budget
+    covers roughly 10 runaway dispatches, or 100+ typical-case dispatches.
+    Budget is not the binding constraint for this round -- the binding
+    constraint is how many results can be meaningfully audited and how many
+    engine categories are actually left. Sized this round's batch to 4
+    dispatches (Costing, Fixed Asset, CRM, Sales -- the next 4
+    largest/well-scoped remaining engine categories) to keep review load
+    manageable and leave room for a second round based on how round 1 goes,
+    per the Owner's own framing (more rounds after reviewing how it goes).
+
+division_of_labor:
+  glm_52_fullstack_developer:
+    role_key: "fullstack_developer"
+    model: "z-ai/glm-5.2"
+    complexity_tier: "mechanical"
+    assigned_this_round: ["Costing Engine (8 functions)", "Fixed Asset Engine (8 functions)", "CRM Engine (5 functions)", "Sales Engine (7 functions)"]
+    dispatch_mechanism: "gh workflow run ai-team-workforce.yml -f role_key=fullstack_developer -f objective=... -f scope=... -f success_criteria=... -f complexity_tier=mechanical -f expected_output=... -f constraints=..."
+    review_process: "Every PR opened by this workflow is reviewed by Super Boss (this session) before merge -- read the full diff, run tsc+eslint+the same direct-execution verification pattern used for every self-authored batch this session, confirm CI guardrail manifest still passes. Never auto-merged (workflow itself never merges; branch protection requires PR+CI regardless)."
+  claude_super_boss_direct_work:
+    assigned_this_round: ["Procurement Engine (7)", "Security Engine (7)", "Audit Engine (7)", "AI Support Engine (7)", "Project Management Engine (6)", "Marketing Engine (6)", "Logistics Engine (6)", "Analytics Engine (6)", "Compliance Engine (6)", "Data Quality Engine (7 remaining)", "Document Processing Engine (1)", "all 17 other still-open areas from 05-eighteen-areas-tracker.yaml"]
+    budget: "N/A -- direct work, not a paid dispatch"
+
+dispatches:
+  - id: 1
+    dispatched_at: "2026-07-11"
+    role_key: fullstack_developer
+    model: z-ai/glm-5.2
+    task: "Wire Costing Engine (8 functions) into task-execution-engine.ts + capability-tree-service.ts"
+    complexity_tier: mechanical
+    run_url: "https://github.com/FChecklist/compliance-tracker/actions/runs/29153790289"
+    run_duration: "9m52s (vs. 1m43s/5m27s for the 2 prior historical runs -- ran longer than typical but completed successfully, not a runaway/budget-exhaustion case)"
+    pr_url: "https://github.com/FChecklist/compliance-tracker/pull/164"
+    status: pr_opened_under_review
+    manual_code_review: >-
+      Real diff read in full (gh pr diff 164), not just the agent's self-
+      reported summary. Scope compliance: only the 2 authorized files
+      touched, 999 insertions, 0 deletions, matches. Correctness: all 8
+      case blocks cross-checked by hand against costing-engine.ts's actual
+      TypeScript signatures (read earlier this session) -- every parameter
+      name and order matches exactly. Two genuinely good details noticed
+      that weren't explicitly demanded: (1) added a proper type-guard on
+      activity_based_costing_engine's objectDriverUsage (checks typeof
+      is object, not null, not an array) before casting it, more careful
+      than a bare Array.isArray-only check; (2) correctly preserved
+      variance_analysis_engine's true default for higherIsFavorable when
+      the optional field is null/empty, matching the real function
+      signature's own default rather than defaulting to false. Style: UI
+      field labels/currency formatting/optional-field skip pattern for
+      array-input engines all match the established convention exactly,
+      including citing the Math engine's identical skip-pattern precedent
+      in its own comment. No hallucinated file changes, no scope creep, no
+      modification to costing-engine.ts itself.
+    independent_verification: "Not trusting the agent's own 'npx tsc/eslint must pass' self-report -- checked out the PR branch into an isolated git worktree (git worktree add) and ran a completely separate bun install + tsc --noEmit + eslint pass against it directly."
+    review_outcome: >-
+      APPROVED AND MERGED (squash, PR #164, merge commit 348bb46,
+      2026-07-11T13:32:56Z). Real cost check: GitHub Actions run took
+      9m52s (vs. 1m43s/5m27s baseline) but completed successfully, not a
+      runaway. Independently re-ran tsc/eslint against the actual branch
+      in an isolated git worktree (not trusting the agent's self-report) --
+      both genuinely clean. Manual line-by-line review confirmed all 8
+      function signatures matched exactly, scope was respected, and 2
+      details were handled MORE carefully than explicitly required (a
+      proper type-guard on one array/object-shaped input, and correctly
+      preserving a function's own default value for an optional boolean
+      rather than defaulting to false). CI's ci.yml also had to be
+      manually `gh run rerun` once -- it initially sat at action_required
+      (0s duration) because GitHub requires manual approval for Actions
+      runs triggered by this bot's first-time-per-run pattern; not a code
+      problem, an org/repo Actions setting.
+      VERDICT: GLM-5.2 (fullstack_developer role, mechanical tier) produced
+      genuinely correct, well-scoped, pattern-consistent work on its first
+      real narrow-instruction dispatch this round. No revisions needed.
+# Each real dispatch appended here as it's triggered, with its actual
+# GitHub Actions run URL/PR number and outcome once known -- append-only,
+# same discipline as 04-implementation-log.yaml.
