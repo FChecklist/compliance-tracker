@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/supabase/auth-guard";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
+import { canAssignSeat } from "@/lib/org-license-service";
 
 export async function GET() {
   const { response, orgId } = await requireAuth()
@@ -45,6 +46,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Only admins and managers can invite users" }, { status: 403 })
   }
   if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  // Wave 172 (area 16, seat enforcement): checked at invite time too, not
+  // just at accept-time (auth-guard.ts) -- an org already at capacity
+  // shouldn't be allowed to create an invite that would just fail for the
+  // invitee later. No-op for the vast majority of orgs (enforcement is
+  // opt-in, off by default).
+  const seatCheck = await canAssignSeat(orgId)
+  if (!seatCheck.allowed) {
+    return NextResponse.json({ error: seatCheck.reason }, { status: 403 })
+  }
 
   try {
     const { name, email, role } = await request.json()
