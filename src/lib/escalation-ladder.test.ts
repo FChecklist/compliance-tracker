@@ -33,6 +33,11 @@ describe("nextEscalationRung", () => {
     expect(rung.roleKey).toBe("chief_operating_officer")
   })
 
+  test("a low-confidence-closure trigger (D18/PLAN-20, below-90% band) starts at COO, not CSEO", () => {
+    const rung = nextEscalationRung({ reason: "low_confidence_closure" })
+    expect(rung.roleKey).toBe("chief_operating_officer")
+  })
+
   test("escalating past CSEO goes to COO", () => {
     const rung = nextEscalationRung({ reason: "engine_not_found", priorEscalationRoleKey: "chief_software_engineering_officer" })
     expect(rung.roleKey).toBe("chief_operating_officer")

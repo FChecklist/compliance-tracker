@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, detectAmbiguousLanguage, detectFieldContradiction, type TightTask } from "./task-tightening"
+import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, detectAmbiguousLanguage, detectFieldContradiction, validateKnowledgeSufficiency, type TightTask } from "./task-tightening"
 
 const VALID: TightTask = {
   objective: "Add real PDF and Excel export to the reports dashboard",
@@ -82,10 +82,49 @@ describe("validateTightTask", () => {
     if (!result.valid) expect(result.reason).toContain("not recognized")
   })
 
-  test("accepts all 3 valid complexity tiers", () => {
+  test("accepts all 3 valid complexity tiers when knownContext is supplied for the two that need it", () => {
     for (const tier of ["mechanical", "integrative", "judgment"] as const) {
-      expect(validateTightTask({ ...VALID, complexityTier: tier })).toEqual({ valid: true })
+      expect(validateTightTask({ ...VALID, complexityTier: tier, knownContext: "Read src/lib/task-tightening.ts's TightTask type and validateTightTask() before extending them." })).toEqual({ valid: true })
     }
+  })
+})
+
+describe("validateKnowledgeSufficiency -- area 3 PLAN-16 item (c), Guardrail 6 Knowledge", () => {
+  test("mechanical tier never requires knownContext", () => {
+    expect(validateKnowledgeSufficiency({ complexityTier: "mechanical" })).toEqual({ valid: true })
+  })
+
+  test("integrative tier rejects a missing knownContext", () => {
+    const result = validateKnowledgeSufficiency({ complexityTier: "integrative" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("requires understanding an existing component")
+  })
+
+  test("judgment tier rejects a missing knownContext", () => {
+    const result = validateKnowledgeSufficiency({ complexityTier: "judgment" })
+    expect(result.valid).toBe(false)
+  })
+
+  test("integrative tier rejects a placeholder knownContext", () => {
+    const result = validateKnowledgeSufficiency({ complexityTier: "integrative", knownContext: "n/a" })
+    expect(result.valid).toBe(false)
+  })
+
+  test("integrative tier accepts a real, specific knownContext", () => {
+    expect(validateKnowledgeSufficiency({
+      complexityTier: "integrative",
+      knownContext: "Read src/lib/purpose-bound-ai.ts's DOMAIN_ALLOWED_TOOLS map -- this task extends it, doesn't replace it.",
+    })).toEqual({ valid: true })
+  })
+
+  test("a full TightTask at integrative tier with no knownContext is rejected by validateTightTask", () => {
+    const result = validateTightTask({ ...VALID, complexityTier: "integrative", knownContext: undefined })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("requires understanding an existing component")
+  })
+
+  test("a full TightTask at mechanical tier with no knownContext still passes validateTightTask", () => {
+    expect(validateTightTask({ ...VALID, complexityTier: "mechanical", knownContext: undefined })).toEqual({ valid: true })
   })
 })
 

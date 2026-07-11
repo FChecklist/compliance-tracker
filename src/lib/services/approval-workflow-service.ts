@@ -177,6 +177,21 @@ async function advanceWorkflow(db: TenantDb, instanceId: string) {
   }
 }
 
+// tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16 re-scoped
+// item (a) "Authority/Delegation guardrail beyond role-rank": ROLE_RANK
+// alone answers "does this user hold enough RANK to approve this step" but
+// never "is this user the same person who submitted the thing they're now
+// approving" -- a real authority gap distinct from rank, since a manager
+// with sufficient rank could both create and approve their own request
+// with zero separation of duties. Mirrors the exact pattern this codebase
+// already established for AI Team peer review (activity-log-service.ts's
+// recordPeerReview: `self_review_not_allowed`, "no self-certification,
+// mirrors AGENTS.md Rule 7c") -- same principle, human approval workflows
+// instead of AI dispatch review. Pure so it's testable without a DB.
+export function isSelfApproval(instanceCreatedById: string | null, approverId: string): boolean {
+  return Boolean(instanceCreatedById) && instanceCreatedById === approverId
+}
+
 /**
  * Records one approver's decision on a step. Rejecting any step rejects
  * the whole instance immediately (no partial-rollback semantics needed --
@@ -200,6 +215,10 @@ export async function decideApprovalStep(
     })
     if (!step || step.instance.orgId !== ctx.orgId) throw new ServiceError("Approval step not found", 404)
     if (step.status !== "pending") throw new ServiceError("This step has already been decided", 409)
+
+    if (isSelfApproval(step.instance.createdById, ctx.userId)) {
+      throw new ServiceError("You cannot approve or reject a request you submitted yourself -- an independent approver is required", 403)
+    }
 
     const userRank = ROLE_RANK[ctx.dbUser.role as UserRole] ?? 0
     const requiredRank = ROLE_RANK[step.approverRole as UserRole] ?? 999

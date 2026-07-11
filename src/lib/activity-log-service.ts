@@ -23,6 +23,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
+import { bandConfidence } from "@/lib/confidence-banding";
 
 export type ActivityType = "ai_team_dispatch";
 
@@ -48,6 +49,8 @@ export type RecordActivityInput = {
   errorReason?: string | null;
   /** estimateCostUsd() output when usage + model pricing were available -- forwarded to the reflection row, not persisted as an activity_log column. */
   costUsd?: number | null;
+  /** risk-classification.ts's classifyRisk() output, computed by the caller at dispatch time (Guardrail 10). */
+  riskLevel?: string | null;
 };
 
 /**
@@ -71,6 +74,7 @@ export function recordActivity(params: RecordActivityInput): Promise<{ id: strin
       roleKey: params.roleKey ?? null,
       durationMs: params.durationMs ?? null,
       errorReason: params.lifecycleStage === "failed" ? (params.errorReason ?? null) : null,
+      riskLevel: params.riskLevel ?? null,
     }).returning({ id: activityLog.id });
     if (row && TERMINAL_STAGES.has(params.lifecycleStage)) {
       await runTaskReflection(db, {
@@ -100,6 +104,15 @@ export type PeerReviewInput = {
   reviewNotes: string;
   reviewDecision: "approved" | "rejected";
   selfAssessment?: Record<string, unknown>;
+  /**
+   * 0-100 self-assessed confidence, when the reviewer supplied one --
+   * confidence-banding.ts's bandConfidence() input (Guardrail 9). The
+   * derived band is computed and persisted here so it's queryable, but the
+   * actual "escalation_required band can't just be approved" ENFORCEMENT
+   * happens earlier, in guardrail-registrations.ts's closureReviewCheck --
+   * by the time this function runs, that gate has already passed.
+   */
+  confidencePercentage?: number | null;
 };
 
 export type PeerReviewResult =
@@ -121,6 +134,7 @@ export async function recordPeerReview(params: PeerReviewInput): Promise<PeerRev
     if (existing.userId && existing.userId === params.reviewedBy) return { recorded: false, reason: "self_review_not_allowed" as const };
 
     const newStage = params.reviewDecision === "approved" ? "completed" : "failed";
+    const confidenceBand = params.confidencePercentage != null ? bandConfidence(params.confidencePercentage) : null;
     await db.update(activityLog).set({
       lifecycleStage: newStage,
       reviewedBy: params.reviewedBy,
@@ -128,6 +142,8 @@ export async function recordPeerReview(params: PeerReviewInput): Promise<PeerRev
       reviewDecision: params.reviewDecision,
       selfAssessment: params.selfAssessment ?? existing.selfAssessment,
       errorReason: newStage === "failed" ? params.reviewNotes : existing.errorReason,
+      confidencePercentage: params.confidencePercentage != null ? String(params.confidencePercentage) : existing.confidencePercentage,
+      confidenceBand: confidenceBand ?? existing.confidenceBand,
       updatedAt: new Date(),
     }).where(eq(activityLog.id, params.activityLogId));
 

@@ -46,6 +46,15 @@ on:
         description: "Optional: iteration/file caps, explicit exclusions"
         required: false
         default: ""
+      # tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16
+      # re-scoped item (c): required for integrative/judgment tier tasks
+      # only (validateKnowledgeSufficiency() in task-tightening.ts) --
+      # optional here, same posture as constraints, since mechanical-tier
+      # dispatches don't need it and the check itself enforces the real gate.
+      known_context:
+        description: "Required for integrative/judgment tiers: what existing code/docs/state the executor already knows, so it isn't guessing"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -83,6 +92,7 @@ jobs:
           AI_TEAM_TASK_COMPLEXITY_TIER: ${{ github.event.client_payload.complexity_tier || github.event.inputs.complexity_tier }}
           AI_TEAM_TASK_EXPECTED_OUTPUT: ${{ github.event.client_payload.expected_output || github.event.inputs.expected_output }}
           AI_TEAM_TASK_CONSTRAINTS: ${{ github.event.client_payload.constraints || github.event.inputs.constraints }}
+          AI_TEAM_TASK_KNOWN_CONTEXT: ${{ github.event.client_payload.known_context || github.event.inputs.known_context }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           AI_TEAM_SUPABASE_URL: ${{ secrets.AI_TEAM_SUPABASE_URL }}
           AI_TEAM_SUPABASE_ANON_KEY: ${{ secrets.AI_TEAM_SUPABASE_ANON_KEY }}

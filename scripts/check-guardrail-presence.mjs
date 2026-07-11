@@ -165,6 +165,36 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/handover-protocol.ts", mustContain: ["export function validateHandoverFields", "export async function submitHandover", "export async function acceptHandover", "self_acceptance_not_allowed", "already_accepted"] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["HANDOVER_PROTOCOL_LEAF"] },
   { file: "src/lib/db/schema.ts", mustContain: ["handoverAcceptedBy: text('handover_accepted_by')", "handoverAcceptedAt: timestamp('handover_accepted_at')"] },
+
+  // Added 2026-07-11 (tree4-unified/50-completion-plan area 3 "Guardrails",
+  // PLAN-16 remainder): Authority/Delegation beyond role-rank -- a real,
+  // confirmed gap (ROLE_RANK alone never checked whether the approver was
+  // also the requester). Mirrors AGENTS.md Rule 7c / recordPeerReview's
+  // self_review_not_allowed for human approval workflows.
+  { file: "src/lib/services/approval-workflow-service.ts", mustContain: ["export function isSelfApproval", "isSelfApproval("] },
+
+  // Knowledge-sufficiency gate (Guardrail 6) -- integrative/judgment-tier
+  // dispatches must state what existing context they already have before
+  // being accepted; mechanical tier is exempt by definition.
+  { file: "src/lib/task-tightening.ts", mustContain: ["export function validateKnowledgeSufficiency"] },
+
+  // Tool Usage as a distinct check (Guardrail 13, "if a tool fails: retry
+  // per policy or escalate") -- executeStructuredDispatch's failure path
+  // now escalates via the executive ladder, matching executeEngineDispatch's
+  // existing (Wave 171) escalation wiring rather than leaving it as the one
+  // real dispatch-failure path with no equivalent.
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["nextEscalationRung({ reason: \"worker_agent_unavailable\" })"] },
+
+  // Risk Classification (Guardrail 10) + Confidence Banding (Guardrail 9,
+  // D18/PLAN-20) -- additive to, not a replacement for, model-tier-
+  // eligibility.ts's tiers (DEC-04). classifyRisk() feeds a second,
+  // independent review trigger at dispatch time; bandConfidence() gates
+  // the closure-review endpoint so a below-90% self-assessed confidence
+  // can't be silently approved instead of escalated.
+  { file: "src/lib/risk-classification.ts", mustContain: ["export function classifyRisk"] },
+  { file: "src/lib/confidence-banding.ts", mustContain: ["export function bandConfidence"] },
+  { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["classifyRisk("] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["bandConfidence(", "confidence_below_escalation_threshold"] },
 ]
 
 let failed = false

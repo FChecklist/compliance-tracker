@@ -35,6 +35,12 @@ export type EscalationReason =
   | "guardrail_repeated_failure"
   | "budget_limit_hit"
   | "loop_limit_hit"
+  // tree4-unified/50-completion-plan area 3 "Guardrails", D18/PLAN-20:
+  // Constitution Guardrail 9's "below 90% escalation required" band
+  // (confidence-banding.ts's bandConfidence()) -- a governance/policy
+  // trigger, not a code defect, so it starts at COO like the other
+  // non-software-first reasons below, not at CSEO.
+  | "low_confidence_closure"
 
 export type EscalationContext = {
   reason: EscalationReason

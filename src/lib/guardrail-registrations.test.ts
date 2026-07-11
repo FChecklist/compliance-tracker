@@ -39,4 +39,37 @@ describe("closureReviewCheck (AI_TEAM_CLOSURE_REVIEW_LEAF) -- Wave 165, U-D12.B4
     const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: "This misses the edge case where the input is negative.", reviewDecision: "rejected" })
     expect(result).toEqual({ passed: true })
   })
+
+  describe("confidence banding (D18/PLAN-20, Guardrail 9)", () => {
+    const NOTES = "Verified the calculation against the source spec -- matches."
+
+    test("passes when no confidencePercentage is supplied at all (optional, backward compatible)", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved" })
+      expect(result).toEqual({ passed: true })
+    })
+
+    test("passes an approval at 95% confidence (self_review band, weaker than the peer review already happening)", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", confidencePercentage: 95 })
+      expect(result).toEqual({ passed: true })
+    })
+
+    test("passes an approval at 92% confidence (peer_review band -- exactly what's happening)", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", confidencePercentage: 92 })
+      expect(result).toEqual({ passed: true })
+    })
+
+    test("blocks an approval below 90% -- escalation_required band cannot be approved directly", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", confidencePercentage: 75 })
+      expect(result.passed).toBe(false)
+      if (!result.passed) {
+        expect(result.reason).toBe("confidence_below_escalation_threshold")
+        expect(result.guidance).toContain("Escalate to")
+      }
+    })
+
+    test("allows a rejection below 90% -- rejecting isn't the same as silently approving a low-confidence result", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "rejected", confidencePercentage: 60 })
+      expect(result).toEqual({ passed: true })
+    })
+  })
 })

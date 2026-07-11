@@ -34,18 +34,22 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { activityLogId, reviewNotes, reviewDecision, selfAssessment } = body as {
+  const { activityLogId, reviewNotes, reviewDecision, selfAssessment, confidencePercentage } = body as {
     activityLogId?: string
     reviewNotes?: string
     reviewDecision?: "approved" | "rejected"
     selfAssessment?: Record<string, unknown>
+    // D18/PLAN-20 (Guardrail 9 -- Confidence): optional 0-100 self-assessed
+    // confidence -- see closureReviewCheck in guardrail-registrations.ts for
+    // the actual banding enforcement (bandConfidence()).
+    confidencePercentage?: number
   }
 
   if (!activityLogId) {
     return NextResponse.json({ error: "activityLogId is required" }, { status: 400 })
   }
 
-  const check = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes, reviewDecision })
+  const check = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes, reviewDecision, confidencePercentage })
   if (!check.passed) {
     void recordGuardrailViolation(activityLogId, AI_TEAM_CLOSURE_REVIEW_LEAF, "input", check)
     return NextResponse.json({ status: "blocked", blockedBy: { reason: check.reason, guidance: check.guidance } }, { status: 422 })
@@ -58,6 +62,7 @@ export async function POST(request: NextRequest) {
     reviewNotes: reviewNotes!,
     reviewDecision: reviewDecision!,
     selfAssessment,
+    confidencePercentage,
   })
 
   if (!result.recorded) {

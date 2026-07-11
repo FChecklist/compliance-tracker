@@ -57,6 +57,13 @@ export type TightTask = {
   expectedOutput: string
   /** Optional: iteration/file/time caps, explicit exclusions, etc. */
   constraints?: string
+  /**
+   * What existing code/docs/prior state the executor already has, so it
+   * isn't guessing at unfamiliar territory before touching it. Required
+   * only for 'integrative'/'judgment' tiers -- see
+   * validateKnowledgeSufficiency()'s header for why 'mechanical' is exempt.
+   */
+  knownContext?: string
 }
 
 export type TightTaskValidation =
@@ -156,6 +163,37 @@ export function detectFieldContradiction(task: Partial<TightTask>): { detected: 
   return { detected: false }
 }
 
+// tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16 re-scoped
+// item (c) "real pre-execution Knowledge-sufficiency gate": Constitution
+// Guardrail 6 ("do I have sufficient knowledge... are referenced documents
+// available -- if not, retrieve or escalate") had zero code support
+// anywhere in this codebase before this (confirmed by grepping for
+// "knowledge"/"sufficient" guardrails -- nothing matched). 'integrative'
+// and 'judgment' tiers are DEFINED (see ComplexityTier's own docs above) as
+// requiring understanding of an existing component/governance context
+// before acting -- a dispatch at those tiers with zero stated prior
+// context is the exact same underspecified-brief failure shape this whole
+// module exists to prevent (module header), just for prior knowledge
+// instead of the task's own definition. 'mechanical' tier is exempt by the
+// same definition: "one file, one well-defined operation" needs no
+// existing-component understanding to attempt safely.
+export function validateKnowledgeSufficiency(task: Partial<TightTask>): TightTaskValidation {
+  if (task.complexityTier === "mechanical") return { valid: true }
+  const failure = checkField(
+    task.knownContext,
+    "Known context",
+    "Read task-tightening.ts's existing TightTask type and validateTightTask() before extending them; guardrail-registrations.ts's tightTaskCheck is the one real caller"
+  )
+  if (failure && !failure.valid) {
+    return {
+      valid: false,
+      reason: `Complexity tier "${task.complexityTier}" requires understanding an existing component, but no known context was supplied -- ${failure.reason}`,
+      guidance: `Add knownContext describing what you already know/have read about the existing code or state this task touches. ${failure.guidance}`,
+    }
+  }
+  return { valid: true }
+}
+
 function checkField(value: string | undefined, label: string, guidanceExample: string): TightTaskValidation | null {
   const trimmed = (value ?? "").trim()
   if (!trimmed) {
@@ -217,6 +255,9 @@ export function validateTightTask(task: Partial<TightTask>): TightTaskValidation
   if (!VALID_TIERS.includes(task.complexityTier)) {
     return { valid: false, reason: `Complexity tier "${task.complexityTier}" is not recognized.`, guidance: `Must be one of: ${VALID_TIERS.join(", ")}.` }
   }
+
+  const knowledgeFailure = validateKnowledgeSufficiency(task)
+  if (!knowledgeFailure.valid) return knowledgeFailure
 
   return { valid: true }
 }
@@ -296,6 +337,9 @@ export function assembleTightTaskPrompt(task: TightTask): string {
   ]
   if (task.constraints?.trim()) {
     lines.push(`Constraints: ${task.constraints.trim()}`)
+  }
+  if (task.knownContext?.trim()) {
+    lines.push(`Known Context (already established -- do not re-derive from scratch): ${task.knownContext.trim()}`)
   }
   lines.push(
     "If any of the above is ambiguous or you find you need to go outside the stated scope, stop and say so in `finish` rather than guessing or silently expanding scope."
