@@ -495,3 +495,12 @@ next_session_should:
         tracker_update: "05-eighteen-areas-tracker.yaml: area 9 status in_progress -> complete, remaining_work cleared. area 4 status in_progress -> complete (its only remaining item was this same shared L2-L7 gap)."
         verification: "tsc --noEmit -p . -> exit 0. eslint on both new files -> 0 errors. node scripts/check-guardrail-presence.mjs -> 'all 67 markers present' (was 65). Full suite: DATABASE_URL=placeholder bun test -> 338 pass, 0 fail (no regressions)."
         tracker_update: "05-eighteen-areas-tracker.yaml area 5: status not_started -> complete (both remaining_work items now resolved -- the ~30-state model explicitly not built per DEC-03's ratification, and D13's message tone now fixed)."
+
+  - date: "2026-07-12 (continued, Super Boss direct work)"
+    session_summary: "Closed area 14's highest-value remaining item: real in-app notification rows for the single highest-value core domain object (compliance items), not just email."
+    phase2_code_changes:
+      - change: "compliance-service.ts's updateComplianceItem() now writes real db.insert(notifications) rows for both status_change and assign/reassign events, using notificationTypeEnum's existing 'status_change'/'assignment' values -- previously only notifyAssigned() (email, @/lib/email) fired on assignment, and status changes produced no notification of any kind, only an audit-log row."
+        files: ["src/lib/services/compliance-service.ts"]
+        design_note: "Followed the exact { userId, title, message, type, metadata } shape already proven in ticket-service.ts's SLA-breach notifier -- no new pattern invented. status_change notifies the item's existing assignee (if any); assign/reassign notifies the new assignee, alongside (not instead of) the existing email. Chosen as the highest-value single slice because compliance items are the largest, most-used domain object with zero prior in-app notification coverage, despite the enum having had dedicated types for exactly these two events since the table was designed."
+        verification: "tsc --noEmit -p . -> exit 0. eslint src/lib/services/compliance-service.ts -> 0 errors. DATABASE_URL=placeholder bun test src/lib/services -> 13 pass, 0 fail."
+        tracker_update: "05-eighteen-areas-tracker.yaml area 14: notifications producer-coverage item narrowed (compliance items now covered); bulk export gap assessed separately this same session."
