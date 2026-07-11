@@ -2,7 +2,7 @@
 // [id]/route, stats/route, overdue/route}.ts verbatim (behavior-identical
 // refactor, not a rewrite) so the web app, /api/v1, and MCP tools can all
 // call the same real implementation instead of three/four reimplementations.
-import { complianceItems, departments, auditLogs, notices, users } from "@/lib/db"
+import { complianceItems, departments, auditLogs, notices, users, notifications } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, or, like, asc, desc, not, inArray, gte, lte, lt, sql, type SQL } from "drizzle-orm"
 import { logActivity } from "@/lib/audit"
@@ -291,7 +291,18 @@ export async function updateComplianceItem(ctx: ServiceContext, id: string, inpu
     const logChange = (action: string, details: string) => logActivity({
       tx: db, action, entityType: "ComplianceItem", entityId: id, details, orgId, clientId: existingItem.clientId, request, ...actorParam,
     })
-    if (status !== undefined && status !== existingItem.status) await logChange("status_change", `Status changed from ${existingItem.status} to ${status}`)
+    if (status !== undefined && status !== existingItem.status) {
+      await logChange("status_change", `Status changed from ${existingItem.status} to ${status}`)
+      if (existingItem.assignedToId) {
+        await db.insert(notifications).values({
+          userId: existingItem.assignedToId,
+          title: `Status changed: ${existingItem.title}`,
+          message: `"${existingItem.title}" moved from ${existingItem.status} to ${status}.`,
+          type: "status_change",
+          metadata: { complianceItemId: id },
+        })
+      }
+    }
     if (assignedToId !== undefined && assignedToId !== existingItem.assignedToId) {
       await logChange(existingItem.assignedToId ? "reassign" : "assign", existingItem.assignedToId ? "Reassigned from previous user" : `Assigned to user ${assignedToId}`)
     }
@@ -300,6 +311,13 @@ export async function updateComplianceItem(ctx: ServiceContext, id: string, inpu
     if (assignedToId && assignedToId !== existingItem.assignedToId) {
       const assignee = await db.query.users.findFirst({ where: eq(users.id, assignedToId) })
       if (assignee?.email) notifyAssigned(assignee.email, assignee.name, existingItem.title, id).catch(() => {})
+      await db.insert(notifications).values({
+        userId: assignedToId,
+        title: `Assigned: ${existingItem.title}`,
+        message: `You were assigned to "${existingItem.title}".`,
+        type: "assignment",
+        metadata: { complianceItemId: id },
+      })
     }
 
     const updated = await db.query.complianceItems.findFirst({
