@@ -216,7 +216,19 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
       const leaf = resolveLeaf(tree, p);
-      const body: Record<string, unknown> = { title: crumb, description: text, projectId: leaf?.projectId ?? undefined };
+      // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, Dynamic Chain ID Phase
+      // 1): the resolved chain path is now sent alongside the task so
+      // createTask() can persist it to dynamic_chains and link
+      // tasks.dynamicChainId. Path segments already double as their own
+      // display labels in this UI (see pathSegmentDisplay/PathBreadcrumb
+      // above -- no separate label lookup exists today), so pathLabels
+      // reuses the same values rather than inventing a second lookup.
+      const body: Record<string, unknown> = {
+        title: crumb, description: text, projectId: leaf?.projectId ?? undefined,
+        modePill: p.length ? pathSegmentDisplay(p[0]) : undefined,
+        chainPathKeys: p.length ? p : undefined,
+        chainPathLabels: p.length ? p.map(pathSegmentDisplay) : undefined,
+      };
       // Structured (non-LLM) dispatch: a worker-agent leaf carries its real
       // dispatchable id (agentId when set -- e.g. an entity-scoped leaf like
       // "Compliance Item X -> Mark completed", where `key` must stay unique

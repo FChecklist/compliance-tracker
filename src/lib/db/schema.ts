@@ -772,6 +772,12 @@ export const tasks = complianceSchemaDB.table('tasks', {
   // first within the same priority) -- no separate queue table, this
   // column plus an orderBy is the whole "queue."
   priority: integer('priority').notNull().default(0),
+  // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the
+  // Primary System Object -- Phase 1"): points at dynamic_chains, the
+  // resolved Chain Selector path this task was created from. Nullable,
+  // additive -- only wired at new-task creation via VeriComposer, no
+  // backfill of pre-existing rows.
+  dynamicChainId: text('dynamic_chain_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -862,6 +868,29 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   detailId: text('detail_id'),
   lifecycleStage: text('lifecycle_stage').notNull().default('requested'), // requested | classified | validated | executing | reviewing | completed | failed | closed
   objective: text('objective'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the Primary
+// System Object -- Phase 1"): the persisted backing store for a resolved
+// Chain Selector path -- the CapabilityNode tree itself stays computed
+// on-the-fly (capability-tree-service.ts, unchanged), this is what a task/
+// conversation actually references once a selection is made. Core queryable
+// structure only, not the source document's full 10-sub-object schema
+// (business/AI/workflow/governance/knowledge definitions per chain) -- that
+// richer schema is deliberately deferred, see the constitution doc's
+// "Rollout scope" section for why.
+export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  modePill: text('mode_pill').notNull(),
+  pathKeys: jsonb('path_keys').notNull().default([]),
+  pathLabels: jsonb('path_labels').notNull().default([]),
+  moduleRef: text('module_ref'),
+  description: text('description'),
+  createdById: text('created_by_id'),
+  status: text('status').notNull().default('approved'), // 'draft' | 'proposed' | 'approved' | 'retired'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -2503,6 +2532,11 @@ export const conversations = complianceSchemaDB.table('conversations', {
   // conversations (Wave 12-13) have no context and stay that way.
   contextEntityType: text('context_entity_type'),
   contextEntityId: text('context_entity_id'),
+  // Wave 161: same Dynamic Chain Phase 1 linkage as tasks.dynamicChainId
+  // above. Additive, nullable -- not yet wired by any writer (no
+  // conversation-creation flow currently offers a Chain Selector step; see
+  // VERI_CHAT_GOVERNANCE.md's §5 for why that's deferred, not built here).
+  dynamicChainId: text('dynamic_chain_id'),
   // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 item 2): both
   // independent studies (Study_by_Claude.md CSV 206, Study_by_zaizlm5.2.md
   // §3.1) flagged conversations as having no state-machine columns at all --

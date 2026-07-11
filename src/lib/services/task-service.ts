@@ -1,8 +1,8 @@
 // Wave 11 service layer -- extracted from src/app/api/tasks/{route,
 // [id]/route}.ts verbatim (behavior-identical refactor).
-import { tasks, aiAssistants, workerAgents } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { desc, eq, asc, and, ne, inArray } from "drizzle-orm"
+import { tasks, aiAssistants, workerAgents, dynamicChains } from "@/lib/db"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { desc, eq, asc, and, ne, inArray, sql } from "drizzle-orm"
 import { executeTask } from "@/lib/task-execution-engine"
 import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
@@ -11,6 +11,31 @@ import type { ServiceContext, ReadContext } from "./context"
 import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
 
 const VALID_STATUSES = ["pending", "in_progress", "completed", "failed", "cancelled"]
+
+// Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the Primary
+// System Object -- Phase 1"): find-or-create so repeatedly selecting the
+// same chain (the common case -- most tasks reuse a handful of frequent
+// chains) doesn't grow dynamic_chains unboundedly with duplicate rows.
+// Dedupes on (orgId, modePill, pathKeys) via a jsonb equality compare.
+async function resolveDynamicChainId(
+  db: TenantDb, orgId: string, userId: string,
+  modePill: string, pathKeys: unknown[], pathLabels: unknown[]
+): Promise<string | null> {
+  if (!modePill || !pathKeys.length) return null
+  const pathKeysJson = JSON.stringify(pathKeys)
+  const existing = await db.query.dynamicChains.findFirst({
+    where: and(
+      eq(dynamicChains.orgId, orgId),
+      eq(dynamicChains.modePill, modePill),
+      sql`${dynamicChains.pathKeys} = ${pathKeysJson}::jsonb`
+    ),
+  })
+  if (existing) return existing.id
+  const [created] = await db.insert(dynamicChains).values({
+    orgId, modePill, pathKeys, pathLabels, createdById: userId, status: "approved",
+  }).returning()
+  return created?.id ?? null
+}
 
 export async function listTasks(ctx: ReadContext & { userId?: string }, filters: { assistantId?: string }) {
   const { orgId, userId } = ctx
@@ -44,6 +69,12 @@ export async function createTask(ctx: ServiceContext, input: {
   agentInputs?: Record<string, unknown>
   engineKey?: string
   engineInputs?: Record<string, unknown>
+  // Wave 161 (Dynamic Chain ID Phase 1): the resolved Chain Selector path,
+  // sent by VeriComposer alongside the task. Optional -- a free-text or
+  // API-created task simply has no dynamicChainId, same as before this wave.
+  modePill?: string
+  chainPathKeys?: unknown[]
+  chainPathLabels?: unknown[]
   // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2, High-Impact
   // Action Confirmation Gate): set true only on the caller's SECOND request,
   // after the user has explicitly confirmed a high-impact action detected on
@@ -104,9 +135,13 @@ export async function createTask(ctx: ServiceContext, input: {
       if (agent?.codeReference) resolvedWorkerAgentId = agent.id
     }
 
+    const dynamicChainId = input.modePill && input.chainPathKeys?.length
+      ? await resolveDynamicChainId(db, orgId, dbUser.id, input.modePill, input.chainPathKeys, input.chainPathLabels ?? input.chainPathKeys)
+      : null
+
     const [created] = await db.insert(tasks).values({
       orgId, userId: dbUser.id, assignedById: dbUser.id, assistantId, projectId, title, description,
-      status: "in_progress", resolvedWorkerAgentId,
+      status: "in_progress", resolvedWorkerAgentId, dynamicChainId,
     }).returning()
     return created
   })

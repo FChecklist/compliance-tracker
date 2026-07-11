@@ -97,7 +97,7 @@ const GPT_55 = "openai/gpt-5.5" // genuinely independent second opinion (differe
 // headless "Claude" dispatch agent (AGENTS.md's claude-task path, which never had a working
 // job behind it anyway -- ai-dispatch.yml only implements a zai-agent stub) in favor of
 // this OpenRouter-routed model, verified live against openrouter.ai/api/v1/models 2026-07-10.
-const DEEPSEEK_V4_PRO = "deepseek/deepseek-v4-pro" // reserved for future role assignment, not wired to any role yet. Pinned to OpenRouter provider "DeepSeek" (founder directive, 2026-07-10) -- see OPENROUTER_PROVIDER_PREFERENCE in llm-client.ts.
+const DEEPSEEK_V4_PRO = "deepseek/deepseek-v4-pro" // Wired to governance_backend_engineer as of Wave 161 (Boss directive, DMP-DCF implementation: "take help of DeepSeek model and OSS GPT"). Pinned to OpenRouter provider "DeepSeek" (founder directive, 2026-07-10) -- see OPENROUTER_PROVIDER_PREFERENCE in llm-client.ts.
 // Founder directive, 2026-07-10 (6-tool infra integration: PaddleOCR,
 // Docling, Meilisearch, Whisper.cpp, LibreOffice Headless, Temporal):
 // explicitly "ask GPT-OSS-120B to do it... create new agents using
@@ -125,6 +125,13 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // ─── ENGINEERING (The Factory) ───────────────────────────────────────
   { roleKey: "ceo_technical_director", team: "ENGINEERING", title: "CEO / Technical Director", model: GLM_52, promptKey: "ai_team.ceo_technical_director" },
   { roleKey: "senior_backend_engineer", team: "ENGINEERING", title: "Senior Backend Engineer", model: GLM_52, promptKey: "ai_team.senior_backend_engineer" },
+  // Wave 161: DeepSeek V4 Pro's first real role assignment (see the
+  // constant's own comment above). Scoped narrowly to governance/
+  // compliance-shaped backend features (approval-preference logic,
+  // schema-adjacent business rules) -- same "small, closely audited"
+  // discipline tool_integration_engineer established for GPT-OSS-120B,
+  // not a general swap of an existing role's model.
+  { roleKey: "governance_backend_engineer", team: "ENGINEERING", title: "Governance Backend Engineer (DeepSeek V4 Pro)", model: DEEPSEEK_V4_PRO, promptKey: "ai_team.governance_backend_engineer" },
   { roleKey: "fullstack_developer", team: "ENGINEERING", title: "Full Stack Developer", model: GLM_52, promptKey: "ai_team.fullstack_developer" },
   { roleKey: "frontend_engineer", team: "ENGINEERING", title: "Frontend Engineer", model: GLM_5V_TURBO, promptKey: "ai_team.frontend_engineer" },
   { roleKey: "devops_engineer", team: "ENGINEERING", title: "DevOps / Data Engineer", model: GLM_52, promptKey: "ai_team.devops_engineer" },
