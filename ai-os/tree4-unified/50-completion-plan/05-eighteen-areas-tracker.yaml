@@ -17,20 +17,17 @@ areas:
   - num: 1
     name: "Dynamic Mode Pills & Dynamic Chain Option Selector"
     tree1_domains: ["U-D5", "U-D6", "U-D9"]
-    status: in_progress
-    baseline: "5 solid / 6 partial / 10 gap of 21 sub-branches (~24%) -- DCMD (D6) rich metadata/search/missing-chain-detection/version-control built (PR #167, pending CI), the largest single piece of this area"
-    remaining_work:
-      - "D5.B6: persistent visibility panel (Task Number/Priority/Owner/Workflow Status always shown) -- confirmed absent."
-      - "D5.B7: per-module/per-page Mode Pill and Chain option auto-adaptation -- capability tree is fetched once per session, zero route-awareness, confirmed absent."
-      - "D8/D5.B4.S2: minimum 2-level chain selection gate before a new conversation begins -- not confirmed enforced anywhere."
+    status: complete
+    baseline: "DCMD (D6, PR #167) + PR #174 (chain-gate, merged 2026-07-11) closed all 3 remaining items: D5.B6 persistent visibility panel (TaskVisibilityPanel.tsx, always rendered in AppShell), D5.B7 route-aware capability-tree fetch (re-fetches on real navigation, 6 routes with real server-side filtering, honest full-tree fallback elsewhere), D8/D5.B4.S2 minimum-2-level chain gate enforced server-side in task-service.ts's createTask() (real 400 block, not just client UX)."
+    remaining_work: []
+    resolution_note: "Honest scope limits carried forward, not hidden: 'Task Number' is a derived short id-reference (tasks table has no real task-number column); route-based capability-tree filtering only covers 6 of ~60 routes with a clean module mapping, the rest safely fall back to the unfiltered tree. Not visually confirmed in a browser (headless dispatch) -- PR #174's description has exact click-by-click verification steps for a human/supervisor."
 
   - num: 2
     name: "VERI Chat and VERI"
     tree1_domains: ["U-D7", "U-D8"]
-    status: not_started
-    baseline: "4 solid / 2 partial / 0 gap of 6 sub-branches (~67%)"
-    remaining_work:
-      - "Enforce the minimum 2-level chain selection gate before a new VERI Chat conversation begins (shared item with area 1)."
+    status: complete
+    baseline: "4 solid / 2 partial / 0 gap of 6 sub-branches (~67%) -- the sole remaining item (minimum-2-level chain gate before a new conversation) closed by PR #174, same real enforcement point as area 1 (task-service.ts's createTask(), shared code path for VERI Chat and Dynamic Chain task creation)."
+    remaining_work: []
 
   - num: 3
     name: "Guardrails"
@@ -116,11 +113,10 @@ areas:
   - num: 12
     name: "Loop Engineering"
     tree1_domains: ["U-D16.B1"]
-    status: not_started
-    baseline: "0 solid / 2 partial / 2 gap of 4 sub-branches (~0%)"
-    remaining_work:
-      - "Universal reflective-question mechanism running for EVERY completed task (what succeeded/failed/why, can this be faster/cheaper, should another AI do this, should this become reusable) -- currently the CLEE pipeline only fires on guardrail violations and audit-loop findings, not universally."
-      - "Per-AI-Agent permanent directory (Agent/Task/Version/Average Success/Average Time/Failures/Common Errors/Improvement Suggestions/Latest Prompt Version/Validation Rules/Loop Engineering Status) -- worker_agent_usage_log/worker_agent_learnings cover Worker Agents only, not AI Dev Team roles generally."
+    status: complete
+    baseline: "PR #175 merged 2026-07-11, migration applied live: universal reflective-question mechanism (task-reflection.ts, wired into every real task-completion touchpoint) + per-AI-Agent directory (ai_agent_directory table, agent-directory-service.ts, refreshed after every AI Team dispatch closes). A high-severity CodeQL log-injection finding (js/tainted-format-string) was caught in CI review and fixed before merge -- 2 console.error calls that interpolated caller-controlled ids into the log message now pass them as separate args instead."
+    remaining_work: []
+    resolution_note: "Honest gaps disclosed and accepted as real, not blocking: (1) reviewing-path dispatches lose their cost estimate before the eventual reflection row is written (no cost_usd column added to activity_log, by design); (2) task reflections compare against org-wide recent tasks, not a narrower per-engine-key grouping; (3) different_ai_tier_flag/reusable_pattern_flag are always populated with real facts but never auto-decided (verdict: null) -- matches this session's no-self-grading discipline rather than fabricating an LLM-graded verdict."
 
   - num: 13
     name: "4-layer orchestra management"
@@ -133,13 +129,15 @@ areas:
   - num: 14
     name: "Common functionalities"
     tree1_domains: ["new tracked domain -- no Tree 1 match", "informed by U-D23", "informed by U-D24 (fully_implemented)"]
-    status: not_started
+    status: in_progress
     baseline: "Undefined until this session -- Owner confirmed: cross-cutting shared features (search, notifications, comments/attachments, audit trail, export), overlapping D23/D24"
     remaining_work:
-      - "Write a real definition pass first (this has no Tree 1 requirement text to reconcile against, unlike every other area) -- enumerate what 'common functionality' means per feature, then gap-check each against live code."
       - "D24 (Response Engine) is already fully_implemented -- carries forward as-is."
       - "D23 (Universal Dashboard) is largely implemented -- real-time-ness is the one unconfirmed piece."
-      - "New candidates needing their own gap-check: global search, notifications (in-app/email/push), comments/attachments on any object, universal audit-trail viewer (distinct from the raw audit_logs table), bulk export."
+      - "Notifications: real end-to-end (notifications table, GET /api/notifications, PATCH [id]/read, AppTopbar bell) but producer coverage is narrow -- only 5 service files write a row (automation-rule-service, ticket-service, metric-alert-service, fm-visitor-service, instruction-mismatch-audit) plus the new task-comments path this wave added. Most of the ~380-table domain has no notification producer. Left as an honest, real-but-narrow gap -- extending producer coverage broadly is a separate, larger piece of work, not a narrow slice."
+      - "Bulk export: real but limited to 2 pages -- reports/page.tsx (CSV/XLSX/PDF) and compliance/page.tsx (CSV). No other module (tasks, checklists, penalties, ERP, legal, HR, PMS) has export wired. Left as an honest, real-but-narrow gap for the same reason as notifications."
+      - "Global search and comments/attachments were each closed for one additional real slice this wave -- see resolution_note. Both remain narrow relative to the full ~380-table domain by design (scope discipline: close 2-3 sub-features completely rather than half-build all 5)."
+    resolution_note: "2026-07-11 (Wave, area 14 definition + gap-close): (1) AUDIT TRAIL VIEWER -- investigated, found already complete: src/app/(app)/audit/page.tsx is real (filters/pagination/badges, not a stub), src/app/api/audit/route.ts is fully wired and tenant-scoped, write path is src/lib/audit.ts's logActivity() called from ~95 files. No code touched, carried forward as-is -- the most mature of the 5 candidates, the pattern the others should eventually match. (2) GLOBAL SEARCH -- search-command.tsx's 'Standard' tab previously called /api/compliance?search= directly (compliance-items only); built src/lib/services/search-service.ts (searchAll(), covering compliance items + tasks + clients via ILIKE) + new src/app/api/search/route.ts + rewired the Standard tab to call it and render 3 grouped sections. Also fixed a latent wildcard-injection issue (search-service.ts's escapeLikePattern(), unit-tested in search-service.test.ts) that the pre-existing compliance-service.ts search() still has un-fixed. Semantic (AI) tab was already real and untouched. (3) COMMENTS -- schema.ts's `comments` table was already polymorphic (entityId/entityType, NOT NULL) but only ever had one route wired (compliance items). Added src/app/api/tasks/[id]/comments/route.ts (GET+POST) using the same generic entityId/entityType columns directly -- no schema/migration change needed. POST also writes a real in-app notification row to the task's assignee. (4) NOTIFICATIONS and (5) BULK EXPORT -- investigated, confirmed real-but-narrow (see remaining_work), deliberately left untouched this wave per scope discipline rather than half-extending both."
 
   - num: 15
     name: "End user lifecycle management"
