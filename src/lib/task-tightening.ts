@@ -79,6 +79,83 @@ function isPlaceholder(value: string): boolean {
   return PLACEHOLDER_PATTERNS.some((p) => p.test(trimmed))
 }
 
+// Wave 166 (tree4-unified/50-completion-plan area 7, "Narrow and tightened
+// Instructions to Agents"): the completeness checks above (missing/
+// placeholder/too-short) don't catch a field that IS present, real, and
+// long enough, but still underspecified -- a brief that says "handle edge
+// cases as appropriate" is exactly the kind of thing that burned GPT-OSS-
+// 120B's iteration budget with zero files written (see module header).
+// Deterministic only, same discipline as every other gate here: this
+// catches the clearest, narrowest cases (explicit hedge-word phrases, and
+// an explicit "don't do X" in constraints against an explicit "do X" in
+// the requirement fields) -- it does not attempt general logical
+// contradiction detection, which would need an LLM and isn't what this
+// module does. False negatives are expected and acceptable; false
+// positives on legitimate specific text are not, so the phrase list is
+// deliberately short and literal rather than broad.
+const AMBIGUITY_PHRASES = [
+  "etc.", "and so on", "and so forth", "as appropriate", "as needed",
+  "if needed", "if necessary", "when necessary", "handle edge cases",
+  "handle appropriately", "figure it out", "use your judgment", "use your judgement",
+  "some kind of", "some sort of", "not sure", "we'll see", "tbd later",
+]
+
+export function detectAmbiguousLanguage(value: string): { detected: boolean; matchedPhrase?: string } {
+  const lower = value.toLowerCase()
+  const matchedPhrase = AMBIGUITY_PHRASES.find((phrase) => lower.includes(phrase))
+  return matchedPhrase ? { detected: true, matchedPhrase } : { detected: false }
+}
+
+// Narrow cross-field check: an explicit negation in constraints ("do not
+// X" / "never X" / "excluding X") whose object X substantially overlaps
+// (as a bag of content words, not an exact phrase -- a first attempt using
+// exact-substring matching broke on ordinary sentence variation like an
+// inserted adjective, e.g. "do not delete the X module" vs "delete the
+// DEPRECATED X module") with words also present in objective/scope/
+// successCriteria/expectedOutput. Requires at least 2 overlapping content
+// words AND >=60% overlap of the negation's own object words, so a single
+// shared common word (e.g. both mentioning "export") can't trigger a false
+// positive on its own.
+const NEGATION_TRIGGERS = ["do not", "don't", "never", "must not", "should not", "shouldn't", "excluding", "without"]
+const CONTRADICTION_STOPWORDS = new Set([
+  "the", "a", "an", "of", "to", "for", "and", "or", "in", "on", "at", "by", "with",
+  "it", "this", "that", "under", "any", "all", "circumstances", "as", "is", "be",
+])
+
+function contentWords(text: string, limit?: number): string[] {
+  const words = text.split(/[^a-z0-9]+/).filter(Boolean).filter((w) => !CONTRADICTION_STOPWORDS.has(w) && w.length > 2)
+  return limit ? words.slice(0, limit) : words
+}
+
+export function detectFieldContradiction(task: Partial<TightTask>): { detected: boolean; conflictingTerm?: string } {
+  const constraintText = (task.constraints ?? "").toLowerCase()
+  if (!constraintText.trim()) return { detected: false }
+  const requirementText = [task.objective, task.scope, task.successCriteria, task.expectedOutput]
+    .filter((v): v is string => Boolean(v))
+    .join(" ")
+    .toLowerCase()
+  if (!requirementText.trim()) return { detected: false }
+  const requirementWords = new Set(contentWords(requirementText))
+
+  for (const trigger of NEGATION_TRIGGERS) {
+    let searchFrom = 0
+    while (true) {
+      const idx = constraintText.indexOf(trigger, searchFrom)
+      if (idx === -1) break
+      const after = constraintText.slice(idx + trigger.length)
+      const words = contentWords(after, 6)
+      if (words.length >= 2) {
+        const matched = words.filter((w) => requirementWords.has(w))
+        if (matched.length >= 2 && matched.length / words.length >= 0.6) {
+          return { detected: true, conflictingTerm: words.join(" ") }
+        }
+      }
+      searchFrom = idx + trigger.length
+    }
+  }
+  return { detected: false }
+}
+
 function checkField(value: string | undefined, label: string, guidanceExample: string): TightTaskValidation | null {
   const trimmed = (value ?? "").trim()
   if (!trimmed) {
@@ -113,6 +190,26 @@ export function validateTightTask(task: Partial<TightTask>): TightTaskValidation
 
   const outputFailure = checkField(task.expectedOutput, "Expected output", "A new PDF file matching the CSV export's row/column structure, downloadable from the reports page")
   if (outputFailure) return outputFailure
+
+  for (const [label, value] of [["Objective", task.objective], ["Scope", task.scope], ["Success criteria", task.successCriteria], ["Expected output", task.expectedOutput]] as const) {
+    const ambiguity = detectAmbiguousLanguage(value ?? "")
+    if (ambiguity.detected) {
+      return {
+        valid: false,
+        reason: `${label} contains vague, unresolved language ("${ambiguity.matchedPhrase}").`,
+        guidance: `Replace "${ambiguity.matchedPhrase}" with the actual decision -- state exactly what should happen, don't leave it for the model to guess.`,
+      }
+    }
+  }
+
+  const contradiction = detectFieldContradiction(task)
+  if (contradiction.detected) {
+    return {
+      valid: false,
+      reason: `Constraints say not to do "${contradiction.conflictingTerm}", but that same thing is required elsewhere in the task.`,
+      guidance: `Resolve the contradiction before dispatch -- either remove it from Constraints, or remove the requirement from Objective/Scope/Success criteria/Expected output.`,
+    }
+  }
 
   if (!task.complexityTier) {
     return { valid: false, reason: "Complexity tier is missing.", guidance: `Set complexityTier to one of: ${VALID_TIERS.join(", ")} -- this determines which models are even eligible to receive this task.` }
@@ -164,6 +261,21 @@ export function validateTaskBrief(brief: TaskBrief): TightTaskValidation {
       guidance: "Add a few more words describing what should happen, or assign the task directly instead of relying on AI planning.",
     }
   }
+
+  // Same ambiguity check as validateTightTask, applied to title+description
+  // combined -- no separate constraints field exists on a customer task, so
+  // the cross-field contradiction check (detectFieldContradiction) doesn't
+  // apply here.
+  const combined = [title, (brief.description ?? "").trim()].filter(Boolean).join(" ")
+  const ambiguity = detectAmbiguousLanguage(combined)
+  if (ambiguity.detected) {
+    return {
+      valid: false,
+      reason: `Task title/description contains vague, unresolved language ("${ambiguity.matchedPhrase}").`,
+      guidance: `Replace "${ambiguity.matchedPhrase}" with what should actually happen.`,
+    }
+  }
+
   return { valid: true }
 }
 

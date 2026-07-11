@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, type TightTask } from "./task-tightening"
+import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, detectAmbiguousLanguage, detectFieldContradiction, type TightTask } from "./task-tightening"
 
 const VALID: TightTask = {
   objective: "Add real PDF and Excel export to the reports dashboard",
@@ -154,5 +154,55 @@ describe("validateTaskBrief -- conservative, for real customer task titles", () 
   test("does not require a description at all", () => {
     expect(validateTaskBrief({ title: "Follow up", description: undefined })).toEqual({ valid: true })
     expect(validateTaskBrief({ title: "Follow up", description: null })).toEqual({ valid: true })
+  })
+
+  test("rejects a title+description with ambiguous language", () => {
+    const result = validateTaskBrief({ title: "Fix the reports page", description: "Handle edge cases as appropriate" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("vague")
+  })
+})
+
+describe("detectAmbiguousLanguage -- Wave 166, area 7", () => {
+  test("detects a real hedge phrase", () => {
+    expect(detectAmbiguousLanguage("Handle edge cases as appropriate")).toEqual({ detected: true, matchedPhrase: "as appropriate" })
+  })
+  test("detects 'use your judgment'", () => {
+    expect(detectAmbiguousLanguage("If it breaks, use your judgment")).toEqual({ detected: true, matchedPhrase: "use your judgment" })
+  })
+  test("does not flag specific, concrete text", () => {
+    expect(detectAmbiguousLanguage("Add a PDF export button next to the existing CSV export button")).toEqual({ detected: false })
+  })
+  test("does not flag legitimate use of common words that aren't the hedge phrases", () => {
+    expect(detectAmbiguousLanguage("Some tasks need review, but this one is fully specified")).toEqual({ detected: false })
+  })
+})
+
+describe("detectFieldContradiction -- Wave 166, area 7", () => {
+  test("detects a real contradiction between constraints and objective", () => {
+    const result = detectFieldContradiction({
+      objective: "Modify the database schema to add a new column",
+      constraints: "Do not modify the database schema under any circumstances",
+    })
+    expect(result.detected).toBe(true)
+  })
+  test("passes when constraints and objective don't overlap", () => {
+    const result = detectFieldContradiction({
+      objective: "Add a PDF export button to the reports page",
+      constraints: "Do not touch the CSV export code",
+    })
+    expect(result).toEqual({ detected: false })
+  })
+  test("passes when there are no constraints at all", () => {
+    expect(detectFieldContradiction({ objective: "Add a PDF export button" })).toEqual({ detected: false })
+  })
+  test("a real full TightTask with a genuine contradiction is rejected by validateTightTask", () => {
+    const result = validateTightTask({
+      ...VALID,
+      objective: "Delete the deprecated legacy-report-export module entirely",
+      constraints: "Do not delete the legacy-report-export module -- keep it for backward compatibility",
+    })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("Constraints say not to do")
   })
 })

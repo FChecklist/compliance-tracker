@@ -133,16 +133,27 @@ export async function POST(request: NextRequest) {
     if (touchesAccount) guardrails.account = await runGuardrailLevel("GUARDRAIL_ACCOUNT", execution.content)
     if (touchesUser) guardrails.user = await runGuardrailLevel("GUARDRAIL_USER", execution.content)
 
-    if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: requiresAudit ? "reviewing" : "completed", objective })
+    // Wave 165 (U-D12.B4.S3 finding): this write used to be fire-and-forget
+    // with no way to reference it again -- 'reviewing' was a dead end, and
+    // the response below said status:"completed" unconditionally even when
+    // requiresAudit was true. Now awaited so the activity_log id can be
+    // handed back to the caller, and the reported status honestly reflects
+    // that a low-confidence dispatch is NOT done until an independent
+    // reviewer calls POST /api/ai/team/review (see that route + guardrail-
+    // registrations.ts's AI_TEAM_CLOSURE_REVIEW_LEAF for the actual gate).
+    const activityRow = orgId
+      ? await recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: requiresAudit ? "reviewing" : "completed", objective })
+      : null
 
     return NextResponse.json({
-      status: "completed",
+      status: requiresAudit ? "pending_review" : "completed",
       classification,
       executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },
       output: execution.content,
       usage: execution.usage,
       requiresAudit,
       lowConfidenceSignal: lowConfidence.detected ? lowConfidence.matchedPhrase : null,
+      reviewActivityId: requiresAudit ? (activityRow?.id ?? null) : null,
       guardrails,
     })
   } catch (error) {
