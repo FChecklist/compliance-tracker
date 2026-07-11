@@ -238,6 +238,18 @@ const REQUIRED_MARKERS = [
   // cron, not just documented as a future task.
   { file: "src/lib/audit-cadence-scan.ts", mustContain: ["export async function scanForL2Violations"] },
   { file: "src/app/api/internal/audit-cadence/run/route.ts", mustContain: ["scanForL2Violations("] },
+
+  // QA pre-completion gate (area 3 "Guardrails", PLAN-16 original item
+  // (f), distinct from GOV-08 just above): two prior passes found
+  // Handover Protocol had zero live callers -- this wires it into the AI
+  // Team dispatch/review lifecycle for real and adds the actual
+  // completion-blocking check GOV-08 never provided (field presence, not
+  // the reported value).
+  { file: "src/lib/qa-precompletion-gate.ts", mustContain: ["export function checkQaPreCompletionGate", "export function buildDispatchSelfAssessment"] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["QA_PRECOMPLETION_GATE_LEAF"] },
+  { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["buildDispatchSelfAssessment(", "checkQaPreCompletionGate("] },
+  { file: "src/app/api/ai/team/review/route.ts", mustContain: ["QA_PRECOMPLETION_GATE_LEAF", "getActivitySelfAssessment("] },
+  { file: "src/lib/activity-log-service.ts", mustContain: ["decideAcceptance(", "handover_not_submitted"] },
 ]
 
 let failed = false
