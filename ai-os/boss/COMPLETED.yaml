@@ -772,3 +772,67 @@ entries:
         session (or the Boss directly) should dispatch a z.ai audit of
         this PR before treating it as fully cross-reviewed, consistent
         with every other WAVE-* entry in this file.
+  - id: WAVE-159
+    title: "Guardrail gap-closure pass + anti-bypass CI check + universal Task wrapper design"
+    doer:
+      agent: claude-code
+      date: "2026-07-11"
+      pr: PENDING
+      summary: >
+        Boss asked to confirm 8 specific claims about task governance
+        coverage. Re-verified each against live code rather than assuming
+        Wave 158 already covered it; 4 were only partially true. Closed
+        what could be closed safely same day: (1) enforcePolicy() wired
+        into crm-service.ts's scoreLead()/analyzeOpportunity(), checking
+        only the genuinely user-authored lead.name/opp.name field, not the
+        whole system-constructed prompt; (2) direct code review found
+        gst/ai-review-report.ts and visitor-intelligence-service.ts have
+        NO free-text user input reaching their LLM calls at all --
+        reclassified NOT APPLICABLE rather than force-wired with a
+        synthetic string, matching this codebase's existing "don't
+        restrict a surface without the risk in question" discipline; (3)
+        task-execution-engine.ts's free-text LLM-planning branch now runs
+        validateTaskBrief() (new, task-tightening.ts) -- a deliberately
+        LIGHTER check than the AI Dev Team's TightTask schema, since this
+        gates a live product's real short task titles ("Follow up with
+        vendor") that must keep working, not an AI-dispatch pipeline with
+        zero live callers to protect; threshold tuned conservatively (only
+        rejects empty/placeholder/single-character titles) given no real
+        usage data to validate a stricter one against; (4) loop-prevention.ts's
+        checkLoopBudget() generalizes ai-workforce-agent.mjs's
+        MAX_ITERATIONS pattern into a reusable guardrail-engine.ts "logic"
+        phase check any future pipeline can adopt; that script itself now
+        uses the shared checker for its exhaustion message (still can't
+        feed the DB-backed CLEE loop -- no DATABASE_URL in that standalone
+        CI context, stated honestly in its own comment, not glossed over);
+        (5) new anti-bypass mechanism: scripts/check-guardrail-presence.mjs
+        (27-marker manifest) as a new CI job, plus AGENTS.md Operating
+        Rule 9 -- guardrails cannot be weakened/removed without Rajat
+        Agarwal's explicit written instruction quoted in the PR, named
+        honestly as a reviewable-diff guarantee, not a runtime-unbypassable
+        lock; (6) UNIVERSAL_TASK_WRAPPER_DESIGN.md -- design-only, per
+        Boss's explicit instruction that this needs review before code --
+        proposes an additive `activity_log` envelope table (Option B,
+        recommended over redefining orchestraExecutions as "the Task",
+        Option A) with a 4-phase rollout, collapsing the source document's
+        18 lifecycle stages to the 7 this codebase can actually verify
+        rather than inventing unverifiable finer-grained stages.
+        VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md updated in place (amendment
+        section + guardrail-table rows #3/#4/#5/#20) rather than duplicated.
+        31 new/updated unit tests, all passing (115 pass total / 1 fail /
+        1 error, both pre-existing and unrelated, unchanged from Wave 158);
+        tsc --noEmit clean; lint clean; bun run build clean.
+    auditor:
+      agent: PENDING
+      date: PENDING
+      verdict: PENDING
+      summary: >
+        No cross-audit run this session, same honest gap as WAVE-158's
+        entry. A future session (or the Boss directly) should dispatch a
+        z.ai audit of this PR, with particular attention to the
+        validateTaskBrief() MIN_PLANNABLE_LENGTH=4 threshold (a live
+        customer-product behavior change made without real usage data to
+        validate it against) and to whether the ai-review-report.ts/
+        visitor-intelligence-service.ts "no free-text input" reclassification
+        is correct on independent re-reading, not just accepted on the
+        doer's own claim.

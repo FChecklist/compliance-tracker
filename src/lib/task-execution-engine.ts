@@ -13,6 +13,10 @@ import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance
 import { logActivity } from "@/lib/audit";
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
+import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
+import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
+
+registerAllGuardrails();
 
 /**
  * Real task execution engine (Wave 4's biggest remaining gap): given a
@@ -626,6 +630,22 @@ export async function executeTask(
   }
 
   try {
+    // Wave 159 (VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, Objective/
+    // Instruction Validation Guardrails extended to customer tasks): before
+    // even checking policy, confirm there's enough here to plan against at
+    // all -- a task with a one-word title and no description forces the
+    // LLM below to invent a plan from almost nothing, the same failure
+    // shape as an under-specified AI-dispatch brief (task-tightening.ts).
+    // Lighter than the AI Dev Team's TightTask schema (see
+    // validateTaskBrief()'s own header for why), but a real, blocking gate
+    // -- not just documentation.
+    const briefCheck = evaluateGuardrails(TASK_FREE_TEXT_PLANNING_LEAF, "input", { title, description });
+    if (!briefCheck.passed) {
+      void recordGuardrailViolation(taskId, TASK_FREE_TEXT_PLANNING_LEAF, "input", briefCheck);
+      await markTaskOutcome(orgId, userId, taskId, "failed", `${briefCheck.reason} ${briefCheck.guidance}`);
+      return;
+    }
+
     // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
     // this free-text planning call -- exactly the entry point the
     // Constitution's Policy Enforcement Engine (Wave 46) exists to guard --

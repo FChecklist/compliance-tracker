@@ -4,6 +4,17 @@
 
 Adopted from a document supplied by the repository owner (`Consutitution.docx`, "VERIDIAN AI OS -- AI Governance & Continuous Improvement Framework") describing a Universal Task Lifecycle, a 4-tier AI role hierarchy, and 30 Mandatory Guardrail Protocols. Same discipline as its two sibling constitutional documents: where a section is marked **[ENFORCED]**, a real, running mechanism verifies it, cited by file:line. Where marked **[PARTIALLY ENFORCED]**, part of the mechanism is real and part is not, named explicitly. Where marked **[POLICY ONLY]**, it is a governance rule not yet backed by code. Where marked **[NOT APPLICABLE YET]**, nothing exists yet for the rule to bind to.
 
+## Amendment, 2026-07-11 (Wave 159): gap-closure pass
+
+Boss asked for explicit confirmation of 8 specific claims about this framework's coverage. Re-verifying against live code (not assuming last wave's work already covered it) found several were only partially true. Closed this same day, scoped conservatively:
+
+- **Guardrail coverage gap, real**: `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` now call `enforcePolicy()` against the one genuinely user-authored field in each (`lead.name`/`opp.name`), not the whole system-constructed prompt.
+- **Guardrail coverage gap, NOT real, corrected**: `gst/ai-review-report.ts` and `visitor-intelligence-service.ts` were previously flagged as "not yet wired" to the Policy Enforcement Engine. Direct code review found neither has any free-text user input reaching the model at all -- both send only system-constructed JSON (validation findings, DB aggregates). Wiring `enforcePolicy()` there would mean feeding it a synthetic string just to satisfy the signature, which isn't real enforcement of anything against the actual threat model that gate exists for. Reclassified **[NOT APPLICABLE]**, matching `VERIDIAN_AI_CONSTITUTION.md`'s own discipline of not restricting a surface that doesn't carry the risk in question.
+- **Task-tightening extended to customer tasks, conservatively**: `task-execution-engine.ts`'s free-text LLM-planning branch (`executeTask()` when no `resolvedWorkerAgentId`/`engineKey` is set -- the customer-task analog of the AI-dispatch failure mode) now runs `validateTaskBrief()` (`task-tightening.ts`), a **lighter** check than the AI Dev Team's TightTask schema. The full 3-required-field schema was deliberately NOT applied to customer task creation -- doing so would break real product usage (a human creating "Follow up with vendor X" is a completely normal, complete task; a human doesn't have an iteration budget to exhaust). `validateTaskBrief()` only rejects genuinely degenerate briefs (empty, placeholder, single-character titles), tuned conservatively against real short titles ("Follow up with vendor", "Call vendor") to avoid regressing live product behavior with no usage data to validate a stricter threshold against.
+- **Infinite Loop Prevention generalized**: `src/lib/loop-prevention.ts`'s `checkLoopBudget()` extracts `ai-workforce-agent.mjs`'s `MAX_ITERATIONS` pattern into a reusable, registerable check (`guardrail-engine.ts`'s `"logic"` phase). Registered as `ai_workforce.loop_budget` for any future pipeline with DB access to adopt for free. `ai-workforce-agent.mjs` itself now uses the shared checker for its own exhaustion message, though it still can't feed the DB-backed CLEE loop directly (no `DATABASE_URL` in that standalone CI context) -- named honestly in that script's own comment, not glossed over.
+- **Anti-bypass mechanism, new**: `scripts/check-guardrail-presence.mjs` (CI job "Guardrail Presence Check") + `AGENTS.md` Operating Rule 9 -- see that script's own header for the exact, honestly-stated guarantee (a reviewable-diff requirement, not a runtime-unbypassable lock).
+- **Still not done, unchanged**: the universal Task wrapper (every activity -- chat, Orchestra Layer calls, background jobs -- classified as a Task) and the enforced 18-stage lifecycle state machine (§2/§3 below). Scoped as a separate design-first effort per Boss's own instruction, not attempted as code this wave.
+
 ## Relationship to the other two constitutional documents
 
 VERIDIAN AI OS now has three constitutional documents, each governing a different axis, none duplicating the others:
@@ -79,7 +90,7 @@ The source document specifies an 18-stage per-task lifecycle (Request -> Classif
 
 **[ENFORCED]** -- `orchestraExecutions` (model/provider/tokens/cost/duration/status per call, Wave 22/23), `token_usage_ledger` (`src/lib/services/token-usage-service.ts`, AI Team + product spend), `audit_logs` (general activity, append-only by convention). `ai-workforce-agent.mjs`'s own `MAX_ITERATIONS`/`MAX_FILE_BYTES` are real, enforced circuit breakers for that specific script.
 
-**[POLICY ONLY]** -- these circuit breakers (max iterations, max recursive delegation, deadlock detection) are not generalized into a reusable framework-level mechanism the way the source document's "Infinite Loop Prevention" section describes; each pipeline that needs one has hand-rolled its own (a real, if narrower, form of the same protection).
+**[PARTIALLY ENFORCED, iteration budgets generalized as of Wave 159]** -- `src/lib/loop-prevention.ts`'s `checkLoopBudget()` is now a reusable, registerable primitive (`guardrail-engine.ts`'s `"logic"` phase, leaf `ai_workforce.loop_budget`) any pipeline can adopt instead of hand-rolling its own iteration cap; `ai-workforce-agent.mjs` uses it for its own `MAX_ITERATIONS` exhaustion message. **Still not covered**: max recursive delegation count and deadlock/circular-dependency detection, which need a real task-dependency graph to check against -- deferred alongside the universal Task wrapper design work, not fabricated with nothing real to detect.
 
 ## 8. Loop Engineering / Continuous Learning / AI Improvement Framework
 
@@ -111,9 +122,9 @@ The source document specifies an 18-stage per-task lifecycle (Request -> Classif
 |---|---|---|---|
 | 1 | Identity | [ENFORCED] | `requireAuth()` on every route |
 | 2 | Authority | [ENFORCED] | `hasRole()`/RLS |
-| 3 | Scope | [ENFORCED, this wave, for AI-dispatch] | `task-tightening.ts` (§4) |
-| 4 | Objective | [ENFORCED, this wave, for AI-dispatch] | `task-tightening.ts` (§4) |
-| 5 | Instruction Validation | [ENFORCED, this wave, for AI-dispatch] | `task-tightening.ts` + `guardrail-engine.ts` (§4) |
+| 3 | Scope | [ENFORCED for AI-dispatch; PARTIALLY for customer tasks] | `task-tightening.ts` (§4); `validateTaskBrief()` for free-text task planning |
+| 4 | Objective | [ENFORCED for AI-dispatch; PARTIALLY for customer tasks] | `task-tightening.ts` (§4); `validateTaskBrief()` for free-text task planning |
+| 5 | Instruction Validation | [ENFORCED for AI-dispatch; PARTIALLY for customer tasks] | `task-tightening.ts` + `guardrail-engine.ts` (§4); Wave 159 extended a lighter check to `task-execution-engine.ts`'s free-text planning branch |
 | 6 | Knowledge | [POLICY ONLY] | no "do I have sufficient knowledge" self-check exists |
 | 7 | Evidence | [PARTIALLY ENFORCED] | `orchestraExecutions`/`audit_logs` capture evidence; no rule blocks a claim lacking it |
 | 8 | Hallucination Prevention | [PARTIALLY ENFORCED] | §10 |
@@ -128,7 +139,7 @@ The source document specifies an 18-stage per-task lifecycle (Request -> Classif
 | 17 | Privacy | [ENFORCED] | RLS multi-tenant isolation (`VERIDIAN_AI_CONSTITUTION.md` §8) |
 | 18 | Audit | [ENFORCED] | `audit_logs` + `orchestraExecutions` |
 | 19 | Monitoring | [ENFORCED] | §7 |
-| 20 | Loop Prevention | [PARTIALLY ENFORCED] | per-pipeline circuit breakers exist (`MAX_ITERATIONS`), not generalized -- §7 |
+| 20 | Loop Prevention | [PARTIALLY ENFORCED, generalized as of Wave 159] | `loop-prevention.ts`'s `checkLoopBudget()`, reusable via `guardrail-engine.ts` -- §7. Recursive-delegation/deadlock detection still absent. |
 | 21 | Quality Assurance | [PARTIALLY ENFORCED] | CI + doer/auditor cross-review for waves; not generic per-task |
 | 22 | Handover | [PARTIALLY ENFORCED] | §5 |
 | 23 | Reporting | [PARTIALLY ENFORCED] | `COMPLETED.yaml`, `token_usage_ledger`; no universal per-task report |
@@ -152,6 +163,8 @@ The source document specifies an 18-stage per-task lifecycle (Request -> Classif
 - Three-hour cron-triggered governance review (§11).
 - A dedicated AI Quality Management System document (SLAs, formal CAPA tracking).
 - Literal renaming of `roster.ts` models to match the source document's GPT-OSS-120B/DeepSeek Pro V4/ZLM 5.2 naming -- deliberately not done; see §1's correction.
+- The universal Task wrapper and enforced 18-stage lifecycle state machine (§2/§3, Guardrail #1/#7) -- Boss selected this as in-scope but design-first; see `UNIVERSAL_TASK_WRAPPER_DESIGN.md` for the design produced 2026-07-11.
+- Recursive-delegation-count and circular-dependency/deadlock detection (Guardrail #20) -- needs the Task wrapper's dependency graph to check against; not fabricated ahead of that.
 
 ## How this differs from the source document
 

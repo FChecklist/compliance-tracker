@@ -44,6 +44,7 @@ const apiKey = process.env.OPENROUTER_API_KEY
 // with the same deterministic check the Next.js dispatch route uses,
 // before the agent loop (and any OpenRouter spend) starts.
 const { validateTightTask, assembleTightTaskPrompt } = await import(path.join(REPO_ROOT, "src/lib/task-tightening.ts"))
+const { checkLoopBudget } = await import(path.join(REPO_ROOT, "src/lib/loop-prevention.ts"))
 
 const rawTask = {
   objective: process.env.AI_TEAM_TASK_OBJECTIVE,
@@ -388,7 +389,21 @@ async function main() {
   }
 
   if (!finished) {
-    finished = { summary: `Stopped after ${MAX_ITERATIONS} iterations without calling finish.`, filesChanged: [...filesChanged] }
+    // Wave 159: the shared, reusable version of this check
+    // (guardrail-registrations.ts registers the same one under
+    // "ai_workforce.loop_budget" for any pipeline WITH DB access). This
+    // script has none (see fetchSystemPrompt()'s own comment --
+    // DATABASE_URL isn't available in standalone CI), so it can't call
+    // recordGuardrailViolation() to feed the CLEE loop the way the
+    // Next.js dispatch route does on a tightening-guardrail block. What it
+    // CAN do, and now does: use the same deterministic reason/guidance
+    // text instead of a bespoke message, so a human reading the PR body
+    // (which already surfaces `summary`) sees the same structured
+    // explanation the DB-backed path would have logged.
+    const budgetCheck = checkLoopBudget({ iteration: MAX_ITERATIONS, maxIterations: MAX_ITERATIONS })
+    const reason = !budgetCheck.passed ? `${budgetCheck.reason} ${budgetCheck.guidance}` : `Stopped after ${MAX_ITERATIONS} iterations without calling finish.`
+    console.error(`[ai-workforce-agent] ${reason}`)
+    finished = { summary: reason, filesChanged: [...filesChanged] }
   }
 
   console.log("=== AI WORKFORCE AGENT RESULT ===")

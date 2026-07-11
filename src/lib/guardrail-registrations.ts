@@ -16,10 +16,13 @@
 // process (registerGuardrail is additive, so calling this twice would
 // double-register -- callers should only invoke it once; see call sites).
 import { registerGuardrail } from "./guardrail-engine"
-import { validateTightTask, type TightTask } from "./task-tightening"
+import { validateTightTask, validateTaskBrief, type TightTask, type TaskBrief } from "./task-tightening"
+import { checkLoopBudget, type LoopBudgetContext } from "./loop-prevention"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
 export const AI_WORKFORCE_DISPATCH_LEAF = "ai_workforce.dispatch"
+export const TASK_FREE_TEXT_PLANNING_LEAF = "task_execution.free_text_planning"
+export const AI_WORKFORCE_LOOP_BUDGET_LEAF = "ai_workforce.loop_budget"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   const task: Partial<TightTask> = {
@@ -31,6 +34,17 @@ function tightTaskCheck(context: Record<string, unknown>) {
   const result = validateTightTask(task)
   if (result.valid) return { passed: true as const }
   return { passed: false as const, reason: result.reason, guidance: result.guidance }
+}
+
+function taskBriefCheck(context: Record<string, unknown>) {
+  const brief: TaskBrief = { title: context.title as string, description: context.description as string | null | undefined }
+  const result = validateTaskBrief(brief)
+  if (result.valid) return { passed: true as const }
+  return { passed: false as const, reason: result.reason, guidance: result.guidance }
+}
+
+function loopBudgetCheck(context: Record<string, unknown>) {
+  return checkLoopBudget(context as unknown as LoopBudgetContext)
 }
 
 let registered = false
@@ -46,4 +60,19 @@ export function registerAllGuardrails(): void {
   // the Guardrail Engine is keyed per capability-tree leaf, not globally.
   registerGuardrail(AI_TEAM_DISPATCH_LEAF, { phase: "input", check: tightTaskCheck })
   registerGuardrail(AI_WORKFORCE_DISPATCH_LEAF, { phase: "input", check: tightTaskCheck })
+
+  // Customer task free-text LLM planning (task-execution-engine.ts's
+  // executeTask(), the branch taken when no resolvedWorkerAgentId/engineKey
+  // is set) -- lighter check than tightTaskCheck, see task-tightening.ts's
+  // validateTaskBrief() header for why the full TightTask schema isn't
+  // appropriate for customer-created tasks.
+  registerGuardrail(TASK_FREE_TEXT_PLANNING_LEAF, { phase: "input", check: taskBriefCheck })
+
+  // Infinite Loop Prevention (Guardrail #20) -- "logic" phase, since it's
+  // about ongoing execution behavior, not initial input. Registered here so
+  // any future pipeline with DB access (unlike ai-workforce-agent.mjs,
+  // which calls checkLoopBudget() directly -- see that script's own
+  // comment for why it can't route through recordGuardrailViolation) gets
+  // a consistent, reusable budget check + CLEE feed for free.
+  registerGuardrail(AI_WORKFORCE_LOOP_BUDGET_LEAF, { phase: "logic", check: loopBudgetCheck })
 }
