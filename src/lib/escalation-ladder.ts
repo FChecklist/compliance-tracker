@@ -41,6 +41,12 @@ export type EscalationReason =
   // trigger, not a code defect, so it starts at COO like the other
   // non-software-first reasons below, not at CSEO.
   | "low_confidence_closure"
+  // tree4-unified/50-completion-plan area 9 "Auditing", audit-cadence.ts's
+  // classifyAuditCadence(): Guardrail 10's "risk level determines...
+  // escalation level" for the critical tier specifically -- also a
+  // governance/policy trigger (risk classification, not a code defect),
+  // starts at COO for the same reason as low_confidence_closure above.
+  | "critical_risk_closure"
 
 export type EscalationContext = {
   reason: EscalationReason
