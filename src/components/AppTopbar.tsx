@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, User, Settings, LogOut, ChevronDown, Loader2, PanelLeft } from "lucide-react";
+import { Bell, User, Settings, LogOut, ChevronDown, Loader2, PanelLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -17,6 +17,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchTrigger } from "@/components/search-command";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { InviteUserModal } from "@/components/InviteUserModal";
 
 type NotificationItem = {
   id: string;
@@ -36,6 +37,12 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
   const [userName, setUserName] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  // U-D28: "'Invite a team member' control must appear on every screen, on
+  // every webpage, upper-right corner" -- AppTopbar is rendered globally by
+  // AppShell for every authenticated page, so putting it here satisfies
+  // that. Reuses the same POST /api/users mechanism as the /users page via
+  // the shared InviteUserModal -- no new invite backend.
+  const [showInvite, setShowInvite] = useState(false);
 
   useEffect(() => {
     fetch("/api/notifications")
@@ -124,8 +131,21 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
       {/* Theme toggle */}
       <ThemeToggle />
 
-      {/* Right: notification + user */}
+      {/* Right: invite + notification + user */}
       <div className="flex items-center gap-2">
+        {/* Persistent "Invite a team member" control (U-D28) -- minimalist
+            "+" icon, upper-right, on every authenticated screen. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowInvite(true)}
+          title="Invite a team member"
+          aria-label="Invite a team member"
+          className="text-white/80 hover:text-white hover:bg-white/10"
+        >
+          <Plus className="size-[18px]" />
+        </Button>
+
         {/* Notification bell */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -200,6 +220,8 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <InviteUserModal open={showInvite} onOpenChange={setShowInvite} />
     </header>
   );
 }

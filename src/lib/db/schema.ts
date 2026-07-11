@@ -928,6 +928,22 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   status: text('status').notNull().default('approved'), // 'draft' | 'proposed' | 'approved' | 'retired'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Wave 171 (tree4-unified/50-completion-plan area 1, U-D6.B1.S1): DCMD
+  // rich-metadata fields. U-D6.B2.S2 recommended modeling this as a graph
+  // structure rather than an enumerated permutation table -- that
+  // recommendation is itself tagged not_applicable_to_code (a modeling
+  // suggestion, not a literal requirement), so this stays relational/JSON
+  // rather than a real graph DB, which would be new infrastructure for no
+  // functional gain over jsonb arrays a handful of real queries need. All
+  // nullable/defaulted -- existing rows are unaffected.
+  linkedModuleRefs: jsonb('linked_module_refs').notNull().default([]), // generalizes moduleRef (kept for backward compat) to the many-module case
+  businessRules: jsonb('business_rules'), // free-form rule refs -- narrow schema deferred until a real consumer needs a specific shape
+  permissions: jsonb('permissions'), // required role/scope refs to traverse this chain
+  workflowRef: text('workflow_ref'),
+  aiBehaviorRef: text('ai_behavior_ref'),
+  reportsKpisSlas: jsonb('reports_kpis_slas'),
+  version: integer('version').notNull().default(1),
+  previousVersionId: text('previous_version_id'), // self-referencing, null for the first version of a chain lineage
 })
 
 // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
@@ -1871,6 +1887,11 @@ export const approvalRequests = complianceSchemaDB.table('approval_requests', {
   clientId: text('client_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at'),
+  // Wave 171 (tree4-unified/50-completion-plan area 1, U-D6.B3.S1): same
+  // Dynamic Chain Phase 1 linkage as tasks.dynamicChainId/conversations'
+  // equivalent field -- extends single-Chain-ID traceability to approvals,
+  // the 3rd referencing object type wired so far.
+  dynamicChainId: text('dynamic_chain_id'),
 })
 
 // ─── COMPANY SECRETARIAL ─────────────────────────────────────────────────
