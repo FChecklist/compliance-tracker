@@ -230,6 +230,14 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["classifyAuditCadence(", "critical_risk_requires_escalation"] },
   { file: "src/lib/activity-log-service.ts", mustContain: ["export async function flagForReAudit", "export function listReAuditFlagged"] },
   { file: "src/app/api/ai/team/re-audit/route.ts", mustContain: ["flagForReAudit("] },
+
+  // Added 2026-07-12 (area 9 "Auditing", L2-L7 cron-wiring follow-up named
+  // in audit-cadence.ts's own header): real scheduled scan for L2
+  // (Continuous Monitoring) -- the one periodic level with an unambiguous
+  // action (detect failures, flag for re-audit) -- wired to a real Vercel
+  // cron, not just documented as a future task.
+  { file: "src/lib/audit-cadence-scan.ts", mustContain: ["export async function scanForL2Violations"] },
+  { file: "src/app/api/internal/audit-cadence/run/route.ts", mustContain: ["scanForL2Violations("] },
 ]
 
 let failed = false
