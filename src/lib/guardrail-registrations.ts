@@ -21,6 +21,8 @@ import { checkLoopBudget, type LoopBudgetContext } from "./loop-prevention"
 import { validateHandoverFields, type HandoverFields } from "./handover-protocol"
 import { bandConfidence } from "./confidence-banding"
 import { nextEscalationRung } from "./escalation-ladder"
+import { classifyAuditCadence } from "./audit-cadence"
+import type { RiskLevel } from "./risk-classification"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
 export const AI_WORKFORCE_DISPATCH_LEAF = "ai_workforce.dispatch"
@@ -116,6 +118,28 @@ function closureReviewCheck(context: Record<string, unknown>) {
         reason: "confidence_below_escalation_threshold",
         guidance: `Confidence (${confidencePercentage}%) is below the 90% floor Guardrail 9 requires for a direct approval -- this needs to escalate, not be approved as a normal peer review. Escalate to ${rung.title} (${rung.authority}) instead, or reject with reviewNotes explaining why.`,
       }
+    }
+  }
+
+  // tree4-unified/50-completion-plan area 9 "Auditing", remaining_work item
+  // 1 (audit-cadence.ts's classifyAuditCadence(), L1/L4 routing): riskLevel
+  // was persisted on the activity_log row at dispatch time (Guardrail 10)
+  // but never read back HERE, at the one place a closure decision is
+  // actually made -- so a critical-risk dispatch with a confident
+  // self-assessment could be approved as an ordinary peer review, the
+  // exact gap Guardrail 10's "risk level determines... escalation level"
+  // says shouldn't happen. riskLevel is supplied by the caller from the
+  // activity_log row itself (see review/route.ts's getActivityRiskLevel),
+  // not from client input -- the reviewer cannot spoof a lower risk level
+  // by omitting it from the request body.
+  const riskLevel = context.riskLevel as RiskLevel | null | undefined
+  const routing = classifyAuditCadence({ riskLevel: riskLevel ?? null })
+  if (routing.requiresExecutiveEscalation && riskLevel === "critical" && reviewDecision === "approved") {
+    const rung = nextEscalationRung({ reason: "critical_risk_closure" })
+    return {
+      passed: false as const,
+      reason: "critical_risk_requires_escalation",
+      guidance: `This dispatch was classified 'critical' risk (Guardrail 10) -- critical-risk actions require escalation to ${rung.title} (${rung.authority}) before approval, regardless of self-assessed confidence. Escalate instead, or reject with reviewNotes explaining why.`,
     }
   }
 

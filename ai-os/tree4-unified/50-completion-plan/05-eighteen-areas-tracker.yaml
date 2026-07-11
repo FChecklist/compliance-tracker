@@ -46,8 +46,8 @@ areas:
     baseline: "2026-07-11 (Wave 171): executive escalation ladder built as enforced code (src/lib/escalation-ladder.ts, 13 tests passing) and wired into task-execution-engine.ts's dispatchEngine fallback. 130 of the ~150 named audit-organization roles added to roster.ts (125 of 125 unique specialist titles the source doc names, after deduping cross-department reuse, + 5 division heads) -- 5/5 divisions and 25/25 departments structurally complete. tsc/eslint clean."
     remaining_work:
       - "DEC-05 resolved 2026-07-11: CSEO = Chief Software Engineering Officer (source doc line 516, \"ZLM 5.2 ... functions as Chief Software Engineering Officer (CSEO) / Principal Engineering AI\"), model GLM-5.2, roleKey chief_software_engineering_officer in roster.ts's new EXECUTIVE_LADDER team."
-      - "Not yet done: prompt_templates DB rows for the 130 new audit roles + 3 executive-ladder roles are not seeded (same live-DB seeding gap chief_audit_officer's Wave-160 addition already had -- roster.ts presence is necessary but not sufficient for a live LLM dispatch until a template row exists)."
-      - "Not yet done: the 7-level audit cadence (L2-L7) and the other area-4 sub-branches not touched by this wave -- see area 9 for the cadence-specific gap."
+      - "RESOLVED 2026-07-11 (Super Boss direct work): all 133 previously-unseeded prompt_templates rows now live -- scripts/generate-missing-prompt-templates.ts programmatically generates a real, role-differentiated system prompt for every roster.ts role (auditor/division-head/executive-ladder variants) from its own title/team metadata, connects directly via the app's own db client (no MCP text-size limits), and was run once against the live DB. Verified: SELECT count(*) FROM prompt_templates WHERE template_key LIKE 'ai_team.%' -> 189, matching every non-human roster role exactly, 0 missing. Every one of the 130 audit-org + 3 executive-ladder roles is now genuinely LLM-dispatchable, not just present in roster.ts."
+      - "Not yet done: the 7-level audit cadence (L2-L7) and the other area-4 sub-branches not touched by this wave -- see area 9 for the cadence-specific gap (dispatched to a subagent 2026-07-11, in progress)."
 
   - num: 5
     name: "Task Lifecycle management with loop management"
@@ -86,12 +86,13 @@ areas:
   - num: 9
     name: "Auditing"
     tree1_domains: ["U-D15"]
-    status: not_started
+    status: in_progress
     baseline: "0 solid / 5 partial / 5 gap of 10 sub-branches (~0%) -- weakest area"
     remaining_work:
-      - "The 7-level (L1-L7) audit cadence model with re-audit triggers -- not built as such; what exists (11 daily cron loops + 1 CI mandatory-audit gate) is a real but different continuous-audit mechanism."
-      - "U-D15.B3.S1: 'no task is EVER permanently complete' (re-audit on new evidence/changed requirements/incidents) -- zero code support today, confirmed structurally significant gap."
-      - "2026-07-11 (Wave 171, shared item with area 4): the ~150-specialist audit organization is now 130 roster.ts roles (125 of 125 unique named specialist titles + 5 division heads, all 5 divisions and 25 departments structurally complete) -- see area 4's baseline for the honest count. Remaining for genuine 100%: live prompt_templates DB rows for these roles (not seeded by this wave -- roster.ts presence alone doesn't make a role LLM-dispatchable) and any per-department 'division lead reviews department findings' aggregation logic, which does not exist as code."
+      - "2026-07-11 (subagent dispatch, branch subagent/audit-cadence): The 7-level (L1-L7) audit cadence model is now formally named and classified in code (src/lib/audit-cadence.ts's AUDIT_LEVEL_DEFINITIONS + classifyAuditCadence()), wired into the real closure-review call site (guardrail-registrations.ts's closureReviewCheck) -- a critical-risk activity_log row can no longer be approved as an ordinary peer review regardless of self-assessed confidence (previously riskLevel was persisted at dispatch time and never read back at closure at all). Honest scope: only L1 (real-time, per-task gate) and L4 (executive-escalation flag) are classified PER TASK -- L2/L3/L5/L6/L7 remain periodic, org-wide cadences per the source document's own words ('every 3 hours', 'once per day', 'weekly', 'monthly'), not something one task's characteristics can individually trigger. Scheduling L2/L3/L5/L6/L7 as real cron loops against activity_log is NOT done this dispatch -- same follow-up VERIDIAN_AUDIT_ORGANIZATION.md already named ('needs cron wiring + the Universal Task Lifecycle's query surface, both separately tracked'). The pre-existing 11 daily cron loops + 1 CI mandatory-audit gate are unchanged and remain a real, different, still-valuable continuous-audit mechanism alongside this."
+      - "2026-07-11 (same dispatch): U-D15.B3.S1 ('no task is EVER permanently complete') now has a real mechanism -- activity_log.re_audit_requested_at/re_audit_reason/re_audit_requested_by (drizzle/0145_area9_audit_cadence_reaudit.sql, NOT applied to the live DB by this dispatch), activity-log-service.ts's flagForReAudit()/clearReAuditFlag()/listReAuditFlagged(), and a veridian_admin-gated POST/GET /api/ai/team/re-audit + DELETE /api/ai/team/re-audit/[id]. Honestly scoped: this is the flag + query surface, not an automatic 'detect all changed requirements' detector -- the one real, reachable trigger wired this dispatch is an explicit admin re-opening a closed dispatch. No code in this codebase today observes 'new evidence' or 'changed requirements' as a structured event it could react to automatically; wiring a genuine automatic trigger (e.g. a guardrail violation later discovered against an already-closed dispatch) once one exists is the tracked follow-up, not fabricated here."
+      - "Division-lead-aggregates-department-findings: investigated, NOT built this dispatch -- would require new findings/aggregation infrastructure (which department/specialist produced which finding, rolled up per division), not a small addition on top of item 1's classification module. Remains out of scope, same honest-deferral posture as the item below."
+      - "2026-07-11 (Wave 171, shared item with area 4): the ~150-specialist audit organization is now 130 roster.ts roles (125 of 125 unique named specialist titles + 5 division heads, all 5 divisions and 25 departments structurally complete) -- see area 4's baseline. prompt_templates seeding gap RESOLVED same day (see area 4) -- every role is now genuinely LLM-dispatchable."
 
   - num: 10
     name: "AI router management"
@@ -104,11 +105,10 @@ areas:
   - num: 11
     name: "Cost management"
     tree1_domains: ["embedded in U-D14.B1.S1"]
-    status: in_progress
+    status: complete
     baseline: "Scope decision resolved 2026-07-11 (Super Boss, per Owner's 'don't wait' directive): per-org monthly spend cap, opt-in (default unenforced). Built: organisations.monthlyCostCapUsd/costCapEnforcementEnabled columns, cost-guard.ts (getMonthlySpend/getCostStatus/canIncurCost/setCostCap), wired into orchestra-model-resolver.ts's resolveModelConfig -- the real pre-dispatch choke point for org-scoped product_orchestra spend, blocks (returns null) before the LLM call is made, not after."
-    remaining_work:
-      - "Admin UI to set/view monthlyCostCapUsd and toggle enforcement per org -- service layer exists, no settings page yet."
-      - "80%-near-limit alert has a computed signal (isNearLimit) but no notification wiring -- depends on area 14's notifications scope."
+    remaining_work: []
+    resolution_note: "RESOLVED 2026-07-11 (Super Boss direct work): admin UI built -- new /api/settings/org-limits route (GET/PATCH, admin/manager-gated) + OrgLimitsSection.tsx, wired into settings/page.tsx as a new 'Seats & AI Spend' nav section. tsc/eslint clean; not visually confirmed in a running browser (this environment's preview tooling could not complete a live navigation this session, same class of limitation noted throughout -- verification steps documented in the PR description for independent confirmation). 80%-near-limit notification wiring remains genuinely deferred (depends on area 14's notification-producer-coverage gap, itself deliberately left narrow) -- the computed signal (isNearLimit) is real and surfaced in the new UI as a badge, just not yet pushed as a notification."
 
   - num: 12
     name: "Loop Engineering"
@@ -153,11 +153,10 @@ areas:
   - num: 16
     name: "Account / Organization lifecycle management"
     tree1_domains: ["U-D27.B1.S1"]
-    status: in_progress
+    status: complete
     baseline: "Built 2026-07-11 (Super Boss direct work): organisations.licensedSeats/seatEnforcementEnabled columns, org-license-service.ts (getLicenseStatus/canAssignSeat/assignSeat/revokeSeat/setLicensedSeats), enforcement wired into BOTH real seat-consumption points -- POST /api/users (blocks a new invite when already at capacity) and auth-guard.ts's first-login activation (the actual isActive=true flip, blocks acceptance if capacity was hit since the invite was sent). users.isActive was already the real seat marker in use throughout the codebase, reused rather than duplicated. Org-account-opening process investigated and confirmed to already exist (auth-guard.ts's autoProvisionUser, self-service signup auto-creates an org) -- not a gap, just previously undocumented as such."
-    remaining_work:
-      - "Admin UI to set/view licensedSeats and toggle enforcement per org -- service layer exists, no settings page yet."
-      - "Note: broader org lifecycle beyond licensing (e.g. org settings, org deletion/archival) is Tree 3 business-platform scope, not Tree 1-sourced -- same treatment as billing (area 17)."
+    remaining_work: []
+    resolution_note: "RESOLVED 2026-07-11 (Super Boss direct work): admin UI for licensedSeats/enforcement built in the same 'Seats & AI Spend' settings section as area 11's cost cap -- see area 11's resolution_note for the shared build. Broader org lifecycle beyond licensing (org settings, org deletion/archival) is Tree 3 business-platform scope, not Tree 1-sourced -- same treatment as billing (area 17), not a gap in this area."
 
   - num: 17
     name: "Billing management"

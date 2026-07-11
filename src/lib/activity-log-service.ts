@@ -20,10 +20,11 @@
 // functions) per the design doc's own phasing.
 import { activityLog } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
 import { bandConfidence } from "@/lib/confidence-banding";
+import type { RiskLevel } from "@/lib/risk-classification";
 
 export type ActivityType = "ai_team_dispatch";
 
@@ -97,6 +98,27 @@ export function recordActivity(params: RecordActivityInput): Promise<{ id: strin
   });
 }
 
+/**
+ * Reads back the risk level (Guardrail 10) persisted on an activity_log row
+ * at dispatch time. Used by the closure-review route to feed audit-
+ * cadence.ts's classifyAuditCadence() -- the review request body itself
+ * must never be trusted for this, since a client-supplied riskLevel could
+ * be spoofed to dodge the critical-risk escalation gate in
+ * guardrail-registrations.ts's closureReviewCheck. Returns null on any
+ * failure (not found, or a logging-adjacent DB error) -- same fail-quiet
+ * posture as recordActivity's own catch, since a lookup failure here should
+ * degrade to "no extra risk-based gate applies," not crash the review.
+ */
+export function getActivityRiskLevel(orgId: string, activityLogId: string): Promise<RiskLevel | null> {
+  return withTenantContext({ orgId }, async (db) => {
+    const row = await db.query.activityLog.findFirst({
+      where: eq(activityLog.id, activityLogId),
+      columns: { riskLevel: true },
+    });
+    return (row?.riskLevel as RiskLevel | null) ?? null;
+  }).catch(() => null);
+}
+
 export type PeerReviewInput = {
   orgId: string;
   activityLogId: string;
@@ -165,5 +187,80 @@ export async function recordPeerReview(params: PeerReviewInput): Promise<PeerRev
     if (existing.roleKey) void refreshAgentDirectory(existing.roleKey);
 
     return { recorded: true as const };
+  });
+}
+
+// tree4-unified/50-completion-plan area 9 "Auditing", U-D15.B3.S1: the
+// Constitution's closing recommendation ("no task is ever considered
+// permanently complete... every completed task remains eligible for
+// re-audit whenever new evidence, changed requirements, production
+// incidents, architectural changes, or governance updates indicate the
+// original approval may no longer be valid" -- ai-os/audit-tree/
+// 02-audit-organization.yaml lines 363-367). Honest scope: this is the
+// FLAG + query surface, not an automatic detector. No code in this
+// codebase today observes "new evidence" or "changed requirements" as a
+// structured, machine-readable event it could react to on its own --
+// building a fake auto-trigger for that would be fabricating a feature
+// that doesn't exist. What's real and reachable right now: an explicit
+// admin flag (this function's caller, POST /api/ai/team/re-audit) and any
+// future caller that discovers a genuine post-closure signal (e.g. a
+// guardrail violation later found against an already-closed dispatch)
+// calling the same function -- wiring an automatic trigger to a specific
+// live signal is the follow-up, tracked in 04-implementation-log.yaml, not
+// invented here.
+const TERMINAL_STAGES_FOR_REAUDIT = new Set(["completed", "failed", "closed"]);
+
+export type ReAuditFlagResult =
+  | { flagged: true }
+  | { flagged: false; reason: "not_found" | "not_terminal" };
+
+/**
+ * Flags a previously-terminal activity_log row for re-audit. Fails closed:
+ * a row that doesn't exist, or one that hasn't actually reached a terminal
+ * lifecycle stage yet (re-auditing something still in flight is a
+ * contradiction in terms -- it isn't "re" anything), is rejected.
+ */
+export async function flagForReAudit(params: {
+  orgId: string;
+  activityLogId: string;
+  reason: string;
+  requestedBy: string;
+}): Promise<ReAuditFlagResult> {
+  return withTenantContext({ orgId: params.orgId }, async (db) => {
+    const existing = await db.query.activityLog.findFirst({ where: eq(activityLog.id, params.activityLogId) });
+    if (!existing) return { flagged: false, reason: "not_found" as const };
+    if (!TERMINAL_STAGES_FOR_REAUDIT.has(existing.lifecycleStage)) return { flagged: false, reason: "not_terminal" as const };
+
+    await db.update(activityLog).set({
+      reAuditRequestedAt: new Date(),
+      reAuditReason: params.reason,
+      reAuditRequestedBy: params.requestedBy,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, params.activityLogId));
+
+    return { flagged: true as const };
+  });
+}
+
+/** Clears a re-audit flag once the re-audit has been performed and resolved. Idempotent -- clearing an already-clear row is a no-op, not an error. */
+export async function clearReAuditFlag(orgId: string, activityLogId: string): Promise<{ cleared: boolean }> {
+  return withTenantContext({ orgId }, async (db) => {
+    const result = await db.update(activityLog).set({
+      reAuditRequestedAt: null,
+      reAuditReason: null,
+      reAuditRequestedBy: null,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, activityLogId)).returning({ id: activityLog.id });
+    return { cleared: result.length > 0 };
+  });
+}
+
+/** Lists every activity_log row currently flagged for re-audit in an org, most-recently-flagged first -- the query surface U-D15.B3.S1 requires ("eligible for re-audit" has to be discoverable, not just settable). */
+export function listReAuditFlagged(orgId: string) {
+  return withTenantContext({ orgId }, async (db) => {
+    return db.query.activityLog.findMany({
+      where: and(eq(activityLog.orgId, orgId), isNotNull(activityLog.reAuditRequestedAt)),
+      orderBy: desc(activityLog.reAuditRequestedAt),
+    });
   });
 }
