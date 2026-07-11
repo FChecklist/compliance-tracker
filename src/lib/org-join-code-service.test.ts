@@ -7,6 +7,12 @@ import {
   normalizeJoinCode,
   isInviteRole,
   INVITE_ROLES,
+  isPrivilegedMinter,
+  resolveAllowedMintRoles,
+  resolvePeerExpiryDays,
+  PEER_DEFAULT_MINT_EXPIRY_DAYS,
+  PEER_MAX_MINT_EXPIRY_DAYS,
+  PEER_MIN_MINT_EXPIRY_DAYS,
 } from "./org-join-code-service"
 
 function row(overrides: Partial<{ expiresAt: Date | null; revokedAt: Date | null }> = {}) {
@@ -111,5 +117,94 @@ describe("isInviteRole (re-exported from invite-link-service)", () => {
     expect(isInviteRole("branch_manager")).toBe(false)
     expect(isInviteRole("not_a_role")).toBe(false)
     expect(isInviteRole("")).toBe(false)
+  })
+})
+
+// Path D (peer-provided-code self-registration): the privilege-escalation
+// guard is entirely in these 3 pure functions -- see this file's header
+// comment for the full reasoning.
+describe("isPrivilegedMinter", () => {
+  test("admin and manager are privileged (unchanged from the old flat gate)", () => {
+    expect(isPrivilegedMinter("admin")).toBe(true)
+    expect(isPrivilegedMinter("manager")).toBe(true)
+  })
+
+  test("a rank-3 Wave-1 role (senior_professional) counts as privileged too -- rank, not the literal string, is what matters", () => {
+    expect(isPrivilegedMinter("senior_professional")).toBe(true)
+  })
+
+  test("member/viewer/team_member/client_viewer/external_auditor are all non-privileged (peer)", () => {
+    expect(isPrivilegedMinter("member")).toBe(false)
+    expect(isPrivilegedMinter("viewer")).toBe(false)
+    expect(isPrivilegedMinter("team_member")).toBe(false)
+    expect(isPrivilegedMinter("client_viewer")).toBe(false)
+    expect(isPrivilegedMinter("external_auditor")).toBe(false)
+  })
+
+  test("veridian_admin (the highest rank) is privileged", () => {
+    expect(isPrivilegedMinter("veridian_admin")).toBe(true)
+  })
+
+  test("an unrecognized role string is never privileged (defensive default, rank 0)", () => {
+    expect(isPrivilegedMinter("not_a_real_role")).toBe(false)
+    expect(isPrivilegedMinter("")).toBe(false)
+  })
+})
+
+describe("resolveAllowedMintRoles", () => {
+  test("admin may mint any of the 4 INVITE_ROLES, including admin itself", () => {
+    expect(resolveAllowedMintRoles("admin")).toEqual(["admin", "manager", "member", "viewer"])
+  })
+
+  test("manager may NOT mint an admin-granting code -- this is the fix for the pre-existing gap where any manager could mint an admin code", () => {
+    const allowed = resolveAllowedMintRoles("manager")
+    expect(allowed).not.toContain("admin")
+    expect(allowed).toEqual(["manager", "member", "viewer"])
+  })
+
+  test("member may only mint member or viewer codes, never manager/admin", () => {
+    expect(resolveAllowedMintRoles("member")).toEqual(["member", "viewer"])
+  })
+
+  test("viewer (lowest rank) may only mint viewer codes", () => {
+    expect(resolveAllowedMintRoles("viewer")).toEqual(["viewer"])
+  })
+
+  test("an unrecognized role gets no allowed roles at all (rank 0, below even viewer's rank 1)", () => {
+    expect(resolveAllowedMintRoles("not_a_real_role")).toEqual([])
+  })
+
+  test("veridian_admin (rank 6, not itself an INVITE_ROLE) is still capped to the 4 INVITE_ROLES, all of them", () => {
+    expect(resolveAllowedMintRoles("veridian_admin")).toEqual(["admin", "manager", "member", "viewer"])
+  })
+})
+
+describe("resolvePeerExpiryDays", () => {
+  test("defaults to PEER_DEFAULT_MINT_EXPIRY_DAYS when nothing is requested", () => {
+    expect(resolvePeerExpiryDays(undefined)).toBe(PEER_DEFAULT_MINT_EXPIRY_DAYS)
+    expect(resolvePeerExpiryDays(null)).toBe(PEER_DEFAULT_MINT_EXPIRY_DAYS)
+  })
+
+  test("defaults for zero, negative, or non-finite input -- never silently produces a no-expiry peer code", () => {
+    expect(resolvePeerExpiryDays(0)).toBe(PEER_DEFAULT_MINT_EXPIRY_DAYS)
+    expect(resolvePeerExpiryDays(-5)).toBe(PEER_DEFAULT_MINT_EXPIRY_DAYS)
+    expect(resolvePeerExpiryDays(NaN)).toBe(PEER_DEFAULT_MINT_EXPIRY_DAYS)
+    expect(resolvePeerExpiryDays(Infinity)).toBe(PEER_DEFAULT_MINT_EXPIRY_DAYS)
+  })
+
+  test("passes through a valid in-range request unchanged", () => {
+    expect(resolvePeerExpiryDays(7)).toBe(7)
+  })
+
+  test("clamps a request above the max down to PEER_MAX_MINT_EXPIRY_DAYS", () => {
+    expect(resolvePeerExpiryDays(365)).toBe(PEER_MAX_MINT_EXPIRY_DAYS)
+  })
+
+  test("clamps a sub-minimum fractional request up to PEER_MIN_MINT_EXPIRY_DAYS", () => {
+    expect(resolvePeerExpiryDays(0.4)).toBe(PEER_MIN_MINT_EXPIRY_DAYS)
+  })
+
+  test("floors a fractional in-range request", () => {
+    expect(resolvePeerExpiryDays(5.9)).toBe(5)
   })
 })
