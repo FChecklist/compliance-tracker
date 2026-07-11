@@ -8,27 +8,61 @@
 // to exist -- Master-Admin-direct-add (POST /api/users) and Secure Invite
 // Link (invite-link-service.ts) already shipped.
 //
-// Deliberately NOT built this dispatch: Path D (peer-provided code, any
-// existing user -- not just an admin -- can hand out a join code). Found
-// in the same source paragraph, not ambiguous, but a genuinely different
-// security surface (who may MINT a code) layered on the identical
-// redemption mechanism below -- building it in the same pass would mean
-// either two shallow paths or reusing this table with an unreviewed
-// "any user can create these" permission change. Per the dispatch brief's
-// explicit "build the ONE most clearly-specified, highest-value remaining
-// path completely... rather than 2 shallow ones," Path D is deferred
-// (see the PR description / implementation-log entry for the full note).
+// Path D (peer-provided-code self-registration -- any existing user, not
+// just an admin, can hand out a join code) is now built here too, on the
+// SAME redemption mechanism above -- the only real difference is WHO may
+// mint a code, and what limits apply to that peer-minted code. Full
+// privilege-escalation writeup (per the dispatch brief's explicit ask to
+// consider this, not just copy the admin path's freedom):
+//
+//   1. Role-assignment ceiling: minting is no longer gated to a flat
+//      "admin or manager" allowlist. Instead, ANY authenticated org member
+//      may mint a code, but only for a role at or below their OWN
+//      ROLE_RANK (src/lib/supabase/auth-guard.ts's existing hierarchy,
+//      already used for this exact "can this user act at rank X" purpose
+//      in approval-workflow-service.ts). isPrivilegedMinter/
+//      resolveAllowedMintRoles below implement this. Concretely: a
+//      'member' (rank 2) can only mint 'member' or 'viewer' codes, never
+//      'manager'/'admin'; a 'viewer' (rank 1) can only mint 'viewer'
+//      codes. This is a STRICTER check than the old gate, not just an
+//      addition -- it also closes a real pre-existing gap: previously any
+//      'manager' could mint a code granting the FULL 'admin' role to
+//      whoever redeemed it (the old check only asked "is the minter an
+//      admin or a manager", not "is the minter allowed to grant THIS
+//      role"). That gap is fixed here as a direct consequence of doing
+//      Path D properly, not a separate change.
+//   2. Blast-radius limits on non-privileged (peer) mints specifically:
+//      admin/manager minting (rank >= manager) is completely unchanged
+//      from Path C -- nullable/indefinite expiry, no cap on how many
+//      active codes they hold. A peer mint (rank < manager) additionally
+//      gets a forced expiry (14-day default, 30-day max --
+//      resolvePeerExpiryDays) and a hard cap of PEER_MAX_ACTIVE_CODES (3)
+//      simultaneously-active codes per creator (countActiveCodesForCreator).
+//      Rationale: a peer account is far more numerous and far less
+//      vetted than an admin/manager account, so a compromised or
+//      malicious one should only ever be able to leave a small number of
+//      short-lived doors open, never an indefinite stockpile of them.
+//      The existing IP-keyed redemption rate limit (below) already covers
+//      brute-forcing a code's value; this is the separate, previously-
+//      absent limit on how many codes a single account can mint in the
+//      first place.
+//   createdByRole (schema) persists the minter's role at mint time so
+//   admin-minted and peer-minted codes are distinguishable in the data
+//   (e.g. `created_by_role NOT IN ('admin','manager')`), without a
+//   second table or a boolean that would need its own migration if the
+//   privileged bar ever moves.
 //
 // Security properties, stated plainly for review (per dispatch brief):
 //   - org-scoped + role-fixed at creation: identical posture to
 //     org_invite_links -- never inferred from anything the redeemer sends.
-//   - long-lived by default (expiresAt nullable, unlike the invite link's
-//     7-day default) -- these codes are meant to be shared verbally/in a
-//     doc and read out loud, not clicked, so they need to survive longer;
-//     an admin can still set an expiry or revoke early.
-//   - admin-only minting: only 'admin'/'manager' dbUser.role can create or
-//     revoke a code (see api/join-codes/route.ts), same bar as invite
-//     links -- this is what makes it "admin-code" and not "peer-code".
+//   - long-lived by default for privileged (admin/manager) mints
+//     (expiresAt nullable) -- these codes are meant to be shared
+//     verbally/in a doc and read out loud, not clicked, so they need to
+//     survive longer; an admin can still set an expiry or revoke early.
+//     Peer mints do NOT get this indefinite default -- see #2 above.
+//   - rank-ceiling minting: see #1 above -- replaces the old flat
+//     admin/manager gate with a per-role ceiling enforced for every
+//     minter, privileged or not.
 //   - real entropy despite being human-typeable: 12 characters from a
 //     30-symbol alphabet (excludes 0/O/1/I/L/U to avoid transcription
 //     errors when read aloud or handwritten) = 30^12 ≈ 5.3×10^17
@@ -59,6 +93,16 @@ import { randomBytes } from "crypto"
 import { hashSHA256 } from "@/lib/api-keys"
 import { canAssignSeat } from "@/lib/org-license-service"
 import { INVITE_ROLES, isInviteRole, type InviteRole } from "@/lib/invite-link-service"
+// ROLE_RANK/UserRole: auth-guard.ts imports redeemJoinCodeAndProvisionUser
+// from THIS file, so this is a circular import. Safe in practice because
+// ROLE_RANK is only ever read inside function bodies below (requesterRank,
+// isPrivilegedMinter, resolveAllowedMintRoles), never at this module's own
+// top level -- by the time any of those functions actually runs, both
+// modules have finished loading. Do not hoist a top-level
+// `const X = ROLE_RANK.foo` here; that would run during module init and
+// could see a not-yet-populated binding depending on which side of the
+// cycle loads first.
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 
 export { INVITE_ROLES, isInviteRole }
 export type { InviteRole }
@@ -73,6 +117,54 @@ const CODE_GROUP_SIZE = 4
 
 const RATE_LIMIT_WINDOW_MINUTES = 15
 const RATE_LIMIT_MAX_FAILURES = 10
+
+// Path D blast-radius limits for non-privileged (peer) mints -- see this
+// file's header comment for the full reasoning. Admin/manager mints
+// (isPrivilegedMinter true) are never subject to these.
+export const PEER_MIN_MINT_EXPIRY_DAYS = 1
+export const PEER_DEFAULT_MINT_EXPIRY_DAYS = 14
+export const PEER_MAX_MINT_EXPIRY_DAYS = 30
+export const PEER_MAX_ACTIVE_CODES = 3
+
+/** Pure. Falls back to rank 0 for an unrecognized role string, same defensive posture as ROLE_RANK's other call sites (approval-workflow-service.ts). */
+function requesterRank(role: string): number {
+  return ROLE_RANK[role as UserRole] ?? 0
+}
+
+/**
+ * Pure -- the bar for "admin path" behavior (no forced expiry, no active-
+ * code cap): rank >= manager, i.e. the same two roles ('admin', 'manager')
+ * the old flat gate allowed, so existing admin/manager behavior is
+ * unchanged. Anyone below this rank is a "peer" minter for the purposes
+ * of the limits in #2 of this file's header comment.
+ */
+export function isPrivilegedMinter(role: string): boolean {
+  return requesterRank(role) >= ROLE_RANK.manager
+}
+
+/**
+ * Pure -- the set of INVITE_ROLES a given requester may mint a code for:
+ * every role at or below their own ROLE_RANK. This is the rank-ceiling
+ * from #1 of this file's header comment -- it applies uniformly (not just
+ * to "peers"), which is what closes the pre-existing gap where any
+ * manager could mint an admin-granting code.
+ */
+export function resolveAllowedMintRoles(requesterRole: string): InviteRole[] {
+  const rank = requesterRank(requesterRole)
+  return INVITE_ROLES.filter((r) => ROLE_RANK[r] <= rank)
+}
+
+/**
+ * Pure -- clamps a peer's requested expiry to
+ * [PEER_MIN_MINT_EXPIRY_DAYS, PEER_MAX_MINT_EXPIRY_DAYS], defaulting to
+ * PEER_DEFAULT_MINT_EXPIRY_DAYS for anything missing/non-finite/non-positive.
+ * Never returns null -- unlike the privileged path, a peer-minted code
+ * always expires.
+ */
+export function resolvePeerExpiryDays(requested: number | null | undefined): number {
+  if (requested == null || !Number.isFinite(requested) || requested <= 0) return PEER_DEFAULT_MINT_EXPIRY_DAYS
+  return Math.min(Math.max(Math.floor(requested), PEER_MIN_MINT_EXPIRY_DAYS), PEER_MAX_MINT_EXPIRY_DAYS)
+}
 
 /**
  * Pure -- crypto.randomBytes rejection-sampled against CODE_ALPHABET's
@@ -135,6 +227,7 @@ export async function createJoinCode(params: {
   orgId: string
   role: InviteRole
   createdByUserId: string
+  createdByRole: string
   label?: string
   expiresInDays?: number | null
 }): Promise<{ id: string; code: string; role: InviteRole; expiresAt: Date | null }> {
@@ -153,6 +246,7 @@ export async function createJoinCode(params: {
       codePrefix: code.slice(0, CODE_GROUP_SIZE),
       label: params.label?.trim() || null,
       createdByUserId: params.createdByUserId,
+      createdByRole: params.createdByRole,
       expiresAt,
     }).returning()
   )
@@ -163,20 +257,62 @@ export async function createJoinCode(params: {
   return { id: row.id, code, role: params.role, expiresAt }
 }
 
-export async function listJoinCodes(orgId: string): Promise<JoinCodeRow[]> {
+/**
+ * `filter.createdByUserId` scopes the list to codes created by that one
+ * user -- used for a non-privileged (peer) caller, who should only ever
+ * see/manage their own codes, not the whole org's. Privileged
+ * (admin/manager) callers pass no filter, unchanged from Path C.
+ */
+export async function listJoinCodes(orgId: string, filter?: { createdByUserId?: string }): Promise<JoinCodeRow[]> {
   return withTenantContext({ orgId }, (tx) =>
     tx.query.orgJoinCodes.findMany({
-      where: eq(orgJoinCodes.orgId, orgId),
+      where: filter?.createdByUserId
+        ? and(eq(orgJoinCodes.orgId, orgId), eq(orgJoinCodes.createdByUserId, filter.createdByUserId))
+        : eq(orgJoinCodes.orgId, orgId),
       orderBy: desc(orgJoinCodes.createdAt),
     })
   )
 }
 
-export async function revokeJoinCode(orgId: string, id: string, revokedByUserId: string): Promise<boolean> {
+/**
+ * Counts this creator's currently-valid (not expired, not revoked) codes
+ * within the org -- backs the PEER_MAX_ACTIVE_CODES cap. Evaluated
+ * in-process via evaluateJoinCodeStatus rather than a SQL WHERE on
+ * expiresAt, since "valid" already has to handle the no-expiry-at-all
+ * case identically everywhere else in this file.
+ */
+export async function countActiveCodesForCreator(orgId: string, createdByUserId: string): Promise<number> {
+  const rows = await withTenantContext({ orgId }, (tx) =>
+    tx.query.orgJoinCodes.findMany({
+      where: and(eq(orgJoinCodes.orgId, orgId), eq(orgJoinCodes.createdByUserId, createdByUserId)),
+      columns: { expiresAt: true, revokedAt: true },
+    })
+  )
+  const now = new Date()
+  return rows.filter((row) => evaluateJoinCodeStatus(row, now) === "valid").length
+}
+
+/**
+ * `restrictToCreatedBy`, when set, adds an ownership check to the WHERE
+ * clause so a non-privileged (peer) caller can only revoke a code THEY
+ * created -- a privileged (admin/manager) caller omits it and keeps the
+ * unrestricted Path-C behavior (revoke any code in the org).
+ */
+export async function revokeJoinCode(
+  orgId: string,
+  id: string,
+  revokedByUserId: string,
+  restrictToCreatedBy?: string
+): Promise<boolean> {
   const rows = await withTenantContext({ orgId, userId: revokedByUserId }, (tx) =>
     tx.update(orgJoinCodes)
       .set({ revokedAt: new Date(), revokedByUserId, updatedAt: new Date() })
-      .where(eq(orgJoinCodes.id, id)) // org scoping enforced by RLS (app_runtime_tenant_isolation), not just this WHERE
+      .where(
+        restrictToCreatedBy
+          ? and(eq(orgJoinCodes.id, id), eq(orgJoinCodes.createdByUserId, restrictToCreatedBy))
+          : eq(orgJoinCodes.id, id)
+        // org scoping enforced by RLS (app_runtime_tenant_isolation) in both branches, not just this WHERE
+      )
       .returning({ id: orgJoinCodes.id })
   )
   return rows.length > 0
