@@ -995,6 +995,18 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   riskLevel: text('risk_level'), // 'low' | 'medium' | 'high' | 'critical'
   confidencePercentage: numeric('confidence_percentage'), // 0-100, from the closure-time self-assessment when the reviewer supplied one
   confidenceBand: text('confidence_band'), // 'auto_proceed' | 'self_review_required' | 'peer_review_required' | 'escalation_required'
+  // tree4-unified/50-completion-plan area 9 "Auditing", U-D15.B3.S1 ("no
+  // task is EVER permanently complete" -- ai-os/audit-tree/
+  // 02-audit-organization.yaml lines 363-367): a previously-terminal row
+  // can be flagged for re-audit when a genuine post-closure signal
+  // surfaces. All 3 nullable/additive -- existing rows unaffected. Set/
+  // cleared via activity-log-service.ts's flagForReAudit/clearReAuditFlag,
+  // never written directly. reAuditRequestedBy is a user id (explicit admin
+  // flag) or a system-identifier string (a future automatic trigger) --
+  // no automatic trigger is wired yet, see flagForReAudit's own header.
+  reAuditRequestedAt: timestamp('re_audit_requested_at'),
+  reAuditReason: text('re_audit_reason'),
+  reAuditRequestedBy: text('re_audit_requested_by'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
