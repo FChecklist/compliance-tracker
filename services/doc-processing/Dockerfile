@@ -49,15 +49,18 @@ ENV CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download PaddleOCR model weights at BUILD time, not container-start
-# time. main.py instantiates PaddleOCR(...) at module scope, which downloads
-# 3 separate model files (det/rec/cls) from a Baidu CDN on first run --
-# confirmed live (2026-07-10, doc-processing-job.yml E2E test, 3rd attempt)
-# that this can exceed the job's health-check budget under normal network
-# variance (worked fine once, then took longer than 60s the next run).
-# Placed before COPY so app-code changes don't invalidate this layer and
-# force a redundant re-download on every rebuild.
-RUN python -c "from paddleocr import PaddleOCR; PaddleOCR(lang='en', use_gpu=False)"
+# Reverted 2026-07-10: attempted to pre-download PaddleOCR model weights at
+# BUILD time here (to avoid a network call on every container cold start),
+# but PaddleOCR(...) segfaults (exit 139) inside `docker build`'s BuildKit
+# sandbox specifically -- confirmed the exact same call succeeds at normal
+# container runtime (docker run), twice, in real E2E tests. Root cause not
+# fully diagnosed (likely a CPU-feature-detection or MKL/OpenMP conflict
+# BuildKit's execution environment doesn't support, since paddlepaddle's
+# native inference engine inits differently there than in a real container).
+# Not worth chasing further -- doc-processing-job.yml's 180s health-check
+# timeout (bumped from 60s in the same commit as this revert) already
+# handles the real, confirmed cost (model download taking 12-60s+ under
+# normal network variance) without needing build-time pre-warming.
 
 # Copy application code
 COPY . .
