@@ -802,6 +802,30 @@ export const taskAgentExecutions = complianceSchemaDB.table('task_agent_executio
   input: jsonb('input').notNull().default({}),
   output: jsonb('output'),
   errorMessage: text('error_message'),
+  // Wave 167 (tree4-unified/10-merged-governance-layer U-D17.B1.S1,
+  // "Mandatory structured handover -- no AI Agent may simply say 'Done'").
+  // All 11 columns nullable/additive -- existing rows are unaffected; a row
+  // with handoverTaskStatus === null simply has no handover recorded yet
+  // (see handover-protocol.ts's acceptHandover(), which reads that as
+  // "not_submitted"). The 9 handoverXxx fields map 1:1 to the governance
+  // spec's required Output fields (Task Status / Output Produced /
+  // Validation Passed / Known Risks / Pending Items / Confidence / Next
+  // Responsible AI / Required Action / Escalation Required); handoverAcceptedBy/
+  // handoverAcceptedAt are the separate acceptance pair -- both start null,
+  // and per the spec's Guardrail, only an explicit acceptHandover() call
+  // (not the mere presence of a submitted handover) sets them, so "sent"
+  // and "acknowledged" stay distinguishable on this same row.
+  handoverTaskStatus: text('handover_task_status'),
+  handoverOutputProduced: text('handover_output_produced'),
+  handoverValidationPassed: text('handover_validation_passed'), // 'yes' | 'no' | 'partial'
+  handoverKnownRisks: text('handover_known_risks'),
+  handoverPendingItems: text('handover_pending_items'),
+  handoverConfidence: text('handover_confidence'), // 'high' | 'medium' | 'low'
+  handoverNextResponsibleAi: text('handover_next_responsible_ai'),
+  handoverRequiredAction: text('handover_required_action'),
+  handoverEscalationRequired: text('handover_escalation_required'), // 'yes' | 'no'
+  handoverAcceptedBy: text('handover_accepted_by'), // null until acceptHandover() succeeds -- the receiving agent/role identifier
+  handoverAcceptedAt: timestamp('handover_accepted_at'), // null until acceptHandover() succeeds
 })
 
 export const taskChatMessages = complianceSchemaDB.table('task_chat_messages', {

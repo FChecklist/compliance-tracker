@@ -17,10 +17,9 @@ areas:
   - num: 1
     name: "Dynamic Mode Pills & Dynamic Chain Option Selector"
     tree1_domains: ["U-D5", "U-D6", "U-D9"]
-    status: not_started
-    baseline: "5 solid / 6 partial / 10 gap of 21 sub-branches (~24%)"
+    status: in_progress
+    baseline: "5 solid / 6 partial / 10 gap of 21 sub-branches (~24%) -- DCMD (D6) rich metadata/search/missing-chain-detection/version-control built (PR #167, pending CI), the largest single piece of this area"
     remaining_work:
-      - "DCMD (D6): rich, graph-structured Dynamic Chain Master Directory -- dynamic_chains is currently a flat find-or-create table, not the taxonomy/graph D6 specifies."
       - "D5.B6: persistent visibility panel (Task Number/Priority/Owner/Workflow Status always shown) -- confirmed absent."
       - "D5.B7: per-module/per-page Mode Pill and Chain option auto-adaptation -- capability tree is fetched once per session, zero route-awareness, confirmed absent."
       - "D8/D5.B4.S2: minimum 2-level chain selection gate before a new conversation begins -- not confirmed enforced anywhere."
