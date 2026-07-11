@@ -42,11 +42,42 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+type InviteLinkSummary = {
+  id: string;
+  role: string;
+  tokenPrefix: string;
+  maxUses: number | null;
+  useCount: number;
+  expiresAt: string;
+  revokedAt: string | null;
+};
+
 function ShareableLinkTab() {
   const [linkRole, setLinkRole] = useState("member");
   const [generating, setGenerating] = useState(false);
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activeLinks, setActiveLinks] = useState<InviteLinkSummary[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(true);
+
+  const loadLinks = () => {
+    setLoadingLinks(true);
+    fetch("/api/invite-links")
+      .then((r) => r.json())
+      .then((d) => {
+        const now = Date.now();
+        const links: InviteLinkSummary[] = d.links ?? [];
+        setActiveLinks(links.filter((l) =>
+          !l.revokedAt && new Date(l.expiresAt).getTime() > now && (l.maxUses == null || l.useCount < l.maxUses)
+        ));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingLinks(false));
+  };
+
+  useEffect(() => {
+    loadLinks();
+  }, []);
 
   const generateLink = async () => {
     setGenerating(true);
@@ -63,10 +94,25 @@ function ShareableLinkTab() {
         return;
       }
       setGeneratedUrl(data.url);
+      loadLinks();
     } catch {
       toast.error("Failed to create invite link");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const revokeLink = async (id: string) => {
+    try {
+      const res = await fetch(`/api/invite-links/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to revoke invite link");
+        return;
+      }
+      loadLinks();
+    } catch {
+      toast.error("Failed to revoke invite link");
     }
   };
 
@@ -118,6 +164,21 @@ function ShareableLinkTab() {
         <Button onClick={generateLink} disabled={generating} className="w-full bg-ct-saffron hover:bg-ct-saffron-hover text-white">
           {generating ? "Generating..." : "Generate Shareable Link"}
         </Button>
+      )}
+
+      {!loadingLinks && activeLinks.length > 0 && (
+        <div className="space-y-1.5 pt-3 border-t border-ct-border">
+          <Label className="text-xs font-semibold text-ct-muted uppercase">Active links (whole org)</Label>
+          <div className="space-y-1.5 max-h-32 overflow-y-auto">
+            {activeLinks.map((l) => (
+              <div key={l.id} className="flex items-center justify-between text-xs text-ct-navy bg-ct-cloud/30 rounded px-2 py-1.5">
+                <span className="font-mono">{l.tokenPrefix}-****-****</span>
+                <span className="text-ct-muted">{ROLE_LABEL[l.role] ?? l.role}</span>
+                <button onClick={() => revokeLink(l.id)} className="text-ct-muted hover:text-red-600">Revoke</button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
