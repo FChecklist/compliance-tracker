@@ -155,11 +155,24 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   // needsConfirmation -- holds the exact same body dispatchInstruction sent,
   // so confirming resubmits it verbatim plus `confirmed: true` rather than
   // re-deriving it. Cleared (and its promise resolved false) on cancel.
+  // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
+  // Protocol"): resolve now carries an optional savePreference alongside
+  // confirmed, instead of a bare boolean -- "Always Approve" both confirms
+  // this one and tells the server to skip asking next time for this
+  // category (task-service.ts checks approval_preferences before re-asking).
+  type ConfirmationResolution = { confirmed: boolean; savePreference?: "always_approve" };
   const [pendingConfirmation, setPendingConfirmation] = useState<{
-    category: string | null; categoryLabel: string | null; matchedPhrase: string | null; resolve: (confirmed: boolean) => void
+    category: string | null; categoryLabel: string | null; matchedPhrase: string | null; resolve: (resolution: ConfirmationResolution) => void
   } | null>(null);
+  // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md §15, "My Option Is Not
+  // Available"): set when the user picks the fallback option in ChainRows
+  // instead of a real leaf. While set, send() routes to VERI FDE's real
+  // missing-capability pipeline (submitFdeRequest, non-passive) instead of
+  // creating a task -- the same governance flow the /fde page already uses,
+  // just reachable from the point where a user actually gets stuck.
+  const [fdeFallback, setFdeFallback] = useState<{ path: PathSegment[] } | null>(null);
 
-  function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<boolean> {
+  function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<ConfirmationResolution> {
     return new Promise((resolve) => setPendingConfirmation({ category, categoryLabel, matchedPhrase, resolve }));
   }
 
@@ -177,6 +190,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     const preseed = preseedKeyForMode(composerMode);
     setSelectedPath(preseed ? [preseed] : []);
     setEngineInputValues({});
+    setFdeFallback(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerMode]);
 
@@ -267,16 +281,20 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           // confirmed: true only if they say yes. Saying no skips this one
           // task without affecting any other concrete path in this loop.
           if (json?.needsConfirmation) {
-            const confirmed = await requestHighImpactConfirmation(json.category ?? null, json.categoryLabel ?? null, json.matchedPhrase ?? null);
-            if (!confirmed) {
+            const resolution = await requestHighImpactConfirmation(json.category ?? null, json.categoryLabel ?? null, json.matchedPhrase ?? null);
+            if (!resolution.confirmed) {
               toast(`Skipped — ${crumb}`);
               continue;
             }
             res = await fetch("/api/tasks", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...body, confirmed: true }),
+              body: JSON.stringify({
+                ...body, confirmed: true,
+                ...(resolution.savePreference ? { savePreference: resolution.savePreference, highImpactCategory: json.category } : {}),
+              }),
             });
+            if (resolution.savePreference === "always_approve") toast.success(`Got it — I won't ask again for ${json.categoryLabel ?? "this type of action"}.`);
           }
         }
         if (!res.ok) throw new Error();
@@ -289,8 +307,40 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     bumpRefresh();
   }
 
+  // VERIDIAN_DMP_DCF_CONSTITUTION.md §15: capture the requirement, route it
+  // through the real existing FDE governance pipeline (find-similar ->
+  // propose-new-capability -> approvalRequests) -- POST /api/fde/requests
+  // is the exact endpoint the dedicated /fde page already uses, called here
+  // non-passively (no `passive` flag sent, matching an explicit user ask).
+  async function submitFdeFallback(text: string) {
+    const partialCrumb = fdeFallback && fdeFallback.path.length ? pathDisplayString(fdeFallback.path) : null;
+    const requestText = partialCrumb ? `[${partialCrumb}] ${text}` : text;
+    setSending(true);
+    try {
+      const res = await fetch("/api/fde/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestText }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Got it — VERI is looking into this and will route it for approval if it's genuinely new.");
+      setValue("");
+      setFdeFallback(null);
+    } catch {
+      toast.error("Couldn't submit your request — please try again");
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function send() {
     if (sending) return;
+    if (fdeFallback) {
+      const text = value.trim();
+      if (!text) return;
+      await submitFdeFallback(text);
+      return;
+    }
     // Calculator leaves: the structured inputs ARE the instruction -- free
     // text is optional context, not required, unlike every other chain mode.
     if (isChainMode && chainComplete && needsEngineInputs) {
@@ -370,8 +420,10 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     setQueue([]);
   }
 
-  const disabled = !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete) && !needsEngineInputs;
-  const placeholder = isThreadOpen
+  const disabled = !fdeFallback && !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete) && !needsEngineInputs;
+  const placeholder = fdeFallback
+    ? "Describe what you need — VERI will look for a match or propose it for approval…"
+    : isThreadOpen
     ? "Message…"
     : composerMode === "discuss"
       ? "Ask me anything — no task selection needed…"
@@ -421,7 +473,20 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
               <span className="text-[13px] font-semibold text-ct-navy">Select the task you want me to do.</span>
               <PathBreadcrumb path={selectedPath} chainComplete={chainComplete} />
             </div>
-            <ChainRows tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti} />
+            <ChainRows
+              tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti}
+              onFdeFallback={(depth) => {
+                setFdeFallback({ path: selectedPath.slice(0, depth) });
+                setValue("");
+                textareaRef.current?.focus();
+              }}
+            />
+            {fdeFallback && (
+              <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-white/70 border border-amber-200 px-2.5 py-1.5">
+                <span className="text-[11px] text-ct-muted">Describe what you need below — this goes to VERI for review, not straight to a task.</span>
+                <button type="button" onClick={() => setFdeFallback(null)} className="text-[11px] font-medium text-ct-navy shrink-0">Cancel</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -538,7 +603,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
         205 §26's Human-in-Control Rules require explicit confirmation
         before Delete/Payment/Approval/Rejection/Compliance-Submission/
         Access-Change/Data-Export/Configuration-Change intents execute. */}
-    <AlertDialog open={pendingConfirmation !== null} onOpenChange={(open) => { if (!open) pendingConfirmation?.resolve(false); setPendingConfirmation(null); }}>
+    <AlertDialog open={pendingConfirmation !== null} onOpenChange={(open) => { if (!open) pendingConfirmation?.resolve({ confirmed: false }); setPendingConfirmation(null); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm {pendingConfirmation?.categoryLabel ?? "this action"}</AlertDialogTitle>
@@ -555,8 +620,22 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => { pendingConfirmation?.resolve(false); setPendingConfirmation(null); }}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => { pendingConfirmation?.resolve(true); setPendingConfirmation(null); }}>Confirm</AlertDialogAction>
+          <AlertDialogCancel onClick={() => { pendingConfirmation?.resolve({ confirmed: false }); setPendingConfirmation(null); }}>Cancel</AlertDialogCancel>
+          {/* Wave 161: the "Simplified Approval Experience" quick-action set
+              (VERI_CHAT_GOVERNANCE.md) -- Approve Once and Always Approve.
+              "Always Reject" is deliberately not offered here: silently
+              blocking a whole category from a dialog the user is actively
+              engaging with is a confusing UX, not a useful shortcut; that
+              path stays available to saveApprovalPreference() directly
+              (e.g. a future Settings page) without a button here. */}
+          <button
+            type="button"
+            onClick={() => { pendingConfirmation?.resolve({ confirmed: true, savePreference: "always_approve" }); setPendingConfirmation(null); }}
+            className="inline-flex items-center justify-center rounded-md border border-ct-border2 bg-white px-3 py-2 text-sm font-medium text-ct-navy hover:bg-ct-cloud"
+          >
+            Always Approve
+          </button>
+          <AlertDialogAction onClick={() => { pendingConfirmation?.resolve({ confirmed: true }); setPendingConfirmation(null); }}>Approve Once</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -568,12 +647,16 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
 // for a row is carried forward from the PARENT node's own `multi` flag
 // (set once, e.g. on "Customer"), not re-derived per row after the fact.
 function ChainRows({
-  tree, selectedPath, onToggleSingle, onToggleMulti,
+  tree, selectedPath, onToggleSingle, onToggleMulti, onFdeFallback,
 }: {
   tree: CapabilityNode[];
   selectedPath: PathSegment[];
   onToggleSingle: (depth: number, key: string) => void;
   onToggleMulti: (depth: number, key: string) => void;
+  // Wave 161: fires with the path selected so far (not yet including this
+  // row's own depth) when the user picks "My Option Is Not Available"
+  // instead of a real leaf at this row.
+  onFdeFallback: (depth: number) => void;
 }) {
   const rows: { depth: number; parentLabel: string; isMulti: boolean; options: CapabilityNode[] }[] = [];
 
@@ -637,6 +720,18 @@ function ChainRows({
               </button>
             );
           })}
+          {/* Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md §15): only on the
+              currently-active (deepest) row -- a user who already picked
+              something at an earlier depth isn't "stuck" there anymore. */}
+          {row.depth === rows.length - 1 && (
+            <button
+              type="button"
+              onClick={() => onFdeFallback(row.depth)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-ct-border2 px-2.5 py-1 text-xs text-ct-muted hover:text-ct-navy hover:border-ct-navy"
+            >
+              My Option Is Not Available
+            </button>
+          )}
         </div>
       ))}
     </div>

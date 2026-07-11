@@ -895,6 +895,27 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
+// Protocol"): persisted, user-controlled, revocable approval preferences --
+// confirmed absent everywhere before this (zero hits grepping for
+// "approval_preference"/"always approve" prior to this wave). scopeId is
+// nullable (a type-level preference has no specific scope); dedup/upsert is
+// handled at the application layer (approval-preference-service.ts) via
+// find-then-insert-or-update rather than a DB-level ON CONFLICT, since a
+// unique index over a nullable column doesn't match NULL-to-NULL the way a
+// naive upsert would assume.
+export const approvalPreferences = complianceSchemaDB.table('approval_preferences', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  scopeType: text('scope_type').notNull(), // 'communication_type' | 'conversation' | 'task' | 'workflow'
+  scopeId: text('scope_id'),
+  actionCategory: text('action_category').notNull(), // one of high-impact-action-detector.ts's HighImpactCategory values
+  decision: text('decision').notNull(), // 'always_approve' | 'always_reject'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Per-org, optionally per-layer BYO model override. orchestraLayerId=null
 // means "applies to all layers for this org". Distinct from ai_configurations
 // (Wave 0's BYOK table), which is per-org/per-purpose (extraction/QA/drafting),
