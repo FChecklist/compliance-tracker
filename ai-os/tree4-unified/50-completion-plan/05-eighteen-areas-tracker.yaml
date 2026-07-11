@@ -35,13 +35,11 @@ areas:
   - num: 3
     name: "Guardrails"
     tree1_domains: ["U-D12", "U-D13", "U-D17", "U-D18"]
-    status: not_started
-    baseline: "6 solid / 13 partial / 2 gap of 21 sub-branches (~29%)"
+    status: in_progress
+    baseline: "D17 AI Handover Protocol COMPLETE (PR #170, merged 2026-07-11): 9-field structured handover + explicit acceptHandover() acknowledgement, guardrail-registered as task_execution.handover, 19 tests. D12.B2.S5 contradiction/ambiguity detection already complete (area 7). DEC-04 resolved 2026-07-11 (Super Boss, per Owner's 'don't wait' directive): confidence banding and GOV-04 tiers are not duplicative -- tiers gate WHICH MODEL may take a dispatch (pre-execution), banding is a closure-time OUTPUT confidence signal. Build both, keep separate."
     remaining_work:
-      - "PLAN-16's 8 re-scoped items: Authority/Delegation guardrail beyond role-rank, broader Scope enforcement, real pre-execution Knowledge-sufficiency gate, Risk Classification (or Owner ruling merged with GOV-04 tiers -- DEC-04), Prompt-Integrity/Tool-Usage as distinct checks, universal improvement-capture at closure."
-      - "D17 AI Handover Protocol: confirmed zero-coverage gap -- build the 9-field structured handover + explicit receiving-agent acknowledgement."
-      - "D12.B2.S5: contradiction/ambiguity detection in instruction validation (see area 7, same underlying file)."
-      - "D18: confidence-percentage banding (98-100/95-97/90-94/<90) -- decide with Owner whether still wanted alongside GOV-04's tier system (DEC-04) before building."
+      - "PLAN-16's remaining re-scoped items: Authority/Delegation guardrail beyond role-rank, broader Scope enforcement, real pre-execution Knowledge-sufficiency gate, Risk Classification, Prompt-Integrity/Tool-Usage as distinct checks, universal improvement-capture at closure."
+      - "D18: confidence-percentage banding (98-100/95-97/90-94/<90) at task closure -- now unblocked per DEC-04 resolution above, build alongside PLAN-16 items."
 
   - num: 4
     name: "Agent management"
@@ -57,23 +55,19 @@ areas:
     name: "Task Lifecycle management with loop management"
     tree1_domains: ["U-D4", "U-D13"]
     status: not_started
-    baseline: "1 solid / 5 partial / 7 gap of 13 sub-branches (~8%) -- tied for weakest"
+    baseline: "1 solid / 5 partial / 7 gap of 13 sub-branches (~8%) -- tied for weakest. DEC-03 resolved 2026-07-11 (Super Boss, per Owner's 'don't wait' directive, deliberately conservative call): RATIFY the current distributed domain-service architecture, do NOT retrofit the live tasks.status field into a 30-state model. Rationale: tasks.status is read/written across many live call sites in production; a retrofit is a hard-to-reverse, broad-blast-radius schema change with no functional gain proportionate to the risk, and Handover Protocol (D17, PR #170) plus activity_log already cover the real cross-agent handoff/audit-trail need Tree 1 was pointing at. The distributed service+table pattern is documented as the accepted design, not a gap. This unblocks area 12 (Loop Engineering) to hook existing task-completion events instead of waiting on a Work Object rebuild."
     remaining_work:
-      - "The ~30-state Universal Work Object model -- tasks.status is currently a plain 5-value text field (pending/in_progress/completed/failed/cancelled), confirmed by direct schema read, not assumed."
-      - "The ~40-field Input/Process/Output/Handover/Closure schema -- tasks table has only 16 columns, 6-7 of which loosely match Tree 1's Identity group; the other 4 groups are entirely absent as columns."
-      - "Work-Object-as-single-source-of-truth -- Tree 3 shows the opposite architecture (dozens of separate domain-specific service+table pairs). DEC-03 (retrofit vs. ratify) needs an Owner decision before this is built, since retrofitting live tables vs. ratifying the current pattern are very different scopes."
-      - "Loop management (D13) largely covered by loop-prevention.ts -- remaining gap is D13's violation-message predefined/polite-text confirmation."
+      - "The ~40-field Input/Process/Output/Handover/Closure schema and ~30-state model: NOT building, per DEC-03 resolution above -- current architecture ratified as sufficient (Handover Protocol + activity_log + per-domain tables cover the real requirement)."
+      - "Loop management (D13) largely covered by loop-prevention.ts -- remaining gap is D13's violation-message predefined/polite-text confirmation. Small, tractable, still open."
 
   - num: 6
     name: "Monitoring"
     tree1_domains: ["U-D14"]
-    status: not_started
-    baseline: "2 solid / 1 partial / 1 gap of 4 sub-branches (~50%)"
+    status: in_progress
+    baseline: "PR #169 merged 2026-07-11: monitoring-engine.ts (computePerformanceScore -- weighted 50/30/20 completion/loop-budget-headroom/token-budget-headroom; detectCircularDependency -- real DFS cycle detector), tool-health-tracker.ts (recordToolCallResult/getToolHealthPercentage), toolHealthEvents table, dynamicChains.monitoringRules column (schema only, first pass). 14 real tests. Composite Performance Score + circular-dependency/deadlock detection + Tool Health metric all now DONE."
     remaining_work:
-      - "Per-Dynamic-Chain predefined monitoring rules (D14.B2) -- monitoring today is task-level/org-level (GOV-16's loops), not chain-scoped."
-      - "Reasoning Quality, Dependency Health, Tool Health, Instruction/Policy/Security Compliance as individually tracked metrics (D14.B1)."
-      - "A composite Performance Score (D14.B1)."
-      - "Circular-dependency and deadlock detection specifically, distinct from simple iteration/depth limits (D14.B4)."
+      - "Per-Dynamic-Chain monitoring rules ENFORCEMENT layer -- schema column (monitoringRules) exists from PR #169 but nothing reads/enforces it yet."
+      - "Reasoning Quality, Dependency Health, Instruction/Policy/Security Compliance as individually tracked metrics -- deliberately skipped by the Monitoring subagent as LLM-graded/self-grading, honestly documented as a real gap rather than faked. Needs a non-self-grading design (e.g. a separate auditor-role check, matching Rule 7(c)/Rule 10's peer-review discipline) before it can be built without violating the no-self-certification norm."
 
   - num: 7
     name: "Narrow and tightened Instructions to Agents"
@@ -113,11 +107,11 @@ areas:
   - num: 11
     name: "Cost management"
     tree1_domains: ["embedded in U-D14.B1.S1"]
-    status: not_started
-    baseline: "Tracking/logging solid (token_usage_ledger, orchestra-execution-logger.ts); active control absent"
+    status: in_progress
+    baseline: "Scope decision resolved 2026-07-11 (Super Boss, per Owner's 'don't wait' directive): per-org monthly spend cap, opt-in (default unenforced). Built: organisations.monthlyCostCapUsd/costCapEnforcementEnabled columns, cost-guard.ts (getMonthlySpend/getCostStatus/canIncurCost/setCostCap), wired into orchestra-model-resolver.ts's resolveModelConfig -- the real pre-dispatch choke point for org-scoped product_orchestra spend, blocks (returns null) before the LLM call is made, not after."
     remaining_work:
-      - "A real budget-cap/alert/spend-limit enforcement system -- today this is observability only (what got spent), not active cost control (stop spending before a limit is hit)."
-      - "Needs an Owner decision on what limits/scopes matter (per-org? per-user? per-task-type? daily/monthly?) before building -- this is new scope, not in any Tree 1 sub-branch literally, so the definition-of-done itself needs Owner input."
+      - "Admin UI to set/view monthlyCostCapUsd and toggle enforcement per org -- service layer exists, no settings page yet."
+      - "80%-near-limit alert has a computed signal (isNearLimit) but no notification wiring -- depends on area 14's notifications scope."
 
   - num: 12
     name: "Loop Engineering"
@@ -160,12 +154,10 @@ areas:
   - num: 16
     name: "Account / Organization lifecycle management"
     tree1_domains: ["U-D27.B1.S1"]
-    status: not_started
-    baseline: "likely_gap -- only organisations.plan/subscriptionPlanId linkage exists"
+    status: in_progress
+    baseline: "Built 2026-07-11 (Super Boss direct work): organisations.licensedSeats/seatEnforcementEnabled columns, org-license-service.ts (getLicenseStatus/canAssignSeat/assignSeat/revokeSeat/setLicensedSeats), enforcement wired into BOTH real seat-consumption points -- POST /api/users (blocks a new invite when already at capacity) and auth-guard.ts's first-login activation (the actual isActive=true flip, blocks acceptance if capacity was hit since the invite was sent). users.isActive was already the real seat marker in use throughout the codebase, reused rather than duplicated. Org-account-opening process investigated and confirmed to already exist (auth-guard.ts's autoProvisionUser, self-service signup auto-creates an org) -- not a gap, just previously undocumented as such."
     remaining_work:
-      - "Org-level license management: assign/revoke/track per-seat licenses."
-      - "Active-user-count enforcement against the licensed seat count."
-      - "Defined org-account-opening process (currently informal/ad hoc)."
+      - "Admin UI to set/view licensedSeats and toggle enforcement per org -- service layer exists, no settings page yet."
       - "Note: broader org lifecycle beyond licensing (e.g. org settings, org deletion/archival) is Tree 3 business-platform scope, not Tree 1-sourced -- same treatment as billing (area 17)."
 
   - num: 17
