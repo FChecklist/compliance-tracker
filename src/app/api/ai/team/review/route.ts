@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_CLOSURE_REVIEW_LEAF } from "@/lib/guardrail-registrations"
-import { recordPeerReview } from "@/lib/activity-log-service"
+import { recordPeerReview, getActivityRiskLevel } from "@/lib/activity-log-service"
 
 registerAllGuardrails()
 
@@ -49,7 +49,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "activityLogId is required" }, { status: 400 })
   }
 
-  const check = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes, reviewDecision, confidencePercentage })
+  // tree4-unified/50-completion-plan area 9 "Auditing" item 1 (audit-
+  // cadence.ts): riskLevel is read back from the activity_log row itself,
+  // NOT from the request body -- a client-supplied riskLevel could be
+  // spoofed to dodge closureReviewCheck's critical-risk escalation gate.
+  const riskLevel = await getActivityRiskLevel(orgId, activityLogId)
+  const check = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes, reviewDecision, confidencePercentage, riskLevel })
   if (!check.passed) {
     void recordGuardrailViolation(activityLogId, AI_TEAM_CLOSURE_REVIEW_LEAF, "input", check)
     return NextResponse.json({ status: "blocked", blockedBy: { reason: check.reason, guidance: check.guidance } }, { status: 422 })

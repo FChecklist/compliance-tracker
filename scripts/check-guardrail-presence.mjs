@@ -217,6 +217,19 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/task-tightening.ts", mustContain: ["export function extractDeclaredScopeFiles", "export function checkFilesWithinDeclaredScope"] },
   { file: "scripts/ai-workforce-agent.mjs", mustContain: ["checkFilesWithinDeclaredScope("] },
   { file: ".github/workflows/ai-team-workforce.yml", mustContain: ["SCOPE_VIOLATIONS"] },
+
+  // Audit Cadence (area 9 "Auditing" item 1, L1/L4 routing) + Re-Audit Flag
+  // (U-D15.B3.S1, "no task is EVER permanently complete"). classifyAuditCadence()
+  // enforces Guardrail 10's "risk level determines... escalation level" at
+  // the one place a closure decision is actually made -- previously
+  // riskLevel was persisted and never read back there. flagForReAudit is the
+  // real, reachable (explicit-admin) trigger for re-opening a closed
+  // dispatch; see that function's own header for why this isn't a
+  // fabricated automatic detector.
+  { file: "src/lib/audit-cadence.ts", mustContain: ["export function classifyAuditCadence"] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["classifyAuditCadence(", "critical_risk_requires_escalation"] },
+  { file: "src/lib/activity-log-service.ts", mustContain: ["export async function flagForReAudit", "export function listReAuditFlagged"] },
+  { file: "src/app/api/ai/team/re-audit/route.ts", mustContain: ["flagForReAudit("] },
 ]
 
 let failed = false

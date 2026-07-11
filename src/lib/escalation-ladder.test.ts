@@ -43,6 +43,11 @@ describe("nextEscalationRung", () => {
     expect(rung.roleKey).toBe("chief_operating_officer")
   })
 
+  test("a critical-risk-closure trigger (area 9, Guardrail 10) starts at COO, not CSEO", () => {
+    const rung = nextEscalationRung({ reason: "critical_risk_closure" })
+    expect(rung.roleKey).toBe("chief_operating_officer")
+  })
+
   test("escalating past CSEO goes to COO", () => {
     const rung = nextEscalationRung({ reason: "engine_not_found", priorEscalationRoleKey: "chief_software_engineering_officer" })
     expect(rung.roleKey).toBe("chief_operating_officer")
