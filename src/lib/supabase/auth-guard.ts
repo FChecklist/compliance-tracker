@@ -4,6 +4,7 @@ import { db, users, organisations, departments, aiAssistants, productBranches, o
 import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
+import { assignSeat } from "@/lib/org-license-service"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -291,7 +292,21 @@ export async function requireAuth(): Promise<AuthContext> {
     if (revocation) {
       return { user, dbUser: null, orgId: null, response: NextResponse.json({ error: "This account has been deactivated" }, { status: 401 }) }
     }
-    await db.update(users).set({ isActive: true }).where(eq(users.id, dbUser.id))
+    // Wave 172 (area 16, seat enforcement): this is the real seat-consumption
+    // moment (invite acceptance, first login) -- routes through
+    // org-license-service.ts so the org's licensedSeats cap (opt-in,
+    // seatEnforcementEnabled) is actually checked here, not just tracked.
+    // Fails closed only for orgs that explicitly turned enforcement on; every
+    // other org's dbUser.orgId is falsy-checked or unenforced and this
+    // behaves exactly as before (unconditional activation).
+    if (dbUser.orgId) {
+      const seatResult = await assignSeat(dbUser.orgId, dbUser.id)
+      if (!seatResult.ok) {
+        return { user, dbUser: null, orgId: null, response: NextResponse.json({ error: seatResult.reason }, { status: 403 }) }
+      }
+    } else {
+      await db.update(users).set({ isActive: true }).where(eq(users.id, dbUser.id))
+    }
     dbUser.isActive = true
   }
 
