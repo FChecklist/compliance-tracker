@@ -88,6 +88,30 @@ function closureReviewCheck(context: Record<string, unknown>) {
 
 let registered = false
 
+// Wave 167 real bug found while reviewing the Handover Protocol PR: CI
+// failed 4 unrelated closureReviewCheck tests in this file, not because of
+// anything in that PR's own code, but because guardrail-engine.test.ts's
+// beforeEach() calls _clearAllGuardrailsForTests() (wiping the shared,
+// module-level REGISTRY Map every other test file's guardrails live in),
+// while this file's own `registered` guard is a SEPARATE module-level flag
+// that clear function has no way to reset. Once any test file has called
+// registerAllGuardrails() once, `registered` stays true for the rest of the
+// bun test process (all test files share one process/module graph) -- so a
+// later clear leaves the registry genuinely empty while this function's
+// idempotency guard silently no-ops on every subsequent call, and
+// evaluateGuardrails() on an unregistered leaf always passes by design
+// ("not rigid" -- see guardrail-engine.ts's header). Adding a new test file
+// that also calls registerAllGuardrails() (handover-protocol.test.ts) just
+// shifted bun's file-load/interleaving order enough to expose a
+// pre-existing fragility, not introduce a new one. Fix: a matching reset
+// export, wired into guardrail-engine.test.ts's existing beforeEach so a
+// clear always allows the next registerAllGuardrails() call to actually
+// re-populate the registry, in this file or any other test file that
+// depends on it being populated.
+export function _resetRegisteredForTests(): void {
+  registered = false
+}
+
 export function registerAllGuardrails(): void {
   if (registered) return
   registered = true
