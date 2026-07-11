@@ -52,11 +52,10 @@ areas:
   - num: 5
     name: "Task Lifecycle management with loop management"
     tree1_domains: ["U-D4", "U-D13"]
-    status: not_started
+    status: complete
     baseline: "1 solid / 5 partial / 7 gap of 13 sub-branches (~8%) -- tied for weakest. DEC-03 resolved 2026-07-11 (Super Boss, per Owner's 'don't wait' directive, deliberately conservative call): RATIFY the current distributed domain-service architecture, do NOT retrofit the live tasks.status field into a 30-state model. Rationale: tasks.status is read/written across many live call sites in production; a retrofit is a hard-to-reverse, broad-blast-radius schema change with no functional gain proportionate to the risk, and Handover Protocol (D17, PR #170) plus activity_log already cover the real cross-agent handoff/audit-trail need Tree 1 was pointing at. The distributed service+table pattern is documented as the accepted design, not a gap. This unblocks area 12 (Loop Engineering) to hook existing task-completion events instead of waiting on a Work Object rebuild."
-    remaining_work:
-      - "The ~40-field Input/Process/Output/Handover/Closure schema and ~30-state model: NOT building, per DEC-03 resolution above -- current architecture ratified as sufficient (Handover Protocol + activity_log + per-domain tables cover the real requirement)."
-      - "Loop management (D13) largely covered by loop-prevention.ts -- remaining gap is D13's violation-message predefined/polite-text confirmation. Small, tractable, still open."
+    remaining_work: []
+    resolution_note: "RESOLVED 2026-07-11 (Super Boss direct work): D13's violation-message predefined/polite-text item closed. Prior investigation (04-implementation-log.yaml) confirmed every guardrail-violation message in task-tightening.ts/loop-prevention.ts necessarily interpolates runtime specifics (field names, actual values, iteration counts) -- reworded all 12 to a more considerate tone ('Please add...', 'Could you...') while deliberately keeping the interpolated specifics, since de-interpolating them into fully static text would regress usability for a marginal literal-spec-compliance gain (same evidence-based-deviation precedent as PLAN-02's area-1 finding). tsc/eslint clean, 44/44 existing tests still pass unchanged (only 1 test asserted guidance text and it still matches). The ~40-field/~30-state model item above remains explicitly NOT built per DEC-03's ratification, not a gap -- with both items resolved, this area is closed."
 
   - num: 6
     name: "Monitoring"

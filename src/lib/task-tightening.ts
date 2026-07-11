@@ -188,7 +188,7 @@ export function validateKnowledgeSufficiency(task: Partial<TightTask>): TightTas
     return {
       valid: false,
       reason: `Complexity tier "${task.complexityTier}" requires understanding an existing component, but no known context was supplied -- ${failure.reason}`,
-      guidance: `Add knownContext describing what you already know/have read about the existing code or state this task touches. ${failure.guidance}`,
+      guidance: `Please add knownContext describing what you already know or have read about the existing code or state this task touches. ${failure.guidance}`,
     }
   }
   return { valid: true }
@@ -197,13 +197,13 @@ export function validateKnowledgeSufficiency(task: Partial<TightTask>): TightTas
 function checkField(value: string | undefined, label: string, guidanceExample: string): TightTaskValidation | null {
   const trimmed = (value ?? "").trim()
   if (!trimmed) {
-    return { valid: false, reason: `${label} is missing.`, guidance: `Add a ${label.toLowerCase()}. Example: "${guidanceExample}"` }
+    return { valid: false, reason: `${label} is missing.`, guidance: `Please add a ${label.toLowerCase()} before this can proceed. Example: "${guidanceExample}"` }
   }
   if (isPlaceholder(trimmed)) {
-    return { valid: false, reason: `${label} is a placeholder, not a real value ("${trimmed}").`, guidance: `Replace it with the actual ${label.toLowerCase()}. Example: "${guidanceExample}"` }
+    return { valid: false, reason: `${label} is a placeholder, not a real value ("${trimmed}").`, guidance: `Please replace it with the actual ${label.toLowerCase()}. Example: "${guidanceExample}"` }
   }
   if (trimmed.length < MIN_FIELD_LENGTH) {
-    return { valid: false, reason: `${label} is too short to be actionable ("${trimmed}").`, guidance: `Be specific -- name the concrete file/behavior/outcome, not just a category. Example: "${guidanceExample}"` }
+    return { valid: false, reason: `${label} is too short to be actionable ("${trimmed}").`, guidance: `Could you be a little more specific -- name the concrete file, behavior, or outcome, not just a category? Example: "${guidanceExample}"` }
   }
   return null
 }
@@ -235,7 +235,7 @@ export function validateTightTask(task: Partial<TightTask>): TightTaskValidation
       return {
         valid: false,
         reason: `${label} contains vague, unresolved language ("${ambiguity.matchedPhrase}").`,
-        guidance: `Replace "${ambiguity.matchedPhrase}" with the actual decision -- state exactly what should happen, don't leave it for the model to guess.`,
+        guidance: `Please replace "${ambiguity.matchedPhrase}" with the actual decision -- stating exactly what should happen helps avoid leaving it for the model to guess.`,
       }
     }
   }
@@ -245,15 +245,15 @@ export function validateTightTask(task: Partial<TightTask>): TightTaskValidation
     return {
       valid: false,
       reason: `Constraints say not to do "${contradiction.conflictingTerm}", but that same thing is required elsewhere in the task.`,
-      guidance: `Resolve the contradiction before dispatch -- either remove it from Constraints, or remove the requirement from Objective/Scope/Success criteria/Expected output.`,
+      guidance: `Could you resolve this contradiction before dispatch -- either remove it from Constraints, or remove the requirement from Objective/Scope/Success criteria/Expected output?`,
     }
   }
 
   if (!task.complexityTier) {
-    return { valid: false, reason: "Complexity tier is missing.", guidance: `Set complexityTier to one of: ${VALID_TIERS.join(", ")} -- this determines which models are even eligible to receive this task.` }
+    return { valid: false, reason: "Complexity tier is missing.", guidance: `Please set complexityTier to one of: ${VALID_TIERS.join(", ")} -- this determines which models are even eligible to receive this task.` }
   }
   if (!VALID_TIERS.includes(task.complexityTier)) {
-    return { valid: false, reason: `Complexity tier "${task.complexityTier}" is not recognized.`, guidance: `Must be one of: ${VALID_TIERS.join(", ")}.` }
+    return { valid: false, reason: `Complexity tier "${task.complexityTier}" is not recognized.`, guidance: `Please use one of: ${VALID_TIERS.join(", ")}.` }
   }
 
   const knowledgeFailure = validateKnowledgeSufficiency(task)
@@ -290,16 +290,16 @@ const MIN_PLANNABLE_LENGTH = 4
 export function validateTaskBrief(brief: TaskBrief): TightTaskValidation {
   const title = (brief.title ?? "").trim()
   if (!title) {
-    return { valid: false, reason: "Task has no title.", guidance: "Add a title before this can be planned." }
+    return { valid: false, reason: "Task has no title.", guidance: "Please add a title before this can be planned." }
   }
   if (isPlaceholder(title)) {
-    return { valid: false, reason: `Task title is a placeholder ("${title}"), not real.`, guidance: "Replace the title with what actually needs to happen." }
+    return { valid: false, reason: `Task title is a placeholder ("${title}"), not real.`, guidance: "Please replace the title with what actually needs to happen." }
   }
   if (title.length < MIN_PLANNABLE_LENGTH) {
     return {
       valid: false,
       reason: `Task title ("${title}") is too short for an AI to plan reliably.`,
-      guidance: "Add a few more words describing what should happen, or assign the task directly instead of relying on AI planning.",
+      guidance: "A few more words describing what should happen would help, or you can assign the task directly instead of relying on AI planning.",
     }
   }
 
@@ -313,7 +313,7 @@ export function validateTaskBrief(brief: TaskBrief): TightTaskValidation {
     return {
       valid: false,
       reason: `Task title/description contains vague, unresolved language ("${ambiguity.matchedPhrase}").`,
-      guidance: `Replace "${ambiguity.matchedPhrase}" with what should actually happen.`,
+      guidance: `Please replace "${ambiguity.matchedPhrase}" with what should actually happen.`,
     }
   }
 
