@@ -487,6 +487,35 @@ export const apiKeyRequestLog = complianceSchemaDB.table('api_key_request_log', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Org Invite Links (area 15/18, U-D27.B1.S1: Secure Invite Link) ─────
+// Second invitation path alongside Master-Admin-direct-add (POST
+// /api/users, which invites one named person by email). An admin generates
+// a shareable link (WhatsApp/email) that anyone holding it can redeem to
+// join THIS org at the role fixed at creation time. Modeled directly on
+// apiKeys' token-artifact shape one section up: the raw token is never
+// stored, only its SHA-256 hash (tokenHash, unique) plus a short
+// non-secret tokenPrefix for admin-facing display/identification.
+export const orgInviteLinks = complianceSchemaDB.table('org_invite_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  role: text('role').notNull(), // one of invite-link-service.ts's INVITE_ROLES -- deliberately narrower than the full 10-value userRoleEnum, same VALID_ROLES restriction api/users/route.ts already applies to direct-add
+  tokenHash: text('token_hash').notNull().unique(),
+  tokenPrefix: text('token_prefix').notNull(), // first 11 chars ("il_" + 8 hex) for admin-facing display -- never enough to redeem the link
+  label: text('label'), // optional admin note, e.g. "July onboarding batch"
+  createdByUserId: text('created_by_user_id').notNull(),
+  // null = unlimited redemptions until expiry -- the default, matching the
+  // actual "shareable via WhatsApp to a whole team" use case this path is
+  // for (unlike a single-recipient email invite). An admin can set this to
+  // 1 for a single-use link if they want the tighter guarantee.
+  maxUses: integer('max_uses'),
+  useCount: integer('use_count').notNull().default(0),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  revokedByUserId: text('revoked_by_user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Webhooks (M-16: Outbound) ──────────────────────────────────────────
 export const webhooks = complianceSchemaDB.table('webhooks', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -1477,6 +1506,12 @@ export const organisationsRelations = relations(organisations, ({ many }) => ({
   embeddings: many(embeddings),
   branches: many(branches),
   clients: many(clients),
+  inviteLinks: many(orgInviteLinks),
+}))
+
+export const orgInviteLinksRelations = relations(orgInviteLinks, ({ one }) => ({
+  org: one(organisations, { fields: [orgInviteLinks.orgId], references: [organisations.id] }),
+  createdBy: one(users, { fields: [orgInviteLinks.createdByUserId], references: [users.id] }),
 }))
 
 export const branchesRelations = relations(branches, ({ one, many }) => ({
@@ -1518,6 +1553,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   comments: many(comments),
   uploadedDocuments: many(documents),
   onboardingSteps: many(onboardingSteps),
+  createdInviteLinks: many(orgInviteLinks),
 }))
 
 export const complianceItemsRelations = relations(complianceItems, ({ one, many }) => ({

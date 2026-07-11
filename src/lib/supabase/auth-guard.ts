@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
 import { assignSeat } from "@/lib/org-license-service"
+import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -77,9 +78,35 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
+
+  // Area 15/18 (Secure Invite Link): a signup that carried ?invite=<token>
+  // (threaded into signUp()'s options.data by /signup, see
+  // invite-link-service.ts) joins the invite's EXISTING org/role instead of
+  // the brand-new-org path below -- this branch returns early either way,
+  // it never falls through into org creation.
+  const inviteToken = meta?.inviteToken?.trim()
+  if (inviteToken) {
+    try {
+      const result = await consumeInviteLinkAndProvisionUser(inviteToken, { id: authUser.id, email, fullName })
+      if (result.ok) return result.user
+      // Deliberately does NOT fall through to the normal new-org
+      // autoprovision below -- a broken/expired/exhausted/seat-full link
+      // should never silently land the invitee as the admin of a brand-new
+      // empty org instead of the team they thought they were joining. They
+      // see "no organisation on this account" (requireAuth's existing
+      // dbUser=null/orgId=null behavior) until an admin issues a fresh link
+      // or adds them directly -- a real, honest stopping point for this
+      // first slice of the mechanism, documented in the PR description.
+      console.warn(`Invite link redemption failed for ${email}: ${result.reason}`)
+      return null
+    } catch (err) {
+      console.error("Invite link redemption threw unexpectedly:", err)
+      return null
+    }
+  }
 
   try {
     const baseSlug = slugify(orgName)

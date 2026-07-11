@@ -1,15 +1,19 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ShieldCheck, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, ArrowRight, Loader2, CheckCircle2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+
+type InvitePreview =
+  | { valid: true; orgName: string; role: string }
+  | { valid: false; reason: string };
 
 function SignupForm() {
   const router = useRouter();
@@ -22,12 +26,30 @@ function SignupForm() {
   // -- the refer-and-earn counterpart to ref above, resolved into a
   // veri_reward_referrals row instead of sales_referrals.
   const vref = searchParams.get("vref");
+  // Area 15/18 (Secure Invite Link): an /invite/[token] redirect appends
+  // ?invite=<token> -- threaded into signUp()'s options.data so
+  // autoProvisionUser() joins the invite's org/role instead of creating a
+  // brand-new organisation for this signup. See invite-link-service.ts.
+  const invite = searchParams.get("invite");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [organisation, setOrganisation] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
+
+  useEffect(() => {
+    if (!invite) return;
+    let cancelled = false;
+    fetch(`/api/invite/${encodeURIComponent(invite)}`)
+      .then((res) => res.json())
+      .then((data: InvitePreview) => { if (!cancelled) setInvitePreview(data); })
+      .catch(() => { if (!cancelled) setInvitePreview({ valid: false, reason: "not_found" }); });
+    return () => { cancelled = true; };
+  }, [invite]);
+
+  const hasValidInvite = invitePreview?.valid === true;
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +78,7 @@ function SignupForm() {
           ...(ref ? { ref } : {}),
           ...(vid ? { vid } : {}),
           ...(vref ? { vref } : {}),
+          ...(hasValidInvite && invite ? { inviteToken: invite } : {}),
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -168,19 +191,34 @@ function SignupForm() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="org" className="text-xs font-semibold text-ct-muted uppercase">
-                    Organisation
-                  </Label>
-                  <Input
-                    id="org"
-                    type="text"
-                    placeholder="Acme Financial Services Pvt. Ltd."
-                    value={organisation}
-                    onChange={(e) => setOrganisation(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
+                {hasValidInvite && invitePreview?.valid ? (
+                  <div className="flex items-start gap-2.5 rounded-lg bg-ct-teal/10 border border-ct-teal/30 px-3 py-2.5">
+                    <Users className="size-4 text-ct-teal mt-0.5 shrink-0" />
+                    <p className="text-sm text-ct-navy">
+                      You&apos;re joining <span className="font-semibold">{invitePreview.orgName}</span> as{" "}
+                      <span className="font-semibold capitalize">{invitePreview.role}</span>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="org" className="text-xs font-semibold text-ct-muted uppercase">
+                      Organisation
+                    </Label>
+                    <Input
+                      id="org"
+                      type="text"
+                      placeholder="Acme Financial Services Pvt. Ltd."
+                      value={organisation}
+                      onChange={(e) => setOrganisation(e.target.value)}
+                      className="h-10"
+                    />
+                    {invite && invitePreview && !invitePreview.valid && (
+                      <p className="text-xs text-ct-error">
+                        This invite link is no longer valid ({invitePreview.reason.replace(/_/g, " ")}) -- creating a new organisation instead.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-xs font-semibold text-ct-muted uppercase">
