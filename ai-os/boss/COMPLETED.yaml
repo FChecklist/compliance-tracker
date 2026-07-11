@@ -836,3 +836,97 @@ entries:
         visitor-intelligence-service.ts "no free-text input" reclassification
         is correct on independent re-reading, not just accepted on the
         doer's own claim.
+  - id: WAVE-160
+    title: "Audit Organization (Chief Audit Officer + L1 mandatory audit gate) + Universal Task Lifecycle Phase 1 (activity_log)"
+    doer:
+      agent: claude-code
+      date: "2026-07-11"
+      pr: PENDING
+      summary: >
+        Boss supplied Audit Organization.docx (a Fortune-500-style
+        independent-assurance org: Chief Audit Officer, 6 divisions, ~30
+        departments, 150+ named auditor roles, 7-level audit cadence,
+        every role assigned to GPT-OSS-120B) and separately directed that
+        Universal Task Lifecycle + Audit Management implementation be
+        confirmed/completed across all of FChecklist (compliance-tracker,
+        veda-advisors, projexa) as the top, non-negotiable priority. Real
+        cross-repo audit performed first (GitHub API against remote HEAD,
+        not stale local clones): compliance-tracker has the mature stack;
+        veda-advisors has only the original 2026-06-26 ai-os/ scaffold,
+        stale since 06-28; projexa has zero governance infra of any kind
+        despite active development. Reported honestly rather than assumed
+        complete.
+
+        Corrected the source document's GPT-OSS-120B-for-every-role
+        assignment before implementing anything: contradicts AGENTS.md
+        Rule 8 (don't default to the cheapest model for correctness-
+        critical work) and basic audit logic (an assurance function on a
+        weaker model than the work it checks isn't real assurance).
+        VERIDIAN_AUDIT_ORGANIZATION.md documents this and maps the
+        document onto real existing infra rather than inventing 150 new
+        roles: found VERIDIAN already has a real, working, un-unified
+        partial audit org (CI's 11 jobs, the 12 real Guardrail-team roles
+        in roster.ts, Rule 7c's doer/auditor pattern). Shipped: one new
+        role (chief_audit_officer, new AUDIT_EXECUTIVE team, GLM-5.2,
+        prompt seeded live in Supabase pcrjmlpuqsbocqfwoxod) heading the
+        existing 12 Guardrail roles rather than duplicating them; the L1
+        "audit before completion" gate wired into
+        /api/ai/team/dispatch/route.ts via detectLowConfidenceResponse()
+        (floor-tier-escalation.ts, already-proven hedging-language proxy
+        -- no numeric confidence score exists anywhere in this codebase,
+        so one wasn't fabricated to compare against 95%); L2-L7 of the
+        cadence honestly marked POLICY ONLY (needs cron + a query surface
+        that doesn't exist yet).
+
+        Universal Task Lifecycle Phase 1 (UNIVERSAL_TASK_WRAPPER_DESIGN.md,
+        approved this session per Boss's "take your own decision and
+        implement"): new activity_log table (migration 0134, RLS matching
+        entity_relationships' tenant-isolation pattern exactly, applied
+        live via Supabase MCP, verified via information_schema +
+        pg_class.relrowsecurity, zero new advisor findings). Real
+        correction made against the design doc's own claim: checked
+        loop_executions before assuming loop runs were unpersisted --
+        they're not; that table already exists, has no org_id at all
+        (loops are genuinely cross-org), and forcing it into activity_log
+        would have weakened the table's tenant-isolation guarantee for
+        every other row. Scoped Phase 1 to just ai_team_dispatch (the
+        genuinely-zero-persistence case), wired via new
+        activity-log-service.ts, fire-and-forget matching
+        orchestra-execution-logger.ts's existing posture exactly.
+
+        Cross-repo: dispatched 2 background agents (isolated, one per
+        repo) to port a constitutional foundation to veda-advisors and
+        projexa, adapted honestly to each product's real code (not
+        copy-pasted) -- both left as open, unmerged PRs for review
+        (veda-advisors#15, projexa#1). Neither agent fabricated
+        enforcement for capabilities that don't exist in those repos.
+        veda-advisors agent surfaced a real, pre-existing security concern
+        (2026-06-28 commits self-granting FULL_ACCESS/merge_prs/
+        manage_secrets_reference, authorized by an AI role not a human) --
+        flagged, not fixed, needs Boss's explicit reconfirmation.
+
+        Guardrail-presence manifest extended (still passing, all new
+        markers). tsc/lint/build clean; full test suite unchanged (115
+        pass / 1 fail / 1 error, both pre-existing unrelated). Code-level
+        rollout to veda-advisors/projexa (Guardrail Engine, task-tightening,
+        anti-bypass CI check equivalents) explicitly NOT done this wave --
+        tracked as the clearly-labeled next priority, not silently deferred.
+    auditor:
+      agent: PENDING
+      date: PENDING
+      verdict: PENDING
+      summary: >
+        No cross-audit run this session, same honest gap as WAVE-158/159.
+        Particular attention needed: (1) whether formalizing the existing
+        12 Guardrail-team roles under a new chief_audit_officer without
+        adding real per-department auditor coverage is a sufficient
+        response to a document explicitly asking for ~150 specialized
+        agents, or whether specific additional roles (beyond what this
+        wave judged as CI/Guardrail-team overlap) should be added; (2)
+        the detectLowConfidenceResponse() proxy's real false-negative rate
+        as a stand-in for "low confidence" -- untested against real AI
+        Dev Team dispatch traffic; (3) independent verification that
+        loop_executions genuinely has no org_id (re-derive from schema,
+        don't just trust this entry); (4) the veda-advisors FULL_ACCESS
+        security finding -- needs escalation to the Boss directly, not
+        just a documentation flag, if not already acted on.

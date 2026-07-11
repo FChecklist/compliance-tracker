@@ -35,7 +35,7 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/task-tightening.ts", mustContain: ["export function validateTightTask", "export function assembleTightTaskPrompt"] },
   { file: "src/lib/guardrail-engine.ts", mustContain: ["export function registerGuardrail", "export function evaluateGuardrails"] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["AI_TEAM_DISPATCH_LEAF", "AI_WORKFORCE_DISPATCH_LEAF", "registerGuardrail("] },
-  { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["registerAllGuardrails()", "evaluateGuardrails("] },
+  { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["registerAllGuardrails()", "evaluateGuardrails(", "detectLowConfidenceResponse("] },
   { file: "scripts/ai-workforce-agent.mjs", mustContain: ["validateTightTask(", "MAX_ITERATIONS"] },
   // Wave 159: the customer-task analog -- task-execution-engine.ts's
   // free-text LLM-planning branch, gated by a lighter check (see

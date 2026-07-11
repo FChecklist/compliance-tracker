@@ -70,6 +70,7 @@ export type TeamName =
   | "GUARDRAIL_PRODUCT"
   | "GUARDRAIL_ACCOUNT"
   | "GUARDRAIL_USER"
+  | "AUDIT_EXECUTIVE"
   | "HUMAN"
 
 export type RoleDefinition = {
@@ -194,7 +195,19 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   { roleKey: "administration_manager", team: "ADMIN", title: "Administration Manager", model: GLM_52, promptKey: "ai_team.administration_manager" },
   { roleKey: "procurement_vendor_mgmt", team: "ADMIN", title: "Procurement / Vendor Management", model: GLM_5_TURBO, promptKey: "ai_team.procurement_vendor_mgmt" },
 
-  // ─── Guardrail Team — Platform Level ────────────────────────────────
+  // ─── Audit Organization (VERIDIAN_AUDIT_ORGANIZATION.md, Wave 160) ──
+  // Chief Audit Officer heads the 4 Guardrail Team levels below as a
+  // single accountable executive, independent from ceo_technical_director
+  // (Engineering) and every operational department above -- the
+  // "organization that performs work should never certify it" principle
+  // the source document itself insists on. Model is GLM-5.2, NOT
+  // GPT-OSS-120B (the source document's literal assignment for every
+  // audit role) -- see VERIDIAN_AUDIT_ORGANIZATION.md's own top section
+  // for why: an assurance function auditing higher-stakes work on a
+  // weaker model than the work itself isn't real independent assurance.
+  { roleKey: "chief_audit_officer", team: "AUDIT_EXECUTIVE", title: "Chief Audit Officer", model: GLM_52, promptKey: "ai_team.chief_audit_officer" },
+
+  // ─── Guardrail Team — Platform Level (reports to chief_audit_officer) ─
   { roleKey: "chief_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Chief Governance Officer", model: GLM_52, promptKey: "ai_team.chief_governance_officer" },
   { roleKey: "security_threat_analyst", team: "GUARDRAIL_PLATFORM", title: "Security & Threat Analyst", model: GPT_55, promptKey: "ai_team.security_threat_analyst" },
   { roleKey: "ai_safety_auditor", team: "GUARDRAIL_PLATFORM", title: "AI Safety Auditor", model: GLM_52, promptKey: "ai_team.ai_safety_auditor" },

@@ -844,6 +844,28 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): additive envelope,
+// NOT a replacement for tasks/orchestraExecutions -- see the design doc's
+// "Option A vs Option B" section for why forcing one of those existing
+// tables to mean "the universal Task" would be riskier than wrapping them.
+// detailTable/detailId point at the richer row (by convention, not a real
+// FK -- detailTable varies); ai_team_dispatch/loop_run activity types have
+// no detail row at all yet (that's the actual, concrete gap this phase
+// closes -- both were completely unpersisted before this).
+export const activityLog = complianceSchemaDB.table('activity_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  userId: text('user_id'),
+  activityType: text('activity_type').notNull(), // 'customer_task' | 'orchestra_call' | 'ai_team_dispatch' | 'loop_run'
+  detailTable: text('detail_table'),
+  detailId: text('detail_id'),
+  lifecycleStage: text('lifecycle_stage').notNull().default('requested'), // requested | classified | validated | executing | reviewing | completed | failed | closed
+  objective: text('objective'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Per-org, optionally per-layer BYO model override. orchestraLayerId=null
 // means "applies to all layers for this org". Distinct from ai_configurations
 // (Wave 0's BYOK table), which is per-org/per-purpose (extraction/QA/drafting),
