@@ -346,3 +346,66 @@ export function assembleTightTaskPrompt(task: TightTask): string {
   )
   return lines.join("\n")
 }
+
+// tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16 re-scoped
+// item (b) "broader Scope enforcement": 04-implementation-log.yaml's PR
+// #179 entry investigated verifying an AI dispatch's actual files-touched
+// against its declared `scope` and deliberately deferred it -- semantically
+// judging whether a change "stays within" prose like "the reports module"
+// needs LLM judgment, and parsing arbitrary prose into a reliable file list
+// risks real false positives (that entry's own example: "fragile natural-
+// language parsing of prose... against a filesChanged array").
+//
+// This is a genuinely narrower slice of the same idea, not a retry of the
+// rejected one: it does NO prose parsing. ai-team-workforce.yml's own
+// `scope` input is already documented as "exact file(s)/area to touch,
+// nothing else" -- when a dispatcher follows that and writes literal file
+// paths into scope (PR #179's own example was exactly this: "Only
+// src/app/(app)/reports/page.tsx and package.json"), those paths are
+// mechanically extractable with a plain filename-token regex, zero
+// semantic understanding required. When scope contains no such tokens at
+// all (pure area/prose description, e.g. "the reports module"), this is a
+// deliberate no-op -- checked stays false, nothing is ever flagged -- so a
+// task that never declared an exact file list can't be false-positived
+// against one it never stated. Its only real caller (ai-workforce-agent.mjs)
+// treats a violation as a WARNING surfaced in the PR body, never a block --
+// matching this codebase's own bar against a fragile heuristic gate.
+// Parens are included in the path-segment character class -- not an
+// afterthought: this codebase's own App Router route-group directories
+// (src/app/(app)/..., the most common real path shape in this repo) would
+// otherwise have their leading segments silently dropped by the regex,
+// confirmed by testing this exact pattern against VALID.scope's own
+// "src/app/(app)/reports/page.tsx" in task-tightening.test.ts.
+const FILE_PATH_TOKEN_RE = /\b[\w.()-]+(?:\/[\w.()-]+)*\.[a-zA-Z]{2,5}\b/g
+
+/** Syntactic-only extraction of filename-shaped tokens from free text -- no prose/semantic parsing. */
+export function extractDeclaredScopeFiles(scope: string): string[] {
+  const matches = scope.match(FILE_PATH_TOKEN_RE) ?? []
+  return Array.from(new Set(matches))
+}
+
+export type ScopeFileCheck = {
+  /** false when scope had zero file-path-shaped tokens -- nothing to check against, not a pass. */
+  checked: boolean
+  violations: string[]
+}
+
+/**
+ * Pure, deterministic. A changed file conforms if it exactly matches a
+ * declared token, or if the declared token is a bare filename that matches
+ * the changed file's own basename (a dispatcher writing "page.tsx" instead
+ * of the full path still counts) -- but never the reverse, since matching
+ * an unrelated file merely because it SHARES a basename with something
+ * declared would be the one real false-positive direction this function
+ * must not create.
+ */
+export function checkFilesWithinDeclaredScope(scope: string, filesChanged: string[]): ScopeFileCheck {
+  const declared = extractDeclaredScopeFiles(scope).map((d) => d.replace(/\\/g, "/"))
+  if (declared.length === 0) return { checked: false, violations: [] }
+
+  const violations = filesChanged.filter((file) => {
+    const normalizedFile = file.replace(/\\/g, "/")
+    return !declared.some((d) => normalizedFile === d || normalizedFile.endsWith(`/${d}`))
+  })
+  return { checked: true, violations }
+}

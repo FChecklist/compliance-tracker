@@ -43,7 +43,7 @@ const apiKey = process.env.OPENROUTER_API_KEY
 // no longer accepted -- the three fields below are required, validated
 // with the same deterministic check the Next.js dispatch route uses,
 // before the agent loop (and any OpenRouter spend) starts.
-const { validateTightTask, assembleTightTaskPrompt } = await import(path.join(REPO_ROOT, "src/lib/task-tightening.ts"))
+const { validateTightTask, assembleTightTaskPrompt, checkFilesWithinDeclaredScope } = await import(path.join(REPO_ROOT, "src/lib/task-tightening.ts"))
 const { checkLoopBudget } = await import(path.join(REPO_ROOT, "src/lib/loop-prevention.ts"))
 const { checkTierEligibility, requiresMandatoryAudit } = await import(path.join(REPO_ROOT, "src/lib/model-tier-eligibility.ts"))
 
@@ -421,6 +421,17 @@ async function main() {
     finished = { summary: reason, filesChanged: [...filesChanged] }
   }
 
+  // tree4-unified area 3 "Guardrails" item (b): checked against the
+  // harness-TRACKED filesChanged Set (populated only by real write_file
+  // tool calls, line ~383 above), not finished.filesChanged -- the model's
+  // own `finish` call can override the latter with a self-reported list,
+  // which is exactly the kind of unverified self-attestation a scope check
+  // should not be built on top of.
+  const scopeCheck = checkFilesWithinDeclaredScope(rawTask.scope, [...filesChanged])
+  if (scopeCheck.checked && scopeCheck.violations.length > 0) {
+    console.error(`[ai-workforce-agent] Scope check: ${scopeCheck.violations.length} file(s) changed outside scope's declared file list: ${scopeCheck.violations.join(", ")}`)
+  }
+
   console.log("=== AI WORKFORCE AGENT RESULT ===")
   console.log(JSON.stringify({ roleKey, model: role.model, ...finished }, null, 2))
 
@@ -429,6 +440,7 @@ async function main() {
     const fs = await import("node:fs")
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `summary=${finished.summary.replace(/\n/g, " ").slice(0, 500)}\n`)
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `files_changed=${finished.filesChanged.length}\n`)
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `scope_violations=${scopeCheck.violations.join(", ").replace(/\n/g, " ")}\n`)
     // Wave 163: feeds the "Push and open PR" step's mandatory-audit marker
     // and mandatory-audit-check.yml's CI gate -- neither role that has
     // dispatched through this pipeline so far (GPT-OSS-120B, DeepSeek V4

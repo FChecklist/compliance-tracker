@@ -38,6 +38,11 @@ describe("nextEscalationRung", () => {
     expect(rung.roleKey).toBe("chief_operating_officer")
   })
 
+  test("a monitoring-rule-violation trigger (area 6 chain enforcement) starts at COO, not CSEO", () => {
+    const rung = nextEscalationRung({ reason: "monitoring_rule_violation" })
+    expect(rung.roleKey).toBe("chief_operating_officer")
+  })
+
   test("a critical-risk-closure trigger (area 9, Guardrail 10) starts at COO, not CSEO", () => {
     const rung = nextEscalationRung({ reason: "critical_risk_closure" })
     expect(rung.roleKey).toBe("chief_operating_officer")

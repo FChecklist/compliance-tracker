@@ -153,3 +153,89 @@ export function detectCircularDependency(nodes: DependencyNode[]): CircularDepen
 
   return { hasCycle: cycleNodes.size > 0, cycleNodes: Array.from(cycleNodes) }
 }
+
+// ─── Per-Dynamic-Chain monitoring rules (ENFORCEMENT layer) ────────────────
+//
+// tree4-unified area 6 remaining_work: "Per-Dynamic-Chain monitoring rules
+// ENFORCEMENT layer -- schema column (monitoringRules) exists from PR #169
+// but nothing reads/enforces it yet." schema.ts's dynamicChains.monitoringRules
+// column comment already proposed a shape ("Suggested (not yet enforced)
+// shape: { rules: { metric: string; maxValue?: number; minValue?: number;
+// action: 'warn' | 'escalate' }[] }") -- this implements exactly that shape
+// rather than inventing a second rule language, narrowed to the two metrics
+// this codebase actually has real execution data for at its one real
+// chain-scoped completion chokepoint (task-execution-engine.ts's
+// updateTaskStatusAndReflect): how long a run took, and how many of its
+// planned steps actually completed. `action` IS the escalation-on-violation
+// flag the schema comment named -- "escalate" means the caller should
+// invoke escalation-ladder.ts's nextEscalationRung(), "warn" means record
+// the violation without escalating.
+export type MonitoringRuleMetric = "duration_ms" | "required_step_count"
+
+export type MonitoringRule = {
+  metric: MonitoringRuleMetric
+  maxValue?: number
+  minValue?: number
+  action: "warn" | "escalate"
+}
+
+export type ChainExecutionSnapshot = {
+  /** Wall-clock elapsed time for this run, same elapsedMs shape task-reflection.ts already computes. */
+  durationMs: number
+  /** Count of this task's task_execution_plan rows with status = 'completed'. */
+  completedStepCount: number
+}
+
+export type MonitoringRuleViolation = {
+  metric: MonitoringRuleMetric
+  action: "warn" | "escalate"
+  actualValue: number
+  maxValue?: number
+  minValue?: number
+}
+
+function isMonitoringRule(value: unknown): value is MonitoringRule {
+  if (!value || typeof value !== "object") return false
+  const r = value as Record<string, unknown>
+  return (
+    (r.metric === "duration_ms" || r.metric === "required_step_count") &&
+    (r.action === "warn" || r.action === "escalate") &&
+    (r.maxValue === undefined || typeof r.maxValue === "number") &&
+    (r.minValue === undefined || typeof r.minValue === "number")
+  )
+}
+
+/**
+ * Parses the raw jsonb column value into a validated rule list. Malformed or
+ * unrecognised entries are silently dropped rather than thrown on -- a
+ * corrupt/partial monitoringRules value should degrade to "no rules
+ * enforced", not crash the task-completion path that calls this.
+ */
+export function parseMonitoringRules(raw: unknown): MonitoringRule[] {
+  if (!raw || typeof raw !== "object") return []
+  const rules = (raw as { rules?: unknown }).rules
+  if (!Array.isArray(rules)) return []
+  return rules.filter(isMonitoringRule)
+}
+
+/**
+ * Pure, deterministic rule evaluation -- no DB access, no LLM call, matching
+ * this module's existing discipline. Returns every violated rule (a chain
+ * can carry more than one rule, and more than one can fire on the same
+ * run); callers decide what to do with each (log a warning, escalate).
+ */
+export function evaluateMonitoringRules(rawMonitoringRules: unknown, snapshot: ChainExecutionSnapshot): MonitoringRuleViolation[] {
+  const rules = parseMonitoringRules(rawMonitoringRules)
+  if (rules.length === 0) return []
+
+  const violations: MonitoringRuleViolation[] = []
+  for (const rule of rules) {
+    const actualValue = rule.metric === "duration_ms" ? snapshot.durationMs : snapshot.completedStepCount
+    const exceedsMax = typeof rule.maxValue === "number" && actualValue > rule.maxValue
+    const belowMin = typeof rule.minValue === "number" && actualValue < rule.minValue
+    if (exceedsMax || belowMin) {
+      violations.push({ metric: rule.metric, action: rule.action, actualValue, maxValue: rule.maxValue, minValue: rule.minValue })
+    }
+  }
+  return violations
+}

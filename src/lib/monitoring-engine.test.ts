@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { computePerformanceScore, detectCircularDependency, type DependencyNode } from "./monitoring-engine"
+import { computePerformanceScore, detectCircularDependency, evaluateMonitoringRules, parseMonitoringRules, type DependencyNode } from "./monitoring-engine"
 import type { LoopBudgetContext, LoopBudgetResult } from "./loop-prevention"
 
 function passedLoopBudget(iteration: number, maxIterations: number): { context: LoopBudgetContext; result: LoopBudgetResult } {
@@ -143,5 +143,84 @@ describe("detectCircularDependency", () => {
     const result = detectCircularDependency([])
     expect(result.hasCycle).toBe(false)
     expect(result.cycleNodes).toEqual([])
+  })
+})
+
+describe("parseMonitoringRules", () => {
+  test("a well-formed rules array is parsed as-is", () => {
+    const raw = { rules: [{ metric: "duration_ms", maxValue: 60_000, action: "warn" }] }
+    expect(parseMonitoringRules(raw)).toEqual([{ metric: "duration_ms", maxValue: 60_000, action: "warn" }])
+  })
+
+  test("null/undefined/non-object input parses to an empty list, not a throw", () => {
+    expect(parseMonitoringRules(null)).toEqual([])
+    expect(parseMonitoringRules(undefined)).toEqual([])
+    expect(parseMonitoringRules("not an object")).toEqual([])
+  })
+
+  test("a missing or non-array `rules` key parses to an empty list", () => {
+    expect(parseMonitoringRules({})).toEqual([])
+    expect(parseMonitoringRules({ rules: "not an array" })).toEqual([])
+  })
+
+  test("an unrecognised metric or action is dropped, not thrown on", () => {
+    const raw = {
+      rules: [
+        { metric: "unknown_metric", maxValue: 5, action: "warn" },
+        { metric: "duration_ms", maxValue: 5, action: "unknown_action" },
+        { metric: "duration_ms", maxValue: 5, action: "escalate" },
+      ],
+    }
+    expect(parseMonitoringRules(raw)).toEqual([{ metric: "duration_ms", maxValue: 5, action: "escalate" }])
+  })
+
+  test("a maxValue/minValue of the wrong type is dropped, not coerced", () => {
+    const raw = { rules: [{ metric: "duration_ms", maxValue: "60000", action: "warn" }] }
+    expect(parseMonitoringRules(raw)).toEqual([])
+  })
+})
+
+describe("evaluateMonitoringRules", () => {
+  test("no rules configured (null column value) -> no violations", () => {
+    expect(evaluateMonitoringRules(null, { durationMs: 999_999, completedStepCount: 0 })).toEqual([])
+  })
+
+  test("duration under the max bound -> no violation", () => {
+    const rules = { rules: [{ metric: "duration_ms", maxValue: 60_000, action: "escalate" }] }
+    expect(evaluateMonitoringRules(rules, { durationMs: 1_000, completedStepCount: 3 })).toEqual([])
+  })
+
+  test("duration exceeding the max bound -> a violation with the configured action", () => {
+    const rules = { rules: [{ metric: "duration_ms", maxValue: 60_000, action: "escalate" }] }
+    const violations = evaluateMonitoringRules(rules, { durationMs: 120_000, completedStepCount: 3 })
+    expect(violations).toEqual([{ metric: "duration_ms", action: "escalate", actualValue: 120_000, maxValue: 60_000, minValue: undefined }])
+  })
+
+  test("completed step count below the minimum -> a violation", () => {
+    const rules = { rules: [{ metric: "required_step_count", minValue: 3, action: "warn" }] }
+    const violations = evaluateMonitoringRules(rules, { durationMs: 1_000, completedStepCount: 1 })
+    expect(violations).toEqual([{ metric: "required_step_count", action: "warn", actualValue: 1, maxValue: undefined, minValue: 3 }])
+  })
+
+  test("completed step count meeting the minimum -> no violation", () => {
+    const rules = { rules: [{ metric: "required_step_count", minValue: 3, action: "warn" }] }
+    expect(evaluateMonitoringRules(rules, { durationMs: 1_000, completedStepCount: 3 })).toEqual([])
+  })
+
+  test("multiple rules can each independently violate on the same run", () => {
+    const rules = {
+      rules: [
+        { metric: "duration_ms", maxValue: 100, action: "escalate" },
+        { metric: "required_step_count", minValue: 5, action: "warn" },
+      ],
+    }
+    const violations = evaluateMonitoringRules(rules, { durationMs: 500, completedStepCount: 1 })
+    expect(violations).toHaveLength(2)
+    expect(violations.map((v) => v.metric).sort()).toEqual(["duration_ms", "required_step_count"])
+  })
+
+  test("a malformed monitoringRules value degrades to no rules enforced, not a throw", () => {
+    expect(evaluateMonitoringRules("garbage", { durationMs: 1, completedStepCount: 1 })).toEqual([])
+    expect(evaluateMonitoringRules(undefined, { durationMs: 1, completedStepCount: 1 })).toEqual([])
   })
 })
