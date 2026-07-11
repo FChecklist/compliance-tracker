@@ -9,6 +9,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
 import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
+import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 
 const VALID_STATUSES = ["pending", "in_progress", "completed", "failed", "cancelled"]
 
@@ -80,6 +81,13 @@ export async function createTask(ctx: ServiceContext, input: {
   // after the user has explicitly confirmed a high-impact action detected on
   // the first request (see the detectHighImpactAction() check below).
   confirmed?: boolean
+  // Wave 161: set on the confirmed resubmission when the user chose "Always
+  // Approve"/"Always Reject" instead of a one-off confirm. highImpactCategory
+  // is the category the FIRST response already told the client about --
+  // resent rather than re-detected, since detection is skipped once
+  // confirmed:true short-circuits past it.
+  savePreference?: "always_approve" | "always_reject"
+  highImpactCategory?: string
 }) {
   const { orgId, actor } = ctx
   if (!actor.dbUser) throw new ServiceError("Task creation requires a real user session, not an API key", 400)
@@ -99,14 +107,39 @@ export async function createTask(ctx: ServiceContext, input: {
   // execution triggered until the caller resubmits with confirmed: true.
   if (!input.confirmed) {
     const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
-    if (detection.isHighImpact) {
-      return {
-        needsConfirmation: true as const,
-        category: detection.category,
-        categoryLabel: detection.category ? HIGH_IMPACT_CATEGORY_LABELS[detection.category] : null,
-        matchedPhrase: detection.matchedPhrase,
+    if (detection.isHighImpact && detection.category) {
+      // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
+      // Protocol"): a user who already said "always approve"/"always
+      // reject" for this action category shouldn't be asked again every
+      // single time. Type-level only (scopeId omitted) -- per-conversation/
+      // task/workflow scoping is real but not wired into any UI yet (task
+      // #20's "deferred" note), so only the simplest, highest-value scope
+      // is checked here.
+      const preference = await withTenantContext({ orgId, userId: dbUser.id }, (db) =>
+        checkApprovalPreference(db, orgId, dbUser.id, detection.category!, "communication_type")
+      )
+      if (preference === "always_reject") {
+        throw new ServiceError(`This action type is set to always-reject per your saved preference. Change it in Settings if that's no longer right.`, 403)
       }
+      if (preference !== "always_approve") {
+        return {
+          needsConfirmation: true as const,
+          category: detection.category,
+          categoryLabel: HIGH_IMPACT_CATEGORY_LABELS[detection.category],
+          matchedPhrase: detection.matchedPhrase,
+        }
+      }
+      // preference === "always_approve": fall through exactly as if the
+      // caller had sent confirmed: true.
     }
+  } else if (input.savePreference && input.highImpactCategory) {
+    // Confirmed resubmission carrying an explicit "always approve/reject"
+    // choice -- persist it before proceeding. Never activated automatically
+    // (VERI_CHAT_GOVERNANCE.md's own rule); this only runs because the user
+    // just clicked that specific button.
+    await withTenantContext({ orgId, userId: dbUser.id }, (db) =>
+      saveApprovalPreference(db, orgId, dbUser.id, input.highImpactCategory!, "communication_type", undefined, input.savePreference!)
+    )
   }
   const projectId = input.projectId ?? null // Wave 19: optional Product/Project (L2) scope
 

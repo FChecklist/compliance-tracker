@@ -994,3 +994,76 @@ entries:
         still create two rows for the same chain; (3) independent
         verification that Wave 37's VERI Chat/VERI AI split was read
         correctly before deciding not to reverse it.
+  - id: WAVE-162
+    title: "Approval-preference system + real approval menu + My Option Is Not Available -- includes a real GPT-OSS/DeepSeek dispatch audit"
+    doer:
+      agent: claude-code
+      date: "2026-07-11"
+      pr: PENDING
+      summary: >
+        Completes task #20/#21 from Wave 161's DMP-DCF/VERI-Chat breakdown.
+        Both were first dispatched to GPT-OSS-120B and DeepSeek V4 Pro per
+        Boss's explicit instruction to use those models; both results were
+        audited (Rule 7c), not rubber-stamped, with real, honest findings:
+
+        GPT-OSS-120B (tool_integration_engineer) failed TWICE in a row on
+        the "My Option Is Not Available" Chain Selector wiring -- burned
+        the full 40-iteration budget without ever calling write_file, both
+        on the original brief and a much-tightened redispatch (3-4 file
+        cap, explicit iteration checkpoints). A real, now twice-confirmed
+        finding about this model's fit for multi-file UI wiring tasks via
+        this pipeline, not noise. Implemented directly instead of a third
+        redispatch: ChainRows in VeriComposer.tsx gets a "My Option Is Not
+        Available" button on the active row, routing (via new fdeFallback
+        state) to the real POST /api/fde/requests endpoint non-passively --
+        the exact existing FDE governance pipeline, not a new one.
+
+        DeepSeek V4 Pro (governance_backend_engineer, its first-ever
+        dispatch) first failed on a real race condition -- dispatched to
+        --ref main before the PR adding its own role had merged. Redispatched
+        after merge with a tightened brief; that run reported "budget
+        exhausted" but DID open a PR with real progress. Audited by
+        checking out the branch into an isolated worktree and running
+        tsc --noEmit directly (not trusting the run's own summary) --
+        confirmed a real compile error: it invented a nonexistent companion
+        schema file (bare pgTable instead of the complianceSchemaDB.table
+        wrapper every other table uses) instead of the real schema.ts
+        export it was asked for, plus a TenantDB/TenantDb typo. The
+        migration SQL and function design were sound, so rather than
+        discard the work or merge it broken, reimplemented correctly:
+        approvalPreferences added properly to schema.ts, corrected
+        approval-preference-service.ts (NULL-safe find-then-update-or-
+        insert instead of a composite ON CONFLICT that wouldn't match
+        NULL scope_id rows correctly), migration 0136 applied live. PR #160
+        (DeepSeek's broken attempt) closed with a full explanation, not
+        silently discarded.
+
+        Wired end-to-end: task-service.ts's createTask() now checks
+        approval_preferences before re-asking for a high-impact action
+        category, and the confirmation AlertDialog gained a real "Always
+        Approve" option (VERI_CHAT_GOVERNANCE.md's "Simplified Approval
+        Experience") alongside Approve Once/Cancel -- "Always Reject" is
+        deliberately not exposed as a dialog button (confusing UX to
+        silently block a whole category from a dialog you're actively
+        engaging with), though the backend supports it for a future
+        Settings surface.
+
+        tsc/lint/build clean; full test suite unchanged baseline (115
+        pass / 1 fail / 1 error, both pre-existing unrelated); both new
+        migrations (0136 approval_preferences) applied live and RLS-verified.
+    auditor:
+      agent: PENDING
+      date: PENDING
+      verdict: PENDING
+      summary: >
+        No cross-audit run this session. Particular attention needed: (1)
+        whether skipping "Always Reject" from the UI (backend-only) is the
+        right call or whether it should be exposed with a confirmation-
+        of-confirmation step; (2) the type-level-only preference scope
+        (scopeId omitted in task-service.ts's wiring) -- per-conversation/
+        task/workflow scoping exists in the schema/service but nothing
+        calls it yet, confirm that's an honest, tracked gap and not an
+        oversight; (3) whether GPT-OSS-120B's two consecutive failures on
+        this exact task shape should change how future dispatches to that
+        role are scoped (smaller than "wire two files together"?) rather
+        than assuming this one data point generalizes.
