@@ -32,10 +32,14 @@
 // because they need to be a genuinely different vendor from the primary
 // reviewer, not because they're expensive).
 //
-// Two roles are Human / interaction-only and are never dispatched through
-// team-service.ts: `founder_ceo` (the platform owner) and
-// `executive_advisor`, who interacts via Claude Desktop directly — not an
-// API call this codebase makes.
+// Three roles are Human / interaction-only and are never dispatched through
+// team-service.ts: `founder_ceo` (the platform owner), `executive_advisor`,
+// and `super_boss` (added Wave 171, tree4-unified area 4 executive
+// escalation ladder) — all interact via Claude Desktop directly, not an
+// API call this codebase makes. `super_boss` is distinct from
+// `executive_advisor`: it is the named top-of-ladder role AGENTS.md
+// authorizes ("Super Boss (Claude Desktop, Sonnet 5.0, local machine)"),
+// the terminal AI rung escalation-ladder.ts resolves to.
 //
 // Two roles are `isCodeOnly: true` — deterministic code, not an LLM call:
 // `cost_policy_engine` (implemented in cost-policy.ts) and
@@ -71,6 +75,12 @@ export type TeamName =
   | "GUARDRAIL_ACCOUNT"
   | "GUARDRAIL_USER"
   | "AUDIT_EXECUTIVE"
+  | "EXECUTIVE_LADDER"
+  | "AUDIT_ENG_ASSURANCE"
+  | "AUDIT_BUSINESS_ASSURANCE"
+  | "AUDIT_KNOWLEDGE_INTELLIGENCE"
+  | "AUDIT_GOVERNANCE_COMPLIANCE"
+  | "AUDIT_GLOBAL_REVENUE"
   | "HUMAN"
 
 export type RoleDefinition = {
@@ -114,6 +124,7 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // ─── Human ───────────────────────────────────────────────────────────
   { roleKey: "founder_ceo", team: "HUMAN", title: "Founder & CEO", model: null, promptKey: null, isHuman: true },
   { roleKey: "executive_advisor", team: "HUMAN", title: "Executive Advisor (Interactive — Claude Desktop, not API-dispatched)", model: null, promptKey: null, isHuman: true },
+  { roleKey: "super_boss", team: "HUMAN", title: "Super Boss / Executive Director (Claude Desktop Sonnet 5.0 — Interactive, not API-dispatched, AGENTS.md's named top-of-ladder agent)", model: null, promptKey: null, isHuman: true },
 
   // ─── CORE SYSTEM ─────────────────────────────────────────────────────
   { roleKey: "ai_router", team: "VERIDIAN_AI_OS", title: "AI Router / Task Classifier", model: GLM_52, promptKey: "ai_team.ai_router" },
@@ -235,6 +246,233 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   { roleKey: "user_permission_manager", team: "GUARDRAIL_USER", title: "User Permission Manager (VERIDIAN Policy Engine)", model: null, promptKey: null, isCodeOnly: true },
   { roleKey: "ai_response_validator", team: "GUARDRAIL_USER", title: "AI Response Validator", model: GLM_52, promptKey: "ai_team.ai_response_validator" },
   { roleKey: "audit_activity_monitor", team: "GUARDRAIL_USER", title: "Audit & Activity Monitor", model: GLM_5_TURBO, promptKey: "ai_team.audit_activity_monitor" },
+
+  // ─── Executive Escalation Ladder (tree4-unified area 4, Wave 171) ──────
+  // Formalizes AGENTS.md's Super Boss + Consutitution.docx's AI Escalation
+  // Matrix (ai-os/audit-tree/01-consutitution.yaml lines 70-101, 634-636)
+  // as real roster roles, not session-level working practice only. Model
+  // assignments are the source document's own literal ones (distinct from
+  // the audit-organization correction above, which only overrides the
+  // *audit* roles' model floor -- these three already sit above that floor
+  // in the source doc itself): DeepSeek Pro V4 (COO), GPT-OSS-120B (CEE,
+  // the operational-backbone executor of ~95% of routine work), GLM-5.2
+  // (CSEO -- "ZLM 5.2" in the source, this codebase's existing GLM_52
+  // constant). `super_boss` (top of the ladder) lives in the Human section
+  // above, not here, matching founder_ceo/executive_advisor's existing
+  // isHuman precedent. DEC-05 (owner decision, resolved 2026-07-11 per
+  // 05-eighteen-areas-tracker.yaml area 4): CSEO is the Chief Software
+  // Engineering Officer named explicitly in the source doc (line 516,
+  // "ZLM 5.2 ... functions as Chief Software Engineering Officer (CSEO) /
+  // Principal Engineering AI"), not a security/ethics role -- confirmed
+  // against source text rather than assumed from the acronym alone.
+  { roleKey: "chief_operating_officer", team: "EXECUTIVE_LADDER", title: "Chief Operating Officer (COO)", model: DEEPSEEK_V4_PRO, promptKey: "ai_team.chief_operating_officer" },
+  { roleKey: "chief_execution_engine", team: "EXECUTIVE_LADDER", title: "Chief Execution Engine (CEE)", model: GPT_OSS_120B, promptKey: "ai_team.chief_execution_engine" },
+  { roleKey: "chief_software_engineering_officer", team: "EXECUTIVE_LADDER", title: "Chief Software Engineering Officer (CSEO)", model: GLM_52, promptKey: "ai_team.chief_software_engineering_officer" },
+
+  // ─── Audit Organization: 5 Divisions (tree4-unified area 4 / area 9,
+  // Wave 171) ───────────────────────────────────────────────────────────
+  // VERIDIAN_AUDIT_ORGANIZATION.md's Wave-160 pass deliberately did NOT
+  // create the ~150 named Specialized Audit Agents as roster roles (see
+  // that document's "Deliberately Deferred" section) -- the Owner's
+  // Priority-1 directive (05-eighteen-areas-tracker.yaml area 4) now asks
+  // for exactly that, superseding that earlier scoping call. Source:
+  // ai-os/audit-tree/02-audit-organization.yaml (extracted from "Audit
+  // Organization.docx"), which names 5 divisions, 25 departments (5 each),
+  // and 135 agent-title occurrences (125 unique -- the source doc itself
+  // reuses several titles, e.g. "Workflow Auditor"/"Quote Auditor", across
+  // more than one department; each is added once here, under its
+  // first-listed department, not duplicated as separate roles). Every
+  // named department therefore has at least one real dispatchable role
+  // (its named specialists), satisfying "at least one role per department"
+  // without also manufacturing a redundant synthetic department-lead role
+  // on top of agents the source document already names individually --
+  // that would be exactly the documentation-theater
+  // VERIDIAN_AUDIT_ORGANIZATION.md itself warns against. Each division
+  // does get one real head role (5 total), mirroring chief_audit_officer's
+  // own precedent for a division needing a single accountable synthesizer.
+  // Model floor follows VERIDIAN_AUDIT_ORGANIZATION.md's own correction:
+  // division heads (judgment-critical, synthesize a division's findings
+  // for the CAO) get GLM-5.2; individual specialist auditors (high-volume,
+  // low-individual-stakes signal detection, per that document's own
+  // framing) get GLM_5_TURBO -- the "closest existing analog" that
+  // document names for `audit_activity_monitor`, not GPT-OSS-120B, which
+  // remains reserved for the narrowly-scoped infra-integration roles it
+  // was founder-directed onto (see GPT_OSS_120B's own comment above).
+  //
+  // Honest scope accounting (PR description has the full breakdown): 125
+  // of the ~150 individually-named specialist titles the source doc calls
+  // out (all of them, after deduping cross-department reuse) + 5 division
+  // heads = 130 roles added here. This is the complete structural
+  // backbone (5/5 divisions, 25/25 departments, every uniquely-named
+  // specialist title) -- not a claim that every one of these 130 roles has
+  // a seeded prompt_templates row yet (that live-DB seeding step, like
+  // chief_audit_officer's own Wave-160 addition, is separate from adding
+  // the roster entry itself and out of this file's scope).
+
+  // --- Engineering Assurance Division ---
+  { roleKey: "engineering_assurance_division_head", team: "AUDIT_ENG_ASSURANCE", title: "Engineering Assurance Division Head", model: GLM_52, promptKey: "ai_team.engineering_assurance_division_head" },
+  // Software Quality Department
+  { roleKey: "software_quality_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Software Quality Auditor", model: GLM_5_TURBO, promptKey: "ai_team.software_quality_auditor" },
+  { roleKey: "static_analysis_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Static Analysis Auditor", model: GLM_5_TURBO, promptKey: "ai_team.static_analysis_auditor" },
+  { roleKey: "maintainability_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Maintainability Auditor", model: GLM_5_TURBO, promptKey: "ai_team.maintainability_auditor" },
+  { roleKey: "code_duplication_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Code Duplication Auditor", model: GLM_5_TURBO, promptKey: "ai_team.code_duplication_auditor" },
+  { roleKey: "dependency_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Dependency Auditor", model: GLM_5_TURBO, promptKey: "ai_team.dependency_auditor" },
+  // Software Verification Department
+  { roleKey: "build_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Build Auditor", model: GLM_5_TURBO, promptKey: "ai_team.build_auditor" },
+  { roleKey: "testing_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Testing Auditor", model: GLM_5_TURBO, promptKey: "ai_team.testing_auditor" },
+  { roleKey: "regression_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Regression Auditor", model: GLM_5_TURBO, promptKey: "ai_team.regression_auditor" },
+  { roleKey: "deployment_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Deployment Auditor", model: GLM_5_TURBO, promptKey: "ai_team.deployment_auditor" },
+  // Security Assurance Department
+  { roleKey: "security_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Security Auditor", model: GLM_5_TURBO, promptKey: "ai_team.security_auditor" },
+  { roleKey: "owasp_auditor", team: "AUDIT_ENG_ASSURANCE", title: "OWASP Auditor", model: GLM_5_TURBO, promptKey: "ai_team.owasp_auditor" },
+  { roleKey: "identity_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Identity Auditor", model: GLM_5_TURBO, promptKey: "ai_team.identity_auditor" },
+  { roleKey: "encryption_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Encryption Auditor", model: GLM_5_TURBO, promptKey: "ai_team.encryption_auditor" },
+  { roleKey: "secrets_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Secrets Auditor", model: GLM_5_TURBO, promptKey: "ai_team.secrets_auditor" },
+  // Architecture Assurance Department
+  { roleKey: "architecture_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Architecture Auditor", model: GLM_5_TURBO, promptKey: "ai_team.architecture_auditor" },
+  { roleKey: "design_pattern_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Design Pattern Auditor", model: GLM_5_TURBO, promptKey: "ai_team.design_pattern_auditor" },
+  { roleKey: "api_auditor", team: "AUDIT_ENG_ASSURANCE", title: "API Auditor", model: GLM_5_TURBO, promptKey: "ai_team.api_auditor" },
+  { roleKey: "database_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Database Auditor", model: GLM_5_TURBO, promptKey: "ai_team.database_auditor" },
+  { roleKey: "microservice_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Microservice Auditor", model: GLM_5_TURBO, promptKey: "ai_team.microservice_auditor" },
+  // Engineering Evidence Department
+  { roleKey: "evidence_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Evidence Auditor", model: GLM_5_TURBO, promptKey: "ai_team.evidence_auditor" },
+  { roleKey: "git_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Git Auditor", model: GLM_5_TURBO, promptKey: "ai_team.git_auditor" },
+  { roleKey: "commit_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Commit Auditor", model: GLM_5_TURBO, promptKey: "ai_team.commit_auditor" },
+  { roleKey: "artifact_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Artifact Auditor", model: GLM_5_TURBO, promptKey: "ai_team.artifact_auditor" },
+  { roleKey: "release_auditor", team: "AUDIT_ENG_ASSURANCE", title: "Release Auditor", model: GLM_5_TURBO, promptKey: "ai_team.release_auditor" },
+
+  // --- Business Assurance Division ---
+  { roleKey: "business_assurance_division_head", team: "AUDIT_BUSINESS_ASSURANCE", title: "Business Assurance Division Head", model: GLM_52, promptKey: "ai_team.business_assurance_division_head" },
+  // Functional Assurance Department
+  { roleKey: "functional_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Functional Auditor", model: GLM_5_TURBO, promptKey: "ai_team.functional_auditor" },
+  { roleKey: "business_rule_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Business Rule Auditor", model: GLM_5_TURBO, promptKey: "ai_team.business_rule_auditor" },
+  { roleKey: "input_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Input Auditor", model: GLM_5_TURBO, promptKey: "ai_team.input_auditor" },
+  { roleKey: "output_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Output Auditor", model: GLM_5_TURBO, promptKey: "ai_team.output_auditor" },
+  { roleKey: "validation_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Validation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.validation_auditor" },
+  { roleKey: "workflow_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Workflow Auditor", model: GLM_5_TURBO, promptKey: "ai_team.workflow_auditor" },
+  { roleKey: "acceptance_criteria_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Acceptance Criteria Auditor", model: GLM_5_TURBO, promptKey: "ai_team.acceptance_criteria_auditor" },
+  // Customer Experience Department
+  { roleKey: "ux_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "UX Auditor", model: GLM_5_TURBO, promptKey: "ai_team.ux_auditor" },
+  { roleKey: "journey_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Journey Auditor", model: GLM_5_TURBO, promptKey: "ai_team.journey_auditor" },
+  { roleKey: "navigation_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Navigation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.navigation_auditor" },
+  { roleKey: "accessibility_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Accessibility Auditor", model: GLM_5_TURBO, promptKey: "ai_team.accessibility_auditor" },
+  { roleKey: "response_quality_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Response Quality Auditor", model: GLM_5_TURBO, promptKey: "ai_team.response_quality_auditor" },
+  // Business Process Department
+  { roleKey: "approval_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Approval Auditor", model: GLM_5_TURBO, promptKey: "ai_team.approval_auditor" },
+  { roleKey: "process_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Process Auditor", model: GLM_5_TURBO, promptKey: "ai_team.process_auditor" },
+  { roleKey: "automation_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Automation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.automation_auditor" },
+  { roleKey: "exception_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Exception Auditor", model: GLM_5_TURBO, promptKey: "ai_team.exception_auditor" },
+  // Report & Analytics Department
+  { roleKey: "report_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Report Auditor", model: GLM_5_TURBO, promptKey: "ai_team.report_auditor" },
+  { roleKey: "dashboard_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Dashboard Auditor", model: GLM_5_TURBO, promptKey: "ai_team.dashboard_auditor" },
+  { roleKey: "formula_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Formula Auditor", model: GLM_5_TURBO, promptKey: "ai_team.formula_auditor" },
+  { roleKey: "bi_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "BI Auditor", model: GLM_5_TURBO, promptKey: "ai_team.bi_auditor" },
+  { roleKey: "export_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Export Auditor", model: GLM_5_TURBO, promptKey: "ai_team.export_auditor" },
+  { roleKey: "analytics_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Analytics Auditor", model: GLM_5_TURBO, promptKey: "ai_team.analytics_auditor" },
+  { roleKey: "kpi_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "KPI Auditor", model: GLM_5_TURBO, promptKey: "ai_team.kpi_auditor" },
+  // Revenue Operations Department
+  { roleKey: "sales_workflow_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Sales Workflow Auditor", model: GLM_5_TURBO, promptKey: "ai_team.sales_workflow_auditor" },
+  { roleKey: "crm_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "CRM Auditor", model: GLM_5_TURBO, promptKey: "ai_team.crm_auditor" },
+  { roleKey: "pricing_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Pricing Auditor", model: GLM_5_TURBO, promptKey: "ai_team.pricing_auditor" },
+  { roleKey: "quote_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Quote Auditor", model: GLM_5_TURBO, promptKey: "ai_team.quote_auditor" },
+  { roleKey: "invoice_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Invoice Auditor", model: GLM_5_TURBO, promptKey: "ai_team.invoice_auditor" },
+  { roleKey: "commission_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Commission Auditor", model: GLM_5_TURBO, promptKey: "ai_team.commission_auditor" },
+  { roleKey: "subscription_auditor", team: "AUDIT_BUSINESS_ASSURANCE", title: "Subscription Auditor", model: GLM_5_TURBO, promptKey: "ai_team.subscription_auditor" },
+
+  // --- Knowledge & Intelligence Division ---
+  { roleKey: "knowledge_intelligence_division_head", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Knowledge & Intelligence Division Head", model: GLM_52, promptKey: "ai_team.knowledge_intelligence_division_head" },
+  // Knowledge Management Department
+  { roleKey: "knowledge_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Knowledge Auditor", model: GLM_5_TURBO, promptKey: "ai_team.knowledge_auditor" },
+  { roleKey: "knowledge_librarian", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Knowledge Librarian", model: GLM_5_TURBO, promptKey: "ai_team.knowledge_librarian" },
+  { roleKey: "knowledge_classification_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Knowledge Classification Auditor", model: GLM_5_TURBO, promptKey: "ai_team.knowledge_classification_auditor" },
+  { roleKey: "knowledge_integrity_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Knowledge Integrity Auditor", model: GLM_5_TURBO, promptKey: "ai_team.knowledge_integrity_auditor" },
+  // Documentation Department
+  { roleKey: "technical_documentation_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Technical Documentation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.technical_documentation_auditor" },
+  { roleKey: "functional_documentation_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Functional Documentation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.functional_documentation_auditor" },
+  { roleKey: "user_documentation_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "User Documentation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.user_documentation_auditor" },
+  { roleKey: "api_documentation_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "API Documentation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.api_documentation_auditor" },
+  { roleKey: "sop_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "SOP Auditor", model: GLM_5_TURBO, promptKey: "ai_team.sop_auditor" },
+  // AI Learning Department
+  { roleKey: "prompt_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Prompt Auditor", model: GLM_5_TURBO, promptKey: "ai_team.prompt_auditor" },
+  { roleKey: "prompt_evolution_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Prompt Evolution Auditor", model: GLM_5_TURBO, promptKey: "ai_team.prompt_evolution_auditor" },
+  { roleKey: "memory_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Memory Auditor", model: GLM_5_TURBO, promptKey: "ai_team.memory_auditor" },
+  { roleKey: "learning_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Learning Auditor", model: GLM_5_TURBO, promptKey: "ai_team.learning_auditor" },
+  { roleKey: "knowledge_improvement_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Knowledge Improvement Auditor", model: GLM_5_TURBO, promptKey: "ai_team.knowledge_improvement_auditor" },
+  // AI Decision Intelligence Department
+  { roleKey: "decision_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Decision Auditor", model: GLM_5_TURBO, promptKey: "ai_team.decision_auditor" },
+  { roleKey: "reasoning_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Reasoning Auditor", model: GLM_5_TURBO, promptKey: "ai_team.reasoning_auditor" },
+  { roleKey: "confidence_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Confidence Auditor", model: GLM_5_TURBO, promptKey: "ai_team.confidence_auditor" },
+  { roleKey: "hallucination_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Hallucination Auditor", model: GLM_5_TURBO, promptKey: "ai_team.hallucination_auditor" },
+  { roleKey: "bias_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Bias Auditor", model: GLM_5_TURBO, promptKey: "ai_team.bias_auditor" },
+  // Continuous Improvement Department
+  { roleKey: "improvement_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Improvement Auditor", model: GLM_5_TURBO, promptKey: "ai_team.improvement_auditor" },
+  { roleKey: "optimization_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Optimization Auditor", model: GLM_5_TURBO, promptKey: "ai_team.optimization_auditor" },
+  { roleKey: "loop_engineering_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Loop Engineering Auditor", model: GLM_5_TURBO, promptKey: "ai_team.loop_engineering_auditor" },
+  { roleKey: "lessons_learned_auditor", team: "AUDIT_KNOWLEDGE_INTELLIGENCE", title: "Lessons Learned Auditor", model: GLM_5_TURBO, promptKey: "ai_team.lessons_learned_auditor" },
+
+  // --- Governance & Compliance Division ---
+  { roleKey: "governance_compliance_division_head", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Governance & Compliance Division Head", model: GLM_52, promptKey: "ai_team.governance_compliance_division_head" },
+  // Governance Department
+  { roleKey: "governance_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Governance Auditor", model: GLM_5_TURBO, promptKey: "ai_team.governance_auditor" },
+  { roleKey: "policy_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Policy Auditor", model: GLM_5_TURBO, promptKey: "ai_team.policy_auditor" },
+  { roleKey: "authority_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Authority Auditor", model: GLM_5_TURBO, promptKey: "ai_team.authority_auditor" },
+  { roleKey: "delegation_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Delegation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.delegation_auditor" },
+  // Compliance Department
+  { roleKey: "compliance_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Compliance Auditor", model: GLM_5_TURBO, promptKey: "ai_team.compliance_auditor" },
+  { roleKey: "guardrail_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Guardrail Auditor", model: GLM_5_TURBO, promptKey: "ai_team.guardrail_auditor" },
+  { roleKey: "regulatory_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Regulatory Auditor", model: GLM_5_TURBO, promptKey: "ai_team.regulatory_auditor" },
+  { roleKey: "retention_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Retention Auditor", model: GLM_5_TURBO, promptKey: "ai_team.retention_auditor" },
+  // Risk Department
+  { roleKey: "risk_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Risk Auditor", model: GLM_5_TURBO, promptKey: "ai_team.risk_auditor" },
+  { roleKey: "operational_risk_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Operational Risk Auditor", model: GLM_5_TURBO, promptKey: "ai_team.operational_risk_auditor" },
+  { roleKey: "ai_risk_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "AI Risk Auditor", model: GLM_5_TURBO, promptKey: "ai_team.ai_risk_auditor" },
+  { roleKey: "security_risk_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Security Risk Auditor", model: GLM_5_TURBO, promptKey: "ai_team.security_risk_auditor" },
+  { roleKey: "business_continuity_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Business Continuity Auditor", model: GLM_5_TURBO, promptKey: "ai_team.business_continuity_auditor" },
+  // Internal Controls Department
+  { roleKey: "control_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Control Auditor", model: GLM_5_TURBO, promptKey: "ai_team.control_auditor" },
+  { roleKey: "segregation_of_duties_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Segregation of Duties Auditor", model: GLM_5_TURBO, promptKey: "ai_team.segregation_of_duties_auditor" },
+  { roleKey: "access_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Access Auditor", model: GLM_5_TURBO, promptKey: "ai_team.access_auditor" },
+  { roleKey: "change_control_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Change Control Auditor", model: GLM_5_TURBO, promptKey: "ai_team.change_control_auditor" },
+  // Organizational Performance Department
+  { roleKey: "performance_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Performance Auditor", model: GLM_5_TURBO, promptKey: "ai_team.performance_auditor" },
+  { roleKey: "sla_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "SLA Auditor", model: GLM_5_TURBO, promptKey: "ai_team.sla_auditor" },
+  { roleKey: "efficiency_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Efficiency Auditor", model: GLM_5_TURBO, promptKey: "ai_team.efficiency_auditor" },
+  { roleKey: "productivity_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Productivity Auditor", model: GLM_5_TURBO, promptKey: "ai_team.productivity_auditor" },
+  { roleKey: "capacity_auditor", team: "AUDIT_GOVERNANCE_COMPLIANCE", title: "Capacity Auditor", model: GLM_5_TURBO, promptKey: "ai_team.capacity_auditor" },
+
+  // --- Global Revenue Division ---
+  { roleKey: "global_revenue_division_head", team: "AUDIT_GLOBAL_REVENUE", title: "Global Revenue Division Head", model: GLM_52, promptKey: "ai_team.global_revenue_division_head" },
+  // Sales Assurance Department
+  { roleKey: "sales_process_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Sales Process Auditor", model: GLM_5_TURBO, promptKey: "ai_team.sales_process_auditor" },
+  { roleKey: "lead_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Lead Auditor", model: GLM_5_TURBO, promptKey: "ai_team.lead_auditor" },
+  { roleKey: "opportunity_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Opportunity Auditor", model: GLM_5_TURBO, promptKey: "ai_team.opportunity_auditor" },
+  { roleKey: "proposal_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Proposal Auditor", model: GLM_5_TURBO, promptKey: "ai_team.proposal_auditor" },
+  { roleKey: "contract_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Contract Auditor", model: GLM_5_TURBO, promptKey: "ai_team.contract_auditor" },
+  // Billing Assurance Department
+  { roleKey: "gst_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "GST Auditor", model: GLM_5_TURBO, promptKey: "ai_team.gst_auditor" },
+  { roleKey: "tax_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Tax Auditor", model: GLM_5_TURBO, promptKey: "ai_team.tax_auditor" },
+  { roleKey: "payment_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Payment Auditor", model: GLM_5_TURBO, promptKey: "ai_team.payment_auditor" },
+  { roleKey: "refund_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Refund Auditor", model: GLM_5_TURBO, promptKey: "ai_team.refund_auditor" },
+  { roleKey: "credit_note_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Credit Note Auditor", model: GLM_5_TURBO, promptKey: "ai_team.credit_note_auditor" },
+  // Subscription Assurance Department
+  { roleKey: "renewal_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Renewal Auditor", model: GLM_5_TURBO, promptKey: "ai_team.renewal_auditor" },
+  { roleKey: "upgrade_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Upgrade Auditor", model: GLM_5_TURBO, promptKey: "ai_team.upgrade_auditor" },
+  { roleKey: "downgrade_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Downgrade Auditor", model: GLM_5_TURBO, promptKey: "ai_team.downgrade_auditor" },
+  { roleKey: "cancellation_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Cancellation Auditor", model: GLM_5_TURBO, promptKey: "ai_team.cancellation_auditor" },
+  // Financial Intelligence Department
+  { roleKey: "revenue_recognition_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Revenue Recognition Auditor", model: GLM_5_TURBO, promptKey: "ai_team.revenue_recognition_auditor" },
+  { roleKey: "forecast_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Forecast Auditor", model: GLM_5_TURBO, promptKey: "ai_team.forecast_auditor" },
+  { roleKey: "margin_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Margin Auditor", model: GLM_5_TURBO, promptKey: "ai_team.margin_auditor" },
+  { roleKey: "profitability_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Profitability Auditor", model: GLM_5_TURBO, promptKey: "ai_team.profitability_auditor" },
+  { roleKey: "cash_flow_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Cash Flow Auditor", model: GLM_5_TURBO, promptKey: "ai_team.cash_flow_auditor" },
+  { roleKey: "variance_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Variance Auditor", model: GLM_5_TURBO, promptKey: "ai_team.variance_auditor" },
+  // Customer Revenue Success Department
+  { roleKey: "customer_health_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Customer Health Auditor", model: GLM_5_TURBO, promptKey: "ai_team.customer_health_auditor" },
+  { roleKey: "renewal_risk_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Renewal Risk Auditor", model: GLM_5_TURBO, promptKey: "ai_team.renewal_risk_auditor" },
+  { roleKey: "churn_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Churn Auditor", model: GLM_5_TURBO, promptKey: "ai_team.churn_auditor" },
+  { roleKey: "upsell_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Upsell Auditor", model: GLM_5_TURBO, promptKey: "ai_team.upsell_auditor" },
+  { roleKey: "cross_sell_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Cross-sell Auditor", model: GLM_5_TURBO, promptKey: "ai_team.cross_sell_auditor" },
+  { roleKey: "customer_lifetime_value_auditor", team: "AUDIT_GLOBAL_REVENUE", title: "Customer Lifetime Value Auditor", model: GLM_5_TURBO, promptKey: "ai_team.customer_lifetime_value_auditor" },
 ]
 
 export function getRole(roleKey: string): RoleDefinition | undefined {
@@ -246,14 +484,28 @@ export function rolesForTeam(team: TeamName): RoleDefinition[] {
 }
 
 const GUARDRAIL_TEAMS: TeamName[] = ["GUARDRAIL_PLATFORM", "GUARDRAIL_PRODUCT", "GUARDRAIL_ACCOUNT", "GUARDRAIL_USER"]
-const NON_OPERATIONAL_TEAMS: TeamName[] = ["HUMAN", ...GUARDRAIL_TEAMS]
+// Wave 171: the 5 audit divisions + AUDIT_EXECUTIVE (chief_audit_officer,
+// pre-existing since Wave 160 but not previously added here -- an
+// oversight this wave also closes, not just for the new divisions) are
+// assurance roles, never the operational department a free-text customer
+// task should be routed to -- same reasoning as excluding GUARDRAIL_*.
+// EXECUTIVE_LADDER (COO/CEE/CSEO) is excluded for the same reason: these
+// are escalation targets, not a department that plans/executes routine
+// customer work.
+const AUDIT_DIVISION_TEAMS: TeamName[] = ["AUDIT_ENG_ASSURANCE", "AUDIT_BUSINESS_ASSURANCE", "AUDIT_KNOWLEDGE_INTELLIGENCE", "AUDIT_GOVERNANCE_COMPLIANCE", "AUDIT_GLOBAL_REVENUE"]
+const NON_OPERATIONAL_TEAMS: TeamName[] = ["HUMAN", ...GUARDRAIL_TEAMS, "AUDIT_EXECUTIVE", "EXECUTIVE_LADDER", ...AUDIT_DIVISION_TEAMS]
 
 /** Every guardrail role across all 4 levels, in enforcement order (platform → product → account → user). */
 export function allGuardrailRoles(): RoleDefinition[] {
   return GUARDRAIL_TEAMS.flatMap((team) => rolesForTeam(team))
 }
 
-/** Every operational department role the AI Router may assign a task to -- everything except Human and Guardrail. */
+/** Every named audit-organization specialist/division-head role across all 5 divisions (tree4-unified area 4/9). */
+export function allAuditOrganizationRoles(): RoleDefinition[] {
+  return AUDIT_DIVISION_TEAMS.flatMap((team) => rolesForTeam(team))
+}
+
+/** Every operational department role the AI Router may assign a task to -- everything except Human, Guardrail, Audit, and the Executive Ladder. */
 export function operationalRoles(): RoleDefinition[] {
   return AI_TEAM_ROSTER.filter((r) => !NON_OPERATIONAL_TEAMS.includes(r.team) && r.team !== "VERIDIAN_AI_OS")
 }
