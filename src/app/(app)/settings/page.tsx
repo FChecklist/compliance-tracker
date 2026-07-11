@@ -18,7 +18,9 @@ import {
   Rocket,
   Cpu,
   ShieldAlert,
+  Users2,
 } from "lucide-react";
+import OrgLimitsSection from "@/components/OrgLimitsSection";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
@@ -59,6 +61,7 @@ const SETTINGS_NAV = [
   { id: "security", label: "Security (MFA)", icon: ShieldCheck },
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
+  { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
   { id: "about", label: "About", icon: Info },
 ];
@@ -505,6 +508,24 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <WebhookSection />
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "org-limits" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Users2 className="size-4" />
+                  Seats & AI Spend
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAdmin ? (
+                  <OrgLimitsSection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
+                )}
               </CardContent>
             </Card>
           )}
