@@ -46,12 +46,12 @@ areas:
   - num: 4
     name: "Agent management"
     tree1_domains: ["U-D2"]
-    status: not_started
-    baseline: "1 solid / 4 partial / 7 gap of 12 sub-branches (~8%) -- tied for weakest"
+    status: in_progress
+    baseline: "2026-07-11 (Wave 171): executive escalation ladder built as enforced code (src/lib/escalation-ladder.ts, 13 tests passing) and wired into task-execution-engine.ts's dispatchEngine fallback. 130 of the ~150 named audit-organization roles added to roster.ts (125 of 125 unique specialist titles the source doc names, after deduping cross-department reuse, + 5 division heads) -- 5/5 divisions and 25/25 departments structurally complete. tsc/eslint clean."
     remaining_work:
-      - "The ~150-named-specialist audit organization (5 divisions x departments x agents) as real dispatchable roster.ts roles -- currently only ~7 GUARDRAIL_*/AUDIT_EXECUTIVE roles exist."
-      - "Formal executive escalation ladder (Super Boss/COO/CEE/CSEO) as enforced code, not session-level working practice documented only in AGENTS.md."
-      - "DEC-05 (CSEO as a distinct role) needs an Owner decision before this can be built correctly."
+      - "DEC-05 resolved 2026-07-11: CSEO = Chief Software Engineering Officer (source doc line 516, \"ZLM 5.2 ... functions as Chief Software Engineering Officer (CSEO) / Principal Engineering AI\"), model GLM-5.2, roleKey chief_software_engineering_officer in roster.ts's new EXECUTIVE_LADDER team."
+      - "Not yet done: prompt_templates DB rows for the 130 new audit roles + 3 executive-ladder roles are not seeded (same live-DB seeding gap chief_audit_officer's Wave-160 addition already had -- roster.ts presence is necessary but not sufficient for a live LLM dispatch until a template row exists)."
+      - "Not yet done: the 7-level audit cadence (L2-L7) and the other area-4 sub-branches not touched by this wave -- see area 9 for the cadence-specific gap."
 
   - num: 5
     name: "Task Lifecycle management with loop management"
@@ -89,9 +89,8 @@ areas:
     status: in_progress
     baseline: "ENGINE-WIRING SUB-ITEM COMPLETE: all 24 registered categories addressed -- 186 distinct engine_keys wired (mechanically verified against the live DB's implemented-status list, zero undocumented gaps; the 30 remaining keys are all previously-documented deliberate deferrals). GLM-5.2 (the associate model, see 06-associate-dispatch-log.yaml) wired Costing Engine (8/8) via a real, independently-verified, merged PR (#164); Super Boss wired the other 15 categories directly."
     remaining_work:
-      - "The escalation-to-D2.B1-ladder step (D3.B2.S1) when software-first execution needs help -- still blocked on area 4's executive hierarchy being built first. This is the only remaining item for area 8."
-      - "The escalation-to-D2.B1-ladder step (D3.B2.S1) when software-first execution needs help -- depends on area 4's executive hierarchy being built first."
       - "A real Owner decision needed eventually: several DB-registered engine_keys (tds_calculator, pf_calculator, esi_calculator, professional_tax_calculator, salary_calculator, and likely more as remaining categories are wired) are not simple pure functions -- they're coupled to admin-editable DB rule tables inside larger service files. Reaching genuine 100% on this area means either exporting/adapting each one, or the Owner formally accepting these as out-of-scope for the VCEL dispatch pattern (a different, real design decision, not a wiring gap)."
+    resolution_note: "2026-07-11 (Wave 171): the escalation-to-D2.B1-ladder step (D3.B2.S1) is now built and wired -- task-execution-engine.ts's executeEngineDispatch() catch block (the ONE real dispatchEngine fallback path) calls escalation-ladder.ts's nextEscalationRung() when a VCEL engine is missing or throws, and records the resolved rung (CSEO first, since this is a software-first execution failure) in the task's chat message rather than just a generic failure string. Only the DB-registered-engine_keys item above remains for this area."
 
   - num: 9
     name: "Auditing"
@@ -101,15 +100,15 @@ areas:
     remaining_work:
       - "The 7-level (L1-L7) audit cadence model with re-audit triggers -- not built as such; what exists (11 daily cron loops + 1 CI mandatory-audit gate) is a real but different continuous-audit mechanism."
       - "U-D15.B3.S1: 'no task is EVER permanently complete' (re-audit on new evidence/changed requirements/incidents) -- zero code support today, confirmed structurally significant gap."
-      - "The 150-specialist audit organization (shared item with area 4)."
+      - "2026-07-11 (Wave 171, shared item with area 4): the ~150-specialist audit organization is now 130 roster.ts roles (125 of 125 unique named specialist titles + 5 division heads, all 5 divisions and 25 departments structurally complete) -- see area 4's baseline for the honest count. Remaining for genuine 100%: live prompt_templates DB rows for these roles (not seeded by this wave -- roster.ts presence alone doesn't make a role LLM-dispatchable) and any per-department 'division lead reviews department findings' aggregation logic, which does not exist as code."
 
   - num: 10
     name: "AI router management"
     tree1_domains: ["U-D3"]
-    status: not_started
+    status: complete
     baseline: "1 solid (superseded-by-better-design) / 1 partial of 2 sub-branches (~50%)"
-    remaining_work:
-      - "The escalation-to-D2.B1-ladder step (same item as area 8's second line, area 4's executive hierarchy)."
+    remaining_work: []
+    resolution_note: "2026-07-11 (Wave 171): this area's sole remaining item (the escalation-to-D2.B1-ladder step) is the same underlying build as area 8's now-resolved item -- see area 8's resolution_note. escalation-ladder.ts + its wiring into task-execution-engine.ts closes it."
 
   - num: 11
     name: "Cost management"
