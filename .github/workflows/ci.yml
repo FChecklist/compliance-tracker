@@ -54,6 +54,20 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
           APP_RUNTIME_DATABASE_URL: postgresql://app_runtime:placeholder@localhost:5432/postgres
+  guardrail-presence:
+    name: Guardrail Presence Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # AGENTS.md Operating Rule 9 / VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md
+      # Guardrail #30: fails the build if a named guardrail call site
+      # (task-tightening, policy enforcement, floor-tier escalation,
+      # high-impact-action confirmation, multi-tenant RLS context) has been
+      # removed or weakened, forcing that change to be a visible, reviewed
+      # PR diff rather than a silent regression. See the script's own
+      # header comment for the honest limitation this does and doesn't
+      # guarantee.
+      - run: node scripts/check-guardrail-presence.mjs
   e2e:
     name: E2E Tests
     needs: [build]
