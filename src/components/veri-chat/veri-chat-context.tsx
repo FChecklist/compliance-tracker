@@ -9,6 +9,7 @@
 // specific task or conversation is the one thing that's shared, since
 // continuing it genuinely requires both sides to agree on what's open.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 // "select" renders as a dropdown of fixed choices (a click, never typed
 // text) -- used when one engine bundles several related functions (e.g.
@@ -84,7 +85,23 @@ type VeriChatState = {
 
 const VeriChatContext = createContext<VeriChatState | null>(null);
 
+// D5.B7: the first path segment IS the route's module, matching this app's
+// flat src/app/(app)/<module>/... layout -- there's no separate routes
+// config to import from. capability-tree-service.ts's
+// MODULE_SCOPE_TOP_LEVEL_KEYS is the single source of truth for which module
+// strings actually narrow the tree server-side; any other value here is a
+// safe no-op (server falls back to the full tree), so this stays a plain
+// string derivation rather than a maintained allowlist that could drift out
+// of sync with the server-side map.
+function moduleFromPathname(pathname: string | null): string | undefined {
+  if (!pathname) return undefined;
+  const segment = pathname.split("/").filter(Boolean)[0];
+  return segment || undefined;
+}
+
 export function VeriChatProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const moduleScope = moduleFromPathname(pathname);
   const [tree, setTree] = useState<CapabilityNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(true);
   const [composerMode, setComposerModeState] = useState("tasks");
@@ -96,12 +113,23 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
   const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
   const [aiThreads, setAiThreads] = useState<{ id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[]>([]);
 
+  // D5.B7: was a single mount-once effect with `tree` bundled in alongside
+  // conversations -- split out so the tree can legitimately re-fetch on
+  // `moduleScope` changes (i.e. real page-to-page navigation between
+  // different top-level route segments) without also re-running the
+  // unrelated one-shot conversations/AI-thread load below on every
+  // navigation.
   useEffect(() => {
-    fetch("/api/capability-tree")
+    setTreeLoading(true);
+    const url = moduleScope ? `/api/capability-tree?module=${encodeURIComponent(moduleScope)}` : "/api/capability-tree";
+    fetch(url)
       .then((r) => r.json())
       .then((d) => setTree(d.nodes ?? []))
       .catch(() => setTree([]))
       .finally(() => setTreeLoading(false));
+  }, [moduleScope]);
+
+  useEffect(() => {
     fetch("/api/conversations")
       .then((r) => r.json())
       .then((d) => {
@@ -177,4 +205,15 @@ export function useVeriChat() {
   const ctx = useContext(VeriChatContext);
   if (!ctx) throw new Error("useVeriChat must be used within VeriChatProvider");
   return ctx;
+}
+
+// D5.B6 (persistent visibility panel): VeriChatProvider only mounts for
+// veriChatV2Enabled orgs (AppShell.tsx), but the visibility panel is meant
+// to render in the chrome for every org. A null-safe accessor lets that
+// panel read activeTaskId when the provider happens to be present and fall
+// back to a neutral "no task in context" state everywhere else, instead of
+// either crashing (useVeriChat's throw) or forcing every org onto the
+// VeriChatProvider tree just to support one unrelated panel.
+export function useVeriChatOptional() {
+  return useContext(VeriChatContext);
 }
