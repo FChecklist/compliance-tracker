@@ -72,4 +72,44 @@ describe("closureReviewCheck (AI_TEAM_CLOSURE_REVIEW_LEAF) -- Wave 165, U-D12.B4
       expect(result).toEqual({ passed: true })
     })
   })
+
+  describe("audit-cadence routing (area 9 item 1, Guardrail 10 risk level)", () => {
+    const NOTES = "Verified the calculation against the source spec -- matches."
+
+    test("blocks a critical-risk approval even at 100% confidence -- risk level determines escalation independent of confidence", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", confidencePercentage: 100, riskLevel: "critical" })
+      expect(result.passed).toBe(false)
+      if (!result.passed) {
+        expect(result.reason).toBe("critical_risk_requires_escalation")
+        expect(result.guidance).toContain("Escalate")
+      }
+    })
+
+    test("blocks a critical-risk approval when no confidencePercentage was supplied at all", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", riskLevel: "critical" })
+      expect(result.passed).toBe(false)
+      if (!result.passed) expect(result.reason).toBe("critical_risk_requires_escalation")
+    })
+
+    test("allows a critical-risk rejection -- rejecting isn't approving, so the gate doesn't apply", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "rejected", riskLevel: "critical" })
+      expect(result).toEqual({ passed: true })
+    })
+
+    test("allows a high-risk approval -- only critical forces escalation regardless of confidence, high only flags L4 visibility", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", confidencePercentage: 99, riskLevel: "high" })
+      expect(result).toEqual({ passed: true })
+    })
+
+    test("allows a low-risk approval with no riskLevel supplied (backward compatible)", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved" })
+      expect(result).toEqual({ passed: true })
+    })
+
+    test("low-confidence escalation_required check still fires before the risk check when both apply, with its own distinct reason", () => {
+      const result = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes: NOTES, reviewDecision: "approved", confidencePercentage: 50, riskLevel: "critical" })
+      expect(result.passed).toBe(false)
+      if (!result.passed) expect(result.reason).toBe("confidence_below_escalation_threshold")
+    })
+  })
 })
