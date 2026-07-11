@@ -20,12 +20,13 @@
 // functions) per the design doc's own phasing.
 import { activityLog } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
 import { bandConfidence } from "@/lib/confidence-banding";
 import { decideAcceptance } from "@/lib/handover-protocol";
 import type { RiskLevel } from "@/lib/risk-classification";
+import type { GovernanceHealthCounts } from "@/lib/monitoring-engine";
 
 export type ActivityType = "ai_team_dispatch";
 
@@ -349,5 +350,31 @@ export function listReAuditFlagged(orgId: string) {
       where: and(eq(activityLog.orgId, orgId), isNotNull(activityLog.reAuditRequestedAt)),
       orderBy: desc(activityLog.reAuditRequestedAt),
     });
+  });
+}
+
+/**
+ * Real counts backing monitoring-engine.ts's computeGovernanceHealthScore --
+ * see that function's header for why these particular counts (independent-
+ * reviewer outcomes + re-audit flags, never an LLM self-grade) back
+ * Reasoning Quality/Dependency Health/Compliance. One aggregate query, same
+ * `count(*) filter (where ...)` style already used by agent-directory-
+ * service.ts's per-role stats. orgId required, same tenant-scoping posture
+ * as every other function in this file.
+ */
+export function getGovernanceHealthCounts(orgId: string): Promise<GovernanceHealthCounts> {
+  return withTenantContext({ orgId }, async (db) => {
+    const [row] = await db
+      .select({
+        totalTerminalCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} in ('completed', 'failed', 'closed'))::int`,
+        failedCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} = 'failed')::int`,
+        reviewedCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} in ('completed', 'failed', 'closed') and ${activityLog.reviewDecision} is not null)::int`,
+        approvedCount: sql<number>`count(*) filter (where ${activityLog.reviewDecision} = 'approved')::int`,
+        rejectedCount: sql<number>`count(*) filter (where ${activityLog.reviewDecision} = 'rejected')::int`,
+        reAuditFlaggedCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} in ('completed', 'failed', 'closed') and ${activityLog.reAuditRequestedAt} is not null)::int`,
+      })
+      .from(activityLog)
+      .where(eq(activityLog.orgId, orgId));
+    return row;
   });
 }
