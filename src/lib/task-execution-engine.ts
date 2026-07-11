@@ -1571,7 +1571,18 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
         taskExecutionPlanId: planRow.id, workerAgentId: agent.id, startedAt, completedAt: new Date(),
         status: "failed", input: {}, errorMessage: message,
       });
-      await db.insert(taskChatMessages).values({ taskId, role: "system", content: `${agent.name} couldn't complete: ${message}` });
+      // tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16
+      // re-scoped item (e) "Tool Usage as a distinct check" (Guardrail 13:
+      // "if a tool fails: retry per policy or escalate"): executeEngineDispatch's
+      // catch block below already escalates via nextEscalationRung() (Wave
+      // 171, area 8's resolution_note) -- this was the other real dispatch-
+      // failure path with no equivalent, a real parity gap, not a
+      // hypothetical one. "worker_agent_unavailable" is the exact
+      // escalation-ladder.ts reason this shape maps to (a structured-dispatch
+      // tool call that failed), and it's software-first (starts at CSEO),
+      // matching engine-dispatch failures' own reasoning.
+      const escalation = nextEscalationRung({ reason: "worker_agent_unavailable" });
+      await db.insert(taskChatMessages).values({ taskId, role: "system", content: `${agent.name} couldn't complete: ${message} -- escalated to ${escalation.title} (${escalation.authority}).` });
       await updateTaskStatusAndReflect(db, orgId, taskId, "failed", message);
     }
   });

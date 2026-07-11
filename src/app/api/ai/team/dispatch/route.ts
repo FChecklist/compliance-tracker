@@ -9,6 +9,8 @@ import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
 import { recordActivity } from "@/lib/activity-log-service"
 import { estimateCostUsd } from "@/lib/llm-client"
+import { classifyRisk, type BlastRadius } from "@/lib/risk-classification"
+import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
 
 registerAllGuardrails()
 
@@ -139,7 +141,20 @@ export async function POST(request: NextRequest) {
     // the one new mandatory trigger this wave adds -- previously the
     // Guardrail levels below only ran when a caller explicitly opted in.
     const lowConfidence = detectLowConfidenceResponse(execution.content)
-    const requiresAudit = lowConfidence.detected
+
+    // tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16
+    // re-scoped item (d) "Risk Classification" (Guardrail 10: "risk level
+    // determines review requirements"): a second, independent trigger for
+    // review alongside the low-confidence-text proxy above -- a task can
+    // read as perfectly confident and still be a payment/deletion/
+    // compliance filing that deserves scrutiny regardless of how sure the
+    // model sounded. blastRadius is derived from the caller's own
+    // touchesAccount/touchesUser/touchesProduct flags (already the
+    // existing signal for "how far does this reach"), not invented new
+    // input the caller doesn't already provide.
+    const blastRadius: BlastRadius = touchesAccount || touchesUser ? "platform" : touchesProduct ? "org" : "single"
+    const riskLevel = classifyRisk({ highImpactCategory: detectHighImpactAction(objective ?? "").category, blastRadius })
+    const requiresAudit = lowConfidence.detected || riskLevel === "high" || riskLevel === "critical"
 
     const guardrails: Record<string, unknown> = { platform: platformGuardrails }
     if (touchesProduct || requiresAudit) guardrails.product = await runGuardrailLevel("GUARDRAIL_PRODUCT", execution.content)
@@ -164,6 +179,7 @@ export async function POST(request: NextRequest) {
           // returns null for an unpriced model) -- forwarded to the
           // reflection row's cost verdict, never fabricated.
           costUsd: estimateCostUsd(targetRole.model, execution.usage) ?? undefined,
+          riskLevel,
         })
       : null
 
@@ -174,6 +190,7 @@ export async function POST(request: NextRequest) {
       output: execution.content,
       usage: execution.usage,
       requiresAudit,
+      riskLevel,
       lowConfidenceSignal: lowConfidence.detected ? lowConfidence.matchedPhrase : null,
       reviewActivityId: requiresAudit ? (activityRow?.id ?? null) : null,
       guardrails,

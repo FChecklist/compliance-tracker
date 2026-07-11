@@ -54,6 +54,7 @@ const rawTask = {
   complexityTier: process.env.AI_TEAM_TASK_COMPLEXITY_TIER,
   expectedOutput: process.env.AI_TEAM_TASK_EXPECTED_OUTPUT,
   constraints: process.env.AI_TEAM_TASK_CONSTRAINTS || undefined,
+  knownContext: process.env.AI_TEAM_TASK_KNOWN_CONTEXT || undefined,
 }
 
 if (!roleKey || !apiKey) {
@@ -65,7 +66,7 @@ const tightness = validateTightTask(rawTask)
 if (!tightness.valid) {
   console.error(`[ai-workforce-agent] Task rejected -- not tight enough to dispatch: ${tightness.reason}`)
   console.error(`[ai-workforce-agent] ${tightness.guidance}`)
-  console.error("[ai-workforce-agent] Required env vars: AI_TEAM_TASK_OBJECTIVE, AI_TEAM_TASK_SCOPE, AI_TEAM_TASK_SUCCESS_CRITERIA, AI_TEAM_TASK_COMPLEXITY_TIER (mechanical|integrative|judgment), AI_TEAM_TASK_EXPECTED_OUTPUT (AI_TEAM_TASK_CONSTRAINTS is optional).")
+  console.error("[ai-workforce-agent] Required env vars: AI_TEAM_TASK_OBJECTIVE, AI_TEAM_TASK_SCOPE, AI_TEAM_TASK_SUCCESS_CRITERIA, AI_TEAM_TASK_COMPLEXITY_TIER (mechanical|integrative|judgment), AI_TEAM_TASK_EXPECTED_OUTPUT (AI_TEAM_TASK_CONSTRAINTS is optional; AI_TEAM_TASK_KNOWN_CONTEXT is required for integrative/judgment tiers).")
   process.exit(1)
 }
 

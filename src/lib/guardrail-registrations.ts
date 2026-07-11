@@ -19,6 +19,8 @@ import { registerGuardrail } from "./guardrail-engine"
 import { validateTightTask, validateTaskBrief, type TightTask, type TaskBrief } from "./task-tightening"
 import { checkLoopBudget, type LoopBudgetContext } from "./loop-prevention"
 import { validateHandoverFields, type HandoverFields } from "./handover-protocol"
+import { bandConfidence } from "./confidence-banding"
+import { nextEscalationRung } from "./escalation-ladder"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
 export const AI_WORKFORCE_DISPATCH_LEAF = "ai_workforce.dispatch"
@@ -54,6 +56,7 @@ function tightTaskCheck(context: Record<string, unknown>) {
     complexityTier: context.complexityTier as TightTask["complexityTier"] | undefined,
     expectedOutput: context.expectedOutput as string | undefined,
     constraints: context.constraints as string | undefined,
+    knownContext: context.knownContext as string | undefined,
   }
   const result = validateTightTask(task)
   if (result.valid) return { passed: true as const }
@@ -91,6 +94,31 @@ function closureReviewCheck(context: Record<string, unknown>) {
       guidance: `reviewDecision must be one of: ${VALID_REVIEW_DECISIONS.join(", ")}.`,
     }
   }
+
+  // D18/PLAN-20 (Constitution Guardrail 9 -- Confidence): a numeric
+  // confidence is optional (this endpoint predates it, and not every
+  // closure has one), but WHEN supplied, its band is enforced, not just
+  // recorded. Only the "escalation_required" band (<90%) changes behavior
+  // here -- the other 3 bands (auto_proceed/self_review/peer_review) are
+  // all satisfied by the fact that an independent peer review is already
+  // what's happening at this endpoint (peer review is the strictest of the
+  // 3 non-escalation bands, so passing it always satisfies a weaker band
+  // too). Below 90%, Guardrail 9 requires ESCALATION, not a same-rung
+  // approve/reject -- approving directly here would silently downgrade a
+  // below-threshold confidence to a normal peer-review pass.
+  const confidencePercentage = context.confidencePercentage as number | undefined
+  if (typeof confidencePercentage === "number") {
+    const band = bandConfidence(confidencePercentage)
+    if (band === "escalation_required" && reviewDecision === "approved") {
+      const rung = nextEscalationRung({ reason: "low_confidence_closure" })
+      return {
+        passed: false as const,
+        reason: "confidence_below_escalation_threshold",
+        guidance: `Confidence (${confidencePercentage}%) is below the 90% floor Guardrail 9 requires for a direct approval -- this needs to escalate, not be approved as a normal peer review. Escalate to ${rung.title} (${rung.authority}) instead, or reject with reviewNotes explaining why.`,
+      }
+    }
+  }
+
   return { passed: true as const }
 }
 

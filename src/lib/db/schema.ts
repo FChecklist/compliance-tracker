@@ -953,6 +953,19 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   roleKey: text('role_key'), // the AI Dev Team role_key (roster.ts) that executed this dispatch, null when rejected before classification
   durationMs: integer('duration_ms'), // wall-clock ms measured by the dispatch route itself, not derived from created_at/updated_at (those can span multiple stage-transition writes)
   errorReason: text('error_reason'), // short human-readable reason when lifecycle_stage = 'failed' -- the real guardrail/tier/validation message the caller already had, not a generic string
+  // tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16 re-scoped
+  // item (d) + D18/PLAN-20: risk-classification.ts's classifyRisk() output
+  // (Guardrail 10) and confidence-banding.ts's bandConfidence() output
+  // (Guardrail 9), persisted so both are queryable/auditable rather than
+  // computed-and-discarded. All 3 nullable/additive -- existing rows
+  // unaffected. riskLevel is computed at dispatch time (dispatch/route.ts);
+  // confidencePercentage/confidenceBand are computed at closure time
+  // (review/route.ts), when a numeric self-assessed confidence is supplied
+  // -- DEC-04's ruling that this is complementary to, not a replacement
+  // for, model-tier-eligibility.ts's tiers.
+  riskLevel: text('risk_level'), // 'low' | 'medium' | 'high' | 'critical'
+  confidencePercentage: numeric('confidence_percentage'), // 0-100, from the closure-time self-assessment when the reviewer supplied one
+  confidenceBand: text('confidence_band'), // 'auto_proceed' | 'self_review_required' | 'peer_review_required' | 'escalation_required'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

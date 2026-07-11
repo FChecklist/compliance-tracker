@@ -62,6 +62,7 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
         complexity_tier: task.complexityTier,
         expected_output: task.expectedOutput,
         constraints: task.constraints ?? "",
+        known_context: task.knownContext ?? "",
       },
     }),
   })
