@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
+import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -78,7 +79,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string; orgJoinCode?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
 
@@ -104,6 +105,29 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
       return null
     } catch (err) {
       console.error("Invite link redemption threw unexpectedly:", err)
+      return null
+    }
+  }
+
+  // Area 15 (self-registration via admin code, Path C): a signup that
+  // carried a manually-typed join code (threaded into signUp()'s
+  // options.data by /signup -- the user types this in, unlike inviteToken
+  // above which arrives via a clicked ?invite= URL param) joins the code's
+  // EXISTING org/role, same early-return-either-way posture as the invite
+  // link branch above (never silently falls through to brand-new-org
+  // creation on a bad/expired/revoked/seat-full code).
+  const orgJoinCode = meta?.orgJoinCode?.trim()
+  if (orgJoinCode) {
+    try {
+      const { headers } = await import("next/headers")
+      const h = await headers()
+      const ipAddress = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "unknown"
+      const result = await redeemJoinCodeAndProvisionUser(orgJoinCode, ipAddress, { id: authUser.id, email, fullName })
+      if (result.ok) return result.user
+      console.warn(`Join code redemption failed for ${email}: ${result.reason}`)
+      return null
+    } catch (err) {
+      console.error("Join code redemption threw unexpectedly:", err)
       return null
     }
   }

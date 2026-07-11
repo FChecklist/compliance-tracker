@@ -516,6 +516,44 @@ export const orgInviteLinks = complianceSchemaDB.table('org_invite_links', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Org Join Codes (area 15, U-D27.B3.S1 Path C: admin-code self-
+// registration) ───────────────────────────────────────────────────────────
+// The 3rd of 4 spec'd invitation paths (Requirement.docx's unlabeled
+// "User Onboarding Flows" section): unlike org_invite_links (a URL a
+// recipient clicks), this is a short human-typeable code an admin shares
+// verbally/in a doc, and a new user types into the signup form themselves.
+// See org-join-code-service.ts for the full security-property writeup.
+export const orgJoinCodes = complianceSchemaDB.table('org_join_codes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  role: text('role').notNull(), // one of org-join-code-service.ts's INVITE_ROLES (re-exported from invite-link-service.ts) -- same allowlist as the other 2 self-serve paths
+  codeHash: text('code_hash').notNull().unique(),
+  codePrefix: text('code_prefix').notNull(), // first 4 chars of 12 for admin-facing display -- remaining 8 chars still carry ~39 bits, plenty given this is also rate-limited
+  label: text('label'),
+  createdByUserId: text('created_by_user_id').notNull(),
+  // null = no forced expiry, the default -- these codes are meant to be
+  // shared verbally/in a doc and live indefinitely until an admin revokes
+  // them, unlike the invite link's short-lived-by-default posture.
+  expiresAt: timestamp('expires_at'),
+  redeemCount: integer('redeem_count').notNull().default(0), // informational only -- unlike org_invite_links.useCount, nothing here ever gates on this number
+  revokedAt: timestamp('revoked_at'),
+  revokedByUserId: text('revoked_by_user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Rate-limit log for org-join-code redemption/preview attempts, keyed by
+// requester IP (not by org/code, since an unresolved/invalid code has no
+// org to attribute the attempt to). orgId is nullable and populated only
+// when the attempt matched a real row -- see org-join-code-service.ts.
+export const orgJoinCodeAttempts = complianceSchemaDB.table('org_join_code_attempts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ipAddress: text('ip_address').notNull(),
+  orgId: text('org_id'),
+  wasSuccessful: boolean('was_successful').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Webhooks (M-16: Outbound) ──────────────────────────────────────────
 export const webhooks = complianceSchemaDB.table('webhooks', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -1532,11 +1570,17 @@ export const organisationsRelations = relations(organisations, ({ many }) => ({
   branches: many(branches),
   clients: many(clients),
   inviteLinks: many(orgInviteLinks),
+  joinCodes: many(orgJoinCodes),
 }))
 
 export const orgInviteLinksRelations = relations(orgInviteLinks, ({ one }) => ({
   org: one(organisations, { fields: [orgInviteLinks.orgId], references: [organisations.id] }),
   createdBy: one(users, { fields: [orgInviteLinks.createdByUserId], references: [users.id] }),
+}))
+
+export const orgJoinCodesRelations = relations(orgJoinCodes, ({ one }) => ({
+  org: one(organisations, { fields: [orgJoinCodes.orgId], references: [organisations.id] }),
+  createdBy: one(users, { fields: [orgJoinCodes.createdByUserId], references: [users.id] }),
 }))
 
 export const branchesRelations = relations(branches, ({ one, many }) => ({
