@@ -8,6 +8,8 @@ import {
   FileText,
   AlertTriangle,
   ShieldCheck,
+  ListTodo,
+  Building2,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -23,11 +25,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-type SearchResult = {
+type StandardResultItem = {
+  type: "compliance_item" | "task" | "client";
   id: string;
   title: string;
-  status: string;
-  department: string;
+  status?: string | null;
+};
+
+type StandardResults = {
+  compliance_items: StandardResultItem[];
+  tasks: StandardResultItem[];
+  clients: StandardResultItem[];
 };
 
 type SemanticResult = {
@@ -87,7 +95,7 @@ type SearchMode = "standard" | "semantic";
 function SearchDialog() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<StandardResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<SearchMode>("standard");
   const [semanticResults, setSemanticResults] = useState<SemanticGrouped | null>(null);
@@ -101,7 +109,7 @@ function SearchDialog() {
     closeDialog = () => {
       setOpen(false);
       setQuery("");
-      setResults([]);
+      setResults(null);
       setSemanticResults(null);
     };
     return () => {
@@ -131,7 +139,7 @@ function SearchDialog() {
     }
 
     if (!query.trim()) {
-      setResults([]);
+      setResults(null);
       setLoading(false);
       return;
     }
@@ -139,17 +147,20 @@ function SearchDialog() {
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       try {
+        // Unified cross-entity search (compliance items + tasks + clients) --
+        // previously this only ever hit /api/compliance?search=, so
+        // "Standard" search silently missed everything outside compliance.
         const res = await fetch(
-          `/api/compliance?search=${encodeURIComponent(query)}&limit=8`
+          `/api/search?q=${encodeURIComponent(query)}&limit=8`
         );
         if (res.ok) {
           const data = await res.json();
-          setResults(Array.isArray(data) ? data : data.items ?? data.compliance ?? []);
+          setResults(data.results ?? null);
         } else {
-          setResults([]);
+          setResults(null);
         }
       } catch {
-        setResults([]);
+        setResults(null);
       } finally {
         setLoading(false);
       }
@@ -197,12 +208,32 @@ function SearchDialog() {
     (id: string) => {
       setOpen(false);
       setQuery("");
-      setResults([]);
+      setResults(null);
       setSemanticResults(null);
       router.push(`/compliance/${id}`);
     },
     [router]
   );
+
+  // Tasks and clients have no per-record detail page today (only compliance
+  // items do), so those two land on their list page rather than a deep link
+  // -- still strictly more useful than not appearing in search at all.
+  const handleStandardSelect = useCallback(
+    (item: StandardResultItem) => {
+      setOpen(false);
+      setQuery("");
+      setResults(null);
+      setSemanticResults(null);
+      if (item.type === "compliance_item") router.push(`/compliance/${item.id}`);
+      else if (item.type === "task") router.push("/tasks");
+      else router.push("/clients");
+    },
+    [router]
+  );
+
+  const totalStandardResults = results
+    ? results.compliance_items.length + results.tasks.length + results.clients.length
+    : 0;
 
   const totalSemanticResults = semanticResults
     ? semanticResults.compliance_items.length +
@@ -218,7 +249,7 @@ function SearchDialog() {
         setOpen(o);
         if (!o) {
           setQuery("");
-          setResults([]);
+          setResults(null);
           setSemanticResults(null);
           setMode("standard");
         }
@@ -265,35 +296,77 @@ function SearchDialog() {
             <CommandEmpty>
               {loading
                 ? "Searching..."
-                : query
-                  ? "No compliance items found."
+                : query && totalStandardResults === 0
+                  ? "No results found."
                   : "Type to search..."}
             </CommandEmpty>
-            {results.length > 0 && (
+            {results && results.compliance_items.length > 0 && (
               <CommandGroup heading="Compliance Items">
-                {results.map((item) => (
+                {results.compliance_items.map((item) => (
                   <CommandItem
                     key={item.id}
-                    value={item.title}
-                    onSelect={() => handleSelect(item.id)}
+                    value={`compliance-${item.id}-${item.title}`}
+                    onSelect={() => handleStandardSelect(item)}
                     className="flex items-center justify-between gap-2 cursor-pointer"
                   >
-                    <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ShieldCheck className="size-4 text-ct-teal shrink-0" />
                       <span className="truncate text-sm font-medium">
                         {item.title}
-                      </span>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {item.department}
                       </span>
                     </div>
                     <Badge
                       variant="outline"
                       className={cn(
                         "shrink-0 text-[10px]",
-                        statusBadgeStyles[item.status] ?? ""
+                        statusBadgeStyles[item.status ?? ""] ?? ""
                       )}
                     >
-                      {statusLabels[item.status] ?? item.status}
+                      {statusLabels[item.status ?? ""] ?? item.status}
+                    </Badge>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {results && results.tasks.length > 0 && (
+              <CommandGroup heading="Tasks">
+                {results.tasks.map((item) => (
+                  <CommandItem
+                    key={item.id}
+                    value={`task-${item.id}-${item.title}`}
+                    onSelect={() => handleStandardSelect(item)}
+                    className="flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ListTodo className="size-4 text-ct-saffron shrink-0" />
+                      <span className="truncate text-sm font-medium">
+                        {item.title}
+                      </span>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      {item.status}
+                    </Badge>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {results && results.clients.length > 0 && (
+              <CommandGroup heading="Clients">
+                {results.clients.map((item) => (
+                  <CommandItem
+                    key={item.id}
+                    value={`client-${item.id}-${item.title}`}
+                    onSelect={() => handleStandardSelect(item)}
+                    className="flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Building2 className="size-4 text-ct-navy shrink-0" />
+                      <span className="truncate text-sm font-medium">
+                        {item.title}
+                      </span>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      {item.status}
                     </Badge>
                   </CommandItem>
                 ))}
