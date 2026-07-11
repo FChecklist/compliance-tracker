@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, detectAmbiguousLanguage, detectFieldContradiction, validateKnowledgeSufficiency, type TightTask } from "./task-tightening"
+import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, detectAmbiguousLanguage, detectFieldContradiction, validateKnowledgeSufficiency, extractDeclaredScopeFiles, checkFilesWithinDeclaredScope, type TightTask } from "./task-tightening"
 
 const VALID: TightTask = {
   objective: "Add real PDF and Excel export to the reports dashboard",
@@ -243,5 +243,55 @@ describe("detectFieldContradiction -- Wave 166, area 7", () => {
     })
     expect(result.valid).toBe(false)
     if (!result.valid) expect(result.reason).toContain("Constraints say not to do")
+  })
+})
+
+describe("extractDeclaredScopeFiles -- area 3 PLAN-16 item (b), narrower deterministic slice", () => {
+  test("extracts a full path and a bare filename from a real scope string (PR #179's own example)", () => {
+    expect(extractDeclaredScopeFiles(VALID.scope)).toEqual(["src/app/(app)/reports/page.tsx", "package.json"])
+  })
+
+  test("pure prose with no file-path-shaped tokens extracts nothing", () => {
+    expect(extractDeclaredScopeFiles("The reports module, end to end")).toEqual([])
+  })
+
+  test("does not false-positive on ordinary abbreviations like e.g./i.e.", () => {
+    expect(extractDeclaredScopeFiles("Fix the export logic, e.g. the CSV path, i.e. anything under reports")).toEqual([])
+  })
+
+  test("deduplicates repeated tokens", () => {
+    expect(extractDeclaredScopeFiles("Only src/lib/foo.ts -- just src/lib/foo.ts, nothing else")).toEqual(["src/lib/foo.ts"])
+  })
+})
+
+describe("checkFilesWithinDeclaredScope -- area 3 PLAN-16 item (b)", () => {
+  test("scope with no file tokens -> checked is false, not a pass or a violation", () => {
+    const result = checkFilesWithinDeclaredScope("The reports module", ["src/app/(app)/reports/page.tsx"])
+    expect(result).toEqual({ checked: false, violations: [] })
+  })
+
+  test("a changed file exactly matching a declared full path -> no violation", () => {
+    const result = checkFilesWithinDeclaredScope(VALID.scope, ["src/app/(app)/reports/page.tsx", "package.json"])
+    expect(result).toEqual({ checked: true, violations: [] })
+  })
+
+  test("a changed file matching a declared bare filename by basename -> no violation", () => {
+    const result = checkFilesWithinDeclaredScope("Only foo.ts", ["src/lib/foo.ts"])
+    expect(result).toEqual({ checked: true, violations: [] })
+  })
+
+  test("a changed file NOT among the declared tokens -> flagged as a violation", () => {
+    const result = checkFilesWithinDeclaredScope(VALID.scope, ["src/app/(app)/reports/page.tsx", "src/lib/unrelated-service.ts"])
+    expect(result).toEqual({ checked: true, violations: ["src/lib/unrelated-service.ts"] })
+  })
+
+  test("a declared full path does NOT match an unrelated file that merely shares a basename (the one direction that must not false-positive)", () => {
+    const result = checkFilesWithinDeclaredScope("Only src/app/(app)/reports/page.tsx", ["src/app/(app)/other/page.tsx"])
+    expect(result.violations).toEqual(["src/app/(app)/other/page.tsx"])
+  })
+
+  test("no files changed at all -> checked true, zero violations", () => {
+    const result = checkFilesWithinDeclaredScope(VALID.scope, [])
+    expect(result).toEqual({ checked: true, violations: [] })
   })
 })

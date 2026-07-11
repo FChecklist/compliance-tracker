@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
@@ -17,6 +17,7 @@ import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-en
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { nextEscalationRung } from "@/lib/escalation-ladder";
+import { evaluateMonitoringRules } from "@/lib/monitoring-engine";
 
 registerAllGuardrails();
 
@@ -1527,8 +1528,9 @@ async function updateTaskStatusAndReflect(
     .update(tasks)
     .set({ status, updatedAt: new Date() })
     .where(eq(tasks.id, taskId))
-    .returning({ createdAt: tasks.createdAt, title: tasks.title });
+    .returning({ createdAt: tasks.createdAt, title: tasks.title, dynamicChainId: tasks.dynamicChainId });
   if (!row) return;
+  const elapsedMs = Date.now() - row.createdAt.getTime();
   await runTaskReflection(db, {
     orgId,
     sourceType: "task",
@@ -1536,8 +1538,50 @@ async function updateTaskStatusAndReflect(
     outcome: status === "completed" ? "success" : "failure",
     summary: row.title,
     failureReason: failureReason ?? null,
-    elapsedMs: Date.now() - row.createdAt.getTime(),
+    elapsedMs,
   });
+  if (row.dynamicChainId) {
+    await enforceChainMonitoringRules(db, taskId, row.dynamicChainId, elapsedMs);
+  }
+}
+
+// tree4-unified/50-completion-plan area 6 remaining_work ("Per-Dynamic-Chain
+// monitoring rules ENFORCEMENT layer"): the one real chain-scoped task-
+// completion chokepoint -- updateTaskStatusAndReflect above is called from
+// every real completion path (executeStructuredDispatch, executeEngineDispatch,
+// the free-text planning path, and markTaskOutcome's early-failure path), so
+// wiring here covers a chain-selected task no matter which dispatch branch
+// it took. Skipped entirely for the majority of tasks that carry no
+// dynamicChainId (no chain selected) -- zero extra queries for them.
+async function enforceChainMonitoringRules(db: TenantDb, taskId: string, dynamicChainId: string, elapsedMs: number): Promise<void> {
+  const chain = await db.query.dynamicChains.findFirst({
+    where: eq(dynamicChains.id, dynamicChainId),
+    columns: { monitoringRules: true },
+  });
+  if (!chain?.monitoringRules) return;
+
+  const [{ count: completedStepCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(taskExecutionPlan)
+    .where(and(eq(taskExecutionPlan.taskId, taskId), eq(taskExecutionPlan.status, "completed")));
+
+  const violations = evaluateMonitoringRules(chain.monitoringRules, { durationMs: elapsedMs, completedStepCount });
+  for (const violation of violations) {
+    if (violation.action === "escalate") {
+      const escalation = nextEscalationRung({ reason: "monitoring_rule_violation" });
+      await db.insert(taskChatMessages).values({
+        taskId,
+        role: "system",
+        content: `Monitoring rule violated (${violation.metric} = ${violation.actualValue}) -- escalated to ${escalation.title} (${escalation.authority}).`,
+      });
+    } else {
+      await db.insert(taskChatMessages).values({
+        taskId,
+        role: "system",
+        content: `Monitoring rule warning: ${violation.metric} = ${violation.actualValue} is outside the chain's declared bounds.`,
+      });
+    }
+  }
 }
 
 async function executeStructuredDispatch(orgId: string, userId: string, taskId: string, workerAgentId: string, agentInputs?: Record<string, unknown>): Promise<void> {

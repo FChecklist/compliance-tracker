@@ -195,6 +195,28 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/confidence-banding.ts", mustContain: ["export function bandConfidence"] },
   { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["classifyRisk("] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["bandConfidence(", "confidence_below_escalation_threshold"] },
+
+  // Added 2026-07-11 (tree4-unified/50-completion-plan area 6 "Monitoring",
+  // remaining_work item 1): dynamicChains.monitoringRules (schema column
+  // from PR #169) now has a real enforcement layer -- evaluateMonitoringRules()
+  // reads a chain's configured rules and checks them against a task's real
+  // completion data (elapsed duration, completed step count) at the one
+  // real chain-scoped completion chokepoint, escalating via the executive
+  // ladder on an "escalate"-action violation.
+  { file: "src/lib/monitoring-engine.ts", mustContain: ["export function evaluateMonitoringRules", "export function parseMonitoringRules"] },
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["enforceChainMonitoringRules", "nextEscalationRung({ reason: \"monitoring_rule_violation\" })"] },
+  { file: "src/lib/escalation-ladder.ts", mustContain: ["monitoring_rule_violation"] },
+
+  // Added 2026-07-11 (tree4-unified/50-completion-plan area 3 "Guardrails",
+  // PLAN-16 re-scoped item (b), narrower re-investigation of PR #179's
+  // deferred "broader Scope enforcement"): a syntactic-only (no prose/LLM
+  // parsing) check that files actually changed by an AI Workforce dispatch
+  // are among the exact file-path tokens its own scope field named, when
+  // scope named any at all. Surfaced as a non-blocking PR-body warning, not
+  // a hard gate.
+  { file: "src/lib/task-tightening.ts", mustContain: ["export function extractDeclaredScopeFiles", "export function checkFilesWithinDeclaredScope"] },
+  { file: "scripts/ai-workforce-agent.mjs", mustContain: ["checkFilesWithinDeclaredScope("] },
+  { file: ".github/workflows/ai-team-workforce.yml", mustContain: ["SCOPE_VIOLATIONS"] },
 ]
 
 let failed = false

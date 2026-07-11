@@ -41,6 +41,12 @@ export type EscalationReason =
   // trigger, not a code defect, so it starts at COO like the other
   // non-software-first reasons below, not at CSEO.
   | "low_confidence_closure"
+  // tree4-unified/50-completion-plan area 6 "Monitoring": a Dynamic Chain's
+  // monitoringRules (monitoring-engine.ts's evaluateMonitoringRules()) fired
+  // an "escalate"-action rule -- a governance/policy trigger (the chain's
+  // own declared threshold, not a code defect), so it starts at COO like
+  // low_confidence_closure above, not at CSEO.
+  | "monitoring_rule_violation"
 
 export type EscalationContext = {
   reason: EscalationReason

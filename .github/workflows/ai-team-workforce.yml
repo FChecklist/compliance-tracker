@@ -139,6 +139,7 @@ jobs:
           SUMMARY: ${{ steps.agent.outputs.summary }}
           FILES_CHANGED: ${{ steps.agent.outputs.files_changed }}
           REQUIRES_AUDIT: ${{ steps.agent.outputs.requires_audit }}
+          SCOPE_VIOLATIONS: ${{ steps.agent.outputs.scope_violations }}
         run: |
           git push origin "$BRANCH"
           AUDIT_NOTICE=""
@@ -147,9 +148,15 @@ jobs:
 
           "
           fi
+          SCOPE_NOTICE=""
+          if [ -n "$SCOPE_VIOLATIONS" ]; then
+            SCOPE_NOTICE="⚠️ **Scope check:** file(s) changed that were not among the exact file(s) declared scope named: ${SCOPE_VIOLATIONS}. This is a syntactic check only (task-tightening.ts's checkFilesWithinDeclaredScope) -- verify manually before merge, not a semantic guarantee the change stayed in scope.
+
+          "
+          fi
           gh pr create \
             --title "AI Workforce (${ROLE_KEY})$([ "$REQUIRES_AUDIT" = "true" ] && echo " [NEEDS AUDIT]"): ${SUMMARY:0:100}" \
-            --body "${AUDIT_NOTICE}**Role:** ${ROLE_KEY}
+            --body "${AUDIT_NOTICE}${SCOPE_NOTICE}**Role:** ${ROLE_KEY}
           **Objective:** ${OBJECTIVE}
           **Scope:** ${SCOPE}
           **Success criteria:** ${SUCCESS_CRITERIA}
