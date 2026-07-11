@@ -1,6 +1,6 @@
 // Wave 11 service layer -- extracted from src/app/api/tasks/{route,
 // [id]/route}.ts verbatim (behavior-identical refactor).
-import { tasks, aiAssistants, workerAgents, dynamicChains } from "@/lib/db"
+import { tasks, aiAssistants, workerAgents, dynamicChains, users } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { desc, eq, asc, and, ne, inArray, sql } from "drizzle-orm"
 import { executeTask } from "@/lib/task-execution-engine"
@@ -12,6 +12,22 @@ import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 
 const VALID_STATUSES = ["pending", "in_progress", "completed", "failed", "cancelled"]
+
+// D8/D5.B4.S2 minimum 2-level chain selection gate, extracted as a pure
+// predicate (rather than left inline in createTask) so it's directly unit
+// testable without a DB -- this repo's established pattern for guardrail-
+// style logic (see handover-protocol.test.ts's own note on why nothing in
+// this codebase's test suite touches withTenantContext). undefined
+// chainPathKeys means the caller never claimed a Chain-Selector-based
+// dispatch at all (free-text/API task creation) and is deliberately let
+// through untouched -- only a caller that DID send chainPathKeys is held to
+// the 2-level minimum.
+export function validateChainDepth(chainPathKeys: unknown[] | undefined): { valid: true } | { valid: false; reason: string } {
+  if (chainPathKeys !== undefined && chainPathKeys.length < 2) {
+    return { valid: false, reason: "Select at least 2 levels of the chain (a category and a sub-option) before starting this task." }
+  }
+  return { valid: true }
+}
 
 // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the Primary
 // System Object -- Phase 1"): find-or-create so repeatedly selecting the
@@ -97,6 +113,14 @@ export async function createTask(ctx: ServiceContext, input: {
   if (!title) throw new ServiceError("title is required", 400)
   const description = input.description?.trim() || null
   const assistantId = input.assistantId ?? null
+
+  // D8/D5.B4.S2 (tree4-unified 50-completion-plan, areas 1+2, "minimum
+  // 2-level chain selection gate"): the real, non-bypassable enforcement
+  // point -- this is the sole place a dynamic_chains row (and the task
+  // itself) gets created (see resolveDynamicChainId below), so gating here
+  // covers every caller, not just VeriComposer's own client-side check.
+  const chainDepthCheck = validateChainDepth(input.chainPathKeys)
+  if (!chainDepthCheck.valid) throw new ServiceError(chainDepthCheck.reason, 400)
 
   // Wave 146: VERIDIAN.docx CSV 205 §26's Human-in-Control Rules --
   // Delete/Payment/Approval/Rejection/Compliance-Submission/Access-Change/
@@ -198,18 +222,25 @@ export async function getTask(ctx: ReadContext & { userId?: string }, id: string
   const result = await withTenantContext({ orgId, userId }, async (db) => {
     const task = await db.query.tasks.findFirst({ where: eq(tasks.id, id) })
     if (!task) return null
-    const [plan, chat] = await Promise.all([
+    const [plan, chat, owner] = await Promise.all([
       db.query.taskExecutionPlan.findMany({ where: eq(taskExecutionPlan.taskId, id), orderBy: asc(taskExecutionPlan.stepNumber) }),
       db.query.taskChatMessages.findMany({ where: eq(taskChatMessages.taskId, id), orderBy: asc(taskChatMessages.createdAt) }),
+      // D5.B6 (persistent visibility panel, "Owner"): tasks has no single
+      // owner column -- userId is the assignee, assignedById is who assigned
+      // it. Assignee is what "Owner" means in every other owner-facing
+      // surface in this app (ToDoTab, listMyTodos), so that's what's
+      // resolved here, additive to the response shape.
+      task.userId ? db.query.users.findFirst({ where: eq(users.id, task.userId), columns: { id: true, name: true } }) : Promise.resolve(null),
     ])
-    return { task, plan, chat }
+    return { task, plan, chat, owner }
   })
 
   if (!result) throw new ServiceError("Task not found", 404)
-  const { task, plan, chat } = result
+  const { task, plan, chat, owner } = result
 
   return {
     id: task.id, title: task.title, description: task.description, status: task.status, priority: task.priority, assistantId: task.assistantId,
+    owner: owner ? { id: owner.id, name: owner.name } : null,
     createdAt: task.createdAt.toISOString(), updatedAt: task.updatedAt.toISOString(),
     executionPlan: plan.map((p) => ({ id: p.id, stepNumber: p.stepNumber, workerAgentId: p.workerAgentId, description: p.description, status: p.status })),
     chat: chat.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt.toISOString() })),

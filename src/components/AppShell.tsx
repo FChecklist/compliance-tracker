@@ -11,6 +11,7 @@ import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock
 // render tree — imported and rendered here as a fixed-position floating
 // widget that lives for the entire authenticated session.
 import HelpWidget from "@/components/HelpWidget";
+import TaskVisibilityPanel from "@/components/TaskVisibilityPanel";
 import { VeriChatProvider } from "@/components/veri-chat/veri-chat-context";
 import VeriComposer from "@/components/veri-chat/VeriComposer";
 import VeriChatPanel from "@/components/veri-chat/VeriChatPanel";
@@ -96,6 +97,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         onToggleSidebar={veriChatV2Enabled ? () => setSidebarCollapsed((v) => !v) : undefined}
       />
       <HealthRibbon />
+      {/* D5.B6: rendered here (in the shared `body` markup, above the
+          veriChatV2/legacy branch split below) so it's always present in the
+          authenticated chrome regardless of which org branch renders --
+          TaskVisibilityPanel itself uses useVeriChatOptional() to stay safe
+          when VeriChatProvider isn't mounted (legacy branch). */}
+      <TaskVisibilityPanel />
       <div className="flex flex-1 overflow-hidden">
         {/* Collapsing conditionally renders AppSidebar rather than toggling a
             CSS width -- AppSidebar sets its own min-width internally, which
