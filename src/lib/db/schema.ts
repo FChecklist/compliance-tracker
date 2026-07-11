@@ -531,9 +531,17 @@ export const orgJoinCodes = complianceSchemaDB.table('org_join_codes', {
   codePrefix: text('code_prefix').notNull(), // first 4 chars of 12 for admin-facing display -- remaining 8 chars still carry ~39 bits, plenty given this is also rate-limited
   label: text('label'),
   createdByUserId: text('created_by_user_id').notNull(),
+  // Path D (peer-provided-code self-registration): the creator's own
+  // dbUser.role AT MINT TIME, so admin-minted and peer-minted codes are
+  // distinguishable in the data without a second table. Defaults 'admin'
+  // for the pre-existing Path-C-only rows (every row before this column
+  // existed was necessarily admin/manager-minted). See
+  // org-join-code-service.ts's isPrivilegedMinter for how this is used.
+  createdByRole: text('created_by_role').notNull().default('admin'),
   // null = no forced expiry, the default -- these codes are meant to be
   // shared verbally/in a doc and live indefinitely until an admin revokes
-  // them, unlike the invite link's short-lived-by-default posture.
+  // them, unlike the invite link's short-lived-by-default posture. Peer
+  // (non-privileged) mints never get null here -- see resolvePeerExpiryDays.
   expiresAt: timestamp('expires_at'),
   redeemCount: integer('redeem_count').notNull().default(0), // informational only -- unlike org_invite_links.useCount, nothing here ever gates on this number
   revokedAt: timestamp('revoked_at'),
