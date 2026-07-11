@@ -212,6 +212,48 @@ const MATH_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
 }
 Object.assign(WIRED_ENGINE_INPUT_FIELDS, MATH_WIRED_ENGINE_INPUT_FIELDS)
 
+// Costing Engine -- third full category wired end to end, 8 of 8 registered
+// engines (job/contract/service costing, allocation, variance). The two
+// array-of-objects inputs (activity_based_costing_engine's costPools/
+// objectDriverUsage and cost_allocation_engine's allocationBasis) have no
+// UI field type that supports a grid/JSON-editor, so those two stay
+// dispatch-only -- callable programmatically, not from the chain selector
+// form -- the same skip pattern the Mathematical Computation Engine's 3
+// matrix/model-input engines already follow above.
+const COSTING_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  job_costing_engine: [
+    { key: "directMaterial", label: "Direct material cost (₹)", type: "number" },
+    { key: "directLabor", label: "Direct labor cost (₹)", type: "number" },
+    { key: "overheadAllocated", label: "Overhead allocated (₹)", type: "number" },
+  ],
+  standard_costing_engine: [
+    { key: "standardPrice", label: "Standard price (₹)", type: "number" },
+    { key: "actualPrice", label: "Actual price (₹)", type: "number" },
+    { key: "standardQuantity", label: "Standard quantity", type: "number" },
+    { key: "actualQuantity", label: "Actual quantity", type: "number" },
+  ],
+  marginal_costing_engine: [
+    { key: "sellingPricePerUnit", label: "Selling price per unit (₹)", type: "number" },
+    { key: "variableCostPerUnit", label: "Variable cost per unit (₹)", type: "number" },
+    { key: "fixedCosts", label: "Fixed costs (₹)", type: "number" },
+  ],
+  batch_costing_engine_2: [
+    { key: "totalBatchCost", label: "Total batch cost (₹)", type: "number" },
+    { key: "unitsInBatch", label: "Units in batch", type: "number" },
+  ],
+  service_costing_engine: [
+    { key: "directCost", label: "Direct cost (₹)", type: "number" },
+    { key: "indirectCostAllocated", label: "Indirect cost allocated (₹)", type: "number" },
+    { key: "serviceUnits", label: "Service units", type: "number" },
+  ],
+  variance_analysis_engine: [
+    { key: "actual", label: "Actual amount (₹)", type: "number" },
+    { key: "budget", label: "Budget amount (₹)", type: "number" },
+    { key: "higherIsFavorable", label: "Higher is favorable? (yes/no, optional, default yes)", type: "text", optional: true },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, COSTING_WIRED_ENGINE_INPUT_FIELDS)
+
 // Generic entity actions -- real Worker Agents that operate "on a specific
 // customer/vendor" (invoice prep, reminders, GST filing) aren't domain-
 // grouped the same way as Finance/Compliance/etc. agents are, so this list
