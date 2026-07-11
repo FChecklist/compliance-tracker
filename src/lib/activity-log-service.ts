@@ -21,8 +21,17 @@
 import { activityLog } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
+import { runTaskReflection } from "@/lib/loops/task-reflection";
+import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
 
 export type ActivityType = "ai_team_dispatch";
+
+// Wave 172 (area 12 "Loop Engineering"): a terminal lifecycle_stage is the
+// real "this dispatch closed" touchpoint -- both the universal reflection
+// (task-reflection.ts) and the per-AI-Agent directory refresh
+// (agent-directory-service.ts) fire exactly here, once, regardless of which
+// of the two functions below reached the terminal stage.
+const TERMINAL_STAGES = new Set(["completed", "failed", "closed"]);
 
 export type RecordActivityInput = {
   orgId: string;
@@ -31,6 +40,14 @@ export type RecordActivityInput = {
   activityType: ActivityType;
   lifecycleStage: "requested" | "classified" | "validated" | "executing" | "reviewing" | "completed" | "failed" | "closed";
   objective?: string;
+  /** The AI Dev Team role_key (roster.ts) that executed this dispatch -- null when rejected before classification. */
+  roleKey?: string | null;
+  /** Wall-clock ms the caller measured for this dispatch. Only meaningful on a terminal-stage call. */
+  durationMs?: number | null;
+  /** The real guardrail/tier/validation message when lifecycleStage = 'failed'. */
+  errorReason?: string | null;
+  /** estimateCostUsd() output when usage + model pricing were available -- forwarded to the reflection row, not persisted as an activity_log column. */
+  costUsd?: number | null;
 };
 
 /**
@@ -51,7 +68,24 @@ export function recordActivity(params: RecordActivityInput): Promise<{ id: strin
       activityType: params.activityType,
       lifecycleStage: params.lifecycleStage,
       objective: params.objective ?? null,
+      roleKey: params.roleKey ?? null,
+      durationMs: params.durationMs ?? null,
+      errorReason: params.lifecycleStage === "failed" ? (params.errorReason ?? null) : null,
     }).returning({ id: activityLog.id });
+    if (row && TERMINAL_STAGES.has(params.lifecycleStage)) {
+      await runTaskReflection(db, {
+        orgId: params.orgId,
+        sourceType: "ai_team_dispatch",
+        sourceId: row.id,
+        roleKey: params.roleKey ?? null,
+        outcome: params.lifecycleStage === "failed" ? "failure" : "success",
+        summary: params.objective ?? null,
+        failureReason: params.errorReason ?? null,
+        elapsedMs: params.durationMs ?? null,
+        costUsd: params.costUsd ?? null,
+      });
+      if (params.roleKey) void refreshAgentDirectory(params.roleKey);
+    }
     return row ?? null;
   }).catch((err) => {
     console.warn(`activity_log write failed for '${params.activityType}' (non-fatal):`, err);
@@ -86,14 +120,33 @@ export async function recordPeerReview(params: PeerReviewInput): Promise<PeerRev
     if (existing.lifecycleStage !== "reviewing") return { recorded: false, reason: "not_in_review" as const };
     if (existing.userId && existing.userId === params.reviewedBy) return { recorded: false, reason: "self_review_not_allowed" as const };
 
+    const newStage = params.reviewDecision === "approved" ? "completed" : "failed";
     await db.update(activityLog).set({
-      lifecycleStage: params.reviewDecision === "approved" ? "completed" : "failed",
+      lifecycleStage: newStage,
       reviewedBy: params.reviewedBy,
       reviewNotes: params.reviewNotes,
       reviewDecision: params.reviewDecision,
       selfAssessment: params.selfAssessment ?? existing.selfAssessment,
+      errorReason: newStage === "failed" ? params.reviewNotes : existing.errorReason,
       updatedAt: new Date(),
     }).where(eq(activityLog.id, params.activityLogId));
+
+    // Wave 172: recordPeerReview is the SECOND real path to a terminal
+    // activity_log stage (recordActivity's own terminal-stage branch above
+    // covers the direct-completion path) -- reflection/directory-refresh
+    // fire here too, using the role_key already stored on the row from the
+    // original 'reviewing'-stage write.
+    await runTaskReflection(db, {
+      orgId: params.orgId,
+      sourceType: "ai_team_dispatch",
+      sourceId: existing.id,
+      roleKey: existing.roleKey,
+      outcome: newStage === "failed" ? "failure" : "success",
+      summary: existing.objective,
+      failureReason: newStage === "failed" ? params.reviewNotes : null,
+      elapsedMs: existing.durationMs,
+    });
+    if (existing.roleKey) void refreshAgentDirectory(existing.roleKey);
 
     return { recorded: true as const };
   });

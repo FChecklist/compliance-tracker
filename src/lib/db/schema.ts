@@ -903,6 +903,101 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   reviewedBy: text('reviewed_by'), // the independent reviewer's user id -- must differ from the dispatching user (no self-certification, mirrors AGENTS.md Rule 7c)
   reviewNotes: text('review_notes'), // permanent record of the reviewer's comments -- required, not optional, when a decision is recorded
   reviewDecision: text('review_decision'), // 'approved' | 'rejected', null until reviewed
+  // Wave 172 (tree4-unified/50-completion-plan area 12 "Loop Engineering"):
+  // closes the real gap behind the per-AI-Agent directory (task-reflection.ts
+  // / agent-directory-service.ts) -- before this, an ai_team_dispatch row
+  // recorded THAT something was dispatched but not WHO ran it, how long it
+  // took, or why it failed, so no real per-role Average Time/Failures/Common
+  // Errors aggregation was possible without inventing data. All 3 nullable/
+  // additive -- existing rows are unaffected; only the dispatch route (POST
+  // /api/ai/team/dispatch) populates these going forward.
+  roleKey: text('role_key'), // the AI Dev Team role_key (roster.ts) that executed this dispatch, null when rejected before classification
+  durationMs: integer('duration_ms'), // wall-clock ms measured by the dispatch route itself, not derived from created_at/updated_at (those can span multiple stage-transition writes)
+  errorReason: text('error_reason'), // short human-readable reason when lifecycle_stage = 'failed' -- the real guardrail/tier/validation message the caller already had, not a generic string
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Wave 172 (tree4-unified/50-completion-plan area 12 "Loop Engineering",
+// remaining_work item 1): "Universal reflective-question mechanism running
+// for EVERY completed task -- currently the CLEE pipeline (loop_improvements)
+// only fires on guardrail violations and audit-loop findings, not
+// universally." DEC-03 (area 5) rejected retrofitting tasks.status into a
+// ~30-state Universal Work Object -- this table deliberately does NOT touch
+// tasks/activity_log's own status columns, it observes their EXISTING real
+// terminal-state writes instead (task-execution-engine.ts's markTaskOutcome/
+// updateTaskStatusAndReflect, activity-log-service.ts's recordActivity/
+// recordPeerReview). Polymorphic source_type/source_id, same "by convention,
+// not a real FK" precedent as activity_log's own detail_table/detail_id --
+// justified here because no single existing table's rows cover every real
+// completion touchpoint (task_agent_executions has no row at all for
+// engine-dispatch task completions; activity_log only records ai_team_dispatch
+// today, not tasks).
+//
+// speed_verdict/cost_verdict are the ONLY auto-decided fields, and only
+// because they're pure arithmetic over this table's own prior rows (no LLM
+// judgment involved). different_ai_tier_flag/reusable_pattern_flag are
+// deliberately NEVER auto-decided -- matching monitoring-engine.ts's PR #169
+// precedent of skipping LLM-graded verdicts rather than fabricating one; both
+// jsonb fields are always populated with the real facts available, with an
+// explicit verdict: null awaiting real human/LLM judgment.
+export const taskReflections = complianceSchemaDB.table('task_reflections', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  sourceType: text('source_type').notNull(), // 'task' | 'ai_team_dispatch'
+  sourceId: text('source_id').notNull(), // tasks.id or activity_log.id, depending on source_type
+  roleKey: text('role_key'), // ai_team_dispatch only -- the comparison-group key for speed/cost verdicts
+  outcome: text('outcome').notNull(), // 'success' | 'failure' -- the real terminal status, never inferred
+  summary: text('summary'), // factual: task title / dispatch objective, not a judgment
+  failureReason: text('failure_reason'), // populated only when outcome = 'failure', the real error/guardrail message
+  elapsedMs: integer('elapsed_ms'),
+  comparisonAvgElapsedMs: numeric('comparison_avg_elapsed_ms'), // the recent-history average this row's elapsed_ms was judged against -- kept so the verdict is auditable, not a black box
+  speedVerdict: text('speed_verdict'), // 'faster_than_recent_avg' | 'slower_than_recent_avg' | 'in_line' | 'insufficient_data'
+  costUsd: numeric('cost_usd'), // ai_team_dispatch only, when usage/model pricing was available (estimateCostUsd)
+  comparisonAvgCostUsd: numeric('comparison_avg_cost_usd'),
+  costVerdict: text('cost_verdict'), // same shape as speed_verdict, plus 'not_applicable' when no cost data exists for this source_type
+  differentAiTierFlag: jsonb('different_ai_tier_flag'), // { currentIdentifier, needsJudgment: true, verdict: null, note } -- captured, never auto-decided
+  reusablePatternFlag: jsonb('reusable_pattern_flag'), // same shape as above -- captured, never auto-decided
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Wave 172 (area 12, remaining_work item 2): "Per-AI-Agent permanent
+// directory -- worker_agent_usage_log/worker_agent_learnings cover Worker
+// Agents only, not AI Dev Team roles (roster.ts)." One row per role_key,
+// upserted by agent-directory-service.ts's refreshAgentDirectory() after
+// each AI Team dispatch closes. avg_success/avg_time/failures/common_errors
+// are computed from activity_log's real (role_key, lifecycle_stage,
+// duration_ms, error_reason) columns added above -- not invented. Platform-
+// level, not tenant data (spans every org's dispatches under one role,
+// exactly like token_usage_ledger/loop_executions) -- service_role-bypass-
+// only RLS, same posture as those tables.
+export const aiAgentDirectory = complianceSchemaDB.table('ai_agent_directory', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull().unique(),
+  title: text('title'), // roster.ts RoleDefinition.title, denormalized for a fast directory read
+  team: text('team'), // roster.ts RoleDefinition.team
+  latestTaskSummary: text('latest_task_summary'), // most recent activity_log.objective for this role_key
+  latestPromptVersion: integer('latest_prompt_version'), // prompt_versions.version for this role's prompt_templates.template_key, highest isActive row
+  totalDispatches: integer('total_dispatches').notNull().default(0),
+  successCount: integer('success_count').notNull().default(0),
+  failureCount: integer('failure_count').notNull().default(0),
+  avgDurationMs: numeric('avg_duration_ms'),
+  commonErrors: jsonb('common_errors').notNull().default([]), // [{reason, count}], top error_reason values grouped from activity_log
+  // Populated only when loop_improvements (the CLEE pipeline) actually holds
+  // a row targeting this role_key -- left null otherwise. Never fabricated
+  // by this service; matches loop-improvement-proposer.ts's own human-gated
+  // discipline (isDeployed always false, never an automated verdict).
+  improvementSuggestions: text('improvement_suggestions'),
+  // Deterministic, not judgment: model-tier-eligibility.ts's real, already-
+  // enforced tier gate for this role's model (mechanical/integrative/
+  // judgment eligibility + whether mandatory audit applies). This IS a real
+  // "validation rule" already live in code, not a new invented one.
+  validationRules: jsonb('validation_rules'),
+  // Structural status field, defaults to the one honest starting value --
+  // never auto-promoted to 'reviewed'/'promoted' by this service. A human or
+  // a future judgment-tier review sets it beyond the default.
+  loopEngineeringStatus: text('loop_engineering_status').notNull().default('not_yet_assessed'),
+  lastComputedAt: timestamp('last_computed_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

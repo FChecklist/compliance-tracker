@@ -15,6 +15,7 @@ import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
+import { runTaskReflection } from "@/lib/loops/task-reflection";
 
 registerAllGuardrails();
 
@@ -1504,12 +1505,46 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
 // picking an inappropriate tool; it has nothing to check when a human
 // already picked the exact tool by name). The free-text/LLM-planning path
 // below is completely unchanged and still enforces it.
+// Wave 172 (area 12 "Loop Engineering", remaining_work item 1): the single
+// real touchpoint every tasks.status -> 'completed'/'failed' transition now
+// goes through -- there were 3 separate inline `db.update(tasks).set(...)`
+// call sites (structured dispatch, engine dispatch, free-text LLM planning)
+// plus markTaskOutcome's own, all writing the same terminal transition with
+// no shared hook. Takes the already-open tx (never opens a second
+// withTenantContext -- see task-reflection.ts's own header for why nesting
+// would just race a second pooled connection for no reason). elapsedMs is
+// derived from the task's own created_at, returned by the same UPDATE
+// statement -- zero extra queries.
+async function updateTaskStatusAndReflect(
+  db: TenantDb,
+  orgId: string,
+  taskId: string,
+  status: "completed" | "failed",
+  failureReason?: string | null
+): Promise<void> {
+  const [row] = await db
+    .update(tasks)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(tasks.id, taskId))
+    .returning({ createdAt: tasks.createdAt, title: tasks.title });
+  if (!row) return;
+  await runTaskReflection(db, {
+    orgId,
+    sourceType: "task",
+    sourceId: taskId,
+    outcome: status === "completed" ? "success" : "failure",
+    summary: row.title,
+    failureReason: failureReason ?? null,
+    elapsedMs: Date.now() - row.createdAt.getTime(),
+  });
+}
+
 async function executeStructuredDispatch(orgId: string, userId: string, taskId: string, workerAgentId: string, agentInputs?: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     const agent = await db.query.workerAgents.findFirst({ where: eq(workerAgents.id, workerAgentId) });
     if (!agent?.codeReference || agent.tier !== "global" || !["approved", "published"].includes(agent.lifecycleStatus)) {
       await db.insert(taskChatMessages).values({ taskId, role: "system", content: "The selected capability is no longer available. Please try again." });
-      await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      await updateTaskStatusAndReflect(db, orgId, taskId, "failed", "The selected capability is no longer available.");
       return;
     }
 
@@ -1528,7 +1563,7 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
       await db.insert(taskChatMessages).values({
         taskId, role: "assistant", content: `${agent.name}: ${JSON.stringify(output).slice(0, 800)}`,
       });
-      await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
     } catch (dispatchErr) {
       const message = dispatchErr instanceof Error ? dispatchErr.message : "unknown error";
       await db.insert(taskAgentExecutions).values({
@@ -1536,7 +1571,7 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
         status: "failed", input: {}, errorMessage: message,
       });
       await db.insert(taskChatMessages).values({ taskId, role: "system", content: `${agent.name} couldn't complete: ${message}` });
-      await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      await updateTaskStatusAndReflect(db, orgId, taskId, "failed", message);
     }
   });
 }
@@ -1547,11 +1582,11 @@ async function executeEngineDispatch(orgId: string, userId: string, taskId: stri
       const output = await dispatchEngine(db, orgId, engineKey, engineInputs);
       assertValidDispatchOutput(output);
       await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
-      await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
       await db.insert(taskChatMessages).values({ taskId, role: "system", content: `Calculation failed: ${message}` });
-      await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      await updateTaskStatusAndReflect(db, orgId, taskId, "failed", message);
     }
   });
 }
@@ -1900,7 +1935,7 @@ export async function executeTask(
         content: summaryWithData,
       });
 
-      await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
+      await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
 
       if (assistantId) {
         await recordAssistantMemory(db, assistantId, "task_outcome", `Task "${title}": ${result.summary || "Plan generated."}`);
@@ -1927,6 +1962,6 @@ async function markTaskOutcome(
 ): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     await db.insert(taskChatMessages).values({ taskId, role: "system", content: message });
-    await db.update(tasks).set({ status, updatedAt: new Date() }).where(eq(tasks.id, taskId));
+    await updateTaskStatusAndReflect(db, orgId, taskId, status, status === "failed" ? message : null);
   });
 }
