@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
-import { registerAllGuardrails, AI_TEAM_CLOSURE_REVIEW_LEAF } from "@/lib/guardrail-registrations"
-import { recordPeerReview, getActivityRiskLevel } from "@/lib/activity-log-service"
+import { registerAllGuardrails, AI_TEAM_CLOSURE_REVIEW_LEAF, QA_PRECOMPLETION_GATE_LEAF } from "@/lib/guardrail-registrations"
+import { recordPeerReview, getActivityRiskLevel, getActivitySelfAssessment } from "@/lib/activity-log-service"
 
 registerAllGuardrails()
 
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { activityLogId, reviewNotes, reviewDecision, selfAssessment, confidencePercentage } = body as {
+  const { activityLogId, reviewNotes, reviewDecision, selfAssessment, confidencePercentage, qaGateOverrideReason } = body as {
     activityLogId?: string
     reviewNotes?: string
     reviewDecision?: "approved" | "rejected"
@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
     // confidence -- see closureReviewCheck in guardrail-registrations.ts for
     // the actual banding enforcement (bandConfidence()).
     confidencePercentage?: number
+    // tree4-unified/50-completion-plan area 3, PLAN-16 item (f): a real,
+    // substantive justification for approving despite the dispatch's own
+    // recorded handover reporting Validation Passed !== "yes" -- see
+    // QA_PRECOMPLETION_GATE_LEAF below. Ignored when no override is
+    // actually needed.
+    qaGateOverrideReason?: string
   }
 
   if (!activityLogId) {
@@ -60,6 +66,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "blocked", blockedBy: { reason: check.reason, guidance: check.guidance } }, { status: 422 })
   }
 
+  // tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16 original
+  // item (f): the QA pre-completion gate. Same "read the real value back
+  // from the row, never trust the request body" posture as riskLevel
+  // just above -- a client-supplied handoverValidationPassed could
+  // otherwise be spoofed to dodge this exact gate.
+  const storedSelfAssessment = await getActivitySelfAssessment(orgId, activityLogId)
+  const handoverValidationPassed = (storedSelfAssessment?.validationPassed as string | undefined) ?? null
+  const qaCheck = evaluateGuardrails(QA_PRECOMPLETION_GATE_LEAF, "input", { reviewDecision, handoverValidationPassed, overrideReason: qaGateOverrideReason })
+  if (!qaCheck.passed) {
+    void recordGuardrailViolation(activityLogId, QA_PRECOMPLETION_GATE_LEAF, "input", qaCheck)
+    return NextResponse.json({ status: "blocked", blockedBy: { reason: qaCheck.reason, guidance: qaCheck.guidance } }, { status: 422 })
+  }
+  const qaGateOverrideNeeded = handoverValidationPassed?.trim().toLowerCase() !== "yes"
+
   const result = await recordPeerReview({
     orgId,
     activityLogId,
@@ -68,6 +88,7 @@ export async function POST(request: NextRequest) {
     reviewDecision: reviewDecision!,
     selfAssessment,
     confidencePercentage,
+    qaGateOverrideReason: qaGateOverrideNeeded ? qaGateOverrideReason : undefined,
   })
 
   if (!result.recorded) {
@@ -75,6 +96,7 @@ export async function POST(request: NextRequest) {
       not_found: "No activity_log row found with that id in this organisation.",
       not_in_review: "This activity is not currently in the 'reviewing' stage -- either it was never flagged for review, or it has already been reviewed.",
       self_review_not_allowed: "The reviewer must be a different user from whoever dispatched the original task -- no self-certification.",
+      handover_not_submitted: "No structured handover has been recorded for this dispatch yet -- it cannot be closed out until one exists.",
     }
     return NextResponse.json({ status: "rejected", reason: result.reason, message: messages[result.reason] }, { status: 409 })
   }

@@ -24,6 +24,7 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
 import { bandConfidence } from "@/lib/confidence-banding";
+import { decideAcceptance } from "@/lib/handover-protocol";
 import type { RiskLevel } from "@/lib/risk-classification";
 
 export type ActivityType = "ai_team_dispatch";
@@ -52,6 +53,17 @@ export type RecordActivityInput = {
   costUsd?: number | null;
   /** risk-classification.ts's classifyRisk() output, computed by the caller at dispatch time (Guardrail 10). */
   riskLevel?: string | null;
+  /**
+   * tree4-unified/50-completion-plan area 3, PLAN-16 item (f): the
+   * executing role's own structured self-report -- see schema.ts's
+   * self_assessment column comment (Wave 165), which named this shape but
+   * left it unpopulated until qa-precompletion-gate.ts's
+   * buildDispatchSelfAssessment() (called from the dispatch route) filled
+   * it in for real. A HandoverFields object in practice, kept as
+   * Record<string, unknown> here to match the column's own jsonb type and
+   * this file's existing PeerReviewInput.selfAssessment signature.
+   */
+  selfAssessment?: Record<string, unknown> | null;
 };
 
 /**
@@ -76,6 +88,7 @@ export function recordActivity(params: RecordActivityInput): Promise<{ id: strin
       durationMs: params.durationMs ?? null,
       errorReason: params.lifecycleStage === "failed" ? (params.errorReason ?? null) : null,
       riskLevel: params.riskLevel ?? null,
+      selfAssessment: params.selfAssessment ?? null,
     }).returning({ id: activityLog.id });
     if (row && TERMINAL_STAGES.has(params.lifecycleStage)) {
       await runTaskReflection(db, {
@@ -119,6 +132,26 @@ export function getActivityRiskLevel(orgId: string, activityLogId: string): Prom
   }).catch(() => null);
 }
 
+/**
+ * Reads back the self_assessment (HandoverFields-shaped, see
+ * buildDispatchSelfAssessment) persisted on an activity_log row --
+ * feeds the QA pre-completion gate (checkQaPreCompletionGate,
+ * qa-precompletion-gate.ts) at closure time, same fail-quiet-on-error
+ * posture as getActivityRiskLevel just above and the same reason: a
+ * client-supplied value could be spoofed to dodge the gate, so the
+ * review route must read this back from the row itself, not trust the
+ * request body.
+ */
+export function getActivitySelfAssessment(orgId: string, activityLogId: string): Promise<Record<string, unknown> | null> {
+  return withTenantContext({ orgId }, async (db) => {
+    const row = await db.query.activityLog.findFirst({
+      where: eq(activityLog.id, activityLogId),
+      columns: { selfAssessment: true },
+    });
+    return (row?.selfAssessment as Record<string, unknown> | null) ?? null;
+  }).catch(() => null);
+}
+
 export type PeerReviewInput = {
   orgId: string;
   activityLogId: string;
@@ -135,11 +168,23 @@ export type PeerReviewInput = {
    * by the time this function runs, that gate has already passed.
    */
   confidencePercentage?: number | null;
+  /**
+   * tree4-unified/50-completion-plan area 3, PLAN-16 item (f): a real,
+   * substantive justification the reviewer supplied because
+   * checkQaPreCompletionGate() (qa-precompletion-gate.ts) required one --
+   * the row's self_assessment.validationPassed was not "yes". Merged onto
+   * the persisted self_assessment permanently, alongside who overrode it
+   * and when, so an override is always a visible, permanent part of the
+   * record and never a silent bypass. Only meaningful when reviewDecision
+   * is "approved"; ignored otherwise (see review/route.ts, which only
+   * ever supplies it when the QA gate actually required it).
+   */
+  qaGateOverrideReason?: string | null;
 };
 
 export type PeerReviewResult =
   | { recorded: true }
-  | { recorded: false; reason: "not_found" | "not_in_review" | "self_review_not_allowed" };
+  | { recorded: false; reason: "not_found" | "not_in_review" | "self_review_not_allowed" | "handover_not_submitted" };
 
 /**
  * Records an independent reviewer's decision against a 'reviewing'-stage
@@ -155,14 +200,56 @@ export async function recordPeerReview(params: PeerReviewInput): Promise<PeerRev
     if (existing.lifecycleStage !== "reviewing") return { recorded: false, reason: "not_in_review" as const };
     if (existing.userId && existing.userId === params.reviewedBy) return { recorded: false, reason: "self_review_not_allowed" as const };
 
+    // tree4-unified/50-completion-plan area 3, PLAN-16 item (f): reuses
+    // handover-protocol.ts's decideAcceptance() directly -- the same
+    // fail-closed pure logic acceptHandover() itself uses for
+    // task_agent_executions rows -- rather than hand-rolling an
+    // equivalent check here. Only its 'not_submitted' branch is reachable
+    // in this context: 'not_found' can't fire (existing is already
+    // confirmed non-null above), 'already_accepted' can't fire (handoverAcceptedBy
+    // is always passed as null below -- this table has no separate
+    // acceptance column, reviewedBy/reviewDecision above already are the
+    // acceptance act), and 'self_acceptance_not_allowed' can't fire (the
+    // self_review_not_allowed check above already caught self-dealing
+    // using the same userId comparison). Kept as real defense-in-depth,
+    // not dead code -- if the checks above are ever reordered, this still
+    // fires correctly instead of silently no-op'ing.
+    if (params.reviewDecision === "approved") {
+      const handoverTaskStatus = ((existing.selfAssessment as Record<string, unknown> | null)?.taskStatus as string | undefined) ?? null;
+      const acceptance = decideAcceptance(
+        { handoverTaskStatus, handoverAcceptedBy: null, workerAgentId: existing.userId },
+        params.reviewedBy
+      );
+      if (!acceptance.accepted && acceptance.reason === "not_submitted") {
+        return { recorded: false, reason: "handover_not_submitted" as const };
+      }
+    }
+
     const newStage = params.reviewDecision === "approved" ? "completed" : "failed";
     const confidenceBand = params.confidencePercentage != null ? bandConfidence(params.confidencePercentage) : null;
+    // tree4-unified/50-completion-plan area 3, PLAN-16 item (f): when the
+    // QA pre-completion gate (checkQaPreCompletionGate, evaluated in
+    // review/route.ts before this function is ever called) required an
+    // explicit override to approve, that justification is merged onto
+    // whatever self_assessment ends up persisted -- on top of a
+    // reviewer-supplied selfAssessment if one was also given, never
+    // silently dropped -- so the override is always a permanent, visible
+    // part of the record, not just a one-time gate check that leaves no
+    // trace.
+    const resolvedSelfAssessment = params.qaGateOverrideReason
+      ? {
+          ...((params.selfAssessment ?? existing.selfAssessment ?? {}) as Record<string, unknown>),
+          qaGateOverrideReason: params.qaGateOverrideReason,
+          qaGateOverriddenBy: params.reviewedBy,
+          qaGateOverriddenAt: new Date().toISOString(),
+        }
+      : (params.selfAssessment ?? existing.selfAssessment);
     await db.update(activityLog).set({
       lifecycleStage: newStage,
       reviewedBy: params.reviewedBy,
       reviewNotes: params.reviewNotes,
       reviewDecision: params.reviewDecision,
-      selfAssessment: params.selfAssessment ?? existing.selfAssessment,
+      selfAssessment: resolvedSelfAssessment,
       errorReason: newStage === "failed" ? params.reviewNotes : existing.errorReason,
       confidencePercentage: params.confidencePercentage != null ? String(params.confidencePercentage) : existing.confidencePercentage,
       confidenceBand: confidenceBand ?? existing.confidenceBand,

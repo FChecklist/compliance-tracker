@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { classifyTask, runRole, runGuardrailLevel, getRole } from "@/lib/ai-team/team-service"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
-import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF } from "@/lib/guardrail-registrations"
+import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
@@ -11,6 +11,7 @@ import { recordActivity } from "@/lib/activity-log-service"
 import { estimateCostUsd } from "@/lib/llm-client"
 import { classifyRisk, type BlastRadius } from "@/lib/risk-classification"
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
+import { buildDispatchSelfAssessment, checkQaPreCompletionGate } from "@/lib/qa-precompletion-gate"
 
 registerAllGuardrails()
 
@@ -169,10 +170,49 @@ export async function POST(request: NextRequest) {
     // that a low-confidence dispatch is NOT done until an independent
     // reviewer calls POST /api/ai/team/review (see that route + guardrail-
     // registrations.ts's AI_TEAM_CLOSURE_REVIEW_LEAF for the actual gate).
+    // tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16
+    // original item (f), "QA pre-completion gate distinct from GOV-08":
+    // two prior passes (04-implementation-log.yaml, 2026-07-11 x2) found
+    // Handover Protocol (handover-protocol.ts, PR #170) had zero live
+    // callers -- this is the real call site. Every field is derived from
+    // signals this route already computed for its own requiresAudit
+    // decision above (never fabricated -- see qa-precompletion-gate.ts's
+    // own header for why outputSummary is a factual descriptor, not the
+    // raw response text).
+    const selfAssessmentFields = buildDispatchSelfAssessment({
+      requiresAudit,
+      riskLevel,
+      lowConfidenceDetected: lowConfidence.detected,
+      lowConfidenceMatchedPhrase: lowConfidence.matchedPhrase,
+      outputSummary: `${execution.content.length}-character response from ${execution.role.title} (${execution.role.roleKey})`,
+    })
+    // GOV-08 (HANDOVER_PROTOCOL_LEAF) reused unmodified to validate the
+    // SUBMISSION itself, exactly as it already does for
+    // submitHandover()'s task_agent_executions rows. A failure here is
+    // code-derivation trouble, not a real handover defect (every field
+    // above is code-controlled, not user input) -- it degrades to "no
+    // self_assessment recorded" rather than blocking a successful
+    // dispatch's response.
+    const handoverFieldCheck = evaluateGuardrails(HANDOVER_PROTOCOL_LEAF, "input", selfAssessmentFields)
+    if (!handoverFieldCheck.passed) {
+      console.warn(`AI Team dispatch self-assessment failed GOV-08 field validation (non-fatal): ${handoverFieldCheck.reason}`)
+    }
+    // The actual QA pre-completion gate (PLAN-16 item (f), distinct from
+    // GOV-08 above): GOV-08 only checks the submission is well-formed;
+    // this checks whether its reported Validation Passed VALUE permits a
+    // 'completed' lifecycle_stage at all. lifecycleStage below mirrors
+    // requiresAudit exactly today (validationPassed is derived FROM
+    // requiresAudit in buildDispatchSelfAssessment), but the gate -- not
+    // the ad hoc boolean -- is now the thing that actually decides it, so
+    // a future caller with a more granular validationPassed signal is
+    // honored automatically instead of needing this route rewritten.
+    const qaGate = checkQaPreCompletionGate({ handoverValidationPassed: selfAssessmentFields.validationPassed })
+    const lifecycleStage = qaGate.passed ? "completed" : "reviewing"
+
     const activityRow = orgId
       ? await recordActivity({
           orgId, userId: dbUser.id, activityType: "ai_team_dispatch",
-          lifecycleStage: requiresAudit ? "reviewing" : "completed",
+          lifecycleStage,
           objective, roleKey: classification.role,
           durationMs: Date.now() - dispatchStartedAt,
           // Real cost when this model's pricing is known (estimateCostUsd
@@ -180,6 +220,7 @@ export async function POST(request: NextRequest) {
           // reflection row's cost verdict, never fabricated.
           costUsd: estimateCostUsd(targetRole.model, execution.usage) ?? undefined,
           riskLevel,
+          selfAssessment: handoverFieldCheck.passed ? selfAssessmentFields : undefined,
         })
       : null
 
