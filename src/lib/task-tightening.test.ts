@@ -6,6 +6,8 @@ const VALID: TightTask = {
   objective: "Add real PDF and Excel export to the reports dashboard",
   scope: "Only src/app/(app)/reports/page.tsx and package.json",
   successCriteria: "Both buttons produce a file matching the CSV export's columns; typecheck passes",
+  complexityTier: "mechanical",
+  expectedOutput: "A downloadable PDF file matching the CSV export's row/column structure",
 }
 
 describe("validateTightTask", () => {
@@ -59,6 +61,32 @@ describe("validateTightTask", () => {
   test("constraints is optional -- a valid task without it still passes", () => {
     expect(validateTightTask({ ...VALID, constraints: undefined })).toEqual({ valid: true })
   })
+
+  test("rejects a missing expected output", () => {
+    const result = validateTightTask({ ...VALID, expectedOutput: "" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("Expected output is missing")
+  })
+
+  test("rejects a missing complexity tier", () => {
+    // @ts-expect-error -- deliberately testing the missing-field case
+    const result = validateTightTask({ ...VALID, complexityTier: undefined })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("Complexity tier is missing")
+  })
+
+  test("rejects an unrecognized complexity tier", () => {
+    // @ts-expect-error -- deliberately testing an invalid enum value
+    const result = validateTightTask({ ...VALID, complexityTier: "extreme" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("not recognized")
+  })
+
+  test("accepts all 3 valid complexity tiers", () => {
+    for (const tier of ["mechanical", "integrative", "judgment"] as const) {
+      expect(validateTightTask({ ...VALID, complexityTier: tier })).toEqual({ valid: true })
+    }
+  })
 })
 
 describe("assembleTightTaskPrompt", () => {
@@ -68,6 +96,9 @@ describe("assembleTightTaskPrompt", () => {
     expect(prompt).toContain("Scope: " + VALID.scope)
     expect(prompt).toContain(VALID.successCriteria)
     expect(prompt).toContain("Success Criteria")
+    expect(prompt).toContain("Complexity tier: mechanical")
+    expect(prompt).toContain("Expected Output")
+    expect(prompt).toContain(VALID.expectedOutput)
   })
 
   test("omits the Constraints line when not provided", () => {

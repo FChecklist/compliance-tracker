@@ -1067,3 +1067,85 @@ entries:
         this exact task shape should change how future dispatches to that
         role are scoped (smaller than "wire two files together"?) rather
         than assuming this one data point generalizes.
+  - id: WAVE-163
+    title: "Model-complexity-tier routing + mandatory-audit CI gate -- includes chief_audit_officer's first real dispatch finding 2 real bugs"
+    doer:
+      agent: claude-code
+      date: "2026-07-11"
+      pr: PENDING
+      summary: >
+        Boss approved the model-distribution strategy from the prior
+        conversation, then asked what constitutional amendments it implied,
+        then asked for a deep gap analysis, then directly called out that
+        design/presentation had been substituting for actually closing the
+        gaps already found. Correct callout -- this wave closes them rather
+        than analyzing further.
+
+        Shipped: TightTask gains two new required fields, complexityTier
+        ('mechanical'|'integrative'|'judgment') and expectedOutput (closes
+        the "input tightened, output loose" gap named in the prior gap
+        analysis). New src/lib/model-tier-eligibility.ts: deterministic,
+        most-restrictive-by-default model/tier eligibility (an unlisted
+        model defaults to mechanical-only, not broadly trusted) --
+        GPT-OSS-120B explicitly excluded from integrative-tier (its
+        confirmed 2/2 failure shape from Waves 161-162), only
+        z-ai/glm-5.2/openai/gpt-5.5 eligible for judgment-tier. Wired into
+        all three real dispatch surfaces (previously only input-tightening
+        existed on any of them; peer-review/audit existed on none of them
+        for the pipeline actually used for real dispatches).
+
+        New .github/workflows/mandatory-audit-check.yml: AGENTS.md Rule
+        7c (doer != auditor) was a written norm with zero CI enforcement,
+        confirmed by grep before building this -- any PR from a cheap-tier
+        AI Workforce branch (ai-team/tool_integration_engineer/*,
+        ai-team/governance_backend_engineer/*) is now BLOCKED from merging
+        until a comment starting "AUDIT: PASS"/"AUDIT: FAIL" is posted.
+        Scoped narrowly (branch-name match) so normal development PRs are
+        never affected.
+
+        chief_audit_officer's first real dispatch, ever (previously
+        declared with a seeded prompt, zero invocations): audited this
+        wave's own diff via a direct runRole() call (worked around
+        resolvePromptTemplate()'s undispatchable-from-local-machine
+        DATABASE_URL dependency by fetching the prompt via PostgREST, same
+        technique ai-workforce-agent.mjs already uses). Verdict: REJECT,
+        with real, specific findings, not a rubber stamp:
+        (1) route.ts's tier check was fail-OPEN -- `if (targetRole?.model)`
+        silently skipped the entire check for an unresolvable role instead
+        of blocking; fixed to fail-closed. (2) guardrail-registrations.ts's
+        tightTaskCheck() never read complexityTier/expectedOutput from
+        context at all -- every real dispatch through that gate would have
+        been rejected regardless of what the caller sent; fixed. Two other
+        claims it correctly refused to certify (JUDGMENT_ELIGIBLE-vs-roster.ts
+        consistency, mandatory-audit-check.yml's fail-closed behavior) were
+        verified separately and documented with explicit reasoning where
+        the CAO's own audit script had a scope gap (git diff excludes
+        untracked new files by default -- the CAO was never shown two of
+        the new files, a real limitation of the one-off dispatch script,
+        not of the role).
+
+        tsc/lint/build clean; full test suite 131 pass / 1 fail / 1 error
+        (both pre-existing unrelated, same baseline as every prior wave);
+        node scripts/check-guardrail-presence.mjs passes with 32 markers
+        (up from 27).
+    auditor:
+      agent: PENDING
+      date: PENDING
+      verdict: PENDING
+      summary: >
+        chief_audit_officer's REJECT verdict on the pre-fix diff is the
+        real audit trail for this wave's core logic (see doer summary) --
+        but that dispatch itself was run and interpreted by Claude, the
+        same agent that wrote the code, which is exactly the self-
+        certification Rule 7c exists to prevent. A genuinely independent
+        second agent (z.ai, or a fresh Claude session with no context on
+        this wave) should re-audit the final diff, specifically: (1)
+        whether the fail-closed fix in route.ts is complete or whether
+        another silent-skip path exists elsewhere; (2) whether
+        JUDGMENT_ELIGIBLE actually matches every judgment-critical role's
+        model in roster.ts today (never independently verified, only
+        reasoned about); (3) whether mandatory-audit-check.yml's branch-
+        name allowlist will silently under-protect if a new cheap-tier
+        role is added to roster.ts without a matching update here -- this
+        is a real, named, unclosed gap (two lists that must be kept in
+        sync by hand, no single source of truth).

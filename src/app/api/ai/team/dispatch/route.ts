@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
-import { classifyTask, runRole, runGuardrailLevel } from "@/lib/ai-team/team-service"
+import { classifyTask, runRole, runGuardrailLevel, getRole } from "@/lib/ai-team/team-service"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
+import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
 import { recordActivity } from "@/lib/activity-log-service"
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     // is token-usage-ledger-only. Fire-and-forget, never blocks dispatch.
     if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "requested", objective })
 
-    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, constraints })
+    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints })
     if (!tightness.passed) {
       void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
       if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
@@ -61,11 +62,44 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, constraints })
+    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, complexityTier: complexityTier!, expectedOutput: expectedOutput!, constraints })
 
     const classification = forcedRole
       ? { role: forcedRole, reasoning: "Caller-specified role, classification skipped.", confidence: 1 }
       : await classifyTask(task)
+
+    // Wave 163 (Boss directive: "based on complexity given to the AI
+    // model"): the tightness check above validates the tier is a real
+    // value; this checks it's the RIGHT value for the role classification/
+    // forcedRole actually resolved to. Checked before any guardrail-team
+    // review or execution -- a judgment-tier task routed to a mechanical-
+    // only model is rejected here, not discovered after the fact.
+    // Audit finding (chief_audit_officer's first real dispatch, CAO-001):
+    // the original `if (targetRole?.model)` guard was fail-OPEN -- an
+    // unresolvable role or a role with no model silently skipped the tier
+    // check entirely and fell through toward execution (RoleNotCallableError
+    // would eventually catch it inside runRole(), but only after a real
+    // GUARDRAIL_PLATFORM LLM call had already run, and with no tier-specific
+    // reason surfaced). Fixed to fail closed: an unresolvable role is
+    // rejected HERE, before any guardrail review or model call.
+    const targetRole = getRole(classification.role)
+    if (!targetRole?.model) {
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
+      return NextResponse.json({
+        status: "blocked",
+        classification,
+        blockedBy: { reason: `Role "${classification.role}" could not be resolved to a callable model.`, guidance: "Check the role_key -- it must be a real, LLM-backed role in roster.ts (not human-only or code-only)." },
+      }, { status: 422 })
+    }
+    const tierCheck = checkTierEligibility(targetRole.model, complexityTier!)
+    if (!tierCheck.eligible) {
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
+      return NextResponse.json({
+        status: "blocked",
+        classification,
+        blockedBy: { reason: tierCheck.reason, guidance: tierCheck.guidance },
+      }, { status: 422 })
+    }
 
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))

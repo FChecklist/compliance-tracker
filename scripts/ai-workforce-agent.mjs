@@ -45,11 +45,14 @@ const apiKey = process.env.OPENROUTER_API_KEY
 // before the agent loop (and any OpenRouter spend) starts.
 const { validateTightTask, assembleTightTaskPrompt } = await import(path.join(REPO_ROOT, "src/lib/task-tightening.ts"))
 const { checkLoopBudget } = await import(path.join(REPO_ROOT, "src/lib/loop-prevention.ts"))
+const { checkTierEligibility, requiresMandatoryAudit } = await import(path.join(REPO_ROOT, "src/lib/model-tier-eligibility.ts"))
 
 const rawTask = {
   objective: process.env.AI_TEAM_TASK_OBJECTIVE,
   scope: process.env.AI_TEAM_TASK_SCOPE,
   successCriteria: process.env.AI_TEAM_TASK_SUCCESS_CRITERIA,
+  complexityTier: process.env.AI_TEAM_TASK_COMPLEXITY_TIER,
+  expectedOutput: process.env.AI_TEAM_TASK_EXPECTED_OUTPUT,
   constraints: process.env.AI_TEAM_TASK_CONSTRAINTS || undefined,
 }
 
@@ -62,7 +65,7 @@ const tightness = validateTightTask(rawTask)
 if (!tightness.valid) {
   console.error(`[ai-workforce-agent] Task rejected -- not tight enough to dispatch: ${tightness.reason}`)
   console.error(`[ai-workforce-agent] ${tightness.guidance}`)
-  console.error("[ai-workforce-agent] Required env vars: AI_TEAM_TASK_OBJECTIVE, AI_TEAM_TASK_SCOPE, AI_TEAM_TASK_SUCCESS_CRITERIA (AI_TEAM_TASK_CONSTRAINTS is optional).")
+  console.error("[ai-workforce-agent] Required env vars: AI_TEAM_TASK_OBJECTIVE, AI_TEAM_TASK_SCOPE, AI_TEAM_TASK_SUCCESS_CRITERIA, AI_TEAM_TASK_COMPLEXITY_TIER (mechanical|integrative|judgment), AI_TEAM_TASK_EXPECTED_OUTPUT (AI_TEAM_TASK_CONSTRAINTS is optional).")
   process.exit(1)
 }
 
@@ -72,6 +75,17 @@ const { AI_TEAM_ROSTER } = await import(path.join(REPO_ROOT, "src/lib/ai-team/ro
 const role = AI_TEAM_ROSTER.find((r) => r.roleKey === roleKey)
 if (!role || role.isHuman || role.isCodeOnly || !role.model) {
   console.error(`Role '${roleKey}' is not a repo-write-capable AI Workforce role.`)
+  process.exit(1)
+}
+
+// Wave 163 (Boss directive: "based on complexity given to the AI model"):
+// this is the actual pipeline both real cheap-tier dispatches this session
+// went through (GPT-OSS-120B, DeepSeek V4 Pro) -- neither had any tier
+// check at all before this. Checked before any OpenRouter spend.
+const tierCheck = checkTierEligibility(role.model, rawTask.complexityTier)
+if (!tierCheck.eligible) {
+  console.error(`[ai-workforce-agent] ${tierCheck.reason}`)
+  console.error(`[ai-workforce-agent] ${tierCheck.guidance}`)
   process.exit(1)
 }
 
@@ -414,6 +428,11 @@ async function main() {
     const fs = await import("node:fs")
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `summary=${finished.summary.replace(/\n/g, " ").slice(0, 500)}\n`)
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `files_changed=${finished.filesChanged.length}\n`)
+    // Wave 163: feeds the "Push and open PR" step's mandatory-audit marker
+    // and mandatory-audit-check.yml's CI gate -- neither role that has
+    // dispatched through this pipeline so far (GPT-OSS-120B, DeepSeek V4
+    // Pro) has earned judgment-tier trust, so both are always true today.
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `requires_audit=${requiresMandatoryAudit(role.model)}\n`)
   }
 }
 

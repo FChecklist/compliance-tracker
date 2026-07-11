@@ -12,6 +12,7 @@
 
 import { getRole } from "./roster"
 import { validateTightTask, type TightTask } from "../task-tightening"
+import { checkTierEligibility } from "../model-tier-eligibility"
 
 const REPO = "FChecklist/compliance-tracker"
 
@@ -32,6 +33,15 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
     throw new Error(`Task is not tight enough to dispatch: ${validation.reason} ${validation.guidance}`)
   }
 
+  // Wave 163: same tier-eligibility check as /api/ai/team/dispatch --
+  // this path has no live callers yet, but it's the trigger for
+  // ai-workforce-agent.mjs, so it gets the same enforcement rather than
+  // being left as the one dispatch surface without it.
+  const tierCheck = checkTierEligibility(role.model, task.complexityTier)
+  if (!tierCheck.eligible) {
+    throw new Error(`${tierCheck.reason} ${tierCheck.guidance}`)
+  }
+
   const token = process.env.GITHUB_DISPATCH_PAT
   if (!token) throw new Error("GITHUB_DISPATCH_PAT is not configured -- cannot fire repository_dispatch from the app.")
 
@@ -49,6 +59,8 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
         objective: task.objective,
         scope: task.scope,
         success_criteria: task.successCriteria,
+        complexity_tier: task.complexityTier,
+        expected_output: task.expectedOutput,
         constraints: task.constraints ?? "",
       },
     }),
