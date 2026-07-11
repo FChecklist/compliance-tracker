@@ -650,6 +650,165 @@ const LOGISTICS_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]
 }
 Object.assign(WIRED_ENGINE_INPUT_FIELDS, LOGISTICS_WIRED_ENGINE_INPUT_FIELDS)
 
+// Marketing Engine (tree4-unified/50-completion-plan area 8, Wave 170) --
+// UI fields for 3 of 6 wired engines. attribution_engine/
+// campaign_scoring_engine/funnel_conversion_calculator take array/object
+// inputs -- dispatchable, no chat-composer form yet.
+const MARKETING_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  marketing_roi_calculator: [
+    { key: "revenueGenerated", label: "Revenue generated (₹)", type: "number" },
+    { key: "marketingSpend", label: "Marketing spend (₹)", type: "number" },
+  ],
+  cac_calculator: [
+    { key: "totalAcquisitionSpend", label: "Total acquisition spend (₹)", type: "number" },
+    { key: "newCustomersAcquired", label: "New customers acquired", type: "number" },
+  ],
+  roas_calculator: [
+    { key: "revenueFromAds", label: "Revenue from ads (₹)", type: "number" },
+    { key: "adSpend", label: "Ad spend (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, MARKETING_WIRED_ENGINE_INPUT_FIELDS)
+
+// Project Management Engine (tree4-unified/50-completion-plan area 8,
+// Wave 170) -- UI fields for 3 of 6 wired engines with simple scalar
+// inputs. critical_path_engine/resource_allocation_engine/
+// burndown_calculator take array inputs -- dispatchable, no chat-composer
+// form yet.
+const PM_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  cost_variance_engine: [
+    { key: "earnedValue", label: "Earned value (₹)", type: "number" },
+    { key: "actualCost", label: "Actual cost (₹)", type: "number" },
+  ],
+  schedule_variance_engine: [
+    { key: "earnedValue", label: "Earned value (₹)", type: "number" },
+    { key: "plannedValue", label: "Planned value (₹)", type: "number" },
+  ],
+  earned_value_calculator: [
+    { key: "plannedValue", label: "Planned value (₹)", type: "number" },
+    { key: "earnedValue", label: "Earned value (₹)", type: "number" },
+    { key: "actualCost", label: "Actual cost (₹)", type: "number" },
+    { key: "budgetAtCompletion", label: "Budget at completion (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, PM_WIRED_ENGINE_INPUT_FIELDS)
+
+// CRM Engine (tree4-unified/50-completion-plan area 8, Wave 170) -- UI
+// fields for 4 of 5 wired engines with simple scalar inputs.
+// rfm_scoring_engine takes an array of customers -- dispatchable, no
+// chat-composer form yet.
+const CRM_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  customer_lifetime_value_calculator: [
+    { key: "avgOrderValue", label: "Average order value (₹)", type: "number" },
+    { key: "purchaseFrequencyPerYear", label: "Purchase frequency per year", type: "number" },
+    { key: "customerLifespanYears", label: "Customer lifespan (years)", type: "number" },
+  ],
+  churn_probability_calculator: [
+    { key: "daysSinceLastActivity", label: "Days since last activity", type: "number" },
+    { key: "engagementDeclinePercent", label: "Engagement decline (%)", type: "number" },
+  ],
+  opportunity_score_calculator: [
+    { key: "budget", label: "Budget fit score (0-100)", type: "number" },
+    { key: "authority", label: "Authority score (0-100)", type: "number" },
+    { key: "need", label: "Need score (0-100)", type: "number" },
+    { key: "timeline", label: "Timeline score (0-100)", type: "number" },
+  ],
+  customer_health_score: [
+    { key: "usageScore", label: "Usage score (0-100)", type: "number" },
+    { key: "supportScore", label: "Support score (0-100)", type: "number" },
+    { key: "paymentScore", label: "Payment timeliness score (0-100)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, CRM_WIRED_ENGINE_INPUT_FIELDS)
+
+// Sales Engine (tree4-unified/50-completion-plan area 8, Wave 170) -- UI
+// fields for 4 of 7 wired engines. sales_incentive_calculator/
+// sales_forecast_engine/pipeline_probability_engine take array inputs --
+// dispatchable, no chat-composer form yet.
+const MARKUP_MODE_OPTIONS = [{ value: "markup_from_prices", label: "Compute markup % from prices" }, { value: "price_from_markup", label: "Compute price from cost + markup %" }]
+
+const SALES_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  margin_calculator: [
+    { key: "sellingPrice", label: "Selling price (₹)", type: "number" },
+    { key: "cost", label: "Cost (₹)", type: "number" },
+  ],
+  markup_calculator: [
+    { key: "mode", label: "Mode (optional, defaults to markup-from-prices)", type: "select", options: MARKUP_MODE_OPTIONS, optional: true },
+    { key: "sellingPrice", label: "Selling price (₹, for markup-from-prices mode)", type: "number", optional: true },
+    { key: "cost", label: "Cost (₹)", type: "number" },
+    { key: "markupPercent", label: "Markup % (for price-from-markup mode)", type: "number", optional: true },
+  ],
+  pricing_engine: [
+    { key: "cost", label: "Cost (₹)", type: "number" },
+    { key: "targetMarginPercent", label: "Target margin (%)", type: "number" },
+  ],
+  quote_optimizer: [
+    { key: "cost", label: "Cost (₹)", type: "number" },
+    { key: "listPrice", label: "List price (₹)", type: "number" },
+    { key: "minAcceptableMarginPercent", label: "Minimum acceptable margin (%)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, SALES_WIRED_ENGINE_INPUT_FIELDS)
+
+// Fixed Asset Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+// -- UI fields for all 8 wired engines, all scalar inputs.
+const FIXED_ASSET_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  straight_line_depreciation_engine: [
+    { key: "cost", label: "Asset cost (₹)", type: "number" },
+    { key: "salvageValue", label: "Salvage value (₹)", type: "number" },
+    { key: "usefulLifeYears", label: "Useful life (years)", type: "number" },
+  ],
+  wdv_depreciation_engine: [
+    { key: "cost", label: "Asset cost (₹)", type: "number" },
+    { key: "salvageValue", label: "Salvage value (₹)", type: "number" },
+    { key: "usefulLifeYears", label: "Useful life (years)", type: "number" },
+    { key: "rate", label: "Depreciation rate (optional, auto-derived if omitted)", type: "number", optional: true },
+  ],
+  useful_life_calculator: [
+    { key: "originalUsefulLifeYears", label: "Original useful life (years)", type: "number" },
+    { key: "ageInYears", label: "Current age (years)", type: "number" },
+  ],
+  asset_transfer_engine: [
+    { key: "netBookValue", label: "Net book value (₹)", type: "number" },
+    { key: "fromLocation", label: "From location", type: "text" },
+    { key: "toLocation", label: "To location", type: "text" },
+  ],
+  asset_disposal_engine: [
+    { key: "netBookValue", label: "Net book value (₹)", type: "number" },
+    { key: "saleProceeds", label: "Sale proceeds (₹)", type: "number" },
+  ],
+  capitalization_engine: [
+    { key: "expenseAmount", label: "Expense amount (₹)", type: "number" },
+    { key: "capitalizationThreshold", label: "Capitalization threshold (₹)", type: "number" },
+    { key: "extendsUsefulLife", label: "Extends useful life? (yes/no)", type: "text" },
+  ],
+  revaluation_engine: [
+    { key: "currentNetBookValue", label: "Current net book value (₹)", type: "number" },
+    { key: "fairValue", label: "Fair value (₹)", type: "number" },
+  ],
+  impairment_engine: [
+    { key: "carryingValue", label: "Carrying value (₹)", type: "number" },
+    { key: "recoverableAmount", label: "Recoverable amount (₹)", type: "number" },
+  ],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, FIXED_ASSET_WIRED_ENGINE_INPUT_FIELDS)
+
+// Data Quality Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+// -- UI fields for all 7 wired engines, all scalar inputs.
+const DATA_QUALITY_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
+  pan_validation_engine_dq: [{ key: "pan", label: "PAN number", type: "text" }],
+  gstin_validation_engine: [{ key: "gstin", label: "GSTIN", type: "text" }],
+  ifsc_validation_engine: [{ key: "ifsc", label: "IFSC code", type: "text" }],
+  email_validation_engine: [{ key: "email", label: "Email address", type: "text" }],
+  phone_validation_engine: [
+    { key: "phone", label: "Phone number", type: "text" },
+    { key: "defaultCountry", label: "Default country code (optional, defaults IN)", type: "text", optional: true },
+  ],
+  bank_account_validation_engine: [{ key: "accountNumber", label: "Bank account number", type: "text" }],
+  address_standardization_engine: [{ key: "address", label: "Address", type: "text" }],
+}
+Object.assign(WIRED_ENGINE_INPUT_FIELDS, DATA_QUALITY_WIRED_ENGINE_INPUT_FIELDS)
+
 // Generic entity actions -- real Worker Agents that operate "on a specific
 // customer/vendor" (invoice prep, reminders, GST filing) aren't domain-
 // grouped the same way as Finance/Compliance/etc. agents are, so this list

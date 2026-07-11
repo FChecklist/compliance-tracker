@@ -1185,6 +1185,245 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     }
   }
 
+  // Marketing Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+  // -- 6 of 6 registered engines, full category complete.
+  switch (engineKey) {
+    case "marketing_roi_calculator": {
+      const { calculateMarketingRoi } = await import("@/lib/engines/marketing-engine");
+      return { roiPercent: calculateMarketingRoi(Number(inputs.revenueGenerated), Number(inputs.marketingSpend)) };
+    }
+    case "cac_calculator": {
+      const { calculateCac } = await import("@/lib/engines/marketing-engine");
+      return { cac: calculateCac(Number(inputs.totalAcquisitionSpend), Number(inputs.newCustomersAcquired)) };
+    }
+    case "roas_calculator": {
+      const { calculateRoas } = await import("@/lib/engines/marketing-engine");
+      return { roas: calculateRoas(Number(inputs.revenueFromAds), Number(inputs.adSpend)) };
+    }
+    case "attribution_engine": {
+      const { attributeConversionLinear } = await import("@/lib/engines/marketing-engine");
+      const touchpoints = inputs.touchpoints as { channel: string }[];
+      if (!Array.isArray(touchpoints)) throw new Error("touchpoints must be an array");
+      return attributeConversionLinear(touchpoints, Number(inputs.conversionValue));
+    }
+    case "campaign_scoring_engine": {
+      const { calculateCampaignScore } = await import("@/lib/engines/marketing-engine");
+      const weights = inputs.weights as { reach: number; engagement: number; conversion: number } | undefined;
+      return { campaignScore: calculateCampaignScore({
+        reachScore: Number(inputs.reachScore), engagementScore: Number(inputs.engagementScore), conversionScore: Number(inputs.conversionScore),
+      }, weights) };
+    }
+    case "funnel_conversion_calculator": {
+      const { calculateFunnelConversion } = await import("@/lib/engines/marketing-engine");
+      const stageCounts = inputs.stageCounts as { stage: string; count: number }[];
+      if (!Array.isArray(stageCounts)) throw new Error("stageCounts must be an array");
+      return { funnel: calculateFunnelConversion(stageCounts) };
+    }
+  }
+
+  // Project Management Engine (tree4-unified/50-completion-plan area 8,
+  // Wave 170) -- 6 of 6 registered engines, full category complete.
+  switch (engineKey) {
+    case "critical_path_engine": {
+      const { calculateCriticalPath } = await import("@/lib/engines/project-management-engine");
+      const tasks = inputs.tasks as { id: string; duration: number; dependsOn: string[] }[];
+      if (!Array.isArray(tasks)) throw new Error("tasks must be an array");
+      return { criticalPath: calculateCriticalPath(tasks) };
+    }
+    case "resource_allocation_engine": {
+      const { allocateResources } = await import("@/lib/engines/project-management-engine");
+      const tasks = inputs.tasks as { id: string; requiredCapacity: number; priority: number }[];
+      if (!Array.isArray(tasks)) throw new Error("tasks must be an array");
+      return allocateResources(tasks, Number(inputs.availableCapacity));
+    }
+    case "cost_variance_engine": {
+      const { calculateCostVariance } = await import("@/lib/engines/project-management-engine");
+      return { costVariance: calculateCostVariance(Number(inputs.earnedValue), Number(inputs.actualCost)) };
+    }
+    case "schedule_variance_engine": {
+      const { calculateScheduleVariance } = await import("@/lib/engines/project-management-engine");
+      return { scheduleVariance: calculateScheduleVariance(Number(inputs.earnedValue), Number(inputs.plannedValue)) };
+    }
+    case "earned_value_calculator": {
+      const { calculateEarnedValueMetrics } = await import("@/lib/engines/project-management-engine");
+      return calculateEarnedValueMetrics({
+        plannedValue: Number(inputs.plannedValue), earnedValue: Number(inputs.earnedValue),
+        actualCost: Number(inputs.actualCost), budgetAtCompletion: Number(inputs.budgetAtCompletion),
+      });
+    }
+    case "burndown_calculator": {
+      const { calculateBurndown } = await import("@/lib/engines/project-management-engine");
+      const completedPointsByDay = inputs.completedPointsByDay as number[];
+      if (!Array.isArray(completedPointsByDay)) throw new Error("completedPointsByDay must be an array");
+      return { burndown: calculateBurndown(Number(inputs.totalStoryPoints), Number(inputs.sprintDays), completedPointsByDay.map(Number)) };
+    }
+  }
+
+  // CRM Engine (tree4-unified/50-completion-plan area 8, Wave 170) -- 5 of
+  // 5 registered engines, full category complete.
+  switch (engineKey) {
+    case "customer_lifetime_value_calculator": {
+      const { calculateCustomerLifetimeValue } = await import("@/lib/engines/crm-engine");
+      return { clv: calculateCustomerLifetimeValue(Number(inputs.avgOrderValue), Number(inputs.purchaseFrequencyPerYear), Number(inputs.customerLifespanYears)) };
+    }
+    case "churn_probability_calculator": {
+      const { calculateChurnProbability } = await import("@/lib/engines/crm-engine");
+      return { churnProbability: calculateChurnProbability(Number(inputs.daysSinceLastActivity), Number(inputs.engagementDeclinePercent)) };
+    }
+    case "rfm_scoring_engine": {
+      const { calculateRfmScore } = await import("@/lib/engines/crm-engine");
+      const customers = inputs.customers as { id: string; recencyDays: number; frequency: number; monetary: number }[];
+      if (!Array.isArray(customers)) throw new Error("customers must be an array");
+      return calculateRfmScore(customers);
+    }
+    case "opportunity_score_calculator": {
+      const { calculateOpportunityScore } = await import("@/lib/engines/crm-engine");
+      return { opportunityScore: calculateOpportunityScore({
+        budget: Number(inputs.budget), authority: Number(inputs.authority), need: Number(inputs.need), timeline: Number(inputs.timeline),
+      }) };
+    }
+    case "customer_health_score": {
+      const { calculateCustomerHealthScore } = await import("@/lib/engines/crm-engine");
+      const weights = inputs.weights as { usage: number; support: number; payment: number } | undefined;
+      return { healthScore: calculateCustomerHealthScore({
+        usageScore: Number(inputs.usageScore), supportScore: Number(inputs.supportScore), paymentScore: Number(inputs.paymentScore),
+      }, weights) };
+    }
+  }
+
+  // Sales Engine (tree4-unified/50-completion-plan area 8, Wave 170) -- 7
+  // of 7 registered engines, full category complete. markup_calculator
+  // supports both directions of the markup relationship (compute markup%
+  // from prices, or compute a price from cost+markup%) via a `mode` input.
+  switch (engineKey) {
+    case "margin_calculator": {
+      const { calculateMargin } = await import("@/lib/engines/sales-engine");
+      return { marginPercent: calculateMargin(Number(inputs.sellingPrice), Number(inputs.cost)) };
+    }
+    case "markup_calculator": {
+      const { calculateMarkup, priceFromMarkup } = await import("@/lib/engines/sales-engine");
+      if (inputs.mode === "price_from_markup") {
+        return { price: priceFromMarkup(Number(inputs.cost), Number(inputs.markupPercent)) };
+      }
+      return { markupPercent: calculateMarkup(Number(inputs.sellingPrice), Number(inputs.cost)) };
+    }
+    case "sales_incentive_calculator": {
+      const { calculateSalesIncentive } = await import("@/lib/engines/sales-engine");
+      const slabs = inputs.slabs as { minAchievementPercent: number; incentivePercentOfSales: number }[];
+      if (!Array.isArray(slabs)) throw new Error("slabs must be an array");
+      return { incentiveAmount: calculateSalesIncentive(Number(inputs.achievedSales), Number(inputs.targetSales), slabs) };
+    }
+    case "pricing_engine": {
+      const { priceForTargetMargin } = await import("@/lib/engines/sales-engine");
+      return { price: priceForTargetMargin(Number(inputs.cost), Number(inputs.targetMarginPercent)) };
+    }
+    case "quote_optimizer": {
+      const { optimizeQuoteDiscount } = await import("@/lib/engines/sales-engine");
+      return { maxDiscountPercent: optimizeQuoteDiscount(Number(inputs.cost), Number(inputs.listPrice), Number(inputs.minAcceptableMarginPercent)) };
+    }
+    case "sales_forecast_engine": {
+      const { forecastSales } = await import("@/lib/engines/sales-engine");
+      const historicalValues = inputs.historicalValues as number[];
+      if (!Array.isArray(historicalValues)) throw new Error("historicalValues must be an array");
+      return { forecast: forecastSales(historicalValues.map(Number), Number(inputs.periodsAhead)) };
+    }
+    case "pipeline_probability_engine": {
+      const { calculatePipelineExpectedValue } = await import("@/lib/engines/sales-engine");
+      const deals = inputs.deals as { stage: string; amount: number }[];
+      if (!Array.isArray(deals)) throw new Error("deals must be an array");
+      return { expectedValue: calculatePipelineExpectedValue(deals) };
+    }
+  }
+
+  // Fixed Asset Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+  // -- 8 of 8 registered engines, full category complete.
+  switch (engineKey) {
+    case "straight_line_depreciation_engine": {
+      const { straightLineDepreciation } = await import("@/lib/engines/fixed-asset-engine");
+      return { schedule: straightLineDepreciation({ cost: Number(inputs.cost), salvageValue: Number(inputs.salvageValue), usefulLifeYears: Number(inputs.usefulLifeYears) }) };
+    }
+    case "wdv_depreciation_engine": {
+      const { writtenDownValueDepreciation } = await import("@/lib/engines/fixed-asset-engine");
+      return { schedule: writtenDownValueDepreciation({
+        cost: Number(inputs.cost), salvageValue: Number(inputs.salvageValue), usefulLifeYears: Number(inputs.usefulLifeYears),
+        rate: inputs.rate ? Number(inputs.rate) : undefined,
+      }) };
+    }
+    case "useful_life_calculator": {
+      const { calculateRemainingUsefulLife } = await import("@/lib/engines/fixed-asset-engine");
+      return { remainingUsefulLifeYears: calculateRemainingUsefulLife(Number(inputs.originalUsefulLifeYears), Number(inputs.ageInYears)) };
+    }
+    case "asset_transfer_engine": {
+      const { transferAsset } = await import("@/lib/engines/fixed-asset-engine");
+      return transferAsset(Number(inputs.netBookValue), String(inputs.fromLocation ?? ""), String(inputs.toLocation ?? ""));
+    }
+    case "asset_disposal_engine": {
+      const { calculateDisposalGainLoss } = await import("@/lib/engines/fixed-asset-engine");
+      return calculateDisposalGainLoss(Number(inputs.netBookValue), Number(inputs.saleProceeds));
+    }
+    case "capitalization_engine": {
+      const { shouldCapitalize } = await import("@/lib/engines/fixed-asset-engine");
+      return { shouldCapitalize: shouldCapitalize(Number(inputs.expenseAmount), Number(inputs.capitalizationThreshold), truthy(inputs.extendsUsefulLife)) };
+    }
+    case "revaluation_engine": {
+      const { revalueAsset } = await import("@/lib/engines/fixed-asset-engine");
+      return revalueAsset(Number(inputs.currentNetBookValue), Number(inputs.fairValue));
+    }
+    case "impairment_engine": {
+      const { calculateImpairmentLoss } = await import("@/lib/engines/fixed-asset-engine");
+      return calculateImpairmentLoss(Number(inputs.carryingValue), Number(inputs.recoverableAmount));
+    }
+  }
+
+  // Data Quality Engine (tree4-unified/50-completion-plan area 8, Wave 170)
+  // -- 7 of 8 registered engines (pan_validation_engine already wired
+  // separately for the TDS/TCS category, reusing the same isValidPanFormat
+  // here under this category's own key). data_duplicate_detection_engine
+  // has no standalone pure function anywhere in this codebase -- deferred,
+  // not force-fit onto document-processing-engine.ts's hash-based
+  // duplicate detector, which is shaped for documents specifically.
+  switch (engineKey) {
+    case "pan_validation_engine_dq": {
+      const { isValidPanFormat } = await import("@/lib/engines/data-quality-engine");
+      return { valid: isValidPanFormat(String(inputs.pan ?? "")) };
+    }
+    case "gstin_validation_engine": {
+      const { isValidGstin, isValidGstinFormat } = await import("@/lib/engines/data-quality-engine");
+      return { validFormat: isValidGstinFormat(String(inputs.gstin ?? "")), validChecksum: isValidGstin(String(inputs.gstin ?? "")) };
+    }
+    case "ifsc_validation_engine": {
+      const { isValidIfscFormat } = await import("@/lib/engines/data-quality-engine");
+      return { valid: isValidIfscFormat(String(inputs.ifsc ?? "")) };
+    }
+    case "email_validation_engine": {
+      const { isValidEmail } = await import("@/lib/engines/data-quality-engine");
+      return { valid: isValidEmail(String(inputs.email ?? "")) };
+    }
+    case "phone_validation_engine": {
+      const { isValidPhoneNumber } = await import("@/lib/engines/data-quality-engine");
+      return { valid: isValidPhoneNumber(String(inputs.phone ?? ""), inputs.defaultCountry ? String(inputs.defaultCountry) : undefined) };
+    }
+    case "bank_account_validation_engine": {
+      const { isValidBankAccountFormat } = await import("@/lib/engines/data-quality-engine");
+      return { valid: isValidBankAccountFormat(String(inputs.accountNumber ?? "")) };
+    }
+    case "address_standardization_engine": {
+      const { standardizeAddress } = await import("@/lib/engines/data-quality-engine");
+      return { standardizedAddress: standardizeAddress(String(inputs.address ?? "")) };
+    }
+  }
+
+  // Document Processing Engine (tree4-unified/50-completion-plan area 8,
+  // Wave 170) -- 1 of 1 registered engine, full category complete.
+  switch (engineKey) {
+    case "duplicate_document_detection_engine": {
+      const { detectDuplicateDocumentsByHash } = await import("@/lib/engines/document-processing-engine");
+      const documents = inputs.documents as { id: string; contentHash: string }[];
+      if (!Array.isArray(documents)) throw new Error("documents must be an array");
+      return { duplicateGroups: detectDuplicateDocumentsByHash(documents) };
+    }
+  }
+
   switch (engineKey) {
     default:
       throw new Error(`No engine dispatcher implemented for ${engineKey}`);
