@@ -5,6 +5,8 @@ import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
+import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
+import { recordActivity } from "@/lib/activity-log-service"
 
 registerAllGuardrails()
 
@@ -27,7 +29,7 @@ registerAllGuardrails()
 // is touched). Returns every step's output so a human can audit exactly
 // what happened, not just the final answer.
 export async function POST(request: NextRequest) {
-  const { user, dbUser, response: authError } = await requireAuth()
+  const { user, dbUser, orgId, response: authError } = await requireAuth()
   if (!user) return authError!
   if (!dbUser || dbUser.role !== "veridian_admin") {
     return NextResponse.json({ error: "AI Dev Team dispatch is veridian_admin-only" }, { status: 403 })
@@ -42,9 +44,17 @@ export async function POST(request: NextRequest) {
       role?: string // skip classification and force a specific AI Workforce role
     }
 
+    // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): AI Dev Team
+    // dispatch was, before this wave, the one real activity type in
+    // VERIDIAN that left NO persisted record anywhere at all -- not even
+    // an orchestraExecutions row, since runRole()'s own LLM call logging
+    // is token-usage-ledger-only. Fire-and-forget, never blocks dispatch.
+    if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "requested", objective })
+
     const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, constraints })
     if (!tightness.passed) {
       void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective })
       return NextResponse.json({
         status: "blocked",
         blockedBy: { reason: tightness.reason, guidance: tightness.guidance },
@@ -70,10 +80,26 @@ export async function POST(request: NextRequest) {
 
     const execution = await runRole(classification.role, task)
 
+    // VERIDIAN_AUDIT_ORGANIZATION.md, "L1 Real-Time Audit": the source
+    // document requires audit before completion whenever confidence is
+    // low. No numeric confidence score exists anywhere in this codebase
+    // (see that document's own honest note) -- fabricating one just to
+    // compare it to 95% would be worse than not gating at all. Reusing
+    // detectLowConfidenceResponse() (already proven on the customer-facing
+    // floor tier, floor-tier-escalation.ts) as the deterministic proxy: if
+    // the executing role's own output hedges, a product-level review runs
+    // automatically, even if the caller never set touchesProduct. This is
+    // the one new mandatory trigger this wave adds -- previously the
+    // Guardrail levels below only ran when a caller explicitly opted in.
+    const lowConfidence = detectLowConfidenceResponse(execution.content)
+    const requiresAudit = lowConfidence.detected
+
     const guardrails: Record<string, unknown> = { platform: platformGuardrails }
-    if (touchesProduct) guardrails.product = await runGuardrailLevel("GUARDRAIL_PRODUCT", execution.content)
+    if (touchesProduct || requiresAudit) guardrails.product = await runGuardrailLevel("GUARDRAIL_PRODUCT", execution.content)
     if (touchesAccount) guardrails.account = await runGuardrailLevel("GUARDRAIL_ACCOUNT", execution.content)
     if (touchesUser) guardrails.user = await runGuardrailLevel("GUARDRAIL_USER", execution.content)
+
+    if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: requiresAudit ? "reviewing" : "completed", objective })
 
     return NextResponse.json({
       status: "completed",
@@ -81,6 +107,8 @@ export async function POST(request: NextRequest) {
       executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },
       output: execution.content,
       usage: execution.usage,
+      requiresAudit,
+      lowConfidenceSignal: lowConfidence.detected ? lowConfidence.matchedPhrase : null,
       guardrails,
     })
   } catch (error) {
