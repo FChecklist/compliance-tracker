@@ -2,16 +2,30 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { classifyTask, runRole, runGuardrailLevel } from "@/lib/ai-team/team-service"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
+import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
+import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF } from "@/lib/guardrail-registrations"
+import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
+
+registerAllGuardrails()
 
 // VERIDIAN Cognitive AI OS Development Team — dispatch endpoint.
 // Platform-internal (builds/governs VERIDIAN itself, never a customer
 // workflow), so this is veridian_admin-gated, not merely authenticated —
 // same posture as prompt-os-service.ts's createPromptVersion.
 //
-// Flow: classify (AI Router) -> execute (assigned AI Workforce role) ->
-// guardrail (platform level always; product/account/user only if the
-// caller says that layer is touched). Returns every step's output so a
-// human can audit exactly what happened, not just the final answer.
+// VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, Objective/Scope/Instruction
+// Validation Guardrails: the request body is now a structured TightTask
+// (objective/scope/successCriteria/constraints), not a free-text string.
+// This is the "make tightened tasks mandatory" enforcement point -- a
+// task missing any required field is blocked here, before classification
+// or any model is ever called, and the violation feeds the CLEE loop the
+// same way a policy-guardrail block does.
+//
+// Flow: validate task structure (Guardrail Engine) -> classify (AI
+// Router) -> execute (assigned AI Workforce role) -> guardrail (platform
+// level always; product/account/user only if the caller says that layer
+// is touched). Returns every step's output so a human can audit exactly
+// what happened, not just the final answer.
 export async function POST(request: NextRequest) {
   const { user, dbUser, response: authError } = await requireAuth()
   if (!user) return authError!
@@ -21,17 +35,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { task, touchesProduct, touchesAccount, touchesUser, role: forcedRole } = body as {
-      task: string
+    const { objective, scope, successCriteria, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
       role?: string // skip classification and force a specific AI Workforce role
     }
 
-    if (!task || typeof task !== "string") {
-      return NextResponse.json({ error: "task is required" }, { status: 400 })
+    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, constraints })
+    if (!tightness.passed) {
+      void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
+      return NextResponse.json({
+        status: "blocked",
+        blockedBy: { reason: tightness.reason, guidance: tightness.guidance },
+      }, { status: 422 })
     }
+
+    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, constraints })
 
     const classification = forcedRole
       ? { role: forcedRole, reasoning: "Caller-specified role, classification skipped.", confidence: 1 }
