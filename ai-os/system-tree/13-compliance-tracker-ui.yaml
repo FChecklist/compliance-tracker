@@ -1,0 +1,229 @@
+# compliance-tracker (VERIDIAN AI OS) -- Pages & UI Components
+# Source: direct inventory of src/app/(app)/** (~130 route modules) and
+# src/components/** (~65 non-shadcn files) this session.
+
+repo: compliance-tracker
+tree_version: 1
+domains:
+
+  - id: UI-01
+    name: "Assistant / Home surfaces"
+    objects:
+      - "/home -- assistant-first landing: VERI AI chat (left/center) + VERI Chat people-panel (right), AchievementCard + VeriTreasureWidget teasers"
+      - "/dashboard -- classic tabbed workspace: Analytics, To Do, Approval tabs"
+      - "/chat -- VERI Chat human/guest conversations (AI thread excluded)"
+      - "/veri-ai -- dedicated AI-thread page (legacy standalone, largely superseded by /home)"
+      - "/veri-todo -- unified pending-items feed (Tasks + Chat Instructions + PMS Issues merged)"
+    input: "User navigation; underlying data from API-08 (chat), API-16 (home/todos)."
+    output: "Rendered assistant/dashboard views."
+    rules:
+      - "The Mode Pills + cascading Chain Selector (GOV-09) is mounted GLOBALLY in AppShell.tsx (org-gated by veriChatV2Enabled), so it appears above EVERY authenticated page, not just these 5 -- listed here because this is where it's most central to the page's purpose."
+      - "VERI Chat is split across 3 surfaces (/chat, /veri-ai, /home) sharing the same underlying components -- a real fragmentation the platform has been consolidating toward /home as primary."
+    guardrails: []
+    workflow: ["User lands on /home -> sees assistant + people panel -> can switch to /dashboard for the classic tabbed view or /veri-todo for a merged pending-items list."]
+
+  - id: UI-02
+    name: "Compliance core pages"
+    objects:
+      - "/compliance, /compliance/[id] (tabs: Details, Audit Points, Documents, Activity, Challans, Comments), /compliance/new"
+      - "/checklists, /checklists/[id]"
+      - "/tasks, /reports (charts + DataTable + export + CustomReportsSection), /penalties (GST/TDS/PF/ESIC/MCA/Income-Tax interest & penalty calculator)"
+      - "/notices, /notices/new, /notices/[id]"
+      - "/ingest -- bulk import wizard (row-by-row review/approve/reject)"
+      - "/frameworks -- Controls & Framework Library (ISO 27001, SOC 2, COSO, NIST CSF, India Statutory, DPDP, PCI/HIPAA)"
+      - "/audit-engagements -- risk-based audit planning + CAPA-owned findings"
+      - "/audit -- Audit Trail viewer (filterable, paginated log)"
+    input: "User interaction against API-01 (compliance), API-12 (documents), API-11 (implicitly, via penalties)."
+    output: "Rendered compliance workspace."
+    rules: ["/penalties is a real calculator UI over GOV-07's tax engines (income-tax-engine.ts, tds-engine.ts, gst-engine.ts), not a separate calculation implementation."]
+    guardrails: []
+    workflow: ["Item created/imported -> tracked through /compliance/[id]'s tabs -> reported on via /reports -> penalties calculated when overdue -> everything auditable via /audit."]
+
+  - id: UI-03
+    name: "Governance / Company Secretarial / Legal pages"
+    objects:
+      - "/board, /board-evaluation, /committees, /rpt, /doa, /directors, /statutory-registers, /cap-table, /charges, /secretarial-audit, /mca-filings (AOC-4/MGT-7/DIR-12/CHG-1 form-data prep, no live MCA submission)"
+      - "/legal-matters (unified matter register + arbitration + spend), /legal-vendors, /litigation, /ip-portfolio, /legal-opinions (clause-library-backed AI draft generation)"
+      - "/policies -- draft -> publish -> attestation, publish requires approval"
+    input: "See API-13, DB-06/07."
+    output: "Rendered governance workspace."
+    rules: ["Mostly SimpleModulePage-driven (list + inline add form) -- a shared generic component, not 18 bespoke implementations."]
+    guardrails: []
+    workflow: ["See DB-06/07/API-13 workflows."]
+
+  - id: UI-04
+    name: "HR / People pages"
+    objects:
+      - "/hr (tabs: Directory, Org Chart, Leave), /hr-compliance, /leave-holiday"
+      - "/posh (Confidential-classified), /recruitment (tabs: Job Openings, Candidates, Applications)"
+      - "/performance-reviews (tabs: Review Cycles, Reviews)"
+    input: "See API-09."
+    output: "Rendered HR workspace."
+    rules: ["/posh is explicitly classification-gated -- Confidential per the classification.ts CLASSIFICATION_LEVELS system."]
+    guardrails: ["classification.ts's canAccess() gates /posh visibility."]
+    workflow: ["See API-09's workflow."]
+
+  - id: UI-05
+    name: "Risk / Regulatory / Integrity pages"
+    objects:
+      - "/risks, /vendor-risk, /esg (BRSR, Social pillar computed from Policy+POSH data)"
+      - "/sebi, /rbi, /irdai -- sector-gated (SectorGateNotice shown when entity type doesn't match)"
+      - "/whistleblower, /bcm, /it-dr (+[id]), /fraud-cases, /contract-compliance, /incidents"
+    input: "See API-13, DB-08/09."
+    output: "Rendered risk/regulatory workspace, or a SectorGateNotice for non-applicable orgs."
+    rules: ["/esg's Social pillar is COMPUTED (derived from Policy + POSH data), not independently entered -- a real cross-module data dependency."]
+    guardrails: ["SectorGate.tsx (SectorGateNotice) blocks sebi/rbi/irdai for orgs whose entityType doesn't match, at the UI layer."]
+    workflow: []
+
+  - id: UI-06
+    name: "Access & Approvals pages"
+    objects:
+      - "/approvals -- ApprovalTab (single-step maker-checker queue) + WorkflowApprovalsSection (multi-step/quorum workflow instances)"
+      - "/access-review, /access-review/[id] -- periodic RBAC certification cycles, admin-gated"
+    input: "A proposed action awaiting approval; an access-review cycle trigger."
+    output: "Approved/rejected decisions; access certifications."
+    rules: ["This page is the DIRECT UI for audit-tree D9 (Approval & Confirmation UX) and D15.B7 (Approval Governance) -- both option sets from that requirement tree converge here in practice."]
+    guardrails: []
+    workflow: ["Action proposed -> appears in ApprovalTab (simple) or WorkflowApprovalsSection (multi-step) -> maker-checker or quorum decision recorded."]
+
+  - id: UI-07
+    name: "Admin pages"
+    objects:
+      - "/users, /departments (+[id], /new)"
+      - "/settings -- side-nav: Profile, Organisation, Notifications, AI Configuration, AI Assistants, My AI, Preferences, Project Management, Security/MFA, API Access, Webhooks, SSO"
+    input: "Admin configuration changes."
+    output: "Updated org/user settings."
+    rules: ["/settings is the single largest settings surface, backed by ~10 dedicated sub-panel components (AiConfigSection, AiAssistantsSection, PersonalAiConfigSection, OrchestraModelConfigSection, ApiKeySection, WebhookSection, MfaSection, SsoSection, PmsEnablementSection) -- see UI-13."]
+    guardrails: []
+    workflow: []
+
+  - id: UI-08
+    name: "Finance / ERP pages -- 'VERI ERP AI', /erp/**"
+    objects:
+      - "journal-entries (tabs: Entries/Chart of Accounts/Cost Centers/Companies), budgets, reports (tabs: Trial Balance/P&L/Balance Sheet/Cash Flow), cash-management"
+      - "credit-notes (tabs: Sales/Purchase), inventory (tabs: Ledger/Items/Warehouses/UOM/Batches/Serials), bank-reconciliation"
+      - "gst-reconciliation (tabs: Imports/Reconcile 2B/Generate Return), tds-returns (Form 26Q/24Q)"
+      - "procurement (tabs: Requisitions/RFQs/Quotations), goods-receipt (+[id], three-way-match/[id]), inventory-planning (+[id], tabs: Replenishment/ABC/Cycle Count)"
+      - "payroll (tabs: Runs/Structures/Components/Rules/Tax Slabs), invoicing (tabs: Sales/Purchase/Pricing/Tax/Currencies), returns (tabs: Sales/Purchase)"
+      - "contracts (tabs: Contracts/Subscriptions), clm-library (tabs: Clauses/Templates), customers (+[id]), suppliers (+[id]), periods (month-end close checklist/sign-off/close)"
+    input: "See API-03."
+    output: "Rendered ERP workspace, one page per major ERP subdomain."
+    rules: ["Every tabbed page here maps 1:1 onto a DB-15 sub-domain -- the UI tab structure mirrors the schema's own domain grouping almost exactly."]
+    guardrails: []
+    workflow: ["See API-03/DB-15's workflow."]
+
+  - id: UI-09
+    name: "Sales / CRM pages"
+    objects:
+      - "/crm (tabs: Leads, Opportunities)"
+      - "/sales-hq -- admin-only internal sales/partner/commission view with VisitorIntelligencePanel"
+    input: "See API-10."
+    output: "Rendered CRM/Sales-HQ workspace."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: UI-10
+    name: "AI Operations / Dev-Team / Platform tool pages"
+    objects:
+      - "/orchestra -- AI Dev Team dispatch UI: 5 real assistants x 4-tier worker-agent library; RealAssistantColumn per assistant, AgentLibrarySheet browses global/customer/client/user-tier worker agents"
+      - "/orchestra/analytics -- cost/latency/failure-rate over orchestra_executions"
+      - "/fde -- 'VERI FDE' / 'Do It For Me': describe a need in plain language, matches existing capability or drafts a Worker Agent proposal (human-approved)"
+      - "/capability-registry -- semantic index of every worker agent/automation rule/module (admin backfill + duplicate audit)"
+      - "/automation -- deterministic trigger->condition->action rules (no AI)"
+      - "/metric-alerts -- Grafana-style scheduled threshold alerts (cron-evaluated)"
+      - "/prompt-eval -- prompt/model evaluation lab (admin-gated, deterministic keyword scoring)"
+      - "/mdm-quality -- duplicate detection + completeness scoring for Customers/Suppliers"
+      - "/connectors -- VERI CONNECT, one-click OAuth (Gmail/Drive/Calendar/Slack/Notion/GitHub/etc. via Composio)"
+      - "/kpi-hub -- cross-module executive KPI scorecard (compliance/risk/revenue/tickets/AI-ops)"
+      - "/rewards -- VERI Treasure hub (points/achievements/streaks/refer-and-earn)"
+    input: "See API-07, API-15."
+    output: "Rendered platform-tool workspaces -- this is where the governance core (10-compliance-tracker-governance.yaml) becomes user-visible."
+    rules: ["/orchestra is THE UI for GOV-05/06's 57-role AI Dev Team roster and dispatch layer."]
+    guardrails: []
+    workflow: ["See GOV-05/06/09's workflows -- this is their UI surface."]
+
+  - id: UI-11
+    name: "Knowledge / support / meetings pages"
+    objects:
+      - "/knowledge-base, /knowledge-base/[slug]"
+      - "/help -- Help Centre"
+      - "/team -- team member directory (read view, distinct from /users admin CRUD)"
+      - "/tickets, /tickets/[id] -- customer support tickets, each backed by a VERI Chat conversation underneath, guest access supported"
+      - "/problem-records -- ITIL-style problem management grouping tickets"
+      - "/veri-meetings, /veri-meetings/[id] -- AI-assisted meeting minutes with task-linked action items"
+      - "/clients -- client/entity roster (for multi-client accounts, e.g. CA/law firms)"
+    input: "See API-08, API-12, API-14."
+    output: "Rendered knowledge/support workspace."
+    rules: ["Every ticket IS a VERI Chat conversation underneath -- not a separate messaging system, a real architectural reuse."]
+    guardrails: []
+    workflow: []
+
+  - id: UI-12
+    name: "Project Management (/pms/**, opt-in) and THE FIRM (/the-firm-practice, opt-in)"
+    objects:
+      - "/pms -- project list. /pms/[projectId] + ProjectNav sub-tabs: Issues, Board, Sprints, Wiki, Time, Budgets, Meetings, Roadmap, wiki/[slug]"
+      - "/the-firm-practice -- 'Practice Cockpit', tabs: Dashboard, Client & Engagements, Tax Cases, Time & Billing"
+    input: "See API-04, API-05."
+    output: "Rendered PMS/Firm workspace, only visible if pmsEnabled/firmEnabled."
+    rules: ["Both are opt-in per org -- absent from the sidebar entirely for orgs that haven't enabled them, not just hidden/disabled."]
+    guardrails: []
+    workflow: []
+
+  - id: UI-13
+    name: "Reusable components -- app shell & navigation"
+    objects:
+      - "AppShell.tsx -- root authenticated layout: sidebar + topbar + health ribbon + trial banner + onboarding checklist + PageAgent + global chat dock/composer/panel + help widget"
+      - "AppSidebar.tsx -- main left nav, ~19 sections built by getNavSections(), gated by accountType/pmsEnabled/firmEnabled"
+      - "AppTopbar.tsx, search-command.tsx (global cmd-K), theme-toggle.tsx, HealthRibbon.tsx, HelpWidget.tsx, TrialBanner.tsx, OnboardingChecklist.tsx"
+    input: "Every authenticated page renders inside this shell."
+    output: "The consistent app frame around all ~130 pages."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: UI-14
+    name: "Reusable components -- veri-chat/ (Dynamic Mode Pills + Chain Selector, the core VERI Chat mechanism)"
+    objects:
+      - "veri-chat-context.tsx -- VeriChatProvider, composerMode (what to DO) vs rightPanelView (what's LOOKED AT), CapabilityNode/PathSegment types"
+      - "VeriComposer.tsx -- the persistent bottom composer (Mode Pills + cascading Chain rows), mounted once in AppShell"
+      - "VeriChatPanel.tsx -- independent right-side panel (Overview/Tasks/Chats/To-Do views)"
+    input: "Real capability-tree data from GOV-09's capability-tree-service.ts -- confirmed by direct code comment NOT to be a hardcoded taxonomy."
+    output: "The user's Mode Pill + Chain selection, feeding task creation (GOV-09)."
+    rules: ["Mounted globally in AppShell.tsx when veriChatV2Enabled -- appears above every (app) page."]
+    guardrails: []
+    workflow: ["See GOV-09's workflow -- this is its primary UI."]
+
+  - id: UI-15
+    name: "Reusable components -- chat/, home/, orchestra/, pms/, erp/, esignature/"
+    objects:
+      - "chat/: ConversationList.tsx, ThreadView.tsx, MessageContent.tsx (shared across /chat, /veri-ai, /home), StructuredMessageContent.tsx, MismatchBubble.tsx (flags an instruction/outcome mismatch to the assigner)"
+      - "home/: ToDoTab.tsx, AnalyticsTab.tsx, ApprovalTab.tsx (doubles as /approvals' queue), DashboardAnalytics.tsx, WorkflowApprovalsSection.tsx, AchievementCard.tsx, VeriTreasureWidget.tsx"
+      - "orchestra/: RealAssistantColumn.tsx, AgentLibrarySheet.tsx"
+      - "pms/: ProjectNav.tsx, CreateIssueDialog.tsx, IssueDetailPanel.tsx"
+      - "erp/: PartyAddressesAndContacts.tsx (polymorphic, shared by customers/[id] and suppliers/[id])"
+      - "esignature/: RequestSignatureButton.tsx (polymorphic, shared by Documents and erp/contracts)"
+    input: "Varies per component."
+    output: "Varies per component."
+    rules: ["MismatchBubble.tsx is the UI surface for DB-10's instruction_mismatch_detections -- visible only to the commitment's original assigner, a real privacy-scoped rendering decision."]
+    guardrails: []
+    workflow: []
+
+  - id: UI-16
+    name: "Reusable components -- shared top-level utilities & public-facing"
+    objects:
+      - "SectorGate.tsx, SimpleModulePage.tsx (+StatusPill, the generic list+inline-form CRUD pattern used by ~18-24 simple modules)"
+      - "AiConfigSection.tsx, AiAssistantsSection.tsx, PersonalAiConfigSection.tsx, OrchestraModelConfigSection.tsx, ApiKeySection.tsx, WebhookSection.tsx, MfaSection.tsx, SsoSection.tsx, PmsEnablementSection.tsx, CustomReportsSection.tsx, DocumentUploadSection.tsx, ChallanSection.tsx"
+      - "Public (outside (app)): ContactUsForm.tsx, JoinUsSection.tsx, ForgeIntakeComposer.tsx (reuses the Mode-Pills/Chain-Selector mechanism for public /forge lead intake), LegalBar.tsx, LegalShell.tsx, ProductSalesSection.tsx, RealProductDemo.tsx, VisitorIntelligence.tsx (anonymous visitor tracking), VisitorIntelligencePanel.tsx (the /sales-hq admin view of that data)"
+      - "data-table.tsx, status-badge.tsx (StatusBadge/PriorityBadge), compliance-chart.tsx, dashboard-card.tsx -- the 4 non-trivial shared ui/ primitives beyond the ~52 shadcn files"
+    input: "Varies."
+    output: "Varies."
+    rules:
+      - "SimpleModulePage is the single component behind roughly 18-24 of the ~130 pages (contract-compliance, irdai, rbi, sebi, secretarial-audit, ip-portfolio, charges, directors, committees, doa, legal-vendors, board, board-evaluation, cap-table, rpt, incidents, posh, whistleblower, bcm, hr-compliance, leave-holiday, litigation, risks, etc.) -- a real, deliberate DRY pattern, not duplicated bespoke code per module."
+      - "ForgeIntakeComposer.tsx explicitly reuses VeriComposer's Mode-Pills/Chain-Selector mechanism for the PUBLIC (unauthenticated) lead-intake flow at /forge -- confirmed by code comment."
+    guardrails: []
+    workflow: []
+
+count_of_domains: 16
+count_of_pages_covered: "~130"
+count_of_components_covered: "~65 non-shadcn, +52 shadcn primitives noted by count only"

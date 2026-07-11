@@ -1,0 +1,630 @@
+# 100% Completion Plan -- Phase 1-4 Plan Items
+#
+# Every item below closes one or more of Tree 4's non-fully-implemented
+# sub-branches (`covers_subbranches`). Phase order is the recommended
+# execution sequence, not a rigid gate -- items within a phase can run in
+# parallel unless a `depends_on` says otherwise.
+#
+# Phase 1 = cheap verification (read code/UI, confirm or refute status --
+#   several of these may turn out to already be done, in which case the
+#   "build" step is skipped and the sub-branch is simply reclassified).
+# Phase 2 = foundational builds that unblock later phases.
+# Phase 3 = feature builds, mostly independent of each other.
+# Phase 4 = large, separately-scoped initiatives (weeks, not days).
+#
+# Every plan item has: instruction (narrow, tightened directive), input,
+# output (the 100%-completion definition), guardrails (constraints during
+# the work), depends_on (other plan items or Phase-0 decisions this needs
+# first), covers_subbranches (the Tree-4 U-D ids this closes).
+
+items:
+
+  # ============================== PHASE 1 ==============================
+
+  - id: PLAN-01
+    phase: 1
+    name: "Verify root governance-doc content"
+    instruction: "Read VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, VERIDIAN_AUDIT_ORGANIZATION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md, VERI_CHAT_GOVERNANCE.md in full. Confirm: (a) supersession language ('this document supersedes individual agent instructions'), (b) the 6 named mission metrics with the 99.9%-by-31-Aug-2026 target, (c) WGIEF vision language (manual->decision-driven execution). Update U-D1.B1.S1/B2.S2/B3.S1 status based on findings."
+    input: "The 4 existing root .md files."
+    output: "Each of the 3 sub-branches reclassified as implemented or confirmed_gap with cited evidence, no longer 'partial/unconfirmed.'"
+    guardrails: ["Do not edit the governance docs during this verification pass -- read-only."]
+    depends_on: []
+    covers_subbranches: ["U-D1.B1.S1", "U-D1.B2.S2", "U-D1.B3.S1", "U-D1.B4.S1"]
+
+  - id: PLAN-02
+    phase: 1
+    name: "Verify VERI identity/welcome copy"
+    instruction: "Read the actual rendered strings for VERI's welcome message, name display, and chat placeholder copy across /home, VeriComposer, and the login/onboarding flow."
+    input: "src/components/veri-chat/*, the home page, AppShell.tsx."
+    output: "U-D7.B1.S1 and U-D28.B2.S1 reclassified with cited evidence (exact strings found or confirmed absent)."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D7.B1.S1", "U-D28.B2.S1", "U-D7.B3.S1"]
+
+  - id: PLAN-03
+    phase: 1
+    name: "Verify chain-visibility panel and context-adaptive Mode Pills"
+    instruction: "Check whether AppShell/VeriComposer renders a persistent chip showing Task Number/Mode Pill/Chain/Status/Priority/Owner during execution, and whether Mode Pill options actually change when navigating between modules/pages (not just remain globally static)."
+    input: "src/components/veri-chat/VeriComposer.tsx, src/components/AppShell.tsx, and 2-3 different module pages navigated in sequence."
+    output: "U-D5.B6.S1 and U-D5.B7.S1 reclassified. If confirmed absent, this becomes the highest-priority Phase-3 build in the whole plan -- the source documents themselves call this 'a hard blocker' and 'a very important feature.'"
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D5.B6.S1", "U-D5.B7.S1", "U-D28.B4.S1"]
+
+  - id: PLAN-04
+    phase: 1
+    name: "Verify 'My Option Is Not Available' backend depth"
+    instruction: "Trace what actually happens server-side when a user selects 'My Option Is Not Available' in the Chain Selector -- does it trigger real AI analysis and governance/audit routing, or just log the request for manual follow-up?"
+    input: "The UI entry point (task list #21's completed work) plus its backend handler."
+    output: "U-D5.B5.S1 reclassified as implemented or partial-with-specific-gap (e.g. 'captures the request but doesn't yet auto-analyze')."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D5.B5.S1"]
+
+  - id: PLAN-05
+    phase: 1
+    name: "Verify Mode Pill taxonomy and Business-DNA control breadth"
+    instruction: "List the actual top-level Mode Pill options rendered by the Chain Selector and compare against Tree 1's 14 named pills. Trace whether a selected chain actually controls all 14 named concerns (Software Module/Business Rules/Permissions/Workflow/AI Behaviour/Automation/Approvals/Notifications/Reports/Audit Rules/Monitoring Rules/Knowledge Capture/Escalation Matrix/KPIs/SLAs) or a smaller subset."
+    input: "capability-tree-service.ts's buildCapabilityTree() output and its consumers."
+    output: "U-D5.B2.S1 and U-D5.B2.S2 reclassified with a precise list of which of the 14 controlled concerns are confirmed vs. not."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D5.B2.S1", "U-D5.B2.S2", "U-D5.B4.S1"]
+
+  - id: PLAN-06
+    phase: 1
+    name: "Verify onboarding/sign-up UX specifics"
+    instruction: "Read /login, /signup page source and AppTopbar.tsx directly. Confirm or refute: Google-sign-in-first ordering, 4-digit-passcode-vs-password auth, a persistent 'Invite a team member' control on every screen, whether 'Set up AI configuration' and 'Upload the document' onboarding steps still exist."
+    input: "src/app/login, src/app/signup, AppTopbar.tsx, the onboarding flow components."
+    output: "U-D28.B1.S1, U-D28.B1.S2, U-D28.B3.S1 reclassified with specific findings per named UX element."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D28.B1.S1", "U-D28.B1.S2", "U-D28.B3.S1"]
+
+  - id: PLAN-07
+    phase: 1
+    name: "Verify tasks table's full column list"
+    instruction: "Read the tasks table's complete Drizzle schema definition. Map every column against D4.B1's 6 field groups (Identity/Input/Process/Output/Handover/Closure, ~40 named fields total)."
+    input: "src/lib/db/schema.ts's tasks table definition."
+    output: "A field-by-field checklist: which of the ~40 named fields exist, which don't. U-D4.B1.S1/S3/S4 reclassified accordingly."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D4.B1.S1", "U-D4.B1.S3", "U-D4.B1.S4"]
+
+  - id: PLAN-08
+    phase: 1
+    name: "Verify Layer 1 connector app coverage"
+    instruction: "Read CONNECTOR_TOOLKITS' full app list in composio-connectors.ts. Compare against Tree 1's 15 named Microsoft/Google apps and 21 named roadmap ecosystems."
+    input: "src/lib/composio-connectors.ts."
+    output: "An exact count: X/15 named apps connectable, X/21 named ecosystems on the roadmap covered. U-D26.B1.S1, U-D26.B1.S5, U-D26.B6.S1 reclassified with precise numbers."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D26.B1.S1", "U-D26.B1.S5", "U-D26.B6.S1"]
+
+  - id: PLAN-09
+    phase: 1
+    name: "Audit for format-branching guardrail violations"
+    instruction: "Grep the document/connector-handling code paths for logic that branches on original file format (e.g. `if fileType === 'xlsx'` or equivalent) rather than the normalized Business Object type. Report every violation found."
+    input: "src/app/api/documents/**, src/lib/composio-connectors.ts, and any file-type-handling code in the ingestion pipeline."
+    output: "A list of confirmed format-branching violations (if any), or confirmation the guardrail already holds. U-D26.B3.S1 reclassified."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D26.B3.S1"]
+
+  - id: PLAN-10
+    phase: 1
+    name: "Verify Action Register as a distinct intermediate step in MoM Intelligence"
+    instruction: "Trace generate-intelligence's output: does it produce a distinct, separately-approvable 'Action Register' object, or do detected action items go straight into tasks?"
+    input: "src/app/api/veri-meetings/[id]/generate-intelligence/route.ts."
+    output: "U-D21.B2.S1 confirmed as fully matching or noted with the specific gap (no distinct Action Register review step)."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D21.B2.S1"]
+
+  - id: PLAN-11
+    phase: 1
+    name: "Audit guardrail violation-message content"
+    instruction: "Read every rejection/violation message string in guardrail-registrations.ts. Confirm each is preloaded/predefined (not dynamically assembled) and polite in tone, per D13's requirement."
+    input: "src/lib/guardrail-registrations.ts."
+    output: "A pass/fail per existing message, with any non-compliant ones rewritten to be predefined and polite."
+    guardrails: ["Do not change the underlying validation LOGIC while editing message text -- this is a content pass, not a behavior change."]
+    depends_on: []
+    covers_subbranches: ["U-D13.B1.S1"]
+
+  - id: PLAN-12
+    phase: 1
+    name: "Audit existing invite mechanism against the 4-path design"
+    instruction: "Trace how org membership/invites actually work today end-to-end. Compare against the 4 named paths (Secure Invite Link via WhatsApp+email, Master-Admin-direct-add, self-registration-via-admin-code, self-registration-via-peer-code)."
+    input: "Whatever routes/services handle org membership creation (found via search, not yet identified in Tree 3's evidence)."
+    output: "A precise map: which of the 4 paths exist, in what form. Feeds directly into PLAN-58's scoping."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D27.B3.S1"]
+
+  - id: PLAN-13
+    phase: 1
+    name: "Verify loop-engineering-audit.ts's operating granularity"
+    instruction: "Confirm whether loop-engineering-audit.ts's reflective questions are answered per-task or only at an aggregate/daily level."
+    input: "src/lib/loops/loop-engineering-audit.ts."
+    output: "U-D16.B2.S1 reclassified; if aggregate-only, this becomes a real Phase-3 gap (see PLAN-39's scope may need to expand)."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D16.B2.S1"]
+
+  - id: PLAN-14
+    phase: 1
+    name: "Verify report export formats and chain-URL surfacing"
+    instruction: "Confirm saved_reports/custom-report-service.ts supports PDF/Excel/Word export specifically, and whether selecting a relevant Chain option surfaces a report URL directly on the main screen."
+    input: "src/lib/services/custom-report-service.ts, the /reports page."
+    output: "U-D25.B4.S1 reclassified with a specific list of supported/missing export formats and the chain-integration status."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D25.B4.S1"]
+
+  - id: PLAN-15
+    phase: 1
+    name: "Verify active task-nudging, batched-AI-ping, and auto-conversion behaviors"
+    instruction: "Confirm whether the system actively nudges users toward completing incomplete tasks (vs. passive display only), whether it batches multiple task-related AI calls into one ping, and whether recurring AI-assisted tasks are evaluated for conversion to deterministic automation."
+    input: "task-execution-engine.ts, any scheduled/cron job touching incomplete tasks."
+    output: "U-D25.B1.S1 reclassified across its 3 named sub-behaviors individually."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D25.B3.S1"]
+
+  # ============================== PHASE 2 ==============================
+
+  - id: PLAN-16
+    phase: 2
+    name: "Register the 6 scattered guardrail mechanisms as guardrail-engine.ts leaves"
+    instruction: "For each of policy-enforcement-engine.ts, floor-tier-escalation.ts, loop-prevention.ts, ai-reply-gate.ts, pii-redaction.ts, audit.ts: identify its natural leaf key and phase, write a thin adapter function (same pattern as the existing tightTaskCheck/taskBriefCheck/loopBudgetCheck), register via registerGuardrail(). Do not change the underlying logic in any of the 6 files -- wrap, don't rewrite."
+    input: "The 6 named files' existing exported functions."
+    output: "6 new registered guardrail-engine.ts leaves, verified via the Guardrail Presence Check CI job. The 'no task may bypass these guardrails' claim becomes mechanically true for these 6 concerns platform-wide, not just documented."
+    guardrails: ["Preserve fail-open-if-unregistered design for any leaf not yet covered -- do not change the framework's default behavior, only add coverage.", "Each adapter must be independently testable without invoking the full guardrail-engine.ts registry."]
+    depends_on: []
+    covers_subbranches: ["U-D12.B1.S1", "U-D12.B2.S2", "U-D12.B2.S3", "U-D12.B2.S6", "U-D12.B3.S1", "U-D12.B3.S2", "U-D12.B3.S3", "U-D12.B4.S1", "U-D12.B4.S2", "U-D12.B4.S4", "U-D2.B6.S2", "U-D13.B1.S3"]
+
+  - id: PLAN-17
+    phase: 2
+    name: "Build the AI Handover Protocol guardrail leaf and data fields"
+    instruction: "Define a task.handover guardrail leaf checking for the 9 required fields (Task Status, Output Produced, Validation Passed, Known Risks, Pending Items, Confidence, Next Responsible AI, Required Action, Escalation Required) before any ownership-transfer action completes. Add an explicit acceptance-by-receiving-agent step. Add the corresponding Handover field group to the tasks table (Current State, Remaining Work, Known Risks, Open Issues, Next Responsible AI, Acceptance Checklist, Confirmation Required)."
+    input: "task-tightening.ts's existing validation style as the pattern to follow; task_agent_executions table as the likely home for the acceptance-step field."
+    output: "A registered task.handover leaf; ownership transfer is blocked without both field-completeness and explicit receiving-agent acknowledgement, verified by a test that attempts a transfer with an incomplete/unacknowledged handover and confirms rejection."
+    guardrails: ["Follow task-tightening.ts's placeholder-regex/minimum-length validation style exactly, for consistency with the existing TightTask/TaskBrief pattern."]
+    depends_on: []
+    covers_subbranches: ["U-D17.B1.S1", "U-D4.B1.S5", "U-D4.B4.S1"]
+
+  - id: PLAN-18
+    phase: 2
+    name: "Wire more computation engines into dispatchEngine()"
+    instruction: "Add engines to dispatchEngine()'s allowlist one at a time, prioritized by customer value: accounting-engine.ts, income-tax-engine.ts, tds-engine.ts, payroll-engine.ts first. For each, also define/verify the corresponding capability-tree leaf so the function is reachable via the Chain UI, not just callable in code."
+    input: "The 23 currently-unwired engine files in src/lib/engines/; CAPABILITY_COVERAGE.md's existing tracking."
+    output: "All 25 engine files wired (or an explicit, Owner-approved list of any intentionally excluded ones), each with a working Chain-UI entry point. Software First's 99% target becomes measurable and trending toward true."
+    guardrails: ["Keep the explicit-allowlist pattern -- do NOT switch to dynamic-import-by-DB-value, per the existing documented security rationale."]
+    depends_on: []
+    covers_subbranches: ["U-D25.B2.S1", "U-D5.B1.S2"]
+
+  - id: PLAN-19
+    phase: 2
+    name: "Add Dynamic Chain selection gate to VERI Chat conversation creation, and trace the chat-to-task approval gate"
+    instruction: "Add a guardrail check (via PLAN-16's now-registered mechanism, or a plain validation if built first) to POST /api/conversations requiring modePill + at least 2 pathKeys before a conversation is created. Reuse resolveDynamicChainId() to attach the chain. Update the conversation-creation UI to require the selection before submission. Separately, trace whether a chat-originated task-creation suggestion actually routes through the high-impact-action approval gate (GOV-09's detectHighImpactAction + GOV-14's approval check) before creating anything, or whether that path has a gap."
+    input: "task-service.ts's existing resolveDynamicChainId(); GOV-09's high-impact-action gate as the mechanism to trace."
+    output: "No new conversation can be created without a 2-level chain selection, verified by attempting creation without one and confirming rejection. Separately: explicit confirmation the chat-to-task path is gated, or a scoped fix if it isn't."
+    guardrails: ["Reuse the existing chain-resolution function verbatim -- do not build a parallel resolution path for conversations."]
+    depends_on: []
+    covers_subbranches: ["U-D5.B4.S2", "U-D8.B3.S1", "U-D8.B2.S1"]
+
+  - id: PLAN-20
+    phase: 2
+    name: "Build confidence-score field and wire to the L1 audit gate"
+    instruction: "Add a numeric confidence-score field to the relevant task/response tables. Wire GOV-16 or a new check so a completion with confidence <95% (per D15.B1.S1's literal threshold) triggers the same audit-blocking behavior GOV-04's tier system currently provides via a different trigger. Depends on DEC-04's resolution of whether this runs alongside or replaces GOV-04's tier-based trigger."
+    input: "GOV-04's existing requiresMandatoryAudit() as the pattern to extend or run in parallel with."
+    output: "A working confidence-score field, populated on task completion, gating the L1 audit path per whichever design DEC-04 settles on."
+    guardrails: []
+    depends_on: ["DEC-04"]
+    covers_subbranches: ["U-D4.B1.S4", "U-D15.B1.S1", "U-D15.B5.S1"]
+
+  - id: PLAN-21
+    phase: 2
+    name: "Build the ~30-state Universal Work Object state model"
+    instruction: "Design and implement an 8-category, ~30-value state enum (Planning-5/Action-8/Review-8/Approval-6/Completion-3/Exception-6/Deleted/Archived) for tasks, replacing or extending the current coarser status enums. Ensure every state transition is permission-controlled and auditable."
+    input: "compliance_status's existing 6-value enum as a starting reference for what's too coarse; D4.B3's full 30-state spec."
+    output: "A new or extended status enum on tasks with all ~30 named states, each transition logged to audit_logs."
+    guardrails: ["This may be a breaking schema change for existing status-dependent code -- coordinate with PLAN-07's findings before implementing, and provide a migration path for existing task rows."]
+    depends_on: ["PLAN-07"]
+    covers_subbranches: ["U-D4.B3.S1"]
+
+  - id: PLAN-22
+    phase: 2
+    name: "Verify/extend 18-stage lifecycle tracking granularity"
+    instruction: "Confirm how many of the 18 named lifecycle stages (Task Request through Closed) exist as distinct trackable values on tasks vs. being informally collapsed. Extend as needed once PLAN-21's state model work clarifies the target granularity."
+    input: "PLAN-21's output; tasks' status/lifecycle-tracking columns."
+    output: "All 18 named stages either confirmed distinctly trackable, or an explicit, documented mapping of which stages are intentionally merged and why."
+    guardrails: []
+    depends_on: ["PLAN-21"]
+    covers_subbranches: ["U-D4.B2.S1"]
+
+  # ============================== PHASE 3 ==============================
+
+  - id: PLAN-23
+    phase: 3
+    name: "Build the L0-L5 escalation ladder as queryable roster.ts metadata"
+    instruction: "Add an escalationLevel field to roster.ts role definitions (or a parallel lookup structure) encoding the 6-level ladder (L0 Execution/L1 Reviewer/L2 QC/L3 COO/L4 Super Boss/L5 Owner) with each level's authority/cannot list. Wire D3.B2's chain-execution escalation step and D15.B6's Peer Validation stage to reference this structure."
+    input: "Existing roster.ts team taxonomy as the base to extend."
+    output: "A queryable escalation-level field on every role, with the software-first-then-escalate chain-execution path (D3.B2) referencing it concretely instead of just conceptually."
+    guardrails: []
+    depends_on: ["DEC-05", "DEC-06"]
+    covers_subbranches: ["U-D2.B1.S1", "U-D3.B2.S1", "U-D15.B6.S1", "U-D2.B3.S4"]
+
+  - id: PLAN-24
+    phase: 3
+    name: "Build mandatory self-assessment and peer-review gate"
+    instruction: "Add a guardrail leaf requiring a structured self-assessment (objective achieved? instructions sufficient? cause of delays? what changes next time? can this be automated?) before task closure, plus a designated-reviewer evaluation step for tasks above a risk threshold. Store reviewer comments as part of the permanent task record."
+    input: "PLAN-16's now-registered guardrail pattern to extend."
+    output: "No task closes without a completed self-assessment record; reviewer comments persisted and queryable."
+    guardrails: []
+    depends_on: ["PLAN-16"]
+    covers_subbranches: ["U-D12.B4.S3"]
+
+  - id: PLAN-25
+    phase: 3
+    name: "Build QA pre-completion gate"
+    instruction: "Add a guardrail check verifying business objective met/output complete/acceptance criteria satisfied/validation passed/reviews completed before a task can transition to Completed status -- distinct from and complementary to PLAN-17's Handover gate."
+    input: "PLAN-16's guardrail pattern; PLAN-21's state model for what 'Completed' means precisely."
+    output: "Tasks cannot reach Completed status without passing this explicit QA check."
+    guardrails: []
+    depends_on: ["PLAN-16", "PLAN-21"]
+    covers_subbranches: ["U-D12.B4.S1"]
+
+  - id: PLAN-26
+    phase: 3
+    name: "Build assumption-validation mechanism"
+    instruction: "Design and implement a check that detects when an AI response is about to state an unvalidated assumption (input/output/process) and pauses to confirm with the user via chat before proceeding, scoped to the current Dynamic Chain selection's logic."
+    input: "None existing -- this is new design work, likely requiring prompt-engineering plus a structured-response schema addition (extending structured-message.ts) to let a model flag 'this is an assumption' distinctly from a stated fact."
+    output: "A working mechanism that measurably reduces silent-assumption incidents, verified via test cases where a model would otherwise assume something unstated."
+    guardrails: ["This is flagged as a genuinely hard NLP/prompting problem, not a simple validation check -- budget accordingly, expect iteration."]
+    depends_on: []
+    covers_subbranches: ["U-D13.B1.S2"]
+
+  - id: PLAN-27
+    phase: 3
+    name: "Build Risk Classification (Low/Medium/High/Critical)"
+    instruction: "Add a distinct risk-classification field to tasks (separate from GOV-04's complexity tier, per DEC-04's resolution), driving review-requirement depth/approval-authority/escalation-level/audit-depth as D12.B3.S2 specifies."
+    input: "GOV-04's tier system as a reference for the classification-then-route pattern, but implemented as a genuinely separate dimension per DEC-04."
+    output: "A working risk-classification field, with review/approval/escalation/audit behavior demonstrably varying by classification level."
+    guardrails: []
+    depends_on: ["DEC-04"]
+    covers_subbranches: ["U-D12.B3.S2", "U-D18.B1.S1"]
+
+  - id: PLAN-28
+    phase: 3
+    name: "Build comprehensive per-task monitoring metrics"
+    instruction: "Add tracking for Reasoning Quality, Dependency Health, Tool Health, Instruction/Policy/Security Compliance, and a composite Performance Score to the existing task-monitoring infrastructure (alongside the already-solid Execution Time/Retries/Failures/Token Usage/Loop Risk coverage)."
+    input: "orchestra-execution-logger.ts and loop-prevention.ts as the existing infrastructure to extend."
+    output: "All 13 named monitoring dimensions from D14.B1.S1 tracked and queryable per task."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D14.B1.S1"]
+
+  - id: PLAN-29
+    phase: 3
+    name: "Build chain-scoped monitoring rules"
+    instruction: "Add the ability for a Dynamic Chain leaf definition to carry its own monitoring-rule set (distinct from global task-level monitoring), so chain-specific concerns (e.g. a GST-reconciliation chain watching for specific data-quality signals) can be monitored without a global rule matching every task type."
+    input: "capability-tree-service.ts's leaf schema as the extension point."
+    output: "At least one working example of a chain carrying and enforcing its own monitoring rule, distinct from PLAN-28's global metrics."
+    guardrails: []
+    depends_on: ["PLAN-28"]
+    covers_subbranches: ["U-D14.B2.S1"]
+
+  - id: PLAN-30
+    phase: 3
+    name: "Verify/build circular-dependency and deadlock detection"
+    instruction: "Confirm whether loop-prevention.ts's existing iteration/depth limits also catch circular-dependency and deadlock patterns specifically, or only simple runaway-iteration. Build dedicated detection if the gap is confirmed."
+    input: "src/lib/loop-prevention.ts."
+    output: "Explicit test cases proving circular-dependency and deadlock scenarios are caught, or a scoped addition to loop-prevention.ts if they currently aren't."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D14.B4.S1"]
+
+  - id: PLAN-31
+    phase: 3
+    name: "Retune L3 Rolling Health Audit to 30-60 minute cadence"
+    instruction: "Adjust the relevant GOV-16 loop(s) (tier-integrity, process-turnaround, user-behaviour audits) from daily to a 30-60 minute rolling cadence, per D15.B1.S3's literal spec."
+    input: "The relevant loop cron configurations in internal/loops/run."
+    output: "Confirmed rolling-cadence execution, verified via logs showing the new frequency."
+    guardrails: ["Verify the increased frequency doesn't create excessive load/cost before rolling out -- a cadence change from daily to hourly is a ~24x frequency increase, worth a cost check first."]
+    depends_on: []
+    covers_subbranches: ["U-D15.B1.S3"]
+
+  - id: PLAN-32
+    phase: 3
+    name: "Build L4 automated 3-hour executive digest"
+    instruction: "Build a new cron job (reusing GOV-16's internal/loops/run infrastructure) that every 3 hours aggregates open critical issues/escalations/productivity/model-utilization/audit-findings/hallucination-trends/cost/queue-health/agent-performance/improvement-proposals into one digest."
+    input: "token_usage_ledger, loop_executions, GOV-16's loop outputs as data sources."
+    output: "A working 3-hourly digest, delivered to wherever the Owner/Super-Boss reviews it (email, dashboard, or both)."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D15.B1.S4"]
+
+  - id: PLAN-33
+    phase: 3
+    name: "Build automated multi-cadence reporting pipeline (Daily/Hourly/Per-Task/Weekly/Monthly/Quarterly/Annual)"
+    instruction: "Build a scheduled reporting job, extending GOV-16's cron infrastructure, producing the content D19.B1.S1 specifies (Performance/Quality/Failures/Escalations/Token-Usage/Learning/Knowledge-Updates/Recommendations/Risk-Trends) at each named cadence. This single pipeline also satisfies D15.B1.S5's L5 Daily/L6 Weekly/L7 Monthly review-cadence requirement -- do not build two separate systems."
+    input: "PLAN-32's 3-hourly digest as a template; token_usage_ledger/loop_executions/roster usage logs as data sources."
+    output: "Working reports at all 7 named cadences, each containing the 9 named content categories."
+    guardrails: ["Build ONE pipeline serving both D19 and D15.B1.S5's requirements -- these were independently identified as the same underlying need across two source documents."]
+    depends_on: ["PLAN-32"]
+    covers_subbranches: ["U-D19.B1.S1", "U-D15.B1.S5"]
+
+  - id: PLAN-34
+    phase: 3
+    name: "Build the 9 missing event-based audit triggers"
+    instruction: "For each of Feature Completed->Functional Audit, Report Generated->Report Audit, Knowledge Updated->Knowledge Audit, SOP Changed->Governance Audit, Revenue Posted->Revenue Audit, AI Escalation->Decision Audit, Customer Complaint->Root Cause Audit, Deployment->Release Audit, New Prompt->Prompt Audit: identify the triggering event in code and wire an audit-dispatch call, following the pattern already proven for Code Changed->Engineering Audit (mandatory-audit-check.yml)."
+    input: "mandatory-audit-check.yml as the working reference pattern."
+    output: "All 10 of the named event-audit pairs (the 1 existing + 9 new) confirmed firing correctly."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D15.B2.S1"]
+
+  - id: PLAN-35
+    phase: 3
+    name: "Build re-audit-on-new-evidence mechanism ('no task ever permanently complete')"
+    instruction: "Build a mechanism that flags previously-completed tasks for re-audit when any of the 7 named trigger conditions occurs (code changes after approval, requirements change, a production bug/security issue is reported, a customer reports incorrect behavior, a report produces wrong numbers, a prompt is modified, a new model version is deployed)."
+    input: "PLAN-34's event-trigger infrastructure as the pattern to extend to already-closed tasks, not just new ones."
+    output: "A working flagging mechanism, verified by triggering each of the 7 conditions against a previously-completed task and confirming it's flagged for re-audit."
+    guardrails: []
+    depends_on: ["PLAN-34"]
+    covers_subbranches: ["U-D15.B3.S1"]
+
+  - id: PLAN-36
+    phase: 3
+    name: "Build generic Work-Object review-stage mechanism"
+    instruction: "Build a reusable review-stage tracking mechanism (Individual/Team/Functional/Technical/Cross-functional/Management/Executive/AI/Audit Review) applicable to any Work Object, recording Reviewer/Decision/Observations/Required-changes/Approval-status/Timestamp per review. Staffed by whatever audit-org structure DEC-01 resolves to."
+    input: "board_evaluations as a domain-specific precedent to generalize from."
+    output: "A generic review-stage table/service usable by any module, with at least 2 modules (e.g. compliance items + one other) demonstrably using it."
+    guardrails: []
+    depends_on: ["DEC-01"]
+    covers_subbranches: ["U-D15.B4.S1"]
+
+  - id: PLAN-37
+    phase: 3
+    name: "Widen GOV-16's continuous-improvement trigger scope to all task completions"
+    instruction: "Extend loop-improvement-proposer.ts's trigger points from guardrail-violations/loop-audit-findings only, to fire on every task completion via GOV-08's executeTask() completion path."
+    input: "src/lib/loop-improvement-proposer.ts, src/lib/task-execution-engine.ts's completion handling."
+    output: "Every completed task, not just flagged ones, produces a (possibly empty/no-action) improvement-pipeline entry, keeping the human-gated (isDeployed:false) discipline unchanged."
+    guardrails: ["Preserve the always isDeployed:false human-gating -- widening the trigger scope must not also change the approval discipline."]
+    depends_on: []
+    covers_subbranches: ["U-D16.B1.S1", "U-D12.B4.S2", "U-D4.B1.S6"]
+
+  - id: PLAN-38
+    phase: 3
+    name: "Build fixed-template Improvement Report artifact"
+    instruction: "Define and enforce (via a guardrail leaf) a fixed-template Improvement Report (Task/Outcome/Root-Cause/Performance/Failure-Success-Analysis/Instruction-Prompt-Workflow-Guardrail-Validation-Improvements/Knowledge-Updates/Automation-Opportunities/Risk-Reduction/Confidence/Reviewer-Approval) that must exist before a task can close."
+    input: "PLAN-16's guardrail pattern; PLAN-37's widened trigger scope as the natural place to generate this artifact."
+    output: "No task closes without this report existing, verified by attempting closure without one and confirming rejection."
+    guardrails: []
+    depends_on: ["PLAN-16", "PLAN-37"]
+    covers_subbranches: ["U-D16.B3.S1"]
+
+  - id: PLAN-39
+    phase: 3
+    name: "Extend AI Agent Task Directory to all 57 roster.ts roles"
+    instruction: "Generalize worker_agent_usage_log/worker_agent_learnings' pattern (Agent/Task/Version/Average-Success/Average-Time/Failures/Common-Errors/Improvement-Suggestions/Latest-Prompt-Version/Validation-Rules/Loop-Engineering-Status) to cover all 57 roster.ts roles, not just Worker Agents specifically."
+    input: "The existing worker_agent_usage_log/worker_agent_learnings tables and their population logic as the pattern to replicate."
+    output: "Every roster.ts role has a queryable directory entry populated after each of its dispatches."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D16.B4.S1"]
+
+  - id: PLAN-40
+    phase: 3
+    name: "Build Email Intelligence detection pipeline"
+    instruction: "Build an inbound-email parser following the proven detect-then-propose pattern already working for MoM (generate-intelligence) and Documents (documents/extract): understand context, identify commitments/follow-ups/approvals/deadlines, propose a Work Object for user approval."
+    input: "generate-intelligence's pipeline structure as the template to replicate for email as the source type."
+    output: "A working email-intelligence endpoint producing proposed Work Objects from real inbound email content, gated by user approval before any object is created."
+    guardrails: ["Reuse the existing detect-then-propose pattern exactly -- do not design a new pipeline shape for this source type."]
+    depends_on: []
+    covers_subbranches: ["U-D21.B4.S1", "U-D4.B5.S1"]
+
+  - id: PLAN-41
+    phase: 3
+    name: "Extend Document Intelligence to full detect-propose depth"
+    instruction: "Extend documents/extract beyond field extraction to also classify via the Dynamic Chain, recommend workflows/reports, and create proposed tasks with linked Work Objects, matching MoM Intelligence's fuller depth."
+    input: "documents/extract's existing extraction logic; generate-intelligence's fuller pipeline as the depth target."
+    output: "Document uploads produce the same richness of proposed action (workflow recommendations, proposed tasks) that meeting uploads already do."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D21.B3.S1", "U-D21.B1.S1"]
+
+  - id: PLAN-42
+    phase: 3
+    name: "Build Communication Governance draft-then-approve flow"
+    instruction: "Build a genuine AI-drafts-then-holds-for-approval communication flow: (1) drafting step reusing runRole() for any of the 25 named communication types, (2) hold step checking approval_preferences for an existing shortcut, (3) approval step via the existing D9 approval UI, (4) send step calling email.ts's sendEmail() only after approval. Enforce the 7 named never-do rules (no impersonation, no intent modification, no unauthorized recipients, no unpermitted confidential forwarding, no unapproved escalation, no unpermitted external sends, full audit-logging) as guardrails on the send step specifically."
+    input: "GOV-06's runRole(), GOV-14's approval_preferences, email.ts's sendEmail() -- 3 existing mechanisms to compose, not rebuild."
+    output: "A working draft-hold-approve-send flow for at least the highest-value communication types (status updates, meeting summaries, escalations), with all 7 never-do rules enforced and verified via negative test cases."
+    guardrails: ["This is a composition task over 3 existing, proven mechanisms -- do not build a new drafting, approval, or sending mechanism from scratch."]
+    depends_on: []
+    covers_subbranches: ["U-D10.B1.S1", "U-D10.B2.S1", "U-D10.B3.S1", "U-D10.B4.S1"]
+
+  - id: PLAN-43
+    phase: 3
+    name: "Extend /veri-todo to full universality and verify real-time-ness"
+    instruction: "Extend /veri-todo's existing 3-source merge query (Tasks + Chat Instructions + PMS Issues) to also include ERP/Firm/Construction pending items. Confirm whether dashboard updates are push-based (real-time) or poll-based, and note the finding."
+    input: "The existing /veri-todo merge query as the pattern to extend."
+    output: "/veri-todo reflects pending items from every domain module, not just the 3 currently covered. Real-time-ness explicitly documented (confirmed real-time, or confirmed poll-interval-X)."
+    guardrails: []
+    depends_on: ["DEC-03"]
+    covers_subbranches: ["U-D23.B1.S1"]
+
+  - id: PLAN-44
+    phase: 3
+    name: "Build universal cross-Work-Object follow-up/SLA engine"
+    instruction: "Build a follow-up monitoring job querying across all domain-specific due-date-style columns (compliance_items.dueDate, pms_issues.dueDate, erp document due dates, approval_preferences-adjacent pending approvals, etc.), watching for Pending/Missed-timelines/SLA-breaches/Blocked/Delegated/Waiting-dependencies/Inactive states, and recommending Reminders/Escalations/Reassignment/Extensions/Closure/Cancellation. Also covers approval-specific reminder monitoring (D15.B7's 'VERI continuously monitors pending approvals and sends reminders')."
+    input: "compliance/overdue's existing pattern as the one working precedent to generalize; the multi-table query approach DEC-03 will have clarified as necessary given the non-unified Work Object architecture."
+    output: "A single follow-up engine covering every domain module's pending/overdue items, not just compliance's."
+    guardrails: ["This will genuinely need to query many separate tables given DEC-03's likely ratification of the non-unified architecture -- do not attempt to force a single-table query; build a registry of 'due-date-bearing tables' the engine iterates over instead."]
+    depends_on: ["DEC-03"]
+    covers_subbranches: ["U-D22.B1.S1", "U-D15.B7.S1"]
+
+  - id: PLAN-45
+    phase: 3
+    name: "Extend approval_preferences delegation scope types"
+    instruction: "Extend ApprovalScopeType beyond its current 4 values (communication_type/conversation/task/workflow) to cover the 5 missing named scopes: Project, Module, Business Function, Time Period, Category of Work."
+    input: "The existing ApprovalScopeType enum and its most-specific-scope-wins lookup logic as the pattern to extend."
+    output: "All 9 named delegation scopes from D7.B2.S2 supported, with the existing precedence logic correctly extended to the new scope types."
+    guardrails: ["This is an additive schema change -- do not alter the existing 4 scope types' behavior."]
+    depends_on: []
+    covers_subbranches: ["U-D7.B2.S2"]
+
+  - id: PLAN-46
+    phase: 3
+    name: "Build Mode-Pill/Chain UX intelligence"
+    instruction: "Build usage-based ranking (prioritize frequently-used chains), basic prediction (recommend previous selections for similar contexts), and auto-select for obvious single-option cases in the Chain Selector."
+    input: "VeriComposer's existing cascading picker as the UI to enhance; user selection history (would need new tracking if not already logged) as the data source."
+    output: "Measurably reduced average clicks-to-select for repeat users, verified via a before/after usage metric."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D5.B2.S3"]
+
+  - id: PLAN-47
+    phase: 3
+    name: "Build 2-tier chain library personalization"
+    instruction: "Build a per-user filtered view over dynamic_chains (the 'User Library') generated from Role/Department/Projects/Permissions/History/Behaviour/Teams/Location/Organization, distinct from the full 'Global Library' (every approved chain)."
+    input: "dynamic_chains as the source table; user profile/org-membership data as the personalization inputs."
+    output: "Two distinct, queryable views: the full Global Library and a per-user personalized subset, verified to differ meaningfully between 2 users with different roles."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D5.B2.S4"]
+
+  - id: PLAN-48
+    phase: 3
+    name: "Build/verify Google Workspace app-specific intelligence"
+    instruction: "Build the 5 named app-specific behaviors: Sheets business-category detection creating Workflow/Approvals/Alerts, Docs policy-field extraction creating Knowledge/Tasks/Reviews, Slides KPI/board-deck generation, Gmail type-identification creating workflows, Drive's 'VERIDIAN Asset' concept. Extend documents/extract's generic extraction to these app-specific cases."
+    input: "documents/extract's existing generic extraction as the base to specialize per app type; PLAN-08's findings on which apps are actually connectable as a prerequisite."
+    output: "At minimum, Gmail type-identification and Docs policy-extraction working end-to-end (the 2 highest-value named behaviors), with Sheets/Slides/Drive scoped as follow-on work if not completed in this pass."
+    guardrails: []
+    depends_on: ["PLAN-08"]
+    covers_subbranches: ["U-D26.B2.S1"]
+
+  # ============================== PHASE 4 ==============================
+
+  - id: PLAN-49
+    phase: 4
+    name: "Build the Audit Organization (5 divisions, specialist roles) per DEC-01's resolution"
+    instruction: "Build roster.ts entries for the 5 audit divisions (Engineering/Business/Knowledge & Intelligence/Governance & Compliance/Global Revenue Assurance), at the granularity DEC-01 settles on (piloted with 5-6 division-lead roles first per the recommendation). Include the Global Revenue Operations/Assurance split. Wire the audit-agent 3-phase protocol (Before/During/After) as an enforced pattern for these roles specifically."
+    input: "DEC-01's resolved granularity; roster.ts's existing chief_audit_officer + 4 GUARDRAIL_* teams as the closest existing structure to build from (per Tree 4's own finding that GUARDRAIL_PLATFORM/PRODUCT/ACCOUNT/USER substantially overlaps with D2.B4.S5's Governance & Compliance Division intent)."
+    output: "A working, dispatchable audit organization matching DEC-01's approved scope, with at least one real dispatch per division demonstrating the roles function."
+    guardrails: ["Map against the existing 16 GUARDRAIL_* roles FIRST to avoid duplicating what already substantially covers the Governance & Compliance Division."]
+    depends_on: ["DEC-01"]
+    covers_subbranches: ["U-D2.B4.S2", "U-D2.B4.S3", "U-D2.B4.S4", "U-D2.B4.S5", "U-D2.B5.S1", "U-D2.B6.S1", "U-D2.B2.S1", "U-D2.B4.S1"]
+
+  - id: PLAN-50
+    phase: 4
+    name: "Build the Dynamic Chain Master Directory (DCMD)"
+    instruction: "Design DCMD as a graph structure (nodes/edges, per D6.B2.S2's recommendation) rather than an enumerated permutation table. Implement all 10 required per-entry fields (Chain ID, Mode Pill/domain, full hierarchical path, linked module(s)/business-rules/permissions/workflow/AI-behaviour/reports-KPIs-SLAs, version history). Migrate additively alongside the existing flat dynamic_chains table, backfill, then cut over reads. Also elevate the Dynamic Chain ID as the primary cross-object linking field per D6.B3's recommendation, propagated to conversations/approvals/reports/audit records, not just tasks."
+    input: "The existing dynamic_chains table and its live data dependents (tasks, and whatever else PLAN-19/others have linked it to by this point) -- must be preserved through migration."
+    output: "A working graph-structured DCMD with intelligent search/recommendation and version control; Dynamic Chain ID confirmed present on every named object type, not just tasks."
+    guardrails: ["Additive migration only -- do not drop or break the existing dynamic_chains table and its live references during the transition."]
+    depends_on: []
+    covers_subbranches: ["U-D6.B1.S1", "U-D6.B2.S1", "U-D6.B2.S2", "U-D6.B3.S1"]
+
+  - id: PLAN-51
+    phase: 4
+    name: "Build Connector Layer 2: Office Add-ins"
+    instruction: "Build ONE single Office add-in (not per-app) running inside Excel/Word/PowerPoint/Outlook, with a 'VERIDIAN' ribbon button offering Click/Analyze/Review/Compliance/Sync/Ask AI actions."
+    input: "Microsoft's Office Add-in SDK/manifest requirements; the existing v1 API surface as the backend the add-in calls."
+    output: "A working, installable Office add-in demonstrating at least the Analyze and Ask AI actions end-to-end."
+    guardrails: ["Must not modify or risk Layer 1's existing working Composio OAuth flow -- treat Layer 1 as a stable dependency."]
+    depends_on: []
+    covers_subbranches: ["U-D26.B1.S2"]
+
+  - id: PLAN-52
+    phase: 4
+    name: "Build Connector Layer 3: Browser Extensions"
+    instruction: "Build a browser extension (Chrome/Edge/Firefox) providing the same panel experience as the Office add-in, working on M365 Online, Google Workspace, Web ERP, Bank portals, GST portal, Government sites, Vendor portals."
+    input: "Chrome/Firefox extension manifest requirements; the v1 API surface as the backend."
+    output: "A working, installable browser extension demonstrating the panel experience on at least 2 of the 7 named target site categories."
+    guardrails: ["Same guardrail as PLAN-51 -- do not risk Layer 1."]
+    depends_on: []
+    covers_subbranches: ["U-D26.B1.S3"]
+
+  - id: PLAN-53
+    phase: 4
+    name: "Build Connector Layer 4: Desktop Companion"
+    instruction: "Build a lightweight desktop agent for offline/desktop-only Office installs (2019/2021) that watches files, syncs changes, sends events, and indexes documents."
+    input: "The v1 API surface as the sync target; a desktop-agent framework choice (Electron or similar) to be made as part of this work."
+    output: "A working desktop agent demonstrating file-watch-and-sync for at least one Office file type."
+    guardrails: ["Same guardrail as PLAN-51/52 -- do not risk Layer 1."]
+    depends_on: []
+    covers_subbranches: ["U-D26.B1.S4"]
+
+  - id: PLAN-54
+    phase: 4
+    name: "Build the Business Digital Twin schema"
+    instruction: "Design and implement the 16-field per-document Digital Twin schema (Document-ID/Department/Financial-Year/Business-Objects/Linked-Projects/Approvals/Risk/Compliance/Workflow/AI-History/Discussion/Related-Emails/Meeting-References/Users/Permissions/Knowledge-Graph), replacing or extending connector_accounts' current simple OAuth-account shape."
+    input: "entity_relationships (DB-03) as existing knowledge-graph infrastructure to wire in for the Knowledge-Graph field specifically."
+    output: "Every connected document has a populated Digital Twin record, verified for at least one document per connected source type."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D26.B4.S1"]
+
+  - id: PLAN-55
+    phase: 4
+    name: "Build source-type AI routing"
+    instruction: "Extend orchestra-model-resolver.ts's existing 4-layer routing (personal/client/org/platform) with a new routing dimension: source type (Excel->Microsoft AI, Google Sheet->Gemini, PDF->OCR-Worker->Knowledge-Worker->Compliance-Worker chained pipeline)."
+    input: "orchestra-model-resolver.ts's existing resolution logic as the extension point."
+    output: "Confirmed automatic routing by source type for at least the 3 named examples."
+    guardrails: []
+    depends_on: []
+    covers_subbranches: ["U-D26.B5.S1"]
+
+  - id: PLAN-56
+    phase: 4
+    name: "Build Licensing, Misuse Detection, and Adoption Dashboard"
+    instruction: "Build license/seat management tables (assign/revoke/track), session-concurrency enforcement (max 2 concurrent sessions, 1 laptop + 1 mobile, per user email) at the Supabase Auth session layer, and a new adoption-metrics aggregation job feeding a 2-view dashboard (individual + Org Master Admin/CEO) with the 10 named metrics (Adoption%/AI-Adoption%/Meetings-Managed/Tasks-Completed/Hours-Saved/Reports-Generated/AI-Conversations/Departments-Active/Top-Performing-Team/Lowest-Adoption)."
+    input: "PLAN-12's audit of the existing invite mechanism as the starting scope clarification; organisations.plan/subscriptionPlanId as the existing basic linkage to extend."
+    output: "A working license/seat system with session-limit enforcement (with the internal-use exception correctly applied from the start) and a populated adoption dashboard."
+    guardrails: ["The 2-session limit must NOT apply to VERIDIAN's own internal use/testing -- build this exception in from day one, not as a retrofit."]
+    depends_on: ["PLAN-12"]
+    covers_subbranches: ["U-D27.B1.S1", "U-D27.B2.S1"]
+
+  - id: PLAN-57
+    phase: 4
+    name: "Build continuous re-planning/re-prioritization engine"
+    instruction: "Build a scheduling/optimization engine that continuously reprioritizes work based on Deadlines/Business-priorities/Dependencies/Resource-availability/Org-objectives/User-preferences/Risk/SLA, recommending revised execution plans when conditions change."
+    input: "PLAN-44's follow-up engine as a data-source dependency (it identifies WHAT'S pending/blocked; this engine decides HOW to re-sequence it)."
+    output: "A working re-planning job producing revised, explainable execution-order recommendations, verified against at least one scenario with a deadline change triggering a visible re-prioritization."
+    guardrails: []
+    depends_on: ["PLAN-44"]
+    covers_subbranches: ["U-D22.B2.S1"]
+
+  - id: PLAN-58
+    phase: 4
+    name: "Build richer approval-option vocabularies (CONDITIONAL on DEC-02)"
+    instruction: "IF DEC-02 resolves toward keeping/building the richer vocabularies: implement the 9-option communication-approval set, 9-option quick set, and 16-option work-object-decision set as UI choices layered on top of the existing approval_preferences backend, adding new named preference-action types (Delegate, Change Priority, Merge, Split, Archive, etc.) not currently distinct actions."
+    input: "The existing approval_preferences service and UI as the backend to extend, not replace."
+    output: "The 3 named option vocabularies available as UI choices, backed by the existing preference-persistence mechanism."
+    guardrails: ["Do NOT build this without DEC-02 first -- building 25 new UI options nobody asked for after the fact is exactly the kind of wasted work Phase 0 exists to prevent."]
+    depends_on: ["DEC-02"]
+    covers_subbranches: ["U-D9.B1.S1", "U-D9.B1.S2", "U-D9.B1.S3", "U-D9.B3.S1"]
+
+  - id: PLAN-59
+    phase: 4
+    name: "Work Object unification retrofit (CONDITIONAL on DEC-03)"
+    instruction: "IF DEC-03 resolves toward retrofitting rather than ratifying: design and execute a phased migration making ERP/PMS/The Firm/Construction's separate tables into views over one unified Work Object, starting with the smallest/lowest-risk module (likely The Firm, ~11 tables) as a pilot before attempting ERP's ~150 tables."
+    input: "DEC-03's resolution; the existing separate-module schemas as the migration source."
+    output: "At minimum, one pilot module (recommend The Firm) successfully unified and verified functionally equivalent to its pre-migration behavior."
+    guardrails: ["This is explicitly the highest-risk item in the entire plan -- do not attempt without a rollback plan, and do not attempt on ERP first regardless of enthusiasm; prove the pattern on a small module before touching the platform's largest subsystem."]
+    depends_on: ["DEC-03"]
+    covers_subbranches: ["U-D4.B7.S1"]
+
+  - id: PLAN-60
+    phase: 3
+    name: "Build active task-nudging, batched AI pings, and recurring-to-automation conversion"
+    instruction: "Added 2026-07-11 after PLAN-15's verification confirmed all 3 named behaviors are absent (not partially built, as originally assumed): (a) build a scheduled job that surfaces incomplete-task reminders to the assigned user (not just a server console.log, per the confirmed gap in the-firm deadline-digest's current behavior) -- extend it beyond The Firm to tasks generally. (b) Build a batching layer in front of task-execution-engine.ts's per-task LLM calls so multiple pending task-planning calls for the same user/session can be combined into one request. (c) Build a job that tracks recurring AI-assisted task patterns (same task shape dispatched repeatedly) and flags candidates for conversion to a deterministic automation_rules entry."
+    input: "task-execution-engine.ts's existing per-task call sites; the-firm deadline-digest's existing (but silent) scheduled scan as a partial pattern to extend, not restart from scratch; automation_rules as the target format for (c)'s conversion candidates."
+    output: "(a) Verified via a real notification/message reaching a user for an incomplete task, not just a log line. (b) Verified via a test showing 2+ pending task-planning calls resolving through 1 LLM call instead of 2. (c) At least one real automation_rules entry generated from observed recurring-task-pattern data."
+    guardrails: ["(a) must not duplicate or conflict with the existing follow-up engine work in PLAN-44 -- coordinate scope, since both touch 'notify user about pending work.'"]
+    depends_on: ["PLAN-44"]
+    covers_subbranches: ["U-D25.B1.S1"]
+
+count_of_plan_items: 60

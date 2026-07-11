@@ -1,0 +1,284 @@
+# compliance-tracker (VERIDIAN AI OS) -- API Routes
+# Source: direct inventory of all 614 src/app/api/**/route.ts files this session.
+# Auth posture verified per-file, not assumed. Grouped into domains matching
+# the platform's own URL structure.
+
+repo: compliance-tracker
+tree_version: 1
+schema_wide_rules:
+  - "573 of 614 routes call requireAuth() / requireAuthOrApiKey() / requireRoleOrScope() / a portal-token resolver / a cron-secret check -- confirmed against AGENTS.md's stated rule 'All API routes MUST call requireAuth()'."
+  - "41 of 614 routes deliberately don't match that pattern, falling into 6 legitimate categories, not gaps: (1) cron/service-secret gated internal/** jobs, (2) public token-resolved external portals (client-portal, vendor-portal, esignature/sign, guest-chat, partner, shared/conversation), (3) SSO pre-auth entry points, (4) fully public marketing/ops endpoints (health, openapi.json, contact/forge submission), (5) pure re-export alias files under v1/projexa/** whose real guard lives in the aliased target, (6) mcp/route.ts's inline Bearer-key check (same api_keys table, different code path than the shared helper)."
+domains:
+
+  - id: API-01
+    name: "Core compliance (8 routes)"
+    objects:
+      - "GET,POST /api/compliance -- requireAuthOrApiKey + requireRoleOrScope(member,write) on POST"
+      - "GET,PATCH,DELETE /api/compliance/[id] -- requireAuth"
+      - "POST /api/compliance/[id]/comments"
+      - "GET,POST /api/compliance/[id]/costs"
+      - "POST /api/compliance-costs/[id]/payments"
+      - "POST /api/compliance/import"
+      - "POST /api/compliance/overdue, POST /api/compliance/recur"
+      - "GET /api/compliance/stats"
+    input: "A compliance item (title, type, dueDate, department, assignee, org/client scope) or a batch import file."
+    output: "compliance_items rows; on /overdue and /recur, batch status-transition/recurrence-instance side effects."
+    rules:
+      - "compliance is one of the few internal-app domains ALSO exposed at API-key scope (both compliance/route.ts and v1/compliance/route.ts exist, independently)."
+      - "recurrenceType drives /recur's batch job -- generates the next instance of a recurring compliance obligation."
+    guardrails: ["requireRoleOrScope(member,write) gates creation -- read-only roles cannot POST."]
+    workflow: ["Create/import -> assign -> track status -> (if overdue) flagged by /overdue sweep -> comments/costs attached -> closed."]
+
+  - id: API-02
+    name: "v1/* -- external/API-key surface, 77 routes"
+    objects:
+      - "v1/compliance, v1/compliance/[id], v1/compliance/stats"
+      - "v1/tasks, v1/tasks/[id], v1/tasks/[id]/status"
+      - "v1/notices, v1/notices/[id], v1/notices/stats"
+      - "v1/documents, v1/documents/expiring"
+      - "v1/brain/capabilities, v1/brain/entity-relationships (read-only AI-agent introspection)"
+      - "v1/erp/budgets(*), v1/erp/inventory/{issues,ledger,receipts}, v1/erp/procurement/requisitions"
+      - "v1/pms/meetings, v1/pms/time-entries"
+      - "v1/construction/* (8 routes: attendance, boq, kpi-definitions, kpi-entries, labour-roster, predictions/[activityId], progress, site-diary)"
+      - "v1/projexa/* (47 routes -- the largest single subtree, real-estate/interior-design rebrand of the construction domain: floor-plans + rooms/placements/scene, ffe + margin-summary, mood-boards, design-materials, change-orders, punch-list, submittals, rfis, schedule/{baselines,gantt,workload}, dashboard, expenses, project-budgets, vendors, capability-tree, discuss, assistant, reports/[reportName], ai/*)"
+      - "v1/openapi.json (public API spec)"
+    input: "Session cookie OR a vk_... API key against the api_keys table."
+    output: "JSON matching the shapes documented in v1/openapi.json."
+    rules:
+      - "requireAuthOrApiKey() + requireRoleOrScope() on writes -- this is THE external-integrator surface (third-party integrations, GPT Actions, MCP)."
+      - "12 of the 47 v1/projexa/* routes are pure one-line re-export aliases onto v1/construction/*'s already-authenticated implementations -- not independently implemented."
+      - "This is the API surface PROJEXA (the sibling repo) calls via its veridian-client.ts (see 20-projexa.yaml GOV cross-reference)."
+    guardrails: ["Every write requires requireRoleOrScope -- an API key with read-only scope cannot mutate."]
+    workflow: ["External caller authenticates with API key -> calls the versioned endpoint -> gets a documented response shape, independent of internal app UI changes."]
+
+  - id: API-03
+    name: "erp/* -- accounting/ops ERP, 138 routes"
+    objects:
+      - "buying/ (20): suppliers + bank-accounts/qualifications/sanction-checks/scorecards/portal-links/tax-withholding, purchase-orders + submit/three-way-match, goods-receipts + submit/putaway/landed-costs"
+      - "payroll/ (11): employees/[id]/{income-tax-slab,tax-exemptions}, income-tax-slabs, payslips/[id]/{finalize,tds}, runs/[id]/{payslips,process}, salary-components, salary-structures, statutory-rules"
+      - "inventory/ (11): abc-classification, cycle-count-lines/[id]/{adjust,count}, cycle-count-plans, issues, ledger, receipts, reorder-levels, reorder-suggestions, valuation"
+      - "returns/ (10): purchase/[id]/{approve,credit-note,dispatch,reject}, sales/[id]/{approve,credit-note,receive,reject}"
+      - "contracts/ (9): [id]/{amendments,billing-schedules,generate-from-template,negotiation-rounds,obligations,revenue-schedules}"
+      - "periods/ (7): [id]/{checklist,close,reopen,sign-off}, checklist/[itemId]/complete, generate -- month-end close workflow"
+      - "stock/ (6), procurement/ (6), bank-reconciliation/ (6)"
+      - "budgets/ (5): [id], cancel, submit, variance"
+      - "reports/ (4, read-only): balance-sheet, cash-flow, profit-and-loss, trial-balance"
+      - "parties/[type]/[id]/{addresses,contacts} (4, polymorphic customer/supplier)"
+      - "24 single/double-route master-data leaves: accounts, companies, cost-centers, currencies, fiscal-years, tax-templates, tax-withholding-categories, pricing-rules, subscription-plans, sales-invoices, purchase-invoices, sales-credit-notes, purchase-credit-notes, cash-vouchers, e-invoice-logs, exchange-rates, auctions"
+    input: "Document-type CRUD payloads (invoices, POs, journal entries, payslips) or workflow-action triggers (submit/approve/close)."
+    output: "erp_* table rows; status enum transitions (draft -> submitted -> approved -> closed, per document type)."
+    rules:
+      - "Uniform CRUD-plus-submit pattern: collection route (GET list/POST create) + [id] route (GET/PATCH/DELETE) + a /submit or workflow-action sub-route that transitions the document's status enum."
+      - "periods/ implements the actual month-end close checklist workflow, mapping directly to erpAccountingPeriods/erpPeriodClosingChecklistItems."
+    guardrails: ["requireAuth uniformly; a handful of routes additionally require requireAuthOrApiKey for external ERP integrations."]
+    workflow: ["Create document (draft) -> submit (validation + status transition) -> approval workflow if configured (see API-11's approval-workflows) -> posted to ledger -> period close sweeps it into the checklist."]
+
+  - id: API-04
+    name: "pms/* -- internal project-management suite, 31 routes"
+    objects:
+      - "issues, issues/[id], issues/[id]/relations, issue-statuses, issue-types, workflow-transitions, labels"
+      - "milestones, sprints, sprints/[id], sprints/[id]/issues, estimate-schemes"
+      - "saved-views, saved-views/[id]"
+      - "budgets, budgets/[id], budgets/[id]/line-items, billable-rates, time-entries, time-entries/[id]"
+      - "meetings, meetings/[id], meetings/[id]/outcomes"
+      - "wiki, wiki/[id], wiki/by-slug"
+      - "schedule/{baselines,baselines/[id],gantt,resource-allocations}"
+      - "enablement (GET/POST/DELETE -- module on/off toggle for an org)"
+    input: "Issue/sprint/meeting/time-entry data, or a schedule query."
+    output: "pms_* rows; a Gantt/critical-path payload for the schedule/gantt route."
+    rules:
+      - "requireAuth uniformly."
+      - "enablement is opt-in per org -- the PMS module doesn't appear at all for orgs that haven't enabled it (pmsEnabled flag)."
+    guardrails: []
+    workflow: ["Issue created -> assigned -> moved through workflow-transitions -> tracked in a sprint -> time logged against it -> rolled into schedule/budget reporting."]
+
+  - id: API-05
+    name: "the-firm/* -- professional-services practice management, 29 routes"
+    objects:
+      - "clients/[clientId]/{engagements,invoices,portal-links,service-lines,staff-assignments,tax-cases}"
+      - "engagements/[engagementId], engagements/[engagementId]/deliverables, deliverables, deliverables/[deliverableId]/complete"
+      - "invoices/[invoiceId]/{fixed-fee-line,paid,send,void}, billable-rates, time-entries, time-entries/start, time-entries/[timeEntryId], time-entries/[timeEntryId]/stop"
+      - "staff/[userId]/{assignments,utilization}, staff-assignments/[assignmentId]/end"
+      - "tax-cases/[caseId]/stage, tax-cases/limitations"
+      - "dashboard/{deadlines,realization,utilization}"
+      - "portal-links/[linkId]/revoke, enablement"
+    input: "Client/engagement/tax-case data, time-entry start/stop events."
+    output: "firm_* rows; dashboard aggregates (deadlines/realization/utilization)."
+    rules: ["requireAuth uniformly; opt-in per org (firmEnabled flag), same pattern as PMS's enablement."]
+    guardrails: []
+    workflow: ["Client onboarded -> engagement created -> deliverables tracked -> time logged (start/stop) -> billed via invoices -> staff utilization/realization reported on dashboard."]
+
+  - id: API-06
+    name: "construction/* + v1/construction + v1/projexa -- construction/interior-design domain, 32 direct routes (+ 47 aliased, see API-02)"
+    objects:
+      - "boq + 5 sub-actions (approve, compare, revisions, submit, [id])"
+      - "ai/{diff-drawings,estimate-progress,progress-summary,risk-detection} -- AI-assisted site analysis"
+      - "dashboard, dashboard/[projectId], kpi-entries, kpi-entries/[id]/approve, site-diary, reports/[reportName], progress, predictions/[activityId], labour-roster, kpi-definitions, expenses, categories, attendance, activities"
+    input: "Site data, BOQ line items, drawing images (for AI diff), progress reports."
+    output: "construction_* rows; AI-assisted analysis reports for the 4 ai/* routes."
+    rules:
+      - "This is the domain PROJEXA (the sibling repo) proxies almost entirely -- see 20-projexa.yaml for the client side."
+      - "boq has a full approve/revise/compare workflow, not just CRUD."
+    guardrails: ["kpi-entries/[id]/approve gates KPI entries behind an approval step before they count toward reporting."]
+    workflow: ["BOQ drafted -> revised -> compared -> submitted -> approved. Separately: site-diary/attendance/progress logged daily -> AI routes analyze drawings/progress -> KPIs entered -> approved -> dashboard aggregates."]
+
+  - id: API-07
+    name: "AI / orchestration platform routes, 17 routes"
+    objects:
+      - "POST,GET /api/ai/team/dispatch -- requireAuth + veridian_admin role required (platform-internal, not customer-facing)"
+      - "POST /api/ai/team/log-usage -- AI_TEAM_LOG_SECRET header (called by ai-workforce-agent.mjs from GitHub Actions, no session)"
+      - "GET /api/ai/team/token-usage"
+      - "POST /api/ai/orchestrate"
+      - "GET /api/orchestra/analytics"
+      - "GET,POST /api/worker-agents, PATCH /api/worker-agents/[id], PATCH /api/worker-agents/[id]/publish"
+      - "GET,POST /api/assistants, GET,PATCH /api/assistants/[id], GET,POST /api/assistants/[id]/memories, GET /api/assistants/[id]/memories/search"
+      - "GET,POST /api/page-agent/config, POST /api/page-agent/proxy"
+      - "GET,POST /api/prompt-eval/cases, GET /api/prompt-eval/cases/[id]/runs, POST /api/prompt-eval/cases/[id]/run"
+    input: "A dispatch request (ai/team/dispatch), an assistant memory query, or a prompt-eval case definition."
+    output: "A dispatched task, a memory search result, or a prompt-eval run result."
+    rules:
+      - "ai/team/dispatch is the ONE route in the entire API surface gated to veridian_admin specifically -- it builds/governs the AI Dev Team itself, per its own header comment, not a customer-facing feature."
+      - "worker-agents has an explicit publish lifecycle (draft -> published) distinct from plain CRUD."
+    guardrails: ["ai/team/dispatch is where GOV-03/GOV-04's TightTask + tier-eligibility checks are enforced (see 10-compliance-tracker-governance.yaml GOV-06)."]
+    workflow: ["Platform admin dispatches a task -> classified -> routed to a role -> executed -> usage logged (log-usage, cost-tracked via token-usage)."]
+
+  - id: API-08
+    name: "Chat / meetings / conversations, 31 routes"
+    objects:
+      - "conversations, conversations/[id]/{messages,read,regenerate}, conversations/workflow-thread"
+      - "veri-meetings, veri-meetings/[id]/{action-items,audit-log,export,generate-intelligence,minutes,publish,share-links}"
+      - "guest-chat/[token]/*, veri-chat/share-target, veri-chat/guest-access/[id], veri-chat/conversations/[id]/{guest-access,share-links}, veri-meetings/share/[token], veri-meetings/share-links/[linkId], shared/conversation/[token]"
+    input: "A message, or a meeting transcript/audio for AI processing."
+    output: "conversations/messages rows; veri_meetings with generated minutes + action items."
+    rules:
+      - "generate-intelligence is the AI meeting-intelligence pipeline: transcription -> minutes -> action items, matching audit-tree D21.B2's Minutes of Meeting Intelligence requirement almost exactly."
+      - "Guest/share-token routes are public-by-design (token-resolved), not an auth gap -- documented pattern reused across 5+ route families."
+    guardrails: []
+    workflow: ["Meeting recorded -> generate-intelligence processes it -> minutes + action items produced -> published -> optionally shared via a token link with guests."]
+
+  - id: API-09
+    name: "HR / recruitment / performance, 30 routes"
+    objects:
+      - "hr/employees, hr/employees/[userId], hr/leave-requests(+[id]), hr/leave-balances, hr/org-chart"
+      - "recruitment/job-openings(+[id]), recruitment/candidates, recruitment/applications(+[id]), applications/[id]/{hire,interviews,stage}, interviews/[id]/feedback"
+      - "performance-reviews/cycles(+[id]/{activate,close}), reviews(+[id]/{acknowledge,submit})"
+      - "hr-compliance (labour-law compliance items, distinct from core compliance)"
+    input: "Employee/candidate/review data, leave requests, interview feedback."
+    output: "employee_profiles / job_openings / candidates / performance_reviews rows."
+    rules: ["applications/[id]/hire is the terminal action converting a candidate into an employee -- a real state-machine step, not just a status flag flip."]
+    guardrails: []
+    workflow: ["Job opening posted -> candidates apply -> stage-tracked through interviews -> feedback collected -> hire decision -> employee onboarded. Separately: performance review cycles activated -> reviews submitted -> acknowledged -> cycle closed."]
+
+  - id: API-10
+    name: "CRM / Sales-HQ, 18 routes"
+    objects:
+      - "crm/leads(+[id]), leads/[id]/{convert,follow-up-task,score}"
+      - "crm/opportunities(+[id]), opportunities/[id]/{analyze,follow-up-task}"
+      - "sales-hq/overview, partners(+[id]), commission-plans, commission-accruals/[id]/{mark-paid,void}, referral-links, visitors(+/analyze)"
+    input: "Lead/opportunity data, or a partner referral event."
+    output: "crm_leads/crm_opportunities rows; commission accrual records."
+    rules:
+      - "leads/[id]/score and opportunities/[id]/analyze are AI-assisted endpoints (lead scoring, opportunity analysis) -- not plain CRUD."
+      - "sales-hq is the internal partner/commission engine, admin-scoped, distinct from customer-facing CRM."
+    guardrails: []
+    workflow: ["Lead captured -> scored -> converted to opportunity -> analyzed -> won/lost. Separately: partner refers a customer -> referral tracked -> commission accrued -> marked paid."]
+
+  - id: API-11
+    name: "GST reconciliation, 10 routes"
+    objects:
+      - "import (+[batchId], confirm, findings, mapping)"
+      - "reconcile (+[runId])"
+      - "returns (+[returnPeriodId], ai-review)"
+    input: "A GST/bank statement file (Excel/Tally XML) or an existing import batch."
+    output: "gst_canonical_invoices, gst_reconciliation_matches, gst_ai_review_reports."
+    rules:
+      - "This is a staged pipeline, not single-call CRUD: import (stage/map/confirm) -> reconcile (match) -> returns (track period, AI-review)."
+      - "ai-review is the ONE AI-touched step in the whole GST engine per the services inventory (GOV cross-reference: src/lib/gst/ai-review-report.ts) -- it explains/prioritizes but never recomputes numbers."
+    guardrails: ["The deterministic GST engine (GOV-07) does all actual computation; AI is confined to the review/explanation layer, by design."]
+    workflow: ["1. File imported and staged. 2. Column-mapped, confirmed. 3. reconcile matches invoices/payments. 4. returns tracks the period and generates an AI review report explaining findings."]
+
+  - id: API-12
+    name: "Documents & knowledge base, 17 routes"
+    objects:
+      - "documents (+[id]/{dispose,retention,versions}, expiring, extract, pending-disposal, search)"
+      - "knowledge-base/pages(+[id], by-slug, search)"
+      - "ingest (+[batchId], confirm, items/[itemId]) -- generic staged ingestion, same pattern as GST import"
+    input: "An uploaded file, or a KB page edit."
+    output: "documents rows with AI-extracted fields (extract route); knowledge_base_pages rows."
+    rules: ["documents/[id]/retention + dispose implements a real records-retention lifecycle, not just soft-delete."]
+    guardrails: []
+    workflow: ["Document uploaded -> AI extraction runs -> versioned -> tracked toward expiry/retention -> disposed per policy when due."]
+
+  - id: API-13
+    name: "Governance / risk / legal / board, ~95 routes"
+    objects:
+      - "board, board-evaluation, committees, directors, doa, rpt, policies, risks, litigation, legal-matters, legal-opinions, legal-vendors, ip-portfolio, whistleblower, posh, bcm, fraud-cases, it-dr, incidents, contract-compliance, secretarial-audit, mca-filings, access-review, frameworks, audit, audit-engagements, audit-findings, audit-points, esg, cap-table, charges, sebi, rbi, irdai, vendor-risk, clm"
+      - "Notable AI-assisted sub-routes: legal-opinions/[id]/generate, mca-filings/[id]/generate, vendor-risk/[id]/assess"
+    input: "Governance-object data (a board meeting, a policy draft, a legal matter, a risk entry)."
+    output: "The corresponding table row; AI-generated drafts for the 3 generate/assess sub-routes."
+    rules:
+      - "Almost entirely GET(list)/POST(create) + GET/PATCH(+DELETE) per governance domain object -- one CRUD family per audit-tree D2's Audit Organization concept made concrete in code (board, risk, legal, whistleblower, POSH, BCM, fraud, IT-DR, incidents, secretarial, MCA, access-review, frameworks, audit engagements/findings/points, ESG, cap-table, sector regulators SEBI/RBI/IRDAI, vendor-risk, CLM)."
+      - "sebi/rbi/irdai are sector-gated in the UI (SectorGateNotice) even though the API routes themselves are plain CRUD -- gating happens at the entity-type check, not the route."
+    guardrails: ["requireAuth uniformly across this domain."]
+    workflow: ["Domain object created -> reviewed/tracked through its own status lifecycle -> where applicable, AI drafts a first pass (legal opinion, MCA filing, vendor-risk assessment) for human review."]
+
+  - id: API-14
+    name: "Facilities / tickets / ops, 15 routes"
+    objects:
+      - "tickets (+[id]/{dispatches,guest-access,installed-product,surveys})"
+      - "problem-records (+[id]/tickets)"
+      - "field-service-dispatches/[dispatchId]"
+      - "installed-products"
+    input: "A support ticket, or a field-service dispatch event."
+    output: "tickets/problem_records/field_service_dispatches rows."
+    rules: ["problem-records groups related tickets ITIL-style (one problem, many linked incidents/tickets) -- a real grouping relationship, not just a tag."]
+    guardrails: []
+    workflow: ["Ticket raised -> linked to an installed product -> if it recurs, grouped under a problem record -> field service dispatched if needed -> satisfaction survey on close."]
+
+  - id: API-15
+    name: "Settings / platform admin, 30 routes"
+    objects:
+      - "settings/{ai-config, api-keys(+[id],usage), model-config(+[id],pool-usage), modules, module-rules, page-agent-config, prompts, sso, webhooks(+[id])}"
+      - "automation-rules(+[id],[id]/runs), metric-alert-rules(+[id])"
+      - "connectors(+[toolkit]/sync)"
+      - "mdm/duplicates(+scan,[id]/merge,[id]/review), quality-scores"
+      - "capability-registry/{backfill,duplicates}, capability-tree"
+    input: "Org/user configuration changes, or a trigger-condition-action automation rule."
+    output: "Updated org settings; automation_rule_runs; MDM merge/review decisions."
+    rules:
+      - "automation-rules implements deterministic (no-AI) trigger->condition->action rules -- the explicit software-first counterpart to AI dispatch."
+      - "mdm (Master Data Management) runs duplicate-detection scans over Customers/Suppliers and tracks merge/review decisions -- a real dedup workflow, not just a report."
+    guardrails: ["settings routes are generally expected to be admin-role-gated, consistent with the platform's general pattern, though not individually re-verified for all 14 files."]
+    workflow: ["Admin configures org settings/connectors/automation rules -> MDM periodically flags duplicates -> admin merges/reviews -> capability-registry backfill keeps the AI capability catalog in sync with real registered capabilities."]
+
+  - id: API-16
+    name: "Miscellaneous / small utility domains, ~40 routes"
+    objects:
+      - "me, me/onboarding-stage, users, departments(+[id]), clients(+[id]/{access,entities})"
+      - "notifications(+[id]/read), home/{analytics,assigned-by-me,todos}"
+      - "search/semantic (embeddings-backed), reports/saved(+[id],[id]/run), kpi-hub"
+      - "veri-reward/{leaderboard,referral,route,streak} (gamification)"
+      - "veri-todo, instruction-mismatches(+[id]) (AI-instruction-drift detector, tied to instructionMismatchDetections table)"
+      - "code-change-requests, products(+[id]/projects), projects(+[id]), tds-returns/{24q,26q}, challans(+[id]), notices(+[id],[id]/dispatches,stats)"
+    input: "Varies per route -- current-user profile queries, notification reads, semantic search queries, gamification events."
+    output: "Varies -- see individual route purpose."
+    rules:
+      - "instruction-mismatches is the API surface for GOV cross-reference: the instruction-mismatch-audit loop's findings (an AI-drift detector flagging when an AI's stated action diverges from what a human actually instructed)."
+      - "search/semantic is the one route backed by the embeddings/embedding_cache tables rather than plain SQL filtering."
+    guardrails: []
+    workflow: ["Varies per route -- mostly independent utility endpoints without a single unifying workflow."]
+
+  - id: API-17
+    name: "Cron/service-secret-gated internal jobs (7 routes)"
+    objects:
+      - "internal/metric-alerts/run, internal/loops/run, internal/instruction-audit/run, internal/secrets-audit/run"
+      - "internal/the-firm/deadline-digest/run, internal/the-firm/recur-engagements/run, internal/fm-ppm/generate-occurrences/run"
+      - "ai/team/log-usage (AI_TEAM_LOG_SECRET, not CRON_SECRET, but same category)"
+    input: "A scheduled cron trigger with Authorization: Bearer ${CRON_SECRET}."
+    output: "Side effects specific to each job (alert evaluation, loop execution, digest email, engagement recurrence, PPM occurrence generation)."
+    rules: ["These are the only routes gated by a shared service secret rather than a per-user session/API-key -- correctly excluded from the requireAuth() count, not a gap."]
+    guardrails: ["CRON_SECRET is the sole gate -- if leaked, all 7 jobs are triggerable externally; standard shared-secret risk, not flagged as a defect here, just noted."]
+    workflow: ["Vercel Cron (or equivalent scheduler) fires -> Bearer-authenticated request -> job runs -> side effects applied."]
+
+count_of_domains: 17
+count_of_routes_covered: 614

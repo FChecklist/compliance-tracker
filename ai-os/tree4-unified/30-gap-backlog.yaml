@@ -1,0 +1,192 @@
+# 4TH TREE (Unified) -- Section 30: Actionable Gap Backlog
+#
+# The confirmed/likely gaps from Section 10 (10-merged-governance-layer.yaml),
+# expanded into implementation-ready specs: full input/output/guardrail/
+# workflow detail pulled from Tree 1's original requirement text, plus a
+# priority and effort-size judgment based on what Section 10's comparison
+# found. This is the actionable to-do list this whole multi-session effort
+# (documents -> requirement tree -> system tree -> audited system tree ->
+# this comparison) has been building toward.
+#
+# Priority: P0 (foundational, other gaps depend on it or it's high-leverage/
+# low-risk) | P1 (real value, bounded scope) | P2 (large, separately-
+# prioritized initiative, not a quick fix).
+# Effort: XS (hours) | S (days) | M (1-2 weeks) | L (its own initiative).
+
+tree_version: 1
+backlog:
+
+  - id: GAP-01
+    priority: P0
+    effort: S
+    name: "Wire more of the 25 computation engines into live dispatch"
+    reconciled_from: "U-D25 / Tree1 D25"
+    priority_rationale: "This is the single highest-leverage, lowest-risk item in the whole backlog: the code already exists, is pure/deterministic (no LLM, no side effects), and only needs to be added to an existing allowlist -- not designed, written, or tested from scratch."
+    current_state: "25 engine files, ~247 functions exist in src/lib/engines/. Updated 2026-07-11 (Wave 165): 4 files now substantially wired into task-execution-engine.ts's dispatchEngine() allowlist -- GST (16/16), Math (10/13), Income Tax (9/9, all with capability-tree UI fields), TDS/TCS (6/7, tds_calculator deliberately deferred -- see 50-completion-plan/04-implementation-log.yaml's phase2_code_changes_tds_engine entry for why). Each wiring verified two ways: tsc/eslint clean, AND the underlying pure functions run directly against known-correct statutory cases, not just type-checked. 21 files remain dormant. Next candidates per this item's own workflow: accounting-engine.ts (20 implemented functions) or payroll-engine.ts."
+    input: "A Dynamic Chain leaf with an engineKey matching one of the 23 unwired engine files' functions."
+    output: "A deterministic computed result, zero LLM calls, same shape as the 2 already-wired engines."
+    guardrails:
+      - "Keep dispatchEngine()'s explicit-allowlist pattern -- do NOT switch to dynamic-import-by-DB-value, per the existing (correct) security rationale already documented in GOV-07."
+      - "Each newly-wired function needs a corresponding Dynamic Chain leaf definition (capability-tree-service.ts) before it's reachable by a user -- wiring the dispatch alone isn't sufficient."
+    workflow:
+      - "1. Pick the highest-value remaining engine (candidates: accounting-engine.ts, income-tax-engine.ts, tds-engine.ts, payroll-engine.ts -- these serve the compliance-tracker's core existing customer base most directly)."
+      - "2. Add its functions to dispatchEngine()'s allowlist switch, one engine at a time."
+      - "3. Define/verify the corresponding capability-tree leaf(ves) so the function is actually reachable via the Dynamic Chain UI."
+      - "4. Repeat per the repo's own CAPABILITY_COVERAGE.md tracking document (already exists, referenced by GOV-07)."
+    instruction: "Narrow, tightened: do NOT redesign the calculator infrastructure. The task is purely 'extend an allowlist and define matching leaves,' repeated ~23 times, prioritized by real customer value."
+
+  - id: GAP-02
+    priority: P0
+    effort: M
+    name: "Register the scattered guardrail mechanisms as real guardrail-engine.ts leaves"
+    reconciled_from: "U-D12 / Tree1 D12"
+    priority_rationale: "This is the highest-leverage GOVERNANCE finding in the whole comparison: the constitutional claim 'no task may bypass these guardrails' is mechanically true for only 4 of ~30 intended guardrails today."
+    current_state: "policy-enforcement-engine.ts, floor-tier-escalation.ts, loop-prevention.ts, ai-reply-gate.ts, pii-redaction.ts, audit.ts each independently implement real guardrail-equivalent logic, but none is registered as a guardrail-engine.ts leaf. Only tightTaskCheck (x2 leaves), taskBriefCheck, and loopBudgetCheck are registered."
+    input: "Any AI-touching operation at the relevant lifecycle phase."
+    output: "A pass, or a structured {reason, guidance} rejection -- via the SAME unified evaluateGuardrails() call path every other guardrail already uses."
+    guardrails:
+      - "Do not change the underlying enforcement logic in each of the 6 scattered files -- they work. The task is to WRAP each as a registered guardrail-engine.ts rule, not rewrite it."
+      - "Preserve guardrail-engine.ts's fail-open-if-unregistered design (silence = no constraint) -- registering these makes their absence-of-registration no longer silent, closing the actual gap."
+    workflow:
+      - "1. For each of the 6 files, identify its natural leaf key and phase (e.g. policy-enforcement-engine.ts's enforcePolicy() -> a pre-execution 'input' phase leaf; ai-reply-gate.ts's passesReplyGate() -> a post-execution 'output' phase leaf)."
+      - "2. Write a thin adapter function (same pattern as the existing tightTaskCheck/taskBriefCheck/loopBudgetCheck adapters in guardrail-registrations.ts) calling into the existing logic."
+      - "3. Register it via registerGuardrail()."
+      - "4. Verify via the existing Guardrail Presence Check CI job (scripts/check-guardrail-presence.mjs) that the new markers are tracked."
+    instruction: "Narrow, tightened: this is an adapter-writing task over 6 already-correct implementations, not new guardrail design. Do not invent new enforcement logic where the existing scattered mechanisms are already sound."
+
+  - id: GAP-03
+    priority: P1
+    effort: S
+    name: "Add a Dynamic Chain selection gate to VERI Chat conversation creation"
+    reconciled_from: "U-D8 / Tree1 D5.B4.S2, D8"
+    priority_rationale: "Real, bounded, well-scoped gap with an existing mechanism to reuse -- not a new subsystem."
+    current_state: "Conversations can apparently be created (POST /api/conversations) without any Dynamic Chain selection, contradicting the 'minimum 2-level chain selection before a new conversation' requirement."
+    input: "A new-conversation creation request."
+    output: "A conversations row with a resolved dynamicChainId attached, or a rejection if chain selection is missing."
+    guardrails: ["Require at least a 2-level path (matching D5.B4.S2's literal '2-level' requirement) before the conversation is created."]
+    workflow:
+      - "1. Add a guardrail check (or a plain validation, if not registered via GAP-02) to POST /api/conversations requiring modePill + at least 2 pathKeys."
+      - "2. Reuse GOV-09's existing resolveDynamicChainId() to attach the resulting dynamicChainId to the new conversation."
+      - "3. Update the conversation-creation UI (VeriComposer/ConversationList's 'new conversation' entry point) to require the selection before submission is enabled."
+    instruction: "Narrow, tightened: reuse task-service.ts's existing chain-resolution function verbatim. Do not build a separate chain-resolution path for conversations."
+
+  - id: GAP-04
+    priority: P1
+    effort: M
+    name: "Build a dedicated AI Handover guardrail leaf"
+    reconciled_from: "U-D17 / Tree1 D17"
+    priority_rationale: "Confirmed absent, well-scoped, follows an established pattern (GOV-02's existing leaves)."
+    current_state: "No handover-specific validation exists anywhere. task_agent_executions/task_chat_messages may carry some relevant state implicitly but nothing validates it."
+    input: "A task ownership-transfer attempt."
+    output: "A pass (transfer proceeds) or a rejection listing which of the 9 required fields is missing: Task Status, Output Produced, Validation Passed, Known Risks, Pending Items, Confidence, Next Responsible AI, Required Action, Escalation Required."
+    guardrails: ["Ownership must not transfer without an explicit acknowledgement from the receiving agent/role -- this is the second half of the requirement, distinct from field-completeness."]
+    workflow:
+      - "1. Define a task.handover guardrail leaf (phase: 'output' or a new 'handover' phase if the existing 4-phase model doesn't fit)."
+      - "2. Implement a checkHandoverCompleteness() adapter validating the 9 fields, following task-tightening.ts's existing validation style (placeholder-regex rejection, minimum length, etc.)."
+      - "3. Add an explicit acceptance step on the receiving side -- likely a new field or status transition on task_agent_executions."
+      - "4. Register via GOV-02's registerGuardrail(), same pattern as the 4 existing leaves."
+    instruction: "Narrow, tightened: this is new work, correctly scoped as new (not a wiring task like GAP-01/02). Follow task-tightening.ts's validation style exactly rather than inventing a new one -- consistency with the existing TightTask/TaskBrief pattern matters more than novelty here."
+
+  - id: GAP-05
+    priority: P2
+    effort: L
+    name: "Build the ~150-specialist Audit Organization as real dispatchable roles"
+    reconciled_from: "U-D2 / U-D15 / Tree1 D2.B4, D15"
+    priority_rationale: "Large scope (150 named roles across 5 divisions), and the value of literally naming 150 individual auditor roles (vs. fewer, broader ones) hasn't been validated -- worth an Owner decision before building, not a default 'build it as specified' call."
+    current_state: "Only chief_audit_officer exists in roster.ts (AUDIT_EXECUTIVE team). The 5 divisions (Engineering/Business/Knowledge&Intelligence/Governance&Compliance/Global Revenue Assurance) and their ~150 named specialist auditors (Software Quality Auditor, GST Auditor, Segregation of Duties Auditor, etc.) have zero corresponding code."
+    input: "N/A -- design decision needed before implementation."
+    output: "N/A."
+    guardrails: ["Whatever is built must preserve the doer != certifier separation principle already partially enforced by AGENTS.md Rule 7(c) and GOV-04's requiresMandatoryAudit -- new auditor roles should extend that principle, not duplicate it inconsistently."]
+    workflow:
+      - "OPEN DECISION, not a workflow yet: does the Owner want 150 individually-named, individually-dispatchable roster.ts roles (matching the literal Audit Organization.docx design), or a smaller number of broader auditor roles covering the same 5 divisions' scope with less naming granularity? The former is a large roster.ts expansion (150 entries) plus a real question of whether 150 distinct prompt templates are worth maintaining vs. a handful of parameterized ones."
+    instruction: "Do not default to building this literally as specified without an Owner decision first -- the 150-role granularity was a design proposal in a source document, not yet validated against real operational need. Recommend proposing a smaller pilot (the 5 division-lead roles first) before committing to all 150."
+
+  - id: GAP-06
+    priority: P1
+    effort: M
+    name: "Build a genuine draft-then-approve Communication Governance flow"
+    reconciled_from: "U-D10 / Tree1 D10"
+    priority_rationale: "Real gap, but composable from existing pieces -- not a from-scratch subsystem."
+    current_state: "Only system-triggered fixed-template transactional email exists (email.ts). No AI-drafts-then-user-approves pattern exists for any communication type."
+    input: "A trigger for a communication that should be AI-drafted (e.g. a weekly status report, a follow-up reminder)."
+    output: "A drafted communication held in a pending state until approved, then sent via the existing email.ts mechanism."
+    guardrails: ["VERI must never send without approval unless a persistent always_approve preference exists for that exact scope -- reuse GOV-14's approval_preferences mechanism exactly, do not build a parallel approval system."]
+    workflow:
+      - "1. AI-drafting step: reuse GOV-06's runRole() to generate the draft content for a given communication type/role."
+      - "2. Hold step: persist the draft in a pending state, check GOV-14's checkApprovalPreference() for an existing always-approve shortcut."
+      - "3. Approval step: if no shortcut, present the draft to the user via the existing D9/GOV-14 approval UI pattern."
+      - "4. Send step: on approval, call email.ts's sendEmail() (or the appropriate channel) with the approved content."
+    instruction: "Narrow, tightened: this is a composition of 3 existing mechanisms (runRole, approval_preferences, sendEmail), not a new one. Resist the temptation to build a bespoke drafting/approval pipeline -- the pieces already exist and are proven."
+
+  - id: GAP-07
+    priority: P2
+    effort: L
+    name: "Build the Dynamic Chain Master Directory (DCMD) with the 10 required sub-fields, graph-structured"
+    reconciled_from: "U-D6 / Tree1 D6"
+    priority_rationale: "Already tracked and deferred by this session's own task list (#24) -- confirming it's a known, sized, separately-prioritized initiative, not a quick add."
+    current_state: "dynamic_chains is a flat find-or-create table (orgId, modePill, pathKeys, pathLabels, createdById, status). None of the 10 required sub-fields (Chain ID, Mode Pill/domain, full hierarchical path, linked module(s)/rules/permissions/workflow/AI-behaviour/reports-KPIs-SLAs, version history) beyond the basics exist, and it is not graph-structured."
+    input: "N/A -- design + migration work."
+    output: "N/A."
+    guardrails: ["Any migration must preserve existing dynamic_chains rows and their references from tasks/conversations -- this is a live table with real data dependent on it, not a greenfield build."]
+    workflow: ["Not started. Recommend: design the graph schema first (per Tree 1 D6.B2.S2's own recommendation to prefer a graph over an enumerated permutation table), then an additive migration (new columns/tables alongside the existing flat structure), then a backfill, then cut over reads."]
+    instruction: "This is explicitly out of scope for a quick fix -- treat as its own scoped initiative with a migration plan, consistent with how it's already tracked in the task list."
+
+  - id: GAP-08
+    priority: P2
+    effort: L
+    name: "Build Connector Layers 2-4 (Office Add-ins, Browser Extensions, Desktop Companion) and the Business Digital Twin schema"
+    reconciled_from: "U-D26 / Tree1 D26"
+    priority_rationale: "Each layer is effectively its own product/codebase (a browser extension is a different deployment target and technology stack entirely) -- this is 3-4 separate initiatives bundled under one requirement heading, not one task."
+    current_state: "Only Layer 1 (Cloud API/OAuth via Composio) exists. Zero evidence of an add-in manifest, extension code, or desktop agent. connector_accounts is a simple OAuth-account table, not a Digital Twin."
+    input: "N/A -- each layer needs independent scoping."
+    output: "N/A."
+    guardrails: ["Whatever is built for Layers 2-4 must not modify or risk Layer 1's existing working Composio OAuth flow -- treat Layer 1 as a stable dependency, not something to refactor as a side effect of adding new layers."]
+    workflow: ["Not started for any of the 3 remaining layers. Recommend the Owner prioritize independently: Layer 2 (Office Add-ins) likely has the clearest ROI given the existing customer base's Excel/Word usage; Layers 3-4 and the Digital Twin schema are larger, less validated bets."]
+    instruction: "Do not treat 'finish D26' as one ticket -- split into at minimum 4 independently-scoped initiatives (Layer 2, Layer 3, Layer 4, Digital Twin schema) before any of them is estimated or started."
+
+  - id: GAP-09
+    priority: P2
+    effort: L
+    name: "Build Licensing, Misuse Detection, and the Adoption Dashboard"
+    reconciled_from: "U-D27 / Tree1 D27"
+    priority_rationale: "Large, cross-cutting scope (auth-session-level enforcement + new metrics pipeline + reconciling invite paths) -- not a small patch to existing code."
+    current_state: "Only organisations.plan/subscriptionPlanId/trialStartsAt/EndsAt exist. No seat/license management, no session-concurrency enforcement, no adoption-metrics dashboard, unconfirmed whether the 4 specific invitation paths exist as designed."
+    input: "N/A -- design + build work."
+    output: "N/A."
+    guardrails: ["The 2-concurrent-session limit explicitly does NOT apply to VERIDIAN's own internal use/testing per Tree 1's own D27 requirement -- any enforcement must carry this exception from day one, not retrofit it."]
+    workflow: ["Not started. Recommend: (1) audit what invite mechanism actually exists today against the 4-path design first (cheap, clarifies real scope), (2) design license/seat tables, (3) design session-concurrency enforcement (likely at the Supabase Auth session layer), (4) design the adoption-metrics aggregation job separately from the other two, since it has no dependency on them."]
+    instruction: "Start with the audit sub-step (cheap, ~1 day) before committing effort estimates to the rest -- it may turn out more of the invite-path design already exists than this comparison could confirm from Tree 3 alone."
+
+  - id: GAP-10
+    priority: P1
+    effort: XS
+    name: "Verify (don't assume) D28's onboarding UX specifics"
+    reconciled_from: "U-D28 / Tree1 D28"
+    priority_rationale: "Cheapest item in the whole backlog to resolve -- a direct code/UI check, not a build task, and it may turn out nothing needs building."
+    current_state: "Generic onboarding-progress tracking exists; Google-sign-in-first ordering, 4-digit-passcode-vs-password, and a persistent 'Invite a team member' control are all unconfirmed either way."
+    input: "N/A -- a verification task."
+    output: "A confirmed status for each of the 3 specifics, replacing 'unconfirmed' with 'built' or 'gap.'"
+    guardrails: []
+    workflow: ["Read /login, /signup page source and AppTopbar.tsx directly. This is the single cheapest unresolved item in this entire backlog."]
+    instruction: "Do this one first, before any of the larger P1/P2 items -- it's hours of work and will either close 3 open questions for free or surface 3 small, well-scoped gaps."
+
+  - id: GAP-11
+    priority: P1
+    effort: XS
+    name: "Verify tasks table's full column list against D4.B1's ~40-field taxonomy"
+    reconciled_from: "U-D4 / Tree1 D4.B1"
+    priority_rationale: "Same rationale as GAP-10 -- cheap verification, not assumed either way, unblocks a confident status for U-D4."
+    current_state: "DB-04 listed tasks as one of ~30 AI-platform tables but didn't enumerate its full column list."
+    input: "N/A -- a verification task."
+    output: "A confirmed field-by-field comparison against D4.B1's Identity/Input/Process/Output/Handover/Closure groups."
+    guardrails: []
+    workflow: ["Read the tasks table's full Drizzle definition directly."]
+    instruction: "Cheap, bounded, do before assuming U-D4's status."
+
+open_decisions_needing_owner_input:
+  - "GAP-05: 150 individually-named auditor roles, or fewer broader ones covering the same 5 divisions?"
+  - "GAP-09 (via D27's earlier reconciliation, U-D9): is the built binary always-approve/always-reject model sufficient, or are the richer 9/9/16-option vocabularies still wanted as a UI layer on top?"
+  - "U-D4/D4.B7: retrofit Work-Object unification across ERP/PMS/Firm/Construction (large migration), or ratify the current separate-modules architecture as the deliberate design?"
+  - "U-D3/U-D18: are D3's percentage-split model routing and D18's confidence-percentage banding formally superseded by GOV-04's tier system, or still wanted as additional, separate mechanisms?"
+
+count_of_backlog_items: 11
