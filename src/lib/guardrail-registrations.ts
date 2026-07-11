@@ -25,10 +25,18 @@ export const TASK_FREE_TEXT_PLANNING_LEAF = "task_execution.free_text_planning"
 export const AI_WORKFORCE_LOOP_BUDGET_LEAF = "ai_workforce.loop_budget"
 
 function tightTaskCheck(context: Record<string, unknown>) {
+  // Wave 163 audit finding (chief_audit_officer's first real dispatch,
+  // CAO-001): complexityTier/expectedOutput were added to TightTask but
+  // never read here -- every real dispatch would have failed this gate
+  // regardless of what the caller sent, since validateTightTask requires
+  // them. Fails closed (blocks everything) rather than open, but still a
+  // real bug, not just an incomplete feature -- fixed same pass it was found.
   const task: Partial<TightTask> = {
     objective: context.objective as string | undefined,
     scope: context.scope as string | undefined,
     successCriteria: context.successCriteria as string | undefined,
+    complexityTier: context.complexityTier as TightTask["complexityTier"] | undefined,
+    expectedOutput: context.expectedOutput as string | undefined,
     constraints: context.constraints as string | undefined,
   }
   const result = validateTightTask(task)

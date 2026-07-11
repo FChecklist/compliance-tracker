@@ -1,0 +1,88 @@
+name: Mandatory Audit Check
+
+# Wave 163 (Boss directive: gap analysis found AGENTS.md Operating Rule 7c
+# -- "whichever agent did not implement a task is the mandatory auditor" --
+# was a written norm with zero CI enforcement. Every audit this session
+# happened because Claude chose to do it by hand, not because anything
+# would have stopped a merge otherwise. This closes that gap.
+#
+# Runs on every PR into main (required so it can't be silently skipped),
+# but only actually enforces anything for PRs from a cheap-tier AI
+# Workforce dispatch branch (ai-team/<role>/*, where <role> is a role
+# whose model hasn't earned judgment-tier trust -- see
+# model-tier-eligibility.ts's JUDGMENT_ELIGIBLE set, mirrored below as a
+# branch-name allowlist since this job runs in bash, not Node). Every other
+# PR passes instantly -- this must never become a bottleneck for normal
+# development work.
+#
+# Honest limitation, same class as every other CI gate in this repo
+# (guardrail-presence-check.mjs's own header states this precedent): this
+# checks for a comment matching a specific marker, not that the audit was
+# actually rigorous -- it can't verify the auditor really ran tsc/lint/
+# build, only that *someone* explicitly asserted they did. That's a real,
+# stated limit, not a claim of more than this can deliver.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  audit-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether this branch requires a mandatory audit
+        id: check
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          # Cheap-tier role branches per model-tier-eligibility.ts's
+          # JUDGMENT_ELIGIBLE set (only z-ai/glm-5.2 and openai/gpt-5.5 are
+          # judgment-eligible -- every other role requires audit). Update
+          # this list alongside roster.ts whenever a new non-judgment-tier
+          # role is added; check-guardrail-presence.mjs tracks that this
+          # file exists, not that this list stays in sync -- a real,
+          # named limitation, not silently assumed away.
+          if [[ "$BRANCH" =~ ^ai-team/(tool_integration_engineer|governance_backend_engineer)/ ]]; then
+            echo "requires_audit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "requires_audit=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require an explicit audit verdict comment
+        if: steps.check.outputs.requires_audit == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        # Audit finding (chief_audit_officer's first real dispatch, CAO-001,
+        # asked to confirm this without being able to see the file): GitHub
+        # Actions `run:` steps execute with `bash -eo pipefail` by default,
+        # so `COMMENTS=$(gh api ...)` failing (network error, bad token,
+        # rate limit) exits this step non-zero immediately -- the job fails,
+        # the check fails, merge stays blocked. This IS fail-closed;
+        # verified against actions/runner's documented default shell, not
+        # assumed. The branch-name regex in the prior step matches against
+        # $BRANCH as bash pattern-matching data (`[[ "$BRANCH" =~ pattern ]]`),
+        # never re-interpreted as code, so there's no injection surface from
+        # an attacker-controlled branch name either.
+        run: |
+          COMMENTS=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --jq '.[].body')
+          if echo "$COMMENTS" | grep -q "^AUDIT: PASS"; then
+            echo "Audit verdict found: PASS"
+            exit 0
+          fi
+          if echo "$COMMENTS" | grep -q "^AUDIT: FAIL"; then
+            echo "::error::Audit verdict found: FAIL -- this PR was reviewed and rejected. Address the findings and request a new audit."
+            exit 1
+          fi
+          echo "::error::This PR is from a cheap-tier AI Workforce role (${BRANCH:-unknown branch}) and has no audit verdict yet. Per AGENTS.md Operating Rule 7c, a different agent/reviewer than the one that ran this dispatch must check out the branch, run tsc/lint/build independently, and post a comment starting with 'AUDIT: PASS' (or 'AUDIT: FAIL' with findings) before this can merge."
+          exit 1
+
+      - name: Not applicable -- not a cheap-tier dispatch branch
+        if: steps.check.outputs.requires_audit == 'false'
+        run: echo "This branch isn't a cheap-tier AI Workforce dispatch -- no mandatory audit marker required."

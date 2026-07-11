@@ -32,6 +32,16 @@ on:
       success_criteria:
         description: "Success criteria -- how to know it's done (call finish once met)"
         required: true
+      # Wave 163 (Boss directive: "based on complexity given to the AI
+      # model"): required so the agent script can enforce model-tier
+      # eligibility (model-tier-eligibility.ts) before spending anything --
+      # a judgment-tier task can no longer reach a mechanical-only model.
+      complexity_tier:
+        description: "mechanical (one file) | integrative (multi-file, GPT-OSS-120B excluded) | judgment (GLM-5.2/GPT-5.5 only)"
+        required: true
+      expected_output:
+        description: "What the output must actually contain/prove, not just 'it ran'"
+        required: true
       constraints:
         description: "Optional: iteration/file caps, explicit exclusions"
         required: false
@@ -70,6 +80,8 @@ jobs:
           AI_TEAM_TASK_OBJECTIVE: ${{ github.event.client_payload.objective || github.event.inputs.objective }}
           AI_TEAM_TASK_SCOPE: ${{ github.event.client_payload.scope || github.event.inputs.scope }}
           AI_TEAM_TASK_SUCCESS_CRITERIA: ${{ github.event.client_payload.success_criteria || github.event.inputs.success_criteria }}
+          AI_TEAM_TASK_COMPLEXITY_TIER: ${{ github.event.client_payload.complexity_tier || github.event.inputs.complexity_tier }}
+          AI_TEAM_TASK_EXPECTED_OUTPUT: ${{ github.event.client_payload.expected_output || github.event.inputs.expected_output }}
           AI_TEAM_TASK_CONSTRAINTS: ${{ github.event.client_payload.constraints || github.event.inputs.constraints }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           AI_TEAM_SUPABASE_URL: ${{ secrets.AI_TEAM_SUPABASE_URL }}
@@ -113,16 +125,25 @@ jobs:
           OBJECTIVE: ${{ github.event.client_payload.objective || github.event.inputs.objective }}
           SCOPE: ${{ github.event.client_payload.scope || github.event.inputs.scope }}
           SUCCESS_CRITERIA: ${{ github.event.client_payload.success_criteria || github.event.inputs.success_criteria }}
+          EXPECTED_OUTPUT: ${{ github.event.client_payload.expected_output || github.event.inputs.expected_output }}
           SUMMARY: ${{ steps.agent.outputs.summary }}
           FILES_CHANGED: ${{ steps.agent.outputs.files_changed }}
+          REQUIRES_AUDIT: ${{ steps.agent.outputs.requires_audit }}
         run: |
           git push origin "$BRANCH"
+          AUDIT_NOTICE=""
+          if [ "$REQUIRES_AUDIT" = "true" ]; then
+            AUDIT_NOTICE="🔒 **MANDATORY AUDIT REQUIRED** -- this role has not earned judgment-tier trust (AGENTS.md Operating Rule 7c / mandatory-audit-check.yml). Merge is blocked until a comment starting with \`AUDIT: PASS\` or \`AUDIT: FAIL\` is posted by a different agent/reviewer than the one that ran this dispatch.
+
+          "
+          fi
           gh pr create \
-            --title "AI Workforce (${ROLE_KEY}): ${SUMMARY:0:100}" \
-            --body "**Role:** ${ROLE_KEY}
+            --title "AI Workforce (${ROLE_KEY})$([ "$REQUIRES_AUDIT" = "true" ] && echo " [NEEDS AUDIT]"): ${SUMMARY:0:100}" \
+            --body "${AUDIT_NOTICE}**Role:** ${ROLE_KEY}
           **Objective:** ${OBJECTIVE}
           **Scope:** ${SCOPE}
           **Success criteria:** ${SUCCESS_CRITERIA}
+          **Expected output:** ${EXPECTED_OUTPUT}
           **Files changed:** ${FILES_CHANGED}
           **Summary:** ${SUMMARY}
 

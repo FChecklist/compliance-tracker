@@ -24,10 +24,37 @@
 // guardrail-engine.ts). This does not judge whether a task is a GOOD
 // idea, only whether it is specified completely enough to attempt.
 
+// Wave 163 (Boss directive, 2026-07-11: "every task has mandatory rigid
+// tightened narrow instructions... based on complexity given to the AI
+// model" -- and a direct callout that this codebase had *designed* tier
+// routing without actually *enforcing* it anywhere). Two fields added
+// after finding, by grepping the real dispatch surfaces rather than
+// assuming, that neither existed: no output contract beyond a generic
+// {summary, filesChanged}, and no way to route by task complexity at all.
+//
+// complexityTier drives model-eligibility (see guardrail-registrations.ts's
+// tierEligibilityCheck): this session's own evidence -- GPT-OSS-120B
+// burned its full iteration budget twice on a multi-file wiring task,
+// zero files written either time, even after a much-tighter second brief
+// -- is what fixes these three values, not guessing:
+//   'mechanical'   -- one file, one well-defined operation. Every model
+//                     eligible, including the cheapest.
+//   'integrative'  -- multiple files, requires understanding an existing
+//                     component before extending it. GPT-OSS-120B excluded
+//                     (its confirmed failure shape); DeepSeek/GLM-5.2 eligible.
+//   'judgment'     -- architecture, security, audit verdicts, anything
+//                     governance-affecting. GLM-5.2/GPT-5.5 only -- an
+//                     auditor weaker than the work it checks isn't real
+//                     assurance (VERIDIAN_AUDIT_ORGANIZATION.md's own rule).
+export type ComplexityTier = "mechanical" | "integrative" | "judgment"
+
 export type TightTask = {
   objective: string
   scope: string
   successCriteria: string
+  complexityTier: ComplexityTier
+  /** What the output must actually contain/prove -- not just "did it run", the specific thing to check for. */
+  expectedOutput: string
   /** Optional: iteration/file/time caps, explicit exclusions, etc. */
   constraints?: string
 }
@@ -72,6 +99,8 @@ function checkField(value: string | undefined, label: string, guidanceExample: s
  * done -- the exact three properties whose absence caused real dispatch
  * failures in this codebase's history (see module header).
  */
+const VALID_TIERS: ComplexityTier[] = ["mechanical", "integrative", "judgment"]
+
 export function validateTightTask(task: Partial<TightTask>): TightTaskValidation {
   const objectiveFailure = checkField(task.objective, "Objective", "Add real PDF/Excel export to the reports dashboard")
   if (objectiveFailure) return objectiveFailure
@@ -81,6 +110,16 @@ export function validateTightTask(task: Partial<TightTask>): TightTaskValidation
 
   const successFailure = checkField(task.successCriteria, "Success criteria", "Both export buttons produce a file matching the existing CSV export's columns; typecheck and lint pass")
   if (successFailure) return successFailure
+
+  const outputFailure = checkField(task.expectedOutput, "Expected output", "A new PDF file matching the CSV export's row/column structure, downloadable from the reports page")
+  if (outputFailure) return outputFailure
+
+  if (!task.complexityTier) {
+    return { valid: false, reason: "Complexity tier is missing.", guidance: `Set complexityTier to one of: ${VALID_TIERS.join(", ")} -- this determines which models are even eligible to receive this task.` }
+  }
+  if (!VALID_TIERS.includes(task.complexityTier)) {
+    return { valid: false, reason: `Complexity tier "${task.complexityTier}" is not recognized.`, guidance: `Must be one of: ${VALID_TIERS.join(", ")}.` }
+  }
 
   return { valid: true }
 }
@@ -139,7 +178,9 @@ export function assembleTightTaskPrompt(task: TightTask): string {
   const lines = [
     `Objective: ${task.objective.trim()}`,
     `Scope: ${task.scope.trim()}`,
+    `Complexity tier: ${task.complexityTier}`,
     `Success Criteria (definition of done -- call finish once these are met): ${task.successCriteria.trim()}`,
+    `Expected Output (what the result must actually contain/prove, not just "it ran"): ${task.expectedOutput.trim()}`,
   ]
   if (task.constraints?.trim()) {
     lines.push(`Constraints: ${task.constraints.trim()}`)

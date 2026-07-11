@@ -49,6 +49,15 @@ const REQUIRED_MARKERS = [
   { file: "scripts/ai-workforce-agent.mjs", mustContain: ["checkLoopBudget("] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["AI_WORKFORCE_LOOP_BUDGET_LEAF"] },
 
+  // Model-tier eligibility + mandatory audit (Wave 163, Boss directive:
+  // "based on complexity given to the AI model" + gap-analysis callout
+  // that tier routing had been discussed but never enforced).
+  { file: "src/lib/model-tier-eligibility.ts", mustContain: ["export function checkTierEligibility", "export function requiresMandatoryAudit"] },
+  { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["checkTierEligibility("] },
+  { file: "src/lib/ai-team/dispatch-repo.ts", mustContain: ["checkTierEligibility("] },
+  { file: "scripts/ai-workforce-agent.mjs", mustContain: ["checkTierEligibility(", "requiresMandatoryAudit("] },
+  { file: ".github/workflows/mandatory-audit-check.yml", mustContain: ["AUDIT: PASS"] },
+
   // High-Impact Action Confirmation Gate (Wave 146)
   { file: "src/lib/high-impact-action-detector.ts", mustContain: ["export function detectHighImpactAction"] },
   { file: "src/lib/services/task-service.ts", mustContain: ["detectHighImpactAction("] },
