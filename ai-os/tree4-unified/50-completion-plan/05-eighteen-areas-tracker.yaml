@@ -144,12 +144,13 @@ areas:
   - num: 15
     name: "End user lifecycle management"
     tree1_domains: ["U-D27.B1.S1", "U-D28"]
-    status: not_started
-    baseline: "1 solid / 0 partial / 6 gap of 9 sub-branches (~11%)"
+    status: in_progress
+    baseline: "2026-07-11 (subagent dispatch, branch subagent/onboarding-remainder): 2 of 4 spec'd invitation paths now exist -- Master-Admin-direct-add (unchanged) plus a new Secure Invite Link (src/lib/invite-link-service.ts, org-scoped + short-lived + use-budgeted shareable link). D28.B1.S1's CTA ('Get Started with VERIDIAN AI' -> 'Get Set Up with VERI, Your AI Assistant') and the 'first compliance item' onboarding-step framing are both replaced. Persistent 'Invite a team member' control and the 'Set up AI configuration'/'Upload a document' step removals were already done (PR #168, prior session) and independently re-verified still present in live code by this dispatch."
     remaining_work:
-      - "3 of 4 spec'd invitation paths (Secure Invite Link via WhatsApp+email, self-registration-via-admin-code, self-registration-via-X) -- only Master-Admin-direct-add exists today, and that path's isActive bug was fixed this session (PLAN-12)."
-      - "Onboarding UX rebuild: 5 of 6 named specifics directly contradicted by live code -- no Google sign-in, password not passcode, no persistent 'Invite a team member' control, 'Set up AI configuration' and 'Upload a document' still present as onboarding steps."
-      - "D28.B1.S1: reposition away from 'compliance tool' framing per the Owner's stated requirement, replace the 'Get Started with VERIDIAN AI' CTA."
+      - "2 of 4 spec'd invitation paths still not built: self-registration-via-admin-code, self-registration-via-X (deliberately not attempted this dispatch -- brief called for ONE well-built addition over two shallow ones)."
+      - "Changes 4 (auth rebuild) still fully outstanding: no 'Sign in with Google' option, no 4-digit email passcode replacing password auth, no confirmed 'check your email' display copy on manual email entry -- explicitly out of scope for this dispatch (separate G-045 item, not assigned here)."
+      - "No admin UI to list/revoke previously-generated invite links yet -- POST (generate) and the DELETE /api/invite-links/[id] (revoke) endpoints both exist and work, but InviteUserModal's Shareable Link tab only exposes generation, not a management list. Narrow, tractable follow-up."
+      - "The no-typing/auto-inferred profile setup + Mode Pills + Chain Option Selector flow, and connectors-already-connected-during-setup (e.g. Gmail) -- large, depends on area 1's DCMD/chain-selector build, not attempted here."
 
   - num: 16
     name: "Account / Organization lifecycle management"
@@ -171,10 +172,10 @@ areas:
   - num: 18
     name: "End user UI/UX management"
     tree1_domains: ["U-D28"]
-    status: not_started
-    baseline: "1 solid / 0 partial / 3 gap of 4 sub-branches (~25%)"
+    status: in_progress
+    baseline: "2026-07-11 (subagent dispatch, branch subagent/onboarding-remainder): same underlying work as area 15 -- see area 15's baseline for what changed (Secure Invite Link, D28.B1.S1 CTA/framing replacement)."
     remaining_work:
-      - "Same underlying work as area 15's onboarding UX rebuild -- Tree 1 only specifies onboarding-specific UX asks, not a broader ongoing UI/UX governance domain."
+      - "Same underlying remaining work as area 15 -- see area 15's remaining_work list. Tree 1 only specifies onboarding-specific UX asks for this area, not a broader ongoing UI/UX governance domain."
 
 execution_order_rationale: >
   Ordered by tractability and dependency, not by the numbering above:

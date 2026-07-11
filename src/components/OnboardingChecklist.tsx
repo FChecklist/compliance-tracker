@@ -22,9 +22,18 @@ const STORAGE_KEY = "veridian_onboarding_steps";
 // was never removed from the app, only from this blocking onboarding flow.
 // Document upload has no relocation target per the source doc; it is
 // discoverable organically once a user is working with compliance items.
+//
+// D28.B1.S1 (2026-07-11): the "compliance" step's label used to read "Add
+// your first compliance item" -- the exact "first compliance Item" phrasing
+// the source doc names as the framing to stop using ("VERIDIAN AI is no
+// longer a compliance tool -- don't use 'first compliance Item' as the
+// framing", ai-os/audit-tree/09-onboarding-ux.yaml). Reworded to describe
+// the action VERI takes, not the compliance-first identity of the product;
+// the step's `id` is unchanged so it stays wired to the same completion
+// tracking (/api/me/onboarding-stage).
 const STEPS = [
   { id: "profile", label: "Complete your profile", icon: UserCheck },
-  { id: "compliance", label: "Add your first compliance item", icon: FileText },
+  { id: "compliance", label: "Give VERI its first task", icon: FileText },
   { id: "invite", label: "Invite a team member", icon: Users },
 ];
 
@@ -137,8 +146,15 @@ export default function OnboardingChecklist() {
               <Brain className="size-4 text-ct-saffron" />
             </div>
             <div>
+              {/* D28.B1.S1: was "Get Started with VERIDIAN AI" -- the exact
+                  CTA the source doc names for replacement, since it framed
+                  the product as a tool to get started WITH rather than an
+                  assistant that works alongside the user. Reworded to match
+                  the AI-assistant identity used elsewhere (e.g. home/page.tsx's
+                  "I'm VERI, your assistant"), without inventing new product
+                  copy this session didn't verify against a canonical source. */}
               <h3 className="text-sm font-semibold text-ct-navy">
-                Get Started with VERIDIAN AI
+                Get Set Up with VERI, Your AI Assistant
               </h3>
               <p className="text-xs text-ct-muted">
                 {completed.size} of {STEPS.length} steps completed
