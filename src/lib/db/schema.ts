@@ -52,6 +52,24 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // configured for it (page_agent_oa layer) -- an org can have both a
   // model configured AND this off, or vice versa.
   pageAgentEnabled: boolean('page_agent_enabled').notNull().default(false),
+  // Wave 172 (area 16, Account/Organization lifecycle -- U-D27.B1.S1):
+  // licensedSeats null = unlimited/unenforced (every pre-existing org's
+  // real state -- opt-in, not retroactively imposed). seatEnforcementEnabled
+  // defaults false for the same reason: this is a new control an admin turns
+  // on deliberately, not a silent cap that could lock existing orgs out of
+  // their own accounts the moment this migration lands.
+  licensedSeats: integer('licensed_seats'),
+  seatEnforcementEnabled: boolean('seat_enforcement_enabled').notNull().default(false),
+  // Wave 172 (area 11, Cost management -- embedded in U-D14.B1.S1): scope
+  // decision made by Super Boss per the Owner's 2026-07-11 "don't wait"
+  // directive (previously Owner-flagged as needing a definition-of-done).
+  // Per-org monthly cap chosen over per-user/per-task-type/daily because
+  // token_usage_ledger (the existing spend-tracking table this reads from)
+  // is already org-scoped and monthly is the natural unit for a spend cap a
+  // human would actually set. null = unenforced, same opt-in default pattern
+  // as licensedSeats above -- see cost-guard.ts for the enforcement logic.
+  monthlyCostCapUsd: numeric('monthly_cost_cap_usd', { precision: 10, scale: 2 }),
+  costCapEnforcementEnabled: boolean('cost_cap_enforcement_enabled').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
