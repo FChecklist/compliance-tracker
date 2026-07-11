@@ -85,6 +85,49 @@ export function validateTightTask(task: Partial<TightTask>): TightTaskValidation
   return { valid: true }
 }
 
+// Wave 159 (VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, "Customer Task
+// Governance" gap closure): the customer-facing `tasks` table has only
+// `title`/`description` -- a human creating "Follow up with vendor X" is a
+// completely normal, complete task, so requiring the full
+// objective/scope/successCriteria TightTask schema at *creation* would
+// break real product usage for zero benefit (a human doesn't run out of
+// iteration budget the way an unattended AI dispatch does). The real,
+// narrower risk is task-execution-engine.ts's free-text LLM-planning path
+// (executeTask() when no resolvedWorkerAgentId/engineKey is set) --
+// exactly the moment a task's title+description alone drives an
+// unattended LLM to invent a plan, the same failure shape as an
+// under-specified AI-dispatch brief. validateTaskBrief() is a lighter,
+// purpose-fit check for that one entry point, not the full TightTask
+// schema forced onto every task a human creates.
+export type TaskBrief = { title: string; description?: string | null }
+
+// Deliberately conservative -- this gates a live, real customer product
+// with real short task titles ("Follow up", "Call vendor") that must keep
+// working. Unlike the AI-dispatch TightTask checks above (which had zero
+// production callers to regress), a threshold tuned to "looks incomplete
+// to me" without real usage data risks blocking legitimate tasks. This
+// catches only the genuinely degenerate case -- empty/near-empty/
+// placeholder titles -- not "short but real."
+const MIN_PLANNABLE_LENGTH = 4
+
+export function validateTaskBrief(brief: TaskBrief): TightTaskValidation {
+  const title = (brief.title ?? "").trim()
+  if (!title) {
+    return { valid: false, reason: "Task has no title.", guidance: "Add a title before this can be planned." }
+  }
+  if (isPlaceholder(title)) {
+    return { valid: false, reason: `Task title is a placeholder ("${title}"), not real.`, guidance: "Replace the title with what actually needs to happen." }
+  }
+  if (title.length < MIN_PLANNABLE_LENGTH) {
+    return {
+      valid: false,
+      reason: `Task title ("${title}") is too short for an AI to plan reliably.`,
+      guidance: "Add a few more words describing what should happen, or assign the task directly instead of relying on AI planning.",
+    }
+  }
+  return { valid: true }
+}
+
 /**
  * Renders a validated TightTask into the text actually sent to a model.
  * Every field is labeled explicitly so the model (and any human reading

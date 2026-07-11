@@ -37,6 +37,17 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["AI_TEAM_DISPATCH_LEAF", "AI_WORKFORCE_DISPATCH_LEAF", "registerGuardrail("] },
   { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["registerAllGuardrails()", "evaluateGuardrails("] },
   { file: "scripts/ai-workforce-agent.mjs", mustContain: ["validateTightTask(", "MAX_ITERATIONS"] },
+  // Wave 159: the customer-task analog -- task-execution-engine.ts's
+  // free-text LLM-planning branch, gated by a lighter check (see
+  // task-tightening.ts's validateTaskBrief()) than the AI Dev Team's
+  // TightTask schema, since this gates a live product's real task titles.
+  { file: "src/lib/task-tightening.ts", mustContain: ["export function validateTaskBrief"] },
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["TASK_FREE_TEXT_PLANNING_LEAF"] },
+
+  // Generalized loop-prevention primitive (Wave 159, Guardrail #20).
+  { file: "src/lib/loop-prevention.ts", mustContain: ["export function checkLoopBudget"] },
+  { file: "scripts/ai-workforce-agent.mjs", mustContain: ["checkLoopBudget("] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["AI_WORKFORCE_LOOP_BUDGET_LEAF"] },
 
   // High-Impact Action Confirmation Gate (Wave 146)
   { file: "src/lib/high-impact-action-detector.ts", mustContain: ["export function detectHighImpactAction"] },
@@ -58,6 +69,19 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/task-execution-engine.ts", mustContain: ["enforcePolicy("] },
   { file: "src/lib/services/construction-ai-service.ts", mustContain: ["enforcePolicy("] },
   { file: "src/lib/services/veri-meeting-service.ts", mustContain: ["enforcePolicy("] },
+  // Wave 159: crm-service.ts's scoreLead()/analyzeOpportunity() check
+  // lead.name/opp.name specifically (the one genuinely user-authored field
+  // in each call), not the whole system-constructed prompt.
+  { file: "src/lib/services/crm-service.ts", mustContain: ["enforcePolicy("] },
+  // Deliberately NOT in this manifest, and not a gap: src/lib/gst/ai-review-report.ts
+  // and src/lib/services/visitor-intelligence-service.ts send the model
+  // ONLY system-constructed JSON (validation findings / DB aggregates) --
+  // zero free-text user input reaches either call site, confirmed by
+  // direct code review 2026-07-11. Wiring enforcePolicy() there would mean
+  // feeding it a synthetic string just to satisfy the signature, which
+  // isn't real enforcement of anything -- matching
+  // VERIDIAN_AI_CONSTITUTION.md's own "NOT APPLICABLE YET" discipline
+  // (don't restrict a surface that doesn't have the risk in question).
 
   // Floor-tier escalation (Wave 114 / PR #114 / PR #116) -- deterministic
   // pre/post-call escalation signals, no LLM self-grading.

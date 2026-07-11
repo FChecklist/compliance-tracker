@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { validateTightTask, assembleTightTaskPrompt, type TightTask } from "./task-tightening"
+import { validateTightTask, assembleTightTaskPrompt, validateTaskBrief, type TightTask } from "./task-tightening"
 
 const VALID: TightTask = {
   objective: "Add real PDF and Excel export to the reports dashboard",
@@ -83,5 +83,45 @@ describe("assembleTightTaskPrompt", () => {
   test("always includes the stop-and-escalate instruction", () => {
     const prompt = assembleTightTaskPrompt(VALID)
     expect(prompt.toLowerCase()).toContain("stop and say so")
+  })
+})
+
+describe("validateTaskBrief -- conservative, for real customer task titles", () => {
+  test("accepts realistic short real-world task titles with no description", () => {
+    for (const title of ["Follow up with vendor", "Call vendor", "Review contract", "File TDS return"]) {
+      expect(validateTaskBrief({ title })).toEqual({ valid: true })
+    }
+  })
+
+  test("accepts a title with a description", () => {
+    expect(validateTaskBrief({ title: "Follow up", description: "Call the vendor about the delayed shipment" })).toEqual({ valid: true })
+  })
+
+  test("rejects an empty title", () => {
+    const result = validateTaskBrief({ title: "" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("no title")
+  })
+
+  test("rejects a whitespace-only title", () => {
+    const result = validateTaskBrief({ title: "   " })
+    expect(result.valid).toBe(false)
+  })
+
+  test("rejects a placeholder title", () => {
+    const result = validateTaskBrief({ title: "TBD" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("placeholder")
+  })
+
+  test("rejects a near-empty single-character title", () => {
+    const result = validateTaskBrief({ title: "x" })
+    expect(result.valid).toBe(false)
+    if (!result.valid) expect(result.reason).toContain("too short")
+  })
+
+  test("does not require a description at all", () => {
+    expect(validateTaskBrief({ title: "Follow up", description: undefined })).toEqual({ valid: true })
+    expect(validateTaskBrief({ title: "Follow up", description: null })).toEqual({ valid: true })
   })
 })

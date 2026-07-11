@@ -13,6 +13,7 @@ import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -120,6 +121,18 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!lead) throw new ServiceError("Lead not found", 404)
 
+    // VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md §3/#6: lead.name is the one
+    // genuinely user-authored field reaching the model here (everything
+    // else in userMessage below is system-derived from DB columns) -- a
+    // prompt-injection or personal-use payload smuggled into a lead name
+    // at creation time is the real threat model for this call site, so
+    // that's the exact text checked, not the whole constructed message.
+    const policyDecision = enforcePolicy(
+      { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead" },
+      lead.name
+    )
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+
     const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
     if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
 
@@ -150,6 +163,14 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!opp) throw new ServiceError("Opportunity not found", 404)
+
+    // Same reasoning as scoreLead() above -- opp.name is the only
+    // user-authored text reaching the model here.
+    const policyDecision = enforcePolicy(
+      { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity" },
+      opp.name
+    )
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
 
     const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
     if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
