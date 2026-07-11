@@ -123,6 +123,10 @@ export async function refreshAgentDirectory(roleKey: string): Promise<void> {
       .values(values)
       .onConflictDoUpdate({ target: aiAgentDirectory.roleKey, set: values });
   } catch (err) {
-    console.error(`[agent-directory] failed to refresh directory for role '${roleKey}' (non-fatal):`, err);
+    // roleKey passed as a separate arg, not interpolated into the format
+    // string -- CodeQL js/tainted-format-string flagged the interpolated
+    // form as log injection (a caller-controlled roleKey could otherwise
+    // forge fake log lines via embedded newlines/control characters).
+    console.error("[agent-directory] failed to refresh directory for role (non-fatal):", roleKey, err);
   }
 }

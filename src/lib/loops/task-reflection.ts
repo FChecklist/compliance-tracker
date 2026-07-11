@@ -139,6 +139,8 @@ export async function runTaskReflection(db: TenantDb, input: RunTaskReflectionIn
       },
     })
   } catch (err) {
-    console.error(`[task-reflection] failed to record reflection for ${input.sourceType}:${input.sourceId} (non-fatal):`, err)
+    // sourceId passed as a separate arg, not interpolated -- same log-
+    // injection fix as agent-directory-service.ts's refreshAgentDirectory().
+    console.error("[task-reflection] failed to record reflection (non-fatal):", input.sourceType, input.sourceId, err)
   }
 }
