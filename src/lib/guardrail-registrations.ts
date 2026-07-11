@@ -18,6 +18,7 @@
 import { registerGuardrail } from "./guardrail-engine"
 import { validateTightTask, validateTaskBrief, type TightTask, type TaskBrief } from "./task-tightening"
 import { checkLoopBudget, type LoopBudgetContext } from "./loop-prevention"
+import { validateHandoverFields, type HandoverFields } from "./handover-protocol"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
 export const AI_WORKFORCE_DISPATCH_LEAF = "ai_workforce.dispatch"
@@ -31,6 +32,13 @@ export const AI_WORKFORCE_LOOP_BUDGET_LEAF = "ai_workforce.loop_budget"
 // recordPeerReview()'s own fail-closed checks (not_found/not_in_review/
 // self_review_not_allowed) run.
 export const AI_TEAM_CLOSURE_REVIEW_LEAF = "ai_team.closure_review"
+// Wave 167 (ai-os/tree4-unified/10-merged-governance-layer U-D17.B1.S1,
+// confirmed_gap): gates the handover SUBMISSION itself (all 9 required
+// fields present, real, unambiguous) before submitHandover()
+// (handover-protocol.ts) writes it onto a task_agent_executions row --
+// same "input phase validates the submission, not the surrounding
+// lifecycle stage" posture as AI_TEAM_CLOSURE_REVIEW_LEAF just above.
+export const HANDOVER_PROTOCOL_LEAF = "task_execution.handover"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   // Wave 163 audit finding (chief_audit_officer's first real dispatch,
@@ -84,6 +92,23 @@ function closureReviewCheck(context: Record<string, unknown>) {
     }
   }
   return { passed: true as const }
+}
+
+function handoverCheck(context: Record<string, unknown>) {
+  const fields: Partial<HandoverFields> = {
+    taskStatus: context.taskStatus as string | undefined,
+    outputProduced: context.outputProduced as string | undefined,
+    validationPassed: context.validationPassed as string | undefined,
+    knownRisks: context.knownRisks as string | undefined,
+    pendingItems: context.pendingItems as string | undefined,
+    confidence: context.confidence as string | undefined,
+    nextResponsibleAi: context.nextResponsibleAi as string | undefined,
+    requiredAction: context.requiredAction as string | undefined,
+    escalationRequired: context.escalationRequired as string | undefined,
+  }
+  const result = validateHandoverFields(fields)
+  if (result.valid) return { passed: true as const }
+  return { passed: false as const, reason: result.reason, guidance: result.guidance }
 }
 
 let registered = false
@@ -144,4 +169,13 @@ export function registerAllGuardrails(): void {
   // recordPeerReview()'s separate not_found/not_in_review/self_review
   // checks run against the actual activity_log row.
   registerGuardrail(AI_TEAM_CLOSURE_REVIEW_LEAF, { phase: "input", check: closureReviewCheck })
+
+  // Mandatory Structured Handover gate (Wave 167, U-D17.B1.S1) -- "input"
+  // phase since it validates the handover SUBMISSION itself, before
+  // submitHandover()'s separate not_found check runs against the actual
+  // task_agent_executions row (and well before acceptHandover()'s own
+  // fail-closed not_found/not_submitted/already_accepted/
+  // self_acceptance_not_allowed checks, which run at a later, separate
+  // step -- ownership only transfers on that explicit accept call).
+  registerGuardrail(HANDOVER_PROTOCOL_LEAF, { phase: "input", check: handoverCheck })
 }

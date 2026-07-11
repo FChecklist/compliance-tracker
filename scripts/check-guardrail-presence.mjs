@@ -154,6 +154,17 @@ const REQUIRED_MARKERS = [
   // core task-execution path, being silently gutted.
   { file: "src/lib/audit.ts", mustContain: ["export async function logActivity"] },
   { file: "src/lib/task-execution-engine.ts", mustContain: ["logActivity("] },
+
+  // Mandatory Structured Handover Protocol (Wave 167,
+  // ai-os/tree4-unified/10-merged-governance-layer.yaml U-D17.B1.S1,
+  // confirmed_gap): "no AI Agent may simply say 'Done'" -- all 9 required
+  // handover fields must be present/real before submitHandover() records
+  // one, and ownership only transfers on a separate, explicit
+  // acceptHandover() call (self-acceptance and re-acceptance both
+  // rejected).
+  { file: "src/lib/handover-protocol.ts", mustContain: ["export function validateHandoverFields", "export async function submitHandover", "export async function acceptHandover", "self_acceptance_not_allowed", "already_accepted"] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["HANDOVER_PROTOCOL_LEAF"] },
+  { file: "src/lib/db/schema.ts", mustContain: ["handoverAcceptedBy: text('handover_accepted_by')", "handoverAcceptedAt: timestamp('handover_accepted_at')"] },
 ]
 
 let failed = false
