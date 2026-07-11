@@ -15,6 +15,7 @@ import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
+import { nextEscalationRung } from "@/lib/escalation-ladder";
 
 registerAllGuardrails();
 
@@ -1550,7 +1551,16 @@ async function executeEngineDispatch(orgId: string, userId: string, taskId: stri
       await db.update(tasks).set({ status: "completed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
-      await db.insert(taskChatMessages).values({ taskId, role: "system", content: `Calculation failed: ${message}` });
+      // tree4-unified area 8's last open item (D3.B2.S1): "when software-
+      // first execution needs help" -- a VCEL engine either has no
+      // dispatcher (dispatchEngine's own default throw, "No engine
+      // dispatcher implemented for ...") or threw mid-calculation. Both
+      // are software-first execution failures per escalation-ladder.ts's
+      // own reason taxonomy, so both start at CSEO, not COO.
+      const escalation = nextEscalationRung({
+        reason: message.startsWith("No engine dispatcher implemented for") ? "engine_not_found" : "engine_execution_failed",
+      });
+      await db.insert(taskChatMessages).values({ taskId, role: "system", content: `Calculation failed: ${message} -- escalated to ${escalation.title} (${escalation.authority}).` });
       await db.update(tasks).set({ status: "failed", updatedAt: new Date() }).where(eq(tasks.id, taskId));
     }
   });
