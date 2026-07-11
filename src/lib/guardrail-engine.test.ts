@@ -1,9 +1,20 @@
 /// <reference types="bun-types" />
 import { describe, expect, test, beforeEach } from "bun:test"
 import { registerGuardrail, evaluateGuardrails, _clearAllGuardrailsForTests } from "./guardrail-engine"
+import { _resetRegisteredForTests } from "./guardrail-registrations"
 
+// Real bug found reviewing the Handover Protocol PR: clearing the shared
+// REGISTRY here (module-level state, shared across every test file in the
+// same bun test process) without also resetting guardrail-registrations.ts's
+// own `registered` idempotency guard left registerAllGuardrails() silently
+// no-op-ing for every OTHER test file that runs after this one -- their
+// guardrail checks would then always pass (an unregistered leaf always
+// passes by design), which is exactly backwards from what those tests
+// assert. See _resetRegisteredForTests()'s own comment in
+// guardrail-registrations.ts for the full story.
 beforeEach(() => {
   _clearAllGuardrailsForTests()
+  _resetRegisteredForTests()
 })
 
 describe("evaluateGuardrails -- the 'not rigid' guarantee", () => {
