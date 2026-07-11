@@ -1,6 +1,7 @@
 import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPoolAllocations } from "@/lib/db";
 import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
+import { canIncurCost } from "@/lib/cost-guard";
 import type { LLMProvider, LLMFallback } from "@/lib/llm-client";
 
 export type ResolvedModelConfig = {
@@ -126,6 +127,21 @@ export function escalatedPlatformConfig(): ResolvedModelConfig | null {
 export async function resolveModelConfig(orgId: string, layerKey: string): Promise<ResolvedModelConfig | null> {
   const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, layerKey) });
   if (!layer) return null;
+
+  // Wave 172 (area 11, Cost management): checked here, the one real
+  // choke point every product_orchestra dispatch resolves a model through,
+  // rather than after-the-fact in token-usage-service.ts's logging (which
+  // runs only once the LLM call already happened -- too late to block
+  // spend). Returns null like every other "can't proceed" branch in this
+  // function; callers already treat null as "do not make this call."
+  // No-op (never returns false) when costCapEnforcementEnabled is off, the
+  // default for every org -- this is opt-in active control, not a
+  // retroactively imposed limit.
+  const costCheck = await canIncurCost(orgId);
+  if (!costCheck.allowed) {
+    console.warn(`[cost-guard] blocked resolveModelConfig for org ${orgId}: ${costCheck.reason}`);
+    return null;
+  }
 
   const customerConfig = await db.query.customerModelConfig.findFirst({
     where: and(
