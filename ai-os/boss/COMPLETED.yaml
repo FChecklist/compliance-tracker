@@ -930,3 +930,67 @@ entries:
         don't just trust this entry); (4) the veda-advisors FULL_ACCESS
         security finding -- needs escalation to the Boss directly, not
         just a documentation flag, if not already acted on.
+  - id: WAVE-161
+    title: "Dynamic Mode Pills & Dynamic Chain Framework mapping + Dynamic Chain ID Phase 1 + first DeepSeek V4 Pro role"
+    doer:
+      agent: claude-code
+      date: "2026-07-11"
+      pr: PENDING
+      summary: >
+        Boss supplied two documents (Dynamic Mode Pills/Dynamic Chain
+        Framework incl. a Context-Aware Adaptive UI + Dynamic Chain Master
+        Directory addendum; VERI AI and VERI Chat) and directed analysis +
+        small-task breakdown + independent implementation, using DeepSeek
+        and GPT-OSS specifically. Dispatched thorough research first
+        (real file:line citations) rather than designing on assumption --
+        found the Mode Pills/Chain Selector already exist, shipped, named
+        identically (CapabilityNode/VeriComposer/capability-tree-service.ts),
+        and found Wave 37 already split "VERI Chat" (human-only) from
+        "VERI AI" (assistant's 1:1 thread) -- the OPPOSITE direction from
+        what the new documents ask. Corrected/scoped rather than silently
+        reversing Wave 37: VERI becomes an invitable participant in
+        multi-party conversations, additive to the existing 1:1 surface,
+        not a replacement (VERIDIAN_DMP_DCF_CONSTITUTION.md /
+        VERI_CHAT_GOVERNANCE.md document both decisions explicitly). Also
+        scoped out, honestly: the multi-domain Sales/CRM/Finance/HR/Legal
+        taxonomy content is real business-modeling work, not code that can
+        be fabricated -- this codebase is genuinely single-domain today
+        (schema.ts's own comments confirm), so only the structural
+        capability to hold a real taxonomy was built, not fake content.
+
+        Shipped this pass: Dynamic Chain ID Phase 1 -- new dynamic_chains
+        table (migration 0135, applied live, RLS verified) + nullable
+        dynamicChainId on tasks/conversations, wired at new-task creation
+        (VeriComposer sends the resolved chain path, task-service.ts's
+        resolveDynamicChainId() finds-or-creates to avoid duplicate rows
+        for repeated chain selections). The DCMD addendum's "make it a
+        graph" recommendation already has real, unused infrastructure --
+        entity_relationships (Phase 3, zero consumers by design) --
+        documented as the intended future substrate, not rebuilt.
+
+        First real DeepSeek V4 Pro role assignment: governance_backend_engineer
+        (roster.ts), prompt seeded live, scoped narrowly per Boss's own
+        instruction to use DeepSeek/GPT-OSS for this implementation --
+        matches tool_integration_engineer's existing "small, closely
+        audited" discipline for GPT-OSS-120B rather than a blanket model
+        swap. Dispatched two further pieces (approval-preference system,
+        "My Option Is Not Available" Chain Selector wiring) to
+        governance_backend_engineer/tool_integration_engineer respectively
+        -- see follow-up PR(s) for that work's own doer/auditor entries.
+
+        tsc/lint/build clean; full test suite unchanged baseline (115
+        pass / 1 fail / 1 error, both pre-existing unrelated).
+    auditor:
+      agent: PENDING
+      date: PENDING
+      verdict: PENDING
+      summary: >
+        No cross-audit run this session. Particular attention needed: (1)
+        whether VERI-as-participant being deferred to a follow-up (not
+        shipped this pass) correctly matches what was promised vs. what
+        was delivered; (2) resolveDynamicChainId()'s jsonb equality dedup
+        (sql`path_keys = ${json}::jsonb`) under concurrent duplicate
+        selections -- no unique constraint backs the dedup, a race could
+        still create two rows for the same chain; (3) independent
+        verification that Wave 37's VERI Chat/VERI AI split was read
+        correctly before deciding not to reverse it.
