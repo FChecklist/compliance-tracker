@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { computePerformanceScore, detectCircularDependency, evaluateMonitoringRules, parseMonitoringRules, type DependencyNode } from "./monitoring-engine"
+import { computePerformanceScore, computeGovernanceHealthScore, detectCircularDependency, evaluateMonitoringRules, parseMonitoringRules, type DependencyNode, type GovernanceHealthCounts } from "./monitoring-engine"
 import type { LoopBudgetContext, LoopBudgetResult } from "./loop-prevention"
 
 function passedLoopBudget(iteration: number, maxIterations: number): { context: LoopBudgetContext; result: LoopBudgetResult } {
@@ -222,5 +222,43 @@ describe("evaluateMonitoringRules", () => {
   test("a malformed monitoringRules value degrades to no rules enforced, not a throw", () => {
     expect(evaluateMonitoringRules("garbage", { durationMs: 1, completedStepCount: 1 })).toEqual([])
     expect(evaluateMonitoringRules(undefined, { durationMs: 1, completedStepCount: 1 })).toEqual([])
+  })
+})
+
+describe("computeGovernanceHealthScore", () => {
+  const zeroCounts: GovernanceHealthCounts = {
+    totalTerminalCount: 0, failedCount: 0, reviewedCount: 0, approvedCount: 0, rejectedCount: 0, reAuditFlaggedCount: 0,
+  }
+
+  test("an empty scope (nothing terminal/reviewed yet) reports a neutral 100 on all 3, not 0", () => {
+    expect(computeGovernanceHealthScore(zeroCounts)).toEqual({
+      reasoningQualityScore: 100, dependencyHealthScore: 100, complianceScore: 100,
+    })
+  })
+
+  test("reasoningQualityScore is approved/reviewed, unaffected by unreviewed dispatches", () => {
+    const result = computeGovernanceHealthScore({
+      ...zeroCounts, totalTerminalCount: 10, reviewedCount: 4, approvedCount: 3, rejectedCount: 1,
+    })
+    expect(result.reasoningQualityScore).toBe(75)
+  })
+
+  test("dependencyHealthScore is 1 - failed/total, independent of review outcomes", () => {
+    const result = computeGovernanceHealthScore({ ...zeroCounts, totalTerminalCount: 20, failedCount: 5 })
+    expect(result.dependencyHealthScore).toBe(75)
+  })
+
+  test("complianceScore penalizes both rejections and re-audit flags, not just one", () => {
+    const result = computeGovernanceHealthScore({
+      ...zeroCounts, totalTerminalCount: 10, reviewedCount: 10, rejectedCount: 1, reAuditFlaggedCount: 1,
+    })
+    expect(result.complianceScore).toBe(80)
+  })
+
+  test("a perfectly clean scope (all approved, none failed/rejected/re-audited) scores 100 across the board", () => {
+    const result = computeGovernanceHealthScore({
+      totalTerminalCount: 15, failedCount: 0, reviewedCount: 15, approvedCount: 15, rejectedCount: 0, reAuditFlaggedCount: 0,
+    })
+    expect(result).toEqual({ reasoningQualityScore: 100, dependencyHealthScore: 100, complianceScore: 100 })
   })
 })

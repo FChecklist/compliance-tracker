@@ -239,3 +239,77 @@ export function evaluateMonitoringRules(rawMonitoringRules: unknown, snapshot: C
   }
   return violations
 }
+
+// ─── (d) Governance Health Score (Reasoning Quality / Dependency Health /
+// Instruction-Policy-Security Compliance) ──────────────────────────────────
+//
+// Area 6's last remaining item was deliberately NOT built as an LLM-graded
+// self-assessment (this codebase's own no-self-certification norm, AGENTS.md
+// Rule 7(c)/Rule 10 -- the same reason handover-protocol.ts/qa-precompletion-
+// gate.ts require an INDEPENDENT reviewer, not the executing role's own
+// opinion). All 3 scores below are instead derived purely from real,
+// already-persisted peer-review OUTCOMES (activity_log.reviewDecision,
+// .reAuditRequestedAt) -- counts a human/independent-reviewer role recorded,
+// never a number this module invents or asks an LLM to self-report.
+//   - reasoningQualityScore: of the dispatches an independent reviewer has
+//     actually looked at, what fraction did they approve? A dispatch nobody
+//     has reviewed yet contributes to neither side (unproven, not penalized).
+//   - dependencyHealthScore: of all terminal dispatches, what fraction
+//     actually reached 'completed' rather than 'failed' -- the direct,
+//     honestly-labeled reading of "did the execution chain hold up",
+//     without stretching an unrelated signal (e.g. re-audit flags, which
+//     can be raised for reasons that have nothing to do with dependencies)
+//     to mean something it doesn't.
+//   - complianceScore: of all terminal dispatches, what fraction were
+//     EITHER rejected at review (recordPeerReview()'s contract guarantees
+//     real reviewNotes explaining what instruction/policy/security
+//     expectation was not met) OR later flagged for re-audit
+//     (activity-log-service.ts's flagForReAudit -- a post-closure signal
+//     the original approval needs re-examining).
+// A scope with zero reviewed/terminal dispatches yet reports a neutral 100
+// (nothing proven, nothing penalized) rather than 0, mirroring
+// computePerformanceScore's token-budget component's own "no baseline, no
+// penalty" convention above.
+export type GovernanceHealthCounts = {
+  /** Terminal (completed/failed/closed) ai_team_dispatch rows in the scope. */
+  totalTerminalCount: number
+  /** Of those, how many reached lifecycle_stage = 'failed'. */
+  failedCount: number
+  /** Of those, how many have a non-null reviewDecision. */
+  reviewedCount: number
+  /** Of the reviewed ones, how many were 'approved'. */
+  approvedCount: number
+  /** Of the reviewed ones, how many were 'rejected'. */
+  rejectedCount: number
+  /** Of all terminal rows, how many currently carry a re-audit flag. */
+  reAuditFlaggedCount: number
+}
+
+export type GovernanceHealthBreakdown = {
+  reasoningQualityScore: number
+  dependencyHealthScore: number
+  complianceScore: number
+}
+
+/**
+ * Pure, deterministic -- no DB access, no LLM call. Callers gather
+ * GovernanceHealthCounts from activity_log themselves (see
+ * activity-log-service.ts's getGovernanceHealthCounts) and pass real counts
+ * in; this function only turns counts into 0-100 scores.
+ */
+export function computeGovernanceHealthScore(counts: GovernanceHealthCounts): GovernanceHealthBreakdown {
+  const reasoningQualityScore = counts.reviewedCount > 0
+    ? Math.round(clamp01(counts.approvedCount / counts.reviewedCount) * 100)
+    : 100
+
+  const dependencyHealthScore = counts.totalTerminalCount > 0
+    ? Math.round(clamp01(1 - counts.failedCount / counts.totalTerminalCount) * 100)
+    : 100
+
+  const nonCompliantCount = counts.rejectedCount + counts.reAuditFlaggedCount
+  const complianceScore = counts.totalTerminalCount > 0
+    ? Math.round(clamp01(1 - nonCompliantCount / counts.totalTerminalCount) * 100)
+    : 100
+
+  return { reasoningQualityScore, dependencyHealthScore, complianceScore }
+}
