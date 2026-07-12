@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
@@ -1565,6 +1565,88 @@ async function updateTaskStatusAndReflect(
   });
   if (row.dynamicChainId) {
     await enforceChainMonitoringRules(db, taskId, row.dynamicChainId, elapsedMs);
+    if (status === "completed") {
+      await recordChainWorkerAgentEdges(db, orgId, taskId, row.dynamicChainId);
+    }
+  }
+}
+
+// GAP-DCMD (Priority 10, next real slice after Wave 173's approval-workflow
+// edge, PR #227): the second real entity_relationships graph edge type for
+// dynamic_chains -- `dynamic_chain -> worker_agent`, relationshipType
+// 'executed_by'. This is what turns "which chains has this agent executed"
+// from an unanswerable question into a real, already-exposed query: GET
+// /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id>
+// (entity-relationships/route.ts, built Wave 153) calls getNeighbors(),
+// which is generic over relationshipType -- no new API surface needed, this
+// migration-free change alone makes the existing endpoint answer a question
+// it couldn't before.
+//
+// Hooked into the same chokepoint as enforceChainMonitoringRules above
+// (updateTaskStatusAndReflect, called from every real completion path:
+// executeStructuredDispatch, executeEngineDispatch, and the free-text
+// planning path) so it fires no matter which dispatch branch a chain-
+// selected task took, without duplicating call sites. Only runs on
+// "completed" (not "failed") -- an agent that failed a task didn't
+// meaningfully execute the chain's work, so recording 'executed_by' would
+// overstate what happened.
+//
+// Deliberately an upsert-by-(chain,agent) pair, not one row per task
+// completion: unlike the approval edge (whose target -- a specific
+// approval_workflow_instance -- is unique per edge), the same agent will
+// legitimately complete the same chain many times, and a fresh row per
+// completion would flood the graph with duplicates that answer nothing new.
+// metadata.taskCount/lastTaskId/lastExecutedAt accumulate on the single
+// edge instead, mirroring this file's own established
+// find-then-insert-or-update discipline (see approvalPreferences' schema
+// comment for the same reasoning applied elsewhere in this codebase).
+// Wrapped in try/catch, matching recordChainTriggeredApprovalEdge's
+// non-fatal precedent -- a graph-edge write failing must never fail the
+// task completion it's attached to.
+async function recordChainWorkerAgentEdges(db: TenantDb, orgId: string, taskId: string, dynamicChainId: string): Promise<void> {
+  try {
+    const steps = await db
+      .selectDistinct({ workerAgentId: taskExecutionPlan.workerAgentId })
+      .from(taskExecutionPlan)
+      .where(and(eq(taskExecutionPlan.taskId, taskId), sql`${taskExecutionPlan.workerAgentId} IS NOT NULL`));
+
+    const now = new Date();
+    for (const { workerAgentId } of steps) {
+      if (!workerAgentId) continue;
+      const existing = await db.query.entityRelationships.findFirst({
+        where: and(
+          eq(entityRelationships.orgId, orgId),
+          eq(entityRelationships.sourceType, "dynamic_chain"),
+          eq(entityRelationships.sourceId, dynamicChainId),
+          eq(entityRelationships.targetType, "worker_agent"),
+          eq(entityRelationships.targetId, workerAgentId),
+          eq(entityRelationships.relationshipType, "executed_by"),
+        ),
+      });
+      if (existing) {
+        const prevCount = typeof (existing.metadata as { taskCount?: number } | null)?.taskCount === "number"
+          ? (existing.metadata as { taskCount: number }).taskCount
+          : 1;
+        await db.update(entityRelationships)
+          .set({
+            metadata: { taskCount: prevCount + 1, lastTaskId: taskId, lastExecutedAt: now.toISOString() },
+            updatedAt: now,
+          })
+          .where(eq(entityRelationships.id, existing.id));
+      } else {
+        await db.insert(entityRelationships).values({
+          orgId,
+          sourceType: "dynamic_chain",
+          sourceId: dynamicChainId,
+          targetType: "worker_agent",
+          targetId: workerAgentId,
+          relationshipType: "executed_by",
+          metadata: { taskCount: 1, lastTaskId: taskId, lastExecutedAt: now.toISOString() },
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[task-execution-engine] Failed to record dynamic_chain->worker_agent graph edge(s) for chain ${dynamicChainId}, task ${taskId}:`, err);
   }
 }
 
