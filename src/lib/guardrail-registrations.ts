@@ -24,6 +24,7 @@ import { nextEscalationRung } from "./escalation-ladder"
 import { classifyAuditCadence } from "./audit-cadence"
 import { checkQaPreCompletionGate } from "./qa-precompletion-gate"
 import { checkCommunicationGuardrails, type DraftedCommunicationForGuardrailCheck } from "./communication-guardrails"
+import { validateAuditProtocolFields, type AuditProtocolFields } from "./audit-protocol"
 import type { RiskLevel } from "./risk-classification"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
@@ -64,6 +65,14 @@ export const QA_PRECOMPLETION_GATE_LEAF = "task_execution.qa_precompletion"
 // communication-guardrails.ts's own header for exactly what is and isn't
 // checkable deterministically today.
 export const COMMUNICATION_DRAFT_SEND_LEAF = "communication.draft_send"
+// ai-os/tree4-unified/10-merged-governance-layer.yaml U-D2.B6.S1
+// (confirmed_gap): gates a structured audit-finding SUBMISSION against the
+// 3-phase protocol's 8 required fields (see audit-protocol.ts's own
+// header for the full reasoning and its honest "no live caller yet" scope
+// note -- same posture guardrail-engine.ts's empty registry and
+// handover-protocol.ts had before this session wired each in). "input"
+// phase, same as every other "validates the submission itself" leaf above.
+export const AUDIT_PROTOCOL_COMPLIANCE_LEAF = "audit.protocol_compliance"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   // Wave 163 audit finding (chief_audit_officer's first real dispatch,
@@ -174,6 +183,22 @@ function communicationDraftSendCheck(context: Record<string, unknown>) {
     body: context.body as string | null | undefined,
   }
   return checkCommunicationGuardrails(draft)
+}
+
+function auditProtocolCheck(context: Record<string, unknown>) {
+  const fields: Partial<AuditProtocolFields> = {
+    objectiveUnderstood: context.objectiveUnderstood as string | undefined,
+    standardsReviewed: context.standardsReviewed as string | undefined,
+    scopeConfirmed: context.scopeConfirmed as string | undefined,
+    evidenceRecorded: context.evidenceRecorded as string | undefined,
+    severityClassified: context.severityClassified as string | undefined,
+    verdict: context.verdict as string | undefined,
+    correctiveActionOwner: context.correctiveActionOwner as string | undefined,
+    reAuditScheduled: context.reAuditScheduled as string | undefined,
+  }
+  const result = validateAuditProtocolFields(fields)
+  if (result.valid) return { passed: true as const }
+  return { passed: false as const, reason: result.reason, guidance: result.guidance }
 }
 
 function handoverCheck(context: Record<string, unknown>) {
@@ -288,4 +313,11 @@ export function registerAllGuardrails(): void {
   // immediately before the send step, the same posture as every other
   // "input" leaf in this file.
   registerGuardrail(COMMUNICATION_DRAFT_SEND_LEAF, { phase: "input", check: communicationDraftSendCheck })
+
+  // Audit-protocol-compliance gate (U-D2.B6.S1) -- "input" phase, same
+  // posture as every other submission-validating leaf above. No live
+  // caller yet (see audit-protocol.ts's own header) -- registered so it is
+  // genuinely enforced the moment a real audit-finding submission call
+  // site adopts it, not left as a documented-only intention.
+  registerGuardrail(AUDIT_PROTOCOL_COMPLIANCE_LEAF, { phase: "input", check: auditProtocolCheck })
 }

@@ -25,6 +25,23 @@
 //      AI rung: Level 5 (Owner, Rajat Agarwal) is a human and outside
 //      this module's reach by construction -- there is no roleKey to
 //      escalate to programmatically past Super Boss.
+//
+// U-D2.B1.S1 reconciliation note (tree4-unified/10-merged-governance-layer
+// .yaml): a DIFFERENT source document ("Consutitution.docx's AI Escalation
+// Matrix" above) describes a 6-level L0-L5 ladder (L0 Execution Agent ->
+// L1 Reviewer -> L2 Quality Controller -> L3 COO -> L4 Super Boss -> L5
+// Owner) that is NOT the same ladder this module implements -- CSEO isn't
+// named in that spec at all. Both ladders are real and both are kept,
+// deliberately not merged into one: this module's CSEO/COO/Super-Boss
+// ladder answers "who handles a FAILURE," while the L0-L5 spec is a
+// staffing/authority hierarchy. Where they overlap (COO=L3, Super Boss=L4)
+// roster.ts's escalationLevel field tags the same roleKeys this module
+// already resolves to. L0 (chief_execution_engine, GPT-OSS-120B) is also
+// tagged. L1 (Reviewer) and L2 (Quality Controller) are realized as
+// PROCESS gates, not roles -- AI_TEAM_CLOSURE_REVIEW_LEAF's peer review
+// and QA_PRECOMPLETION_GATE_LEAF (guardrail-registrations.ts) -- so no
+// roleKey is force-tagged onto them; see roster.ts's RoleDefinition
+// comment for the full reasoning.
 import type { RoleDefinition } from "./ai-team/roster"
 import { getRole } from "./ai-team/roster"
 

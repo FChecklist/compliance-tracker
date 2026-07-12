@@ -72,10 +72,20 @@ if (!tightness.valid) {
 
 const task = assembleTightTaskPrompt(rawTask)
 
-const { AI_TEAM_ROSTER } = await import(path.join(REPO_ROOT, "src/lib/ai-team/roster.ts"))
+const { AI_TEAM_ROSTER, isAuditOrganizationRole } = await import(path.join(REPO_ROOT, "src/lib/ai-team/roster.ts"))
 const role = AI_TEAM_ROSTER.find((r) => r.roleKey === roleKey)
 if (!role || role.isHuman || role.isCodeOnly || !role.model) {
   console.error(`Role '${roleKey}' is not a repo-write-capable AI Workforce role.`)
+  process.exit(1)
+}
+
+// U-D2.B4.S1: same audit-independence check as dispatch-repo.ts (the
+// Next.js entry point into this exact script) -- mirrored here too since
+// this script is also directly invocable from CI (ai-team-workforce.yml)
+// without going through dispatch-repo.ts first, so that surface needs its
+// own fail-closed check, not just an upstream one that could be bypassed.
+if (isAuditOrganizationRole(roleKey)) {
+  console.error(`Role '${roleKey}' is an audit-organization role and cannot be dispatched to modify production code -- audit independence (doer != certifier) requires it stay advisory-only.`)
   process.exit(1)
 }
 
