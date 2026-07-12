@@ -45,6 +45,20 @@ export function shouldResolveDynamicChain(modePill?: string, pathKeys?: string[]
   return Boolean(modePill && modePill.trim() && pathKeys && pathKeys.length > 0)
 }
 
+// Priority 6 item 3 (VERI_CHAT_GOVERNANCE.md sections 2/3, "VERI-as-
+// participant in multi-party VERI Chat -- read, summarize, recommend --
+// never auto-act"). The explicit-trigger predicate generateVeriGroupReply
+// is gated behind: VERI must be @-mentioned or explicitly "ask veri"-ed,
+// exactly once per message, never proactively scanning every message in a
+// group conversation the way the 1:1 AI thread does. Pure predicate --
+// unit-testable without a DB, matching shouldResolveDynamicChain()'s own
+// precedent just above.
+const VERI_MENTION_PATTERN = /@veri\b/i
+const ASK_VERI_PATTERN = /\bask\s+veri\b/i
+export function detectVeriMention(content: string): boolean {
+  return VERI_MENTION_PATTERN.test(content) || ASK_VERI_PATTERN.test(content)
+}
+
 async function ensureAiThread(ctx: ChatContext): Promise<string> {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const participantRows = await db.query.conversationParticipants.findMany({
@@ -235,6 +249,29 @@ export async function createConversation(
     await db.insert(conversationParticipants).values(participantIds.map((userId) => ({ conversationId: id, userId })))
 
     return { id, type, title, createdAt: createdAt.toISOString(), dynamicChainId }
+  })
+}
+
+// Priority 6 item 3 (VERI_CHAT_GOVERNANCE.md section 2, "What ships this
+// wave"): adds/removes VERI as a recognized participant on a GROUP
+// conversation. Deliberately does not touch conversation_participants at
+// all -- see the veriParticipant column's own comment in schema.ts for why
+// a plain boolean flag was chosen over a fake participant row. Scoped to
+// type: 'group' only: the 1:1 VERI AI thread already has VERI in it by
+// definition (isAiThread), and a plain 2-person direct conversation isn't
+// the "multi-party" surface this feature targets.
+export async function setVeriGroupParticipant(ctx: ChatContext, conversationId: string, enabled: boolean) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    await assertParticipant(db, conversationId, ctx.userId)
+    const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, conversationId) })
+    if (!convo) throw new ServiceError("Conversation not found", 404)
+    if (convo.type !== "group") throw new ServiceError("VERI can only be added to a group conversation", 400)
+
+    const [updated] = await db.update(conversations)
+      .set({ veriParticipant: enabled, updatedAt: new Date() })
+      .where(eq(conversations.id, conversationId))
+      .returning()
+    return { id: updated.id, veriParticipant: updated.veriParticipant }
   })
 }
 
@@ -600,6 +637,106 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   }
 }
 
+// Priority 6 item 3 (VERI_CHAT_GOVERNANCE.md section 3, "VERI's Role Within
+// VERI Chat -- read, summarize, recommend -- never auto-act"). The
+// group-conversation counterpart to generateAiReply() above, triggered
+// ONLY when detectVeriMention() fires on an explicit @veri/"ask veri" --
+// never on every message the way the 1:1 AI thread's generateAiReply() is.
+// Deliberately narrower than generateAiReply(): it skips the deterministic-
+// route/dialogue-script/floor-tier-escalation machinery entirely (that
+// machinery is designed around the 1:1 thread's own Dynamic Chain and task-
+// dispatch semantics, which don't apply to "a participant asked VERI a
+// question in a group chat") and reuses the SAME "user_assistant_oa"
+// orchestra layer for model resolution -- see this wave's migration
+// (0159_priority6_veri_chat_participant.sql) comment for why a whole new
+// layer wasn't stood up for one narrow additive feature.
+async function generateVeriGroupReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
+  const policyDecision = enforcePolicy(
+    { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "user_assistant_oa", eventType: "chat.veri_group_reply" },
+    userMessage
+  )
+  if (!policyDecision.allowed) {
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({ conversationId, senderId: null, content: refusalMessageFor(policyDecision) }).returning()
+    )
+  }
+
+  const modelConfig = await resolveModelConfig(orgId, "user_assistant_oa")
+  if (!modelConfig) {
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({
+        conversationId, senderId: null,
+        content: "No AI model is configured for this organisation yet. Set one up in Settings -> AI Configuration to ask VERI here.",
+      }).returning()
+    )
+  }
+
+  const startedAt = Date.now()
+  try {
+    const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant")
+    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
+    const normalizedMessage = normalizeForLlm(userMessage)
+
+    const { content: reply, usage } = await callLLM(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey,
+      systemPrompt, normalizedMessage,
+      { temperature: 0.3, maxTokens: 600, history },
+      modelConfig.fallback
+    )
+
+    // Same software-first gate as generateAiReply() -- see Phase 3's
+    // ai-reply-gate.ts comment for the full reasoning (a raw LLM claim of
+    // completed action must never reach the user unfiltered). Doubly
+    // important here: VERI is one voice among several humans in this
+    // conversation, so an unfiltered false-action-claim reply is more
+    // likely to be mistaken for something that actually happened.
+    const gateResult = passesReplyGate(reply)
+    recordOrchestraExecution({
+      orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.veri_group_reply",
+      input: { conversationId, systemPrompt: redactPii(systemPrompt), userMessage: redactPii(normalizedMessage), historyTurnCount: history.length },
+      output: gateResult.passed
+        ? { reply: redactPii(reply), replyLength: reply.length }
+        : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
+      status: gateResult.passed ? "completed" : "gated",
+      durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    })
+    if (!gateResult.passed) {
+      return withTenantContext({ orgId, userId }, (db) =>
+        db.insert(messages).values({
+          conversationId, senderId: null,
+          content: "I wasn't able to give a reliable answer to that. Please rephrase.",
+        }).returning()
+      )
+    }
+    // The system prompt asks for structured {"type":"summary",...} JSON
+    // specifically on an explicit summarize request, plain text otherwise.
+    // Stored verbatim either way -- structured-message.ts's
+    // parseStructuredMessage() already handles both cases safely (valid
+    // summary JSON renders via the structured renderer; anything else,
+    // including a plain sentence or malformed JSON, returns null and falls
+    // back to the exact same Markdown rendering every other message uses),
+    // so there is no new failure mode from asking for JSON sometimes.
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({ conversationId, senderId: null, content: reply }).returning()
+    )
+  } catch (err) {
+    console.error("VERI group reply failed:", err)
+    recordOrchestraExecution({
+      orgId, userId, layerKey: "user_assistant_oa", eventType: "chat.veri_group_reply",
+      input: { conversationId }, status: "failed", durationMs: Date.now() - startedAt,
+      output: { error: err instanceof Error ? err.message : String(err) },
+    })
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({
+        conversationId, senderId: null,
+        content: "Something went wrong generating a reply. Please try again in a moment.",
+      }).returning()
+    )
+  }
+}
+
 export async function sendMessage(
   ctx: ChatContext,
   conversationId: string,
@@ -644,7 +781,7 @@ export async function sendMessage(
 
     await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId))
 
-    return { message, isAiThread: convo.isAiThread }
+    return { message, isAiThread: convo.isAiThread, veriParticipant: convo.veriParticipant }
   })
 
   const response: { message: unknown; aiReply?: unknown } = {
@@ -652,6 +789,19 @@ export async function sendMessage(
       id: result.message.id, senderId: result.message.senderId, content: result.message.content,
       isInstruction: result.message.isInstruction, createdAt: result.message.createdAt.toISOString(),
     },
+  }
+
+  // Priority 6 item 3: a human-authored message in a group conversation
+  // VERI has been invited into, that explicitly addresses VERI, gets the
+  // narrow read/summarize/recommend reply path -- generateAiReply() above
+  // stays reserved for the 1:1 AI thread exactly as before (isAiThread
+  // check unchanged). A guest-authored message (senderId null) can't
+  // trigger this: senderId === ctx.userId is guaranteed non-null here
+  // (the caller is always an authenticated participant), so there's no
+  // ambiguity with the guestAccessId convention getMessages() handles.
+  if (!result.isAiThread && result.veriParticipant && detectVeriMention(content)) {
+    const [aiMessage] = await generateVeriGroupReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
+    response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
   }
 
   if (result.isAiThread) {

@@ -2901,6 +2901,19 @@ export const conversations = complianceSchemaDB.table('conversations', {
   previousState: text('previous_state'),
   workflowId: text('workflow_id'),
   status: text('status').notNull().default('active'), // 'active' | 'paused' | 'completed' | 'archived'
+  // Priority 6 item 3 (VERI_CHAT_GOVERNANCE.md §2/§3, "VERI-as-participant
+  // in multi-party VERI Chat"): a plain boolean flag, not a fake
+  // conversation_participants row with a null/sentinel userId -- that
+  // column is NOT NULL and self-referentially RLS-checked (see the header
+  // comment above this table), so overloading it would be a much riskier
+  // change than this additive flag. Only meaningful on `type: 'group'`
+  // conversations (chat-service.ts's setVeriGroupParticipant() enforces
+  // that); false by default, so every existing conversation is completely
+  // unaffected. VERI's actual replies still land as ordinary messages with
+  // senderId: null -- the same convention already used everywhere else
+  // (see messages.senderId's own comment) -- so no reader of `messages`
+  // needs to know this flag exists at all.
+  veriParticipant: boolean('veri_participant').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

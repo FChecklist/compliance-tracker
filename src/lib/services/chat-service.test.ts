@@ -8,7 +8,7 @@
 // established pattern of not exercising that from a .test.ts file (see
 // task-service.test.ts's own comment on the same convention).
 import { describe, expect, test } from "bun:test"
-import { shouldResolveDynamicChain } from "./chat-service"
+import { shouldResolveDynamicChain, detectVeriMention } from "./chat-service"
 
 describe("shouldResolveDynamicChain -- Priority 5 item E1", () => {
   test("false when both modePill and pathKeys are absent (every existing caller today)", () => {
@@ -37,5 +37,52 @@ describe("shouldResolveDynamicChain -- Priority 5 item E1", () => {
 
   test("true for a single-level pathKeys -- this predicate only checks presence, not depth (no 2-level gate is imposed on conversations, unlike task creation's validateChainDepth)", () => {
     expect(shouldResolveDynamicChain("compliance_item", ["compliance_item"])).toBe(true)
+  })
+})
+
+// Priority 6 item 3 (VERI_CHAT_GOVERNANCE.md sections 2/3, "VERI-as-
+// participant in multi-party VERI Chat"). detectVeriMention() is the pure
+// gate sendMessage() checks before ever calling generateVeriGroupReply() --
+// the whole "never auto-act, only when explicitly addressed" guarantee
+// lives in this one function, so it's tested exhaustively here rather than
+// through an end-to-end DB-backed sendMessage() call, matching this file's
+// established pattern for shouldResolveDynamicChain() above.
+describe("detectVeriMention -- Priority 6 item 3 explicit-trigger gate", () => {
+  test("false for an ordinary message with no mention of VERI at all", () => {
+    expect(detectVeriMention("Can someone review the Q3 numbers before EOD?")).toBe(false)
+  })
+
+  test("false for a message that merely mentions VERI/VERIDIAN by name in passing (not an @-mention or explicit ask)", () => {
+    expect(detectVeriMention("I was chatting with VERI earlier about this")).toBe(false)
+    expect(detectVeriMention("VERIDIAN's dashboard looks great")).toBe(false)
+  })
+
+  test("true for an @veri mention", () => {
+    expect(detectVeriMention("@veri can you summarize this thread?")).toBe(true)
+  })
+
+  test("true for an @veri mention mid-sentence", () => {
+    expect(detectVeriMention("hey @veri, what did we decide on the vendor?")).toBe(true)
+  })
+
+  test("@-mention match is case-insensitive", () => {
+    expect(detectVeriMention("@VERI please help")).toBe(true)
+    expect(detectVeriMention("@Veri please help")).toBe(true)
+  })
+
+  test("true for the explicit phrase 'ask veri'", () => {
+    expect(detectVeriMention("let's ask veri what the deadline is")).toBe(true)
+  })
+
+  test("'ask veri' phrase match is case-insensitive", () => {
+    expect(detectVeriMention("Ask VERI to summarize")).toBe(true)
+  })
+
+  test("false for '@veribank' or another word that merely starts with veri -- word boundary is enforced", () => {
+    expect(detectVeriMention("email @veribank_support about the statement")).toBe(false)
+  })
+
+  test("false for an empty string", () => {
+    expect(detectVeriMention("")).toBe(false)
   })
 })
