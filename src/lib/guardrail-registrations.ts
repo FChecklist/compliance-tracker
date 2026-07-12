@@ -23,6 +23,7 @@ import { bandConfidence } from "./confidence-banding"
 import { nextEscalationRung } from "./escalation-ladder"
 import { classifyAuditCadence } from "./audit-cadence"
 import { checkQaPreCompletionGate } from "./qa-precompletion-gate"
+import { checkCommunicationGuardrails, type DraftedCommunicationForGuardrailCheck } from "./communication-guardrails"
 import type { RiskLevel } from "./risk-classification"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
@@ -54,6 +55,15 @@ export const HANDOVER_PROTOCOL_LEAF = "task_execution.handover"
 // own header for why this was previously not closeable (Handover
 // Protocol had zero live callers) and how it's wired now.
 export const QA_PRECOMPLETION_GATE_LEAF = "task_execution.qa_precompletion"
+// tree4-unified/10-merged-governance-layer.yaml U-D10.B4.S1 (GAP-06's 7-rule
+// guardrail) + AGENTS.md Rule 9: gates the SEND step of a drafted
+// communication (communication-drafting-service.ts's approveCommunication()
+// and its always_approve-preference auto-send path) -- whether a human
+// clicked approve or a saved preference fired it, the same deterministic
+// checks run before sendEmail() is ever called. See
+// communication-guardrails.ts's own header for exactly what is and isn't
+// checkable deterministically today.
+export const COMMUNICATION_DRAFT_SEND_LEAF = "communication.draft_send"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   // Wave 163 audit finding (chief_audit_officer's first real dispatch,
@@ -155,6 +165,15 @@ function closureReviewCheck(context: Record<string, unknown>) {
   }
 
   return { passed: true as const }
+}
+
+function communicationDraftSendCheck(context: Record<string, unknown>) {
+  const draft: DraftedCommunicationForGuardrailCheck = {
+    recipientEmails: context.recipientEmails,
+    subject: context.subject as string | null | undefined,
+    body: context.body as string | null | undefined,
+  }
+  return checkCommunicationGuardrails(draft)
 }
 
 function handoverCheck(context: Record<string, unknown>) {
@@ -263,4 +282,10 @@ export function registerAllGuardrails(): void {
   // checks (not_found/not_in_review/self_review_not_allowed/
   // handover_not_submitted) run against the actual activity_log row.
   registerGuardrail(QA_PRECOMPLETION_GATE_LEAF, { phase: "input", check: qaPreCompletionCheck })
+
+  // Communication Governance send gate (GAP-06, U-D10.B4.S1) -- "input"
+  // phase since it validates the communication ITSELF (recipients/content)
+  // immediately before the send step, the same posture as every other
+  // "input" leaf in this file.
+  registerGuardrail(COMMUNICATION_DRAFT_SEND_LEAF, { phase: "input", check: communicationDraftSendCheck })
 }

@@ -250,6 +250,17 @@ const REQUIRED_MARKERS = [
   { file: "src/app/api/ai/team/dispatch/route.ts", mustContain: ["buildDispatchSelfAssessment(", "checkQaPreCompletionGate("] },
   { file: "src/app/api/ai/team/review/route.ts", mustContain: ["QA_PRECOMPLETION_GATE_LEAF", "getActivitySelfAssessment("] },
   { file: "src/lib/activity-log-service.ts", mustContain: ["decideAcceptance(", "handover_not_submitted"] },
+
+  // Added 2026-07-12 (Priority 2 item 4, tree4-unified/10-merged-governance-
+  // layer.yaml U-D10.B4.S1 / GAP-06): Communication Governance send-time
+  // guardrail -- the first real guardrail-engine.ts leaf gated in front of
+  // an AI-drafted communication's send step (communication-drafting-
+  // service.ts's approveCommunication(), reached either by an explicit
+  // human approval or an always_approve preference shortcut -- both paths
+  // run the exact same check before sendEmail() is ever called).
+  { file: "src/lib/communication-guardrails.ts", mustContain: ["export function checkCommunicationGuardrails", "export function validateRecipients", "export function validateContent"] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["COMMUNICATION_DRAFT_SEND_LEAF"] },
+  { file: "src/lib/services/communication-drafting-service.ts", mustContain: ["evaluateGuardrails(COMMUNICATION_DRAFT_SEND_LEAF", "logActivity("] },
 ]
 
 let failed = false
