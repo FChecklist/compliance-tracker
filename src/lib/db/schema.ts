@@ -2225,10 +2225,19 @@ export const boardEvaluations = complianceSchemaDB.table('board_evaluations', {
 
 export const policyStatusEnum = complianceSchemaDB.enum('policy_status', ['draft', 'under_review', 'published'])
 
+// Priority 10 (GAP-D15-REMAINING-TRIGGERS): 'sop' is now a real,
+// deliberately-used category value, not just an illustrative example --
+// audit-event-triggers.ts's "SOP Changed" trigger fires specifically for
+// policies rows tagged category='sop' when they're published (see
+// src/app/api/approvals/[id]/route.ts's policy_publish branch). A
+// Standard Operating Procedure is treated as a governed document with the
+// same draft/under_review/published maker-checker lifecycle as any other
+// policy, not a separate schema entity -- see that trigger file's module
+// header for the full reasoning.
 export const policies = complianceSchemaDB.table('policies', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   title: text('title').notNull(),
-  category: text('category').notNull().default('governance'), // governance|hr|environment|data_privacy|third_party
+  category: text('category').notNull().default('governance'), // governance|hr|environment|data_privacy|third_party|sop
   version: text('version').notNull().default('v1.0'),
   status: policyStatusEnum('status').notNull().default('draft'),
   attestationRate: integer('attestation_rate').notNull().default(0),
