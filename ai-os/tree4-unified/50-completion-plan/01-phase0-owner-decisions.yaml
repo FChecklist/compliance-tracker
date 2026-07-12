@@ -37,5 +37,13 @@ decisions:
     context: "The ladder concept (routine execution -> review -> QC -> COO -> Super Boss -> Owner) is followed in practice this session (e.g. via AGENTS.md's authority descriptions) but has no corresponding code artifact. Building it as code would let other gap-closure work (e.g. D15.B6's Peer Validation stage, D3.B2's chain-execution escalation) reference a real structure instead of an aspirational one."
     recommendation: "Build it as code -- several other plan items (PLAN-23, PLAN-31 through PLAN-36's audit cadence work) are cleaner to implement against a real escalation-level field than against prose."
     blocks: ["PLAN-23"]
+    resolution: "RESOLVED 2026-07-11 -- built as real code: src/lib/escalation-ladder.ts (nextEscalationRung(), 13 tests), wired into task-execution-engine.ts's dispatchEngine fallback, monitoring-rule violations, and the D3.B2/D8 escalation-to-D2.B1-ladder step. Not a prose-only practice anymore."
 
-count_of_decisions: 6
+  - id: DEC-07
+    question: "D9 Approval & Confirmation UX: build the literal 9-option / 9-option / 16-verb approval vocabularies the source docs name, or keep the simpler always_approve/always_reject binary the real system already ships?"
+    context: "3 sub-branches (U-D9.B1.S1/S2/S3) are confirmed_gap against the literal spec. The tree's own domain-level note (10-merged-governance-layer.yaml, U-D9.B3.S1's workflow field) already flags the binary model as arguably BETTER on the requirement's own stated goal ('the approval experience must be fast and minimally intrusive') even though it diverges from the literal option-set wording -- the 9/9/16-item menus would be slower and more intrusive, not less, the opposite direction from what U-D9.B3.S1 actually asks for."
+    recommendation: "Keep the binary system. Do not build the literal vocabularies."
+    resolution: "RESOLVED 2026-07-12 (Super Boss, per Owner's explicit 'you have full control, complete Priority 2 100%' directive during the Priority 2 dispatch): RATIFY the existing binary always_approve/always_reject model, do NOT build the 27 named option-set entries (9+9+16 across B1.S1/S2/S3) on top of it. Same reasoning class as DEC-03 (Universal Work Object retrofit) -- the literal spec and the requirement's own underlying goal point in OPPOSITE directions here (more options is not faster/less-intrusive), so building the literal wording would trade a real, working, better-aligned system for a worse one just to match option-count literalism. B2.S1 (VERI may recommend creating a reusable approval preference) and B3.S1 (fast/unintrusive UX) both remain correctly served by the existing system -- U-D9 is closed at its current real scope, not left half-open pending a future rebuild."
+    blocks: []
+
+count_of_decisions: 7
