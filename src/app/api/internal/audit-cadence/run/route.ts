@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { scanForL2Violations } from "@/lib/audit-cadence-scan"
+import { scanForL2Violations, scanForL4PendingEscalations } from "@/lib/audit-cadence-scan"
 
 /**
  * Cron-triggered entry point for area 9's L2 (Continuous Monitoring) audit
@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const l2 = await scanForL2Violations()
-    return NextResponse.json({ ranAt: new Date().toISOString(), l2 })
+    const [l2, l4] = await Promise.all([scanForL2Violations(), scanForL4PendingEscalations()])
+    return NextResponse.json({ ranAt: new Date().toISOString(), l2, l4 })
   } catch (error) {
     console.error("Audit cadence scan run failed:", error)
     return NextResponse.json({ error: "Audit cadence scan run failed" }, { status: 500 })

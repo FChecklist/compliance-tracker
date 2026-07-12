@@ -20,7 +20,7 @@
 // functions) per the design doc's own phasing.
 import { activityLog } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
 import { bandConfidence } from "@/lib/confidence-banding";
@@ -350,6 +350,78 @@ export function listReAuditFlagged(orgId: string) {
       where: and(eq(activityLog.orgId, orgId), isNotNull(activityLog.reAuditRequestedAt)),
       orderBy: desc(activityLog.reAuditRequestedAt),
     });
+  });
+}
+
+// subagent/audit-lifecycle (tree4-unified/50-completion-plan Priority 2 item
+// 3, D15/U-D15.B1.S4 "L4 Executive Audit Review"): closes the real, live
+// gap found on direct verification of audit-cadence.ts's own L4 routing --
+// see schema.ts's executiveReviewedAt column comment for the full finding.
+// Deliberately mirrors flagForReAudit/clearReAuditFlag/listReAuditFlagged's
+// exact shape (a query + acknowledge surface, not a fabricated "Claude
+// autonomously reviewed and decided" report) -- L4's own named actions
+// (reassign/escalate/pause/approve/investigate) are judgment calls a human
+// or a real dispatched executive role makes, not something this function
+// invents. A row is "pending executive review" when its own already-real
+// riskLevel is 'high' or 'critical' (audit-cadence.ts's classifyAuditCadence
+// already computes requiresExecutiveEscalation for exactly these two, see
+// that module for why) AND it has reached a terminal lifecycle stage AND no
+// one has acknowledged it yet -- no new "needs L4" flag column was needed,
+// riskLevel is already the real signal.
+const EXECUTIVE_REVIEW_RISK_LEVELS = ["high", "critical"] as const;
+
+/** Lists every terminal activity_log row in an org whose riskLevel classifies it L4-escalation-worthy (audit-cadence.ts) and that has not yet been acknowledged at an Executive Audit Review -- most-urgent (critical) and oldest first, matching the source doc's own "review pending critical issues first" framing. */
+export function listPendingExecutiveEscalations(orgId: string) {
+  return withTenantContext({ orgId }, async (db) => {
+    return db.query.activityLog.findMany({
+      where: and(
+        eq(activityLog.orgId, orgId),
+        inArray(activityLog.riskLevel, [...EXECUTIVE_REVIEW_RISK_LEVELS]),
+        inArray(activityLog.lifecycleStage, ["completed", "failed", "closed"]),
+        isNull(activityLog.executiveReviewedAt),
+      ),
+      orderBy: [asc(activityLog.createdAt)],
+    });
+  });
+}
+
+export type AcknowledgeExecutiveEscalationResult =
+  | { acknowledged: true }
+  | { acknowledged: false; reason: "not_found" | "not_pending" };
+
+/**
+ * Records that a row surfaced at an Executive Audit Review has been looked
+ * at -- fails closed on a row that doesn't exist or isn't actually pending
+ * (already acknowledged, or never was high/critical risk in the first
+ * place), same discipline as flagForReAudit(). notes is required and
+ * becomes the permanent record of what the review concluded (reassign /
+ * escalate further / pause / approve / investigate further -- the actual
+ * decision text, not a rubber stamp).
+ */
+export async function acknowledgeExecutiveEscalation(params: {
+  orgId: string;
+  activityLogId: string;
+  reviewedBy: string;
+  notes: string;
+}): Promise<AcknowledgeExecutiveEscalationResult> {
+  return withTenantContext({ orgId: params.orgId }, async (db) => {
+    const existing = await db.query.activityLog.findFirst({ where: eq(activityLog.id, params.activityLogId) });
+    if (!existing) return { acknowledged: false, reason: "not_found" as const };
+    const isPending =
+      existing.riskLevel != null &&
+      (EXECUTIVE_REVIEW_RISK_LEVELS as readonly string[]).includes(existing.riskLevel) &&
+      TERMINAL_STAGES.has(existing.lifecycleStage) &&
+      existing.executiveReviewedAt == null;
+    if (!isPending) return { acknowledged: false, reason: "not_pending" as const };
+
+    await db.update(activityLog).set({
+      executiveReviewedAt: new Date(),
+      executiveReviewedBy: params.reviewedBy,
+      executiveReviewNotes: params.notes,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, params.activityLogId));
+
+    return { acknowledged: true as const };
   });
 }
 
