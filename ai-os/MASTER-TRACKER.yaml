@@ -1,0 +1,261 @@
+# ============================================================================
+# VERIDIAN AI OS -- MASTER TRACKER
+# ============================================================================
+# THE single file for gap analysis, pending work, and work-in-progress across
+# this entire initiative. Created 2026-07-12, consolidating 17 separate
+# tracker/gap-backlog files (5,538 total lines) that had accumulated across
+# Priorities 1-7. Those files are archived at
+# ai-os/tree4-unified/50-completion-plan/archive/ and ai-os/audit-tree/archive/
+# -- kept for historical detail/evidence, but NO LONGER MAINTAINED. This file
+# is the only one to read or update going forward for "what's done / what's
+# open / what's next."
+#
+# Update discipline: when you close an item, move it from `open_items` to
+# `closed_priorities`' relevant summary (one line, not a new essay) and
+# delete it from `open_items`. When you find a new gap, add it to
+# `open_items` with a real owner/blocker, not a vague note. Keep this file
+# under control -- if it starts sprawling back to 1000+ lines, that's a sign
+# to compress the closed-history sections further, not to split it again.
+#
+# status vocabulary used throughout:
+#   open            -- real, actionable, nobody has started
+#   owner_blocked   -- cannot be closed by an agent; needs the Owner
+#                      (credential/account action, or a judgment call only
+#                      they can make)
+#   needs_verification -- last checked before several later priorities
+#                      shipped; likely already closed or moot, but not
+#                      re-confirmed against current code -- check before
+#                      trusting either way
+#   ratified        -- deliberately decided NOT to build, with a documented
+#                      reason (not silently dropped, not still "pending")
+#   deferred_large  -- real, scoped, but large enough to be its own
+#                      initiative, not a quick slice
+# ============================================================================
+
+meta:
+  last_consolidated: "2026-07-12"
+  source_files_archived:
+    - ai-os/tree4-unified/50-completion-plan/00-INDEX.md
+    - ai-os/tree4-unified/50-completion-plan/01-phase0-owner-decisions.yaml
+    - ai-os/tree4-unified/50-completion-plan/02-plan-items.yaml
+    - ai-os/tree4-unified/50-completion-plan/03-coverage-matrix.yaml
+    - ai-os/tree4-unified/50-completion-plan/04-implementation-log.yaml
+    - ai-os/tree4-unified/50-completion-plan/05-eighteen-areas-tracker.yaml
+    - ai-os/tree4-unified/50-completion-plan/06-associate-dispatch-log.yaml
+    - ai-os/tree4-unified/50-completion-plan/07-priority2-tracker.yaml
+    - ai-os/tree4-unified/50-completion-plan/08-priority3-umr-tracker.yaml
+    - ai-os/tree4-unified/50-completion-plan/09-priority4-umr-universal-tracker.yaml
+    - ai-os/tree4-unified/50-completion-plan/10-priority5-software-orchestrator-tracker.yaml
+    - ai-os/tree4-unified/50-completion-plan/11-priority6-one-brain-integration-tracker.yaml
+    - ai-os/tree4-unified/50-completion-plan/12-priority6-governance-foundation-drift.md
+    - ai-os/tree4-unified/50-completion-plan/13-priority7-remaining-gaps-tracker.yaml
+    - ai-os/tree4-unified/30-gap-backlog.yaml
+    - ai-os/audit-tree/GAPS.yaml
+  deliberately_NOT_folded_in:
+    - file: ai-os/boss/BOARD.yaml
+      why: "Pre-existing (2026-06-28) multi-agent governance infrastructure named explicitly in AGENTS.md Rule 3, used by z.ai too, not just this session's work. Already self-declared stale/superseded by COMPLETED.yaml in its own header -- left as-is, not this file's job to fix."
+    - file: ai-os/boss/COMPLETED.yaml
+      why: "Required doer+auditor completion LOG per AGENTS.md Rule 7(d), append-only audit trail across all agents. Different purpose than a gap/pending tracker -- this file references it, doesn't replace it."
+    - file: ai-os/system-tree/*.yaml
+      why: "Tree 1 -- 'what actually exists in code' reference, not a gap/pending list."
+
+# ============================================================================
+# OPEN ITEMS -- everything actually pending right now, as of 2026-07-12
+# ============================================================================
+open_items:
+
+  owner_blocked:
+    - id: OPEN-01
+      name: "GITHUB_DISPATCH_PAT not set in Vercel"
+      detail: "dispatch-repo.ts reads process.env.GITHUB_DISPATCH_PAT directly -- confirmed absent from all 3 Vercel environments (Production/Preview/Development) via `vercel env ls`. Blocks Higher AI's live repository_dispatch path (capability-audit-service.ts's dispatchProposalToHigherAI()) from ever succeeding -- untested end-to-end to this day."
+      next_step: "Owner creates a GitHub PAT (repo scope) and runs `vercel env add GITHUB_DISPATCH_PAT production`, or sets it via the Vercel dashboard. Cannot be done by an agent -- distinct from the write-only PAT_FCHECKLIST GitHub secret, whose value can never be read back to reuse."
+      first_raised: "Priority 5"
+      still_open_confirmed: "Priority 7 (2026-07-12, live-checked)"
+
+    - id: OPEN-02
+      name: "veda-advisors PR #15 needs Owner review approval"
+      detail: "Fully CI-green (12/12 checks). veda-advisors' branch protection requires 1 approving review + enforce_admins:true, no bypass. The session's gh auth is the same account (FChecklist) that authored the PR -- GitHub blocks self-approval."
+      next_step: "Owner (or any account other than FChecklist) approves and merges https://github.com/FChecklist/veda-advisors/pull/15."
+      first_raised: "Priority 7"
+
+    - id: OPEN-03
+      name: "Leaked veda-advisors credentials still need rotation"
+      detail: "A real GitHub PAT is embedded in code-by-zai/.git/config's remote URL and in 2 plaintext local files (MASTER_IMPLEMENTATION_PROMPT.md, Veda_Advisors_Master_Prompt.md); a real Composio API key is in Linkedin.md. Verified 2026-07-12: NOT committed to any GitHub repo (local-only exposure), and no DB password/service-role key found (an earlier report's claim on that specific point was overclaimed and corrected)."
+      next_step: |
+        Owner action required, in order:
+        1. Generate a new GitHub PAT, revoke the old one (GitHub Settings -> Developer settings -> Personal access tokens).
+        2. Generate a new Composio API key, revoke the old one (Composio dashboard).
+        3. Check every repo/workflow reusing the old PAT (GitHub Secrets PAT_FCHECKLIST across compliance-tracker/veda-advisors/projexa) before rotating, or CI breaks everywhere it's used.
+        4. Scrub the plaintext values from the 3 local files above, replace with a placeholder + secrets-manager pointer.
+        5. Fix code-by-zai/.git/config to stop embedding the PAT in the remote URL (switch to a credential-manager-backed auth).
+      first_raised: "Priority 2"
+
+  needs_owner_decision:
+    - id: OPEN-04
+      name: "Audit Organization role granularity (DEC-01 leftover)"
+      detail: "roster.ts now has 130 of the ~150 individually-named audit-org roles from Audit Organization.docx (5/5 divisions, 25/25 departments structurally complete) -- built without waiting on DEC-01's original pilot-first recommendation, per later 'don't wait' directives. Whether the remaining ~20 role names are worth adding individually, vs. treated as covered by the 130 that exist, was never explicitly re-decided."
+      recommendation: "Low priority -- 130/150 already covers all 5 divisions/25 departments structurally. Only revisit if a specific missing named role is actually blocking something."
+
+    - id: OPEN-05
+      name: "Universal Work Object retrofit (DEC-03) -- ratified against, but the underlying gaps it would have closed remain"
+      detail: "DEC-03 ratified the current distributed-table architecture (ERP/PMS/Firm/Construction) over a ~30-state Work Object retrofit as hard-to-reverse and disproportionate. This is a real, final decision (not pending), but it means several downstream Tree-1 asks stay permanently only-approximated: a truly universal follow-up engine (G-024/G-028 below), a truly universal cross-type dashboard."
+      recommendation: "Ratification stands. Only reopen if the Owner explicitly wants to revisit DEC-03 itself -- do not re-litigate piecemeal via one of its downstream symptoms."
+
+  real_gaps_not_yet_built:
+    # These are the still-accurate, still-open items from the old GAPS.yaml
+    # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
+    # everything closed by Priority 1's 18 areas, Priority 2's D-domain
+    # sweep, and Priorities 3-7. Where a later closure only partially
+    # covered an old item, that's noted. Anything NOT listed here from the
+    # old catalogs should be assumed CLOSED -- see closed_priorities below
+    # for where.
+    - id: GAP-DCMD
+      name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
+      old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
+      detail: "dynamic_chains is still a flat table (modePill/pathKeys/pathLabels/moduleRef/description/status). None of the 10 required rich sub-fields exist, and entity_relationships (built, Phase 3) has zero consumers wired to hold DCMD graph edges. Priority 1 area 1 built persistent visibility + route-aware capability-tree fetch + the 2-level chain gate -- real, but doesn't touch this schema gap."
+      size: deferred_large
+      recommendation: "Design the graph schema first (per the source doc's own preference for graph over enumerated-permutation), then an additive migration, backfill, cutover. Any migration must preserve existing dynamic_chains rows and their live references from tasks/conversations."
+
+    - id: GAP-CONNECTOR-DATA
+      name: "Real data ingestion through connected toolkits"
+      old_ids: ["G-032"]
+      detail: "All 18 connected OAuth toolkits (Composio) are connect-status only -- zero code anywhere actually pulls data through any of them. Per-app intelligence behaviors (Sheets/Docs/Gmail/etc., G-018 old) depend on this and remain correctly out of scope until it exists."
+      size: deferred_large
+
+    - id: GAP-CONNECTOR-LAYERS
+      name: "Connector Layers 2-4: Office Add-in, Browser Extension, Desktop Companion"
+      old_ids: ["GAP-08 (B1.S2/S3/S4)"]
+      detail: "Only Layer 1 (Cloud API/OAuth) exists. DEC-09 explicitly ratified these as NOT dispatched -- real, hard-to-reverse distribution/signing/packaging decisions needed before scoping, not a routine build call."
+      size: deferred_large
+      recommendation: "Owner should prioritize independently if/when wanted -- Layer 2 (Office Add-ins) likely has the clearest ROI given the existing Excel/Word-using customer base."
+
+    - id: GAP-SESSION-LIMIT
+      name: "Session/device misuse limit (max 2 concurrent sessions per license)"
+      old_ids: ["GAP-09 (part)", "G-037"]
+      detail: "Confirmed fully unbuilt (no sessions table, no device tracking, no Supabase Auth sessions API usage). Judged too large/risky for a narrow slice in Priority 2 -- would mean new session-tracking infra PLUS instrumenting requireAuth(), the single central auth chokepoint every route depends on. The 'exempt VERIDIAN's own internal use' clause must be built in from day one, not retrofitted."
+      size: deferred_large
+
+    - id: GAP-AUTH-REBUILD
+      name: "Auth flow rebuild: Google sign-in first, 4-digit email passcode instead of password"
+      old_ids: ["G-045"]
+      detail: "Explicitly tracked as a separate initiative, deliberately excluded from Priority 1 areas 15/18's closure (not a narrow slice of onboarding)."
+      size: deferred_large
+
+    - id: GAP-MOM-VOICE-TICKETS
+      name: "Voice/transcription and ticket intelligence (2 of 4 Intelligent Work Detection source types)"
+      old_ids: ["G-025 (part)"]
+      detail: "OCR (document upload) and email intelligence are both built (Priority 2). Voice: doc_processing_jobs.operation's schema comment lists 'transcribe' as planned but only 'ocr' has a real caller -- no speech-to-text integration exists. Tickets: ticket-service.ts is plain CRUD, zero AI detection."
+      size: deferred_large
+
+    - id: GAP-CONTINUOUS-REPRIORITIZATION
+      name: "Continuous work reprioritization based on deadlines/dependencies/risk/SLA"
+      old_ids: ["G-029", "GAP part of D22"]
+      detail: "tasks.priority is static, set at creation, never dynamically reprioritized. Confirmed fully unbuilt (grep for reprioriti/re-planning returns zero matches)."
+      size: deferred_large
+
+    - id: GAP-DELEGATION-AUTHORITY
+      name: "Explicit, scoped, revocable delegation of decision authority to VERI"
+      old_ids: ["G-027"]
+      detail: "approval_preferences covers 'always approve this action category' -- narrower than full scoped/time-bounded/revocable delegation for a specific task/workflow/project/module/communication-type."
+      size: "S -- real extension of existing infra, good next-wave candidate"
+
+    - id: GAP-UNIVERSAL-DASHBOARD
+      name: "Universal cross-type Work Dashboard (To Do/Pending/WIP/Blocked/Escalations, real-time, all Work Object types)"
+      old_ids: ["G-028"]
+      detail: "No unified cross-type dashboard exists. veri-todo-service.ts covers tasks only. Downstream of DEC-03's ratification (fully universal is not achievable without the Work Object unification that was ratified against)."
+      size: deferred_large
+
+    - id: GAP-MODEL-SCORECARD
+      name: "Model Performance Scorecard (dispatch count/success rate/iterations/audit-finding-rate per model+tier)"
+      old_ids: ["G-030", "G-002 (related)"]
+      detail: "token_usage_ledger captures cost only, not success/failure or audit outcomes. Discussed, agreed in principle, never built."
+      size: S
+
+    - id: GAP-RESPONSE-VOCABULARY
+      name: "Constrained short-response vocabulary for cheap-tier models (Yes/No/OK/Pending/etc., max ~4 words)"
+      old_ids: ["G-039"]
+      detail: "No structured/constrained-vocabulary response mechanism exists -- every AI reply is free-form generation. Directly synergizes with model-tier-eligibility.ts's existing mechanical-tier concept."
+      size: S
+      note: "response-engine.ts (built Priority 5) is a DIFFERENT, narrower thing -- fixed summary-formatting functions for specific report types, not a general constrained-vocabulary reply mode. Do not treat as already closed."
+
+    - id: GAP-GLOBAL-REVENUE-SPLIT
+      name: "Separate Global Revenue Operations (under COO) vs Global Revenue Assurance (under CAO) divisions"
+      old_ids: ["G-010"]
+      detail: "No Global Revenue Operations division exists to split assurance from -- CRM/billing is plain service-layer code today."
+      size: M
+      priority: P2 (low)
+
+    - id: GAP-COO-ROLE
+      name: "Formal distinct COO role"
+      old_ids: ["G-001"]
+      detail: "chief_governance_officer and ceo_technical_director are partial matches; no distinct cross-agent-coordination COO role exists."
+      size: S
+      priority: P2 (low)
+
+    - id: GAP-DYNAMIC-CHAIN-DEDUP
+      name: "dynamic_chain as a 5th CapabilityEntityType for duplicate/broken/obsolete detection"
+      old_ids: ["G-018"]
+      detail: "capability-registry-service.ts's findSimilarCapabilities()/auditDuplicateCapabilities() covers worker_agent/automation_rule/module/prompt_pattern already -- dynamic_chain isn't a 5th type yet."
+      size: S
+
+    - id: GAP-UMR-TABLE-COVERAGE
+      name: "359 of 388 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
+      old_ids: []
+      detail: "The auto-registration MECHANISM is complete and proven across 3 domains (29 real tables). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap."
+      size: "XS per table, ongoing"
+      priority: P2 (low, mechanical when wanted)
+
+  ratified_do_not_build:
+    # Real decisions, not gaps -- listed so nobody re-proposes these without
+    # realizing they were already explicitly decided against.
+    - id: RATIFIED-01
+      decision: "DEC-03: Do NOT retrofit ERP/PMS/Firm/Construction onto a unified Work Object table. Ratify the current distributed architecture."
+    - id: RATIFIED-02
+      decision: "DEC-04: GOV-04's complexity-tier system supersedes the literal percentage-band confidence-escalation scheme. Do not build both."
+    - id: RATIFIED-03
+      decision: "DEC-07: Keep the binary always_approve/always_reject model. Do NOT build the literal 9/9/16-option approval vocabularies (D9, and by the same reasoning, the overlapping G-026 full Work-Object action menu)."
+    - id: RATIFIED-04
+      decision: "GAP-05 / DEC-01: 130 of ~150 audit-org roles built (all 5 divisions/25 departments structurally complete) -- the full literal 150-name enumeration was never required to be exact, this is accepted as sufficient (see OPEN-04 above for the small remaining question)."
+    - id: RATIFIED-05
+      decision: "Redis / cross-instance cache tier for the UMR: deliberately not introduced (Priority 4) -- a real infra/ops decision, not a code gap. In-process compiled cache is sufficient at current scale."
+    - id: RATIFIED-06
+      decision: "G-020: Real Sales/CRM/Finance/HR/Legal business taxonomy content -- explicitly descoped as business content the org must define, not code to fabricate."
+    - id: RATIFIED-07
+      decision: "G-003: ~40-field mandatory task metadata schema on every task (including customer tasks) -- descoped as disproportionate to the actual problem (AI-dispatch tightening, not customer task completeness). Documented in the constitution, not silently dropped."
+    - id: RATIFIED-08
+      decision: "Priority 7: no code-level Guardrail Engine/task-tightening.ts port needed in veda-advisors or projexa -- both make zero direct LLM calls, so there's no dispatch surface to guard. G-031's framing of this as 'the single largest, most load-bearing open gap' was based on a stale premise, corrected 2026-07-12."
+
+# ============================================================================
+# CLOSED PRIORITIES -- compact summary. Full narrative detail (PR links,
+# exact bug fixes, per-file diffs) lives in git history / ai-os/boss/
+# COMPLETED.yaml / the archived tracker files if ever needed -- not repeated
+# here.
+# ============================================================================
+closed_priorities:
+  - priority: 1
+    name: "18 Owner-named areas, 100% complete"
+    summary: "Dynamic Mode Pills & Chain Selector, VERI Chat & VERI, Guardrails, Agent management, Task Lifecycle + loop management, Monitoring, Narrow/tightened instructions, Majority-of-work-by-software, Auditing, AI router management, Cost management, Loop Engineering, 4-layer orchestra, Common functionalities, End-user lifecycle, Account/Org lifecycle, Billing, End-user UI/UX -- all 18 closed with real code+tests, or explicitly ratified out-of-scope per-item (never silently dropped). See open_items above for the handful of items ratified-not-built or left as real deferred-large follow-ons."
+
+  - priority: 2
+    name: "Credential rotation flag, PROJEXA pages, Tree 1 to 100%, D26/D10/D21/D9"
+    summary: "Tree 1's remaining ~20 domains closed (D1/D2/D8/D13/D5/D6/D19/D24/D25/D15/D22/D27/D28/D26/D10/D21/D9) -- each domain either built with real code, confirmed already-satisfied, or ratified as a documented large deferral (see open_items above for what's still genuinely open from this sweep). PROJEXA's 13 missing sidebar pages built. Credential rotation investigated and flagged for Owner (OPEN-03 above)."
+
+  - priority: 3
+    name: "Universal Metadata Registry (UMR) core"
+    summary: "platform_assets schema, asset-registry-service.ts, asset-query-service.ts, asset-routing-engine.ts, relationship graph + vector search + manifest all built. (Backfill script itself wasn't run until Priority 6.)"
+
+  - priority: 4
+    name: "UMR universal auto-registration"
+    summary: "Generic compliance.auto_register_asset() trigger + asset_registration_config table, compiled in-memory cache, CI coverage-enforcement gate, 29 tables onboarded across 3 domains as a proof pattern (359 more remain grandfather-exempted, see GAP-UMR-TABLE-COVERAGE above)."
+
+  - priority: 5
+    name: "Software Orchestrator"
+    summary: "task_capabilities/instruction_packages/capability_improvement_proposals schema, software-coverage-service.ts's X/Y/A/B classifier, capability-learning-service.ts, capability-audit-service.ts's Auditor->Higher AI loop, package-variable-resolver.ts's MISSING_INFORMATION rule, dialogue-script-executor.ts for VERI Chat. Reused 100% of existing AI roles/dispatch per Owner instruction."
+
+  - priority: 6
+    name: "One Cognitive Brain -- UMR <-> Software Orchestrator integration"
+    summary: "Live-backfilled the UMR (0 -> 2,794 rows). Wired the Auditor to check the UMR before proposing net-new work; closeImprovementLoop() now registers closed capabilities into the UMR; NOVEL-classified tasks get a UMR hint. Built the deferred Chain Selector UI for new VERI conversations. Built VERI-as-participant in group chat (narrow, explicit-mention-only). Ran the deterministic UMR audit for real (clean, 29/29). Built a real cognitive-brain coverage report."
+
+  - priority: 7
+    name: "Remaining gaps: GITHUB_DISPATCH_PAT + veda-advisors/projexa"
+    summary: "Confirmed GITHUB_DISPATCH_PAT still unset (OPEN-01). Discovered veda-advisors/projexa's 'code-level rollout' gap (G-031/task #17) was based on a stale premise -- neither product makes direct LLM calls, so there's nothing to port. projexa PR #1 merged with its one named follow-up answered. veda-advisors PR #15 blocked on Owner review (OPEN-02)."
