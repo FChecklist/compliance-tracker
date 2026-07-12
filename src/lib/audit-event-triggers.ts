@@ -3,11 +3,11 @@
 // events (Code Changed->Engineering Audit, Feature Completed->Functional
 // Audit, etc.), not only on schedule." 1 of 10 (Code Changed) was already
 // wired via .github/workflows/mandatory-audit-check.yml before this file
-// existed. This module wires 7 of the other 9 -- deliberately not all 9;
-// see this file's own registry comments and the PR description for the
-// specific, individual reason the remaining 1 (Deployment) is still open,
-// and the honest caveat noted on new_prompt's registry entry below (a real
-// trigger, with a real but narrower guarantee than the other 6).
+// existed. This module now wires all 9 of the other 9 (Priority 11 closed
+// the last one, Deployment) -- see this file's own registry comments, and
+// the honest caveat noted on both new_prompt's AND deployment's registry
+// entries below (real triggers, with a real but narrower guarantee than
+// the other 7: see each entry's roleKeyRationale-adjacent comment).
 //
 // Priority 10 (GAP-D15-REMAINING-TRIGGERS): wires the 8th event, SOP
 // Changed. Investigated building a dedicated new `sops` table first (the
@@ -26,6 +26,21 @@
 // (src/app/api/approvals/[id]/route.ts's policy_publish approval branch)
 // when the policy being published has category === 'sop' -- see that
 // route for the actual wiring.
+//
+// Priority 11 (GAP-D15-REMAINING-TRIGGERS, closing): wires the 9th and
+// final event, Deployment. Priority 10 left this genuinely open ("no
+// in-app deployment-event table or webhook handler exists beyond the
+// already-wired CI workflow for event #1") rather than inventing a fake
+// trigger point. What changed: this repo now has a real one --
+// src/app/api/webhooks/vercel-deployment/route.ts receives and
+// HMAC-SHA1-verifies (x-vercel-signature, per Vercel's documented webhook
+// security model) Vercel's own `deployment.succeeded`/`deployment.error`
+// webhook deliveries for this project (veridian-compliance-ai), records
+// the fact in the new deploymentEvents table (schema.ts), and fires
+// `deployment` here on a verified `deployment.succeeded` delivery. See
+// that route's own header for the org-attribution caveat this event
+// shares with new_prompt below (a real Vercel deployment has no tenant
+// org of its own -- see the route file for exactly how that's resolved).
 //
 // Investigated per-event against everything else built this session
 // (VERIDIAN_AUDIT_ORGANIZATION.md's ~150-role, 5-division audit
@@ -67,6 +82,7 @@ export type AuditTriggerEventName =
   | "customer_complaint"
   | "new_prompt"
   | "sop_changed"
+  | "deployment"
 
 export type AuditTriggerDefinition = {
   event: AuditTriggerEventName
@@ -79,14 +95,9 @@ export type AuditTriggerDefinition = {
   roleKeyRationale?: string
 }
 
-// One entry per event this module actually wires (8 of the 9 remaining
-// named triggers as of Priority 10; #10, Code Changed, was already wired
-// before this file existed -- see module header). Deployment is NOT in
-// this registry: no in-app deployment-event table or webhook handler
-// exists (the only real "deployment" concept in this repo is the CI
-// workflow already wired for event #1). Adding it here would mean
-// inventing a trigger point that doesn't correspond to anything real,
-// which this wave deliberately does not do.
+// One entry per event this module wires -- all 9 of the remaining named
+// triggers as of Priority 11; #10, Code Changed, was already wired before
+// this file existed -- see module header.
 export const AUDIT_TRIGGER_REGISTRY: Record<AuditTriggerEventName, AuditTriggerDefinition> = {
   feature_completed: {
     event: "feature_completed",
@@ -139,6 +150,12 @@ export const AUDIT_TRIGGER_REGISTRY: Record<AuditTriggerEventName, AuditTriggerD
     sourceRequirement: "SOP Changed -> SOP Audit",
     auditType: "SOP Audit",
     roleKey: "sop_auditor",
+  },
+  deployment: {
+    event: "deployment",
+    sourceRequirement: "Deployment -> Deployment Audit",
+    auditType: "Deployment Audit",
+    roleKey: "deployment_auditor",
   },
 }
 
