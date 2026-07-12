@@ -16,15 +16,15 @@ const EXPECTED_EVENTS: AuditTriggerEventName[] = [
   "ai_escalation",
   "customer_complaint",
   "new_prompt",
+  "sop_changed",
 ]
 
 describe("AUDIT_TRIGGER_REGISTRY", () => {
-  test("wires exactly the 7 events this session found real, concrete call sites for", () => {
+  test("wires exactly the 8 events this session found real, concrete call sites for (Priority 10 added sop_changed)", () => {
     expect(Object.keys(AUDIT_TRIGGER_REGISTRY).sort()).toEqual([...EXPECTED_EVENTS].sort())
   })
 
-  test("does not register SOP Changed or Deployment -- genuinely absent, not force-fit", () => {
-    expect("sop_changed" in AUDIT_TRIGGER_REGISTRY).toBe(false)
+  test("does not register Deployment -- genuinely absent, not force-fit", () => {
     expect("deployment" in AUDIT_TRIGGER_REGISTRY).toBe(false)
   })
 
@@ -45,6 +45,7 @@ describe("AUDIT_TRIGGER_REGISTRY", () => {
     expect(getAuditTriggerDefinition("ai_escalation").roleKey).toBe("chief_audit_officer")
     expect(getAuditTriggerDefinition("customer_complaint").roleKey).toBe("exception_auditor")
     expect(getAuditTriggerDefinition("new_prompt").roleKey).toBe("prompt_auditor")
+    expect(getAuditTriggerDefinition("sop_changed").roleKey).toBe("sop_auditor")
   })
 
   test("ai_escalation and customer_complaint carry an honest roleKeyRationale (no dedicated role exists for either)", () => {
@@ -55,6 +56,7 @@ describe("AUDIT_TRIGGER_REGISTRY", () => {
   test("events with a clean 1:1 role name match carry no rationale (nothing to explain)", () => {
     expect(getAuditTriggerDefinition("feature_completed").roleKeyRationale).toBeUndefined()
     expect(getAuditTriggerDefinition("new_prompt").roleKeyRationale).toBeUndefined()
+    expect(getAuditTriggerDefinition("sop_changed").roleKeyRationale).toBeUndefined()
   })
 })
 
