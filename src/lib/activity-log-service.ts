@@ -55,6 +55,15 @@ export type RecordActivityInput = {
   /** risk-classification.ts's classifyRisk() output, computed by the caller at dispatch time (Guardrail 10). */
   riskLevel?: string | null;
   /**
+   * GAP-MODEL-SCORECARD: model-tier-eligibility.ts's ComplexityTier the
+   * caller already validated via checkTierEligibility() before this call
+   * (Wave 163 / AGENTS.md Operating Rule 10) -- forwarded here so it's
+   * queryable per dispatch instead of discarded after the gate check.
+   * Optional/nullable because earlier failure branches (task-tightening
+   * rejection, unresolvable role) may not have a validated tier yet.
+   */
+  complexityTier?: string | null;
+  /**
    * tree4-unified/50-completion-plan area 3, PLAN-16 item (f): the
    * executing role's own structured self-report -- see schema.ts's
    * self_assessment column comment (Wave 165), which named this shape but
@@ -89,6 +98,7 @@ export function recordActivity(params: RecordActivityInput): Promise<{ id: strin
       durationMs: params.durationMs ?? null,
       errorReason: params.lifecycleStage === "failed" ? (params.errorReason ?? null) : null,
       riskLevel: params.riskLevel ?? null,
+      complexityTier: params.complexityTier ?? null,
       selfAssessment: params.selfAssessment ?? null,
     }).returning({ id: activityLog.id });
     if (row && TERMINAL_STAGES.has(params.lifecycleStage)) {
