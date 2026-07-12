@@ -207,6 +207,32 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   { roleKey: "analytics_seo", team: "SALES_MARKETING", title: "Analytics & SEO", model: GLM_52, promptKey: "ai_team.analytics_seo" },
   { roleKey: "creative_social_media", team: "SALES_MARKETING", title: "Creative / Social Media", model: GLM_5_TURBO, promptKey: "ai_team.creative_social_media" },
   { roleKey: "sdr_email_marketer", team: "SALES_MARKETING", title: "SDR / Email Marketer", model: GLM_5_TURBO, promptKey: "ai_team.sdr_email_marketer" },
+  // Wave 173 (GAP-COO-ROLE leftover, D2/D-domain): re-verified against this
+  // roster before adding anything -- chief_operating_officer ALREADY EXISTS
+  // (see the Executive Escalation Ladder section below, escalationLevel
+  // 'L3'), genuinely distinct from both chief_governance_officer
+  // (GUARDRAIL_PLATFORM -- independent assurance, reports to the Chief
+  // Audit Officer, never operational work) and ceo_technical_director
+  // (ENGINEERING -- builds the product). It already carries real
+  // cross-agent-coordination/escalation-management authority as the L3 rung
+  // every escalated task below Super Boss (L4) resolves through
+  // (escalation-ladder.ts). So the literal "add a distinct COO" ask is
+  // already closed -- ai-os/MASTER-TRACKER.yaml's GAP-COO-ROLE entry is
+  // stale (not edited here per CLAUDE.md's "DO NOT touch ai-os/").
+  //
+  // What genuinely has no owner today: AUDIT_GLOBAL_REVENUE (below) is an
+  // independent AUDIT division under the Chief Audit Officer -- it verifies
+  // sales/CRM/billing work, it does not run it. Grepping this roster for an
+  // operational Sales/Revenue lead (as opposed to strategy_proposals'
+  // narrower proposals-writing scope) turns up nothing -- CRM/billing
+  // pipeline work has no operational owner distinct from its own auditors.
+  // Kept deliberately small per this task's explicit low-priority framing:
+  // one minimal role, not a new "Global Revenue Operations" division/TeamName
+  // (that would need a new TeamName union member and touch
+  // AUDIT_DIVISION_TEAMS/NON_OPERATIONAL_TEAMS' exclusion lists below for no
+  // functional gain over adding this to the existing SALES_MARKETING team,
+  // where every other revenue-facing operational role already lives).
+  { roleKey: "chief_revenue_officer", team: "SALES_MARKETING", title: "Chief Revenue Officer (CRO) -- Sales/CRM/Billing Operations", model: GLM_52, promptKey: "ai_team.chief_revenue_officer" },
 
   // ─── FINANCE ─────────────────────────────────────────────────────────
   { roleKey: "cfo_financial_planning", team: "FINANCE", title: "CFO / Financial Planning", model: GLM_52, promptKey: "ai_team.cfo_financial_planning" },

@@ -758,6 +758,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: tool_health_events
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: scoped_delegations
+    reason: "Wave 173 (GAP-DELEGATION-AUTHORITY, recovered from an interrupted background agent's worktree, verified 2026-07-13): has org_id but no single display-name column -- each row is a per-grant (delegatorUserId, delegateUserId|delegateRoleKey, scopeType, scopeId) compound record, same shape as the already-exempted approval_preferences (a per-user permission/authority setting, not a named platform asset in the UMR sense)."
   - table: user_active_sessions
     reason: "Priority 8 (14-priority8-close-tree1-remaining-gaps.yaml, GAP-SESSION-LIMIT): internal auth-infrastructure state (a SHA-256 hash of each session's access token, for the opt-in concurrent-session-limit check in requireAuth()), not a discoverable platform asset -- same self-exemption reasoning as platform_assets/asset_registration_config itself."
   - table: user_client_access

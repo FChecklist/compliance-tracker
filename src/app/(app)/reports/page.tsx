@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import {
@@ -541,7 +541,14 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      <CustomReportsSection />
+      {/* Wave 173 (chain-integration for reports): CustomReportsSection reads
+          ?report=<id> via useSearchParams to deep-link/highlight a specific
+          saved report -- wrapped in Suspense per this codebase's own
+          established convention for any useSearchParams consumer (see
+          chat/page.tsx, forge/page.tsx). */}
+      <Suspense fallback={<div className="text-sm text-ct-muted">Loading reports...</div>}>
+        <CustomReportsSection />
+      </Suspense>
     </div>
   );
 }

@@ -10,6 +10,19 @@ export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
 import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
+// Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
+// CapabilityEntityType -- indexed at the one real creation point
+// (resolveDynamicChainId below), same "index at creation" pattern
+// worker-agent-service.ts/automation-rule-service.ts already follow for
+// their own entity types.
+import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
+// Wave 173 (GAP-DCMD graph edge): best-effort -- when a chain-originated
+// task's org has configured a real approval_workflow_definitions row for
+// entityType 'tasks', starting a workflow instance here is what makes
+// "a chain's task creates an approval" real instead of just a schema
+// column. Orgs with no such definition see startApprovalWorkflow() return
+// null (see that function's own header) -- zero behavior change for them.
+import { startApprovalWorkflow } from "./approval-workflow-service"
 
 const VALID_STATUSES = ["pending", "in_progress", "completed", "failed", "cancelled"]
 
@@ -57,6 +70,21 @@ export async function resolveDynamicChainId(
   const [created] = await db.insert(dynamicChains).values({
     orgId, modePill, pathKeys, pathLabels, createdById: userId, status: "approved",
   }).returning()
+
+  // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): index the newly created chain the
+  // same way worker agents/automation rules/modules are indexed at their
+  // own creation points -- best-effort, never blocks chain creation on a
+  // failed embedding call.
+  if (created) {
+    const labels = Array.isArray(pathLabels) ? pathLabels.map((l) => String(l)) : []
+    indexCapability(
+      "dynamic_chain",
+      created.id,
+      buildCapabilityContent({ name: modePill, domain: labels.join(" > ") || null }),
+      orgId
+    ).catch((err) => console.error(`Failed to index dynamic chain ${created.id}:`, err))
+  }
+
   return created?.id ?? null
 }
 
@@ -210,6 +238,19 @@ export async function createTask(ctx: ServiceContext, input: {
   })
 
   if (!result) throw new ServiceError("Assistant not found", 404)
+
+  // Wave 173 (GAP-DCMD, "a chain's task creates an approval"): best-effort,
+  // additive -- only fires when this task actually resolved a dynamicChainId
+  // AND the org has configured a real approval_workflow_definitions row for
+  // entityType 'tasks' (startApprovalWorkflow returns null otherwise, per
+  // its own documented "no workflow configured = auto-approved" contract).
+  // Never blocks or delays the task's own creation/execution below.
+  if (result.dynamicChainId) {
+    startApprovalWorkflow(
+      { orgId, userId: dbUser.id, dbUser },
+      { entityType: "tasks", entityId: result.id, entityData: {}, dynamicChainId: result.dynamicChainId }
+    ).catch((err) => console.error(`Failed to start approval workflow for chain-originated task ${result.id}:`, err))
+  }
 
   await executeTask(
     orgId, dbUser.id, result.id, result.title, result.description, result.projectId, result.assistantId,

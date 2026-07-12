@@ -18,7 +18,7 @@
 import {
   approvalWorkflowDefinitions, approvalWorkflowStepDefinitions,
   approvalWorkflowInstances, approvalWorkflowStepInstances, approvalWorkflowStepApprovals,
-  users,
+  users, entityRelationships, dynamicChains,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, asc } from "drizzle-orm"
@@ -98,10 +98,21 @@ function evaluateCondition(operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq', fieldVa
  * workflow is configured -- callers should treat "no workflow" as
  * "auto-approved," matching how every existing single-step status enum
  * in this codebase behaves today (submit -> immediately posted).
+ *
+ * Wave 173 (GAP-DCMD, "wire at least ONE real graph edge type into
+ * entity_relationships for chains"): the optional dynamicChainId param is
+ * new. When present AND a real workflow instance actually gets created (the
+ * two null-return branches above are unaffected -- no chain, no edge), this
+ * records the first real entity_relationships consumer for dynamic_chains:
+ * a `dynamic_chain -> approval_workflow_instance` edge with
+ * relationshipType 'triggers_approval', plus a denormalized index onto the
+ * chain's own linkedApprovalWorkflowIds column. Every existing caller
+ * (erp-procurement-workflow-service.ts, erp-accounting-service.ts) simply
+ * omits dynamicChainId and behaves exactly as before.
  */
 export async function startApprovalWorkflow(
   ctx: WorkflowContext,
-  params: { entityType: string; entityId: string; entityData: Record<string, number> }
+  params: { entityType: string; entityId: string; entityData: Record<string, number>; dynamicChainId?: string | null }
 ) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const def = await db.query.approvalWorkflowDefinitions.findFirst({
@@ -137,8 +148,49 @@ export async function startApprovalWorkflow(
     )
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "approval_workflow.instance_started", entityType: params.entityType, entityId: params.entityId })
+
+    if (params.dynamicChainId) {
+      await recordChainTriggeredApprovalEdge(db, ctx.orgId, params.dynamicChainId, def.id, instance.id, params.entityType, params.entityId)
+    }
+
     return instance
   })
+}
+
+// Best-effort, never blocks the real approval-workflow creation above on
+// failure -- same "a graph-edge/index write degrades gracefully" posture
+// this codebase already uses elsewhere (see capability-audit-service.ts's
+// registerClosedCapabilityAsUmrAsset). Writes both the durable graph edge
+// (entity_relationships, the real source of truth per GAP-DCMD) and a
+// denormalized, human-readable index (dynamicChains.linkedApprovalWorkflowIds)
+// so an admin looking at one chain's row doesn't need to query the graph
+// table to see what workflows it has triggered.
+async function recordChainTriggeredApprovalEdge(
+  db: TenantDb, orgId: string, dynamicChainId: string, workflowDefinitionId: string, workflowInstanceId: string, entityType: string, entityId: string
+): Promise<void> {
+  try {
+    await db.insert(entityRelationships).values({
+      orgId,
+      sourceType: "dynamic_chain",
+      sourceId: dynamicChainId,
+      targetType: "approval_workflow_instance",
+      targetId: workflowInstanceId,
+      relationshipType: "triggers_approval",
+      metadata: { workflowDefinitionId, entityType, entityId },
+    })
+
+    const chain = await db.query.dynamicChains.findFirst({ where: eq(dynamicChains.id, dynamicChainId) })
+    if (chain) {
+      const existingIds = Array.isArray(chain.linkedApprovalWorkflowIds) ? (chain.linkedApprovalWorkflowIds as string[]) : []
+      if (!existingIds.includes(workflowDefinitionId)) {
+        await db.update(dynamicChains)
+          .set({ linkedApprovalWorkflowIds: [...existingIds, workflowDefinitionId], updatedAt: new Date() })
+          .where(eq(dynamicChains.id, dynamicChainId))
+      }
+    }
+  } catch (err) {
+    console.error(`[approval-workflow-service] Failed to record dynamic_chain->approval_workflow graph edge for chain ${dynamicChainId}:`, err)
+  }
 }
 
 export async function getWorkflowInstanceForEntity(ctx: { orgId: string }, entityType: string, entityId: string) {

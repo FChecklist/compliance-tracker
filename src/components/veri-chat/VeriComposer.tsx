@@ -9,6 +9,7 @@
 // real task-execution engine) -- no new task-creation logic was needed.
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Send, Loader2, Paperclip, Plus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
@@ -120,6 +121,7 @@ function resolveLeaf(tree: CapabilityNode[], path: PathSegment[]): CapabilityNod
 
 export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
   const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh } = useVeriChat();
+  const router = useRouter();
 
   const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
   const [value, setValue] = useState("");
@@ -225,6 +227,17 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
       const leaf = resolveLeaf(tree, p);
+      // Wave 173 (chain-integration for reports): a report_link leaf
+      // resolves to a real saved-report URL, not a task -- navigate there
+      // directly and skip the /api/tasks POST entirely for this concrete
+      // path. Multiple report leaves in one multi-select send would each
+      // just re-navigate in turn, so this only makes sense as a single
+      // selection in practice, same as every other single-target leaf kind.
+      if (leaf?.reportUrl) {
+        router.push(leaf.reportUrl);
+        toast.success(`Opening ${crumb}`);
+        continue;
+      }
       // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, Dynamic Chain ID Phase
       // 1): the resolved chain path is now sent alongside the task so
       // createTask() can persist it to dynamic_chains and link
