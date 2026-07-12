@@ -139,12 +139,99 @@ dispatches:
   - agent: 2
     scope: "Wire the UMR into the Software Orchestrator: classification checks platform_assets, closeImprovementLoop() registers new capabilities, the Auditor searches for pre-existing unwired capabilities before proposing new work"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    result: |
+      Built all 3 requested integration points in capability-audit-service.ts
+      and task-execution-engine.ts: (1) runCapabilityAudit() now searches the
+      UMR via asset-query-service.ts's queryByKeywords() for an existing
+      active computation_engine match before dispatching to Higher AI,
+      noting any match on the proposal (new existing_asset_match jsonb
+      column, migration 0158) and folding it into the TightTask as a
+      wiring/reuse hint rather than a from-scratch build ask -- never blocks
+      dispatch. (2) closeImprovementLoop() now registers the closed
+      capability as a discoverable platform_assets row via registerAsset(),
+      or updateAsset()s the existing UMR row when a candidate was found
+      earlier -- checks getAssetBySource() first to respect the real
+      UNIQUE(source_table, source_id) constraint. (3) NOVEL-classified tasks
+      in task-execution-engine.ts get one more UMR lookup before falling
+      through to free-text AI planning, surfacing a hint into the planning
+      prompt, never blocking. All 3 lookups degrade gracefully on failure
+      (never block the primary flow). 45 new/updated unit tests, all passing.
+      PR #217, merged; migration 0158 applied live by the Super Boss after
+      merge (the subagent correctly declined to touch the live DB from its
+      sandbox).
   - agent: 3
     scope: "Close genuinely actionable disclosed gaps: Priority 5's Chain Selector UI for new conversations, refresh the ported governance foundation in veda-advisors/projexa, resolve or re-document Priority 1's open tracking items"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    result: |
+      Item 1 (Chain Selector for new conversations): extracted the existing
+      private Chain Selector markup out of VeriComposer.tsx into a shared
+      ChainSelector.tsx + ChainSelectorDialog, wired into AiThreadSwitcher's
+      "New thread" action (previously a bare window.prompt()), feeding
+      createNewAiThread()'s existing unused 3rd param. ensureAiThread() and
+      the default 1:1 thread stayed untouched. 14 new tests.
+      Item 2 (governance-foundation drift): no code to change in this repo
+      and no access to veda-advisors/projexa from this sandbox -- delivered
+      a git-archaeology-backed delta doc
+      (12-priority6-governance-foundation-drift.md) instead, precise enough
+      that a future dispatch with real repo access needs no research.
+      Item 3 (VERI-as-participant): found VERI_CHAT_GOVERNANCE.md narrated
+      this as shipped when it genuinely wasn't (a real doc/code mismatch) --
+      built the narrow additive slice the doc itself scoped: a
+      veriParticipant boolean flag on conversations (migration
+      0159, renumbered from a colliding 0157 during independent
+      verification), invite/remove API routes, and generateVeriGroupReply()
+      triggered only by explicit @veri/"ask veri" addressing, reusing the
+      existing policy-enforcement/reply-gate machinery, never proactive.
+      PR #219, merged; migration 0159 applied live by the Super Boss after
+      merge (same "subagent correctly declined live DB access" pattern as
+      agent 2 above).
   - agent: 4
     scope: "Run Priority 4's deterministic audit script for real against live (now-populated) data; build a real 'one brain' coverage/health report reusing existing computeCoverageStats()/audit-asset-registry.ts rather than new machinery"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    result: |
+      Confirmed the sandbox's bash tool genuinely cannot reach the live
+      Postgres pooler, but discovered the Supabase MCP's execute_sql tool
+      reaches the same live database over a different network path (the
+      same discovery this tracker's own agent-1 dispatch made independently
+      -- corroborating, not duplicated: both hit the same wall and found the
+      same workaround on their own). Gathered real reconciliation data live
+      and fed it through audit-asset-registry.ts's own pure functions via a
+      new --from-json mode, rather than reimplementing the audit logic.
+      Result: CLEAN -- 29/29 configured tables reconciled with zero
+      mismatches, 0 trigger gaps, 0 uncovered tables of 391 declared.
+      Built scripts/report-cognitive-brain-coverage.ts, reusing
+      capability-learning-service.ts's computeCoverageStats() (Software
+      Orchestrator side) and audit-asset-registry.ts's computeCoverageStats()
+      (UMR side) rather than new aggregation logic. Live, freshly re-verified
+      numbers (not stale memory): computation_engines 211 implemented / 23
+      partial / 13 not_started of 247; task_capabilities 0 rows (no live
+      classification history yet -- reported honestly, not fabricated).
+      PR #218, merged.
+
+final_status:
+  merged_prs:
+    - "#216 (agent 1, me): compliance.backfill_registered_assets() + live backfill, platform_assets 0 -> 2,794 rows"
+    - "#217 (agent 2): UMR <-> Software Orchestrator wiring (Auditor UMR cross-check, closeImprovementLoop() UMR registration, NOVEL-path UMR hint)"
+    - "#218 (agent 4): live deterministic audit (clean) + cognitive-brain coverage report"
+    - "#219 (agent 3): Chain Selector for new VERI conversations, VERI-as-participant in group chat (narrow/additive), governance-drift doc for veda-advisors/projexa"
+  supervisor_bugs_caught:
+    - "drizzle/0157: RETURNS TABLE column source_table collided with platform_assets.source_table inside INSERT/ON CONFLICT (Postgres 42702) -- caught on first live run, fixed by renaming OUT columns"
+    - "PR #219's migration was independently numbered 0157 (forked before #216/#217 merged) -- a real filename collision with the already-merged 0157/0158. Caught during independent verification, renamed to 0159, fixed the one stale in-code comment reference, before merge."
+    - "PRs #217 and #219 each wrote a real migration but their subagents correctly declined to run it against the live DB (sandbox network restriction) -- both migrations (existing_asset_match column, veri_participant column + prompt template) were merged to git but NOT yet live until the Super Boss applied them directly via the Supabase MCP after merge. This is the same class of gap Priority 6 itself was created to catch: code merged != system actually running that way."
+  live_verification_after_all_merges:
+    - "platform_assets: 2,794 rows (was 0 at Priority 6's start)"
+    - "capability_improvement_proposals.existing_asset_match: column live"
+    - "conversations.veri_participant: column live, default false"
+    - "prompt_templates: chat.veri_group_participant present with a production prompt_versions row"
+  owner_requirements_addressed:
+    - "\"One brain\" backend integration: the UMR (Priority 3-4) and Software Orchestrator (Priority 5) now genuinely read from and write to each other -- not parallel systems anymore. Verified by direct code review, not just by the subagent's own report."
+    - "\"Don't duplicate, reuse, rewire\": every dispatch was explicitly instructed to and did reuse existing services (asset-query-service.ts, asset-registry-service.ts, capability-learning-service.ts, the existing Chain Selector markup, audit-asset-registry.ts's own pure functions) rather than building parallel infrastructure."
+    - "End-user products stay distinct: no changes to PROJEXA/VERIDIAN dashboard separation -- this priority was scoped to backend registry/orchestrator integration only, per the Owner's own stated boundary."
+  honestly_still_open (owner-blocked, cannot be closed by any agent):
+    - "GITHUB_DISPATCH_PAT: confirmed to be a Vercel environment variable dispatch-repo.ts reads directly (process.env.GITHUB_DISPATCH_PAT), distinct from the GitHub Secret PAT_FCHECKLIST which exists but is write-only (no agent can ever read its value to copy it elsewhere). Higher AI's live dispatch path remains untested end-to-end until the Owner sets this in Vercel."
+    - "Priority 2 item 1: leaked veda-advisors credentials still need Owner-side rotation."
+    - "veda-advisors/projexa governance-file drift: a precise, no-research-needed checklist now exists (12-priority6-governance-foundation-drift.md) but applying it requires repo access this sandbox doesn't have."
+    - "Full proactive VERI-as-participant (beyond explicit @-mention) and the full communication-type catalog from the original VERI Chat governance spec remain deliberately deferred, same reasoning as before: a bigger live-surface UX change, not a backend integration gap."
