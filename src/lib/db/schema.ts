@@ -1274,6 +1274,20 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   deprecationReason: text('deprecation_reason'), // why a 'retired' chain was retired -- null for every non-retired chain and every pre-Wave-173 retired row
 })
 
+// Priority 10 (GAP-DCMD, second real slice): task-execution-engine.ts's
+// recordChainWorkerAgentEdges() writes a second entity_relationships edge
+// type for chains -- `dynamic_chain -> worker_agent`, relationshipType
+// 'executed_by', upserted (not one row per completion) with
+// metadata.taskCount/lastTaskId/lastExecutedAt. No new column needed here --
+// unlike linkedApprovalWorkflowIds, there's no natural single-value
+// denormalized index (a chain can be "executed_by" many agents), so
+// entity_relationships stays the sole source of truth for this edge type.
+// Already queryable for real via the existing GET
+// /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id>
+// endpoint (Wave 153) -- "which chains has this agent executed" now has a
+// real answer. Still NOT the source doc's full 10-sub-object schema; see
+// the Wave 173 comment above for what remains deliberately deferred.
+
 // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
 // Protocol"): persisted, user-controlled, revocable approval preferences --
 // confirmed absent everywhere before this (zero hits grepping for
