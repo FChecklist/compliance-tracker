@@ -52,6 +52,23 @@ registered:
   - table: erp_pricing_rules
   - table: leave_policy_entries
   - table: approval_requests
+  # Priority 8 (14-priority8-close-tree1-remaining-gaps.yaml, GAP-UMR-TABLE-
+  # COVERAGE): a real batch of 7 tables onboarded from the grandfather-
+  # exempted list, drizzle/0161. Backfilled live (596 rows total).
+  - table: clients
+    reason: "Priority 8 (drizzle/0161): org-scoped client/customer record -- auto_register_asset_trg attached, name_column=name, active_column=is_active (genuine TRUE-means-active flag)"
+  - table: veri_meetings
+    reason: "Priority 8 (drizzle/0161): org-scoped meeting/MoM record -- auto_register_asset_trg attached, name_column=title, purpose_column=minutes, owner_column=published_by_id"
+  - table: erp_customers
+    reason: "Priority 8 (drizzle/0161): org-scoped ERP customer master -- auto_register_asset_trg attached, name_column=customer_name, active_column=is_active"
+  - table: erp_purchase_orders
+    reason: "Priority 8 (drizzle/0161): org-scoped ERP purchase order -- auto_register_asset_trg attached, name_column=po_number (integer, verified jsonb ->> extraction works before use), owner_column=created_by_id"
+  - table: leave_requests
+    reason: "Priority 8 (drizzle/0161): org-scoped HR leave request -- registered as asset_type task (a real approval-workflow object), auto_register_asset_trg attached, name_column=leave_type, purpose_column=reason, owner_column=user_id"
+  - table: crm_leads
+    reason: "Priority 8 (drizzle/0161): org-scoped CRM lead -- auto_register_asset_trg attached, name_column=name, purpose_column=ai_score_reasoning, owner_column=owner_id"
+  - table: crm_opportunities
+    reason: "Priority 8 (drizzle/0161): org-scoped CRM opportunity -- auto_register_asset_trg attached, name_column=name, purpose_column=ai_recommended_action, owner_column=owner_id"
   # Priority 4 domain A (subagent-p4-domain-a, drizzle/0153): Documents/
   # Reports/Tasks-domain tranche. Each has a compliance.asset_registration_config
   # row + auto_register_asset_trg attached in that migration.
@@ -135,8 +152,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: client_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: clients
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: clm_clauses
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: clm_contract_templates
@@ -200,10 +215,6 @@ exempted:
   - table: conversations
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: cost_payments
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: crm_leads
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: crm_opportunities
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: customer_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -277,8 +288,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_currencies
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: erp_customers
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_cycle_count_lines
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_cycle_count_plans
@@ -342,8 +351,6 @@ exempted:
   - table: erp_purchase_invoices
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_purchase_order_items
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: erp_purchase_orders
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_purchase_receipt_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -573,8 +580,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: leave_balances
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: leave_requests
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: legal_arbitration_cases
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: legal_matters
@@ -751,6 +756,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: tool_health_events
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: user_active_sessions
+    reason: "Priority 8 (14-priority8-close-tree1-remaining-gaps.yaml, GAP-SESSION-LIMIT): internal auth-infrastructure state (a SHA-256 hash of each session's access token, for the opt-in concurrent-session-limit check in requireAuth()), not a discoverable platform asset -- same self-exemption reasoning as platform_assets/asset_registration_config itself."
   - table: user_client_access
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: users
@@ -760,8 +767,6 @@ exempted:
   - table: veri_meeting_action_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: veri_meeting_share_links
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: veri_meetings
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: veri_reward_achievement_definitions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"

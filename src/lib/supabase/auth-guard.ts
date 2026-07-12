@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { headers } from "next/headers"
 import { createClient } from "./server"
 import { db, users, organisations, departments, aiAssistants, productBranches, orgProductBranchEnablements, accessReviewCertifications } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
@@ -7,6 +8,7 @@ import { validateApiKey } from "./api-key-auth"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
+import { recordSessionAndCheckLimit } from "@/lib/services/session-limit-service"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -359,6 +361,50 @@ export async function requireAuth(): Promise<AuthContext> {
       await db.update(users).set({ isActive: true }).where(eq(users.id, dbUser.id))
     }
     dbUser.isActive = true
+  }
+
+  // Priority 8 (U-D27.B1.S1, GAP-SESSION-LIMIT): opt-in concurrent-session
+  // limit. Only runs the extra query when the org has actually turned this
+  // on (organisations.sessionLimitEnforcementEnabled) -- every other org's
+  // requireAuth() behavior is completely unchanged. Never blocks an
+  // already-established session, only a genuinely new one over the limit --
+  // see session-limit-service.ts's own header for the full safety
+  // reasoning. Wrapped so any unexpected error here degrades to "allow,"
+  // never to "unexpectedly lock the user out" -- matching this codebase's
+  // established posture for every other non-critical guardrail lookup.
+  if (dbUser?.orgId) {
+    try {
+      const org = await db.query.organisations.findFirst({
+        where: eq(organisations.id, dbUser.orgId),
+        columns: { sessionLimitEnforcementEnabled: true, maxConcurrentSessions: true, internalUseExempt: true },
+      })
+      if (org?.sessionLimitEnforcementEnabled) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          const userAgent = (await headers()).get("user-agent")
+          const check = await recordSessionAndCheckLimit({
+            userId: dbUser.id,
+            orgId: dbUser.orgId,
+            accessToken: session.access_token,
+            userAgent,
+            enforcementEnabled: org.sessionLimitEnforcementEnabled,
+            internalUseExempt: org.internalUseExempt,
+            maxConcurrentSessions: org.maxConcurrentSessions,
+          })
+          if (!check.allowed) {
+            return {
+              user, dbUser: null, orgId: null,
+              response: NextResponse.json(
+                { error: `This account is already signed in on ${check.activeSessionCount} device(s), the maximum allowed (${check.maxConcurrentSessions}). Sign out of another device to continue here.` },
+                { status: 403 }
+              ),
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Session-limit check failed, allowing request through (fail-open):", err)
+    }
   }
 
   return { user, dbUser, orgId: dbUser?.orgId ?? null, response: null }

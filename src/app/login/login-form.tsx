@@ -55,6 +55,37 @@ export function LoginForm() {
     router.refresh();
   };
 
+  // Priority 8 (14-priority8-close-tree1-remaining-gaps.yaml, GAP-AUTH-
+  // REBUILD / D28.B3.S1, G-045): "Google sign-in as 1st option" -- built
+  // ADDITIVE, alongside the existing password/magic-link/SSO options, never
+  // replacing them (a full auth-method rebuild on a live product with real
+  // user sessions was explicitly ratified against as too hard-to-reverse
+  // for this pass -- see MASTER-TRACKER.yaml). The existing
+  // /auth/callback route already handles ANY provider's PKCE code exchange
+  // generically (exchangeCodeForSession works the same for magic-link and
+  // OAuth) -- confirmed by reading it before adding this, no changes needed
+  // there. Honest limitation: this button is only actually usable once a
+  // Google OAuth client is configured in the Supabase project's Auth
+  // settings (Owner/dashboard action, same class of gap as
+  // GITHUB_DISPATCH_PAT -- not something this session can configure).
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+      },
+    });
+
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
+    }
+    // On success, Supabase redirects the browser to Google -- no further
+    // client-side action here.
+  };
+
   const handleMagicLink = async () => {
     if (!email.trim()) {
       toast.error("Please enter your email address");
@@ -120,6 +151,31 @@ export function LoginForm() {
                   Authentication failed. Please try again.
                 </div>
               )}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-10 gap-2"
+                disabled={loading}
+                onClick={handleGoogleSignIn}
+              >
+                <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
+                  <path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.63h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81Z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.92l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.26v3.09A12 12 0 0 0 12 24Z" />
+                  <path fill="#FBBC05" d="M5.27 14.27a7.2 7.2 0 0 1 0-4.54v-3.1H1.26a12 12 0 0 0 0 10.73l4.01-3.09Z" />
+                  <path fill="#EA4335" d="M12 4.77c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.26 6.63l4.01 3.1C6.22 6.88 8.87 4.77 12 4.77Z" />
+                </svg>
+                Sign in with Google
+              </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-ct-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-ct-muted">or</span>
+                </div>
+              </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
