@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -53,7 +54,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       // approve -- apply the real effect for this requestType
       if (req_.requestType === "policy_publish") {
-        await db.update(policies).set({ status: "published", updatedAt: new Date() }).where(eq(policies.id, req_.entityId))
+        const [publishedPolicy] = await db.update(policies).set({ status: "published", updatedAt: new Date() }).where(eq(policies.id, req_.entityId)).returning({ category: policies.category, title: policies.title, version: policies.version })
+        // GAP-D15-REMAINING-TRIGGERS (Priority 10): "SOP Changed" reuses
+        // this exact real publish chokepoint rather than a new table/route
+        // -- see audit-event-triggers.ts's module header for why. Only
+        // fires for policies rows an admin has tagged category='sop'; every
+        // other policy publish (governance/hr/environment/etc.) is
+        // unaffected.
+        if (publishedPolicy?.category === "sop") {
+          await recordAuditTrigger({
+            tx: db, event: "sop_changed", entityType: "Policy", entityId: req_.entityId, orgId, dbUser,
+            details: `SOP "${publishedPolicy.title}" (${publishedPolicy.version}) published.`, request,
+          })
+        }
       }
       if (req_.requestType === "worker_agent_proposal") {
         // Approve only moves proposed -> approved -- publish (making the

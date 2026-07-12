@@ -5,10 +5,27 @@
 // wired via .github/workflows/mandatory-audit-check.yml before this file
 // existed. This module wires 7 of the other 9 -- deliberately not all 9;
 // see this file's own registry comments and the PR description for the
-// specific, individual reason each of the remaining 2 (SOP Changed,
-// Deployment) is still open, and the honest caveat noted on new_prompt's
-// registry entry below (a real trigger, with a real but narrower guarantee
-// than the other 6).
+// specific, individual reason the remaining 1 (Deployment) is still open,
+// and the honest caveat noted on new_prompt's registry entry below (a real
+// trigger, with a real but narrower guarantee than the other 6).
+//
+// Priority 10 (GAP-D15-REMAINING-TRIGGERS): wires the 8th event, SOP
+// Changed. Investigated building a dedicated new `sops` table first (the
+// obvious first instinct) and rejected it: `policies` (schema.ts) already
+// has exactly the shape a Standard Operating Procedure needs -- title,
+// free-text category (no enum/CHECK constraint, 'sop' is already a legal
+// value), version, draft/under_review/published status, a real
+// maker-checker publish flow via approval_requests (PATCH
+// /api/policies/[id] with action='request_publish', decided at PATCH
+// /api/approvals/[id]) -- and many real GRC platforms treat "Policies &
+// Procedures" as one governed-document module for exactly this reason.
+// Inventing a second, parallel table/workflow for a document that differs
+// from a policy only in its category label would be the "parallel
+// mechanism" this file's header already warns against for the other 7
+// events. `sopChanged` fires at the one real state-change chokepoint
+// (src/app/api/approvals/[id]/route.ts's policy_publish approval branch)
+// when the policy being published has category === 'sop' -- see that
+// route for the actual wiring.
 //
 // Investigated per-event against everything else built this session
 // (VERIDIAN_AUDIT_ORGANIZATION.md's ~150-role, 5-division audit
@@ -49,6 +66,7 @@ export type AuditTriggerEventName =
   | "ai_escalation"
   | "customer_complaint"
   | "new_prompt"
+  | "sop_changed"
 
 export type AuditTriggerDefinition = {
   event: AuditTriggerEventName
@@ -61,17 +79,14 @@ export type AuditTriggerDefinition = {
   roleKeyRationale?: string
 }
 
-// One entry per event this module actually wires (7 of the 9 remaining
-// named triggers; #10, Code Changed, was already wired before this file --
-// see module header). SOP Changed and Deployment are NOT in this registry:
-// investigation (see PR description) found no `sop`/`sops` table or
-// SOP-specific status transition anywhere in schema.ts (only the roster.ts
-// `sop_auditor` role name exists, with nothing for it to audit yet), and no
-// in-app deployment-event table or webhook handler exists (the only real
-// "deployment" concept in this repo is the CI workflow already wired for
-// event #1). Adding either here would mean inventing a trigger point that
-// doesn't correspond to anything real, which this wave deliberately does
-// not do.
+// One entry per event this module actually wires (8 of the 9 remaining
+// named triggers as of Priority 10; #10, Code Changed, was already wired
+// before this file existed -- see module header). Deployment is NOT in
+// this registry: no in-app deployment-event table or webhook handler
+// exists (the only real "deployment" concept in this repo is the CI
+// workflow already wired for event #1). Adding it here would mean
+// inventing a trigger point that doesn't correspond to anything real,
+// which this wave deliberately does not do.
 export const AUDIT_TRIGGER_REGISTRY: Record<AuditTriggerEventName, AuditTriggerDefinition> = {
   feature_completed: {
     event: "feature_completed",
@@ -118,6 +133,12 @@ export const AUDIT_TRIGGER_REGISTRY: Record<AuditTriggerEventName, AuditTriggerD
     sourceRequirement: "New Prompt -> Prompt Audit",
     auditType: "Prompt Audit",
     roleKey: "prompt_auditor",
+  },
+  sop_changed: {
+    event: "sop_changed",
+    sourceRequirement: "SOP Changed -> SOP Audit",
+    auditType: "SOP Audit",
+    roleKey: "sop_auditor",
   },
 }
 
