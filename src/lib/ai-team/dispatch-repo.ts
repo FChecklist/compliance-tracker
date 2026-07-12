@@ -10,7 +10,7 @@
 // until GITHUB_DISPATCH_PAT is added to Vercel. Until then, trigger via
 // `gh api repos/FChecklist/compliance-tracker/dispatches` directly.
 
-import { getRole } from "./roster"
+import { getRole, isAuditOrganizationRole } from "./roster"
 import { validateTightTask, type TightTask } from "../task-tightening"
 import { checkTierEligibility } from "../model-tier-eligibility"
 
@@ -26,6 +26,17 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
   const role = getRole(roleKey)
   if (!role || role.isHuman || role.isCodeOnly || !role.model) {
     throw new Error(`Role '${roleKey}' is not a repo-write-capable AI Workforce role.`)
+  }
+
+  // U-D2.B4.S1 (VERIDIAN_AUDIT_ORGANIZATION.md's "organization that
+  // performs work should never certify it" principle, applied to its
+  // mirror image): chief_audit_officer and every one of the 130 named
+  // audit-organization roles exist specifically to provide INDEPENDENT
+  // assurance over production code -- they must never be the ones
+  // producing it. Fails closed here, before any GitHub dispatch fires,
+  // same posture as the isHuman/isCodeOnly check just above.
+  if (isAuditOrganizationRole(roleKey)) {
+    throw new Error(`Role '${roleKey}' is an audit-organization role and cannot be dispatched to modify production code -- audit independence (doer != certifier) requires it stay advisory-only. See roster.ts's isAuditOrganizationRole().`)
   }
 
   const validation = validateTightTask(task)
