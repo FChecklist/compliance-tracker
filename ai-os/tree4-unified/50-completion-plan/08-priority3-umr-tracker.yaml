@@ -102,4 +102,49 @@ dispatches:
     status: not_started
   - agent: 3
     scope: "Wire entity_relationships as the real relationship graph + wire embeddings for cross-type vector search + Asset Manifest export endpoint (the self-describing 'identity card')"
-    status: not_started
+    status: pr_open
+    detail: |
+      Built on subagent/umr-graph (worktree, 2 commits) against the
+      schema_contract above, which was not yet merged from subagent/
+      umr-core at the time of this dispatch (confirmed via repeated
+      `git fetch origin` -- no umr-core branch exists on origin as of this
+      PR). Self-verified by temporarily stubbing the exact contract shape
+      locally (schema.ts + a minimal asset-registry-service.ts,
+      registerAsset()/getAssetByAssetId() only) to run real tsc/eslint/
+      test verification, then reverting the stub (git checkout + rm)
+      before any commit -- schema.ts and asset-registry-service.ts remain
+      untouched in this branch's actual diff, honoring the "you do not own
+      schema.ts" scope boundary while still proving the real code is
+      correct against the real contract, not just against types the
+      dispatch imagined. tsc --noEmit -p . -> exit 0 against the stub;
+      without it, exit 2 with exactly 10 errors, all TS2307/TS2305/TS2339
+      cascading from the two expected missing imports (platformAssets,
+      asset-registry-service) -- confirmed no other errors, i.e. zero
+      unrelated breakage. This PR cannot get a green CI run and cannot
+      merge until subagent/umr-core's PR (or a later PR carrying the same
+      contract) merges to main first; noted explicitly in the PR
+      description.
+
+      What shipped: asset-relationship-service.ts (linkAssetDependency(),
+      linkAssetRelationship(), getRelatedAssets()) gives
+      entity-graph-service.ts's createRelationship() its first real
+      caller -- confirmed zero callers existed before this (the one
+      existing consumer, /api/v1/brain/entity-relationships from Wave 153,
+      only ever called the read side, getNeighbors()). New
+      src/app/api/assets/[assetId]/relationships/route.ts (GET/POST,
+      requireAuth()-gated) is the live proof. asset-vector-search-
+      service.ts (indexAssetForSearch(), searchAssetsBySimilarity())
+      extends embeddings.ts's existing storeEmbedding()/findSimilar() to
+      entityType='platform_asset', same narrow-wrapper pattern
+      capability-registry-service.ts already uses -- no new table, no new
+      embedding-generation code path. New
+      src/app/api/assets/[assetId]/manifest/route.ts returns the
+      self-describing identity card (asset_id/asset_type/module/purpose/
+      owner/permissions/tags/dependencies/related_assets/status/version),
+      with related_assets populated for real via getRelatedAssets(), not
+      stubbed. Pure logic (mergeDependency's dependency-array dedup,
+      buildAssetSearchContent's embedding-input builder) extracted into
+      standalone zero-dependency files specifically so they could be
+      unit-tested (9 tests, all passing) independent of the schema
+      landing.
+    pr: "Opened against main from subagent/umr-graph, not self-merged per AGENTS.md Rule 6 -- see 04-implementation-log.yaml for the full dated entry and PR link."
