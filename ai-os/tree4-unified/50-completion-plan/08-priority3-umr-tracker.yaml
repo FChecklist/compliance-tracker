@@ -1,0 +1,105 @@
+# Priority 3 tracker, created 2026-07-12 per the Owner's directive: analyze
+# whether FChecklist/VERIDIAN should have a Universal Metadata Registry
+# (UMR) -- a single system where every object (report/screen/workflow/
+# AI agent/API/prompt/function/etc.) gets one universal Asset ID and shares
+# common metadata, backed by index-based search and a relationship graph.
+# If nothing like it exists, "complete this 100% with quality."
+#
+# status values: complete | in_progress | not_started
+
+priority: 3
+name: "Universal Metadata Registry (UMR)"
+
+investigation:
+  verdict: "CONFIRMED: no Universal Metadata Registry exists in this codebase today. Verified directly (not assumed) 2026-07-12 via full-repo search -- see findings below. This is a real, honest gap, not a duplicate of existing work."
+  findings:
+    - "No table named assets/asset_registry/metadata_registry/entities/objects exists among the ~330 tables in schema.ts. The only 'asset'-named tables (erpFixedAssets, fmAssets) are narrow accounting/facilities constructs, unrelated to this concept."
+    - "entity_relationships (schema.ts:637) is a REAL, well-designed, generic typed-edge relationship-graph table (arbitrary sourceType/sourceId -> targetType/targetId, free-text types so no migration needed per new entity kind) -- but entity-graph-service.ts's own header states it is 'deliberately NOT wired into any production call site yet.' Real foundation, currently dead code."
+    - "embeddings (schema.ts:616) is genuinely entity-agnostic (free-text entityType) -- but every real consumer narrows it to 1-4 hardcoded types (documents-only full-text search; capability-registry-service.ts's 4-type allowlist; search-service.ts's 3 ILIKE-only tables). No component searches 'everything.'"
+    - "worker_agents (schema.ts:756) has the richest single-type metadata shape in the repo (tier/version/lifecycleStatus/usageCount/accuracyScore/supervisorWorkerAgentId) -- explicitly named in Study_by_Claude.md and ai-os/registry/ARTIFACTS.yaml as the template to generalize into a real cross-type registry. Not yet generalized."
+    - "ai-os/registry/ARTIFACTS.yaml is an honest, EMPTY scaffold (populated: false) -- notably, it exists specifically because an earlier BOARD.yaml task (AIOS-003) FALSELY claimed a 'Universal Asset Registry' was already complete on 2026-06-25, and that claim was later caught and corrected to an honest scaffold. Worth knowing this exact gap was already claimed-then-retracted once before -- this pass must not repeat that mistake."
+    - "guardrail-registrations.ts's registerGuardrail() pattern is the closest real 'central registry others register into' precedent in the codebase -- but scoped only to guardrail leaves, not general objects/assets."
+    - "Every one of the ~330 tables uses its own independent cuid2 primary key -- zero shared ID namespace, zero prefix convention (no AST-/OBJ-/ENT- pattern anywhere)."
+  recommendation: "BUILD IT, using the 3 real foundations already in place rather than starting from zero: entity_relationships as the relationship graph (already correctly shaped, just needs a real writer), embeddings as the vector-search substrate (already entity-agnostic, just needs broader consumption), and worker_agents' column shape as the template for the new universal metadata table (both prior study docs already proposed this exact generalization, never built)."
+
+scope_decision: |
+  Owner's spec describes registering EVERY object platform-wide (reports,
+  screens, buttons, SQL queries, email templates, etc.) -- retroactively
+  giving all ~330+ existing tables an Asset ID would be a schema-wide
+  migration touching the entire codebase, disproportionate to build in one
+  pass and genuinely risky (the same class of hard-to-reverse, broad-
+  blast-radius change this session has consistently deferred elsewhere,
+  e.g. DEC-03's Work Object retrofit).
+
+  Judgment call (Super Boss, per Owner's 'you don't need my permission,
+  100% completion with quality' directive): build the REGISTRY ITSELF as a
+  complete, real, working system -- schema, Asset ID generation, all index
+  types, the routing engine, relationship-graph wiring, vector-search
+  wiring, and a real registerAsset() function other code can call going
+  forward (the 'compiler at build time' hook) -- and SEED it with a real,
+  substantial, high-value initial population (worker_agents' 57 AI roles,
+  computation_engines' 247 VCEL engines, prompt_templates' 189 templates,
+  dynamic_chains, and the /api/v1 surface) rather than fabricating coverage
+  of all 330+ tables. This proves the architecture completely and makes it
+  immediately useful, while honestly scoping "register every existing
+  table retroactively" as a separate, much larger follow-on migration --
+  not silently claimed complete, matching the exact mistake AIOS-003 made
+  before and ARTIFACTS.yaml had to correct.
+
+  Design principle carried through to all 3 dispatches: platform_assets is
+  a METADATA INDEX pointing at real tables (sourceTable + sourceId), not a
+  data copy -- this IS the "extension table" pattern the Owner's spec asks
+  for, just reusing tables that already exist instead of creating empty
+  duplicates. Normalized, no duplication, matches this codebase's own
+  established discipline throughout this session.
+
+schema_contract: |
+  Fixed contract all 3 dispatches build against (Agent 1 owns writing this
+  to schema.ts; Agents 2/3 code against it without waiting for Agent 1's PR
+  to merge first):
+
+  assetTypeEnum: complianceSchemaDB.enum('asset_type', [
+    'report','screen','dashboard','ai_agent','workflow','api','prompt',
+    'function','policy','rule','sql_query','email_template','notification',
+    'template','project','task','document','decision','automation','role',
+    'permission','computation_engine','dynamic_chain','other'
+  ])
+  assetStatusEnum: complianceSchemaDB.enum('asset_status', ['draft','active','archived','deleted'])
+
+  platformAssets = complianceSchemaDB.table('platform_assets', {
+    id: text primary key (createId()),
+    assetId: text NOT NULL UNIQUE,        // 'AST-000001', via a real Postgres sequence (compliance.asset_id_seq), NOT app-side counting (race-safe)
+    name: text NOT NULL,
+    assetType: assetTypeEnum NOT NULL,
+    module: text,                          // free text like entityType elsewhere -- no enum churn per new module
+    department: text,
+    ownerId: text,                         // nullable = 'System'
+    status: assetStatusEnum NOT NULL default 'active',
+    createdBy: text,
+    version: text NOT NULL default '1.0',
+    tags: jsonb NOT NULL default '[]',     // string[]
+    aiEnabled: boolean NOT NULL default false,
+    aiCapabilities: jsonb,                 // string[], e.g. ['can_summarize','can_approve']
+    permissions: jsonb,                    // string[] of role names allowed
+    parentAssetId: text,                   // self-FK -> platformAssets.id
+    searchKeywords: text,
+    purpose: text,                         // "why do I exist" -- the manifest's own field
+    dependencies: jsonb,                   // string[] of assetIds
+    sourceTable: text NOT NULL,            // e.g. 'worker_agents' -- points at the REAL owning table
+    sourceId: text NOT NULL,               // that table's own row id
+    orgId: text,                           // nullable = platform-tier asset, mirrors embeddings.orgId's own convention
+    createdAt, updatedAt: timestamp
+  })
+  UNIQUE(sourceTable, sourceId) -- one registry row per real object, no duplicates.
+  Real DB indexes: btree(assetType), btree(module), btree(status), btree(ownerId), btree(orgId), GIN(tags), tsvector GIN over name+searchKeywords+purpose.
+
+dispatches:
+  - agent: 1
+    scope: "Core schema, Asset ID system, CRUD service, initial population (the 'compiler at build time' backfill)"
+    status: not_started
+  - agent: 2
+    scope: "Index-based query layer + the progressive-narrowing Routing Engine + a real search API route"
+    status: not_started
+  - agent: 3
+    scope: "Wire entity_relationships as the real relationship graph + wire embeddings for cross-type vector search + Asset Manifest export endpoint (the self-describing 'identity card')"
+    status: not_started
