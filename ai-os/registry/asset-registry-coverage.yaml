@@ -127,6 +127,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: cap_table_events
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: capability_improvement_proposals
+    reason: "Priority 5 (10-priority5-software-orchestrator-tracker.yaml): internal Auditor-AI/Higher-AI improvement-tracking state, not itself a discoverable platform asset -- same self-exemption reasoning as platform_assets/asset_registration_config."
   - table: challans
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: client_entities
@@ -535,6 +537,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: instruction_mismatch_detections
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: instruction_packages
+    reason: "Priority 5 (10-priority5-software-orchestrator-tracker.yaml): the Approved Lower AI Instruction Package -- internal execution/dialogue scripts, not a discoverable platform asset. Same self-exemption reasoning as platform_assets/asset_registration_config."
   - table: interior_ffe_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: interior_floor_plan_rooms
@@ -731,6 +735,8 @@ exempted:
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (idpEntryPoint/idpIssuer/spEntityId are IdP integration URLs, not this row's own name) AND contains a security-sensitive IdP signing certificate (idpCert) -- same sensitivity class as api_keys, deliberately excluded from the general-purpose searchable registry"
   - table: task_agent_executions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: task_capabilities
+    reason: "Priority 5 (10-priority5-software-orchestrator-tracker.yaml): the Software Orchestrator's capability-memory substrate -- internal execution-learning state (X/Y/A/B classification history, version/Needs-Improvement tracking), not itself a discoverable platform asset. Same self-exemption reasoning as platform_assets/asset_registration_config."
   - table: task_chat_messages
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: task_execution_plan

@@ -8359,3 +8359,78 @@ export const assetRegistrationConfig = complianceSchemaDB.table('asset_registrat
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// Priority 5 (10-priority5-software-orchestrator-tracker.yaml): the
+// Software Orchestrator's capability-memory substrate. One row per
+// distinct capability a user might invoke (e.g. "GST -- Prepare Return"),
+// deliberately PLATFORM-WIDE (orgId nullable, mirrors platformAssets.orgId)
+// -- the entire point of the learning loop is that one org's request
+// teaches the system something every other org benefits from next time.
+// Tracks the rolling X/Y/A/B classification history (fullSoftwareCount/
+// packageAvailableCount/novelCount) rather than a fabricated per-request
+// fractional coverage number -- true per-request decomposition is a much
+// harder planning problem, out of scope for this pass (see tracker's
+// scope_decision).
+export const taskCapabilities = complianceSchemaDB.table('task_capabilities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  capabilityKey: text('capability_key').notNull().unique(),
+  modePill: text('mode_pill'),
+  pathKeys: jsonb('path_keys'),
+  status: text('status').notNull().default('ai_only'), // 'ai_only' | 'partial' | 'full_software'
+  needsImprovement: text('needs_improvement').notNull().default('no'), // 'no' | 'yes' | 'in_progress'
+  version: integer('version').notNull().default(1), // bumped ONLY when the underlying implementation actually changes
+  lastAuditedAt: timestamp('last_audited_at'),
+  lastAuditedVersion: integer('last_audited_version'), // Auditor's "once per version" gate compares this to `version`
+  occurrenceCount: integer('occurrence_count').notNull().default(0),
+  promptWordIndex: jsonb('prompt_word_index'), // string[] of normalized tokens -- the "Did/We/File" pattern-matching substrate
+  fullSoftwareCount: integer('full_software_count').notNull().default(0),
+  packageAvailableCount: integer('package_available_count').notNull().default(0),
+  novelCount: integer('novel_count').notNull().default(0),
+  orgId: text('org_id'), // nullable = platform-wide, deliberate (see header)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Priority 5: the "Approved Lower AI Instruction Package" -- what makes the
+// A% bucket (cheap floor-tier model, narrow foolproof script) actually
+// reliable instead of "try the cheap model and hope." Only status='approved'
+// rows are executable. packageType discriminates the two real consumers on
+// the SAME shape rather than duplicating the table: 'task_execution' steps
+// are {step, action, validation}; 'dialogue_script' steps are {question,
+// expectedAnswerPatterns, onMatch, onNoMatch} for VERI's conversational
+// flow (see instruction-package-executor.ts / dialogue-script-executor.ts).
+export const instructionPackages = complianceSchemaDB.table('instruction_packages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  capabilityId: text('capability_id').notNull(),
+  packageType: text('package_type').notNull(), // 'task_execution' | 'dialogue_script'
+  version: integer('version').notNull().default(1),
+  status: text('status').notNull().default('draft'), // 'draft' | 'approved' | 'deprecated'
+  steps: jsonb('steps').notNull(),
+  requiredVariables: jsonb('required_variables'), // string[] -- Lower AI returns MISSING_INFORMATION if any is absent
+  createdByRole: text('created_by_role'), // which Higher AI role authored it, traceability
+  approvedAt: timestamp('approved_at'),
+  successRate: integer('success_rate'), // 0-100, null until usageCount > 0
+  usageCount: integer('usage_count').notNull().default(0),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Priority 5: what Auditor AI writes when a real, software-closable gap is
+// found -- the spec's exact findings list. UNIQUE(capabilityId,
+// capabilityVersion) at the DB level (migration) means a repeat finding
+// against the same capability+version increments occurrenceCount instead
+// of creating a duplicate row.
+export const capabilityImprovementProposals = complianceSchemaDB.table('capability_improvement_proposals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  capabilityId: text('capability_id').notNull(),
+  capabilityVersion: integer('capability_version').notNull(),
+  findings: jsonb('findings').notNull(), // { missingFunction?, missingWorkflow?, missingBusinessRule?, missingReport?, missingConfiguration?, missingModePill?, missingChainOption?, missingMetadata?, missingValidation?, missingScreen?, missingApi? }
+  occurrenceCount: integer('occurrence_count').notNull().default(1),
+  status: text('status').notNull().default('open'), // 'open' | 'dispatched' | 'resolved' | 'rejected'
+  dispatchedToRole: text('dispatched_to_role'),
+  dispatchedAt: timestamp('dispatched_at'),
+  prUrl: text('pr_url'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
