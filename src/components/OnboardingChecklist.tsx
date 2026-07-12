@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { UserCheck, FileText, Users, Brain, X, PartyPopper, ChevronDown, ChevronUp } from "lucide-react";
+import { UserCheck, FileText, Users, Brain, X, PartyPopper, ChevronDown, ChevronUp, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,10 +32,26 @@ const STORAGE_KEY = "veridian_onboarding_steps";
 // the action VERI takes, not the compliance-first identity of the product;
 // the step's `id` is unchanged so it stays wired to the same completion
 // tracking (/api/me/onboarding-stage).
+// subagent/audit-lifecycle (tree4-unified/50-completion-plan Priority 2 item
+// 3, D28/U-D28.B1.S1's "connectors pre-connected during setup" clause):
+// confirmed on direct verification that no onboarding step touched
+// connectors at all (grepped OnboardingChecklist.tsx for "connector",
+// zero matches) -- this is a real, narrow gap distinct from the two
+// U-D28.B1.S1 asks already ratified out-of-scope this session (no-typing
+// profile inference, the auth/Mode-Pill redesign). True automatic
+// "pre-connection" isn't possible (OAuth requires the user to authenticate
+// with the third party) -- autoDetected here means the step reflects REAL
+// connection status fetched from GET /api/connectors (see the effect
+// below), not a manual, unverified checkbox claiming something happened
+// that didn't. Clicking it navigates to /connectors rather than toggling a
+// local flag, since ticking this box by hand would be exactly the kind of
+// fabricated completion state this codebase's own discipline refuses
+// elsewhere.
 const STEPS = [
-  { id: "profile", label: "Complete your profile", icon: UserCheck },
-  { id: "compliance", label: "Give VERI its first task", icon: FileText },
-  { id: "invite", label: "Invite a team member", icon: Users },
+  { id: "profile", label: "Complete your profile", icon: UserCheck, autoDetected: false },
+  { id: "compliance", label: "Give VERI its first task", icon: FileText, autoDetected: false },
+  { id: "connectors", label: "Connect your tools", icon: Plug, autoDetected: true },
+  { id: "invite", label: "Invite a team member", icon: Users, autoDetected: false },
 ];
 
 function readStorage(): { completed: string[]; dismissed: boolean } {
@@ -59,6 +76,7 @@ function writeStorage(completed: string[], dismissed: boolean) {
 }
 
 export default function OnboardingChecklist() {
+  const router = useRouter();
   const [completedArr, setCompletedArr] = useState<string[]>(() => readStorage().completed);
   const [dismissed, setDismissed] = useState<boolean>(() => readStorage().dismissed);
   const [collapsed, setCollapsed] = useState(false);
@@ -95,6 +113,44 @@ export default function OnboardingChecklist() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: id }),
     });
+  }, []);
+
+  // Marks a step complete WITHOUT the toggle-off branch toggleStep has --
+  // used only by the connectors auto-detection effect below, since a step
+  // reflecting real, externally-verified state shouldn't flip back to
+  // incomplete just because this component re-ran (it already didn't flip
+  // back to complete on its own either -- only a real GET /api/connectors
+  // result does that).
+  const markStepComplete = useCallback((id: string) => {
+    setCompletedArr((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      writeStorage(next, false);
+      return next;
+    });
+    fetch('/api/me/onboarding-stage', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: id }),
+    });
+  }, []);
+
+  // Real connection-status check, not a manual claim -- see STEPS' own
+  // comment for why "connectors" is autoDetected. Runs once on mount; if
+  // the user connects a tool later and returns, the step catches up next
+  // time this component mounts (no polling -- consistent with this
+  // component's existing no-realtime-sync posture for every other step).
+  useEffect(() => {
+    if (completed.has("connectors")) return; // already known complete, skip the check
+    let cancelled = false;
+    fetch("/api/connectors")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { toolkits?: { connected: boolean }[] } | null) => {
+        if (cancelled || !data?.toolkits) return;
+        if (data.toolkits.some((t) => t.connected)) markStepComplete("connectors");
+      })
+      .catch(() => { /* best-effort -- an onboarding nudge, never blocking */ });
+    return () => { cancelled = true; };
   }, []);
 
   const handleDismiss = useCallback(() => {
@@ -196,6 +252,52 @@ export default function OnboardingChecklist() {
           <div className="p-4 space-y-1">
             {STEPS.map((step) => {
               const isCompleted = completed.has(step.id);
+              // autoDetected steps (currently: "connectors") reflect real,
+              // externally-verified state -- clicking navigates to where
+              // that state is actually set, rather than letting the user
+              // hand-claim completion the way the other steps allow.
+              if (step.autoDetected) {
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => router.push("/connectors")}
+                    className={cn(
+                      "flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-ct-cloud/60 w-full text-left",
+                      isCompleted && "opacity-60"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "size-4 shrink-0 rounded border flex items-center justify-center",
+                        isCompleted ? "bg-ct-teal border-ct-teal" : "border-ct-muted"
+                      )}
+                      aria-hidden
+                    >
+                      {isCompleted && <span className="size-1.5 rounded-full bg-white" />}
+                    </div>
+                    <step.icon
+                      className={cn(
+                        "size-4 shrink-0",
+                        isCompleted ? "text-ct-teal" : "text-ct-muted"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-sm transition-colors",
+                        isCompleted
+                          ? "text-ct-muted line-through"
+                          : "text-ct-navy font-medium"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    {!isCompleted && (
+                      <span className="ml-auto text-[11px] text-ct-saffron font-medium">Connect &rarr;</span>
+                    )}
+                  </button>
+                );
+              }
               return (
                 <label
                   key={step.id}

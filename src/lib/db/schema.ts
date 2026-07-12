@@ -1053,6 +1053,26 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   reAuditRequestedAt: timestamp('re_audit_requested_at'),
   reAuditReason: text('re_audit_reason'),
   reAuditRequestedBy: text('re_audit_requested_by'),
+  // subagent/audit-lifecycle (tree4-unified/50-completion-plan Priority 2
+  // item 3, D15/U-D15.B1.S4 "L4 Executive Audit Review"): closes a real,
+  // live gap found on direct verification -- audit-cadence.ts's
+  // classifyAuditCadence() computes requiresExecutiveEscalation=true for
+  // BOTH 'high' and 'critical' riskLevel, but guardrail-registrations.ts's
+  // closureReviewCheck only ever acted on it when riskLevel === 'critical'
+  // (already redundant with that branch's own condition) -- so a 'high'
+  // risk closure was classified L4-escalation-worthy and then surfaced
+  // nowhere, every time, a dead computation. This is NOT a second block --
+  // L1 (real-time, riskLevel='critical') correctly stays the only hard
+  // gate; L4 is the source doc's own periodic 3-hour REVIEW cadence, not a
+  // second real-time gate, so 'high' risk rows are meant to wait for the
+  // next executive review, not block immediately. These 3 columns are that
+  // missing review surface: nullable/additive, existing rows unaffected.
+  // Set only via activity-log-service.ts's acknowledgeExecutiveEscalation()
+  // -- never written directly, same discipline as the re-audit columns
+  // above.
+  executiveReviewedAt: timestamp('executive_reviewed_at'),
+  executiveReviewedBy: text('executive_reviewed_by'),
+  executiveReviewNotes: text('executive_review_notes'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

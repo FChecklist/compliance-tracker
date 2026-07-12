@@ -1,8 +1,8 @@
 // Wave 11 service layer -- extracted from src/app/api/tasks/{route,
 // [id]/route}.ts verbatim (behavior-identical refactor).
-import { tasks, aiAssistants, workerAgents, dynamicChains, users } from "@/lib/db"
+import { tasks, aiAssistants, workerAgents, dynamicChains, users, db, notifications } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { desc, eq, asc, and, ne, inArray, sql } from "drizzle-orm"
+import { desc, eq, asc, and, ne, inArray, lt, notInArray, sql } from "drizzle-orm"
 import { executeTask } from "@/lib/task-execution-engine"
 import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
@@ -331,4 +331,60 @@ export async function listAssignedByMe(ctx: ReadContext & { userId: string }) {
       assigneeId: t.userId, createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
     })),
   }
+}
+
+// subagent/audit-lifecycle (tree4-unified/50-completion-plan Priority 2
+// item 3, D22/U-D22.B1.S1 "Follow-up, SLA & Continuous Planning"): before
+// this, `tasks` -- the single most fundamental Work Object in this
+// codebase -- had a dueDate column (Wave 44) and ZERO overdue detection of
+// any kind, confirmed by direct search; only compliance_items
+// (compliance-service.ts's syncOverdue) and tickets (ticket-service.ts's
+// checkTicketSlaBreaches) had this coverage. Mirrors checkTicketSlaBreaches'
+// exact shape: re-notifies once per scheduled run until the task leaves a
+// non-terminal status (matching that function's own re-alert-until-resolved
+// precedent), not a fire-once flag. Honest scope, stated plainly: this
+// closes "Missed-timelines" for one more domain object, not the sub-branch's
+// full "any Work Object" generality -- Blocked/Delegated/Waiting-dependency/
+// Inactive states have no equivalent in `tasks.status`'s 5-value enum
+// (pending/in_progress/completed/failed/cancelled has no "blocked" or
+// "delegated" value), so those 4 of the requirement's 6 named monitored-
+// state categories remain genuinely out of reach without a schema change
+// this pass didn't attempt.
+
+/** Pure decision: is this task's dueDate/status combination one checkTaskOverdue should notify on right now? Extracted so the actual notify condition is unit-testable without a DB, matching validateChainDepth's own precedent above. */
+export function isTaskOverdue(task: { dueDate: Date | null; status: string }, now: Date): boolean {
+  if (!task.dueDate) return false
+  if (task.status === "completed" || task.status === "cancelled") return false
+  return task.dueDate.getTime() < now.getTime()
+}
+
+/**
+ * Cross-org by necessity (a cron job, not a request scoped to one tenant) --
+ * uses the raw db client, same posture as ticket-service.ts's
+ * checkTicketSlaBreaches and audit-cadence-scan.ts's scanForL2Violations.
+ * Notifies the task's assignee (userId) and whoever assigned it
+ * (assignedById), when the two differ, using the existing
+ * 'deadline_reminder' notificationTypeEnum value (already defined in
+ * schema.ts, previously unused by any tasks-domain writer).
+ */
+export async function checkTaskOverdue(): Promise<{ overdue: number }> {
+  const now = new Date()
+  const overdue = await db.query.tasks.findMany({
+    where: and(lt(tasks.dueDate, now), notInArray(tasks.status, ["completed", "cancelled"])),
+  })
+
+  for (const task of overdue) {
+    const notifyIds = new Set([task.userId, task.assignedById].filter((id): id is string => Boolean(id)))
+    for (const userId of notifyIds) {
+      await db.insert(notifications).values({
+        userId,
+        title: `Task overdue: ${task.title}`,
+        message: `Task "${task.title}" missed its due date (${task.dueDate?.toISOString()}) and is still ${task.status}.`,
+        type: "deadline_reminder",
+        metadata: { taskId: task.id },
+      })
+    }
+  }
+
+  return { overdue: overdue.length }
 }
