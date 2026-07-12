@@ -171,6 +171,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   // creating a task -- the same governance flow the /fde page already uses,
   // just reachable from the point where a user actually gets stuck.
   const [fdeFallback, setFdeFallback] = useState<{ path: PathSegment[] } | null>(null);
+  // tree4-unified U-D5.B2.S3 ("search... minimize clicks"): filters only the
+  // deepest (currently-being-picked) row's options -- earlier rows already
+  // show a made selection and stay untouched, since they're re-selection
+  // controls, not something to search through. Reset on every selectedPath
+  // change (below) so a stale query never silently hides options at a row
+  // the user has already moved past.
+  const [pickerSearch, setPickerSearch] = useState("");
 
   function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<ConfirmationResolution> {
     return new Promise((resolve) => setPendingConfirmation({ category, categoryLabel, matchedPhrase, resolve }));
@@ -191,6 +198,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     setSelectedPath(preseed ? [preseed] : []);
     setEngineInputValues({});
     setFdeFallback(null);
+    setPickerSearch("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerMode]);
 
@@ -212,6 +220,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
       if (typeof atDepth === "string" && atDepth === key) return prev.slice(0, depth);
       return [...prev.slice(0, depth), key];
     });
+    setPickerSearch("");
   }
   function toggleMulti(depth: number, key: string) {
     setSelectedPath((prev) => {
@@ -490,8 +499,19 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
               <span className="text-[13px] font-semibold text-ct-navy">Select the task you want me to do.</span>
               <PathBreadcrumb path={selectedPath} chainComplete={chainComplete} />
             </div>
+            {!chainComplete && (
+              <input
+                type="text"
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+                placeholder="Search options…"
+                aria-label="Search chain options"
+                className="mb-1.5 w-full rounded-full border border-ct-border2 bg-white px-3 py-1 text-xs text-ct-navy placeholder:text-ct-muted focus:outline-none focus:ring-1 focus:ring-ct-navy"
+              />
+            )}
             <ChainRows
               tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti}
+              filterQuery={pickerSearch}
               onFdeFallback={(depth) => {
                 setFdeFallback({ path: selectedPath.slice(0, depth) });
                 setValue("");
@@ -664,7 +684,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
 // for a row is carried forward from the PARENT node's own `multi` flag
 // (set once, e.g. on "Customer"), not re-derived per row after the fact.
 function ChainRows({
-  tree, selectedPath, onToggleSingle, onToggleMulti, onFdeFallback,
+  tree, selectedPath, onToggleSingle, onToggleMulti, onFdeFallback, filterQuery,
 }: {
   tree: CapabilityNode[];
   selectedPath: PathSegment[];
@@ -674,6 +694,10 @@ function ChainRows({
   // row's own depth) when the user picks "My Option Is Not Available"
   // instead of a real leaf at this row.
   onFdeFallback: (depth: number) => void;
+  // tree4-unified U-D5.B2.S3 ("search"): applied only to the deepest row
+  // (the one currently being picked from) -- earlier rows show already-made
+  // selections, not something a search should hide.
+  filterQuery?: string;
 }) {
   const rows: { depth: number; parentLabel: string; isMulti: boolean; options: CapabilityNode[] }[] = [];
 
@@ -706,16 +730,26 @@ function ChainRows({
     }
   }
 
+  const normalizedFilter = filterQuery?.trim().toLowerCase() ?? "";
+
   return (
     <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-      {rows.map((row) => (
+      {rows.map((row) => {
+        const isDeepestRow = row.depth === rows.length - 1;
+        const visibleOptions = isDeepestRow && normalizedFilter
+          ? row.options.filter((o) => o.label.toLowerCase().includes(normalizedFilter))
+          : row.options;
+        return (
         <div key={row.depth} className="flex items-center gap-1.5 flex-wrap">
           {row.depth > 0 && (
             <span className="text-[10.5px] text-ct-muted shrink-0">
               {row.parentLabel}{row.isMulti ? " (pick one or more)" : ""}:
             </span>
           )}
-          {row.options.map((opt) => {
+          {isDeepestRow && normalizedFilter && visibleOptions.length === 0 && (
+            <span className="text-[11px] text-ct-muted italic">No matches — try "My Option Is Not Available" below.</span>
+          )}
+          {visibleOptions.map((opt) => {
             const sel = selectedPath[row.depth];
             const isSelected = row.isMulti
               ? Boolean(sel && typeof sel !== "string" && sel.values.includes(opt.key))
@@ -750,7 +784,8 @@ function ChainRows({
             </button>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

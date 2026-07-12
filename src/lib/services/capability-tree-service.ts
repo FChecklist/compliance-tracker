@@ -21,6 +21,7 @@ import {
   gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
 import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
 
@@ -895,8 +896,8 @@ const MODULE_SCOPE_TOP_LEVEL_KEYS: Record<string, string[]> = {
   erp: ["customer", "vendor", "product"],
 }
 
-export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string }): Promise<CapabilityNode[]> {
-  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
+  const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
     const productNodes = await buildProductNodes(db, ctx.orgId)
     const entityNodes = await buildEntityNodes(db, ctx.orgId)
@@ -911,6 +912,17 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
 
     return markDeterministic([...branchNodes, ...scopedStaticNodes])
   })
+
+  // tree4-unified U-D5.B2.S3 ("prioritize frequent chains... recommend
+  // previous selections"): re-orders every level of the tree by this user's
+  // own recency-weighted usage history -- see chain-usage-ranking.ts for the
+  // full design note. Optional and additive: omitting userId (every caller
+  // before this wave) returns the exact same tree/order as before; with no
+  // usage history yet (score map empty) applyUsageRanking() is a documented
+  // no-op that returns the same array reference.
+  if (!ctx.userId) return tree
+  const scores = await getUserChainUsageScores(ctx.orgId, ctx.userId)
+  return applyUsageRanking(tree, scores)
 }
 
 // Construction Intelligence (PROJEXA), Wave 128. Mirrors
