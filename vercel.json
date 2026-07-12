@@ -12,6 +12,9 @@
     { "path": "/api/internal/the-firm/recur-engagements/run", "schedule": "30 7 * * *" },
     { "path": "/api/internal/audit-cadence/run", "schedule": "0 */3 * * *" },
     { "path": "/api/internal/ai-performance-report/run", "schedule": "0 1 * * *" },
-    { "path": "/api/internal/task-nudge-digest/run", "schedule": "0 8 * * *" }
+    { "path": "/api/internal/task-nudge-digest/run", "schedule": "0 8 * * *" },
+    { "path": "/api/internal/escalations-report/run", "schedule": "15 1 * * *" },
+    { "path": "/api/internal/recommendations-report/run", "schedule": "30 1 * * *" },
+    { "path": "/api/internal/risk-trends-report/run", "schedule": "45 1 * * *" }
   ]
 }

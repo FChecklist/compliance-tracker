@@ -1081,6 +1081,17 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   riskLevel: text('risk_level'), // 'low' | 'medium' | 'high' | 'critical'
   confidencePercentage: numeric('confidence_percentage'), // 0-100, from the closure-time self-assessment when the reviewer supplied one
   confidenceBand: text('confidence_band'), // 'auto_proceed' | 'self_review_required' | 'peer_review_required' | 'escalation_required'
+  // GAP-MODEL-SCORECARD: model-tier-eligibility.ts's ComplexityTier
+  // ('mechanical' | 'integrative' | 'judgment') that POST /api/ai/team/
+  // dispatch already validates via checkTierEligibility() at dispatch time
+  // (Wave 163 / AGENTS.md Operating Rule 10) but, before this column,
+  // never persisted -- computed once for the gate and discarded. Nullable/
+  // additive, existing rows unaffected. Set only by activity-log-service.ts's
+  // recordActivity(); read by model-scorecard-service.ts to group real
+  // dispatch outcomes per (model, tier), joined with role_key -> model via
+  // roster.ts's getRole(), the same resolution agent-directory-service.ts
+  // already uses.
+  complexityTier: text('complexity_tier'),
   // tree4-unified/50-completion-plan area 9 "Auditing", U-D15.B3.S1 ("no
   // task is EVER permanently complete" -- ai-os/audit-tree/
   // 02-audit-organization.yaml lines 363-367): a previously-terminal row

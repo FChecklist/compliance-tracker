@@ -22,15 +22,18 @@
 //   - Learning/Knowledge-Updates: loop_improvements rows (a real, populated
 //     table -- loop-improvement-proposer.ts is a live writer), counted by
 //     generated/deployed/rolled-back and averaged by improvementDelta.
-// Escalations/Recommendations/Risk-Trends are honestly NOT covered --
-// escalation-ladder.ts's nextEscalationRung() only ever writes a chat
-// message (confirmed by reading its call site in task-execution-engine.ts),
-// there is no persisted, queryable escalation-events table to aggregate;
-// "Recommendations" and "Risk-Trends" have no deterministic source table
-// anywhere in this schema either. Fabricating numbers for these would be
-// exactly the kind of thing this codebase's guardrail discipline forbids
-// (no LLM self-grading, no invented signal) -- they're named in
-// `notCovered` on every report instead of silently omitted.
+// Escalations/Recommendations/Risk-Trends were honestly NOT covered here at
+// the time this file was first built -- see report-cadence-service.ts
+// (GAP-D19-REPORT-CADENCES), which found real deterministic sources for all
+// 3 one level deeper than an obviously-named aggregation table (parsed
+// task_chat_messages escalation events, loop_improvements' recommendation
+// shape, activity_log.riskLevel's trend). They're deliberately kept as 3
+// SEPARATE report generators/cadences there rather than merged into this
+// report's own shape -- each is its own named cadence per U-D19.B1.S1, the
+// same way this daily performance report is its own cadence. This report's
+// own JSON output still does not include those 3 sections; `notCovered`
+// below is updated to point at where they now actually live, not left
+// claiming no source exists.
 //
 // Cadence: only "daily" is actually wired to a cron entry by this wave (see
 // /api/internal/ai-performance-report/run + vercel.json). The other 6 named
@@ -113,9 +116,9 @@ export async function generateAiPerformanceReport(days = 1): Promise<AiPerforman
       avgImprovementDelta: averageNumericColumn(improvements.map((i) => i.improvementDelta)),
     },
     notCovered: [
-      { dimension: "escalations", reason: "escalation-ladder.ts's nextEscalationRung() only writes a chat message today -- no persisted, queryable escalation-events table exists to aggregate." },
-      { dimension: "recommendations", reason: "no deterministic recommendation-tracking table exists in this schema." },
-      { dimension: "risk_trends", reason: "no deterministic, time-series risk-scoring table exists in this schema (risk-classification.ts scores individual items, not a trend series)." },
+      { dimension: "escalations", reason: "Not part of this report's own shape -- covered as its own daily cadence by report-cadence-service.ts's generateEscalationsReport() / GET /api/internal/escalations-report/run." },
+      { dimension: "recommendations", reason: "Not part of this report's own shape -- covered as its own daily cadence by report-cadence-service.ts's generateRecommendationsReport() / GET /api/internal/recommendations-report/run." },
+      { dimension: "risk_trends", reason: "Not part of this report's own shape -- covered as its own daily cadence by report-cadence-service.ts's generateRiskTrendsReport() / GET /api/internal/risk-trends-report/run." },
     ],
   }
 }
