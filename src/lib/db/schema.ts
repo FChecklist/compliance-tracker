@@ -8150,3 +8150,91 @@ export const docProcessingJobs = complianceSchemaDB.table('doc_processing_jobs',
   createdAt: timestamp('created_at').notNull().defaultNow(),
   completedAt: timestamp('completed_at'),
 })
+
+// ─── Priority 2 item 4: D21.B4.S1 (Intelligent Work Detection, inbound
+// email) + D10 GAP-06 (Communication Governance draft-then-approve) ────────
+// tree4-unified/10-merged-governance-layer.yaml U-D21.B4.S1 + U-D10.B2/B3.
+// Deliberately the SAME detect-then-propose shape as veri_meetings' AI
+// columns (Wave 74, generateMeetingIntelligence) -- the tree's own note
+// says this is explicitly the same proven pattern, not a novel design.
+// Unlike veri_meetings, there is no persistent "email" entity in this
+// codebase yet (no inbound-email-ingestion trigger exists -- confirmed by
+// direct search; only outbound send via email.ts). This table is therefore
+// the input+output record itself: a caller (a future inbox-sync feature,
+// or a manual "paste this email" action) submits the raw email fields, and
+// this row holds both the input and the AI's suggestions until a human
+// promotes one into a real task or dismisses it -- mirroring
+// veri_meeting_action_items' join-table pattern exactly, never
+// auto-creating a task.
+export const emailIntelligenceItems = complianceSchemaDB.table('email_intelligence_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  submittedById: text('submitted_by_id').notNull(), // who supplied this email's content -- no live inbox trigger exists yet, so this is always an explicit human/API submission, never anonymous
+  subject: text('subject').notNull(),
+  senderEmail: text('sender_email'),
+  body: text('body').notNull(),
+  receivedAt: timestamp('received_at'), // from the email's own header/metadata if the caller has it; nullable since a manually-pasted email may not carry one
+  status: text('status').notNull().default('analyzing'), // 'analyzing' | 'proposed' | 'analysis_failed' | 'dismissed'
+  aiSummary: text('ai_summary'),
+  // { title, category, assignee, dueDateHint }[] -- category is one of
+  // 'commitment' | 'follow_up' | 'approval_needed' | 'deadline', matching
+  // U-D21.B4.S1's literal requirement text. Each entry is a candidate for
+  // promotion into its own real task via promoteEmailIntelligenceItem();
+  // none are auto-created.
+  aiSuggestedWorkItems: jsonb('ai_suggested_work_items').notNull().default([]),
+  aiGeneratedAt: timestamp('ai_generated_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const emailIntelligenceActionItems = complianceSchemaDB.table('email_intelligence_action_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  emailIntelligenceItemId: text('email_intelligence_item_id').notNull(),
+  suggestedIndex: integer('suggested_index').notNull(), // which entry of aiSuggestedWorkItems this task was promoted from
+  taskId: text('task_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const emailIntelligenceItemsRelations = relations(emailIntelligenceItems, ({ many }) => ({
+  actionItems: many(emailIntelligenceActionItems),
+}))
+export const emailIntelligenceActionItemsRelations = relations(emailIntelligenceActionItems, ({ one }) => ({
+  emailIntelligenceItem: one(emailIntelligenceItems, { fields: [emailIntelligenceActionItems.emailIntelligenceItemId], references: [emailIntelligenceItems.id] }),
+  task: one(tasks, { fields: [emailIntelligenceActionItems.taskId], references: [tasks.id] }),
+}))
+
+// GAP-06 (tree4-unified/30-gap-backlog.yaml): "Build a genuine draft-then-
+// approve Communication Governance flow." Composes 3 existing mechanisms
+// per the gap's own workflow -- an org-aware LLM drafting call (the same
+// resolveModelConfig/callLLMJson pattern generateMeetingIntelligence uses,
+// NOT ai-team/team-service.ts's runRole(), which per its own header and
+// API-08's tree evidence is scoped to the AI Dev Team building VERIDIAN
+// itself, veridian_admin-gated, never a customer org's workflow -- see
+// communication-drafting-service.ts's header for the full reasoning),
+// GOV-14's approval_preferences for the hold/approve stage, and email.ts's
+// sendEmail() for the send step. Never sent without an explicit approval
+// unless a persistent always_approve preference exists for that exact
+// communication_type scope (approval-preference-service.ts).
+export const draftedCommunications = complianceSchemaDB.table('drafted_communications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // the user this was drafted for/who approves it
+  communicationType: text('communication_type').notNull(), // one of the ~25 named types in U-D10.B2.S1 (free text, matching approval_preferences.actionCategory's own free-text convention)
+  triggerType: text('trigger_type').notNull(), // 'manual' | 'detected_commitment' | 'detected_follow_up' | 'detected_deadline' | 'detected_approval_needed'
+  triggerRefType: text('trigger_ref_type'), // e.g. 'email_intelligence_item' | 'task' | 'veri_meeting' -- nullable, only set when triggerType isn't 'manual'
+  triggerRefId: text('trigger_ref_id'),
+  recipientEmails: jsonb('recipient_emails').notNull().default([]), // string[]
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  attachmentsRecommendation: jsonb('attachments_recommendation').notNull().default([]), // string[] -- descriptions of what VERI recommends attaching, never actual generated files
+  status: text('status').notNull().default('pending_approval'), // 'pending_approval' | 'approved' | 'rejected' | 'sent' | 'send_failed'
+  autoApprovedViaPreference: boolean('auto_approved_via_preference').notNull().default(false), // true when an always_approve preference fired this, so the audit trail always shows whether a human clicked approve or a saved shortcut did
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  rejectedById: text('rejected_by_id'),
+  rejectedAt: timestamp('rejected_at'),
+  rejectionReason: text('rejection_reason'),
+  sentAt: timestamp('sent_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
