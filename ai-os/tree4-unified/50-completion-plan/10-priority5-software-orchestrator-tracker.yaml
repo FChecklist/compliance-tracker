@@ -138,20 +138,131 @@ schema_contract: |
   UNIQUE(capabilityId, capabilityVersion) on capabilityImprovementProposals --
   one open proposal per capability version, occurrenceCount absorbs repeats.
 
+final_status: |
+  COMPLETE 2026-07-12. All 4 dispatches merged to main (PRs #211-214 + this
+  tracker close-out PR). Every PR was independently re-verified by the
+  Super Boss in an isolated worktree (fresh tsc/eslint/guardrail-check/
+  coverage-check/full-test-suite run, not just trusting the subagent's own
+  report) AND had its actual code manually read before merge -- not just
+  its tests. Specific things confirmed correct by direct code reading,
+  not assumed from a PR description:
+    - package-variable-resolver.ts's MissingInformationError: the throw
+      happens BEFORE any LLM call (resolvePackageVariablesOrThrow() runs
+      first in executePackageDispatch()), so a missing required variable
+      can never reach a model to be guessed at. Confirmed by reading
+      task-execution-engine.ts's real try/catch structure directly.
+    - capability-audit-service.ts's shouldAuditCapability(): correctly
+      blocks on needsImprovement='in_progress' OR lastAuditedVersion
+      matching the current version, confirmed against its own exhaustive
+      test suite (null/matching/mismatched/in_progress cases all covered).
+    - The proactive floor-tier gating change: confirmed the free-text
+      planning branch is only ever reached for NOVEL-classified work (the
+      PACKAGE_AVAILABLE case returns earlier), and unconditionally
+      escalates to the judgment tier there -- reactive signals are still
+      computed and logged for the audit trail but are no longer the gate.
+    - chat-service.ts's Dynamic Chain gate for conversations: confirmed
+      genuinely additive -- shouldResolveDynamicChain() gates resolution,
+      every existing caller (no modePill/pathKeys sent) gets
+      dynamicChainId=null exactly as before, and the singleton default
+      AI thread (ensureAiThread()) is untouched by this change entirely.
+    - All 4 Higher-AI role keys (senior_backend_engineer, fullstack_
+      developer, devops_engineer, frontend_engineer) confirmed to
+      actually exist in roster.ts, on models confirmed 'integrative'-tier
+      eligible in model-tier-eligibility.ts.
+    - The 3 new CI guardrail markers (shouldAuditCapability,
+      MissingInformationError/resolvePackageVariablesOrThrow +
+      its call site, the novel_capability signal) confirmed to reference
+      real, already-merged code, not aspirational text -- manifest now at
+      84 markers (was 80).
+    - response-engine.ts's extension: formatTaskCompletionSummary() has a
+      real live caller (llm-routing-gate.ts's generate_report intent);
+      formatComplianceFilingSummary()/formatComplianceStatusDigest() are
+      real, tested, honestly disclosed as not yet wired to a live caller
+      (matching this session's established disclosure discipline).
+
+  Real supervisor-level bugs caught and fixed during this priority (none
+  in the subagents' own code -- both were MY OWN process mistakes,
+  caught by verifying rather than trusting a "no conflict" result):
+    1. Merged PR #213 (orchestrator-wiring) against a stale local
+       origin/main TWICE -- once before PR #212 merged, and again
+       immediately after, because a `git fetch origin` call silently
+       failed on a transient network error and the subsequent `git
+       merge origin/main` reported "Already up to date" against the
+       STALE ref rather than erroring. Caught both times by explicitly
+       verifying `git log origin/main --oneline -3` showed the expected
+       latest merge commit before trusting the merge result -- the same
+       discipline already learned the hard way during Priority 4's
+       domain-C PR. GitHub's own "head branch not up to date" merge
+       rejection was the final backstop that caught the case where local
+       verification alone wasn't enough.
+
+  Owner requirements from the multi-turn architecture discussion,
+  addressed:
+    - "Every end-user task splits X% software / Y% AI, of which A% is a
+      cheap model with a foolproof narrow package, B% is a genuinely
+      novel judgment-tier case" -- real, live in task-execution-engine.ts
+      (executeTask()'s classification branch) and chat-service.ts
+      (generateAiReply()'s classification branch before its LLM call).
+    - "Monitoring AI / Auditor AI already exist, don't recreate" -- the
+      task_oa orchestra layer and chief_audit_officer were reused
+      exactly as instructed, zero new AI roles created.
+    - "Higher AI, your call" -- resolved to the existing AI Dev Team
+      engineering pipeline (dispatchRepoTask() -> ai-workforce-agent.mjs),
+      zero new dispatch mechanism.
+    - "task-execution-engine.ts as Software Orchestrator, your call" --
+      it now owns the full decision chain for the task-execution path:
+      classify -> dispatch (engine/worker-agent/package/free-text) ->
+      record outcome -> (elsewhere) trigger Auditor.
+    - VERI Chat extension (the Owner's explicit follow-up): the identical
+      classification mechanism now also gates generateAiReply(), proving
+      the "same principle, two callers" design rather than a parallel
+      system.
+
+  Honestly NOT done / deliberately deferred (documented, not silently
+  claimed complete):
+    - The UI step offering the Chain Selector before starting a new VERI
+      conversation was deferred -- the service-layer and API-layer
+      plumbing (E1) is real, tested, and additive, but actually wiring a
+      new pre-conversation modal into a LIVE messaging surface was
+      judged a bigger, separately-verifiable UX lift, matching
+      VERI_CHAT_GOVERNANCE.md section 5's own original caution about
+      rushing exactly this kind of change.
+    - dispatchProposalToHigherAI() will fail against the live deployed
+      app today -- GITHUB_DISPATCH_PAT is still not configured on Vercel
+      (the same gap noted in Priority 2 for the AI Dev Team's repo-write
+      dispatch path generally, not new to this priority). The function
+      is deliberately split from the audit itself specifically so this
+      failure never corrupts audit state -- a proposal stays 'open' and
+      can be retried by hand once the PAT is set.
+    - closeImprovementLoop() is manual-only by design -- invoked by the
+      Super Boss once a real Higher AI PR has been reviewed and merged,
+      matching this session's established never-auto-merge discipline.
+      Not yet invoked against any real proposal (none has been dispatched
+      yet, since no live capability has been through a real Auditor run).
+    - The backfill script from Priority 3 and the credential rotation
+      from Priority 2 remain open, unrelated to this priority's own scope.
+
 dispatches:
   - agent: 1
     scope: "Core: 3 new tables + software-coverage-service.ts + capability-learning-service.ts (Phase A), applied live"
     owner: "Super Boss (sequential, must land before the 3 dispatches below)"
-    status: not_started
+    status: complete
+    pr: "#211, merged 2026-07-12"
   - agent: 2
     scope: "Phase B (task orchestrator wiring, Lower AI package executor, proactive floor-tier gating) + E3/E4 (chat classifier call site + dialogue-script-executor.ts)"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    pr: "#213, merged 2026-07-12"
+    detail: "New package-variable-resolver.ts (MissingInformationError, hard rule enforced) + dialogue-script-executor.ts (pure deterministic step matching, reuses tokenizePrompt/wordOverlapScore rather than reinventing). Proactive floor-tier gating implemented as documented -- reactive signals kept as secondary safety net inside package dispatch only."
   - agent: 3
     scope: "Phase C (capability-audit-service.ts: Auditor trigger gate, improvement proposal dedup, Higher AI dispatch, version close-out)"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    pr: "#212, merged 2026-07-12"
+    detail: "shouldAuditCapability() is the single most important invariant in the file and is tested exhaustively. Real hand-rolled JSON verdict parsing (fenced block + balanced-brace fallback) since runRole() has no jsonMode. dispatchProposalToHigherAI() deliberately split from the audit for resilience against the known GITHUB_DISPATCH_PAT gap."
   - agent: 4
     scope: "Phase D (guardrail markers + tests) + E1 (Dynamic Chain gate for conversations, reusing resolveDynamicChainId()) + E5 (response-engine.ts status-update/report template extension)"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    pr: "#214, merged 2026-07-12"
+    detail: "Correctly merged all 3 sibling branches itself mid-dispatch as they landed (one real conflict in chat-service.ts's import block, resolved by keeping both imports). Guardrail manifest now at 84 markers. Chain Selector UI step for new conversations explicitly deferred as a separate, bigger UX lift rather than rushed."
