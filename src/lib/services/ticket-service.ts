@@ -6,7 +6,7 @@
 // free. External guest participation reuses veri-chat-service.ts's
 // createGuestAccess() directly rather than a parallel implementation.
 import {
-  db, tickets, conversations, conversationParticipants, notifications,
+  db, tickets, conversations, conversationParticipants, notifications, users,
   installedProducts, ticketSatisfactionSurveys, fieldServiceDispatches, problemRecords, problemTickets,
 } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
@@ -15,6 +15,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { createGuestAccess, resolveActiveGuestAccess } from "./veri-chat-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 
 export type TicketContext = { orgId: string; userId: string }
 
@@ -74,6 +75,23 @@ export async function createTicket(
       assigneeId: input.assigneeId || null, requesterUserId: input.requesterUserId || null,
       slaDeadline, createdById: ctx.userId,
     }).returning()
+
+    // D15.B2.S1 named event #7, "Customer Complaint -> Exception Audit" --
+    // every new ticket is the general-purpose "customer complaint/support"
+    // entity in this codebase (poshComplaints is the narrower,
+    // harassment-specific case, not this one). TicketContext carries only
+    // userId, not a full dbUser row (unlike ErpContext/KbContext), so the
+    // acting user is looked up here, inside the same transaction, for
+    // logActivity()'s required actor -- best-effort, never blocks ticket
+    // creation if the lookup or the log write fails.
+    const creator = await db.query.users.findFirst({ where: eq(users.id, ctx.userId) })
+    if (creator) {
+      await recordAuditTrigger({
+        tx: db, event: "customer_complaint", entityType: "ticket", entityId: ticket.id, orgId: ctx.orgId,
+        dbUser: creator, details: `Ticket "${subject}" opened${input.category ? ` (category: ${input.category})` : ""}.`,
+      }).catch((err) => console.error(`[audit-trigger] failed to record customer_complaint for ticket ${ticket.id}:`, err))
+    }
+
     return ticket
   })
 }

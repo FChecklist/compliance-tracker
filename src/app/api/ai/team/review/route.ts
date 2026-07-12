@@ -3,8 +3,19 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_CLOSURE_REVIEW_LEAF, QA_PRECOMPLETION_GATE_LEAF } from "@/lib/guardrail-registrations"
 import { recordPeerReview, getActivityRiskLevel, getActivitySelfAssessment } from "@/lib/activity-log-service"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 
 registerAllGuardrails()
+
+// D15.B2.S1 named event #6, "AI Escalation -> Escalation Audit". The two
+// reasons closureReviewCheck (guardrail-registrations.ts) can fail here --
+// "confidence_below_escalation_threshold" and "critical_risk_requires_
+// escalation" -- are exactly the two real call sites where
+// escalation-ladder.ts's nextEscalationRung() already fires today. This is
+// escalation-ladder.ts's own named domain, so it's reused directly rather
+// than re-deriving "is this an escalation" a second way.
+const ESCALATION_GUARDRAIL_REASONS = new Set(["confidence_below_escalation_threshold", "critical_risk_requires_escalation"])
 
 // Wave 165 (tree4-unified/50-completion-plan U-D12.B4.S3): closes the gap
 // found in /api/ai/team/dispatch/route.ts -- a low-confidence dispatch was
@@ -63,6 +74,14 @@ export async function POST(request: NextRequest) {
   const check = evaluateGuardrails(AI_TEAM_CLOSURE_REVIEW_LEAF, "input", { reviewNotes, reviewDecision, confidencePercentage, riskLevel })
   if (!check.passed) {
     void recordGuardrailViolation(activityLogId, AI_TEAM_CLOSURE_REVIEW_LEAF, "input", check)
+    if (ESCALATION_GUARDRAIL_REASONS.has(check.reason)) {
+      void withTenantContext({ orgId, userId: dbUser.id }, (db) =>
+        recordAuditTrigger({
+          tx: db, event: "ai_escalation", entityType: "activity_log", entityId: activityLogId, orgId,
+          dbUser, details: `${check.reason}: ${check.guidance ?? ""}`.trim(),
+        })
+      ).catch((err) => console.error(`[audit-trigger] failed to record ai_escalation for activity ${activityLogId}:`, err))
+    }
     return NextResponse.json({ status: "blocked", blockedBy: { reason: check.reason, guidance: check.guidance } }, { status: 422 })
   }
 

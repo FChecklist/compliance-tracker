@@ -10,6 +10,7 @@ export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
 import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
+import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
 // CapabilityEntityType -- indexed at the one real creation point
 // (resolveDynamicChainId below), same "index at creation" pattern
@@ -323,6 +324,20 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
     }
 
     const [updated] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning()
+
+    // D15.B2.S1 named event #2, "Feature Completed -> Functional Audit":
+    // fires exactly once, on the real transition into 'completed' (not on
+    // every save of an already-completed task) -- see
+    // audit-event-triggers.ts's didFeatureComplete() for the pure gate.
+    // Best-effort: a logging failure must never break the status update
+    // that already committed above.
+    if (didFeatureComplete(existing.status, updated.status)) {
+      await recordAuditTrigger({
+        tx: db, event: "feature_completed", entityType: "task", entityId: updated.id, orgId,
+        ...actor, details: `Task "${updated.title}" marked completed.`,
+      }).catch((err) => console.error(`[audit-trigger] failed to record feature_completed for task ${updated.id}:`, err))
+    }
+
     return { ok: true as const, updated }
   })
 

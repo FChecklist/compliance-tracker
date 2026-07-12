@@ -8,6 +8,8 @@ import { hasRole } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 
 export type PromptOsContext = { userId: string; dbUser: typeof users.$inferSelect }
 
@@ -47,6 +49,29 @@ export async function createPromptVersion(
     }).returning()
 
     return { id: row.id, templateKey: input.templateKey, version: row.version, label: row.label, createdAt: row.createdAt.toISOString() }
+  }).then(async (result) => {
+    // D15.B2.S1 named event #9, "New Prompt -> Prompt Audit". Prompt
+    // templates/versions are deliberately platform-wide (PromptOsContext has
+    // no orgId -- see this file's own header), but audit_logs.orgId is
+    // NOT NULL (schema.ts) and there is no platform-scoped audit-trail table
+    // in this codebase to write into instead (checked: activity_log.orgId is
+    // also NOT NULL). Rather than invent a new table/migration for one event,
+    // this uses the acting admin's own real orgId (ctx.dbUser.orgId) -- never
+    // fabricated -- which is null only for the rare platform-only admin
+    // account with no org membership at all, in which case this best-effort
+    // write is skipped rather than faked. Runs in its own transaction, after
+    // the version write above already committed, since createPromptVersion
+    // doesn't run inside withTenantContext (platform-wide tables have no RLS
+    // org scope to establish).
+    if (ctx.dbUser.orgId) {
+      await withTenantContext({ orgId: ctx.dbUser.orgId, userId: ctx.userId }, (tx) =>
+        recordAuditTrigger({
+          tx, event: "new_prompt", entityType: "prompt_version", entityId: result.id, orgId: ctx.dbUser.orgId!,
+          dbUser: ctx.dbUser, details: `New version ${result.version} of prompt template "${input.templateKey}" created.`,
+        })
+      ).catch((err) => console.error(`[audit-trigger] failed to record new_prompt for prompt version ${result.id}:`, err))
+    }
+    return result
   })
 }
 

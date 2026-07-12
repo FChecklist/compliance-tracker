@@ -8,6 +8,7 @@ import { and, eq, ilike, or } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
+import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 
 export type KbContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -93,6 +94,16 @@ export async function updateKbPage(
     const [page] = await db.update(knowledgeBasePages)
       .set({ ...patch, version: existing.version + 1, updatedById: ctx.userId, updatedAt: new Date() })
       .where(eq(knowledgeBasePages.id, pageId)).returning()
+
+    // D15.B2.S1 named event #4, "Knowledge Updated -> Knowledge Audit" --
+    // every real edit bumps `version` (see the comment above), so this fires
+    // once per genuine update, not per no-op save. Best-effort: never lets a
+    // logging failure break the page edit that already committed above.
+    await recordAuditTrigger({
+      tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId,
+      dbUser: ctx.dbUser, details: `Knowledge base page "${page.title}" updated to version ${page.version}.`,
+    }).catch((err) => console.error(`[audit-trigger] failed to record knowledge_updated for page ${page.id}:`, err))
+
     return page
   })
 }

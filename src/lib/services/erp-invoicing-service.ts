@@ -29,6 +29,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
+import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -338,6 +339,20 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
 
     const [updated] = await db.update(erpSalesInvoices).set({ status: "submitted", journalEntryId: je.id }).where(eq(erpSalesInvoices.id, invoiceId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId })
+
+    // D15.B2.S1 named event #5, "Revenue Posted -> Revenue Audit" -- this is
+    // the real journal-entry posting (the GL lines inserted just above), not
+    // merely a status label change. didRevenuePost() gates on the real
+    // draft->submitted transition rather than assuming every call here is one
+    // (defensive, matches this file's own "never assume" discipline
+    // elsewhere), even though the draft-only check above makes it true today.
+    if (didRevenuePost(invoice.status, updated.status)) {
+      await recordAuditTrigger({
+        tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId,
+        dbUser: ctx.dbUser, details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).`,
+      }).catch((err) => console.error(`[audit-trigger] failed to record revenue_posted for invoice ${invoiceId}:`, err))
+    }
+
     return updated
   })
 }
