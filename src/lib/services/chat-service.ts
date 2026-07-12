@@ -648,7 +648,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
 // dispatch semantics, which don't apply to "a participant asked VERI a
 // question in a group chat") and reuses the SAME "user_assistant_oa"
 // orchestra layer for model resolution -- see this wave's migration
-// (0157_priority6_veri_chat_participant.sql) comment for why a whole new
+// (0159_priority6_veri_chat_participant.sql) comment for why a whole new
 // layer wasn't stood up for one narrow additive feature.
 async function generateVeriGroupReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
   const policyDecision = enforcePolicy(
