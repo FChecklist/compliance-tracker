@@ -105,6 +105,83 @@ export function escalatedPlatformConfig(): ResolvedModelConfig | null {
   return { provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL, apiKey, isCustomerConfigured: false }
 }
 
+// ─── Source-type-aware routing (D26.B5.S1, ai-os/STATUS-REPORT.md item 9) ──
+// A prior dispatch investigated wiring a `source_type` signal all the way
+// through orchestra-model-resolver.ts's ~23 call sites and found it needed
+// genuinely new architecture -- correctly scoped as too large for a narrow
+// slice, and NOT attempted here. What this wave does instead: the one
+// concrete precedent that already existed for "this resolved provider needs
+// a DIFFERENT specific model for this particular KIND of call, not the
+// layer's default text model" -- document-extraction-service.ts's own
+// VISION_MODEL_OVERRIDES map plus its provider-then-fallback-provider
+// lookup logic -- generalized into this resolver itself, exactly as the
+// dispatch brief asks, rather than reinvented a second time somewhere else.
+//
+// Deliberately NOT attempted: a new "Microsoft AI" LLMProvider integration.
+// That's a real, separate initiative (a new provider in llm-client.ts's
+// LLMProvider union, a new API client, new env vars/pricing) -- out of
+// scope for "make the resolver source-type-aware in principle."
+//
+// Design: keyed by sourceType FIRST, then provider -- a flat Provider->model
+// map (like the original VISION_MODEL_OVERRIDES) can only express one
+// source type at a time; different source types can need different override
+// models on the very same provider (e.g. a vision-capable model here, a
+// code-specialized model there), so the table needs both dimensions.
+// `sourceType` is free text (matching this codebase's established choice
+// for `entityRelationships.sourceType`/`embeddings.entityType`, schema.ts)
+// -- an enum would need a migration every time a new source type wants to
+// register overrides.
+const SOURCE_TYPE_MODEL_OVERRIDES: Record<string, Partial<Record<LLMProvider, string>>> = {
+  // The exact map document-extraction-service.ts used to own locally --
+  // moved here verbatim (not re-guessed) and wired back in below.
+  vision_document_extraction: {
+    openai: "gpt-4o",
+    anthropic: "claude-sonnet-5",
+    google: "gemini-2.0-flash",
+    openrouter: "openai/gpt-4o-mini",
+  },
+}
+
+/**
+ * Applies a registered source-type override to an already-resolved config,
+ * generalizing document-extraction-service.ts's old inline vision-override
+ * logic (provider override, else fallback-provider override, else "no
+ * usable config for this source type"). Additive and fully backward
+ * compatible: `sourceType` undefined (every one of the ~23 existing call
+ * sites, unchanged by this wave) is a no-op passthrough.
+ *
+ * Returns null -- same "cannot proceed" contract every other branch of
+ * resolveModelConfig/resolvePlatformModelConfig already uses -- ONLY when
+ * `sourceType` names a REGISTERED override table but neither the primary
+ * nor fallback provider has an entry in it (the config genuinely cannot
+ * serve this source type). An unregistered/unknown sourceType is never
+ * treated as an error -- it passes the original config through unchanged,
+ * since nothing has declared that source type needs special handling.
+ */
+export function applySourceTypeOverride(config: ResolvedModelConfig, sourceType?: string): ResolvedModelConfig | null {
+  if (!sourceType) return config
+  const overrides = SOURCE_TYPE_MODEL_OVERRIDES[sourceType]
+  if (!overrides) return config
+
+  const primaryModel = overrides[config.provider]
+  if (primaryModel) return { ...config, model: primaryModel }
+
+  if (config.fallback) {
+    const fallbackModel = overrides[config.fallback.provider]
+    if (fallbackModel) {
+      return {
+        provider: config.fallback.provider,
+        model: fallbackModel,
+        apiKey: config.fallback.apiKey,
+        isCustomerConfigured: config.isCustomerConfigured,
+        fallback: config.fallback,
+      }
+    }
+  }
+
+  return null
+}
+
 /**
  * Resolves which provider/model/key an org should use for a given Orchestra
  * Layer: a customer's own `customer_model_config` row (BYO) if one is active
@@ -123,8 +200,17 @@ export function escalatedPlatformConfig(): ResolvedModelConfig | null {
  * another org's here, by construction (there is no code path in this
  * function that reads any other org's customer_model_config row). See
  * resolvePlatformModelConfig() below for the separate, platform-scoped path.
+ *
+ * `sourceType` (D26.B5.S1, optional, default undefined): when provided and
+ * SOURCE_TYPE_MODEL_OVERRIDES has a registered table for it, the resolved
+ * model is swapped for that source type's override (see
+ * applySourceTypeOverride() above) before being returned -- e.g. passing
+ * "vision_document_extraction" ensures the returned config can actually see
+ * images, regardless of which text model the layer/org would otherwise
+ * resolve to. Every existing caller (all ~23 call sites predating this
+ * wave) omits this argument and is completely unaffected.
  */
-export async function resolveModelConfig(orgId: string, layerKey: string): Promise<ResolvedModelConfig | null> {
+export async function resolveModelConfig(orgId: string, layerKey: string, sourceType?: string): Promise<ResolvedModelConfig | null> {
   const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, layerKey) });
   if (!layer) return null;
 
@@ -165,13 +251,13 @@ export async function resolveModelConfig(orgId: string, layerKey: string): Promi
     const apiKey = await decryptApiKey(customerConfig.encryptedApiKey);
     const provider = customerConfig.provider as LLMProvider;
     const model = customerConfig.modelName;
-    return {
+    return applySourceTypeOverride({
       provider,
       model,
       apiKey,
       isCustomerConfigured: true,
       fallback: platformFallbackFor({ provider, model }),
-    };
+    }, sourceType);
   }
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
@@ -180,7 +266,10 @@ export async function resolveModelConfig(orgId: string, layerKey: string): Promi
   const apiKey = platformApiKeyFor(provider);
   if (!apiKey) return null;
 
-  return { provider, model, apiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) };
+  return applySourceTypeOverride(
+    { provider, model, apiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) },
+    sourceType
+  );
 }
 
 /**
@@ -236,8 +325,14 @@ const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
  * more capacity to do orchestra, so it takes from all available models as
  * per need" (the user's own framing). Never lends to another org; never
  * silently substitutes a customer's own resolution with someone else's key.
+ *
+ * `sourceType` (D26.B5.S1, optional, default undefined): same contract as
+ * resolveModelConfig()'s -- see applySourceTypeOverride() above. Applied to
+ * whichever branch actually resolves (platform default OR shared-pool
+ * borrow), so a source-type override is honored regardless of which path
+ * this function takes.
  */
-export async function resolvePlatformModelConfig(layerKey: string): Promise<ResolvedModelConfig | null> {
+export async function resolvePlatformModelConfig(layerKey: string, sourceType?: string): Promise<ResolvedModelConfig | null> {
   const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, layerKey) });
   if (!layer) return null;
 
@@ -246,13 +341,16 @@ export async function resolvePlatformModelConfig(layerKey: string): Promise<Reso
   const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
   const platformApiKey = platformApiKeyFor(provider);
   if (platformApiKey) {
-    return { provider, model, apiKey: platformApiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) };
+    return applySourceTypeOverride(
+      { provider, model, apiKey: platformApiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) },
+      sourceType
+    );
   }
 
-  return borrowFromSharedPool(layerKey, layer.id);
+  return borrowFromSharedPool(layerKey, layer.id, sourceType);
 }
 
-async function borrowFromSharedPool(layerKey: string, orchestraLayerId: string): Promise<ResolvedModelConfig | null> {
+async function borrowFromSharedPool(layerKey: string, orchestraLayerId: string, sourceType?: string): Promise<ResolvedModelConfig | null> {
   const idleCutoff = new Date(Date.now() - IDLE_THRESHOLD_MS);
 
   const candidate = await db.query.customerModelConfig.findFirst({
@@ -282,11 +380,11 @@ async function borrowFromSharedPool(layerKey: string, orchestraLayerId: string):
   const apiKey = await decryptApiKey(candidate.encryptedApiKey);
   const provider = candidate.provider as LLMProvider;
   const model = candidate.modelName;
-  return {
+  return applySourceTypeOverride({
     provider,
     model,
     apiKey,
     isCustomerConfigured: true,
     fallback: platformFallbackFor({ provider, model }),
-  };
+  }, sourceType);
 }
