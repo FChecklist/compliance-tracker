@@ -28,7 +28,7 @@
 // stored tsvector column to keep in sync").
 import { platformAssets } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm"
 
 export type AssetQueryContext = { orgId: string }
 
@@ -41,11 +41,23 @@ export type AssetStatus = PlatformAsset["status"]
 
 const DEFAULT_LIMIT = 50
 
+// Org-scoped rows OR platform-tier rows (orgId IS NULL) -- `eq(orgId, x)`
+// alone silently excludes every platform-wide asset (worker_agents/
+// computation_engines/prompt_templates, the majority of this pass's seeded
+// population, per 08-priority3-umr-tracker.yaml's scope_decision) since SQL
+// never matches `orgId = 'x'` against a NULL column. Mirrors the
+// `or(eq(orgId, ctx.orgId), isNull(orgId))` shape asset-relationship-
+// service.ts / asset-vector-search-service.ts already use for the same
+// nullable-org column.
+function orgOrPlatformCondition(orgId: string) {
+  return or(eq(platformAssets.orgId, orgId), isNull(platformAssets.orgId))
+}
+
 // ─── Index 2: btree(assetType) ──────────────────────────────────────────
 export async function queryByAssetType(ctx: AssetQueryContext, assetType: AssetType): Promise<PlatformAsset[]> {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets)
-      .where(and(eq(platformAssets.orgId, ctx.orgId), eq(platformAssets.assetType, assetType)))
+      .where(and(orgOrPlatformCondition(ctx.orgId), eq(platformAssets.assetType, assetType)))
       .orderBy(desc(platformAssets.updatedAt))
       .limit(DEFAULT_LIMIT)
   )
@@ -56,7 +68,7 @@ export async function queryByModule(ctx: AssetQueryContext, module: string): Pro
   if (!module?.trim()) return []
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets)
-      .where(and(eq(platformAssets.orgId, ctx.orgId), eq(platformAssets.module, module)))
+      .where(and(orgOrPlatformCondition(ctx.orgId), eq(platformAssets.module, module)))
       .orderBy(desc(platformAssets.updatedAt))
       .limit(DEFAULT_LIMIT)
   )
@@ -66,7 +78,7 @@ export async function queryByModule(ctx: AssetQueryContext, module: string): Pro
 export async function queryByStatus(ctx: AssetQueryContext, status: AssetStatus): Promise<PlatformAsset[]> {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets)
-      .where(and(eq(platformAssets.orgId, ctx.orgId), eq(platformAssets.status, status)))
+      .where(and(orgOrPlatformCondition(ctx.orgId), eq(platformAssets.status, status)))
       .orderBy(desc(platformAssets.updatedAt))
       .limit(DEFAULT_LIMIT)
   )
@@ -85,7 +97,7 @@ export async function queryByTags(ctx: AssetQueryContext, tags: string[]): Promi
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets)
       .where(and(
-        eq(platformAssets.orgId, ctx.orgId),
+        orgOrPlatformCondition(ctx.orgId),
         sql`${platformAssets.tags} @> ${JSON.stringify(tags)}::jsonb`
       ))
       .orderBy(desc(platformAssets.updatedAt))
@@ -105,7 +117,7 @@ export async function queryByAiCapability(ctx: AssetQueryContext, capability: st
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets)
       .where(and(
-        eq(platformAssets.orgId, ctx.orgId),
+        orgOrPlatformCondition(ctx.orgId),
         eq(platformAssets.aiEnabled, true),
         sql`${platformAssets.aiCapabilities} @> ${JSON.stringify([capability])}::jsonb`
       ))
@@ -124,7 +136,7 @@ export async function queryByKeywords(ctx: AssetQueryContext, query: string): Pr
   if (!query?.trim()) return []
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets).where(
-      sql`${platformAssets.orgId} = ${ctx.orgId} AND
+      sql`(${platformAssets.orgId} = ${ctx.orgId} OR ${platformAssets.orgId} IS NULL) AND
         to_tsvector('english', coalesce(${platformAssets.name}, '') || ' ' || coalesce(${platformAssets.searchKeywords}, '') || ' ' || coalesce(${platformAssets.purpose}, ''))
         @@ plainto_tsquery('english', ${query})`
     ).orderBy(sql`ts_rank(

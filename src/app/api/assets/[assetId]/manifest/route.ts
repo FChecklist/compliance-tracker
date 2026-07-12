@@ -20,6 +20,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ass
     const { assetId } = await params
     const asset = await getAssetByAssetId(assetId)
     if (!asset) return NextResponse.json({ error: `Asset ${assetId} not found` }, { status: 404 })
+    // getAssetByAssetId() runs on the plain `db` client (no withTenantContext,
+    // no RLS -- see asset-registry-service.ts's own header for why it mirrors
+    // capability-registry-service.ts's precedent), so org scoping has to be
+    // enforced here explicitly: null orgId = platform-tier (visible to
+    // everyone), otherwise the asset must belong to the caller's own org.
+    // Same 404-not-403 shape as everywhere else in this file, so a foreign
+    // org's private assetId can't be distinguished from a nonexistent one.
+    if (asset.orgId !== null && asset.orgId !== orgId) {
+      return NextResponse.json({ error: `Asset ${assetId} not found` }, { status: 404 })
+    }
 
     // "What am I connected to?" -- real graph traversal, not a stub. Each
     // row carries relationshipType + direction, which is what lets a
