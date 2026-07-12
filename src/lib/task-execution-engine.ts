@@ -30,6 +30,17 @@ import {
   type TaskCapability, type InstructionPackage,
 } from "@/lib/services/capability-learning-service";
 import { resolvePackageVariablesOrThrow, MissingInformationError } from "@/lib/services/package-variable-resolver";
+// Priority 6 (UMR <-> Software Orchestrator integration): NOVEL-classified
+// tasks get one more check against the Universal Metadata Registry before
+// falling through to free-text AI planning -- queryByKeywords() is the
+// tsvector-GIN-backed search asset-query-service.ts exposes (see that
+// file's own header), reused as-is here rather than duplicated.
+// buildNovelUmrHint() is the pure decision half (see its own comment,
+// below the executeTask() call site that uses it) -- kept in this file
+// rather than asset-query-service.ts/asset-routing-engine.ts since it's
+// specific to how task-execution-engine.ts phrases a planning-prompt hint,
+// not a generic UMR query concern.
+import { queryByKeywords, type PlatformAsset } from "@/lib/services/asset-query-service";
 
 registerAllGuardrails();
 
@@ -1868,6 +1879,23 @@ async function checkTaskEscalationContext(orgId: string, userId: string, taskId:
   })
 }
 
+// Priority 6 (UMR <-> Software Orchestrator integration): pure decision
+// over an already-fetched UMR query result set -- does the top match
+// warrant surfacing to the free-text planner as a hint? Deliberately
+// content-free about WHY a hint is or isn't warranted beyond "is there any
+// active asset at all" -- queryByKeywords() already ranks by ts_rank, so
+// the first active row is the strongest textual match in the set, and this
+// function's only job is turning that into planning-prompt text, never a
+// decision that blocks or redirects execution (see the executeTask() call
+// site: umrHint is appended to userMessage, nothing else). Returns null
+// when there's nothing worth surfacing (no matches, or every match is
+// draft/archived/deleted).
+export function buildNovelUmrHint(matches: PlatformAsset[]): string | null {
+  const top = matches.find((a) => a.status === "active");
+  if (!top) return null;
+  return `Note: the Universal Metadata Registry lists a possibly related platform asset already: "${top.name}" (${top.assetType}, asset ${top.assetId}${top.purpose ? `, purpose: ${top.purpose}` : ""}). This is a hint only -- verify it actually applies before relying on it, and proceed with the plan below regardless of whether it does.`;
+}
+
 export async function executeTask(
   orgId: string,
   userId: string,
@@ -1985,6 +2013,26 @@ export async function executeTask(
       await recordExecutionOutcome(capability.id, "NOVEL").catch((err) => console.error("Priority 5: recordExecutionOutcome failed:", err));
     }
 
+    // Priority 6 (UMR <-> Software Orchestrator integration): one more
+    // check before falling through to free-text AI planning -- does the
+    // Universal Metadata Registry (platform_assets) already list a
+    // plausibly related asset? Deliberately additive/non-blocking, in the
+    // same spirit as MissingInformationError/isPackageReliable() gating
+    // above but weaker by design: this NEVER changes control flow or
+    // rejects the task, it only surfaces a hint into the planning prompt
+    // below (see umrHint's use in userMessage). A UMR query failure is
+    // logged and swallowed exactly like every other best-effort lookup in
+    // this function (searchAssistantMemories, recordExecutionOutcome) --
+    // it must never block a task that would have worked before this check
+    // existed.
+    let umrHint: string | null = null;
+    try {
+      const umrMatches = await queryByKeywords({ orgId }, `${title} ${description ?? ""}`.trim());
+      umrHint = buildNovelUmrHint(umrMatches);
+    } catch (err) {
+      console.error("Priority 6: UMR lookup failed for NOVEL-classified task, continuing without a hint:", err);
+    }
+
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
     if (!modelConfig) {
       await markTaskOutcome(orgId, userId, taskId, "failed", "No LLM provider is configured for this organisation (task_oa layer). Set one up in Settings → AI Configuration.");
@@ -2047,7 +2095,7 @@ export async function executeTask(
     const memoryBlock = memories.length > 0
       ? `\n\nRelevant memories from this assistant's past work (may or may not apply here):\n${memories.map((m) => `- [${m.category}] ${m.content}`).join("\n")}`
       : "";
-    const userMessage = `Task: ${title}\n${description ? `Description: ${description}\n` : ""}\nAvailable agents:\n${agentList || "(none configured yet)"}${memoryBlock}`;
+    const userMessage = `Task: ${title}\n${description ? `Description: ${description}\n` : ""}\nAvailable agents:\n${agentList || "(none configured yet)"}${memoryBlock}${umrHint ? `\n\n${umrHint}` : ""}`;
 
     // Escalation (2026-07-10, founder directive): same pattern as
     // chat-service.ts's generateAiReply -- deterministic pre-call signals
