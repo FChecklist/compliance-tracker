@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createId } from "@paralleldrive/cuid2"
 import { isVisionExtractable, extractDocumentContent } from "@/lib/services/document-extraction-service"
 import { listDocuments, markSupersededVersion, ServiceError } from "@/lib/services/document-service"
+import { classifyBusinessObjectType } from "@/lib/business-object-classifier"
 
 const BUCKET = "compliance-documents"
 const MAX_SIZE_BYTES = 25 * 1024 * 1024 // matches the bucket's file_size_limit
@@ -154,6 +155,9 @@ export async function POST(request: NextRequest) {
       id: result.id,
       name: result.name,
       fileType: result.fileType,
+      // U-D26.B3.S1: derived, never persisted -- the one authorized place
+      // this response looks at fileType/name, so nothing downstream needs to.
+      businessObjectType: classifyBusinessObjectType({ mimeType: result.fileType, fileName: result.name }),
       fileSize: result.fileSize,
       createdAt: result.createdAt.toISOString(),
     }, { status: 201 })
@@ -182,7 +186,14 @@ export async function GET(request: NextRequest) {
     const linkedEntityId = searchParams.get("linkedEntityId") || undefined
 
     const docs = await listDocuments({ orgId }, { category, linkedEntityType, linkedEntityId })
-    return NextResponse.json({ documents: docs })
+    // U-D26.B3.S1: attach the normalized 4-type classification alongside the
+    // raw fileType -- callers should read businessObjectType, not re-derive
+    // it from fileType/name themselves.
+    const withBusinessObjectType = docs.map((doc) => ({
+      ...doc,
+      businessObjectType: classifyBusinessObjectType({ mimeType: doc.fileType, fileName: doc.name }),
+    }))
+    return NextResponse.json({ documents: withBusinessObjectType })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Document list error:", error)
