@@ -8426,6 +8426,17 @@ export const capabilityImprovementProposals = complianceSchemaDB.table('capabili
   capabilityId: text('capability_id').notNull(),
   capabilityVersion: integer('capability_version').notNull(),
   findings: jsonb('findings').notNull(), // { missingFunction?, missingWorkflow?, missingBusinessRule?, missingReport?, missingConfiguration?, missingModePill?, missingChainOption?, missingMetadata?, missingValidation?, missingScreen?, missingApi? }
+  // Priority 6 (UMR <-> Software Orchestrator integration): {assetId, name,
+  // sourceTable, sourceId, assetType} of a platform_assets row the
+  // Auditor's UMR keyword search found as a plausible existing match before
+  // this proposal was dispatched to Higher AI -- null when no strong match
+  // was found (the common case). Never blocks dispatch by itself; see
+  // capability-audit-service.ts's findExistingUmrCandidate() and
+  // dispatchProposalToHigherAI(), which folds this into the TightTask so
+  // Higher AI considers wiring/reusing the candidate before a from-scratch
+  // build, and closeImprovementLoop(), which uses it to decide whether to
+  // updateAsset() the existing UMR row instead of registering a new one.
+  existingAssetMatch: jsonb('existing_asset_match'),
   occurrenceCount: integer('occurrence_count').notNull().default(1),
   status: text('status').notNull().default('open'), // 'open' | 'dispatched' | 'resolved' | 'rejected'
   dispatchedToRole: text('dispatched_to_role'),

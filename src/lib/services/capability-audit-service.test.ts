@@ -1,14 +1,20 @@
 /// <reference types="bun-types" />
 // Priority 5 (Phase C): unit tests for capability-audit-service.ts's pure
 // functions. DB/LLM-touching functions (runCapabilityAudit,
-// upsertImprovementProposal, dispatchProposalToHigherAI, closeImprovementLoop)
-// are not tested here, matching this codebase's established convention (see
-// capability-learning-service.test.ts's own stated precedent).
+// upsertImprovementProposal, dispatchProposalToHigherAI, closeImprovementLoop,
+// findExistingUmrCandidate) are not tested here, matching this codebase's
+// established convention (see capability-learning-service.test.ts's own
+// stated precedent).
 //
 // shouldAuditCapability() gets the heaviest coverage on purpose -- it is
 // the single most important invariant in this file: the gate that stops
 // the Auditor from re-spending a real LLM call on the same
 // capability+version combination more than once.
+//
+// Priority 6 (UMR <-> Software Orchestrator integration) adds coverage for
+// the pure decision half of the UMR cross-check: buildUmrSearchQuery,
+// pickExistingAssetMatch, pickAssetTypeForFindings, and
+// buildTightTaskFromFindings' new existingAssetMatch param.
 import { describe, test, expect } from "bun:test"
 import {
   shouldAuditCapability,
@@ -16,10 +22,44 @@ import {
   parseAuditVerdict,
   mapFindingsToRole,
   buildTightTaskFromFindings,
+  buildUmrSearchQuery,
+  pickExistingAssetMatch,
+  pickAssetTypeForFindings,
   type AuditFindings,
+  type ExistingAssetMatch,
 } from "./capability-audit-service"
 import { computeCoverageStats } from "./capability-learning-service"
 import { validateTightTask } from "@/lib/task-tightening"
+import type { PlatformAsset } from "./asset-query-service"
+
+function makeAsset(overrides: Partial<PlatformAsset> = {}): PlatformAsset {
+  return {
+    id: "id-1",
+    assetId: "AST-000001",
+    name: "GST Penalty Calculator",
+    assetType: "computation_engine",
+    module: "finance",
+    department: null,
+    ownerId: null,
+    status: "active",
+    createdBy: null,
+    version: "1.0",
+    tags: [],
+    aiEnabled: false,
+    aiCapabilities: [],
+    permissions: [],
+    parentAssetId: null,
+    searchKeywords: null,
+    purpose: "Computes GST late-filing penalties",
+    dependencies: [],
+    sourceTable: "computation_engines",
+    sourceId: "eng-1",
+    orgId: null,
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    updatedAt: new Date("2026-01-01T00:00:00Z"),
+    ...overrides,
+  } as unknown as PlatformAsset
+}
 
 describe("shouldAuditCapability", () => {
   test("never-audited capability (lastAuditedVersion=null) is eligible", () => {
@@ -201,5 +241,97 @@ describe("buildTightTaskFromFindings", () => {
     )
     expect(task.objective).toContain("no endpoint for X")
     expect(task.objective).toContain("no screen shows Y")
+  })
+
+  test("Priority 6: omits any UMR note when no existingAssetMatch is given (default)", () => {
+    const task = buildTightTaskFromFindings(capability, { missingFunction: "no helper computes X" }, stats)
+    expect(task.objective).not.toContain("Universal Metadata Registry")
+  })
+
+  test("Priority 6: folds a real existingAssetMatch into the objective, still passes validateTightTask", () => {
+    const match: ExistingAssetMatch = {
+      assetId: "AST-000042",
+      name: "GST Penalty Calculator",
+      sourceTable: "computation_engines",
+      sourceId: "eng-42",
+      assetType: "computation_engine",
+    }
+    const task = buildTightTaskFromFindings(capability, { missingFunction: "no helper computes GST penalties" }, stats, match)
+    expect(task.objective).toContain("Universal Metadata Registry")
+    expect(task.objective).toContain("AST-000042")
+    expect(task.objective).toContain("GST Penalty Calculator")
+    expect(task.objective).toContain("no helper computes GST penalties") // the real gap text is still present, never replaced
+    const result = validateTightTask(task)
+    expect(result.valid).toBe(true)
+  })
+})
+
+// ─── Priority 6 (UMR <-> Software Orchestrator integration) ─────────────
+
+describe("buildUmrSearchQuery", () => {
+  test("concatenates every present finding's concrete text", () => {
+    const query = buildUmrSearchQuery({ missingFunction: "computes GST penalty", missingApi: "no endpoint for filing" })
+    expect(query).toContain("computes GST penalty")
+    expect(query).toContain("no endpoint for filing")
+  })
+
+  test("returns an empty string when findings has no keys", () => {
+    expect(buildUmrSearchQuery({})).toBe("")
+  })
+})
+
+describe("pickExistingAssetMatch", () => {
+  test("picks the first active computation_engine candidate", () => {
+    const candidates = [makeAsset({ id: "a1", assetType: "report" }), makeAsset({ id: "a2", assetType: "computation_engine", status: "active" })]
+    const match = pickExistingAssetMatch(candidates)
+    expect(match).not.toBeNull()
+    expect(match!.assetId).toBe("AST-000001")
+    expect(match!.sourceTable).toBe("computation_engines")
+  })
+
+  test("returns null when no candidate is a computation_engine", () => {
+    const candidates = [makeAsset({ assetType: "report" }), makeAsset({ assetType: "workflow" })]
+    expect(pickExistingAssetMatch(candidates)).toBeNull()
+  })
+
+  test("returns null when the only computation_engine candidate is not active", () => {
+    const candidates = [makeAsset({ assetType: "computation_engine", status: "archived" })]
+    expect(pickExistingAssetMatch(candidates)).toBeNull()
+  })
+
+  test("returns null for an empty candidate list", () => {
+    expect(pickExistingAssetMatch([])).toBeNull()
+  })
+
+  test("respects candidate order (queryByKeywords' own ts_rank ordering) -- picks the first match, not just any match", () => {
+    const first = makeAsset({ id: "first", assetId: "AST-000010", assetType: "computation_engine" })
+    const second = makeAsset({ id: "second", assetId: "AST-000020", assetType: "computation_engine" })
+    const match = pickExistingAssetMatch([first, second])
+    expect(match!.assetId).toBe("AST-000010")
+  })
+})
+
+describe("pickAssetTypeForFindings", () => {
+  test("maps each finding category to a valid platform_assets assetType", () => {
+    expect(pickAssetTypeForFindings({ missingApi: "x" })).toBe("api")
+    expect(pickAssetTypeForFindings({ missingBusinessRule: "x" })).toBe("rule")
+    expect(pickAssetTypeForFindings({ missingFunction: "x" })).toBe("function")
+    expect(pickAssetTypeForFindings({ missingWorkflow: "x" })).toBe("workflow")
+    expect(pickAssetTypeForFindings({ missingValidation: "x" })).toBe("rule")
+    expect(pickAssetTypeForFindings({ missingReport: "x" })).toBe("report")
+    expect(pickAssetTypeForFindings({ missingConfiguration: "x" })).toBe("other")
+    expect(pickAssetTypeForFindings({ missingMetadata: "x" })).toBe("other")
+    expect(pickAssetTypeForFindings({ missingModePill: "x" })).toBe("screen")
+    expect(pickAssetTypeForFindings({ missingChainOption: "x" })).toBe("dynamic_chain")
+    expect(pickAssetTypeForFindings({ missingScreen: "x" })).toBe("screen")
+  })
+
+  test("returns 'other' when findings has no recognized key", () => {
+    expect(pickAssetTypeForFindings({})).toBe("other")
+  })
+
+  test("is deterministic under multiple findings -- picks by fixed FINDING_KEYS precedence", () => {
+    const findings: AuditFindings = { missingScreen: "ui gap", missingApi: "api gap" }
+    expect(pickAssetTypeForFindings(findings)).toBe("api") // missingApi precedes missingScreen in FINDING_KEYS order
   })
 })
