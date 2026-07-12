@@ -896,6 +896,21 @@ export const tasks = complianceSchemaDB.table('tasks', {
   // additive -- only wired at new-task creation via VeriComposer, no
   // backfill of pre-existing rows.
   dynamicChainId: text('dynamic_chain_id'),
+  // GAP-CONTINUOUS-REPRIORITIZATION (Tree 1 D22.B2.S1): the deterministic
+  // deadline-driven recalculation in task-reprioritization-service.ts writes
+  // both these columns together whenever it changes `priority`, and never
+  // touches them otherwise -- so lastReprioritizedAt !== null is a real,
+  // queryable signal for "the system, not a human, last raised this task's
+  // priority," and lastReprioritizationReason ('overdue' | 'due_within_24h' |
+  // 'due_within_72h') records exactly which real due-date signal triggered
+  // it. Both nullable/additive: every existing row keeps priority as
+  // whatever a human (or Wave 148 default) set, untouched, until this engine
+  // first runs against it. Deliberately NOT a broader "reprioritization
+  // history" table -- see that service file's own header for why dependency-
+  // and SLA-driven reprioritization aren't real for this table today and
+  // weren't attempted.
+  lastReprioritizedAt: timestamp('last_reprioritized_at'),
+  lastReprioritizationReason: text('last_reprioritization_reason'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

@@ -295,7 +295,10 @@ export async function getTask(ctx: ReadContext & { userId?: string }, id: string
   }
 }
 
-const VALID_PRIORITIES = [0, 1, 2, 3] // Low, Normal, High, Urgent
+// Exported so task-reprioritization-service.ts's deterministic recalculation
+// validates against the exact same bound this codebase already enforces on
+// human-set priority, instead of re-declaring its own copy of "0-3."
+export const VALID_PRIORITIES = [0, 1, 2, 3] // Low, Normal, High, Urgent
 
 export async function updateTask(ctx: ServiceContext, id: string, input: { status?: string; title?: string; description?: string; priority?: number }) {
   const { orgId, actor } = ctx
