@@ -151,9 +151,7 @@ items:
 
   - num: 5
     name: "Approval & Confirmation UX (D9)"
-    status: not_started
+    status: complete
     current_state: "The real system built a simpler always_approve/always_reject binary model instead of the literal 9/9/16-option vocabularies the source docs name (3 confirmed_gap sub-branches: B1.S1/S2/S3). The tree's own note flags this as arguably BETTER on the stated goal (fast, minimally intrusive) even though it diverges from the literal spec."
-    remaining_work:
-      - "OPEN DECISION, not a default build item: does the Owner want the literal 9-option / 9-option / 16-verb vocabularies built on top of the existing binary system, or is the simpler system that already ships kept as the intentional design? The tree's own domain-level note explicitly warns not to build this without confirming the Owner still wants it. Flagging here rather than defaulting either way."
-      - "If literal vocabularies are wanted: B1.S3's 16-verb work-object decision set is the largest single piece -- note some verbs (Delegate, Assign) may already be served by task-reassignment mechanisms elsewhere, worth checking before assuming total absence."
-      - "B2.S1 (VERI recommends creating a reusable approval preference) -- smaller, narrow, already mostly proven (saveApprovalPreference never auto-activates); only the proactive-recommendation half is unconfirmed."
+    remaining_work: []
+    resolution_note: "RESOLVED 2026-07-12 (DEC-07, Super Boss judgment call under the Owner's explicit 'you have full control' directive -- see 01-phase0-owner-decisions.yaml's DEC-07 for full reasoning). Ratified the existing binary system; the 27 literal option-set entries (B1.S1/S2/S3) are NOT built, on the same DEC-03-class reasoning: the literal spec and the requirement's own stated goal (fast, minimally intrusive) point in opposite directions here, so matching option-count literalism would mean trading a better-aligned working system for a worse one. B2.S1 and B3.S1 (the 2 non-gap sub-branches) were already correctly served. No code changed -- this is a documented scope ratification, not a build."
