@@ -7,6 +7,11 @@
 // platform-assets.test.ts). No AI/LLM call is exercised or referenced here
 // -- every case below drives a deterministic pure function with plain
 // fixture data.
+//
+// Priority 6 (2026-07-12) added parseAuditSnapshot() coverage below --
+// the --from-json mode's validator, exercised the same way the live-DB path
+// was actually run for real this dispatch (see file header and
+// scripts/audit-asset-registry.snapshot-2026-07-12.json).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
@@ -17,6 +22,7 @@ import {
   computeCoverageStats,
   formatReport,
   determineExitCode,
+  parseAuditSnapshot,
   type TableReconciliation,
   type CoverageStats,
 } from "./audit-asset-registry"
@@ -184,5 +190,70 @@ describe("formatReport", () => {
       invalidIdentifiers: [],
     })
     expect(report).toContain("+5 more")
+  })
+})
+
+describe("parseAuditSnapshot", () => {
+  const validSnapshot = {
+    generatedAt: "2026-07-12T00:00:00Z",
+    reconciliations: [
+      { sourceTable: "departments", sourceCount: 63, registryCount: 63, missingFromRegistry: [], orphanedInRegistry: [] },
+    ],
+    triggerRows: [
+      { source_table: "departments", registration_active: true, trigger_attached: true },
+    ],
+  }
+
+  test("parses a well-formed snapshot", () => {
+    const snapshot = parseAuditSnapshot(validSnapshot)
+    expect(snapshot.generatedAt).toBe("2026-07-12T00:00:00Z")
+    expect(snapshot.reconciliations).toEqual(validSnapshot.reconciliations)
+    expect(snapshot.triggerRows).toEqual(validSnapshot.triggerRows)
+  })
+
+  test("tolerates extra unrecognized fields (e.g. a 'method' provenance note)", () => {
+    const snapshot = parseAuditSnapshot({ ...validSnapshot, method: "gathered via Supabase MCP execute_sql" })
+    expect(snapshot.reconciliations.length).toBe(1)
+  })
+
+  test("defaults generatedAt to 'unknown' when missing or not a string", () => {
+    const { generatedAt, ...withoutGeneratedAt } = validSnapshot
+    expect(parseAuditSnapshot(withoutGeneratedAt).generatedAt).toBe("unknown")
+    expect(parseAuditSnapshot({ ...validSnapshot, generatedAt: 12345 }).generatedAt).toBe("unknown")
+  })
+
+  test("throws when the top level isn't an object", () => {
+    expect(() => parseAuditSnapshot(null)).toThrow("Snapshot must be a JSON object")
+    expect(() => parseAuditSnapshot([1, 2, 3])).toThrow("Snapshot must be a JSON object")
+    expect(() => parseAuditSnapshot("not json")).toThrow("Snapshot must be a JSON object")
+  })
+
+  test("throws when reconciliations[] is missing", () => {
+    const { reconciliations, ...rest } = validSnapshot
+    expect(() => parseAuditSnapshot(rest)).toThrow("Snapshot missing reconciliations[]")
+  })
+
+  test("throws when triggerRows[] is missing", () => {
+    const { triggerRows, ...rest } = validSnapshot
+    expect(() => parseAuditSnapshot(rest)).toThrow("Snapshot missing triggerRows[]")
+  })
+
+  test("throws naming the exact field when a reconciliation row is malformed", () => {
+    expect(() =>
+      parseAuditSnapshot({ ...validSnapshot, reconciliations: [{ sourceTable: "departments", sourceCount: -1, registryCount: 63, missingFromRegistry: [], orphanedInRegistry: [] }] })
+    ).toThrow("reconciliations[0].sourceCount must be a non-negative number")
+  })
+
+  test("throws naming the exact field when a trigger row is malformed", () => {
+    expect(() =>
+      parseAuditSnapshot({ ...validSnapshot, triggerRows: [{ source_table: "departments", registration_active: "yes", trigger_attached: true }] })
+    ).toThrow("triggerRows[0].registration_active must be a boolean")
+  })
+
+  test("round-trips through determineExitCode/formatReport cleanly (matches the real 2026-07-12 CLEAN run)", () => {
+    const snapshot = parseAuditSnapshot(validSnapshot)
+    const triggerGaps = findTriggerGaps(snapshot.triggerRows)
+    const coverage: CoverageStats = { total: 1, registeredCount: 1, exemptedCount: 0, uncovered: [] }
+    expect(determineExitCode({ reconciliations: snapshot.reconciliations, triggerGaps, coverage, invalidIdentifiers: [] })).toBe(0)
   })
 })

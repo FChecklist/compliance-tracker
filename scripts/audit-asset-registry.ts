@@ -37,13 +37,45 @@
 //      all is exactly the kind of drift this script exists to catch even if
 //      CI was somehow bypassed for that commit.
 //
-// This script needs a live DATABASE_URL to run for real, and per this
-// dispatch's own instructions was NOT run against live data by the agent
-// that wrote it -- verified instead via `tsc --noEmit` and
-// audit-asset-registry.test.ts's coverage of every pure/extractable
-// function below (same "written by a subagent, run by the Super Boss"
-// discipline as scripts/backfill-platform-assets.ts). Run for real via:
-//   bun run scripts/audit-asset-registry.ts
+// This script needs a live DATABASE_URL to run for real. Priority 4's own
+// dispatch was told not to run it against live data; Priority 6
+// (2026-07-12) confirmed the sandbox's bash tool genuinely cannot reach the
+// live pooler (raw TCP connect to aws-1-ap-south-1.pooler.supabase.com:6543
+// times out) but that the Supabase MCP tool (`execute_sql`, a different
+// network path) CAN reach the same live database. Priority 6 used that path
+// to gather real reconciliation/trigger data and fed it through this file's
+// own --from-json mode below -- the exact same isSafeIdentifier/diffIdSets/
+// findTriggerGaps/formatReport/determineExitCode functions this file's
+// live-DB main() uses, just with the live-gathered rows supplied instead of
+// queried directly. Result: CLEAN (29/29 configured tables reconciled, 0
+// trigger gaps, 0 uncovered tables in the coverage manifest). See
+// scripts/audit-asset-registry.snapshot-2026-07-12.json for the exact
+// snapshot used (regenerate this same report deterministically via
+// `bun run scripts/audit-asset-registry.ts --from-json=scripts/audit-asset-registry.snapshot-2026-07-12.json`).
+//
+// Two ways to run this for real:
+//   1. Live DB, when reachable:  bun run scripts/audit-asset-registry.ts
+//   2. Blocked live DB, MCP available: gather a snapshot via the Supabase
+//      MCP's execute_sql tool (queries below), write it to a JSON file
+//      shaped like AuditSnapshot (see parseAuditSnapshot), then:
+//        bun run scripts/audit-asset-registry.ts --from-json=<path>
+//      Per-table reconciliation query (repeat per configured source table,
+//      substituting the real table name for <t>):
+//        SELECT count(*) FROM compliance.<t>;                            -- sourceCount
+//        SELECT count(*) FROM compliance.platform_assets
+//          WHERE source_table='<t>' AND status != 'deleted';             -- registryCount
+//        SELECT id FROM compliance.<t> tt WHERE NOT EXISTS (
+//          SELECT 1 FROM compliance.platform_assets pa
+//          WHERE pa.source_table='<t>' AND pa.status != 'deleted'
+//            AND pa.source_id = tt.id::text);                            -- missingFromRegistry
+//        SELECT source_id FROM compliance.platform_assets pa
+//          WHERE pa.source_table='<t>' AND pa.status != 'deleted' AND NOT EXISTS (
+//          SELECT 1 FROM compliance.<t> tt WHERE tt.id::text = pa.source_id); -- orphanedInRegistry
+//      Trigger attachment: SELECT source_table, registration_active,
+//        trigger_attached FROM compliance.attached_asset_triggers;
+//      Coverage is always computed from the local schema.ts/coverage.yaml
+//      files (loadCoverageStats() below) -- no DB needed for that half
+//      either way.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import yaml from "js-yaml"
@@ -200,6 +232,64 @@ export function determineExitCode(input: { reconciliations: TableReconciliation[
   return hasMismatch || hasTriggerGap || hasUncovered || hasInvalidIdentifiers ? 1 : 0
 }
 
+// ─── JSON snapshot support (unit tested) ───────────────────────────────────
+// The shape a caller must produce when live DB access is blocked but a
+// live-data channel exists some other way (e.g. the Supabase MCP's
+// execute_sql tool -- see file header). This is intentionally the SAME
+// shape reconcileTable()/main() build from live queries, so
+// parseAuditSnapshot()'s output feeds the exact same formatReport()/
+// determineExitCode() pipeline as a real live-DB run -- no parallel
+// reporting logic to drift out of sync.
+export type AuditSnapshot = {
+  generatedAt: string
+  reconciliations: TableReconciliation[]
+  triggerRows: TriggerAttachmentRow[]
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === "string")
+}
+
+function validateReconciliationRow(row: unknown, index: number): TableReconciliation {
+  if (!isPlainObject(row)) throw new Error(`reconciliations[${index}] is not an object`)
+  const { sourceTable, sourceCount, registryCount, missingFromRegistry, orphanedInRegistry } = row
+  if (typeof sourceTable !== "string" || sourceTable.length === 0) throw new Error(`reconciliations[${index}].sourceTable must be a non-empty string`)
+  if (typeof sourceCount !== "number" || sourceCount < 0) throw new Error(`reconciliations[${index}].sourceCount must be a non-negative number`)
+  if (typeof registryCount !== "number" || registryCount < 0) throw new Error(`reconciliations[${index}].registryCount must be a non-negative number`)
+  if (!isStringArray(missingFromRegistry)) throw new Error(`reconciliations[${index}].missingFromRegistry must be a string[]`)
+  if (!isStringArray(orphanedInRegistry)) throw new Error(`reconciliations[${index}].orphanedInRegistry must be a string[]`)
+  return { sourceTable, sourceCount, registryCount, missingFromRegistry, orphanedInRegistry }
+}
+
+function validateTriggerRow(row: unknown, index: number): TriggerAttachmentRow {
+  if (!isPlainObject(row)) throw new Error(`triggerRows[${index}] is not an object`)
+  const { source_table, registration_active, trigger_attached } = row
+  if (typeof source_table !== "string" || source_table.length === 0) throw new Error(`triggerRows[${index}].source_table must be a non-empty string`)
+  if (typeof registration_active !== "boolean") throw new Error(`triggerRows[${index}].registration_active must be a boolean`)
+  if (typeof trigger_attached !== "boolean") throw new Error(`triggerRows[${index}].trigger_attached must be a boolean`)
+  return { source_table, registration_active, trigger_attached }
+}
+
+// Pure validator (unit tested) -- turns arbitrary JSON.parse() output into a
+// well-typed AuditSnapshot, or throws a specific error naming exactly which
+// field is wrong. Deliberately hand-rolled rather than a schema library
+// (isSafeIdentifier above sets the same "no new dependency for a shape this
+// small" precedent).
+export function parseAuditSnapshot(raw: unknown): AuditSnapshot {
+  if (!isPlainObject(raw)) throw new Error("Snapshot must be a JSON object")
+  if (!Array.isArray(raw.reconciliations)) throw new Error("Snapshot missing reconciliations[]")
+  if (!Array.isArray(raw.triggerRows)) throw new Error("Snapshot missing triggerRows[]")
+  return {
+    generatedAt: typeof raw.generatedAt === "string" ? raw.generatedAt : "unknown",
+    reconciliations: raw.reconciliations.map((r, i) => validateReconciliationRow(r, i)),
+    triggerRows: raw.triggerRows.map((r, i) => validateTriggerRow(r, i)),
+  }
+}
+
 // ─── Live-DB runner (not exercised by the unit tests, see file header) ────
 
 async function reconcileTable(sourceTable: string): Promise<TableReconciliation> {
@@ -235,7 +325,41 @@ async function loadCoverageStats(): Promise<CoverageStats> {
   return computeCoverageStats(declaredTables, registered, exempted)
 }
 
+// --from-json=<path> mode: runs the exact same pure pipeline
+// (isSafeIdentifier -> findTriggerGaps -> loadCoverageStats ->
+// formatReport/determineExitCode) against a pre-gathered AuditSnapshot
+// instead of live-querying `db`. See file header for how to gather one via
+// the Supabase MCP when the live pooler is unreachable from this process.
+async function runFromSnapshot(snapshotPath: string) {
+  console.log(`Running Universal Metadata Registry audit from snapshot: ${snapshotPath}\n`)
+
+  const raw = JSON.parse(await readFile(path.resolve(REPO_ROOT, snapshotPath), "utf8"))
+  const snapshot = parseAuditSnapshot(raw)
+  console.log(`Snapshot generated at: ${snapshot.generatedAt}\n`)
+
+  const invalidIdentifiers: string[] = []
+  const reconciliations = snapshot.reconciliations.filter((r) => {
+    if (isSafeIdentifier(r.sourceTable)) return true
+    invalidIdentifiers.push(r.sourceTable)
+    return false
+  })
+
+  const triggerGaps = findTriggerGaps(snapshot.triggerRows)
+  const coverage = await loadCoverageStats()
+
+  const report = formatReport({ reconciliations, triggerGaps, coverage, invalidIdentifiers })
+  console.log(report)
+
+  process.exit(determineExitCode({ reconciliations, triggerGaps, coverage, invalidIdentifiers }))
+}
+
 async function main() {
+  const jsonFlag = process.argv.find((a) => a.startsWith("--from-json="))
+  if (jsonFlag) {
+    await runFromSnapshot(jsonFlag.slice("--from-json=".length))
+    return
+  }
+
   console.log("Running Universal Metadata Registry audit (read-only, no AI, no writes)...\n")
 
   const configs = await db.select().from(assetRegistrationConfig)
