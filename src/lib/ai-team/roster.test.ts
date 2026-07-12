@@ -3,7 +3,7 @@
 // level tags) and U-D2.B4.S1 (audit-organization independence). Pure,
 // deterministic checks against the roster array -- no DB access.
 import { describe, expect, test } from "bun:test"
-import { AI_TEAM_ROSTER, getRole, isAuditOrganizationRole, rolesByEscalationLevel, allAuditOrganizationRoles } from "./roster"
+import { AI_TEAM_ROSTER, getRole, isAuditOrganizationRole, rolesByEscalationLevel, allAuditOrganizationRoles, operationalRoles } from "./roster"
 
 describe("isAuditOrganizationRole -- U-D2.B4.S1", () => {
   test("chief_audit_officer (AUDIT_EXECUTIVE) is an audit-organization role", () => {
@@ -69,11 +69,18 @@ describe("escalationLevel tags -- U-D2.B1.S1", () => {
 // these tests instead cover this wave's actual addition, the minimal
 // chief_revenue_officer role, and re-confirm the pre-existing distinctness
 // this wave's own PR description relies on.
-describe("chief_revenue_officer -- Wave 173 minimal Global Revenue Operations owner", () => {
-  test("exists, on the SALES_MARKETING team, with a real model + promptKey (not a stub)", () => {
+//
+// Priority 10 (GAP-GLOBAL-REVENUE-SPLIT): chief_revenue_officer moved from
+// SALES_MARKETING onto its own new GLOBAL_REVENUE_OPERATIONS team, the
+// operational counterpart to the existing AUDIT_GLOBAL_REVENUE audit
+// division -- see roster.ts's own comment on this role for the full
+// reasoning. Behavior (model/promptKey/dispatch) is unchanged, only the
+// team label moved.
+describe("chief_revenue_officer -- Priority 10: own GLOBAL_REVENUE_OPERATIONS team", () => {
+  test("exists, on the GLOBAL_REVENUE_OPERATIONS team, with a real model + promptKey (not a stub)", () => {
     const role = getRole("chief_revenue_officer")
     expect(role).toBeDefined()
-    expect(role?.team).toBe("SALES_MARKETING")
+    expect(role?.team).toBe("GLOBAL_REVENUE_OPERATIONS")
     expect(role?.model).toBeTruthy()
     expect(role?.promptKey).toBe("ai_team.chief_revenue_officer")
   })
@@ -81,6 +88,11 @@ describe("chief_revenue_officer -- Wave 173 minimal Global Revenue Operations ow
   test("is a distinct roleKey from chief_operating_officer and chief_governance_officer", () => {
     expect(getRole("chief_revenue_officer")?.roleKey).not.toBe(getRole("chief_operating_officer")?.roleKey)
     expect(getRole("chief_revenue_officer")?.roleKey).not.toBe(getRole("chief_governance_officer")?.roleKey)
+  })
+
+  test("GLOBAL_REVENUE_OPERATIONS is a real operational team -- treated as operational, and distinct from the AUDIT_GLOBAL_REVENUE assurance division it pairs with", () => {
+    expect(operationalRoles().some((r) => r.roleKey === "chief_revenue_officer")).toBe(true)
+    expect(isAuditOrganizationRole("chief_revenue_officer")).toBe(false)
   })
 })
 

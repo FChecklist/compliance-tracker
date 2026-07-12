@@ -67,6 +67,11 @@ export type TeamName =
   | "CUSTOMER_SETUP"
   | "CUSTOMER_SUPPORT"
   | "SALES_MARKETING"
+  // Priority 10 (GAP-GLOBAL-REVENUE-SPLIT): the operational counterpart to
+  // AUDIT_GLOBAL_REVENUE below -- see chief_revenue_officer's own comment
+  // for why this revisits (not silently reverses) Wave 173's original
+  // "no functional gain" call.
+  | "GLOBAL_REVENUE_OPERATIONS"
   | "FINANCE"
   | "HR"
   | "ADMIN"
@@ -226,13 +231,35 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // operational Sales/Revenue lead (as opposed to strategy_proposals'
   // narrower proposals-writing scope) turns up nothing -- CRM/billing
   // pipeline work has no operational owner distinct from its own auditors.
-  // Kept deliberately small per this task's explicit low-priority framing:
-  // one minimal role, not a new "Global Revenue Operations" division/TeamName
-  // (that would need a new TeamName union member and touch
-  // AUDIT_DIVISION_TEAMS/NON_OPERATIONAL_TEAMS' exclusion lists below for no
-  // functional gain over adding this to the existing SALES_MARKETING team,
-  // where every other revenue-facing operational role already lives).
-  { roleKey: "chief_revenue_officer", team: "SALES_MARKETING", title: "Chief Revenue Officer (CRO) -- Sales/CRM/Billing Operations", model: GLM_52, promptKey: "ai_team.chief_revenue_officer" },
+  // Wave 173 originally kept this as a single role inside SALES_MARKETING,
+  // reasoning a new TeamName would add structural complexity (touching
+  // AUDIT_DIVISION_TEAMS/NON_OPERATIONAL_TEAMS below) for no functional
+  // gain.
+  //
+  // Priority 10 (GAP-GLOBAL-REVENUE-SPLIT, re-investigated): re-read both
+  // lists directly. NON_OPERATIONAL_TEAMS (below) is an opt-OUT list --
+  // operationalRoles() treats any team NOT named in it as operational by
+  // default -- so a new operational TeamName needs ZERO changes to either
+  // list; it's automatically covered by operationalRoles()'s existing
+  // default. AUDIT_DIVISION_TEAMS is unrelated (only the 5 AUDIT_* teams
+  // belong there, GLOBAL_REVENUE_OPERATIONS is not one of them). Also
+  // confirmed no switch/case anywhere pattern-matches TeamName exhaustively
+  // -- team-service.ts and agent-directory-service.ts, the only real
+  // consumers of RoleDefinition.team outside this file, both just
+  // filter/pass the value through. Adding a new TeamName union member is
+  // therefore genuinely low-risk, not the complexity Wave 173 feared.
+  // GLOBAL_REVENUE_OPERATIONS (declared above, paired with
+  // AUDIT_GLOBAL_REVENUE below) gives the operations/assurance
+  // segregation-of-duties split real, discoverable parity in the org
+  // chart -- an AI or human reasoning about "who runs revenue work vs. who
+  // audits it" no longer has to infer the operations side out of a single
+  // role buried inside Sales & Marketing. chief_revenue_officer moves here;
+  // its actual behavior (model, promptKey, dispatch, escalation) is
+  // unchanged -- this is a real but narrow org-chart-clarity fix, not a
+  // functional change.
+
+  // ─── GLOBAL REVENUE OPERATIONS ───────────────────────────────────────
+  { roleKey: "chief_revenue_officer", team: "GLOBAL_REVENUE_OPERATIONS", title: "Chief Revenue Officer (CRO) -- Sales/CRM/Billing Operations", model: GLM_52, promptKey: "ai_team.chief_revenue_officer" },
 
   // ─── FINANCE ─────────────────────────────────────────────────────────
   { roleKey: "cfo_financial_planning", team: "FINANCE", title: "CFO / Financial Planning", model: GLM_52, promptKey: "ai_team.cfo_financial_planning" },
