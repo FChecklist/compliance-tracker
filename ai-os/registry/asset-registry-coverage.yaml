@@ -24,9 +24,9 @@ registered:
   - table: committees
     reason: "domain C (drizzle/0155): org-scoped governance body -- auto_register_asset_trg attached, name_column=name, purpose_column=charter, owner_column=chair_id"
   - table: compliance_frameworks
-    reason: "domain C (drizzle/0155): org-scoped adopted-framework catalog (ISO27001/SOC2/DPDP/etc.) -- asset_type=policy, auto_register_asset_trg attached"
+    reason: "registered by Priority 4 domain B (drizzle/0154), applied live -- domain C independently proposed a byte-identical mapping and deferred to domain B's PR to avoid a duplicate compliance.asset_registration_config row (source_table is UNIQUE)."
   - table: framework_controls
-    reason: "domain C (drizzle/0155): org-scoped control under a compliance_frameworks row -- asset_type=rule, name_column=title, auto_register_asset_trg attached"
+    reason: "registered by Priority 4 domain B (drizzle/0154), applied live -- domain C independently proposed a byte-identical mapping and deferred to domain B's PR to avoid a duplicate compliance.asset_registration_config row (source_table is UNIQUE)."
   - table: module_registry
     reason: "domain C (drizzle/0155): PLATFORM-WIDE by design (no org_id column -- single catalog of every module the whole platform offers) -- org_column=NULL is correct here, auto_register_asset_trg attached"
   - table: product_branches

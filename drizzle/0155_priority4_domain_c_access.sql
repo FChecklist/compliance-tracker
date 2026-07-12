@@ -8,12 +8,22 @@
 -- pattern documented in 0152's own header comment and in
 -- 09-priority4-umr-universal-tracker.yaml's schema_contract.
 --
--- 10 tables registered this pass. Column choices verified directly against
--- src/lib/db/schema.ts (grep'd for the exact `text('column_name')` string
--- before use, not guessed) -- see this dispatch's PR description for the
--- full reasoning per table, including the tables considered and explicitly
--- exempted instead (api_keys, sso_configurations, connector_accounts,
--- access_review_certifications, installed_products, organisations).
+-- 8 tables registered this pass (originally 10 -- see note below). Column
+-- choices verified directly against src/lib/db/schema.ts (grep'd for the
+-- exact `text('column_name')` string before use, not guessed) -- see this
+-- dispatch's PR description for the full reasoning per table, including
+-- the tables considered and explicitly exempted instead (api_keys,
+-- sso_configurations, connector_accounts, access_review_certifications,
+-- installed_products, organisations).
+--
+-- Super Boss note (2026-07-12, independent review before merge): this
+-- dispatch independently registered compliance_frameworks and
+-- framework_controls with mappings byte-identical to Priority 4 domain B's
+-- own PR (drizzle/0154), which was applied live first. Since
+-- asset_registration_config.source_table is UNIQUE, both agents arriving
+-- at the same table was a real duplicate, not a design conflict -- removed
+-- from this migration to avoid a duplicate-key failure when applied; those
+-- 2 tables are covered by domain B's already-live registration instead.
 --
 -- org_column=NULL is used ONLY for module_registry / product_branches /
 -- subscription_plans -- all three genuinely lack an org_id column BY DESIGN
@@ -35,20 +45,9 @@ VALUES
   -- chairId is the committee's responsible person. No isActive column.
   ('committees', 'other', 'name', 'charter', NULL, 'org_id', 'chair_id', NULL),
 
-  -- compliance_frameworks: org-scoped catalog of adopted frameworks
-  -- (ISO27001/SOC2/DPDP/etc.) -- 'policy' is the closest real fit in the
-  -- asset_type enum for a compliance standard/framework. relevanceNote is
-  -- its purpose (set for opt-in frameworks). No isActive column.
-  ('compliance_frameworks', 'policy', 'name', 'relevance_note', NULL, 'org_id', NULL, NULL),
-
-  -- framework_controls: org-scoped individual controls under a framework --
-  -- 'rule' fits a specific compliance control better than 'policy' (the
-  -- framework itself, registered above, is the policy; each control is one
-  -- rule under it). status is a 4-value text lifecycle
-  -- ('not_started'|'in_progress'|'implemented'|'verified'), not a boolean,
-  -- so it cannot be used as active_column (the trigger only understands a
-  -- boolean 'false' check). No purpose/description column exists.
-  ('framework_controls', 'rule', 'title', NULL, NULL, 'org_id', NULL, NULL),
+  -- compliance_frameworks and framework_controls: REMOVED from this
+  -- migration -- see the Super Boss note in this file's header. Already
+  -- registered live via Priority 4 domain B (drizzle/0154).
 
   -- module_registry: PLATFORM-WIDE by design (no org_id column at all --
   -- this is the single catalog of every module the whole platform offers,
@@ -99,13 +98,8 @@ CREATE TRIGGER auto_register_asset_trg
   AFTER INSERT OR UPDATE OR DELETE ON compliance.committees
   FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
 
-CREATE TRIGGER auto_register_asset_trg
-  AFTER INSERT OR UPDATE OR DELETE ON compliance.compliance_frameworks
-  FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
-
-CREATE TRIGGER auto_register_asset_trg
-  AFTER INSERT OR UPDATE OR DELETE ON compliance.framework_controls
-  FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
+-- compliance_frameworks/framework_controls triggers REMOVED -- already
+-- attached live via Priority 4 domain B (drizzle/0154). See header note.
 
 CREATE TRIGGER auto_register_asset_trg
   AFTER INSERT OR UPDATE OR DELETE ON compliance.module_registry
