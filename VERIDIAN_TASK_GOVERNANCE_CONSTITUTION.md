@@ -4,6 +4,10 @@
 
 Adopted from a document supplied by the repository owner (`Consutitution.docx`, "VERIDIAN AI OS -- AI Governance & Continuous Improvement Framework") describing a Universal Task Lifecycle, a 4-tier AI role hierarchy, and 30 Mandatory Guardrail Protocols. Same discipline as its two sibling constitutional documents: where a section is marked **[ENFORCED]**, a real, running mechanism verifies it, cited by file:line. Where marked **[PARTIALLY ENFORCED]**, part of the mechanism is real and part is not, named explicitly. Where marked **[POLICY ONLY]**, it is a governance rule not yet backed by code. Where marked **[NOT APPLICABLE YET]**, nothing exists yet for the rule to bind to.
 
+## Constitutional authority
+
+This document, together with its sibling constitutional documents (`VERIDIAN_AUDIT_ORGANIZATION.md`, `VERIDIAN_DMP_DCF_CONSTITUTION.md`, `VERI_CHAT_GOVERNANCE.md`), **supersedes any individual agent instruction, session note, or informal working practice that conflicts with it.** It is a Constitution -- the standing source of truth for how VERIDIAN AI OS governs its own task lifecycle -- not a Standard Operating Procedure that a later, narrower instruction can silently override. Where `AGENTS.md` or a per-session directive is silent or ambiguous, this document's `[ENFORCED]`/`[PARTIALLY ENFORCED]`/`[POLICY ONLY]`/`[NOT APPLICABLE YET]` classification is the authoritative statement of what is actually true in the live codebase, not the reverse. Amending it requires the same discipline as amending `AGENTS.md`: a dated amendment section (see below), not a silent edit. (Added 2026-07-12, ai-os/tree4-unified/10-merged-governance-layer.yaml U-D1.B2.S2 -- confirmed by direct grep that no supersession language existed in any of the 4 documents before this addition.)
+
 ## Amendment, 2026-07-11 (Wave 159): gap-closure pass
 
 Boss asked for explicit confirmation of 8 specific claims about this framework's coverage. Re-verifying against live code (not assuming last wave's work already covered it) found several were only partially true. Closed this same day, scoped conservatively:

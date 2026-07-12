@@ -93,6 +93,19 @@ export type RoleDefinition = {
   promptKey: string | null
   isCodeOnly?: boolean
   isHuman?: boolean
+  /**
+   * ai-os/tree4-unified/10-merged-governance-layer.yaml U-D2.B1.S1's
+   * 6-level escalation ladder (L0 Execution Agent -> L1 Reviewer -> L2
+   * Quality Controller -> L3 COO -> L4 Super Boss -> L5 Owner), tagged only
+   * where a role maps cleanly. Deliberately NOT tagged on every role --
+   * see the comment above super_boss's own entry for why L1 (Reviewer)
+   * and L2 (Quality Controller) are realized as PROCESS gates
+   * (AI_TEAM_CLOSURE_REVIEW_LEAF's peer review + QA_PRECOMPLETION_GATE_LEAF,
+   * guardrail-registrations.ts) rather than fixed roles, and are
+   * deliberately left untagged here rather than forcing a role onto a
+   * step that any qualified operational role can actually perform.
+   */
+  escalationLevel?: "L0" | "L3" | "L4" | "L5"
 }
 
 // Model constants -- the founder's exact 2-tier strategy, named once so
@@ -122,9 +135,17 @@ const GPT_OSS_120B = "openai/gpt-oss-120b" // founder-directed for the 6-tool in
 
 export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // ─── Human ───────────────────────────────────────────────────────────
-  { roleKey: "founder_ceo", team: "HUMAN", title: "Founder & CEO", model: null, promptKey: null, isHuman: true },
+  // escalationLevel tags (U-D2.B1.S1, added this wave): founder_ceo = L5
+  // Owner (the source doc's literal terminal rung -- a human, outside
+  // escalation-ladder.ts's own reach by construction, matching that
+  // module's header comment on Level 5). super_boss = L4, the terminal AI-
+  // reachable rung escalation-ladder.ts's LADDER array already resolves
+  // to. L1 (Reviewer) and L2 (Quality Controller) are NOT tagged on any
+  // role here -- they're realized as process gates, not fixed roles; see
+  // RoleDefinition's own escalationLevel comment above for why.
+  { roleKey: "founder_ceo", team: "HUMAN", title: "Founder & CEO", model: null, promptKey: null, isHuman: true, escalationLevel: "L5" },
   { roleKey: "executive_advisor", team: "HUMAN", title: "Executive Advisor (Interactive — Claude Desktop, not API-dispatched)", model: null, promptKey: null, isHuman: true },
-  { roleKey: "super_boss", team: "HUMAN", title: "Super Boss / Executive Director (Claude Desktop Sonnet 5.0 — Interactive, not API-dispatched, AGENTS.md's named top-of-ladder agent)", model: null, promptKey: null, isHuman: true },
+  { roleKey: "super_boss", team: "HUMAN", title: "Super Boss / Executive Director (Claude Desktop Sonnet 5.0 — Interactive, not API-dispatched, AGENTS.md's named top-of-ladder agent)", model: null, promptKey: null, isHuman: true, escalationLevel: "L4" },
 
   // ─── CORE SYSTEM ─────────────────────────────────────────────────────
   { roleKey: "ai_router", team: "VERIDIAN_AI_OS", title: "AI Router / Task Classifier", model: GLM_52, promptKey: "ai_team.ai_router" },
@@ -265,8 +286,18 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // "ZLM 5.2 ... functions as Chief Software Engineering Officer (CSEO) /
   // Principal Engineering AI"), not a security/ethics role -- confirmed
   // against source text rather than assumed from the acronym alone.
-  { roleKey: "chief_operating_officer", team: "EXECUTIVE_LADDER", title: "Chief Operating Officer (COO)", model: DEEPSEEK_V4_PRO, promptKey: "ai_team.chief_operating_officer" },
-  { roleKey: "chief_execution_engine", team: "EXECUTIVE_LADDER", title: "Chief Execution Engine (CEE)", model: GPT_OSS_120B, promptKey: "ai_team.chief_execution_engine" },
+  // U-D2.B1.S1 escalationLevel tags: chief_execution_engine is the exact
+  // "L0 Execution Agent (GPT-OSS-120B)" the spec names (same model, same
+  // "default execution engine" framing). chief_operating_officer is the
+  // spec's "L3 COO (DeepSeek)" rung (same model too). CSEO has no L0-L5 tag
+  // -- it comes from a DIFFERENT source document's escalation matrix
+  // (Consutitution.docx, see escalation-ladder.ts's own header) than
+  // U-D2.B1.S1's L0-L5 ladder, and the two aren't the same ladder: CSEO
+  // isn't named anywhere in the L0-L5 spec text. Tagging it L1 or L2 to
+  // force a fit would misrepresent what CSEO actually is (a
+  // software-first escalation rung, not a peer reviewer or QC gate).
+  { roleKey: "chief_operating_officer", team: "EXECUTIVE_LADDER", title: "Chief Operating Officer (COO)", model: DEEPSEEK_V4_PRO, promptKey: "ai_team.chief_operating_officer", escalationLevel: "L3" },
+  { roleKey: "chief_execution_engine", team: "EXECUTIVE_LADDER", title: "Chief Execution Engine (CEE)", model: GPT_OSS_120B, promptKey: "ai_team.chief_execution_engine", escalationLevel: "L0" },
   { roleKey: "chief_software_engineering_officer", team: "EXECUTIVE_LADDER", title: "Chief Software Engineering Officer (CSEO)", model: GLM_52, promptKey: "ai_team.chief_software_engineering_officer" },
 
   // ─── Audit Organization: 5 Divisions (tree4-unified area 4 / area 9,
@@ -503,6 +534,40 @@ export function allGuardrailRoles(): RoleDefinition[] {
 /** Every named audit-organization specialist/division-head role across all 5 divisions (tree4-unified area 4/9). */
 export function allAuditOrganizationRoles(): RoleDefinition[] {
   return AUDIT_DIVISION_TEAMS.flatMap((team) => rolesForTeam(team))
+}
+
+// U-D2.B4.S1 (partial -> closing this wave): "[CAO] cannot modify
+// production code/business rules/governance." Verified by direct code
+// read (dispatch-repo.ts, ai-workforce-agent.mjs) that no restriction
+// existed anywhere stopping chief_audit_officer OR any of the 130
+// individually-named audit specialist/division-head roles from being
+// dispatched through the repo-write path -- the doer!=certifier
+// independence principle AGENTS.md Rule 7c and this session's own audit-
+// organization docs insist on was, for the repo-write surface specifically,
+// only a documented expectation, not an enforced one. chief_audit_officer
+// itself lives in AUDIT_EXECUTIVE, not one of the 5 AUDIT_DIVISION_TEAMS,
+// so it needs its own explicit inclusion here, not just a spread of
+// AUDIT_DIVISION_TEAMS.
+const AUDIT_ORGANIZATION_TEAMS: TeamName[] = ["AUDIT_EXECUTIVE", ...AUDIT_DIVISION_TEAMS]
+
+/**
+ * True for chief_audit_officer and every audit-organization specialist/
+ * division-head role (all 5 divisions + the CAO itself) -- the set of
+ * roles whose entire purpose is independent assurance OVER operational
+ * work, and which must therefore never BE the operational work. Used by
+ * the repo-write dispatch surfaces (dispatch-repo.ts,
+ * scripts/ai-workforce-agent.mjs) to fail closed on an audit role being
+ * asked to modify production code.
+ */
+export function isAuditOrganizationRole(roleKey: string): boolean {
+  const role = getRole(roleKey)
+  if (!role) return false
+  return AUDIT_ORGANIZATION_TEAMS.includes(role.team)
+}
+
+/** Every role tagged with a given U-D2.B1.S1 escalation-ladder level (L0/L3/L4/L5 only -- see RoleDefinition's own comment for why L1/L2 are untagged). */
+export function rolesByEscalationLevel(level: NonNullable<RoleDefinition["escalationLevel"]>): RoleDefinition[] {
+  return AI_TEAM_ROSTER.filter((r) => r.escalationLevel === level)
 }
 
 /** Every operational department role the AI Router may assign a task to -- everything except Human, Guardrail, Audit, and the Executive Ladder. */

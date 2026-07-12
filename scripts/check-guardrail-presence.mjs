@@ -261,6 +261,23 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/communication-guardrails.ts", mustContain: ["export function checkCommunicationGuardrails", "export function validateRecipients", "export function validateContent"] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["COMMUNICATION_DRAFT_SEND_LEAF"] },
   { file: "src/lib/services/communication-drafting-service.ts", mustContain: ["evaluateGuardrails(COMMUNICATION_DRAFT_SEND_LEAF", "logActivity("] },
+
+  // Added 2026-07-12 (Priority 2 item 3, tree4-unified/10-merged-governance-
+  // layer.yaml U-D2.B4.S1): audit-organization independence -- an audit
+  // role (chief_audit_officer or any of the 130 named audit-organization
+  // specialist/division-head roles) must never be dispatched through the
+  // repo-write path to modify production code. Both real dispatch surfaces
+  // checked, mirroring model-tier-eligibility.ts's own 2-surface coverage.
+  { file: "src/lib/ai-team/roster.ts", mustContain: ["export function isAuditOrganizationRole"] },
+  { file: "src/lib/ai-team/dispatch-repo.ts", mustContain: ["isAuditOrganizationRole(roleKey)"] },
+  { file: "scripts/ai-workforce-agent.mjs", mustContain: ["isAuditOrganizationRole(roleKey)"] },
+
+  // Added 2026-07-12 (Priority 2 item 3, U-D2.B6.S1): audit-protocol
+  // 3-phase compliance gate -- structured-submission guardrail leaf, real
+  // and registered, honestly disclosed as having no live caller yet (see
+  // audit-protocol.ts's own header).
+  { file: "src/lib/audit-protocol.ts", mustContain: ["export function validateAuditProtocolFields"] },
+  { file: "src/lib/guardrail-registrations.ts", mustContain: ["AUDIT_PROTOCOL_COMPLIANCE_LEAF"] },
 ]
 
 let failed = false
