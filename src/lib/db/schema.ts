@@ -7236,7 +7236,7 @@ export const connectorAccounts = complianceSchemaDB.table('connector_accounts', 
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
-  toolkitSlug: text('toolkit_slug').notNull(), // 'gmail' | 'googledrive' | 'googlecalendar'
+  toolkitSlug: text('toolkit_slug').notNull(), // Composio toolkit slug -- see ConnectorToolkit in src/lib/composio-connectors.ts for the full live list
   composioConnectedAccountId: text('composio_connected_account_id').notNull(),
   status: text('status').notNull().default('INITIALIZING'), // Composio's own status vocabulary: INITIALIZING | ACTIVE | FAILED | EXPIRED
   connectedEmail: text('connected_email'), // populated once known, for display ("Connected as x@gmail.com")

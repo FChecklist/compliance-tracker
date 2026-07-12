@@ -22,6 +22,39 @@
 // Presentation/Communication business objects -- is separate, larger scope,
 // not part of this wave.)
 //
+// Wave (2026-07-12, Priority-2 D26.B1.S1 verification): the source doc
+// (ai-os/audit-tree/06-connectors.yaml, from Connectors.docx) names 8
+// specific Microsoft apps + 7 specific Google apps for Layer 1, not just
+// the 4 M365 apps above. Checked each of the other 11 against Composio's
+// live toolkit catalog (GET /toolkits?search=..., confirmed 2026-07-12):
+// - Google Sheets/Docs/Slides/Meet all exist as real, distinct Composio
+//   toolkits (googlesheets/googledocs/googleslides/googlemeet), each with
+//   composio_managed_auth_schemes: ["OAUTH2"] -- same zero-setup pattern.
+//   Added below (auth_configs created live via the same POST /auth_configs
+//   call as the original 13).
+// - Microsoft Excel exists as a real, distinct Composio toolkit ("excel",
+//   54 tools, its own Graph API surface for spreadsheet formulas/cells --
+//   genuinely not covered by OneDrive/SharePoint's generic file storage).
+//   Added below.
+// - Microsoft Word and PowerPoint do NOT exist as Composio toolkits under
+//   any slug tried (word/powerpoint/msword/microsoft_word/microsoftword/
+//   office_word/ppt/microsoft_powerpoint all 404 "ToolkitNotFound"). Word
+//   and PowerPoint documents are just files inside OneDrive/SharePoint in
+//   Composio's model -- there is no separate Word/PowerPoint content API
+//   the way Excel (cell/formula operations) and the Google apps each have
+//   one. This is a genuine gap, not a naming miss: it cannot be closed the
+//   same zero-setup way. Closing it would mean either (a) a bespoke
+//   Microsoft Graph Word/PowerPoint client (the exact "build our own Graph
+//   client" work this file's whole approach was chosen to avoid), or (b)
+//   treating Word/PPT docs as opaque files reachable via the existing
+//   OneDrive/SharePoint toolkits (no dedicated formula/slide-level access).
+//   Left out of CONNECTOR_TOOLKITS; tracked in
+//   ai-os/tree4-unified/50-completion-plan/07-priority2-tracker.yaml.
+// - Outlook's existing toolkit already covers Microsoft Calendar (Composio
+//   categorizes it under both "email" and "calendar", 286 tools) -- the
+//   source doc's 8th Microsoft app ("Calendar") does not need a separate
+//   toolkit/auth_config.
+//
 // Composio holds the actual OAuth tokens; this app only ever stores the
 // connection's id/status/display email (compliance.connector_accounts),
 // same "never store the secret itself" posture as encrypted BYO API keys
@@ -32,10 +65,15 @@ export type ConnectorToolkit =
   | "gmail"
   | "googledrive"
   | "googlecalendar"
+  | "googlesheets"
+  | "googledocs"
+  | "googleslides"
+  | "googlemeet"
   | "outlook"
   | "one_drive"
   | "share_point"
   | "microsoft_teams"
+  | "excel"
   | "slack"
   | "notion"
   | "github"
@@ -47,10 +85,15 @@ export const CONNECTOR_TOOLKITS: Record<ConnectorToolkit, { label: string; authC
   gmail: { label: "Gmail", authConfigId: "ac_011eZbN9n-gT" },
   googledrive: { label: "Google Drive", authConfigId: "ac_uUVUR8daHMpc" },
   googlecalendar: { label: "Google Calendar", authConfigId: "ac_dvAwoBTxv5Z6" },
+  googlesheets: { label: "Google Sheets", authConfigId: "ac_lfcfCz_JYKAU" },
+  googledocs: { label: "Google Docs", authConfigId: "ac_uZmYCDkZ24w7" },
+  googleslides: { label: "Google Slides", authConfigId: "ac_5qg7xRTilJ5K" },
+  googlemeet: { label: "Google Meet", authConfigId: "ac_axUlQpTgpKnD" },
   outlook: { label: "Outlook", authConfigId: "ac_kKvzM35TBHyt" },
   one_drive: { label: "OneDrive", authConfigId: "ac_ppU_m75Q_oBZ" },
   share_point: { label: "SharePoint", authConfigId: "ac_dur2U8N5TO3b" },
   microsoft_teams: { label: "Microsoft Teams", authConfigId: "ac_SXconMw9Z474" },
+  excel: { label: "Excel", authConfigId: "ac_jG5HX2qupKMa" },
   slack: { label: "Slack", authConfigId: "ac_BOgSMAMSoORm" },
   notion: { label: "Notion", authConfigId: "ac_GN6aDBKKh3EP" },
   github: { label: "GitHub", authConfigId: "ac_zFxYvOyW2Yvy" },
