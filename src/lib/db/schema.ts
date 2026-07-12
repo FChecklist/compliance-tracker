@@ -8337,3 +8337,25 @@ export const platformAssets = complianceSchemaDB.table('platform_assets', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// Priority 4 (09-priority4-umr-universal-tracker.yaml): which tables have
+// compliance.auto_register_asset() (migration 0152) attached, and how to
+// map each table's own column names onto platform_assets' fixed shape.
+// Populated only by reviewed migrations (never by application code) --
+// this app-side definition exists purely so TypeScript code (the registry
+// audit script, CI checks) can read the config with type safety; nothing
+// in the app ever INSERTs into this table at runtime.
+export const assetRegistrationConfig = complianceSchemaDB.table('asset_registration_config', {
+  id: text('id').primaryKey(),
+  sourceTable: text('source_table').notNull().unique(),
+  assetType: assetTypeEnum('asset_type').notNull(),
+  nameColumn: text('name_column').notNull(),
+  purposeColumn: text('purpose_column'),
+  moduleColumn: text('module_column'),
+  orgColumn: text('org_column'),
+  ownerColumn: text('owner_column'),
+  activeColumn: text('active_column'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

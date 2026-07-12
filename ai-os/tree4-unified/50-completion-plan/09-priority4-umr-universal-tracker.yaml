@@ -1,0 +1,193 @@
+# Priority 4 tracker, created 2026-07-12 per the Owner's directive: extend
+# the Universal Metadata Registry (UMR, built in Priority 3 -- see
+# 08-priority3-umr-tracker.yaml) so that EVERY action across the complete
+# FChecklist ecosystem is AUTOMATICALLY captured by the software itself
+# (never AI), the registry is genuinely fast under concurrent load from
+# thousands of simultaneous callers, and the registry becomes CI-enforced
+# as a real, non-negotiable guarantee rather than a policy statement.
+#
+# status values: complete | in_progress | not_started
+
+priority: 4
+name: "Universal Metadata Registry -- Universal Coverage, Automatic Capture, Performance"
+
+owner_requirements:
+  - "UMR covers complete FChecklist: all associated systems, software, repositories, websites, databases, for every action related to anything."
+  - "Software (not AI) automatically registers every action into the UMR. Non-negotiable."
+  - "Software can read, write, edit, analyze, audit, and maintain the UMR -- automatically, without AI."
+  - "UMR search is extremely fast, and can serve thousands of simultaneous AI/task/software callers concurrently."
+  - "UMR is the universal source of truth for everything that happens."
+  - "Owner supplied a reference architecture: PostgreSQL as source of truth (~99.9% reads : 0.1% writes), a compiled in-memory/Redis cache loaded at startup and refreshed on change, a routing engine that consults the cache first (not the DB), the relationship graph for dependency resolution, and a vector index reserved for natural-language/fuzzy matching only. Owner explicitly authorized evaluating and designing this ('YOU CAN EVALUATE and design'), and asked that Priority 3's existing UMR design be checked against this requirement and completed 100%."
+
+investigation:
+  verdict: |
+    Priority 3 built a real, working registry (schema, Asset ID system,
+    CRUD service, index-based query layer, routing engine, relationship
+    graph, vector search, manifest export) but three real gaps remain
+    against Priority 4's requirements, verified directly (not assumed):
+
+    1. AUTOMATIC, NON-AI, NON-NEGOTIABLE CAPTURE: registerAsset() (Priority
+       3) is an application-level function -- it only runs if some app code
+       path remembers to call it. That is a real gap against "non-
+       negotiable... software ensures... automatically" -- an app-level
+       function that depends on every future call site remembering to call
+       it is not a guarantee, it's a convention. Confirmed by re-reading
+       asset-registry-service.ts and the 4 places registerAsset() is
+       actually called (only the backfill script, which is one-time and
+       not yet even run) -- there is currently NO live call site that
+       fires on real user/system activity.
+    2. COVERAGE: platform_assets is currently wired to a metadata-index
+       BACKFILL SCRIPT covering 4 source tables (worker_agents,
+       computation_engines, prompt_templates, dynamic_chains) out of 387
+       real tables in schema.ts (grep -c "= complianceSchemaDB.table("
+       confirmed 387, up from the ~330 estimated during Priority 3's own
+       investigation as the codebase has grown). A real, much wider set of
+       asset-worthy tables exist and are unregistered: documents,
+       notifications, tasks, savedReports, automationRules,
+       approvalWorkflowDefinitions, metricAlertRules, and dozens more
+       across every module.
+    3. PERFORMANCE UNDER CONCURRENT LOAD: Priority 3's query layer
+       (asset-query-service.ts) hits PostgreSQL directly on every call --
+       correct indexed queries, but no caching tier at all. Confirmed via
+       grep across src/lib for "redis"/"upstash" (zero real matches -- the
+       2 substring hits were false positives, "redispatch" in
+       task-tightening.ts and ocr-client.ts) and for LISTEN/NOTIFY (zero
+       matches) -- this codebase has NO existing distributed cache or
+       pub/sub mechanism to build on. The Owner's own reference
+       architecture names Redis as "(optional)" and explicitly authorizes
+       evaluating/designing this layer.
+
+  scope_decision: |
+    Judgment call (Super Boss, per Owner's "you don't need my permission,
+    100% completion with quality, you can evaluate and design" directive),
+    same reasoning class as Priority 3's own scope_decision and DEC-09:
+
+    BUILD COMPLETELY (the mechanism, not a partial slice):
+    1. A generic, table-agnostic, DATABASE-LEVEL trigger mechanism
+       (compliance.auto_register_asset(), a single PL/pgSQL function
+       reused by every onboarded table) that makes automatic registration
+       a real, enforced guarantee -- not an app-level convention. A DB
+       trigger fires on every INSERT/UPDATE/DELETE regardless of which
+       code path touched the table (API route, script, migration, raw
+       SQL), which is the only mechanism strong enough to honestly claim
+       "non-negotiable... software ensures... automatically... no AI".
+       This directly answers requirement #2 (software does it, no AI) and
+       #1 in the strongest available way.
+    2. An in-process compiled metadata cache (src/lib/services/
+       asset-registry-cache.ts) as the primary read tier, consulted by the
+       query/routing layer before Postgres, with an explicit invalidation
+       path fired by the same write paths (the trigger's writes and the
+       app's registerAsset()/updateAsset()/archiveAsset()). Redis is
+       deliberately NOT introduced -- that is a new paid infrastructure
+       dependency and a real ops decision (provisioning, credentials,
+       another moving part in production), the same class of decision
+       DEC-09 already ruled Super Boss should not silently make. The
+       Owner's own architecture marks Redis "(optional)"; this pass builds
+       the tier that is real and free (in-process memory, the same tier
+       the Owner's own diagram lists ABOVE Redis) and documents Redis as a
+       scoped, ready-to-add follow-on if traffic ever needs a second,
+       cross-instance cache tier.
+    3. A CI-enforced guardrail (extending check-guardrail-presence.mjs's
+       existing marker-based mechanism, the same enforcement class already
+       covering task-tightening/PEE/audit-org-role-blocking) so
+       "non-negotiable" has real teeth: new tables cannot silently skip
+       registry coverage without an explicit, reviewable decision.
+    4. A deterministic (no-AI, no-LLM-call anywhere in the file), scheduled
+       registry audit/maintenance script that reconciles platform_assets
+       against real source-table row counts, flags orphaned/stale rows,
+       and reports coverage -- the concrete answer to "software can...
+       audit, maintain the UMR... automatically."
+
+    ONBOARD A SUBSTANTIAL, REAL TRANCHE, NOT ALL 387 TABLES IN ONE PASS:
+    Retrofitting literally all 387 tables in one dispatch wave, each with
+    its own reviewed column mapping, is the same disproportionate-in-one-
+    pass risk Priority 3's own scope_decision already declined for the
+    ~330-table figure it had at the time (DEC-03-style reasoning: broad
+    blast radius, hard to fully verify column-by-column at this volume).
+    The difference from Priority 3 that matters here: once the generic
+    trigger mechanism exists, onboarding any FUTURE table is a ~10-line,
+    fully reviewable migration addition (one config row + one CREATE
+    TRIGGER statement) -- not new code. This pass onboards a real,
+    substantial, cross-domain tranche (target: 24-30 tables spanning
+    documents/reports/tasks/notifications in domain A, workflows/
+    automation/decisions in domain B, and roles/permissions/policies/API
+    surface in domain C) via the 3 subagents, proving the mechanism against
+    real, varied schemas (not just a toy example), while the remaining
+    tables are a documented, honestly-scoped, mechanically-trivial
+    follow-on -- never silently claimed as "all 387 covered," which would
+    repeat the exact AIOS-003 mistake Priority 3's own investigation
+    already flagged as a mistake not to repeat.
+
+    This mirrors Priority 3's own precedent exactly: build the REGISTRY
+    MECHANISM completely and prove it with a real, substantial, honestly-
+    bounded population, rather than fabricating full coverage.
+
+schema_contract: |
+  Fixed contract all 3 dispatches build against (Super Boss owns writing
+  the core migration; agents 2/3/4-equivalent -- here, the 3 domain
+  dispatches -- only ADD rows/triggers using the pattern below, never
+  touch the trigger function itself):
+
+  compliance.asset_registration_config (new table, migration 0152):
+    id: text primary key (createId())
+    source_table: text NOT NULL UNIQUE       -- e.g. 'saved_reports' (no schema prefix)
+    asset_type: text NOT NULL                -- must be a real assetTypeEnum value
+    name_column: text NOT NULL               -- e.g. 'name' or 'title' -- the source row's own display-name column
+    purpose_column: text                     -- nullable, e.g. 'description'
+    module_column: text                      -- nullable
+    org_column: text                         -- nullable ('org_id' or NULL for platform-tier tables)
+    owner_column: text                       -- nullable (whatever the source table's own creator/owner column is called)
+    active_column: text                      -- nullable boolean column; if present and false, registers as 'archived' instead of 'active'
+    is_active: boolean NOT NULL default true -- kill switch for this registration, independent of dropping the trigger
+    created_at, updated_at: timestamp
+
+  compliance.auto_register_asset() -- SECURITY DEFINER PL/pgSQL trigger
+  function, ONE copy, reused by every onboarded table via:
+    CREATE TRIGGER auto_register_asset_trg
+      AFTER INSERT OR UPDATE OR DELETE ON compliance.<table>
+      FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
+
+  Behavior: looks up TG_TABLE_NAME in asset_registration_config (no-op if
+  missing or is_active=false); reads NEW/OLD via to_jsonb(row) ->> column
+  name (never dynamic SQL over untrusted input -- column names come only
+  from the config table, itself only ever populated by reviewed
+  migrations); upserts platform_assets ON CONFLICT (source_table,
+  source_id) DO UPDATE, touching ONLY name/purpose/module/owner_id/org_id/
+  status/updated_at -- never tags/permissions/aiCapabilities/dependencies,
+  which stay an app-level curation concern via the existing
+  registerAsset()/updateAsset() so the trigger can never clobber them. ON
+  DELETE, sets status='deleted' (soft -- the registry row persists as the
+  historical record; platform_assets itself is never hard-deleted by
+  anything, matching archiveAsset()'s existing no-hard-DELETE discipline).
+  source_id is always NEW.id/OLD.id (universal cuid2 'id' PK convention,
+  confirmed across every table sampled during investigation).
+
+  Onboarding a new table (the pattern every dispatch follows): one INSERT
+  into asset_registration_config + one CREATE TRIGGER statement, both in
+  that dispatch's own migration file. No application code required.
+
+dispatches:
+  - agent: 1
+    scope: "Core: asset_registration_config + auto_register_asset() trigger function (migration 0152), applied live"
+    owner: "Super Boss (sequential, must land before the 3 domain dispatches)"
+    status: not_started
+  - agent: 2
+    scope: "Compiled in-memory metadata cache + wiring into asset-query-service.ts/asset-routing-engine.ts"
+    owner: "Super Boss (sequential, shares no file conflicts with the 3 domain dispatches)"
+    status: not_started
+  - agent: 3
+    scope: "CI guardrail extension: new tables must register or be explicitly exempted"
+    owner: "Super Boss"
+    status: not_started
+  - agent: 4
+    scope: "Domain A onboarding: Documents/Reports/Tasks/Notifications tables onto the trigger"
+    owner: "subagent (parallel worktree)"
+    status: not_started
+  - agent: 5
+    scope: "Domain B onboarding: Workflow/Automation/Decision/Approval tables onto the trigger"
+    owner: "subagent (parallel worktree)"
+    status: not_started
+  - agent: 6
+    scope: "Domain C onboarding: Role/Permission/Policy/API-surface tables onto the trigger, plus the deterministic registry audit/maintenance script"
+    owner: "subagent (parallel worktree)"
+    status: not_started
