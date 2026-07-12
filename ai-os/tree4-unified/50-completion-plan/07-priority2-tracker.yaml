@@ -92,7 +92,7 @@ items:
 
   - num: 3
     name: "Tree 1 — AI Governance Layer to 100%"
-    status: not_started
+    status: "in_progress -- D1/D2/D8/D13 slice closed 2026-07-12 (subagent/gov-identity PR); D5/D6/D9/D15/D19/D22/D24/D25/D27/D28 remain, being worked by 2 other parallel subagents per this item's own scope note."
     investigation: |
       Baseline from the post-Priority-1 reconciliation (2026-07-12): 52 of 131
       buildable Tree 1 requirements are solid (39.7%), 38 partial, 37 gap,
@@ -105,14 +105,14 @@ items:
       hard-to-reverse and disproportionate; revisiting it needs an explicit
       Owner override, not a default inclusion in "Tree 1 to 100%."
     remaining_work_by_domain:
-      - "D1 Governance Charter & Mission (20% solid, 4 of 5 gap) -- mostly framing/documentation-shaped requirements per the tree's own notes, needs its own investigation pass before assuming code work."
-      - "D2 AI Org Hierarchy & Roles (31% solid, 2 gap of 11 buildable) -- remaining items after this session's escalation-ladder.ts + 130-role roster work."
+      - "D1 Governance Charter & Mission -- CLOSED 2026-07-12 (subagent/gov-identity). See d1_governance_charter below."
+      - "D2 AI Org Hierarchy & Roles -- CLOSED 2026-07-12 (subagent/gov-identity). See d2_ai_org_hierarchy below."
       - "D5 Dynamic Mode Pills & Chain Framework (36% solid, 2 gap of 12) -- residual items beyond DCMD + chain-gate."
       - "D6 Dynamic Chain Master Directory (50% solid) -- residual items."
-      - "D8 VERI Chat Identity (33% solid) -- residual items."
+      - "D8 VERI Chat Identity -- CLOSED 2026-07-12 (subagent/gov-identity). See d8_veri_chat_identity below."
       - "D9 Approval & Confirmation UX -- see item 5."
       - "D10 Communication Governance -- see item 4."
-      - "D13 Guardrail Framework, Per-Task Layer (0% solid, 1 gap + 2 partial of 3)."
+      - "D13 Guardrail Framework, Per-Task Layer -- CLOSED 2026-07-12 (subagent/gov-identity). See d13_guardrail_framework below."
       - "D15 Audit & Review Governance (17% solid, 3 confirmed gap of 10 buildable) -- items beyond L1/L2/L4's real mechanisms and the L3/L5-7 cadence-mismatch ratification."
       - "D19 Reporting Framework (0% solid, 1 of 1) -- smallest domain, single requirement, worth an early quick look."
       - "D21 Intelligent Work Detection -- see item 4."
@@ -123,6 +123,41 @@ items:
       - "D27 Registration, Licensing & Adoption (33% solid, 1 gap + 1 partial of 3) -- residual items beyond seat licensing + 4 invitation paths."
       - "D28 Onboarding & Sign-up UX (40% solid, 1 gap + 1 partial of 4 buildable) -- residual items beyond CTA/framing + invite-link work (auth rebuild/G-045 and the onboarding-profile redesign stay explicitly ratified-deferred per Area 15's closure, not included here without an Owner override)."
     note: "D3/D7/D12/D14/D16/D17/D18/D20/D23 are already at 50-100% solid or fully closed -- listed here as 'monitor, don't prioritize' rather than omitted silently. D11 is a duplicate_ref only (not independently buildable)."
+    d1_governance_charter:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- 1 real gap found and fixed (B2.S2, documentation), 1 investigated and confirmed absent but deliberately not force-built (B1.S1), 3 needed no action (already correctly assessed as framing-only/satisfied-in-spirit in the tree doc itself)."
+      current_state: "Confirmed genuinely mostly framing/documentation-shaped, matching the tree's own note -- only 2 of 5 sub-branches had any real action available."
+      closed_this_session:
+        - "B2.S2: REAL gap, closed. Grepped all 4 root constitution docs for 'supersed'/'SOP' -- zero hits despite each already using ENFORCED/PARTIALLY ENFORCED/POLICY ONLY/NOT APPLICABLE YET discipline. Added a 'Constitutional authority' section to each stating explicit supersession over individual agent instructions/informal working practice."
+        - "B2.S1, B3.S1, B4.S1: no action needed -- re-confirmed the tree doc's own existing assessment (mostly_implemented/framing-only/satisfied-in-spirit) was already correct."
+      remaining_work:
+        - "B1.S1 (99.9% GPT-OSS-120B execution target, 6 named metrics, 31 Aug 2026 deadline): confirmed genuinely absent (no dashboard/report tracks this anywhere), deliberately NOT built as a partial 1-metric slice -- would need the other 5 named metrics identified from the source doc plus a real deadline-tracking UI to actually close the gap. Recommended as a separately-scoped follow-up."
+    d2_ai_org_hierarchy:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- 5 of the tree's listed gap/partial sub-branches turned out to already be closed by this session's own prior 130-role audit-org roster work (documented, not rebuilt); the 2 genuinely remaining gaps (B4.S1 audit independence, B1.S1 escalation-level tagging) were closed with real code; B6.S1 got new guardrail infrastructure."
+      current_state: "This domain had the most stale tree-doc statuses of the 4 -- the tree snapshot predates this session's own 130-role audit-org roster addition, which already closes most of what it still lists as gap."
+      closed_this_session:
+        - "B2.S1, B4.S2, B4.S3, B4.S4, B4.S5, B5.S1: reclassified from gap/partial to implemented -- verified by direct comparison of roster.ts's 5 AUDIT_* division teams (added same day, 130 roles) against each sub-branch's literal named department list. No code needed, tree doc was stale."
+        - "B4.S1 (CAO cannot modify production code): REAL gap, closed. New isAuditOrganizationRole() helper (roster.ts), wired as a fail-closed check in both real repo-write dispatch surfaces (dispatch-repo.ts, scripts/ai-workforce-agent.mjs)."
+        - "B1.S1 (5-level/L0-L5 escalation ladder): new optional RoleDefinition.escalationLevel field, tagged where roles map cleanly (chief_execution_engine=L0, chief_operating_officer=L3, super_boss=L4, founder_ceo=L5); L1/L2 documented as already-real process gates (peer review + QA pre-completion gate), not forced onto a role."
+        - "B6.S1 (3-phase audit protocol): new audit-protocol.ts + AUDIT_PROTOCOL_COMPLIANCE_LEAF guardrail leaf, mirroring handover-protocol.ts's exact shape. Honest scope note: no live caller yet (no dedicated 'submit audit finding' endpoint exists today) -- real, tested, additive infrastructure only, same posture as guardrail-engine.ts's own original empty-registry precedent."
+        - "B3.S2/S3/S4: reclassified from partial/superseded/not_applicable_to_code to implemented -- the CEE/COO/CSEO roles this session's EXECUTIVE_LADDER team addition already created match these sub-branches' named executive roles on the exact model each requirement names."
+        - "B6.S2 (9 non-negotiable audit guardrails): confirmed already correctly self-described as 'extends automatically when guardrail registration widens' -- this session's new AUDIT_PROTOCOL_COMPLIANCE_LEAF registration mechanically extends it (same recordGuardrailViolation()/CLEE path every leaf uses)."
+      remaining_work:
+        - "None confirmed gap remaining in this domain as of this session -- all 11 buildable sub-branches are now implemented, closed-with-code, or confirmed already-satisfied. B2.B2, B3.S1, B3.S5 remain not_applicable_to_code (framing text, correctly excluded, not a gap)."
+    d8_veri_chat_identity:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- the 1 remaining partial (B2.S1) upgraded to implemented by direct architectural verification, no code change needed."
+      current_state: "Smallest of the 4 domains -- 2 of 3 sub-branches were already solid; B2.S1 was the only open question."
+      closed_this_session:
+        - "B2.S1 (VERI Chat shall never auto-create/assign/modify/execute tasks from a conversation alone): upgraded from partial to implemented. Grepped every `.insert(tasks)` call site in the codebase (6 total) -- none originate from chat-service.ts. chat-service.ts's generateAiReply() has zero tool-calling capability (independently confirmed by ai-reply-gate.ts's own header). The requirement is satisfied structurally, not by a runtime gate -- a stronger guarantee, since nothing CAN execute an action from that code path at all. No code change -- a redundant guardrail against a structurally-impossible action would be guardrail-theater."
+      remaining_work:
+        - "None -- all 3 sub-branches now implemented or duplicate_ref (B3.S1, tracked under GAP-03 elsewhere, not independently buildable here)."
+    d13_guardrail_framework:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- B1.S1 upgraded to implemented by content audit (no code); B1.S3 confirmed already-covered; B1.S2 investigated and deliberately NOT built (genuinely needs a live prompt-content change, not a narrow code slice)."
+      current_state: "Read guardrail-engine.ts and guardrail-registrations.ts first per the dispatch's own instruction, to check for the exact false-negative pattern flagged (a gap that's actually covered by a different, already-registered mechanism) -- found this pattern applies to B1.S1 and B1.S3, not B1.S2."
+      closed_this_session:
+        - "B1.S1 (preloaded/predefined, polite violation messages): upgraded to implemented. Read every `guidance:` string across the 5 registered-check modules (task-tightening.ts, communication-guardrails.ts, qa-precompletion-gate.ts, handover-protocol.ts, loop-prevention.ts) -- all are static string templates, professionally phrased, matching the bar exactly. No code change needed."
+        - "B1.S3 (violation-to-learning-loop link): confirmed already correctly covered generically -- this session's new AUDIT_PROTOCOL_COMPLIANCE_LEAF registration (D2.B6.S1 above) mechanically extends it, exactly as the tree's own note predicted."
+      remaining_work:
+        - "B1.S2 (assumption validation -- AI must check with the user before proceeding on an unstated assumption): confirmed real, deliberately NOT built. Considered and rejected a phrase-detection proxy on VERI's reply text (either too blunt -- would hard-block many legitimate assumption statements -- or, as a softer escalate-and-retry version, wouldn't actually close the literal requirement). The correct-in-principle fix (a 'confirm before assuming' instruction added to VERI's system prompt) requires a live prompt_templates DB content change, which is a production data mutation outside a headless subagent's authorization -- distinct from a schema migration file. Recommended as a follow-up needing (a) Boss/Owner sign-off on the prompt content change and (b) possible UX support for a pending-confirmation reply state."
 
   - num: 4
     name: "Universal Connector (D26) + Communication Governance (D10) + Intelligent Work Detection (D21)"

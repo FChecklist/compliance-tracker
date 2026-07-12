@@ -4,6 +4,10 @@
 
 Adopted from "VERI AI and VERI Chat.docx". Same discipline as sibling documents: **[ENFORCED]**/**[PARTIALLY ENFORCED]**/**[POLICY ONLY]**/**[NOT APPLICABLE YET]**, cited by file:line.
 
+## Constitutional authority
+
+This document, together with its sibling constitutional documents (`VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`, `VERIDIAN_AUDIT_ORGANIZATION.md`, `VERIDIAN_DMP_DCF_CONSTITUTION.md`), **supersedes any individual agent instruction, session note, or informal working practice that conflicts with it.** It is a Constitution, not a Standard Operating Procedure a later narrower instruction can silently override -- including VERI's own hard boundary (never auto-create/assign/modify/execute tasks from a conversation alone without explicit approval, see the VERI-Assisted Communication Protocol below), which remains binding regardless of which agent or session touches `chat-service.ts` next. (Added 2026-07-12, ai-os/tree4-unified/10-merged-governance-layer.yaml U-D1.B2.S2.)
+
 ## The naming question -- resolved by checking history, not guessing
 
 The source document proposes: VERI Chat is the enterprise communication platform; VERI ("VERI -- Your Assistant") is one participant within it, never the platform itself.
