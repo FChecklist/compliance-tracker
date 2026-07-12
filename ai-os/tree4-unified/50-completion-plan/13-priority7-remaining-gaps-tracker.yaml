@@ -1,0 +1,95 @@
+# Priority 7 tracker, created 2026-07-12 per the Owner's directive: "Priority
+# 7, close remaining gaps once GITHUB_DISPATCH_PAT is set." Two independent
+# tracks, since one is genuinely blocked and the other turned out not to be.
+
+priority: 7
+name: "Remaining gaps from Priority 6's honest-disclosure list"
+
+track_a_github_dispatch_pat:
+  status: owner_blocked
+  finding: |
+    Verified live via `vercel env ls production` (authenticated as
+    `fchecklist`, project veridian-compliance-ai): GITHUB_DISPATCH_PAT is
+    NOT set in Production, Preview, or Development. Only 14 env vars exist
+    on the project; it is not one of them. This is not something I can set
+    myself -- it requires a GitHub Personal Access Token (repo scope) tied
+    to a human GitHub identity. Per this session's own established
+    discipline (never handle/extract/copy credential VALUES, even when a
+    write-only equivalent like PAT_FCHECKLIST exists elsewhere), I have not
+    attempted to work around this.
+  next_step: "Owner creates a PAT (GitHub Settings -> Developer settings -> Personal access tokens, repo scope) and runs `vercel env add GITHUB_DISPATCH_PAT production` (or sets it via the Vercel dashboard). Once set, the next session should test Higher AI's live repository_dispatch path end-to-end for the first time -- dispatch-repo.ts/capability-audit-service.ts's dispatchProposalToHigherAI() has never been exercised against a real token."
+
+track_b_governance_foundation_report:
+  status: in_progress
+  finding: |
+    The Priority 6 subagent that wrote 12-priority6-governance-foundation-
+    drift.md correctly reported it had no access to veda-advisors/projexa
+    FROM ITS OWN SANDBOXED WORKTREE. Checked directly in this session: `gh
+    repo view` shows ADMIN permission on both FChecklist/veda-advisors and
+    FChecklist/projexa via the current session's own gh auth. Both repos
+    are already cloned locally (veda-advisors at
+    C:\Users\Dell\Downloads\Claude Code\veda-advisors\code-by-zai, on
+    branch governance/foundation-port; projexa at
+    C:\Users\Dell\Downloads\Claude Code\projexa, main branch fetched
+    separately for governance/foundation-bootstrap). Both PRs (veda-advisors
+    #15, projexa #1) are still open and mergeable. This is a real, closeable
+    gap, independent of track A.
+  scope: |
+    Apply 12-priority6-governance-foundation-drift.md's mechanical
+    checklist to each sibling repo's existing open PR branch: port items
+    2/4/5/6/7/8/9 of guardrail-registrations.ts's drift (adapted per-repo,
+    not copy-pasted -- most have no direct equivalent in either sibling
+    repo's much smaller codebase, per the doc's own explicit warning),
+    items 2-5 + wording refresh of task-tightening.ts's drift (near-verbatim,
+    pure functions), and manifest entries only for whichever of the above
+    each repo actually implements locally. Update ai-os/boss/COMPLETED.yaml
+    in compliance-tracker afterward to close task #17.
+  dispatches:
+    - repo: "FChecklist/veda-advisors"
+      branch: "governance/foundation-port (existing PR #15)"
+      status: ready_owner_blocked
+      result: |
+        Read the actual ported doc (60ba00f, "docs: bring AI governance up to
+        baseline, adapted from compliance-tracker"): veda-advisors is
+        confirmed a plain Next.js marketing/lead-gen site with ZERO AI/LLM
+        calls anywhere in the shipped product (no callLLM, no model-provider
+        key, no prompt-construction code). The PR correctly did a
+        documentation-only port (VEDA_ADVISORS_GOVERNANCE.md) and explicitly
+        declined to invent Guardrail Engine/task-tightening.ts machinery for
+        a product with no AI dispatch surface to guard -- this is the right
+        call, not a gap. Nothing in the drift checklist's code-level items
+        applies here at all.
+        PR #15 is fully CI-green (12/12 checks pass). Cannot merge it myself:
+        veda-advisors' branch protection requires 1 approving review
+        (enforce_admins: true, no bypass), and I am authenticated as the
+        same account (FChecklist) that authored the PR -- GitHub does not
+        allow self-approval. This needs the Owner's review/approval, not
+        further investigation or code.
+    - repo: "FChecklist/projexa"
+      branch: "governance/foundation-bootstrap (existing PR #1)"
+      status: complete
+      result: |
+        Same finding as veda-advisors: projexa makes zero direct LLM calls
+        (confirmed by the PR's own PROJEXA_TASK_GOVERNANCE.md, verified via
+        repo-wide search for callLLM/OpenRouter/OPENAI/Anthropic/GROQ --  no
+        matches) -- all AI capability proxies through VERIDIAN's own
+        /api/v1/projexa/* API. No local Guardrail Engine/task-tightening.ts
+        code to port here either.
+        The doc DID name one concrete, checkable follow-up: "confirm whether
+        VERIDIAN's /api/v1/projexa/* handlers run their inputs through
+        task-tightening.ts or an equivalent already." Checked directly in
+        compliance-tracker: POST /api/v1/projexa/assistant never calls a
+        model at all (dispatchTool() is a fixed allowlist of 7 deterministic
+        construction compute functions, zero LLM in the path -- TightTask
+        was never the applicable guardrail here, so [NOT APPLICABLE YET] was
+        actually the correct permanent answer). POST /api/v1/projexa/discuss
+        DOES call a model (construction-ai-service.ts's discussConstruction())
+        and already calls enforcePolicy() before that call -- the correct
+        guardrail class for conversational chat (same pattern chat-service.ts's
+        generateAiReply()/generateVeriGroupReply() use), not TightTask
+        (which guards AI Dev Team task dispatch, a different shape of
+        problem). Updated PROJEXA_TASK_GOVERNANCE.md with this finding,
+        closing its own named follow-up rather than leaving it open.
+        No CI configured on this repo/branch at all (consistent with the
+        PR's own honest note); docs-only diff (+30/-7 lines), zero
+        application code. PR #1 merged directly.
