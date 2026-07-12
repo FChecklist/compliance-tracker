@@ -34,7 +34,13 @@ export function validateChainDepth(chainPathKeys: unknown[] | undefined): { vali
 // same chain (the common case -- most tasks reuse a handful of frequent
 // chains) doesn't grow dynamic_chains unboundedly with duplicate rows.
 // Dedupes on (orgId, modePill, pathKeys) via a jsonb equality compare.
-async function resolveDynamicChainId(
+//
+// Priority 5 (10-priority5-software-orchestrator-tracker.yaml, dispatch 4,
+// item E1): exported (was module-private) so chat-service.ts's
+// createConversation()/createWorkflowThread() can call the exact same
+// find-or-create resolver for the Dynamic Chain gate on VERI conversations
+// (VERI_CHAT_GOVERNANCE.md §5), instead of duplicating this dedup logic.
+export async function resolveDynamicChainId(
   db: TenantDb, orgId: string, userId: string,
   modePill: string, pathKeys: unknown[], pathLabels: unknown[]
 ): Promise<string | null> {

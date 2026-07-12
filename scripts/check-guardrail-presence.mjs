@@ -278,6 +278,17 @@ const REQUIRED_MARKERS = [
   // audit-protocol.ts's own header).
   { file: "src/lib/audit-protocol.ts", mustContain: ["export function validateAuditProtocolFields"] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["AUDIT_PROTOCOL_COMPLIANCE_LEAF"] },
+
+  // Added 2026-07-12 (10-priority5-software-orchestrator-tracker.yaml,
+  // dispatch 4/Part 2): the Software Orchestrator's Auditor "once per
+  // Capability Version" gate -- capability-audit-service.ts's own header
+  // calls shouldAuditCapability() "the single most important invariant in
+  // this file": without it, a capability that keeps classifying NOVEL/
+  // PACKAGE_AVAILABLE would re-spend a real chief_audit_officer LLM call on
+  // every single occurrence instead of at most once per version. Verified
+  // against the real merged p5/audit-higherai code (not guessed) before
+  // adding this marker.
+  { file: "src/lib/services/capability-audit-service.ts", mustContain: ["export function shouldAuditCapability"] },
 ]
 
 let failed = false

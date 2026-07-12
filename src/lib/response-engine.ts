@@ -86,3 +86,102 @@ export function suggestResponseForTaskStatus(status: string, taskTitle?: string)
       return formatShortReply("pending", taskTitle ? `${taskTitle}: ${status}` : status)
   }
 }
+
+// ─── Status Updates & Report Summaries (Priority 5, 10-priority5-software-
+// orchestrator-tracker.yaml dispatch 4, item E5) ───────────────────────────
+//
+// suggestResponseForTaskStatus() above only ever describes ONE task's
+// status -- confirmed before writing anything: no template existed anywhere
+// for the doc's other two named response shapes, periodic STATUS UPDATES
+// ("X of Y tasks completed this week") or REPORT SUMMARIES ("GST filing
+// status: completed, due 15 Jul 2026"). This widens the SAME mechanism
+// (predefined template + real data, zero LLM generation) to those two
+// shapes rather than changing its nature -- every function below is a pure
+// string formatter over primitive data (counts, a status string, a date)
+// the caller already fetched from the DB, exactly like suggestResponseFor
+// TaskStatus's own contract. No function here calls an LLM or invents a
+// data source; formatTaskCompletionSummary is the one with a real live
+// caller today (llm-routing-gate.ts's `generate_report` handler,
+// previously registered in intent-engine.ts but never wired to a handler --
+// confirmed via that file's own HANDLERS map before this change).
+// formatComplianceFilingSummary/formatComplianceStatusDigest are tested,
+// ready infrastructure without a live caller yet (no existing code path
+// currently fetches "the org's most recent GST compliance_items row" to
+// feed one) -- same honest "real, tested, ready, not yet wired" framing
+// this session has used elsewhere (e.g. audit-protocol.ts).
+
+const COMPLIANCE_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  in_progress: "In Progress",
+  completed: "Completed",
+  overdue: "Overdue",
+  not_applicable: "Not Applicable",
+  draft: "Draft",
+}
+
+const MONTH_ABBREVIATIONS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+/**
+ * Deterministic "DD MMM YYYY" formatter (e.g. "15 Jul 2026"), used instead
+ * of Date.prototype.toLocaleDateString so template output doesn't depend on
+ * the host's ICU locale data -- the same value every time, in tests and in
+ * production. Reads UTC fields so a stored timestamp's calendar date isn't
+ * shifted by the server's local timezone.
+ */
+function formatDate(input: Date | string): string {
+  const date = typeof input === "string" ? new Date(input) : input
+  if (Number.isNaN(date.getTime())) return "an unknown date"
+  return `${date.getUTCDate()} ${MONTH_ABBREVIATIONS[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+}
+
+export type TaskCompletionSummary = { completed: number; total: number; periodLabel: string }
+
+/**
+ * "X of Y tasks completed <period>" -- the doc's own example. Zero LLM
+ * call: `completed`/`total` are real counts the caller already queried
+ * (see llm-routing-gate.ts's `generate_report` handler for the live
+ * caller). `total <= 0` gets its own honest "no tasks" phrasing rather than
+ * a misleading "0 of 0 tasks completed".
+ */
+export function formatTaskCompletionSummary(summary: TaskCompletionSummary): string {
+  const { completed, total, periodLabel } = summary
+  if (total <= 0) return `No tasks ${periodLabel}`
+  return `${completed} of ${total} tasks completed ${periodLabel}`
+}
+
+export type ComplianceFilingSummary = {
+  complianceType: string
+  status: string
+  dueDate: Date | string | null
+}
+
+/**
+ * "<TYPE> filing status: <Status>, due <date>" -- the doc's other named
+ * example. `status` is expected to be one of complianceStatusEnum's real
+ * values (schema.ts) but falls back to the raw string for forward
+ * compatibility rather than throwing on an unrecognized value.
+ */
+export function formatComplianceFilingSummary(summary: ComplianceFilingSummary): string {
+  const statusLabel = COMPLIANCE_STATUS_LABELS[summary.status] ?? summary.status
+  const dueText = summary.dueDate ? formatDate(summary.dueDate) : "no due date set"
+  return `${summary.complianceType} filing status: ${statusLabel}, due ${dueText}`
+}
+
+export type ComplianceStatusCounts = { status: string }[]
+
+/**
+ * Widens the single-item filing summary above to a genuine multi-item
+ * REPORT SUMMARY -- "X of Y GST filings completed this month" -- built
+ * purely from an array of real compliance_items rows' status field (the
+ * caller does the DB query and filtering, e.g. by complianceType/period;
+ * this function only aggregates and formats). `completed` counts exactly
+ * the `completed` status value, matching complianceStatusEnum.
+ */
+export function formatComplianceStatusDigest(complianceType: string, items: ComplianceStatusCounts, periodLabel: string): string {
+  const total = items.length
+  if (total === 0) return `No ${complianceType} filings ${periodLabel}`
+  const completed = items.filter((i) => i.status === "completed").length
+  return `${completed} of ${total} ${complianceType} filings completed ${periodLabel}`
+}

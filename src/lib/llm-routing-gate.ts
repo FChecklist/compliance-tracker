@@ -17,7 +17,7 @@
 // -- purely additive, zero regression risk for every intent this doesn't
 // recognize.
 import { classifyIntent, type Intent } from "./intent-engine"
-import { suggestResponseForTaskStatus, renderShortReply } from "./response-engine"
+import { suggestResponseForTaskStatus, renderShortReply, formatTaskCompletionSummary } from "./response-engine"
 
 export type RoutingResult =
   | { handled: true; reply: string }
@@ -25,17 +25,17 @@ export type RoutingResult =
 
 type DeterministicHandler = (ctx: { orgId: string; userId: string }) => Promise<string | null>
 
-// v1 covers exactly one real handler -- check_status, the most
-// unambiguous case to answer deterministically (a direct DB lookup, no
-// interpretation needed). Other intents (create_task, create_contact,
-// generate_report) still need real argument extraction from free text
-// before they could safely bypass the LLM -- correctly left for the LLM
-// path for now rather than guessing. Registering more handlers here is
-// how this gate grows, not a redesign.
+// v1 covers two real handlers -- check_status and (Priority 5 item E5)
+// generate_report, both unambiguous enough to answer deterministically (a
+// direct DB lookup/count, no interpretation needed). create_task/
+// create_contact still need real argument extraction from free text before
+// they could safely bypass the LLM -- correctly left for the LLM path for
+// now rather than guessing. Registering more handlers here is how this gate
+// grows, not a redesign.
 //
-// DB access is dynamically imported inside the handler, not at module
+// DB access is dynamically imported inside each handler, not at module
 // top-level -- this module's dominant code path (an intent with no
-// registered handler, i.e. 3 of the 4 classified intents plus "unknown")
+// registered handler, i.e. 2 of the 4 classified intents plus "unknown")
 // never needs a database connection at all, so it shouldn't pay the cost
 // of resolving one just by being imported.
 const HANDLERS: Partial<Record<Intent, DeterministicHandler>> = {
@@ -54,6 +54,27 @@ const HANDLERS: Partial<Record<Intent, DeterministicHandler>> = {
     // the label from real status, zero LLM call -- the real proof this
     // vocabulary isn't unused infrastructure.
     return renderShortReply(suggestResponseForTaskStatus(latest.status, latest.title))
+  },
+  // Priority 5 (10-priority5-software-orchestrator-tracker.yaml, dispatch 4,
+  // item E5): generate_report was classified by intent-engine.ts since Wave
+  // 149 but had no registered handler here -- confirmed via this file's own
+  // history before adding one, not assumed. "This week" is a fixed trailing
+  // 7-day window (matches this repo's other "this week" DB queries rather
+  // than inventing a new calendar convention); real per-user task counts,
+  // zero LLM call, same deterministic-first shape as check_status above.
+  generate_report: async (ctx) => {
+    const { withTenantContext } = await import("@/lib/db/tenant-scoped")
+    const { tasks } = await import("@/lib/db")
+    const { eq, and, gte } = await import("drizzle-orm")
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const recent = await withTenantContext(ctx, (db) =>
+      db.query.tasks.findMany({
+        where: and(eq(tasks.userId, ctx.userId), gte(tasks.createdAt, since)),
+        columns: { status: true },
+      })
+    )
+    const completed = recent.filter((t) => t.status === "completed").length
+    return formatTaskCompletionSummary({ completed, total: recent.length, periodLabel: "this week" })
   },
 }
 
