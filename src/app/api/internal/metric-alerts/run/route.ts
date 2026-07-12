@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { evaluateAllMetricAlertRules } from "@/lib/services/metric-alert-service"
 import { checkTicketSlaBreaches } from "@/lib/services/ticket-service"
 import { checkTaskOverdue } from "@/lib/services/task-service"
+import { reprioritizeTasks } from "@/lib/services/task-reprioritization-service"
 
 /**
  * Cron-triggered entry point for Wave 38's metric alert rules
@@ -14,6 +15,14 @@ import { checkTaskOverdue } from "@/lib/services/task-service"
  * coverage from compliance items + tickets to tasks. Same shared-secret
  * pattern as /api/internal/loops/run and /api/internal/instruction-audit/run
  * -- there is no user session for a scheduled job.
+ *
+ * GAP-CONTINUOUS-REPRIORITIZATION (Tree 1 D22.B2.S1) adds reprioritizeTasks()
+ * as a fourth consumer of this same run -- deliberately reusing this
+ * existing scheduled job instead of standing up new background-job
+ * infrastructure, exactly as checkTaskOverdue did before it. Distinct from
+ * checkTaskOverdue: that function only notifies (read-only); reprioritizeTasks
+ * is the real WRITE to tasks.priority. See task-reprioritization-service.ts's
+ * own header for the honest scope of what this does and does not cover.
  */
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
@@ -26,12 +35,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const [metricAlerts, ticketSla, taskOverdue] = await Promise.all([
+    const [metricAlerts, ticketSla, taskOverdue, taskReprioritization] = await Promise.all([
       evaluateAllMetricAlertRules(),
       checkTicketSlaBreaches(),
       checkTaskOverdue(),
+      reprioritizeTasks(),
     ])
-    return NextResponse.json({ ranAt: new Date().toISOString(), metricAlerts, ticketSla, taskOverdue })
+    return NextResponse.json({ ranAt: new Date().toISOString(), metricAlerts, ticketSla, taskOverdue, taskReprioritization })
   } catch (error) {
     console.error("Metric alert evaluation run failed:", error)
     return NextResponse.json({ error: "Metric alert evaluation run failed" }, { status: 500 })
