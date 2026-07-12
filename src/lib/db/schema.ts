@@ -1207,6 +1207,20 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   reportsKpisSlas: jsonb('reports_kpis_slas'),
   version: integer('version').notNull().default(1),
   previousVersionId: text('previous_version_id'), // self-referencing, null for the first version of a chain lineage
+  // Wave 173 (GAP-DCMD, next real slice after Wave 171's rich-metadata pass):
+  // still deliberately NOT the source doc's full 10-sub-object schema --
+  // three more genuinely useful, additive, nullable fields plus the first
+  // real entity_relationships graph edge for chains (see
+  // approval-workflow-service.ts's startApprovalWorkflow() and
+  // task-service.ts's createTask()). linkedApprovalWorkflowIds is populated
+  // opportunistically the first time this chain actually starts a real
+  // approval_workflow_instances row for a task -- it's a denormalized,
+  // human-readable index onto what entity_relationships already records as
+  // the source of truth, not a second source of truth for the graph edge
+  // itself.
+  linkedApprovalWorkflowIds: jsonb('linked_approval_workflow_ids').notNull().default([]), // string[] of approval_workflow_definitions.id this chain has triggered
+  governanceNotes: text('governance_notes'), // free-form governance/compliance annotation an admin can attach to a chain
+  deprecationReason: text('deprecation_reason'), // why a 'retired' chain was retired -- null for every non-retired chain and every pre-Wave-173 retired row
 })
 
 // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
@@ -1228,6 +1242,36 @@ export const approvalPreferences = complianceSchemaDB.table('approval_preference
   decision: text('decision').notNull(), // 'always_approve' | 'always_reject'
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Wave 173 (GAP-DELEGATION-AUTHORITY). approval_preferences above covers
+// "always approve this action CATEGORY" -- a type-level self-service
+// preference. This is a real, narrower, DIFFERENT concept: one person
+// (delegatorUserId) formally handing their own authority over a specific
+// scope to someone else (delegateUserId) or to any holder of a given role
+// (delegateRoleKey) -- e.g. "while I'm on leave, my manager approves
+// anything scoped to Project X on my behalf." Exactly one of
+// delegateUserId/delegateRoleKey is set per row (enforced in
+// delegation-service.ts's validateDelegationInput(), not a DB CHECK
+// constraint -- matches this codebase's established preference for
+// app-layer validation over DB-level constraints for this class of rule,
+// e.g. approvalPreferences' own find-then-insert-or-update precedent).
+// expiresAt/revokedAt are both nullable and independent: a delegation can
+// have neither (open-ended, still-revocable), just an expiry, just a
+// manual revoke, or (once revoked) both.
+export const delegationScopeTypeEnum = complianceSchemaDB.enum('delegation_scope_type', ['task', 'workflow', 'project', 'module', 'communication_type', 'approval_type'])
+
+export const scopedDelegations = complianceSchemaDB.table('scoped_delegations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  delegatorUserId: text('delegator_user_id').notNull(),
+  delegateUserId: text('delegate_user_id'), // exactly one of this / delegateRoleKey is set
+  delegateRoleKey: text('delegate_role_key'), // a user_role enum value (see auth-guard.ts's UserRole) -- "anyone holding this role"
+  scopeType: delegationScopeTypeEnum('scope_type').notNull(),
+  scopeId: text('scope_id'), // nullable -- a scopeType-level grant (e.g. every 'module') vs a specific scoped id
+  expiresAt: timestamp('expires_at'),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // Per-org, optionally per-layer BYO model override. orchestraLayerId=null

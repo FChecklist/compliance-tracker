@@ -62,3 +62,37 @@ describe("escalationLevel tags -- U-D2.B1.S1", () => {
     }
   })
 })
+
+// Wave 173 (D2/GAP-COO-ROLE leftover): chief_operating_officer already
+// existed with a real, distinct L3 escalation-ladder role before this wave
+// (confirmed by the "chief_operating_officer is tagged L3" test above) --
+// these tests instead cover this wave's actual addition, the minimal
+// chief_revenue_officer role, and re-confirm the pre-existing distinctness
+// this wave's own PR description relies on.
+describe("chief_revenue_officer -- Wave 173 minimal Global Revenue Operations owner", () => {
+  test("exists, on the SALES_MARKETING team, with a real model + promptKey (not a stub)", () => {
+    const role = getRole("chief_revenue_officer")
+    expect(role).toBeDefined()
+    expect(role?.team).toBe("SALES_MARKETING")
+    expect(role?.model).toBeTruthy()
+    expect(role?.promptKey).toBe("ai_team.chief_revenue_officer")
+  })
+
+  test("is a distinct roleKey from chief_operating_officer and chief_governance_officer", () => {
+    expect(getRole("chief_revenue_officer")?.roleKey).not.toBe(getRole("chief_operating_officer")?.roleKey)
+    expect(getRole("chief_revenue_officer")?.roleKey).not.toBe(getRole("chief_governance_officer")?.roleKey)
+  })
+})
+
+describe("chief_operating_officer -- re-confirms distinctness from chief_governance_officer/ceo_technical_director", () => {
+  test("chief_operating_officer, chief_governance_officer, and ceo_technical_director are 3 separate roles on 3 separate teams", () => {
+    const coo = getRole("chief_operating_officer")
+    const cgo = getRole("chief_governance_officer")
+    const ctd = getRole("ceo_technical_director")
+    expect(coo?.team).toBe("EXECUTIVE_LADDER")
+    expect(cgo?.team).toBe("GUARDRAIL_PLATFORM")
+    expect(ctd?.team).toBe("ENGINEERING")
+    const teams = new Set([coo?.team, cgo?.team, ctd?.team])
+    expect(teams.size).toBe(3)
+  })
+})

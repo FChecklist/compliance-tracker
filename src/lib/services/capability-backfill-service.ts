@@ -14,12 +14,22 @@ import { discoverWorkerAgent } from "./worker-agent-service"
 import { listAutomationRules } from "./automation-rule-service"
 import { listModules } from "./module-registry-service"
 import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
+// Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain's own backfill source --
+// every chain created before task-service.ts's resolveDynamicChainId got
+// its indexing hook (this same wave) needs this one-off catch-up, same
+// reasoning as the 3 pre-existing sources below.
+import { dynamicChains } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { eq } from "drizzle-orm"
 
-export async function backfillCapabilityIndex(ctx: { orgId: string; userId: string }): Promise<{ agents: number; rules: number; modules: number }> {
-  const [agents, rules, modules] = await Promise.all([
+export async function backfillCapabilityIndex(ctx: { orgId: string; userId: string }): Promise<{ agents: number; rules: number; modules: number; chains: number }> {
+  const [agents, rules, modules, chains] = await Promise.all([
     discoverWorkerAgent({ orgId: ctx.orgId, userId: ctx.userId }, { lifecycleStatus: ["proposed", "approved", "published", "draft"] }),
     listAutomationRules({ orgId: ctx.orgId }),
     listModules({ isActive: true }),
+    withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db.query.dynamicChains.findMany({ where: eq(dynamicChains.orgId, ctx.orgId) })
+    ),
   ])
 
   await Promise.all(
@@ -45,6 +55,17 @@ export async function backfillCapabilityIndex(ctx: { orgId: string; userId: stri
         .catch((err) => console.error(`Failed to backfill-index module ${m.moduleKey}:`, err))
     )
   )
+  // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): chains created before this wave's
+  // indexing hook (task-service.ts's resolveDynamicChainId) never got
+  // embedded -- catch them up here, same idempotent storeEmbedding() dedupe
+  // every other source above already relies on.
+  await Promise.all(
+    chains.map((c) => {
+      const labels = Array.isArray(c.pathLabels) ? (c.pathLabels as unknown[]).map((l) => String(l)) : []
+      return indexCapability("dynamic_chain", c.id, buildCapabilityContent({ name: c.modePill, domain: labels.join(" > ") || null, description: c.description }), c.orgId)
+        .catch((err) => console.error(`Failed to backfill-index dynamic chain ${c.id}:`, err))
+    })
+  )
 
-  return { agents: agents.length, rules: rules.length, modules: modules.length }
+  return { agents: agents.length, rules: rules.length, modules: modules.length, chains: chains.length }
 }

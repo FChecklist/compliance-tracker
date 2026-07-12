@@ -1,16 +1,23 @@
 // Wave 43 (VERIDIAN Capability Registry, PLATFORM_STRATEGY.md §24). A thin,
 // typed wrapper over the already-existing, entity-agnostic embeddings.ts
 // (built for compliance-item semantic search, nothing about it is
-// compliance-specific) -- no new table. Scoped to the 3 entity types that
+// compliance-specific) -- no new table. Scoped to the entity types that
 // actually matter for duplication-prevention: worker agents, automation
-// rules, and modules. This is what VERI FDE (Wave 42) now checks before
+// rules, modules, prompt patterns, and (Wave 173, GAP-DYNAMIC-CHAIN-DEDUP)
+// dynamic chains. This is what VERI FDE (Wave 42) now checks before
 // ever calling an LLM, closing the "don't re-derive the same context on
 // every request" gap found by reading its own code one wave later.
 import { storeEmbedding, findSimilar, deleteEmbedding } from "@/lib/embeddings"
 import { db, embeddings } from "@/lib/db"
 import { or, eq, isNull, and, inArray } from "drizzle-orm"
 
-export const CAPABILITY_ENTITY_TYPES = ["worker_agent", "automation_rule", "module", "prompt_pattern"] as const
+// Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain added as a 5th type,
+// following the exact same pattern the other 4 already use -- indexed at
+// creation time (task-service.ts's resolveDynamicChainId), backfillable
+// (capability-backfill-service.ts), and covered by findSimilarCapabilities()/
+// auditDuplicateCapabilities() below with zero code changes to either
+// function (both are already generic over CAPABILITY_ENTITY_TYPES).
+export const CAPABILITY_ENTITY_TYPES = ["worker_agent", "automation_rule", "module", "prompt_pattern", "dynamic_chain"] as const
 export type CapabilityEntityType = (typeof CAPABILITY_ENTITY_TYPES)[number]
 
 function isCapabilityEntityType(value: string): value is CapabilityEntityType {

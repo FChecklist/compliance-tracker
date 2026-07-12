@@ -4,7 +4,8 @@
 // §15). Rendered with the recharts dependency already used elsewhere on
 // this page -- no new BI engine/dependency, no SQL editor (see
 // custom-report-service.ts's whitelist for the security boundary).
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Loader2, BarChart3, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,18 @@ export default function CustomReportsSection() {
   const [groupByField, setGroupByField] = useState("status");
   const [chartType, setChartType] = useState("bar");
 
+  // Wave 173 (chain-integration for reports, "reports-page deep-linking"):
+  // a capability-tree report_link leaf (capability-tree-service.ts's
+  // buildReportLinkNodes) navigates to /reports?report=<id>#custom-reports
+  // -- this is what makes that id param actually do something once the
+  // page loads, instead of being silently ignored. Scrolls to and briefly
+  // highlights the matching card; a report id with no match (deleted,
+  // wrong org) just falls through with no effect, never an error.
+  const searchParams = useSearchParams();
+  const highlightedReportId = searchParams.get("report");
+  const [scrolledToHighlight, setScrolledToHighlight] = useState(false);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   const load = useCallback(async () => {
     const res = await fetch("/api/reports/saved");
     const data = await res.json();
@@ -110,6 +123,15 @@ export default function CustomReportsSection() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!highlightedReportId || scrolledToHighlight || reports.length === 0) return;
+    const el = cardRefs.current[highlightedReportId];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setScrolledToHighlight(true);
+    }
+  }, [highlightedReportId, scrolledToHighlight, reports]);
 
   const createReport = async () => {
     if (!name.trim()) return;
@@ -144,7 +166,7 @@ export default function CustomReportsSection() {
   };
 
   return (
-    <Card className="rounded-xl shadow-card bg-white">
+    <Card id="custom-reports" className="rounded-xl shadow-card bg-white scroll-mt-24">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
           <BarChart3 className="size-4 text-ct-teal" />
@@ -215,7 +237,14 @@ export default function CustomReportsSection() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {reports.map((report) => (
-              <div key={report.id} className="rounded-lg border border-ct-border p-3">
+              <div
+                key={report.id}
+                id={`report-${report.id}`}
+                ref={(el) => { cardRefs.current[report.id] = el; }}
+                className={`rounded-lg border p-3 transition-colors ${
+                  highlightedReportId === report.id ? "border-ct-saffron ring-2 ring-ct-saffron/40" : "border-ct-border"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="text-sm font-medium text-ct-navy">{report.name}</p>

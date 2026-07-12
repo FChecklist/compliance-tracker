@@ -18,7 +18,7 @@
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
   workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
-  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments,
+  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments, savedReports,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
@@ -57,6 +57,15 @@ export type CapabilityNode = {
   inputFields?: CapabilityInputField[]
   agentId?: string | null
   fixedInputs?: Record<string, string>
+  // Wave 173 (chain-integration for reports): a new leaf kind, following
+  // the same "the leaf's own populated field IS the kind" convention every
+  // other leaf kind here already uses (codeReference => worker-agent
+  // dispatch, engineKey => VCEL calculator dispatch, projectId => scoped to
+  // a project). When set, this leaf resolves to a real saved-report URL
+  // rather than dispatching a task at all -- VeriComposer.tsx's
+  // dispatchInstruction() checks this before falling through to its normal
+  // /api/tasks POST.
+  reportUrl?: string | null
   // Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): true when this leaf
   // carries a real codeReference or engineKey -- the selection is
   // guaranteed to run as real software with zero AI involvement. False (or
@@ -68,10 +77,18 @@ export type CapabilityNode = {
   children?: CapabilityNode[]
 }
 
-function markDeterministic(nodes: CapabilityNode[]): CapabilityNode[] {
+// Exported (was module-private) so Wave 173's addition of reportUrl to the
+// deterministic check is directly unit-testable, matching this repo's
+// established pattern of testing the pure core of a feature even when the
+// surrounding assembly (buildCapabilityTree itself) is DB-touching and
+// deliberately left untested.
+export function markDeterministic(nodes: CapabilityNode[]): CapabilityNode[] {
   for (const node of nodes) {
     if (node.leaf) {
-      node.deterministic = Boolean(node.codeReference || node.engineKey)
+      // reportUrl leaves are deterministic too -- a fixed navigation to a
+      // real saved-report URL, zero AI involvement, same as a codeReference/
+      // engineKey dispatch.
+      node.deterministic = Boolean(node.codeReference || node.engineKey || node.reportUrl)
     } else if (node.children) {
       markDeterministic(node.children)
     }
@@ -894,6 +911,35 @@ const MODULE_SCOPE_TOP_LEVEL_KEYS: Record<string, string[]> = {
   "tds-returns": ["calculators"],
   crm: ["customer", "vendor"],
   erp: ["customer", "vendor", "product"],
+  reports: ["reports"],
+}
+
+// Wave 173 (chain-integration for reports, "a new capability-tree leaf kind
+// plus reports-page deep-linking"): 2 fixed leaves that always exist (the
+// main Compliance Reports & Analytics view, and the Custom Reports section
+// on the same page) plus one real leaf per this org's own saved_reports row
+// (capped at 20, newest first -- same cap/ordering discipline
+// buildComplianceItemNodes above already uses for its own list). Every
+// reportUrl here is a real, navigable /reports deep link (see
+// CustomReportsSection.tsx's own ?report= query-param handling) -- never a
+// placeholder path.
+async function buildReportLinkNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
+  const rows = await db.query.savedReports.findMany({
+    where: eq(savedReports.orgId, orgId),
+    columns: { id: true, name: true },
+    orderBy: (t, { desc }) => desc(t.createdAt),
+    limit: 20,
+  })
+
+  const children: CapabilityNode[] = [
+    { key: "compliance_reports_analytics", label: "Compliance Reports & Analytics", leaf: true, reportUrl: "/reports" },
+    { key: "custom_reports_section", label: "Custom Reports", leaf: true, reportUrl: "/reports#custom-reports" },
+    ...rows.map((r): CapabilityNode => ({
+      key: `saved_report::${r.id}`, label: r.name, leaf: true, reportUrl: `/reports?report=${r.id}#custom-reports`,
+    })),
+  ]
+
+  return [{ key: "reports", label: "Reports", leaf: false, children }]
 }
 
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
@@ -905,7 +951,8 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const calculatorNodes = await buildCalculatorNodes(db)
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes]
+    const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes

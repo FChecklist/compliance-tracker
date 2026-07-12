@@ -47,6 +47,11 @@ export type CapabilityNode = {
   // compliance item, which target status) -- sent through untouched, unlike
   // inputFields which the composer still has to prompt the user to type.
   fixedInputs?: Record<string, string>;
+  // Wave 173 (chain-integration for reports): when set, this leaf resolves
+  // to a real saved-report URL -- VeriComposer.tsx navigates here instead of
+  // POSTing to /api/tasks. Mirrors capability-tree-service.ts's own
+  // CapabilityNode.reportUrl field.
+  reportUrl?: string | null;
   // True when this leaf carries a real codeReference or engineKey -- the
   // selection is guaranteed to run as real software with zero AI
   // involvement, computed server-side in capability-tree-service.ts.
