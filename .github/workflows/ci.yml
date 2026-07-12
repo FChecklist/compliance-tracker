@@ -68,6 +68,21 @@ jobs:
       # header comment for the honest limitation this does and doesn't
       # guarantee.
       - run: node scripts/check-guardrail-presence.mjs
+  asset-registry-coverage:
+    name: Asset Registry Coverage Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # Priority 4 (09-priority4-umr-universal-tracker.yaml): the mechanical
+      # half of "software ensures every action is automatically registered
+      # in the Universal Metadata Registry, non-negotiable" -- fails the
+      # build if a table in schema.ts has neither an explicit registry
+      # registration nor an explicit, real exemption reason recorded in
+      # ai-os/registry/asset-registry-coverage.yaml. See the script's own
+      # header for the honest limitation this does and doesn't guarantee.
+      - run: node scripts/check-asset-registry-coverage.mjs
   e2e:
     name: E2E Tests
     needs: [build]
