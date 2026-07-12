@@ -152,3 +152,53 @@ export async function getConnectionStatus(composioConnectedAccountId: string): P
   const email = data?.data?.email || data?.data?.emailAddress || undefined
   return { status: data.status, email }
 }
+
+// ─── Real tool execution (GAP-CONNECTOR-DATA / D26.B2.S1) ──────────────────
+// Everything above this line only ever manages the OAuth connection itself
+// (initiate / poll status) -- confirmed by direct grep before this wave: zero
+// code anywhere in this codebase ever called Composio's tool-execution
+// endpoint, meaning "connected" toolkits never actually pulled any real data
+// (messages, files, ...) through the connection. This is that missing call.
+//
+// Endpoint confirmed live against Composio's v3 API docs (docs.composio.dev,
+// "Execute tool" -- POST /api/v3/tools/execute/{tool_slug}) 2026-07-12:
+// takes the tool slug in the path, and a body of { user_id, arguments,
+// connected_account_id? }. Response envelope is Composio's standard
+// { successful, data, error } shape (older SDKs/docs spell it "successfull"
+// -- both are defended against here since this wasn't verified against a
+// live call in this session, see connector-data-service.ts's own header for
+// the same disclosed limitation).
+export type ExecuteActionResult<T = unknown> = {
+  successful: boolean
+  data: T
+  error: string | null
+}
+
+/**
+ * Executes a real Composio tool/action against an already-connected account
+ * -- e.g. GMAIL_FETCH_EMAILS, GOOGLEDRIVE_FIND_FILE. `appUserId` must be the
+ * same id passed to initiateConnection() for this connection (dbUser.id in
+ * every real caller), and `composioConnectedAccountId` should be the
+ * specific connected account to run through (avoids ambiguity if a user
+ * somehow has more than one connection for the same toolkit).
+ */
+export async function executeAction<T = unknown>(
+  actionSlug: string,
+  composioConnectedAccountId: string,
+  appUserId: string,
+  args: Record<string, unknown> = {}
+): Promise<ExecuteActionResult<T>> {
+  const data = await composioFetch(`/tools/execute/${actionSlug}`, {
+    method: "POST",
+    body: JSON.stringify({
+      connected_account_id: composioConnectedAccountId,
+      user_id: appUserId,
+      arguments: args,
+    }),
+  })
+  return {
+    successful: data?.successful ?? data?.successfull ?? false,
+    data: data?.data as T,
+    error: data?.error ?? null,
+  }
+}

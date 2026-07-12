@@ -70,6 +70,15 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // as licensedSeats above -- see cost-guard.ts for the enforcement logic.
   monthlyCostCapUsd: numeric('monthly_cost_cap_usd', { precision: 10, scale: 2 }),
   costCapEnforcementEnabled: boolean('cost_cap_enforcement_enabled').notNull().default(false),
+  // Priority 8 (U-D27.B1.S1, GAP-SESSION-LIMIT): max concurrent sessions
+  // per license -- opt-in, same posture as licensedSeats/monthlyCostCapUsd
+  // above (every existing org's real behavior unchanged until an admin
+  // deliberately turns this on). internalUseExempt carries in Tree 1's own
+  // named exception ("exempted for VERIDIAN's own internal use/testing")
+  // from day one rather than retrofitting it.
+  sessionLimitEnforcementEnabled: boolean('session_limit_enforcement_enabled').notNull().default(false),
+  maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(2),
+  internalUseExempt: boolean('internal_use_exempt').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -548,6 +557,22 @@ export const orgJoinCodes = complianceSchemaDB.table('org_join_codes', {
   revokedByUserId: text('revoked_by_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Priority 8 (U-D27.B1.S1, GAP-SESSION-LIMIT): tracks distinct Supabase Auth
+// sessions per user for the opt-in concurrent-session limit
+// (organisations.sessionLimitEnforcementEnabled) -- see session-limit-
+// service.ts. sessionTokenHash is a SHA-256 hex digest of the access token,
+// never the raw token itself.
+export const userActiveSessions = complianceSchemaDB.table('user_active_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull(),
+  orgId: text('org_id').notNull(),
+  sessionTokenHash: text('session_token_hash').notNull(),
+  deviceLabel: text('device_label').notNull().default('unknown'), // 'mobile' | 'desktop' | 'unknown'
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
 })
 
 // Rate-limit log for org-join-code redemption/preview attempts, keyed by
@@ -7317,6 +7342,43 @@ export const connectorAccounts = complianceSchemaDB.table('connector_accounts', 
   composioConnectedAccountId: text('composio_connected_account_id').notNull(),
   status: text('status').notNull().default('INITIALIZING'), // Composio's own status vocabulary: INITIALIZING | ACTIVE | FAILED | EXPIRED
   connectedEmail: text('connected_email'), // populated once known, for display ("Connected as x@gmail.com")
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Connector Documents (Business Digital Twin, first slice -- D26.B4.S1)──
+// Connectors.docx proposed a 16-field per-document canonical representation
+// for the Business Digital Twin; this is a genuinely useful SUBSET, not all
+// 16 fields at once (see connector-data-service.ts's header for the
+// rationale) -- the fields data actually pulled through a connected toolkit
+// can honestly populate today, not a placeholder schema for fields nothing
+// writes. Each row is ONE real item (a Gmail message, a Drive file, ...)
+// fetched by connector-data-service.ts, never synthetic. businessObjectType
+// reuses classifyBusinessObjectType() (Priority 2, business-object-
+// classifier.ts) rather than re-deriving format classification here, per
+// that module's own guardrail ("no downstream code may branch on 'is this
+// Excel or Google Sheets'" -- this table doesn't either; it just stores the
+// one classification that module already produced).
+//
+// Every row inserted here also gets 2 entity_relationships edges written by
+// connector-data-store.ts (document -> owning org, document -> source
+// connector account) -- the first real consumer of the Phase 3 graph table
+// (entity-graph-service.ts's own header: "deliberately NOT wired into any
+// production call site yet"). Per-user like connectorAccounts above (the
+// OAuth grant this data came through is per-user), but every row also
+// carries orgId directly for RLS, matching every other tenant-scoped table.
+export const connectorDocuments = complianceSchemaDB.table('connector_documents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // whose connector_accounts connection this came through
+  toolkitSlug: text('toolkit_slug').notNull(), // ConnectorToolkit slug -- the source connector
+  businessObjectType: text('business_object_type').notNull(), // table|document|presentation|communication, from classifyBusinessObjectType()
+  externalId: text('external_id').notNull(), // the source system's own id (Gmail messageId, Drive file id, ...) -- unique per (orgId, toolkitSlug, externalId), see the migration's unique index
+  title: text('title'), // subject / file name
+  sourceUrl: text('source_url'), // webViewLink / constructed permalink, when the source provides one
+  ownerId: text('owner_id'), // source-system owner/sender identifier (email address, Drive owner name/email) -- free text, not an FK into users
+  lastModifiedAt: timestamp('last_modified_at'), // source system's own modified/sent timestamp, when parseable
+  metadata: jsonb('metadata'), // raw normalized extra fields (snippet, mimeType, size, threadId, ...) -- source-specific, deliberately not modeled as individual columns
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
