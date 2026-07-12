@@ -1,0 +1,159 @@
+# Priority 2 tracker, created 2026-07-12 per the Owner's explicit directive
+# (verbatim numbered list): rotate leaked veda-advisors credentials -> PROJEXA
+# (excluding drawing/2D/3D/rendering/animation) -> Tree 1 AI Governance Layer
+# to 100% -> Universal Connector (D26) + Communication Governance (D10) +
+# Intelligent Work Detection (D21) -> Approval & Confirmation UX (D9). Same
+# discipline as 05-eighteen-areas-tracker.yaml: real code/schema shipped,
+# tsc+eslint clean, tests passing, or an explicit Owner-input-needed flag --
+# never a silently assumed default.
+#
+# status values: complete | in_progress | not_started
+
+priority: 2
+sequence_rationale: "Owner's own explicit numbered order. Item 3 (Tree 1 to 100%) subsumes items 4/5 (D26/D10/D21/D9 are Tree 1 domains) -- the Owner named them separately for emphasis/sequencing, not as extra scope beyond Tree 1. Treated as: close D26/D10/D21/D9 FIRST within the Tree 1 sweep, then the remaining ~20 Tree 1 domains."
+
+items:
+  - num: 1
+    name: "Rotate leaked credentials (veda-advisors)"
+    status: in_progress
+    investigation: |
+      Verified directly (not assumed from the earlier report) 2026-07-12:
+      - The veda-advisors LOCAL checkout has 2 parts: `code-by-zai/` (the real
+        git repo, remote github.com/FChecklist/veda-advisors) and a parent
+        `veda-advisors/` folder that is NOT a git repo at all (just local files).
+      - A real, working GitHub PAT (github_pat_11AL4BWDI0gNHc6hDZInQi_...) is
+        in plaintext in 2 local, non-git-tracked files (MASTER_IMPLEMENTATION_
+        PROMPT.md, Veda_Advisors_Master_Prompt.md) in that parent folder, AND
+        is embedded directly in code-by-zai/.git/config's remote URL (used for
+        push/pull auth instead of a credential helper).
+      - A real, working Composio API key (ak_VoAwUihcZW80sTMIG-8s) is in
+        plaintext in Linkedin.md, same parent folder.
+      - The tracked `.env` at HEAD in code-by-zai only contains a harmless
+        SQLite placeholder path -- a prior security pass already untracked the
+        real .env (2 commits: "security: untrack .env"/"Untrack .env").
+      - NOT found on direct verification: a real DB password, or a full
+        (non-truncated) Supabase service-role key -- the earlier reconciliation
+        report's "DB password + service-role key" claim does not hold up under
+        this closer check; only placeholder/truncated examples exist in these
+        files. Correcting that overclaim here rather than carrying it forward.
+      - None of this is committed to any GitHub repo (the parent folder isn't
+        git-tracked at all) -- real risk is local-machine credential hygiene
+        and reuse (this same PAT is documented elsewhere, see memory, as a
+        "reusable FChecklist token" across multiple repos), not a public leak.
+    remaining_work:
+      - "GENERATE new GitHub PAT + revoke the old one -- Owner action required (GitHub Settings -> Developer settings -> Personal access tokens). Cannot be done by an agent: this changes account-level auth credentials. Once issued, tell Super Boss the new PAT so it can be re-applied to code-by-zai's git remote and any GitHub Secrets that reference it."
+      - "GENERATE new Composio API key + revoke the old one -- Owner action required (Composio dashboard). Same reasoning as above."
+      - "Scrub the plaintext PAT/API-key VALUES from MASTER_IMPLEMENTATION_PROMPT.md, Veda_Advisors_Master_Prompt.md, Linkedin.md once new credentials exist -- replace with a placeholder + 'see 1Password/secrets manager' note, not a re-paste of the new secret into a markdown file."
+      - "Fix code-by-zai/.git/config to stop embedding the PAT in the remote URL -- switch to a Windows credential-manager-backed HTTPS auth or an SSH remote, so the token never sits in a plaintext config file again."
+      - "Check every other repo/workflow this PAT is reused in (GitHub Secrets PAT_FCHECKLIST across compliance-tracker/veda-advisors/projexa, per AGENTS.md/memory) before rotating -- a blind rotation without updating all consumers will break CI everywhere it's used."
+
+  - num: 2
+    name: "PROJEXA (excluding drawing/2D/3D/rendering/animation)"
+    status: not_started
+    investigation: |
+      Verified directly against the live repo (C:\Users\Dell\Downloads\Claude
+      Code\projexa) 2026-07-12, not from stale memory:
+      - AppSidebar.tsx lists 21 nav items across 8 sections (Overview,
+        Execution, Field, Design, Resources, Finance, Intelligence, +Settings).
+      - Only 9 of those 21 have a real page under src/app/(app)/: Dashboard,
+        Schedule, RFIs, Submittals, Punch List, Change Orders, Mood Boards,
+        FF&E, Floor Plans.
+      - 13 nav items have NO folder under src/app/(app)/ at all -- confirmed
+        one by one, not estimated: Scope of Work (BOQ), Work Progress, Site
+        Diary, Documents, Manpower & Attendance (labour), Materials, Vendors,
+        Budgets, Expenses, KPIs, Reports, AI Copilot, Settings. Clicking any of
+        these in the live app today does nothing real (no matching route).
+      - compliance-tracker's own memory (PROJEXA/VERIDIAN Gap Build Waves
+        115-129) built the BACKEND for several of these already, as a
+        /api/v1/projexa/* aliasing layer inside compliance-tracker (BOQ,
+        progress, site diary, manpower/attendance, KPI, documents metadata --
+        48 v1 paths total) -- this PROJEXA repo's own local /api routes
+        (assistant, capability-tree, change-orders, conversations, design-
+        materials, discuss, ffe, floor-plans, mood-boards, org-members,
+        punch-list, rfis, schedule, submittals, todos) do NOT yet call or
+        proxy that aliasing layer for the 13 missing modules -- needs
+        confirming whether the plan is a direct call to compliance-tracker's
+        /api/v1/projexa/* or a local reimplementation.
+    scope_exclusion: "Owner's explicit exclusion: no drawing creation, image creation, 2D/3D rendering, or animation. Floor Plans and Mood Boards pages ALREADY EXIST and are out of this item's scope entirely (don't touch them) -- this item is only about the 13 missing NON-visual, table/form-driven pages listed above."
+    remaining_work:
+      - "Scope of Work (BOQ) page (/scope) -- list/detail view over BOQ line items, likely backed by compliance-tracker's already-built BOQ rate-analysis engine (memory: 'BOQ rate analysis' closed in Phase 3 Waves 125-129)."
+      - "Work Progress page (/work-progress) -- backed by the already-built progress-tracking engine (memory: 'progress' in the 48-path v1 aliasing surface)."
+      - "Site Diary page (/site-diary) -- backed by the already-built site-diary engine (memory: 'site diary' in the same aliasing surface)."
+      - "Documents page (/documents) -- metadata-only listing (no rendering/viewer -- respects the drawing/rendering exclusion), backed by 'documents metadata' in the aliasing surface."
+      - "Manpower & Attendance page (/labour) -- backed by 'manpower/attendance' in the aliasing surface."
+      - "Materials page (/materials) -- check whether design-materials (existing local API route) already covers this, or whether it's a distinct materials-procurement/inventory concept."
+      - "Vendors page (/vendors) -- likely new, no obvious existing backend named in memory; investigate before building."
+      - "Budgets page (/budgets) -- likely new; investigate before building."
+      - "Expenses page (/expenses) -- likely new; investigate before building."
+      - "KPIs page (/kpis) -- backed by 'KPI' in the 48-path v1 aliasing surface (memory: 'all 17 named reports' also built in Phase 2)."
+      - "Reports page (/reports) -- likely overlaps the same reports work as KPIs; investigate whether these should be 2 pages or 1."
+      - "AI Copilot page (/copilot) -- backed by the construction AI Copilot work (memory: 'deterministic worker-agent dispatch, 7 agents' from Phase 3 Waves 125-129)."
+      - "Settings page (/settings) -- standard org/project settings, likely the smallest, most mechanical of the 13."
+
+  - num: 3
+    name: "Tree 1 — AI Governance Layer to 100%"
+    status: not_started
+    investigation: |
+      Baseline from the post-Priority-1 reconciliation (2026-07-12): 52 of 131
+      buildable Tree 1 requirements are solid (39.7%), 38 partial, 37 gap,
+      across 28 domains (U-D1..U-D28). D26/D10/D21/D9 (items 4/5 below) are
+      Tree 1 domains -- closing them closes 4 of the ~24 still-incomplete
+      domains, not extra scope on top of this item. D4 (Universal Work Object,
+      8% solid) is DELIBERATELY excluded from this sweep -- DEC-03 (2026-07-11,
+      Super Boss judgment call under a prior 'don't wait' directive) ratified
+      the existing distributed architecture over a ~30-state retrofit as
+      hard-to-reverse and disproportionate; revisiting it needs an explicit
+      Owner override, not a default inclusion in "Tree 1 to 100%."
+    remaining_work_by_domain:
+      - "D1 Governance Charter & Mission (20% solid, 4 of 5 gap) -- mostly framing/documentation-shaped requirements per the tree's own notes, needs its own investigation pass before assuming code work."
+      - "D2 AI Org Hierarchy & Roles (31% solid, 2 gap of 11 buildable) -- remaining items after this session's escalation-ladder.ts + 130-role roster work."
+      - "D5 Dynamic Mode Pills & Chain Framework (36% solid, 2 gap of 12) -- residual items beyond DCMD + chain-gate."
+      - "D6 Dynamic Chain Master Directory (50% solid) -- residual items."
+      - "D8 VERI Chat Identity (33% solid) -- residual items."
+      - "D9 Approval & Confirmation UX -- see item 5."
+      - "D10 Communication Governance -- see item 4."
+      - "D13 Guardrail Framework, Per-Task Layer (0% solid, 1 gap + 2 partial of 3)."
+      - "D15 Audit & Review Governance (17% solid, 3 confirmed gap of 10 buildable) -- items beyond L1/L2/L4's real mechanisms and the L3/L5-7 cadence-mismatch ratification."
+      - "D19 Reporting Framework (0% solid, 1 of 1) -- smallest domain, single requirement, worth an early quick look."
+      - "D21 Intelligent Work Detection -- see item 4."
+      - "D22 Follow-up, SLA & Continuous Planning (0% solid, 1 confirmed gap of 1 buildable, 1 narrow_scope)."
+      - "D24 Response Engine & Predefined Responses (33% solid) -- residual items."
+      - "D25 Task Automation, Calculators & Reports (40% solid, 1 gap + 2 partial of 5) -- beyond the 186/247 engine-wiring work."
+      - "D26 Universal Connector -- see item 4."
+      - "D27 Registration, Licensing & Adoption (33% solid, 1 gap + 1 partial of 3) -- residual items beyond seat licensing + 4 invitation paths."
+      - "D28 Onboarding & Sign-up UX (40% solid, 1 gap + 1 partial of 4 buildable) -- residual items beyond CTA/framing + invite-link work (auth rebuild/G-045 and the onboarding-profile redesign stay explicitly ratified-deferred per Area 15's closure, not included here without an Owner override)."
+    note: "D3/D7/D12/D14/D16/D17/D18/D20/D23 are already at 50-100% solid or fully closed -- listed here as 'monitor, don't prioritize' rather than omitted silently. D11 is a duplicate_ref only (not independently buildable)."
+
+  - num: 4
+    name: "Universal Connector (D26) + Communication Governance (D10) + Intelligent Work Detection (D21)"
+    status: not_started
+    d26_universal_connector:
+      current_state: "Better than the stale tree doc suggests -- verified directly 2026-07-12: src/lib/composio-connectors.ts already has 13 OAuth toolkits live (gmail/googledrive/googlecalendar/outlook/one_drive/share_point/microsoft_teams/slack/notion/github/dropbox/box/confluence), not the ~6 the 2026-07-11 snapshot assumed. This closes most of B6.S1's realistic scope already."
+      remaining_work:
+        - "B1.S1: verify/expand which of the 15 named M365+Google apps map onto the 13 existing toolkits vs. genuinely missing ones (e.g. Word/PowerPoint/Excel as distinct Graph API scopes, not just Outlook/OneDrive/SharePoint/Teams)."
+        - "B1.S2/S3/S4 (GAP-08): Office Add-in, Browser Extension, Desktop Companion -- 3 separate new codebases (add-in manifest, browser extension, desktop agent), the largest real remaining scope in this whole item. Needs an explicit Owner scoping decision on whether all 3 are truly wanted before dispatching build work -- this is a multi-week initiative each, not a narrow slice."
+        - "B2.S1: per-app intelligence behaviors (Sheets/Docs/Slides/Gmail/Drive) -- depends on B1 being fuller first, per the tree's own note."
+        - "B3.S1: the 4-type Business Object normalization layer (Table/Document/Presentation/Communication) with the 'never branch on file format' guardrail -- needs a direct code check (grep for format-specific branching in document-handling paths) before assuming it's unbuilt."
+        - "B4.S1: the Business Digital Twin (16-field per-document schema) -- the single largest, most concretely-scoped remaining piece; entity_relationships (DB-03) provides partial knowledge-graph infrastructure to build on rather than starting from zero."
+        - "B5.S1: source-type-to-AI-provider routing (Excel->Microsoft AI, Google Sheet->Gemini, PDF->OCR->Knowledge->Compliance chain) -- likely an extension of orchestra-model-resolver.ts's existing routing infrastructure, not new architecture."
+        - "B6.S1: expand toolkit count further -- of the 21 named ecosystems, ~13 are now real OAuth toolkits; the remaining ~8 (LibreOffice/ODF, PDF, CSV, Tally, ERPNext, SAP, Oracle, Zoho) are NOT the same kind of work (file-format support and competing-ERP API integrations, not OAuth app connects) -- needs its own scoping, not lumped into 'add more toolkits.'"
+    d10_communication_governance:
+      current_state: "GAP-06 in the tree's own backlog. email.ts sends fixed-template transactional notifications only (assignment/overdue/deadline/comment) -- no AI drafting, no draft-then-approve-hold stage, no coverage of the other ~20 named communication types (meeting summaries, escalations, vendor comms, etc.)."
+      remaining_work:
+        - "B1.S1: re-classify from confirmed_gap to satisfied if the Owner agrees email.ts's rule-triggered sends already count as 'approved automation rules' -- an open decision, not a build item, worth resolving first since it may close this sub-branch for free."
+        - "B2.S1 + B3.S1: the real build -- an AI-drafted communication, held for approval, using GOV-06's existing runRole() for drafting and GOV-14's existing approval_preferences for the hold/approve stage (the tree's own recommended reuse, not new architecture)."
+        - "B4.S1: the 7-rule guardrail (no impersonation, no unauthorized recipients, full audit trail, etc.) — becomes enforceable once B2/B3 exist; until then, only the audit-logging half is checkable against today's email.ts sends."
+    d21_intelligent_work_detection:
+      current_state: "Strongest partial domain of the 3 -- MoM/transcript intelligence (B2.S1) and document intelligence (B3.S1) are both proven and working well per the tree's own notes. The one confirmed, well-scoped gap is inbound email."
+      remaining_work:
+        - "B4.S1: inbound-email intelligence (identify commitments/follow-ups/approvals/deadlines from a received email, propose a Work Object) -- explicitly the SAME detect-then-propose pattern already proven for MoM and documents, not a novel design. The single clearest, lowest-risk build in this whole item."
+        - "B1.S1: confirm voice/OCR/API-payload/ticket source types (the other ~6 of ~8 named sources) are either covered or explicitly out of scope -- currently unconfirmed either way, not necessarily a gap."
+
+  - num: 5
+    name: "Approval & Confirmation UX (D9)"
+    status: not_started
+    current_state: "The real system built a simpler always_approve/always_reject binary model instead of the literal 9/9/16-option vocabularies the source docs name (3 confirmed_gap sub-branches: B1.S1/S2/S3). The tree's own note flags this as arguably BETTER on the stated goal (fast, minimally intrusive) even though it diverges from the literal spec."
+    remaining_work:
+      - "OPEN DECISION, not a default build item: does the Owner want the literal 9-option / 9-option / 16-verb vocabularies built on top of the existing binary system, or is the simpler system that already ships kept as the intentional design? The tree's own domain-level note explicitly warns not to build this without confirming the Owner still wants it. Flagging here rather than defaulting either way."
+      - "If literal vocabularies are wanted: B1.S3's 16-verb work-object decision set is the largest single piece -- note some verbs (Delegate, Assign) may already be served by task-reassignment mechanisms elsewhere, worth checking before assuming total absence."
+      - "B2.S1 (VERI recommends creating a reusable approval preference) -- smaller, narrow, already mostly proven (saveApprovalPreference never auto-activates); only the proactive-recommendation half is unconfirmed."
