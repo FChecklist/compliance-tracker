@@ -25,6 +25,7 @@ import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSig
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { resolveDynamicChainId } from "./task-service"
+import { runDialogueScriptTurn } from "./dialogue-script-executor"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -421,6 +422,26 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   if (routed.handled) {
     return withTenantContext({ orgId, userId }, (db) =>
       db.insert(messages).values({ conversationId, senderId: null, content: routed.reply }).returning()
+    )
+  }
+
+  // Priority 5 (10-priority5-software-orchestrator-tracker.yaml, E3/E4):
+  // the SAME Software Orchestrator classification task-execution-engine.ts's
+  // executeTask() runs for tasks, applied to VERI's own outbound chat
+  // replies -- checked here, before resolveModelConfig/history-building/
+  // any free-text LLM call. dialogue-script-executor.ts's
+  // runDialogueScriptTurn() resolves a capability for this conversation
+  // (its own Dynamic Chain selection if it has one, else a fuzzy prompt-
+  // overlap fallback), and if an approved, reliable 'dialogue_script'
+  // package is active or startable for it, drives this turn deterministically
+  // via Lower AI instead. Returns null (a complete no-op) whenever no
+  // capability matched, no package exists/is reliable, or an active script
+  // just escalated -- in every null case the rest of this function runs
+  // completely unchanged, exactly as it did before this dispatch.
+  const scriptReply = await runDialogueScriptTurn(orgId, userId, conversationId, userMessage)
+  if (scriptReply) {
+    return withTenantContext({ orgId, userId }, (db) =>
+      db.insert(messages).values({ conversationId, senderId: null, content: scriptReply }).returning()
     )
   }
 

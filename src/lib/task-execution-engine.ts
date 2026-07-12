@@ -18,6 +18,18 @@ import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guard
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { nextEscalationRung } from "@/lib/escalation-ladder";
 import { evaluateMonitoringRules } from "@/lib/monitoring-engine";
+// Priority 5 (10-priority5-software-orchestrator-tracker.yaml, dispatch
+// agent 2): the Software Orchestrator's classification decision + the
+// capability-memory CRUD layer it's built on. classifyExecutionWithReliability
+// is the pure X/Y/A/B decision (see software-coverage-service.ts's header);
+// the rest are capability-learning-service.ts's find-or-create/lookup/write
+// primitives, reused as-is rather than duplicated here.
+import { classifyExecutionWithReliability } from "@/lib/services/software-coverage-service";
+import {
+  findOrCreateCapability, findApprovedPackage, recordExecutionOutcome, recordPackageUsage,
+  type TaskCapability, type InstructionPackage,
+} from "@/lib/services/capability-learning-service";
+import { resolvePackageVariablesOrThrow, MissingInformationError } from "@/lib/services/package-variable-resolver";
 
 registerAllGuardrails();
 
@@ -1656,6 +1668,168 @@ async function executeEngineDispatch(orgId: string, userId: string, taskId: stri
   });
 }
 
+// Priority 5: resolves the taskCapabilities row this task's own Dynamic
+// Chain selection maps to, if it has one. A capability is identified by
+// (modePill, pathKeys) -- both live on the dynamic_chains row a task's
+// dynamicChainId points at (see task-service.ts's resolveDynamicChainId(),
+// the same dedup convention findOrCreateCapability() mirrors). Tasks
+// created outside VeriComposer's Chain Selector (free-text/API-created --
+// crm-service.ts/email-intelligence-service.ts/veri-meeting-service.ts's
+// own executeTask() calls all pass no chain selection at all) simply have
+// no dynamicChainId; this returns null for them rather than forcing a
+// capability onto a task that never had a real chain selection behind it,
+// per the tracker's own scope note for this dispatch. Never throws --
+// capability tracking is a secondary learning signal, not something that
+// should ever block real task execution.
+async function resolveTaskCapability(orgId: string, userId: string, taskId: string, promptText: string): Promise<TaskCapability | null> {
+  try {
+    const task = await withTenantContext({ orgId, userId }, (db) =>
+      db.query.tasks.findFirst({ where: eq(tasks.id, taskId), columns: { dynamicChainId: true } })
+    );
+    if (!task?.dynamicChainId) return null;
+
+    const chain = await withTenantContext({ orgId, userId }, (db) =>
+      db.query.dynamicChains.findFirst({ where: eq(dynamicChains.id, task.dynamicChainId!), columns: { modePill: true, pathKeys: true } })
+    );
+    if (!chain?.modePill || !Array.isArray(chain.pathKeys) || chain.pathKeys.length === 0) return null;
+
+    // Deliberately orgId: null -- capability LEARNING is platform-wide by
+    // design (capability-learning-service.ts's own header comment), not
+    // scoped to the org that happened to trigger this particular task.
+    return await findOrCreateCapability({ modePill: chain.modePill, pathKeys: chain.pathKeys as string[], promptText, orgId: null });
+  } catch (err) {
+    console.error("Priority 5: resolveTaskCapability failed, continuing without capability tracking:", err);
+    return null;
+  }
+}
+
+export type PackageDispatchOutcome =
+  | { status: "completed"; output: string }
+  | { status: "missing_information"; missingVariables: string[] }
+  | { status: "failed"; error: string };
+
+// Priority 5's "Lower AI" executor -- the army-agent counterpart to
+// executeStructuredDispatch()/executeEngineDispatch() above, run when
+// classifyExecutionWithReliability() returns PACKAGE_AVAILABLE. Builds its
+// prompt from ONLY the approved package's own `steps` + `requiredVariables`
+// -- deliberately NEVER the user's raw original title/description text --
+// because the whole point of an approved instruction package is a narrow,
+// foolproof, pre-written script a cheap model executes without
+// re-reasoning, not a second free-text planning call with extra
+// scaffolding. The task's title/description are read ONLY to resolve
+// requiredVariables' concrete values, via package-variable-resolver.ts's
+// explicit "key: value" extraction (never LLM-guessed). If any required
+// variable has no resolvable value, resolvePackageVariablesOrThrow() throws
+// MissingInformationError and this returns { status: "missing_information" }
+// immediately -- a hard rule from the tracker's spec: there is no code path
+// here that lets the model improvise a missing variable's value.
+async function executePackageDispatch(
+  orgId: string, userId: string, taskId: string,
+  pkg: InstructionPackage, taskInput: { title: string; description: string | null }
+): Promise<PackageDispatchOutcome> {
+  return withTenantContext({ orgId, userId }, async (db) => {
+    const [planRow] = await db.insert(taskExecutionPlan).values({
+      taskId, stepNumber: 1, workerAgentId: null,
+      description: `Approved instruction package (v${pkg.version})`, status: "completed",
+    }).returning();
+
+    const startedAt = new Date();
+    const sourceText = `${taskInput.title}\n${taskInput.description ?? ""}`;
+
+    try {
+      const requiredVariables = (pkg.requiredVariables as string[] | null) ?? [];
+      const resolvedVariables = resolvePackageVariablesOrThrow(requiredVariables, sourceText);
+
+      // Same policy chokepoint the free-text path enforces (Wave 46) --
+      // even a narrow, pre-approved script's rendered steps pass through
+      // it before any provider call, so a package can never become a
+      // silent bypass of the Policy Enforcement Engine.
+      const policyDecision = enforcePolicy(
+        { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "task_execution.package_dispatch" },
+        JSON.stringify(pkg.steps).slice(0, 4000)
+      );
+      if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
+
+      const modelConfig = await resolveModelConfig(orgId, "task_oa");
+      if (!modelConfig) throw new Error("No LLM provider is configured for this organisation (task_oa layer).");
+
+      const systemPrompt =
+        `${buildPurposeClause(DEFAULT_DOMAIN)}\n\n` +
+        "You are executing a single pre-approved, narrow instruction package. " +
+        "Follow ONLY the numbered steps below, using ONLY the variable values provided. " +
+        "Do not reason beyond what is written, and do not use any information beyond the steps and variables given. " +
+        'Respond with JSON: {"result": string} where result is the final message to report back to the user.';
+      const userMessage = `Steps:\n${JSON.stringify(pkg.steps, null, 2)}\n\nVariables:\n${JSON.stringify(resolvedVariables, null, 2)}`;
+
+      let effectiveConfig = modelConfig;
+      const callPackage = () => callLLMJson<{ result: string }>(
+        effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
+        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500 }, effectiveConfig.fallback
+      );
+      let { data, usage } = await callPackage();
+
+      // Reactive safety net, kept as a SECONDARY gate here (per the
+      // tracker's scope decision on proactive vs. reactive escalation):
+      // this dispatch runs the floor tier by design -- that's the whole
+      // point of the cheap/A% bucket -- but a package execution that still
+      // hedges mid-flight gets one retry on the escalated model, the same
+      // post-call signal the free-text path used to rely on as its ONLY
+      // gate before this dispatch's proactive-gating change below.
+      if (!modelConfig.isCustomerConfigured) {
+        const lowConfidence = detectLowConfidenceResponse(data.result ?? "");
+        if (lowConfidence.detected) {
+          const escalated = escalatedPlatformConfig();
+          if (escalated) {
+            effectiveConfig = escalated;
+            ({ data, usage } = await callPackage());
+          }
+        }
+      }
+
+      assertValidDispatchOutput({ result: data.result });
+
+      await db.insert(taskAgentExecutions).values({
+        taskExecutionPlanId: planRow.id, workerAgentId: null, startedAt, completedAt: new Date(),
+        status: "completed", input: resolvedVariables, output: { result: data.result },
+      });
+      await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: data.result });
+      await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
+      recordOrchestraExecution({
+        orgId, userId, taskId, layerKey: "task_oa", eventType: "task_execution.package_dispatch",
+        input: { packageId: pkg.id, variables: resolvedVariables },
+        output: { result: data.result },
+        status: "completed", durationMs: Date.now() - startedAt.getTime(),
+        provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
+      });
+      return { status: "completed", output: data.result };
+    } catch (err) {
+      if (err instanceof MissingInformationError) {
+        await db.insert(taskAgentExecutions).values({
+          taskExecutionPlanId: planRow.id, workerAgentId: null, startedAt, completedAt: new Date(),
+          status: "failed", input: {}, errorMessage: err.message,
+        });
+        const message = `I don't have enough information to complete this using the approved process. Missing: ${err.missingVariables.join(", ")}. Please add these details and resave the task.`;
+        await db.insert(taskChatMessages).values({ taskId, role: "system", content: message });
+        await updateTaskStatusAndReflect(db, orgId, taskId, "failed", message);
+        return { status: "missing_information", missingVariables: err.missingVariables };
+      }
+
+      const message = err instanceof Error ? err.message : "unknown error";
+      await db.insert(taskAgentExecutions).values({
+        taskExecutionPlanId: planRow.id, workerAgentId: null, startedAt, completedAt: new Date(),
+        status: "failed", input: {}, errorMessage: message,
+      });
+      const escalation = nextEscalationRung({ reason: "package_execution_failed" });
+      await db.insert(taskChatMessages).values({
+        taskId, role: "system",
+        content: `Instruction package execution failed: ${message} -- escalated to ${escalation.title} (${escalation.authority}).`,
+      });
+      await updateTaskStatusAndReflect(db, orgId, taskId, "failed", message);
+      return { status: "failed", error: message };
+    }
+  });
+}
+
 // Escalation signal (2026-07-10, founder directive): two distinct "this
 // needs a stronger model" proxies, both mapped onto the same
 // checkPreCallEscalation() `priorTaskFailed` input floor-tier-escalation.ts
@@ -1713,12 +1887,29 @@ export async function executeTask(
   engineInputs?: Record<string, unknown>,
   agentInputs?: Record<string, unknown>
 ): Promise<void> {
+  // Priority 5 (10-priority5-software-orchestrator-tracker.yaml): resolved
+  // ONCE, up front, so every branch below -- including the two pre-existing
+  // deterministic ones -- can record its real classification outcome into
+  // the capability's rolling FULL_SOFTWARE/PACKAGE_AVAILABLE/NOVEL counters
+  // (capability-learning-service.ts's recordExecutionOutcome()). Returns
+  // null (a no-op for every recordExecutionOutcome call below) for the
+  // large majority of tasks that carry no dynamicChainId at all -- see
+  // resolveTaskCapability()'s own header.
+  const capability = await resolveTaskCapability(orgId, userId, taskId, `${title}\n${description ?? ""}`);
+
   if (engineKey) {
     await executeEngineDispatch(orgId, userId, taskId, engineKey, engineInputs ?? {});
+    // engineKey being set at all IS the FULL_SOFTWARE case (a VCEL
+    // calculator leaf a human picked by clicking) -- recorded regardless of
+    // whether the calculation itself succeeded or failed at runtime, since
+    // the classification question is "was AI needed for this dispatch",
+    // not "did the dispatch succeed."
+    if (capability) await recordExecutionOutcome(capability.id, "FULL_SOFTWARE").catch((err) => console.error("Priority 5: recordExecutionOutcome failed:", err));
     return;
   }
   if (resolvedWorkerAgentId) {
     await executeStructuredDispatch(orgId, userId, taskId, resolvedWorkerAgentId, agentInputs);
+    if (capability) await recordExecutionOutcome(capability.id, "FULL_SOFTWARE").catch((err) => console.error("Priority 5: recordExecutionOutcome failed:", err));
     return;
   }
 
@@ -1751,6 +1942,47 @@ export async function executeTask(
     if (!policyDecision.allowed) {
       await markTaskOutcome(orgId, userId, taskId, "failed", refusalMessageFor(policyDecision));
       return;
+    }
+
+    // Priority 5 classification step -- BEFORE the free-text LLM planning
+    // call below. alreadyFullSoftware is always false here (the engineKey/
+    // resolvedWorkerAgentId branches above are the FULL_SOFTWARE case and
+    // already returned); this only decides what happens for the genuine
+    // remainder. An approved, RELIABLE (isPackageReliable()) instruction
+    // package routes to Lower AI's executePackageDispatch() instead of an
+    // LLM planning call; no capability match or no approved/reliable
+    // package routes to NOVEL, which falls through to the existing
+    // free-text path completely unchanged below (other than the proactive
+    // floor-tier gating change also in this dispatch -- see the escalation
+    // block further down).
+    let approvedPackage: InstructionPackage | null = null;
+    if (capability) {
+      approvedPackage = await findApprovedPackage(capability.id, "task_execution").catch((err) => {
+        console.error("Priority 5: findApprovedPackage failed, continuing without a package:", err);
+        return null;
+      });
+    }
+    const classification = classifyExecutionWithReliability({ alreadyFullSoftware: false, approvedPackage });
+
+    if (classification.bucket === "PACKAGE_AVAILABLE") {
+      const outcome = await executePackageDispatch(orgId, userId, taskId, classification.package, { title, description });
+      if (capability) {
+        await recordExecutionOutcome(capability.id, "PACKAGE_AVAILABLE").catch((err) => console.error("Priority 5: recordExecutionOutcome failed:", err));
+        await recordPackageUsage(classification.package.id, outcome.status === "completed").catch((err) => console.error("Priority 5: recordPackageUsage failed:", err));
+      }
+      return;
+    }
+
+    // NOVEL -- recorded now, at classification-decision time rather than
+    // strictly after the free-text plan below finishes: the classification
+    // itself ("no reliable package exists for this capability yet") is
+    // already final at this point, and recording it here means a crash
+    // further down in the LLM planning call still leaves an accurate
+    // rolling count rather than silently under-reporting NOVEL. Mirrors the
+    // FULL_SOFTWARE branches above, which also record before knowing
+    // whether their own dispatch will succeed.
+    if (capability) {
+      await recordExecutionOutcome(capability.id, "NOVEL").catch((err) => console.error("Priority 5: recordExecutionOutcome failed:", err));
     }
 
     const modelConfig = await resolveModelConfig(orgId, "task_oa");
@@ -1835,12 +2067,31 @@ export async function executeTask(
         userMessage: `${title}\n${description ?? ""}`, historyLength: priorMessageCount,
         isHighImpact: highImpact.isHighImpact, priorTaskFailed,
       });
-      if (preCall.shouldEscalate) {
-        const escalated = escalatedPlatformConfig();
-        if (escalated) {
-          effectiveConfig = escalated;
-          escalation = { escalated: true, signals: preCall.signals, matchedPhrase: preCall.matchedPhrase, originalModel: modelConfig.model };
-        }
+      // Priority 5 PROACTIVE gating (10-priority5-software-orchestrator-
+      // tracker.yaml): this free-text branch is now only ever reached for
+      // NOVEL-classified work (the PACKAGE_AVAILABLE case already returned
+      // above) -- per the tracker's scope decision, a floor-tier model
+      // reasoning freely on a genuinely uncovered capability gap is exactly
+      // the unreliable case this whole escalation mechanism exists to
+      // avoid, so it now always starts at the judgment tier here instead of
+      // waiting for one of checkPreCallEscalation's REACTIVE signals to
+      // fire first. Those reactive signals are still computed and folded
+      // into the audit trail below (still real, still useful for
+      // byo-model-audit.ts's pattern analysis) -- they're just no longer
+      // the GATE for this branch. The reactive-only mechanism is not
+      // removed: it remains the live gate inside executePackageDispatch()
+      // above (the PACKAGE_AVAILABLE path), which runs the floor tier by
+      // design and only escalates reactively if a package execution itself
+      // hedges mid-flight.
+      const escalated = escalatedPlatformConfig();
+      if (escalated) {
+        effectiveConfig = escalated;
+        escalation = {
+          escalated: true,
+          signals: [...preCall.signals, "novel_capability"],
+          matchedPhrase: preCall.matchedPhrase,
+          originalModel: modelConfig.model,
+        };
       }
     }
 

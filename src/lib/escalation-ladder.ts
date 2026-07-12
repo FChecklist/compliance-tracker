@@ -70,6 +70,20 @@ export type EscalationReason =
   // governance/policy trigger (risk classification, not a code defect),
   // starts at COO for the same reason as low_confidence_closure above.
   | "critical_risk_closure"
+  // Priority 5 (10-priority5-software-orchestrator-tracker.yaml): Lower AI
+  // package-dispatch failure shapes. "package_execution_failed" is a real
+  // Lower AI execution defect (the LLM call itself failed, or its output
+  // failed the same sanity check engine dispatch already enforces via
+  // assertValidDispatchOutput) -- software-shaped, starts at CSEO like
+  // engine_execution_failed. "package_missing_information" is the hard
+  // MISSING_INFORMATION rule (executePackageDispatch() in
+  // task-execution-engine.ts): a required variable had no resolvable value
+  // in the task's own input, and Lower AI is deliberately forbidden from
+  // guessing one -- also a software-first defect (the package/capability
+  // itself needs a better variable-extraction path, not a policy call), so
+  // it starts at CSEO too, not COO.
+  | "package_execution_failed"
+  | "package_missing_information"
 
 export type EscalationContext = {
   reason: EscalationReason
@@ -98,6 +112,8 @@ const SOFTWARE_FIRST_REASONS: ReadonlySet<EscalationReason> = new Set([
   "engine_not_found",
   "engine_execution_failed",
   "worker_agent_unavailable",
+  "package_execution_failed",
+  "package_missing_information",
 ])
 
 const LADDER: readonly EscalationRung[] = [
