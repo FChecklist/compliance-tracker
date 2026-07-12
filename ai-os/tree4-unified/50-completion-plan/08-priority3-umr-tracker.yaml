@@ -96,7 +96,16 @@ schema_contract: |
 dispatches:
   - agent: 1
     scope: "Core schema, Asset ID system, CRUD service, initial population (the 'compiler at build time' backfill)"
-    status: not_started
+    status: pr_open
+    detail: |
+      Status updated by agent 3 (subagent/umr-graph) after merging
+      origin/subagent/umr-core into this branch and verifying it directly
+      -- not a self-report from agent 1. See 04-implementation-log.yaml's
+      "branch subagent/umr-core, agent 1 of 3 parallel UMR agents" entry
+      for agent 1's own full, first-hand account (schema, Asset ID
+      sequence, CRUD service, backfill script for worker_agents/
+      computation_engines/prompt_templates/dynamic_chains -- migration
+      written but deliberately not applied to the live DB).
   - agent: 2
     scope: "Index-based query layer + the progressive-narrowing Routing Engine + a real search API route"
     status: not_started
@@ -147,4 +156,16 @@ dispatches:
       standalone zero-dependency files specifically so they could be
       unit-tested (9 tests, all passing) independent of the schema
       landing.
+
+      UPDATE: subagent/umr-core landed on origin partway through this
+      dispatch. Merged it in for real (1 conflict, in this same tracker's
+      sibling log file, 04-implementation-log.yaml -- both branches had
+      appended a new session entry; resolved by keeping both, per that
+      file's append-only convention) and re-ran every verification step
+      against the ACTUAL schema, not the stub. tsc --noEmit -p . -> exit 0
+      (real, not stubbed). eslint . (full repo) -> 0 errors. node
+      scripts/check-guardrail-presence.mjs -> all 80 markers present.
+      DATABASE_URL=placeholder bun test (full suite) -> 507 pass, 0 fail,
+      985 expect() calls across 42 files. This PR is no longer blocked on
+      umr-core landing -- it already has, and is merged in.
     pr: "Opened against main from subagent/umr-graph, not self-merged per AGENTS.md Rule 6 -- see 04-implementation-log.yaml for the full dated entry and PR link."
