@@ -63,7 +63,18 @@ export function detectLowConfidenceResponse(replyText: string): { detected: bool
   return { detected: false, matchedPhrase: null }
 }
 
-export type EscalationSignal = "reask_correction" | "prior_task_failure" | "high_impact" | "low_confidence"
+// Priority 5 (10-priority5-software-orchestrator-tracker.yaml): a 5th signal,
+// distinct from the 4 reactive ones above -- "novel_capability" fires
+// PROACTIVELY, before any floor-tier call is even attempted, when
+// software-coverage-service.ts's classifyExecutionWithReliability()
+// returns NOVEL (no approved instruction package exists for the matched
+// capability, or none was matched at all). A floor-tier model reasoning
+// freely on a genuinely uncovered gap is exactly the unreliable case this
+// whole escalation mechanism exists to avoid -- see task-execution-engine.ts's
+// executeTask() free-text branch and chat-service.ts's generateAiReply()
+// for the two real call sites that set this signal instead of running
+// checkPreCallEscalation()'s reactive checks first.
+export type EscalationSignal = "reask_correction" | "prior_task_failure" | "high_impact" | "low_confidence" | "novel_capability"
 
 export type PreCallEscalation = { shouldEscalate: boolean; signals: EscalationSignal[]; matchedPhrase: string | null }
 
