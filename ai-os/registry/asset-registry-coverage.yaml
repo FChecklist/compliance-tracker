@@ -19,6 +19,19 @@
 # specific answer, not the generic placeholder.
 
 registered:
+  # Priority 4 domain B (subagent p4/domain-b-workflow, drizzle/0154):
+  # Workflow/Automation/Decision/Approval/Policy/Framework-domain tranche.
+  - table: automation_rules
+  - table: policies
+  - table: approval_workflow_definitions
+  - table: bcm_plans
+  - table: framework_controls
+  - table: compliance_frameworks
+  - table: metric_alert_rules
+  - table: delegation_of_authority
+  - table: erp_pricing_rules
+  - table: leave_policy_entries
+  - table: approval_requests
   # Priority 4 domain A (subagent-p4-domain-a, drizzle/0153): Documents/
   # Reports/Tasks-domain tranche. Each has a compliance.asset_registration_config
   # row + auto_register_asset_trg attached in that migration.
@@ -53,19 +66,15 @@ exempted:
   - table: application_errors
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: approval_preferences
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: approval_requests
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: approval_workflow_definitions
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: has org_id but no display-name column (scopeType/scopeId/actionCategory/decision compound key) -- each row is a per-user 'always approve/reject this category' setting, not a named platform asset in the UMR sense."
   - table: approval_workflow_instances
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: has org_id but no single display-name column (only entityType/entityId compound identity, workflowDefinitionId, status) -- the generic trigger's name_column pointer can't express a composed name. It is a per-run instance of approval_workflow_definitions (which IS registered), analogous to a log/instance record rather than a named asset."
   - table: approval_workflow_step_approvals
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column at all (scoped only via parent stepInstanceId -> workflowInstanceId -> org_id chain) -- registering with org_column=NULL would wrongly mark it platform-tier and leak across tenants, so it stays exempted per the cross-tenant-leak rule rather than force a bad mapping."
   - table: approval_workflow_step_definitions
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column at all (scoped only via parent workflowDefinitionId -> org_id chain) -- same cross-tenant-leak reasoning as approval_workflow_step_approvals; child table of the registered approval_workflow_definitions."
   - table: approval_workflow_step_instances
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column at all (scoped only via parent workflowInstanceId chain) -- same cross-tenant-leak reasoning as approval_workflow_step_approvals."
   - table: asset_registration_config
     reason: "registry infrastructure (Priority 4's own config table) -- not a platform asset"
   - table: assistant_memories
@@ -81,17 +90,13 @@ exempted:
   - table: audit_points
     reason: "reviewed by Priority 4 domain A (subagent-p4-domain-a): no direct org_id column exists on this table -- it is only indirectly org-scoped via compliance_item_id joining to compliance_items.org_id. The asset_registration_config contract maps columns 1:1 off the row's own to_jsonb() representation (drizzle/0152), which cannot express an indirect/joined org scope; leaving org_column null would make this table register as platform-tier and leak across tenants in the registry, the exact anti-pattern this dispatch was warned against. Deferred pending either a join-capable trigger extension or a direct org_id column on audit_points itself."
   - table: automation_rule_runs
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: automation_rules
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column (scoped only via parent ruleId chain) -- an append-only run log, not itself a named asset; same cross-tenant-leak reasoning as the approval_workflow_step_* child tables."
   - table: bcm_business_impact_analyses
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column at all (scoped only via parent planId -> org_id chain) -- registering with org_column=NULL would wrongly mark it platform-tier and leak across tenants, so it stays exempted rather than force a bad mapping. Child detail table of the registered bcm_plans."
   - table: bcm_exercises
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: bcm_plans
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column at all (scoped only via parent planId chain) -- same cross-tenant-leak reasoning as bcm_business_impact_analyses."
   - table: bcm_recovery_procedures
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: no org_id column at all (scoped only via parent planId chain) -- same cross-tenant-leak reasoning as bcm_business_impact_analyses."
   - table: board_evaluations
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: board_meetings
@@ -127,8 +132,6 @@ exempted:
   - table: company_charges
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: compliance_costs
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: compliance_frameworks
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: compliance_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -187,8 +190,6 @@ exempted:
   - table: customer_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: data_separation_audit
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: delegation_of_authority
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: departments
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -316,8 +317,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_period_closing_checklist_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: erp_pricing_rules
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_purchase_credit_note_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_purchase_credit_notes
@@ -387,7 +386,7 @@ exempted:
   - table: erp_sales_returns
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_statutory_rules
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: has org_id but no single display-name column -- identity is a (ruleType enum, state, effectiveFrom) compound (e.g. PF rate for a given state/date range), not expressible via the trigger's single name_column pointer."
   - table: erp_stock_ledger_entries
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: erp_stock_reconciliation_items
@@ -482,8 +481,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: forge_project_requests
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: framework_controls
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: fraud_cases
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: gst_ai_review_reports
@@ -558,8 +555,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: leave_balances
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: leave_policy_entries
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: leave_requests
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: legal_arbitration_cases
@@ -596,12 +591,10 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: messages
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: metric_alert_rules
-    reason: "reviewed by Priority 4 domain A (subagent-p4-domain-a): trigger/condition/action-rule shaped (source_entity + filter + operator + threshold + notify_user_ids), the same shape as automation_rules -- this belongs with the Workflow/Automation/Decision domain (Priority 4 domain B) for a consistent automation-domain mapping rather than being split across two PRs. Deferred to that dispatch, not exempted for a structural reason."
   - table: module_registry
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: module_rule_configs
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+    reason: "Priority 4 domain B reviewed 2026-07-12: NO genuine org_id column -- scoping is polymorphic via (scopeType, scopeId) where scopeType can be 'platform'|'product_branch'|'org'|'project'|'client'|'user'. This is exactly the cross-tenant-leak pattern the dispatch brief warned about (a real leak already happened once this session in another part of the registry): registering with org_column=NULL would silently mark every row platform-tier regardless of its real scope. Exempted rather than forcing a wrong mapping; also has no single display-name column (moduleKey+ruleKey compound)."
   - table: notice_dispatches
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: notifications
@@ -681,8 +674,6 @@ exempted:
   - table: pms_wiki_pages
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: pms_workflow_transitions
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: policies
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: posh_annual_reports
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
