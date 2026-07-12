@@ -24,11 +24,26 @@ import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
+import { resolveDynamicChainId } from "./task-service"
 import { runDialogueScriptTurn } from "./dialogue-script-executor"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
 export type ChatContext = { orgId: string; userId: string }
+
+// Priority 5 (10-priority5-software-orchestrator-tracker.yaml, dispatch 4,
+// item E1 -- "Close the deferred Dynamic Chain gate for VERI conversations").
+// VERI_CHAT_GOVERNANCE.md §5 explicitly deferred a MANDATORY pre-conversation
+// chain gate as too big a live-surface UX change to rush; this closes the
+// gap the Owner put back in scope while deliberately staying additive:
+// every existing caller of createConversation()/createWorkflowThread() that
+// doesn't send modePill/pathKeys behaves EXACTLY as before (dynamicChainId
+// stays null). Pure predicate so the "did the caller send enough to
+// actually resolve a chain" decision is unit-testable without a DB, matching
+// task-service.ts's own validateChainDepth() precedent.
+export function shouldResolveDynamicChain(modePill?: string, pathKeys?: string[]): boolean {
+  return Boolean(modePill && modePill.trim() && pathKeys && pathKeys.length > 0)
+}
 
 async function ensureAiThread(ctx: ChatContext): Promise<string> {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -89,13 +104,25 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
 // unaffected -- purely additive. workflowId reuses the column Wave 144
 // added (previously unwritten, exactly the kind of real consumer that
 // wave's own audit flagged as missing).
-export async function createWorkflowThread(ctx: ChatContext, input: { workflowId?: string; title?: string }): Promise<string> {
+export async function createWorkflowThread(
+  ctx: ChatContext,
+  // Priority 5 item E1: optional Dynamic Chain selection, same convention as
+  // task-service.ts's createTask() -- omitted by every caller today
+  // (AiThreadSwitcher's "New thread" prompt only sends title), so this is
+  // pure plumbing ahead of a UI that offers the Chain Selector step (see
+  // that dispatch's PR description for what's deferred and why).
+  input: { workflowId?: string; title?: string; modePill?: string; pathKeys?: string[] }
+): Promise<string> {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const newConversationId = createId()
+    const dynamicChainId = shouldResolveDynamicChain(input.modePill, input.pathKeys)
+      ? await resolveDynamicChainId(db, ctx.orgId, ctx.userId, input.modePill!, input.pathKeys!, input.pathKeys!)
+      : null
     await db.insert(conversations).values({
       id: newConversationId, orgId: ctx.orgId, type: "ai", isAiThread: true,
       title: input.title?.trim() || "New workflow",
       workflowId: input.workflowId ?? null,
+      dynamicChainId,
     })
     await db.insert(conversationParticipants).values({ conversationId: newConversationId, userId: ctx.userId })
     return newConversationId
@@ -175,7 +202,16 @@ export async function listConversations(ctx: ChatContext) {
   })
 }
 
-export async function createConversation(ctx: ChatContext, input: { participantUserIds: string[]; title?: string }) {
+export async function createConversation(
+  ctx: ChatContext,
+  // Priority 5 item E1: optional Dynamic Chain selection -- see
+  // shouldResolveDynamicChain()'s comment above. Every existing caller
+  // (POST /api/conversations, sent only { participantUserIds, title } today)
+  // omits modePill/pathKeys and gets dynamicChainId: null exactly as before
+  // this change; nothing about direct/group conversation creation is gated
+  // or blocked by this.
+  input: { participantUserIds: string[]; title?: string; modePill?: string; pathKeys?: string[] }
+) {
   const participantIds = Array.from(new Set([ctx.userId, ...(input.participantUserIds ?? [])]))
   if (participantIds.length < 2) throw new ServiceError("A conversation needs at least one other participant", 400)
 
@@ -191,11 +227,14 @@ export async function createConversation(ctx: ChatContext, input: { participantU
     const createdAt = new Date()
     const type = participantIds.length > 2 ? "group" : "direct"
     const title = input.title?.trim() || null
-    await db.insert(conversations).values({ id, orgId: ctx.orgId, type, title, createdAt })
+    const dynamicChainId = shouldResolveDynamicChain(input.modePill, input.pathKeys)
+      ? await resolveDynamicChainId(db, ctx.orgId, ctx.userId, input.modePill!, input.pathKeys!, input.pathKeys!)
+      : null
+    await db.insert(conversations).values({ id, orgId: ctx.orgId, type, title, createdAt, dynamicChainId })
 
     await db.insert(conversationParticipants).values(participantIds.map((userId) => ({ conversationId: id, userId })))
 
-    return { id, type, title, createdAt: createdAt.toISOString() }
+    return { id, type, title, createdAt: createdAt.toISOString(), dynamicChainId }
   })
 }
 

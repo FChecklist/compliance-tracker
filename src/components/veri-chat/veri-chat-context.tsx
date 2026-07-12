@@ -80,7 +80,16 @@ type VeriChatState = {
   activeAiThreadId: string | null;
   aiThreads: { id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[];
   switchAiThread: (id: string) => void;
-  createNewAiThread: (title?: string, workflowId?: string) => Promise<string | null>;
+  // Priority 5 item E1 (10-priority5-software-orchestrator-tracker.yaml):
+  // optional 3rd param threads a resolved Dynamic Chain selection through to
+  // POST /api/conversations/workflow-thread -> createWorkflowThread(), same
+  // plumbing task creation already has via VeriComposer's dispatchInstruction.
+  // No caller sends this yet -- offering the existing Chain Selector
+  // (VeriComposer's ChainRows) as a step before this call is a real UX
+  // change to a live surface, deliberately deferred (see this dispatch's PR
+  // description); this signature exists so that follow-on UI work has
+  // somewhere to plug in without a second service-layer change.
+  createNewAiThread: (title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }) => Promise<string | null>;
 };
 
 const VeriChatContext = createContext<VeriChatState | null>(null);
@@ -144,12 +153,17 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
 
   const switchAiThread = (id: string) => setActiveAiThreadId(id);
 
-  const createNewAiThread = async (title?: string, workflowId?: string): Promise<string | null> => {
+  const createNewAiThread = async (
+    title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }
+  ): Promise<string | null> => {
     try {
       const res = await fetch("/api/conversations/workflow-thread", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, workflowId }),
+        body: JSON.stringify({
+          title, workflowId,
+          modePill: chainSelection?.modePill, pathKeys: chainSelection?.pathKeys,
+        }),
       });
       if (!res.ok) return null;
       const { id } = await res.json();

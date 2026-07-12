@@ -14,9 +14,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}))
+    // Priority 5 item E1: optional modePill/pathKeys threaded through
+    // unchanged when a caller sends them (none does yet -- see chat-
+    // service.ts's createWorkflowThread() comment for what's deferred).
     const conversationId = await createWorkflowThread(
       { orgId, userId: dbUser.id },
-      { workflowId: body.workflowId, title: body.title }
+      { workflowId: body.workflowId, title: body.title, modePill: body.modePill, pathKeys: body.pathKeys }
     )
     return NextResponse.json({ id: conversationId }, { status: 201 })
   } catch (error) {
