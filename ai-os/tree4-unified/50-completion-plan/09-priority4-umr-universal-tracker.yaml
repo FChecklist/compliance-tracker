@@ -166,28 +166,111 @@ schema_contract: |
   into asset_registration_config + one CREATE TRIGGER statement, both in
   that dispatch's own migration file. No application code required.
 
+final_status: |
+  COMPLETE 2026-07-12. All 6 dispatches merged to main (PRs #206-209 + this
+  tracker close-out PR). Live state verified directly, not assumed:
+  29 tables in compliance.asset_registration_config, 29/29 with
+  auto_register_asset_trg actually attached (SELECT count(*) FILTER
+  (WHERE trigger_attached) FROM compliance.attached_asset_triggers ->
+  29/29). ai-os/registry/asset-registry-coverage.yaml accounts for all
+  388 tables in schema.ts (29 registered, 359 exempted with real,
+  specific reasons or the honest grandfather placeholder) -- CI's Asset
+  Registry Coverage Check enforces this stays true going forward.
+
+  Real bugs found and fixed during independent review before merge (none
+  of these were caught by tsc/eslint/tests -- both were logic/process
+  gaps):
+    1. SUPERVISOR PROCESS BUG: merged domain B's and domain C's branches
+       against a STALE local origin/main ref twice (forgot to re-fetch
+       after the previous domain's PR had just merged), which silently
+       produced a "clean" merge that actually dropped the prior domain's
+       coverage.yaml entries. Caught both times by noticing the reported
+       registered-table count was wrong (10 instead of 20, then 21
+       instead of 29) rather than trusting a green local check blindly.
+       Fixed by re-fetching and redoing both merges properly, resolving
+       the real YAML conflicts that surfaced once main was actually
+       current.
+    2. DUPLICATE REGISTRATION: domain B and domain C independently
+       proposed byte-identical compliance.asset_registration_config
+       mappings for compliance_frameworks and framework_controls (both
+       forked before either could see the other's work). Since
+       source_table is UNIQUE, applying both would have failed with a
+       duplicate-key error. Fixed by removing the duplicate INSERT/
+       CREATE TRIGGER statements from domain C's migration and
+       attributing both tables to domain B's (already-live) registration
+       in the coverage manifest.
+
+  Owner requirements, addressed:
+    - "Software automatically registers every action, no AI, non-
+      negotiable": compliance.auto_register_asset(), a real Postgres
+      trigger, fires on every INSERT/UPDATE/DELETE of an onboarded table
+      regardless of which code path touches it (API route, script, raw
+      SQL) -- verified end-to-end in a rolled-back transaction before any
+      dispatch used the pattern.
+    - "Software can read/write/edit/analyze/audit/maintain the UMR
+      automatically, no AI": scripts/audit-asset-registry.ts, a
+      deterministic (zero LLM calls, self-verified via grep) read-only
+      reconciliation tool, plus the existing asset-registry-service.ts
+      CRUD layer from Priority 3.
+    - "Search is extremely fast, thousands of simultaneous callers":
+      asset-registry-cache.ts, an in-process compiled cache with TTL
+      expiry and thundering-herd dedup, wired into 5 of
+      asset-query-service.ts's structured lookups. Honestly scoped as
+      per-instance (not cross-instance/Redis) -- see that file's own
+      header for the stated tradeoff and why Redis was deliberately not
+      introduced this pass (a real infra decision, not a code change).
+    - "Non-negotiable" given real teeth: the Asset Registry Coverage
+      Check CI job fails the build if any table lacks an explicit
+      registered/exempted decision -- the same enforcement class as
+      Rule 9's guardrail-presence check.
+
+  Honestly NOT done in this pass (documented, not silently claimed):
+    - 359 of 388 tables remain in the grandfather-exempted bucket,
+      not yet individually reviewed for registry-worthiness. The
+      MECHANISM to onboard any of them is now complete and proven across
+      3 varied domains (29 real tables, not a toy example) -- onboarding
+      a remaining table is a ~10-line migration addition, not new code.
+      This mirrors Priority 3's own precedent: the registry is complete,
+      full retrofit of every table is a separate, smaller follow-on.
+    - Priority 3's own backfill script (scripts/backfill-platform-
+      assets.ts, worker_agents/computation_engines/prompt_templates/
+      dynamic_chains) still has not been run against live data -- still
+      awaiting a Super Boss execution decision, unrelated to this
+      priority's own scope.
+    - Redis / a cross-instance cache tier: deliberately not built (see
+      above) -- a real infra/ops decision, not a code gap.
+
 dispatches:
   - agent: 1
     scope: "Core: asset_registration_config + auto_register_asset() trigger function (migration 0152), applied live"
     owner: "Super Boss (sequential, must land before the 3 domain dispatches)"
-    status: not_started
+    status: complete
+    pr: "#206, merged 2026-07-12"
   - agent: 2
     scope: "Compiled in-memory metadata cache + wiring into asset-query-service.ts/asset-routing-engine.ts"
     owner: "Super Boss (sequential, shares no file conflicts with the 3 domain dispatches)"
-    status: not_started
+    status: complete
+    pr: "#206, merged 2026-07-12 (bundled with agent 1 -- both supervisor-owned, no conflicts)"
   - agent: 3
     scope: "CI guardrail extension: new tables must register or be explicitly exempted"
     owner: "Super Boss"
-    status: not_started
+    status: complete
+    pr: "#206, merged 2026-07-12 (bundled with agents 1-2)"
   - agent: 4
     scope: "Domain A onboarding: Documents/Reports/Tasks/Notifications tables onto the trigger"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    pr: "#207, merged 2026-07-12"
+    detail: "10 tables registered (documents, tasks, saved_reports, incidents, risks, knowledge_base_pages, notices, projects, board_action_items, audit_findings). notifications correctly identified and exempted as a real cross-tenant-leak risk (user_id-scoped, no org_id)."
   - agent: 5
     scope: "Domain B onboarding: Workflow/Automation/Decision/Approval tables onto the trigger"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    pr: "#208, merged 2026-07-12"
+    detail: "11 tables registered (automation_rules, policies, approval_workflow_definitions, bcm_plans, framework_controls, compliance_frameworks, metric_alert_rules, delegation_of_authority, erp_pricing_rules, leave_policy_entries, approval_requests). Several tables with no genuine org_id correctly identified and exempted (module_rule_configs, approval_workflow_step_*, automation_rule_runs, bcm_business_impact_analyses/recovery_procedures/exercises)."
   - agent: 6
     scope: "Domain C onboarding: Role/Permission/Policy/API-surface tables onto the trigger, plus the deterministic registry audit/maintenance script"
     owner: "subagent (parallel worktree)"
-    status: not_started
+    status: complete
+    pr: "#209, merged 2026-07-12"
+    detail: "8 tables registered after deduplication (departments, committees, module_registry, product_branches, products, webhooks, subscription_plans, access_review_cycles) -- originally proposed 10, but compliance_frameworks/framework_controls were byte-identical duplicates of domain B's own registration, removed during Super Boss review (see final_status above). Correctly distinguished genuine platform-wide tables (module_registry/product_branches/subscription_plans, org_column=NULL by design) from the cross-tenant-leak trap. Also built scripts/audit-asset-registry.ts + scripts/audit-asset-registry.test.ts (23 tests) -- the deterministic, zero-AI reconciliation/audit tool."
