@@ -1,0 +1,157 @@
+# Priority 5 tracker, created 2026-07-12 per the Owner's directive: turn the
+# "Software Orchestrator" specification (Software-first execution, a strict
+# X%/Y%/A%/B% coverage split, Lower/Monitoring/Higher/Auditor AI roles with
+# hard trigger gates, a self-improving capability memory) into real code --
+# for both the END-USER TASK EXECUTION flow (task-service/task-execution-
+# engine) and the VERI COMMUNICATION flow (chat-service/VERI Chat), on the
+# same underlying mechanism. Confirmed with the Owner across a multi-turn
+# discussion before any code was written -- see that discussion for the full
+# reasoning; this tracker records the resulting scope, not the debate.
+#
+# status values: complete | in_progress | not_started
+
+priority: 5
+name: "Software Orchestrator -- X/Y/A/B execution split + self-improving capability memory"
+
+owner_confirmed_decisions:
+  - "Scope: end-user task execution path ONLY (task-service.ts/task-execution-engine.ts), extended to VERI's communication flow (chat-service.ts) on the Owner's own explicit follow-up -- NOT a re-architecture of the AI Dev Team's own build-time dispatch mechanism."
+  - "3-way split, not 4 formal roles: X% Software (0% AI) -> Y% needs AI -> of Y%, A% handled by a cheap/floor-tier model executing an APPROVED narrow instruction package (foolproof by construction, never reasons freely) -> B% handled by the judgment-tier model on genuinely novel work."
+  - "'Monitoring AI' = the EXISTING task_oa orchestra layer (already used by task-execution-engine.ts's free-text planning branch, GST AI review, asset routing, comms drafting). NOT a new role."
+  - "'Auditor AI' = the EXISTING chief_audit_officer (+ AUDIT_EXECUTIVE/GUARDRAIL_* division heads). NOT a new role."
+  - "'Higher AI' = the EXISTING AI Dev Team engineering pipeline (roster.ts ENGINEERING-team roles, dispatched via dispatch-repo.ts -> ai-workforce-agent.mjs). Super Boss's own call, confirmed -- NOT a new dispatch mechanism."
+  - "'Software Orchestrator' = task-execution-engine.ts itself, extended to own the full decision chain, NOT a brand-new top-level module. Owner's own call, confirmed."
+  - "'Whole of FChecklist' scope note: this mechanism is built ONCE, in compliance-tracker, because that is the only repo with a task-execution-engine.ts / Dynamic Chain / Mode Pill system at all. PROJEXA is a thin client with no local task-execution engine of its own (confirmed in ai-os/system-tree/20-projexa.yaml) -- it inherits this automatically the moment its proxied API calls hit VERIDIAN's own /api routes, no PROJEXA-side code needed. veda-advisors has no Dynamic Chain/task-execution concept at all (a marketing site + lead funnel) -- Priority 5 does not apply there beyond the constitutional-governance foundation already ported in an earlier priority. This is a stated architectural fact, not a silent gap."
+
+investigation:
+  verdict: |
+    Confirmed directly against Tree 1 (ai-os/system-tree/10-compliance-tracker-
+    governance.yaml, 18 governance domains) and real code before any design
+    decision was made. The bones of "software first, AI only for the gap"
+    already exist (task-execution-engine.ts's 3-way engineKey/
+    resolvedWorkerAgentId/free-text branch, GOV-08; llm-routing-gate.ts's
+    tryDeterministicRoute() chokepoint, GOV-11; TightTask's narrow-
+    instruction envelope, GOV-03) -- this is not a green-field build. Five
+    real, concrete gaps were identified and are what this priority actually
+    builds:
+      1. No "Software Coverage %" calculation exists anywhere -- confirmed
+         via grep (zero hits for coverage/coveragePercent/capabilityVersion/
+         needsImprovement across src/lib/).
+      2. No distinct "Approved Lower AI Instruction Package" registry exists
+         -- TightTask is assembled fresh per-dispatch, never persisted as a
+         reusable, versioned, foolproof package a cheap model can execute
+         without re-reasoning.
+      3. No per-Capability version / Needs-Improvement / occurrence-count
+         state machine exists -- platform_assets (Priority 3/4) is asset
+         metadata, not execution-learning state.
+      4. No word/pattern-level prompt matching for capability reuse exists
+         (the "Did/We/File" example) -- tsvector full-text search exists on
+         platform_assets, but not this specific concept.
+      5. No single module owns the full "read registry -> trigger
+         software/lower/higher AI -> update metadata -> validate output"
+         decision chain -- decision-making is currently distributed across
+         task-execution-engine.ts, llm-routing-gate.ts, orchestra-model-
+         resolver.ts, guardrail-engine.ts independently.
+    For the communication-flow extension specifically: conversations.
+    dynamicChainId ALREADY EXISTS in schema.ts with ZERO writers -- a real,
+    already-documented, deliberately deferred gap (VERI_CHAT_GOVERNANCE.md
+    section 5: "adding a mandatory pre-conversation gate... deserves its
+    own scoped wave"). chat-service.ts's generateAiReply() is the single
+    real choke point for VERI's outbound replies, currently a direct LLM
+    call with no coverage classification in front of it. fde-service.ts
+    (VERI FDE) already implements the exact SHAPE of the A/B split
+    (cheap embedding match via findSimilarCapabilities(), zero-LLM-cost on
+    high-confidence match) but wired passively for proposing new Worker
+    Agents, not gating the visible reply. response-engine.ts (GOV-13)
+    already IS the X% case for a narrow slice (predefined short replies)
+    but doesn't cover VERI asking a question or giving a status update/
+    report. No dialogue-tree/script engine (ask question -> match reply ->
+    next question) exists anywhere -- onboardingSteps is a fixed checklist,
+    instructionCommitments tracks human-to-human promises, neither is this.
+
+  scope_decision: |
+    Build the mechanism completely and wire it into BOTH real consumers
+    (task execution + VERI communication) as two callers of the identical
+    machinery, not two parallel systems. Reuse every existing piece
+    confirmed above rather than duplicating: resolveDynamicChainId(),
+    findSimilarCapabilities(), response-engine.ts's template mechanism,
+    runRole()/dispatchRepoTask() for Higher AI, chief_audit_officer for
+    Auditor AI, task_oa layer for Monitoring/Lower AI's model resolution.
+
+    Honest scoping call on "Coverage %": computing a literal PER-REQUEST
+    fractional coverage ("this ONE request is 83% software-coverable")
+    requires decomposing a task into checkable sub-steps -- a hard planning
+    problem out of scope for this pass. Instead, each request/turn is
+    CLASSIFIED into exactly one of 3 buckets (FULL_SOFTWARE /
+    PACKAGE_AVAILABLE / NOVEL), and the X%/Y%/A%/B% numbers become a
+    ROLLING AGGREGATE STAT per capability, computed from real classification
+    history -- genuinely buildable and testable, unlike true fractional
+    per-request decomposition.
+
+schema_contract: |
+  Fixed contract every dispatch builds against (Super Boss owns writing
+  this to schema.ts; subagents code against it without waiting for the
+  core PR to merge first, same sequencing discipline as Priority 3/4).
+
+  taskCapabilities (new table, migration 0156):
+    id: text primary key (createId())
+    capabilityKey: text NOT NULL UNIQUE   -- stable slug, e.g. 'accounts.tax_filing.gst.prepare'
+    modePill: text                         -- mirrors dynamicChains.modePill's shape, nullable (a capability may not map to one exact chain)
+    pathKeys: jsonb                        -- mirrors dynamicChains.pathKeys
+    status: text NOT NULL default 'ai_only'    -- 'ai_only' | 'partial' | 'full_software'
+    needsImprovement: text NOT NULL default 'no'  -- 'no' | 'yes' | 'in_progress'
+    version: integer NOT NULL default 1    -- bumped ONLY when the underlying implementation actually changes
+    lastAuditedAt: timestamp
+    lastAuditedVersion: integer            -- Auditor's "once per version" gate compares this to `version`
+    occurrenceCount: integer NOT NULL default 0
+    promptWordIndex: jsonb                 -- string[] of normalized tokens, the "Did/We/File" pattern-matching substrate
+    fullSoftwareCount, packageAvailableCount, novelCount: integer NOT NULL default 0  -- rolling classification history, the X/Y/A/B aggregate stat source
+    orgId: text                            -- NULLABLE, platform-wide by design (mirrors platform_assets.orgId) -- capability LEARNING generalizes across every org, this is a deliberate, stated judgment call
+    createdAt, updatedAt: timestamp
+
+  instructionPackages (new table, migration 0156):
+    id: text primary key (createId())
+    capabilityId: text NOT NULL            -- FK -> taskCapabilities.id
+    packageType: text NOT NULL             -- 'task_execution' | 'dialogue_script'
+    version: integer NOT NULL default 1
+    status: text NOT NULL default 'draft'  -- 'draft' | 'approved' | 'deprecated' -- ONLY 'approved' is executable by Lower AI
+    steps: jsonb NOT NULL                  -- task_execution: [{step, action, validation}]; dialogue_script: [{question, expectedAnswerPatterns, onMatch, onNoMatch}]
+    requiredVariables: jsonb               -- string[] -- Lower AI returns MISSING_INFORMATION if any is absent
+    createdByRole: text                    -- which Higher AI role authored it, traceability
+    approvedAt: timestamp
+    successRate: integer                   -- 0-100, nullable until usageCount > 0
+    usageCount: integer NOT NULL default 0
+    lastUsedAt: timestamp
+    createdAt, updatedAt: timestamp
+
+  capabilityImprovementProposals (new table, migration 0156):
+    id: text primary key (createId())
+    capabilityId: text NOT NULL            -- FK -> taskCapabilities.id
+    capabilityVersion: integer NOT NULL    -- the version this proposal was raised against (dedup key alongside capabilityId)
+    findings: jsonb NOT NULL               -- { missingFunction?, missingWorkflow?, missingBusinessRule?, missingReport?, missingConfiguration?, missingModePill?, missingChainOption?, missingMetadata?, missingValidation?, missingScreen?, missingApi? } -- the spec's exact list
+    occurrenceCount: integer NOT NULL default 1  -- repeated identical findings increment this, never duplicate the row
+    status: text NOT NULL default 'open'   -- 'open' | 'dispatched' | 'resolved' | 'rejected'
+    dispatchedToRole: text                 -- which ENGINEERING role Higher AI dispatch went to
+    dispatchedAt: timestamp
+    prUrl: text
+    createdAt, updatedAt: timestamp
+
+  UNIQUE(capabilityId, capabilityVersion) on capabilityImprovementProposals --
+  one open proposal per capability version, occurrenceCount absorbs repeats.
+
+dispatches:
+  - agent: 1
+    scope: "Core: 3 new tables + software-coverage-service.ts + capability-learning-service.ts (Phase A), applied live"
+    owner: "Super Boss (sequential, must land before the 3 dispatches below)"
+    status: not_started
+  - agent: 2
+    scope: "Phase B (task orchestrator wiring, Lower AI package executor, proactive floor-tier gating) + E3/E4 (chat classifier call site + dialogue-script-executor.ts)"
+    owner: "subagent (parallel worktree)"
+    status: not_started
+  - agent: 3
+    scope: "Phase C (capability-audit-service.ts: Auditor trigger gate, improvement proposal dedup, Higher AI dispatch, version close-out)"
+    owner: "subagent (parallel worktree)"
+    status: not_started
+  - agent: 4
+    scope: "Phase D (guardrail markers + tests) + E1 (Dynamic Chain gate for conversations, reusing resolveDynamicChainId()) + E5 (response-engine.ts status-update/report template extension)"
+    owner: "subagent (parallel worktree)"
+    status: not_started
