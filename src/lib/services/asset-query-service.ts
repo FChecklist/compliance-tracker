@@ -29,6 +29,7 @@
 import { platformAssets } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm"
+import { getCachedOrgAssets } from "./asset-registry-cache"
 
 export type AssetQueryContext = { orgId: string }
 
@@ -53,29 +54,50 @@ function orgOrPlatformCondition(orgId: string) {
   return or(eq(platformAssets.orgId, orgId), isNull(platformAssets.orgId))
 }
 
-// ─── Index 2: btree(assetType) ──────────────────────────────────────────
-export async function queryByAssetType(ctx: AssetQueryContext, assetType: AssetType): Promise<PlatformAsset[]> {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.select().from(platformAssets)
-      .where(and(orgOrPlatformCondition(ctx.orgId), eq(platformAssets.assetType, assetType)))
-      .orderBy(desc(platformAssets.updatedAt))
-      .limit(DEFAULT_LIMIT)
-  )
+// Shared in-memory tail for every cache-backed query below -- same
+// ordering (most-recently-updated first) and cap the real DB-backed
+// queries already applied, just applied to an already-loaded set instead
+// of via a second round trip.
+function sortAndLimit(rows: PlatformAsset[]): PlatformAsset[] {
+  return [...rows].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()).slice(0, DEFAULT_LIMIT)
 }
 
-// ─── Index 3: btree(module) ─────────────────────────────────────────────
+// ─── Index 2: btree(assetType) -- Priority 4: cache-first ───────────────
+// Priority 4 (09-priority4-umr-universal-tracker.yaml): serves from the
+// compiled in-memory cache (asset-registry-cache.ts) instead of a Postgres
+// round trip on every call -- the Owner's own reference architecture names
+// this exact tier ("Application Memory Cache... most requests never touch
+// the database at all"). The cache only holds status='active' rows (see
+// that file's own header), so this now implicitly returns active assets of
+// the given type only -- a deliberate narrowing from the pre-Priority-4
+// behavior (which returned every status including draft/archived), matches
+// the realistic "search finds things you can actually use" expectation,
+// and no existing caller/test relied on cross-status results (asset-
+// routing-engine.ts, the one real caller, is a search/routing surface).
+export async function queryByAssetType(ctx: AssetQueryContext, assetType: AssetType): Promise<PlatformAsset[]> {
+  const cached = await getCachedOrgAssets(ctx.orgId)
+  return sortAndLimit(cached.filter((a) => a.assetType === assetType))
+}
+
+// ─── Index 3: btree(module) -- Priority 4: cache-first ──────────────────
 export async function queryByModule(ctx: AssetQueryContext, module: string): Promise<PlatformAsset[]> {
   if (!module?.trim()) return []
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.select().from(platformAssets)
-      .where(and(orgOrPlatformCondition(ctx.orgId), eq(platformAssets.module, module)))
-      .orderBy(desc(platformAssets.updatedAt))
-      .limit(DEFAULT_LIMIT)
-  )
+  const cached = await getCachedOrgAssets(ctx.orgId)
+  return sortAndLimit(cached.filter((a) => a.module === module))
 }
 
-// ─── Index 7: btree(status) ─────────────────────────────────────────────
+// ─── Index 7: btree(status) ──────────────────────────────────────────────
+// Cache-first ONLY for status='active' (the one status the cache holds --
+// see asset-registry-cache.ts's own header for why draft/archived/deleted
+// are deliberately excluded from the hot-path cache). Any other status
+// goes straight to Postgres, uncached, same as before Priority 4 -- those
+// are the rare moderation/audit-screen lookups this cache was never meant
+// to accelerate.
 export async function queryByStatus(ctx: AssetQueryContext, status: AssetStatus): Promise<PlatformAsset[]> {
+  if (status === "active") {
+    const cached = await getCachedOrgAssets(ctx.orgId)
+    return sortAndLimit(cached)
+  }
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.select().from(platformAssets)
       .where(and(orgOrPlatformCondition(ctx.orgId), eq(platformAssets.status, status)))
@@ -84,45 +106,29 @@ export async function queryByStatus(ctx: AssetQueryContext, status: AssetStatus)
   )
 }
 
-// ─── Index 6: GIN(tags) ──────────────────────────────────────────────────
-// `@>` (jsonb containment) is the operator the GIN index on a jsonb column
-// actually accelerates in Postgres -- this returns assets whose `tags`
-// array contains ALL of the given tags, not "any of". Callers wanting
-// "any of" semantics can call this once per tag and union client-side;
-// not added here since no caller in this codebase needs it yet (YAGNI,
-// matching this codebase's own discipline elsewhere of not building an
-// unused parameter shape).
+// ─── Index 6: GIN(tags) -- Priority 4: cache-first ───────────────────────
+// `@>` (jsonb containment) semantics reproduced in-memory: an asset matches
+// only if its own tags array contains EVERY tag in the query (not "any
+// of"), the exact same "all of" contract the real GIN-index-backed SQL
+// query enforced -- callers wanting "any of" still union client-side.
 export async function queryByTags(ctx: AssetQueryContext, tags: string[]): Promise<PlatformAsset[]> {
   if (!tags?.length) return []
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.select().from(platformAssets)
-      .where(and(
-        orgOrPlatformCondition(ctx.orgId),
-        sql`${platformAssets.tags} @> ${JSON.stringify(tags)}::jsonb`
-      ))
-      .orderBy(desc(platformAssets.updatedAt))
-      .limit(DEFAULT_LIMIT)
+  const cached = await getCachedOrgAssets(ctx.orgId)
+  return sortAndLimit(
+    cached.filter((a) => {
+      const assetTags = (a.tags as string[] | null) ?? []
+      return tags.every((t) => assetTags.includes(t))
+    })
   )
 }
 
-// ─── No dedicated index (documented, see file header) ───────────────────
-// Filters the aiCapabilities jsonb array via the same `@>` containment
-// operator as queryByTags, but aiCapabilities has no GIN index in the real
-// migration -- only orgId's btree index backs this query. Never call this
-// as the first/only narrowing step on a large org; asset-routing-engine.ts
-// always narrows by assetType/module/status first and only reaches for
-// this on an already-small candidate set.
+// ─── No dedicated index (documented, see file header) -- Priority 4:
+//     cache-first ─────────────────────────────────────────────────────────
 export async function queryByAiCapability(ctx: AssetQueryContext, capability: string): Promise<PlatformAsset[]> {
   if (!capability?.trim()) return []
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.select().from(platformAssets)
-      .where(and(
-        orgOrPlatformCondition(ctx.orgId),
-        eq(platformAssets.aiEnabled, true),
-        sql`${platformAssets.aiCapabilities} @> ${JSON.stringify([capability])}::jsonb`
-      ))
-      .orderBy(desc(platformAssets.updatedAt))
-      .limit(DEFAULT_LIMIT)
+  const cached = await getCachedOrgAssets(ctx.orgId)
+  return sortAndLimit(
+    cached.filter((a) => a.aiEnabled && ((a.aiCapabilities as string[] | null) ?? []).includes(capability))
   )
 }
 

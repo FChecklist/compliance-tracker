@@ -17,6 +17,7 @@
 import { db, platformAssets, type assetTypeEnum, type assetStatusEnum } from "@/lib/db"
 import { and, eq, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { invalidateOrgCache } from "./asset-registry-cache"
 export { ServiceError }
 
 export type AssetType = (typeof assetTypeEnum.enumValues)[number]
@@ -111,6 +112,11 @@ export async function registerAsset(input: RegisterAssetInput) {
     })
     .returning()
 
+  // Priority 4: best-effort same-instance cache freshness (see
+  // asset-registry-cache.ts's own header for why this is best-effort, not
+  // a guarantee, across serverless instances -- TTL expiry is the backstop).
+  invalidateOrgCache(row.orgId)
+
   return row
 }
 
@@ -159,6 +165,12 @@ export async function updateAsset(assetId: string, input: UpdateAssetInput) {
     .where(eq(platformAssets.assetId, assetId))
     .returning()
 
+  // Priority 4: invalidate both the old and new org buckets -- updateAsset()
+  // can change orgId (it's not omitted from UpdateAssetInput), so a stale
+  // cache entry could otherwise survive under the asset's PREVIOUS orgId.
+  invalidateOrgCache(existing.orgId)
+  if (row.orgId !== existing.orgId) invalidateOrgCache(row.orgId)
+
   return row
 }
 
@@ -175,6 +187,10 @@ export async function archiveAsset(assetId: string) {
     .set({ status: "archived", updatedAt: new Date() })
     .where(eq(platformAssets.assetId, assetId))
     .returning()
+
+  // Priority 4: an archived asset must stop appearing in the cache's
+  // active-only view immediately (same-instance), not just after TTL.
+  invalidateOrgCache(row.orgId)
 
   return row
 }
