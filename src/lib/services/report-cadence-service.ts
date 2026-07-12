@@ -52,7 +52,16 @@ import { and, eq, gte, isNotNull } from "drizzle-orm"
 
 export type EscalationEvent = { title: string; authority: string }
 
-const ESCALATION_SUFFIX_RE = / -- escalated to (.+?) \((.+?)\)\.$/
+// Priority 9 verification fix: title is greedy and authority excludes
+// parens, not the other way around -- several real titles are themselves
+// parenthesized (e.g. "Chief Operating Officer (COO)"), so a non-greedy
+// title group stopped at the FIRST " (" it found instead of the last one,
+// swallowing the role's own abbreviation into a mis-parsed authority.
+// Authority text itself never contains parens in any real call site (see
+// task-execution-engine.ts's 4 call sites), so anchoring on "no parens
+// until the final )." reliably finds the true final group regardless of
+// how many parenthesized asides the title contains.
+const ESCALATION_SUFFIX_RE = / -- escalated to (.+) \(([^()]*)\)\.$/
 
 /**
  * Pure: extracts {title, authority} from a taskChatMessages.content string,
