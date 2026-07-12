@@ -750,6 +750,10 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: task_reflections
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: ticket_intelligence_action_items
+    reason: "join table (ticket_intelligence_item -> promoted task), same shape/reasoning as email_intelligence_action_items -- not itself a discoverable platform asset"
+  - table: ticket_intelligence_items
+    reason: "AI detection/suggestion staging row (drizzle/0169, mirrors email_intelligence_items), pending human promotion -- not itself a business asset in the UMR sense; the ticket it analyzes is the real asset and is already covered by the tickets exemption above"
   - table: ticket_satisfaction_surveys
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: tickets
