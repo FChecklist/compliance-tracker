@@ -151,14 +151,6 @@ open_items:
       recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
       first_raised: "2026-07-12 full status reconciliation pass"
 
-    - id: GAP-D15-REMAINING-TRIGGERS
-      name: "D15.B2.S1: 1 of 10 named audit event triggers remains unwired (Deployment)"
-      old_ids: ["D15.B2.S1 (Tree 1)"]
-      detail: "Priority 9 (PR #234) wired 7 of the remaining 9 triggers (8 of 10 total, including the pre-existing Code Changed trigger). Priority 10 (PR #238) closed SOP Changed -- investigated a dedicated new sops table and rejected it: the existing policies table (title, free-text category with no enum/CHECK constraint, version, draft/under_review/published maker-checker publish flow via approval_requests) already has exactly the shape a Standard Operating Procedure needs. sop_changed now fires at the real policy_publish approval chokepoint (src/app/api/approvals/[id]/route.ts) when the policy being published has category='sop', routing to roster.ts's pre-existing sop_auditor role. Deployment remains genuinely, not just deferred: no in-app deployment-event table or webhook handler exists beyond the already-wired CI workflow for event #1 (Code Changed). Wiring it would mean inventing a trigger point with nothing real behind it."
-      size: S
-      recommendation: "Deployment needs either a real deployment-event table or a webhook from the actual deploy pipeline (Vercel) -- an infra decision."
-      first_raised: "2026-07-12 Priority 9 (PR #234)"
-
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
@@ -311,3 +303,57 @@ closed_priorities:
       deferred_large), GAP-MOM-VOICE-TICKETS (voice/transcription,
       owner-blocked on a speech-to-text provider decision),
       GAP-D13-ASSUMPTION-VALIDATION (owner-blocked on prompt-content sign-off).
+
+  - priority: 11
+    name: "GAP-D15-REMAINING-TRIGGERS closed: the last of D15.B2.S1's 10 named audit-event triggers, Deployment"
+    summary: |
+      - PR #243: GAP-D15-REMAINING-TRIGGERS fully closed -- Deployment, the
+        one event Priority 10 (PR #238) left genuinely open ("no in-app
+        deployment-event table or webhook handler exists beyond the
+        already-wired CI workflow for event #1"), now has a real trigger
+        point. Built src/app/api/webhooks/vercel-deployment/route.ts: a
+        real Vercel account-webhook receiver that verifies x-vercel-
+        signature (HMAC-SHA1 over the raw body, Vercel's own documented
+        webhook security model, extracted to the independently-unit-tested
+        src/lib/webhooks/vercel-signature.ts), records every verified
+        delivery in the new platform-wide deployment_events table
+        (schema.ts + drizzle/0172, no org_id -- a Vercel deployment isn't
+        tenant data, RLS enabled, asset-registry-exempted with a real
+        reason), and fires the "deployment" audit_trigger on a verified
+        deployment.succeeded event, routed to roster.ts's pre-existing
+        deployment_auditor role (clean 1:1 name match). All 9 of the
+        remaining D15.B2.S1 named events are now wired (#10, Code Changed,
+        was already wired via CI before audit-event-triggers.ts existed).
+        Honest limitation, documented in the route's own header: a
+        deployment has no tenant org, so the audit_trigger write resolves
+        a best-effort platform org (PLATFORM_AUDIT_ORG_ID env var if set,
+        else the earliest-created organisations row) rather than a real
+        per-request actor -- same caveat class as new_prompt's existing
+        entry. Verified before merge: tsc/eslint/guardrail-presence/
+        asset-registry-coverage/full build all clean; 12 new unit tests
+        (6 signature-verification, 6 route-level: fail-closed with no
+        secret configured, 403 for unsigned/wrong-secret/tampered
+        deliveries, 200+ignored for an unrecognized-but-validly-signed
+        event type with zero DB touch, and confirmation that a correctly
+        signed deployment.succeeded delivery clears the signature boundary).
+        CI (Lint/Type Check/Build/Unit Tests, plus Guardrail Presence/
+        Asset Registry Coverage/E2E/Security/audit-check) all green before
+        merge; the only red check was the "Vercel" preview-deployment
+        integration, confirmed pre-existing and unrelated (identical
+        failure on already-merged PR #241).
+        NOT done, honestly: live registration of the actual webhook in
+        Vercel's dashboard. Creating it via POST /v1/webhooks (the
+        pre-authenticated `vercel` CLI session could reach this) returns
+        the webhook's signing secret in plaintext, shown exactly once --
+        completing that step would have required this agent to handle that
+        raw secret value directly, which was explicitly out of scope.
+        Remaining Owner action: Vercel Dashboard -> team
+        meet-track-s-projects -> Settings -> Webhooks -> Create Webhook;
+        events Deployment Succeeded + Deployment Error (optionally
+        Deployment Created); project scope veridian-compliance-ai only;
+        endpoint URL https://veridian-ai-os.vercel.app/api/webhooks/
+        vercel-deployment; copy the one-time secret and set it as the
+        Production env var VERCEL_DEPLOYMENT_WEBHOOK_SECRET (`vercel env
+        add VERCEL_DEPLOYMENT_WEBHOOK_SECRET production`), then redeploy.
+        Until that step is done, the receiver code is live but Vercel
+        never actually calls it.
