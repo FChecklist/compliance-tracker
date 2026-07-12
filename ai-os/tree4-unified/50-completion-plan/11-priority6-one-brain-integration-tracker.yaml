@@ -1,0 +1,150 @@
+# Priority 6 tracker, created 2026-07-12 per the Owner's directive: "complete
+# the integration, implementation and close all gaps of Priority 1, 2, 3, 4,
+# 5 with FChecklist as a cognitive AI OS... at backend it should work as one
+# brain. For end user the product, projects shall be different. The complete
+# cognitive brain works as one component."
+#
+# Read literally and precisely: the BACKEND intelligence (registry, learning,
+# orchestration) must be one coherent system: PROJEXA/veda-advisors/VERIDIAN
+# stay separate PRODUCTS with separate UIs, but they draw on ONE brain, not
+# separate ones. This tracker's investigation found that claim was NOT yet
+# true in the actual code -- see verdict below.
+#
+# status values: complete | in_progress | not_started
+
+priority: 6
+name: "One Cognitive Brain -- close the integration gap between the UMR and the Software Orchestrator"
+
+investigation:
+  verdict: |
+    Two real, concrete, previously-undiscovered gaps found by direct code
+    and live-database inspection (not assumed from memory of what was
+    built):
+
+    GAP 1 -- THE UMR IS EMPTY. `SELECT count(*) FROM platform_assets`
+    returns 0 live, despite Priority 3/4 building the complete
+    infrastructure (schema, auto-registration triggers on 33 tables total,
+    compiled cache, routing engine) across 9 merged PRs. Root cause,
+    confirmed by re-reading migration 0152's trigger logic: the
+    auto_register_asset trigger only fires on INSERT/UPDATE/DELETE --  it
+    was never a backfill for rows that already existed when the trigger
+    was attached. Priority 3's own backfill script
+    (scripts/backfill-platform-assets.ts, for worker_agents/
+    computation_engines/prompt_templates/dynamic_chains) was written,
+    tested, and deliberately left for the Super Boss to run -- and was
+    never actually run. Priority 4's 29 domain tables (documents, tasks,
+    policies, automation_rules, etc.) have NO equivalent backfill script
+    at all -- this was never built, a real gap this tracker's own scope
+    decision below closes.
+
+    GAP 2 -- THE SOFTWARE ORCHESTRATOR (Priority 5) NEVER TALKS TO THE
+    UMR (Priority 3/4). Confirmed by grep: zero references to
+    asset-query-service.ts, asset-routing-engine.ts, platformAssets, or
+    registerAsset() anywhere in task-execution-engine.ts, chat-service.ts,
+    or capability-audit-service.ts. Priority 5 built its own, entirely
+    separate capability-memory system (task_capabilities/
+    instruction_packages/capability_improvement_proposals) that neither
+    reads from nor writes back to the UMR. This is literally "two brains"
+    in the sense the Owner's directive names: a registry of what exists
+    (UMR) and a learning system deciding what AI is needed for (Software
+    Orchestrator), built in adjacent priorities, never wired together.
+    Concretely: when capability-audit-service.ts's Auditor asks "is this
+    fixable in software," it has no way to discover that a fix might
+    already exist as one of the computation_engines catalog rows whose
+    engineKey has no case in task-execution-engine.ts's dispatchEngine()
+    switch statements (a real, pre-existing wiring gap this session has
+    flagged before under a different name, e.g. Wave 99's "41/247
+    implemented" note -- exact current count not re-verified this pass,
+    dispatch agent 4's coverage report below will produce a live number
+    instead of relying on a stale one) -- it can only ever propose building
+    something new. And
+    when Higher AI closes a gap, closeImprovementLoop() bumps the
+    capability's version but never registers the new capability as a
+    discoverable UMR asset, so nothing else in the platform (VERI FDE,
+    the UMR's own search API, a future org's Dynamic Chain resolution)
+    can ever find it.
+
+  scope_decision: |
+    Priority 6 closes exactly these two structural gaps, plus the
+    genuinely actionable (not merely "tracked") open items already
+    disclosed across Priorities 1-5. It does NOT re-open already-settled
+    scope decisions (e.g. Priority 4's 359-of-388-tables-still-grandfathered
+    scoping stands; Priority 3's UMR-covers-4-source-types-not-all-330
+    scoping stands) -- "close all gaps" means close the gaps that are
+    real integration/completeness defects, not re-litigate deliberate,
+    already-justified scope boundaries.
+
+    Explicitly OUT of Priority 6 (still requires the Owner, cannot be
+    closed by an agent):
+      - Priority 2 item 1: leaked veda-advisors credentials still need
+        rotation via the Owner's own GitHub/Composio dashboards.
+      - Priority 5's GITHUB_DISPATCH_PAT: confirmed this is a VERCEL
+        environment variable (dispatch-repo.ts runs inside the deployed
+        Next.js app, not GitHub Actions), distinct from the GitHub
+        Secret PAT_FCHECKLIST (which DOES exist, confirmed via `gh
+        secret list`, but is write-only by GitHub's own design --
+        no agent can ever read a secret's value back to copy it
+        elsewhere). This requires the Owner to either set it in Vercel
+        directly or provide a fresh PAT value through a secure channel
+        (never pasted into chat).
+
+dispatches:
+  - agent: 1
+    scope: "Live backfill: run Priority 3's existing script for real + build and run the equivalent for Priority 4's 29 domain tables' pre-existing rows"
+    owner: "Super Boss (sequential, must land before dispatch 3's coverage report is meaningful)"
+    status: complete
+    result: |
+      The bare `bun run scripts/backfill-platform-assets.ts` could not run from
+      this session's Bash sandbox -- a raw TCP connect to the Supabase pooler
+      (aws-1-ap-south-1.pooler.supabase.com:6543) hung/timed out, the same
+      class of local-network restriction already documented in
+      veridian_e2e_test_pass_2026-07-06's "DATABASE_URL blocks local E2E"
+      note. Switched to the Supabase MCP (project_id pcrjmlpuqsbocqfwoxod),
+      this session's established reliable path for all live DB work.
+
+      Built migration 0157 (compliance.backfill_registered_assets(text)) --
+      a REUSABLE PL/pgSQL function, not a one-off script, mirroring
+      auto_register_asset()'s exact column-mapping logic so any table added
+      to asset_registration_config in the future can be backfilled the same
+      way with zero new application code. Caught and fixed one real bug live
+      on first run: the RETURNS TABLE column `source_table` collided with
+      platform_assets.source_table inside the INSERT/ON CONFLICT clause
+      (Postgres error 42702, "column reference is ambiguous") -- fixed by
+      renaming the OUT columns to out_source_table/out_rows_seen/
+      out_rows_upserted, which required DROP FUNCTION first (42P13, "cannot
+      change return type of existing function").
+
+      Ran it for all 29 Priority 4 domain tables: 2,305 rows registered
+      (tasks=1899, documents=190, module_registry=99, product_branches=26,
+      departments=63, approval_requests=5, projects=5, risks=5,
+      subscription_plans=4, products=4, incidents=2, notices=3; the
+      remaining 17 tables were legitimately empty in live data, e.g. no org
+      has created a policy/automation_rule/bcm_plan/webhook yet).
+
+      Then backfilled Priority 3's original 4 source tables
+      (worker_agents/computation_engines/prompt_templates/dynamic_chains)
+      directly via SQL mirroring scripts/backfill-platform-assets.ts's own
+      buildXAssetInput()/mapXStatus() functions 1:1 (these predate Priority
+      4's generic config-driven trigger and use bespoke status mapping, not
+      a boolean active_column, so they were not folded into
+      backfill_registered_assets()): worker_agents=27, computation_engines=
+      247, prompt_templates=215, dynamic_chains=0 (no org has created one
+      yet -- correct, not a bug).
+
+      SELECT count(*) FROM compliance.platform_assets: 0 -> 2,794. The UMR
+      is now genuinely populated for the first time. Also captured a live,
+      current computation_engines status breakdown while here (superseding
+      the stale Wave 99 memory note of "41/247 implemented"):
+      implemented=211, partial=23, not_started=13, of 247 total.
+  - agent: 2
+    scope: "Wire the UMR into the Software Orchestrator: classification checks platform_assets, closeImprovementLoop() registers new capabilities, the Auditor searches for pre-existing unwired capabilities before proposing new work"
+    owner: "subagent (parallel worktree)"
+    status: not_started
+  - agent: 3
+    scope: "Close genuinely actionable disclosed gaps: Priority 5's Chain Selector UI for new conversations, refresh the ported governance foundation in veda-advisors/projexa, resolve or re-document Priority 1's open tracking items"
+    owner: "subagent (parallel worktree)"
+    status: not_started
+  - agent: 4
+    scope: "Run Priority 4's deterministic audit script for real against live (now-populated) data; build a real 'one brain' coverage/health report reusing existing computeCoverageStats()/audit-asset-registry.ts rather than new machinery"
+    owner: "subagent (parallel worktree)"
+    status: not_started
