@@ -112,15 +112,9 @@ open_items:
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
-      detail: "dynamic_chains is still a flat table (modePill/pathKeys/pathLabels/moduleRef/description/status). None of the 10 required rich sub-fields exist, and entity_relationships (built, Phase 3) has zero consumers wired to hold DCMD graph edges. Priority 1 area 1 built persistent visibility + route-aware capability-tree fetch + the 2-level chain gate -- real, but doesn't touch this schema gap."
+      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
       size: deferred_large
-      recommendation: "Design the graph schema first (per the source doc's own preference for graph over enumerated-permutation), then an additive migration, backfill, cutover. Any migration must preserve existing dynamic_chains rows and their live references from tasks/conversations."
-
-    - id: GAP-CONNECTOR-DATA
-      name: "Real data ingestion through connected toolkits"
-      old_ids: ["G-032"]
-      detail: "All 18 connected OAuth toolkits (Composio) are connect-status only -- zero code anywhere actually pulls data through any of them. Per-app intelligence behaviors (Sheets/Docs/Gmail/etc., G-018 old) depend on this and remain correctly out of scope until it exists."
-      size: deferred_large
+      recommendation: "Design the full graph schema first (per the source doc's own preference for graph over enumerated-permutation), then an additive migration, backfill, cutover. Any migration must preserve existing dynamic_chains rows and their live references from tasks/conversations."
 
     - id: GAP-CONNECTOR-LAYERS
       name: "Connector Layers 2-4: Office Add-in, Browser Extension, Desktop Companion"
@@ -129,74 +123,18 @@ open_items:
       size: deferred_large
       recommendation: "Owner should prioritize independently if/when wanted -- Layer 2 (Office Add-ins) likely has the clearest ROI given the existing Excel/Word-using customer base."
 
-    - id: GAP-SESSION-LIMIT
-      name: "Session/device misuse limit (max 2 concurrent sessions per license)"
-      old_ids: ["GAP-09 (part)", "G-037"]
-      detail: "Confirmed fully unbuilt (no sessions table, no device tracking, no Supabase Auth sessions API usage). Judged too large/risky for a narrow slice in Priority 2 -- would mean new session-tracking infra PLUS instrumenting requireAuth(), the single central auth chokepoint every route depends on. The 'exempt VERIDIAN's own internal use' clause must be built in from day one, not retrofitted."
-      size: deferred_large
-
     - id: GAP-AUTH-REBUILD
       name: "Auth flow rebuild: Google sign-in first, 4-digit email passcode instead of password"
       old_ids: ["G-045"]
-      detail: "Explicitly tracked as a separate initiative, deliberately excluded from Priority 1 areas 15/18's closure (not a narrow slice of onboarding)."
+      detail: "PARTIALLY CLOSED, Priority 8 (PR #225): Google sign-in button added ADDITIVELY as the first/most prominent option on the login page, alongside (never replacing) the existing password/magic-link/SSO options -- a full auth-method rebuild on a live product with real user sessions was explicitly ratified against as too hard-to-reverse for a single pass. Honest limitation: functionally unusable until a Google OAuth client is configured in Supabase's Auth settings (Owner/dashboard action, same class of gap as OPEN-01). The 4-digit email passcode replacement was NOT attempted -- still deferred_large."
       size: deferred_large
 
     - id: GAP-MOM-VOICE-TICKETS
-      name: "Voice/transcription and ticket intelligence (2 of 4 Intelligent Work Detection source types)"
+      name: "Voice/transcription (2nd of 2 remaining Intelligent Work Detection source types)"
       old_ids: ["G-025 (part)"]
-      detail: "OCR (document upload) and email intelligence are both built (Priority 2). Voice: doc_processing_jobs.operation's schema comment lists 'transcribe' as planned but only 'ocr' has a real caller -- no speech-to-text integration exists. Tickets: ticket-service.ts is plain CRUD, zero AI detection."
+      detail: "Ticket intelligence CLOSED, Priority 9 (PR #232) -- mirrors email-intelligence-service.ts's detect-then-propose pattern, pulls the ticket's real conversation transcript, suggestions only (never auto-created). Voice/transcription remains genuinely unbuilt and is owner_blocked, not just deferred: it needs a new external speech-to-text provider decision (a paid third-party service + API key), the same class of gap as OPEN-01/OPEN-03 -- not something an agent can configure unilaterally."
       size: deferred_large
-
-    - id: GAP-CONTINUOUS-REPRIORITIZATION
-      name: "Continuous work reprioritization based on deadlines/dependencies/risk/SLA"
-      old_ids: ["G-029", "GAP part of D22"]
-      detail: "tasks.priority is static, set at creation, never dynamically reprioritized. Confirmed fully unbuilt (grep for reprioriti/re-planning returns zero matches)."
-      size: deferred_large
-
-    - id: GAP-DELEGATION-AUTHORITY
-      name: "Explicit, scoped, revocable delegation of decision authority to VERI"
-      old_ids: ["G-027"]
-      detail: "approval_preferences covers 'always approve this action category' -- narrower than full scoped/time-bounded/revocable delegation for a specific task/workflow/project/module/communication-type."
-      size: "S -- real extension of existing infra, good next-wave candidate"
-
-    - id: GAP-UNIVERSAL-DASHBOARD
-      name: "Universal cross-type Work Dashboard (To Do/Pending/WIP/Blocked/Escalations, real-time, all Work Object types)"
-      old_ids: ["G-028"]
-      detail: "No unified cross-type dashboard exists. veri-todo-service.ts covers tasks only. Downstream of DEC-03's ratification (fully universal is not achievable without the Work Object unification that was ratified against)."
-      size: deferred_large
-
-    - id: GAP-MODEL-SCORECARD
-      name: "Model Performance Scorecard (dispatch count/success rate/iterations/audit-finding-rate per model+tier)"
-      old_ids: ["G-030", "G-002 (related)"]
-      detail: "token_usage_ledger captures cost only, not success/failure or audit outcomes. Discussed, agreed in principle, never built."
-      size: S
-
-    - id: GAP-RESPONSE-VOCABULARY
-      name: "Constrained short-response vocabulary for cheap-tier models (Yes/No/OK/Pending/etc., max ~4 words)"
-      old_ids: ["G-039"]
-      detail: "No structured/constrained-vocabulary response mechanism exists -- every AI reply is free-form generation. Directly synergizes with model-tier-eligibility.ts's existing mechanical-tier concept."
-      size: S
-      note: "response-engine.ts (built Priority 5) is a DIFFERENT, narrower thing -- fixed summary-formatting functions for specific report types, not a general constrained-vocabulary reply mode. Do not treat as already closed."
-
-    - id: GAP-GLOBAL-REVENUE-SPLIT
-      name: "Separate Global Revenue Operations (under COO) vs Global Revenue Assurance (under CAO) divisions"
-      old_ids: ["G-010"]
-      detail: "No Global Revenue Operations division exists to split assurance from -- CRM/billing is plain service-layer code today."
-      size: M
-      priority: P2 (low)
-
-    - id: GAP-COO-ROLE
-      name: "Formal distinct COO role"
-      old_ids: ["G-001"]
-      detail: "chief_governance_officer and ceo_technical_director are partial matches; no distinct cross-agent-coordination COO role exists."
-      size: S
-      priority: P2 (low)
-
-    - id: GAP-DYNAMIC-CHAIN-DEDUP
-      name: "dynamic_chain as a 5th CapabilityEntityType for duplicate/broken/obsolete detection"
-      old_ids: ["G-018"]
-      detail: "capability-registry-service.ts's findSimilarCapabilities()/auditDuplicateCapabilities() covers worker_agent/automation_rule/module/prompt_pattern already -- dynamic_chain isn't a 5th type yet."
-      size: S
+      recommendation: "Owner picks a speech-to-text provider (e.g. Whisper API, Deepgram, AssemblyAI) and provisions credentials before this can be scoped further."
 
     - id: GAP-UMR-TABLE-COVERAGE
       name: "359 of 388 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
@@ -220,12 +158,20 @@ open_items:
       recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
       first_raised: "2026-07-12 full status reconciliation pass"
 
-    - id: GAP-D19-REPORT-CADENCES
-      name: "D19: Escalations/Recommendations/Risk-Trends reporting cadences"
-      old_ids: ["D19 (Tree 1)"]
-      detail: "The daily AI-performance report (Performance/Failures/Token-Usage/Quality/Learning) was built and is real, but does NOT cover these 3 of the domain's named cadences -- honestly documented as having no deterministic source in the current schema, not fabricated."
+    - id: GAP-D15-REMAINING-TRIGGERS
+      name: "D15.B2.S1: 2 of 10 named audit event triggers remain unwired (SOP Changed, Deployment)"
+      old_ids: ["D15.B2.S1 (Tree 1)"]
+      detail: "Priority 9 (PR #234) wired 7 of the remaining 9 triggers (8 of 10 total, including the pre-existing Code Changed trigger). SOP Changed and Deployment are genuinely, not just deferred: no sop/sops table or SOP-specific status transition exists anywhere in schema.ts, and no in-app deployment-event table or webhook handler exists beyond the already-wired CI workflow. Wiring either would mean inventing a trigger point with nothing real behind it."
+      size: S
+      recommendation: "SOP Changed needs a real sop/sops table to exist first (a schema decision, not just wiring). Deployment needs either a real deployment-event table or a webhook from the actual deploy pipeline (Vercel) -- an infra decision."
+      first_raised: "2026-07-12 Priority 9 (PR #234)"
+
+    - id: GAP-GLOBAL-REVENUE-SPLIT
+      name: "Separate Global Revenue Operations (under COO) vs Global Revenue Assurance (under CAO) divisions"
+      old_ids: ["G-010"]
+      detail: "No Global Revenue Operations division exists to split assurance from -- CRM/billing is plain service-layer code today. NOT closed by Priority 9's chief_revenue_officer addition (Wave 173, PR #227) -- that added a single role to the existing SALES_MARKETING team, not a new division under COO with a formal Assurance/Operations split. GAP-COO-ROLE (the formal-COO-role half of the old catalog item) is separately confirmed RESOLVED: roster.ts already has a distinct chief_operating_officer role (team EXECUTIVE_LADDER, escalationLevel L3) -- the old catalog's premise that no such role existed was stale, corrected 2026-07-12 (Priority 9)."
       size: M
-      first_raised: "2026-07-12 full status reconciliation pass"
+      priority: P2 (low)
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
@@ -281,3 +227,51 @@ closed_priorities:
   - priority: 7
     name: "Remaining gaps: GITHUB_DISPATCH_PAT + veda-advisors/projexa"
     summary: "Confirmed GITHUB_DISPATCH_PAT still unset (OPEN-01). Discovered veda-advisors/projexa's 'code-level rollout' gap (G-031/task #17) was based on a stale premise -- neither product makes direct LLM calls, so there's nothing to port. projexa PR #1 merged with its one named follow-up answered. veda-advisors PR #15 blocked on Owner review (OPEN-02)."
+
+  - priority: 8
+    name: "Direct closures: session limit, UMR batch, Google sign-in, assumption-validation investigation"
+    summary: "PR #225 (merged): session/device concurrency limit built (GAP-SESSION-LIMIT closed) -- opt-in, never force-invalidates a live session, only blocks a new one over the org's configured limit; 7 UMR tables batch-onboarded (596 rows backfilled); Google sign-in added additively to the login page (GAP-AUTH-REBUILD partially closed, see open_items). GAP-D13-ASSUMPTION-VALIDATION investigated and confirmed genuinely open, owner-blocked on prompt-content sign-off, not silently dropped."
+
+  - priority: 9
+    name: "Priority 1-8 recheck to 100%: 9 PRs merged (#226-#234), trust-rebuild pass after an optimistic-reporting incident"
+    summary: |
+      Triggered by an explicit user trust-breakdown ("I have a trust issue with
+      you... you did 69%"), after which every claim of completion in this
+      priority was required to be backed by a specific, checkable merged PR
+      number -- no exceptions. 9 PRs merged, each independently verified
+      (tsc/eslint/guardrail-presence/asset-registry-coverage/full test suite)
+      before merge, not self-certified by the agent that wrote it:
+        - PR #226: Real connector data ingestion (Gmail/Drive messages, GAP-CONNECTOR-DATA closed),
+          Business Digital Twin first slice (connector_documents table), per-source-type
+          model routing extension. Caught + fixed during verification: a migration-number
+          collision and a missing asset-registry entry.
+        - PR #227 (Wave 173): recovered from an interrupted background agent's worktree
+          (real, tested, uncommitted work that survived a session boundary) -- DCMD governance
+          slice (partial, see GAP-DCMD), GAP-DELEGATION-AUTHORITY closed, GAP-UNIVERSAL-DASHBOARD
+          closed (honest approximation per DEC-03), GAP-DYNAMIC-CHAIN-DEDUP closed,
+          D25.B4.S1 chain-report-integration closed, GAP-COO-ROLE confirmed resolved (stale
+          premise -- chief_operating_officer already existed). Caught + fixed during
+          verification: 2 migration-number collisions, 1 asset-registry gap.
+        - PR #228: GAP-RESPONSE-VOCABULARY closed -- constrained-vocabulary reply gate for
+          mechanical-tier dispatches, wired into POST /api/ai/team/dispatch.
+        - PR #229: GAP-D1-METRICS-TARGET closed -- 99.9% GPT-OSS-120B target tracker, honest
+          about which of the 6 named success dimensions have real data vs. don't.
+        - PR #230: GAP-MODEL-SCORECARD closed -- per-(model, tier) dispatch count/success
+          rate/audit-finding-rate, one new nullable column (complexityTier) closing the one
+          real gap in existing data.
+        - PR #231: GAP-D19-REPORT-CADENCES closed -- Escalations/Recommendations/Risk-Trends
+          report cadences, real deterministic sources found one level deeper than an
+          obviously-named table. Caught + fixed during verification: a real regex bug
+          mis-parsing titles that carry their own parenthesized abbreviation.
+        - PR #232: Ticket half of GAP-MOM-VOICE-TICKETS closed -- mirrors
+          email-intelligence-service.ts's pattern exactly, suggestions-only.
+        - PR #233: GAP-CONTINUOUS-REPRIORITIZATION closed as a narrow, honest slice
+          (deadline-driven only) -- investigated and confirmed the other 7 named axes
+          (dependencies/SLA/risk/etc.) have no real data source on tasks today.
+        - PR #234: 7 of 9 remaining D15.B2.S1 named audit-event triggers wired (GAP-D15-
+          REMAINING-TRIGGERS tracks the honest 2 that are genuinely not real yet).
+      All 9 migrations applied live via Supabase MCP and verified with direct SQL queries.
+      Lesson learned mid-priority (from the user, after a machine-overload incident): scaled
+      down from an initial 7-parallel-subagent batch to sequential single-worktree
+      verification for the remainder -- see the trust-rebuild discipline note in
+      ai-os/STATUS-REPORT.md.
