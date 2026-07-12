@@ -9,7 +9,7 @@
 // real task-execution engine) -- no new task-creation logic was needed.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Send, Loader2, Paperclip, Zap, Plus, Link2 } from "lucide-react";
+import { Send, Loader2, Paperclip, Plus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { useVeriChat, FIXED_MODES, type CapabilityNode, type PathSegment } from "./veri-chat-context";
@@ -19,16 +19,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/high-impact-action-detector";
+// Priority 6 item 1: ChainRows and its path-display helpers now live in
+// ChainSelector.tsx (shared with the new ChainSelectorDialog used by
+// AiThreadSwitcher below) instead of being defined privately here.
+import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, type ChainSelectorResult } from "./ChainSelector";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
-
-function pathSegmentDisplay(seg: PathSegment): string {
-  if (typeof seg === "string") return seg;
-  return "[" + seg.values.join(" + ") + "]";
-}
-function pathDisplayString(path: PathSegment[]): string {
-  return path.map(pathSegmentDisplay).join("-");
-}
 
 // Breadcrumb rendering for a capability-chain path — each segment is its own
 // styled span with a chevron separator, replacing the old flat string.
@@ -53,13 +49,27 @@ function PathBreadcrumb({ path, chainComplete }: { path: PathSegment[]; chainCom
 // a new workflow-specific one. Only rendered in discuss mode -- doesn't
 // touch task/chain dispatch, which is unaffected by which AI thread is
 // "active" (they don't use activeAiThreadId at all).
+//
+// Priority 6 item 1 (VERI_CHAT_GOVERNANCE.md §5): "New thread" used to be a
+// bare window.prompt() for a title only. It now opens ChainSelectorDialog
+// first, offering the same Chain Selector (mode pill + path picker) task
+// dispatch already uses, so a new workflow thread can start with a
+// dynamicChainId already resolved -- exactly the plug-in point
+// createNewAiThread()'s 3rd param (chainSelection) was left unused for
+// (veri-chat-context.tsx:83-91). Picking "Skip" preserves the exact old
+// behavior (title-only thread, no chain). This does not touch
+// ensureAiThread() or the default singleton VERI AI thread at all -- only
+// this "start a NEW workflow thread" action changed.
 function AiThreadSwitcher() {
-  const { aiThreads, activeAiThreadId, switchAiThread, createNewAiThread } = useVeriChat();
+  const { tree, aiThreads, activeAiThreadId, switchAiThread, createNewAiThread } = useVeriChat();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  async function handleCreate() {
-    const title = window.prompt("Name this workflow thread (e.g. \"Setting up payroll\"):");
-    if (title === null) return; // cancelled
-    await createNewAiThread(title.trim() || undefined);
+  async function handleConfirm(result: ChainSelectorResult) {
+    setPickerOpen(false);
+    const chainSelection = result.modePill && result.pathKeys?.length
+      ? { modePill: result.modePill, pathKeys: result.pathKeys }
+      : undefined;
+    await createNewAiThread(result.title || undefined, undefined, chainSelection);
   }
 
   if (aiThreads.length === 0) return null;
@@ -80,37 +90,15 @@ function AiThreadSwitcher() {
       </Select>
       <button
         type="button"
-        onClick={handleCreate}
+        onClick={() => setPickerOpen(true)}
         className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-saffron hover:text-ct-saffron/80"
         title="Start a new workflow thread"
       >
         <Plus className="size-3.5" /> New thread
       </button>
+      <ChainSelectorDialog tree={tree} open={pickerOpen} onOpenChange={setPickerOpen} onConfirm={handleConfirm} />
     </div>
   );
-}
-
-// Walk the tree following `path`; returns the node list for the NEXT row,
-// or null once a leaf has been reached (path complete).
-function nodeChildrenAt(tree: CapabilityNode[], path: PathSegment[], depth: number): { children: CapabilityNode[] | null; isMulti: boolean } {
-  let level = tree;
-  for (let i = 0; i < depth; i++) {
-    const seg = path[i];
-    if (typeof seg === "string") {
-      const found = level.find((n) => n.key === seg);
-      if (!found) return { children: null, isMulti: false };
-      if (found.leaf) return { children: null, isMulti: false };
-      level = found.children ?? [];
-    } else {
-      const union = new Map<string, CapabilityNode>();
-      for (const v of seg.values) {
-        const found = level.find((n) => n.key === v);
-        (found?.children ?? []).forEach((c) => union.set(c.key, c));
-      }
-      level = Array.from(union.values());
-    }
-  }
-  return { children: level, isMulti: false };
 }
 
 // Walks a fully-concrete path (post multi-expansion, every segment a plain
@@ -128,17 +116,6 @@ function resolveLeaf(tree: CapabilityNode[], path: PathSegment[]): CapabilityNod
     level = found.children ?? [];
   }
   return node;
-}
-
-function expandPathsForSend(path: PathSegment[]): PathSegment[][] {
-  const multiIdx = path.findIndex((s) => typeof s !== "string");
-  if (multiIdx === -1) return [path];
-  const seg = path[multiIdx] as { multi: true; values: string[] };
-  return seg.values.map((v) => {
-    const copy = [...path];
-    copy[multiIdx] = v;
-    return copy;
-  });
 }
 
 export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
@@ -677,115 +654,5 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
       </AlertDialogContent>
     </AlertDialog>
     </>
-  );
-}
-
-// Mirrors the validated prototype's renderChain() walk exactly: `isMulti`
-// for a row is carried forward from the PARENT node's own `multi` flag
-// (set once, e.g. on "Customer"), not re-derived per row after the fact.
-function ChainRows({
-  tree, selectedPath, onToggleSingle, onToggleMulti, onFdeFallback, filterQuery,
-}: {
-  tree: CapabilityNode[];
-  selectedPath: PathSegment[];
-  onToggleSingle: (depth: number, key: string) => void;
-  onToggleMulti: (depth: number, key: string) => void;
-  // Wave 161: fires with the path selected so far (not yet including this
-  // row's own depth) when the user picks "My Option Is Not Available"
-  // instead of a real leaf at this row.
-  onFdeFallback: (depth: number) => void;
-  // tree4-unified U-D5.B2.S3 ("search"): applied only to the deepest row
-  // (the one currently being picked from) -- earlier rows show already-made
-  // selections, not something a search should hide.
-  filterQuery?: string;
-}) {
-  const rows: { depth: number; parentLabel: string; isMulti: boolean; options: CapabilityNode[] }[] = [];
-
-  let options: CapabilityNode[] = tree;
-  let isMulti = false;
-  let parentLabel = "";
-
-  for (let depth = 0; ; depth++) {
-    if (!options || options.length === 0) break;
-    rows.push({ depth, options, isMulti, parentLabel });
-
-    const sel = selectedPath[depth];
-    if (sel === undefined) break;
-
-    if (typeof sel === "string") {
-      const found = options.find((o) => o.key === sel);
-      if (!found || found.leaf) break;
-      options = found.children ?? [];
-      isMulti = found.multi === true;
-      parentLabel = found.label;
-    } else {
-      const union = new Map<string, CapabilityNode>();
-      sel.values.forEach((v) => {
-        const found = options.find((o) => o.key === v);
-        (found?.children ?? []).forEach((c) => union.set(c.key, c));
-      });
-      options = Array.from(union.values());
-      isMulti = false;
-      parentLabel = "[" + sel.values.join(" + ") + "]";
-    }
-  }
-
-  const normalizedFilter = filterQuery?.trim().toLowerCase() ?? "";
-
-  return (
-    <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-      {rows.map((row) => {
-        const isDeepestRow = row.depth === rows.length - 1;
-        const visibleOptions = isDeepestRow && normalizedFilter
-          ? row.options.filter((o) => o.label.toLowerCase().includes(normalizedFilter))
-          : row.options;
-        return (
-        <div key={row.depth} className="flex items-center gap-1.5 flex-wrap">
-          {row.depth > 0 && (
-            <span className="text-[10.5px] text-ct-muted shrink-0">
-              {row.parentLabel}{row.isMulti ? " (pick one or more)" : ""}:
-            </span>
-          )}
-          {isDeepestRow && normalizedFilter && visibleOptions.length === 0 && (
-            <span className="text-[11px] text-ct-muted italic">No matches — try "My Option Is Not Available" below.</span>
-          )}
-          {visibleOptions.map((opt) => {
-            const sel = selectedPath[row.depth];
-            const isSelected = row.isMulti
-              ? Boolean(sel && typeof sel !== "string" && sel.values.includes(opt.key))
-              : sel === opt.key;
-            return (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => (row.isMulti ? onToggleMulti(row.depth, opt.key) : onToggleSingle(row.depth, opt.key))}
-                title={opt.leaf ? (opt.deterministic ? "Runs instantly — no AI guessing" : "This will be handled by your AI Assistant, not run as a fixed calculation") : undefined}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${
-                  isSelected
-                    ? opt.leaf ? "bg-emerald-700 border-emerald-700 text-white" : "bg-ct-navy border-ct-navy text-white"
-                    : "bg-white border-ct-border2 text-ct-navy"
-                }`}
-              >
-                {opt.leaf && opt.deterministic && <Zap className="size-3 shrink-0" fill="currentColor" />}
-                {opt.label}
-              </button>
-            );
-          })}
-          {/* Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md §15): only on the
-              currently-active (deepest) row -- a user who already picked
-              something at an earlier depth isn't "stuck" there anymore. */}
-          {row.depth === rows.length - 1 && (
-            <button
-              type="button"
-              onClick={() => onFdeFallback(row.depth)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-ct-border2 px-2.5 py-1 text-xs text-ct-muted hover:text-ct-navy hover:border-ct-navy"
-            >
-              My Option Is Not Available
-            </button>
-          )}
-        </div>
-        );
-      })}
-    </div>
   );
 }
