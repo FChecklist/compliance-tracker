@@ -12,6 +12,7 @@ import { estimateCostUsd } from "@/lib/llm-client"
 import { classifyRisk, type BlastRadius } from "@/lib/risk-classification"
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
 import { buildDispatchSelfAssessment, checkQaPreCompletionGate } from "@/lib/qa-precompletion-gate"
+import { checkResponseVocabulary, checkVocabularyDispatchEligibility, type VocabularyDispatchType } from "@/lib/response-vocabulary-gate"
 
 registerAllGuardrails()
 
@@ -48,11 +49,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
       role?: string // skip classification and force a specific AI Workforce role
+      // GAP-RESPONSE-VOCABULARY: opt-in constrained-vocabulary reply mode
+      // for genuinely simple mechanical-tier dispatches (see
+      // response-vocabulary-gate.ts). Omitted on every dispatch that
+      // doesn't declare it -- ordinary free-form reply, unchanged.
+      responseVocabulary?: VocabularyDispatchType
     }
 
     // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): AI Dev Team
@@ -70,6 +76,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         status: "blocked",
         blockedBy: { reason: tightness.reason, guidance: tightness.guidance },
+      }, { status: 422 })
+    }
+
+    // GAP-RESPONSE-VOCABULARY: fail closed on a mismatched tier/vocabulary
+    // pairing before any model is ever called -- same posture as the tier
+    // check below. complexityTier is guaranteed valid here (tightness just
+    // passed, and tightTaskCheck's validateTightTask requires it).
+    const vocabEligibility = checkVocabularyDispatchEligibility(complexityTier!, responseVocabulary)
+    if (!vocabEligibility.eligible) {
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, errorReason: vocabEligibility.reason, durationMs: Date.now() - dispatchStartedAt })
+      return NextResponse.json({
+        status: "blocked",
+        blockedBy: { reason: vocabEligibility.reason, guidance: vocabEligibility.guidance },
       }, { status: 422 })
     }
 
@@ -143,6 +162,17 @@ export async function POST(request: NextRequest) {
     // Guardrail levels below only ran when a caller explicitly opted in.
     const lowConfidence = detectLowConfidenceResponse(execution.content)
 
+    // GAP-RESPONSE-VOCABULARY: for a dispatch that declared a fixed
+    // vocabulary (only possible here at all because of the mechanical-tier
+    // eligibility gate above), validate the model's raw reply against it.
+    // A non-matching reply is NEVER silently coerced or discarded -- it
+    // becomes its own independent requiresAudit trigger below, exactly
+    // like lowConfidence/riskLevel, so a mechanical-tier model that ignored
+    // the constrained-reply instruction still gets a real human/higher-tier
+    // review instead of its off-vocabulary text quietly reaching the caller
+    // as if it had been validated.
+    const vocabularyCheck = responseVocabulary ? checkResponseVocabulary(responseVocabulary, execution.content) : null
+
     // tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16
     // re-scoped item (d) "Risk Classification" (Guardrail 10: "risk level
     // determines review requirements"): a second, independent trigger for
@@ -155,7 +185,7 @@ export async function POST(request: NextRequest) {
     // input the caller doesn't already provide.
     const blastRadius: BlastRadius = touchesAccount || touchesUser ? "platform" : touchesProduct ? "org" : "single"
     const riskLevel = classifyRisk({ highImpactCategory: detectHighImpactAction(objective ?? "").category, blastRadius })
-    const requiresAudit = lowConfidence.detected || riskLevel === "high" || riskLevel === "critical"
+    const requiresAudit = lowConfidence.detected || riskLevel === "high" || riskLevel === "critical" || (vocabularyCheck !== null && !vocabularyCheck.allowed)
 
     const guardrails: Record<string, unknown> = { platform: platformGuardrails }
     if (touchesProduct || requiresAudit) guardrails.product = await runGuardrailLevel("GUARDRAIL_PRODUCT", execution.content)
@@ -233,6 +263,11 @@ export async function POST(request: NextRequest) {
       requiresAudit,
       riskLevel,
       lowConfidenceSignal: lowConfidence.detected ? lowConfidence.matchedPhrase : null,
+      // GAP-RESPONSE-VOCABULARY: null when responseVocabulary wasn't
+      // declared (ordinary free-form dispatch, unchanged). When declared,
+      // always surfaced -- both the match and the honest mismatch case --
+      // so a caller/reviewer can see exactly why requiresAudit fired.
+      vocabularyCheck,
       reviewActivityId: requiresAudit ? (activityRow?.id ?? null) : null,
       guardrails,
     })
