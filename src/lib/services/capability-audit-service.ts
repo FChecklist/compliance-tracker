@@ -54,6 +54,19 @@ import { runRole } from "@/lib/ai-team/team-service"
 import { dispatchRepoTask } from "@/lib/ai-team/dispatch-repo"
 import type { TightTask } from "@/lib/task-tightening"
 import { ServiceError, type TaskCapability, computeCoverageStats, type CoverageStats } from "./capability-learning-service"
+// Priority 6 (UMR <-> Software Orchestrator integration): before Higher AI
+// is asked to build something net-new, check whether the Universal
+// Metadata Registry already has a matching platform asset that's simply
+// unwired. queryByKeywords() is the tsvector-GIN-backed search
+// asset-query-service.ts exposes (see that file's own header); reused
+// as-is here rather than duplicated, same "reuse the existing index-backed
+// query layer" discipline this file already follows for capability-
+// learning-service.ts's lookups. registerAsset/getAssetBySource/updateAsset
+// are the UMR write primitives closeImprovementLoop() below uses to avoid
+// creating a duplicate platform_assets row for a capability whose fix
+// turned out to be "wire up an asset that already existed."
+import { queryByKeywords, type PlatformAsset } from "./asset-query-service"
+import { registerAsset, getAssetBySource, updateAsset, type AssetType } from "./asset-registry-service"
 
 export { ServiceError }
 
@@ -262,6 +275,96 @@ export function mapFindingsToRole(findings: AuditFindings): string | null {
   return null
 }
 
+// ─── UMR cross-check (Priority 6: UMR <-> Software Orchestrator integration) ──
+//
+// The Auditor->Higher AI loop and the Universal Metadata Registry
+// (platform_assets, Priority 3-4) were built in adjacent priorities and
+// never talked to each other -- this section is the fix. Before proposing
+// net-new work, check whether platform_assets already has a matching
+// computation_engine row (247 exist per the Priority 3-4 backfill; 36 of
+// them are 'partial'/'not_started' and an unverified number of the
+// remaining 'implemented' rows may still have no real `case` in
+// task-execution-engine.ts's dispatchEngine() switch -- exactly the "built
+// but unwired" gap this check exists to catch). A match never blocks or
+// skips the Higher AI dispatch -- it only changes what's asked for (see
+// buildTightTaskFromFindings()'s umrCandidate param below): "wire up /
+// verify this existing asset" instead of a silent from-scratch build
+// request.
+export type ExistingAssetMatch = Pick<PlatformAsset, "assetId" | "name" | "sourceTable" | "sourceId" | "assetType">
+
+// Concatenates every concrete finding description the Auditor actually
+// wrote (never the bare category key alone) into one search string for
+// queryByKeywords()'s tsvector match -- same "quote the concrete text, not
+// the category label" discipline buildTightTaskFromFindings() already
+// follows below.
+export function buildUmrSearchQuery(findings: AuditFindings): string {
+  return FINDING_KEYS.map((k) => findings[k]).filter((v): v is string => Boolean(v)).join(" ")
+}
+
+// Pure decision over an already-fetched candidate list: is there a strong
+// enough match here to note on the proposal? Deliberately narrow --
+// active computation_engine rows only, matching this integration's own
+// stated scope (an existing catalog entry that's merely unwired, not any
+// vaguely-related platform object). queryByKeywords() already orders by
+// ts_rank, so the first matching row is the strongest textual match in the
+// set.
+export function pickExistingAssetMatch(candidates: PlatformAsset[]): ExistingAssetMatch | null {
+  const match = candidates.find((a) => a.assetType === "computation_engine" && a.status === "active")
+  if (!match) return null
+  return { assetId: match.assetId, name: match.name, sourceTable: match.sourceTable, sourceId: match.sourceId, assetType: match.assetType }
+}
+
+// Platform-tier UMR search context. computation_engine assets are always
+// platform-tier (orgId null -- see asset-registry-service.ts's own header
+// on registerAsset()'s convention for that type), so queryByKeywords()'s
+// `orgId = ctx.orgId OR orgId IS NULL` clause finds them no matter what
+// string is passed here; this constant exists only to satisfy
+// AssetQueryContext's required orgId field for a genuinely platform-wide
+// audit caller (task_capabilities has no single owning org), never as a
+// real tenant scope.
+const PLATFORM_AUDIT_QUERY_ORG_ID = "__platform_audit__"
+
+/**
+ * DB-touching UMR search. Never throws -- runCapabilityAudit() below treats
+ * a lookup failure identically to genuinely finding no candidate (both
+ * result in a plain net-new proposal), matching this file's own established
+ * "a failed side-lookup degrades gracefully, it never blocks the primary
+ * flow" posture (see dispatchProposalToHigherAI()'s own try/catch).
+ */
+export async function findExistingUmrCandidate(findings: AuditFindings): Promise<ExistingAssetMatch | null> {
+  const query = buildUmrSearchQuery(findings)
+  if (!query.trim()) return null
+  const candidates = await queryByKeywords({ orgId: PLATFORM_AUDIT_QUERY_ORG_ID }, query)
+  return pickExistingAssetMatch(candidates)
+}
+
+// Maps a finding category to the platform_assets assetType Priority 6's
+// closeImprovementLoop() should register the closed capability as, when no
+// existing UMR asset was found to update instead. Mirrors FINDING_ROLE_MAP's
+// exact precedence-order technique (fixed FINDING_KEYS iteration order picks
+// one primary type for a multi-finding verdict, same as mapFindingsToRole()).
+const FINDING_ASSET_TYPE_MAP: Record<keyof AuditFindings, AssetType> = {
+  missingApi: "api",
+  missingBusinessRule: "rule",
+  missingFunction: "function",
+  missingWorkflow: "workflow",
+  missingValidation: "rule",
+  missingReport: "report",
+  missingConfiguration: "other",
+  missingMetadata: "other",
+  missingModePill: "screen",
+  missingChainOption: "dynamic_chain",
+  missingScreen: "screen",
+}
+
+/** Returns 'other' when findings has no recognized key -- always a valid assetTypeEnum value, never a guess. */
+export function pickAssetTypeForFindings(findings: AuditFindings): AssetType {
+  for (const key of FINDING_KEYS) {
+    if (findings[key]) return FINDING_ASSET_TYPE_MAP[key]
+  }
+  return "other"
+}
+
 // ─── TightTask assembly (pure) ─────────────────────────────────────────────
 //
 // Every field is built from the Auditor's own concrete finding text (never
@@ -269,16 +372,30 @@ export function mapFindingsToRole(findings: AuditFindings): string | null {
 // reject placeholder/ambiguous language, so this deliberately quotes the
 // finding's own description into objective/scope/successCriteria/
 // expectedOutput rather than restating the category name alone.
+// existingAssetMatch (Priority 6): optional, from findExistingUmrCandidate()
+// -- when present, the objective/knownContext explicitly redirect Higher AI
+// toward wiring/reusing the found asset instead of reading as a plain
+// from-scratch build request. Never omits or softens the underlying
+// gap/success-criteria -- the dispatch still genuinely asks for the gap to
+// close, it just adds "check this first" context, matching this
+// integration's own "never dispatch Higher AI to build something that
+// already exists but is merely unwired" goal without ever blocking the
+// dispatch itself.
 export function buildTightTaskFromFindings(
   capability: Pick<TaskCapability, "capabilityKey" | "modePill" | "version">,
   findings: AuditFindings,
-  stats: CoverageStats
+  stats: CoverageStats,
+  existingAssetMatch?: ExistingAssetMatch | null
 ): TightTask {
   const entries = FINDING_KEYS.filter((k) => findings[k]).map((k) => `${k}: ${findings[k]}`)
   const findingsSummary = entries.join(" | ")
 
+  const umrNote = existingAssetMatch
+    ? ` A Universal Metadata Registry search found a possibly related existing platform asset: "${existingAssetMatch.name}" (${existingAssetMatch.assetType}, asset ${existingAssetMatch.assetId}, source ${existingAssetMatch.sourceTable}:${existingAssetMatch.sourceId}). Check whether this asset already implements the missing behavior and only needs to be wired into task-execution-engine.ts's dispatchEngine() switch (or an equivalent real call site) before writing anything new -- prefer wiring/extending a genuine match over a from-scratch build.`
+    : ""
+
   return {
-    objective: `Software-close a capability-coverage gap the Auditor identified for "${capability.capabilityKey}" (version ${capability.version}): ${findingsSummary}`,
+    objective: `Software-close a capability-coverage gap the Auditor identified for "${capability.capabilityKey}" (version ${capability.version}): ${findingsSummary}${umrNote}`,
     scope: `Implement the described addition inside the existing capability/mode-pill/Dynamic Chain surface that "${capability.capabilityKey}"` +
       `${capability.modePill ? ` (mode pill "${capability.modePill}")` : ""} already maps to -- do not touch unrelated capabilities or mode pills while doing this.`,
     successCriteria: `The specific gap described above no longer requires AI reasoning at request time -- a future request that previously classified as NOVEL or PACKAGE_AVAILABLE for "${capability.capabilityKey}" can classify as FULL_SOFTWARE or a reliable PACKAGE_AVAILABLE instead; typecheck and lint both pass.`,
@@ -341,7 +458,19 @@ export async function runCapabilityAudit(capabilityId: string): Promise<AuditRun
     return { audited: true, needsImprovement: "no" }
   }
 
-  const proposal = await upsertImprovementProposal(capability.id, capability.version, verdict!.findings)
+  // Priority 6: cross-check the UMR before proposing net-new work. Never
+  // lets a lookup failure block the proposal -- degrades to "no candidate
+  // found," identical to a genuine miss, same posture as
+  // dispatchProposalToHigherAI()'s own try/catch around the Higher AI call.
+  const existingAssetMatch = await findExistingUmrCandidate(verdict!.findings).catch((err) => {
+    console.error(`[capability-audit] UMR lookup failed for capability ${capability.id} ("${capability.capabilityKey}") -- continuing without an existing-asset candidate:`, err)
+    return null
+  })
+  if (existingAssetMatch) {
+    console.warn(`[capability-audit] UMR candidate found for capability ${capability.id} ("${capability.capabilityKey}"): asset ${existingAssetMatch.assetId} ("${existingAssetMatch.name}") -- noting it on the proposal instead of blindly proposing net-new work.`)
+  }
+
+  const proposal = await upsertImprovementProposal(capability.id, capability.version, verdict!.findings, existingAssetMatch)
   const dispatch = await dispatchProposalToHigherAI(proposal.id)
   return { audited: true, needsImprovement: "yes", proposalId: proposal.id, dispatch }
 }
@@ -351,19 +480,21 @@ export async function runCapabilityAudit(capabilityId: string): Promise<AuditRun
  * increments its occurrenceCount, or inserts a new one -- the schema's real
  * UNIQUE(capability_id, capability_version) constraint (migration 0156)
  * backs this as a true upsert rather than a check-then-insert race.
- * Deliberately does NOT overwrite `findings` on conflict -- the spec's own
- * words are "repeated identical findings increment this", so an existing
- * proposal's original finding text is left standing; only the counter and
- * updatedAt move.
+ * Deliberately does NOT overwrite `findings` OR `existingAssetMatch` on
+ * conflict -- the spec's own words are "repeated identical findings
+ * increment this", so an existing proposal's original finding text (and the
+ * UMR candidate found alongside it, if any) is left standing; only the
+ * counter and updatedAt move.
  */
 export async function upsertImprovementProposal(
   capabilityId: string,
   capabilityVersion: number,
-  findings: AuditFindings
+  findings: AuditFindings,
+  existingAssetMatch: ExistingAssetMatch | null = null
 ): Promise<CapabilityImprovementProposal> {
   const [row] = await db
     .insert(capabilityImprovementProposals)
-    .values({ capabilityId, capabilityVersion, findings })
+    .values({ capabilityId, capabilityVersion, findings, existingAssetMatch })
     .onConflictDoUpdate({
       target: [capabilityImprovementProposals.capabilityId, capabilityImprovementProposals.capabilityVersion],
       set: {
@@ -405,7 +536,8 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
   }
 
   const stats = computeCoverageStats(capability.fullSoftwareCount, capability.packageAvailableCount, capability.novelCount)
-  const tightTask = buildTightTaskFromFindings(capability, findings, stats)
+  const existingAssetMatch = (proposal.existingAssetMatch ?? null) as ExistingAssetMatch | null
+  const tightTask = buildTightTaskFromFindings(capability, findings, stats, existingAssetMatch)
 
   try {
     await dispatchRepoTask(roleKey, tightTask)
@@ -462,4 +594,74 @@ export async function closeImprovementLoop(proposalId: string, prUrl: string): P
       .set({ status: "resolved", prUrl, updatedAt: now })
       .where(eq(capabilityImprovementProposals.id, proposal.id)),
   ])
+
+  // Priority 6: make the now-closed capability a discoverable UMR asset --
+  // best-effort, and deliberately AFTER the two updates above already
+  // committed, so a UMR write failure never leaves the close-out itself
+  // half-done. `capability` here still holds the PRE-bump version, so
+  // `capability.version + 1` below is exactly the new version the update
+  // above just set.
+  await registerClosedCapabilityAsUmrAsset(capability, proposal, prUrl).catch((err) => {
+    console.error(`[capability-audit] UMR registration/update failed for closed capability ${capability.id} ("${capability.capabilityKey}") -- the close-out itself still succeeded:`, err)
+  })
+}
+
+/**
+ * Priority 6: register (or, if Higher AI wired an existing UMR-known asset
+ * rather than building net-new, update) the closed capability as a
+ * discoverable platform_assets row. Prefers updateAsset() over
+ * registerAsset() whenever the proposal carried an existingAssetMatch
+ * (findExistingUmrCandidate(), set at audit time) OR a platform_assets row
+ * already exists for source (task_capabilities, capability.id) from a prior
+ * close-out -- platform_assets' real UNIQUE(source_table, source_id)
+ * constraint would reject a second registerAsset() call for either case
+ * anyway, so this checks first via getAssetBySource() rather than relying
+ * on the constraint to fail loudly, matching registerAsset()'s own
+ * documented duplicate-check convention.
+ */
+async function registerClosedCapabilityAsUmrAsset(
+  capability: TaskCapability,
+  proposal: CapabilityImprovementProposal,
+  prUrl: string
+): Promise<void> {
+  const findings = (proposal.findings ?? {}) as AuditFindings
+  const existingMatch = (proposal.existingAssetMatch ?? null) as ExistingAssetMatch | null
+  const purposeNote = `Closes capability "${capability.capabilityKey}"${capability.modePill ? ` (mode pill "${capability.modePill}")` : ""} -- resolved via ${prUrl}.`
+  const newVersion = String(capability.version + 1)
+
+  if (existingMatch) {
+    const existingRow = await getAssetBySource(existingMatch.sourceTable, existingMatch.sourceId)
+    if (existingRow) {
+      await updateAsset(existingRow.assetId, {
+        status: "active",
+        version: newVersion,
+        purpose: existingRow.purpose ? `${existingRow.purpose} ${purposeNote}` : purposeNote,
+      })
+      return
+    }
+    // Falls through to the register-new-row path below if the candidate
+    // row no longer exists (defensive -- should not happen in practice,
+    // since platform_assets rows are only ever soft-archived, not deleted).
+  }
+
+  const sourceTable = "task_capabilities"
+  const sourceId = capability.id
+  const already = await getAssetBySource(sourceTable, sourceId)
+  if (already) {
+    await updateAsset(already.assetId, { status: "active", version: newVersion, purpose: purposeNote })
+    return
+  }
+
+  await registerAsset({
+    name: `Capability: ${capability.capabilityKey}`,
+    assetType: pickAssetTypeForFindings(findings),
+    sourceTable,
+    sourceId,
+    module: capability.modePill ?? undefined,
+    status: "active",
+    version: newVersion,
+    purpose: purposeNote,
+    searchKeywords: [capability.capabilityKey, capability.modePill].filter(Boolean).join(" "),
+    orgId: capability.orgId ?? null,
+  })
 }
