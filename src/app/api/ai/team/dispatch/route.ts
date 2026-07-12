@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
     // VERIDIAN that left NO persisted record anywhere at all -- not even
     // an orchestraExecutions row, since runRole()'s own LLM call logging
     // is token-usage-ledger-only. Fire-and-forget, never blocks dispatch.
-    if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "requested", objective })
+    if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "requested", objective, complexityTier })
 
     const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints })
     if (!tightness.passed) {
       void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
       // No role resolved yet -- rejected before classification even runs.
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, errorReason: tightness.reason, durationMs: Date.now() - dispatchStartedAt })
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, complexityTier, errorReason: tightness.reason, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         blockedBy: { reason: tightness.reason, guidance: tightness.guidance },
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     // rejected HERE, before any guardrail review or model call.
     const targetRole = getRole(classification.role)
     if (!targetRole?.model) {
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, errorReason: `Role "${classification.role}" could not be resolved to a callable model.`, durationMs: Date.now() - dispatchStartedAt })
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: `Role "${classification.role}" could not be resolved to a callable model.`, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         classification,
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
     const tierCheck = checkTierEligibility(targetRole.model, complexityTier!)
     if (!tierCheck.eligible) {
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         classification,
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       // without ever writing activity_log at all, leaving a platform-
       // guardrail block invisible to both the reflection pipeline and the
       // per-agent directory's failure/common-errors data.
-      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, errorReason: `GUARDRAIL_PLATFORM: ${blocked.verdict}`, durationMs: Date.now() - dispatchStartedAt })
+      if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: `GUARDRAIL_PLATFORM: ${blocked.verdict}`, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
         status: "blocked",
         classification,
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       ? await recordActivity({
           orgId, userId: dbUser.id, activityType: "ai_team_dispatch",
           lifecycleStage,
-          objective, roleKey: classification.role,
+          objective, roleKey: classification.role, complexityTier,
           durationMs: Date.now() - dispatchStartedAt,
           // Real cost when this model's pricing is known (estimateCostUsd
           // returns null for an unpriced model) -- forwarded to the
