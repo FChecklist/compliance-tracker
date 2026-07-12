@@ -56,3 +56,16 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.connector_documents TO app_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.connector_documents TO service_role;
+
+-- Priority 9 verification fix: connector_documents is a real, discoverable
+-- platform asset (a document representation) -- register it onto the
+-- generic auto-registration trigger from drizzle/0152, same as every other
+-- document-shaped table, rather than leaving it exempted.
+INSERT INTO compliance.asset_registration_config
+  (source_table, asset_type, name_column, purpose_column, module_column, org_column, owner_column, active_column)
+VALUES
+  ('connector_documents', 'document', 'title', NULL, 'toolkit_slug', 'org_id', 'user_id', NULL);
+
+CREATE TRIGGER auto_register_asset_trg
+  AFTER INSERT OR UPDATE OR DELETE ON compliance.connector_documents
+  FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
