@@ -4047,6 +4047,57 @@ export const problemTickets = complianceSchemaDB.table('problem_tickets', {
   linkedAt: timestamp('linked_at').notNull().defaultNow(),
 })
 
+// Priority 2 item 4 follow-up (D21.B1.S1 tree note: "2 confirmed gaps --
+// voice/transcription, tickets -- left as real, honestly-disclosed future
+// work"): "For a support ticket: understand context, identify commitments,
+// detect follow-up/approval/deadline actions -- same detect-then-propose
+// pattern as MoM/Document/Email intelligence, applied to tickets." Mirrors
+// email_intelligence_items/email_intelligence_action_items (0148)
+// field-for-field -- same suggestedWorkItems shape/category vocabulary
+// (sanitizeSuggestedWorkItems is reused directly from
+// email-intelligence-service.ts, not reimplemented), same "suggestion
+// only, promoted via an explicit human action" posture. The one real
+// difference: a ticket already exists as its own entity (unlike email,
+// which has no persistent pre-analysis record), so this table references
+// an existing `tickets` row instead of holding the raw content itself --
+// ticket-intelligence-service.ts pulls the real conversation transcript
+// (Wave 12's `messages`, via `tickets.conversation_id`) rather than
+// requiring content to be re-pasted into the call.
+export const ticketIntelligenceItems = complianceSchemaDB.table('ticket_intelligence_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ticketId: text('ticket_id').notNull(),
+  requestedById: text('requested_by_id').notNull(), // who triggered this analysis run
+  status: text('status').notNull().default('analyzing'), // 'analyzing' | 'proposed' | 'analysis_failed' | 'dismissed'
+  aiSummary: text('ai_summary'),
+  // { title, category, assignee, dueDateHint }[] -- category is one of
+  // 'commitment' | 'follow_up' | 'approval_needed' | 'deadline', the exact
+  // same vocabulary email_intelligence_items uses. Each entry is a
+  // candidate for promotion into its own real task via
+  // promoteTicketIntelligenceItem(); none are auto-created.
+  aiSuggestedWorkItems: jsonb('ai_suggested_work_items').notNull().default([]),
+  aiGeneratedAt: timestamp('ai_generated_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const ticketIntelligenceActionItems = complianceSchemaDB.table('ticket_intelligence_action_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ticketIntelligenceItemId: text('ticket_intelligence_item_id').notNull(),
+  suggestedIndex: integer('suggested_index').notNull(), // which entry of aiSuggestedWorkItems this task was promoted from
+  taskId: text('task_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const ticketIntelligenceItemsRelations = relations(ticketIntelligenceItems, ({ many, one }) => ({
+  actionItems: many(ticketIntelligenceActionItems),
+  ticket: one(tickets, { fields: [ticketIntelligenceItems.ticketId], references: [tickets.id] }),
+}))
+export const ticketIntelligenceActionItemsRelations = relations(ticketIntelligenceActionItems, ({ one }) => ({
+  ticketIntelligenceItem: one(ticketIntelligenceItems, { fields: [ticketIntelligenceActionItems.ticketIntelligenceItemId], references: [ticketIntelligenceItems.id] }),
+  task: one(tasks, { fields: [ticketIntelligenceActionItems.taskId], references: [tasks.id] }),
+}))
+
 // ─── VERI Chat (Wave 32) ──────────────────────────────────────────────────
 // Extends Wave 12's conversations/messages -- does not replace them.
 // contextEntityType/contextEntityId is the same polymorphic pattern already
