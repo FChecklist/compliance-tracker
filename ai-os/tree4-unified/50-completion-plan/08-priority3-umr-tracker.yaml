@@ -96,23 +96,60 @@ schema_contract: |
 dispatches:
   - agent: 1
     scope: "Core schema, Asset ID system, CRUD service, initial population (the 'compiler at build time' backfill)"
-    status: pr_open
+    status: complete
     detail: |
-      Status updated by agent 3 (subagent/umr-graph) after merging
-      origin/subagent/umr-core into this branch and verifying it directly
-      -- not a self-report from agent 1. See 04-implementation-log.yaml's
-      "branch subagent/umr-core, agent 1 of 3 parallel UMR agents" entry
-      for agent 1's own full, first-hand account (schema, Asset ID
-      sequence, CRUD service, backfill script for worker_agents/
-      computation_engines/prompt_templates/dynamic_chains -- migration
-      written but deliberately not applied to the live DB).
+      Merged 2026-07-12 (PR #202, subagent/umr-core), migration 0150
+      applied live to the Supabase project by the Super Boss (verified via
+      pg_indexes/generate_asset_id() test call returning AST-000002). See
+      04-implementation-log.yaml's "branch subagent/umr-core, agent 1 of 3
+      parallel UMR agents" entry for the full first-hand account (schema,
+      Asset ID sequence, CRUD service, backfill script for worker_agents/
+      computation_engines/prompt_templates/dynamic_chains). Backfill
+      script (scripts/backfill-platform-assets.ts) is written and tested
+      but has NOT yet been run against live data (--execute) -- still
+      pending a Super Boss decision, tracked separately.
   - agent: 2
     scope: "Index-based query layer + the progressive-narrowing Routing Engine + a real search API route"
-    status: not_started
+    status: complete
+    detail: |
+      Merged 2026-07-12 (PR #201, subagent/umr-routing). asset-query-
+      service.ts (6 index-composing functions) + asset-routing-engine.ts
+      (progressive narrowing, deterministic keyword table + LLM fallback)
+      + GET /api/assets/search (requireAuth()-gated, the real live
+      caller). Prompt seed migration 0151_umr_routing_engine_prompt.sql
+      (renumbered from a 0150 collision with umr-core's own migration via
+      PR #204) applied live. Super Boss review before merge found
+      asset-query-service.ts's org filter used a strict eq(orgId,
+      ctx.orgId), which silently excluded every platform-tier asset
+      (orgId IS NULL -- the majority of this pass's seed population) from
+      search results; fixed to org-or-platform-tier before merge -- see
+      agent 3's entry below for the fix detail (bundled into the umr-graph
+      PR since asset-query-service.ts was already merged by the time this
+      was caught).
   - agent: 3
     scope: "Wire entity_relationships as the real relationship graph + wire embeddings for cross-type vector search + Asset Manifest export endpoint (the self-describing 'identity card')"
-    status: pr_open
+    status: complete
     detail: |
+      Merged 2026-07-12 (PR #203, subagent/umr-graph). Super Boss
+      independent review before merge found and fixed 2 real cross-tenant
+      issues, one a genuine security bug (see 04-implementation-log.yaml's
+      "Super Boss, verify-umr-graph independent review before merge" entry
+      for full detail):
+        1. SECURITY: GET /api/assets/[assetId]/manifest called
+           asset-registry-service.ts's getAssetByAssetId() with zero org
+           check, on a DB client that bypasses RLS (DATABASE_URL, not
+           APP_RUNTIME_DATABASE_URL), against sequential guessable
+           'AST-000001'-style IDs -- any authenticated user in any org
+           could read another org's asset manifest. Fixed with an explicit
+           org-ownership check in the route (404, not 403, so a foreign
+           org's asset can't be distinguished from a nonexistent one).
+        2. Fixed the asset-query-service.ts org-filter gap noted in agent
+           2's entry above (same commit, since that file was already on
+           main by the time this review happened).
+      Both fixes verified: tsc/eslint clean, 527/527 tests pass (identical
+      count pre- and post-fix -- no existing test asserted the old,
+      incorrect behavior), all CI checks green before merge.
+      Original build detail:
       Built on subagent/umr-graph (worktree, 2 commits) against the
       schema_contract above, which was not yet merged from subagent/
       umr-core at the time of this dispatch (confirmed via repeated
