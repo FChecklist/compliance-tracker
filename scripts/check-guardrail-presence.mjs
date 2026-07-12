@@ -289,6 +289,33 @@ const REQUIRED_MARKERS = [
   // against the real merged p5/audit-higherai code (not guessed) before
   // adding this marker.
   { file: "src/lib/services/capability-audit-service.ts", mustContain: ["export function shouldAuditCapability"] },
+
+  // Added 2026-07-12 (10-priority5-software-orchestrator-tracker.yaml,
+  // dispatch 4/Part 2, from the now-merged p5/orchestrator-wiring sibling):
+  // the MISSING_INFORMATION hard rule -- "Lower AI SHALL NOT invent values"
+  // is a correctness/safety rule from the spec, not a style preference.
+  // package-variable-resolver.ts's own header states the rule must be
+  // checkable without a live LLM call; task-execution-engine.ts's
+  // executePackageDispatch() is the real call site that turns a missing
+  // required variable into a MissingInformationError instead of letting the
+  // floor-tier model guess one. Verified against the real merged code (not
+  // guessed) before adding this marker.
+  { file: "src/lib/services/package-variable-resolver.ts", mustContain: ["export function resolvePackageVariablesOrThrow", "export class MissingInformationError"] },
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["resolvePackageVariablesOrThrow(", "err instanceof MissingInformationError"] },
+
+  // Added 2026-07-12 (10-priority5-software-orchestrator-tracker.yaml,
+  // dispatch 4/Part 2): proactive floor-tier gating for NOVEL-classified
+  // work -- task-execution-engine.ts's free-text planning branch is only
+  // reached once PACKAGE_AVAILABLE work has already been routed to
+  // executePackageDispatch() above it, so by the time this branch runs, the
+  // work is confirmed genuinely novel; it now always starts at the
+  // judgment-tier model instead of waiting for a REACTIVE escalation signal
+  // to fire first (the "novel_capability" signal marks this proactive path
+  // in the audit trail, distinct from floor-tier-escalation.ts's other
+  // reactive-only signals). Verified against the real merged code before
+  // adding this marker -- "novel_capability" appears exactly once in the
+  // file, at this exact gate.
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["\"novel_capability\""] },
 ]
 
 let failed = false
