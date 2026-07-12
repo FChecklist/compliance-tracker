@@ -7277,6 +7277,43 @@ export const connectorAccounts = complianceSchemaDB.table('connector_accounts', 
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Connector Documents (Business Digital Twin, first slice -- D26.B4.S1)──
+// Connectors.docx proposed a 16-field per-document canonical representation
+// for the Business Digital Twin; this is a genuinely useful SUBSET, not all
+// 16 fields at once (see connector-data-service.ts's header for the
+// rationale) -- the fields data actually pulled through a connected toolkit
+// can honestly populate today, not a placeholder schema for fields nothing
+// writes. Each row is ONE real item (a Gmail message, a Drive file, ...)
+// fetched by connector-data-service.ts, never synthetic. businessObjectType
+// reuses classifyBusinessObjectType() (Priority 2, business-object-
+// classifier.ts) rather than re-deriving format classification here, per
+// that module's own guardrail ("no downstream code may branch on 'is this
+// Excel or Google Sheets'" -- this table doesn't either; it just stores the
+// one classification that module already produced).
+//
+// Every row inserted here also gets 2 entity_relationships edges written by
+// connector-data-store.ts (document -> owning org, document -> source
+// connector account) -- the first real consumer of the Phase 3 graph table
+// (entity-graph-service.ts's own header: "deliberately NOT wired into any
+// production call site yet"). Per-user like connectorAccounts above (the
+// OAuth grant this data came through is per-user), but every row also
+// carries orgId directly for RLS, matching every other tenant-scoped table.
+export const connectorDocuments = complianceSchemaDB.table('connector_documents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // whose connector_accounts connection this came through
+  toolkitSlug: text('toolkit_slug').notNull(), // ConnectorToolkit slug -- the source connector
+  businessObjectType: text('business_object_type').notNull(), // table|document|presentation|communication, from classifyBusinessObjectType()
+  externalId: text('external_id').notNull(), // the source system's own id (Gmail messageId, Drive file id, ...) -- unique per (orgId, toolkitSlug, externalId), see the migration's unique index
+  title: text('title'), // subject / file name
+  sourceUrl: text('source_url'), // webViewLink / constructed permalink, when the source provides one
+  ownerId: text('owner_id'), // source-system owner/sender identifier (email address, Drive owner name/email) -- free text, not an FK into users
+  lastModifiedAt: timestamp('last_modified_at'), // source system's own modified/sent timestamp, when parseable
+  metadata: jsonb('metadata'), // raw normalized extra fields (snippet, mimeType, size, threadId, ...) -- source-specific, deliberately not modeled as individual columns
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── VERI Reward (gamification + refer-and-earn) ────────────────────────
 // Per docs/research/VERI_REWARD_EVALUATION.md: one module, one currency --
 // every gamification event AND every referral event resolve to exactly one
