@@ -205,6 +205,28 @@ open_items:
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
+    - id: GAP-D1-METRICS-TARGET
+      name: "D1.B1.S1: 99.9% GPT-OSS-120B execution target, 6 named metrics, 31 Aug 2026 deadline"
+      old_ids: ["D1.B1.S1 (Tree 1)"]
+      detail: "Confirmed genuinely absent -- no dashboard/report tracks this anywhere. Deliberately not built as a partial 1-metric slice during Priority 2's D1 closure pass -- would need the other 5 named metrics identified from the source doc plus a real deadline-tracking UI."
+      size: M
+      first_raised: "2026-07-12 full status reconciliation pass"
+
+    - id: GAP-D13-ASSUMPTION-VALIDATION
+      name: "D13.B1.S2: AI must check with the user before proceeding on an unstated assumption"
+      old_ids: ["D13.B1.S2 (Tree 1)"]
+      detail: "Confirmed real, deliberately not built. Considered and rejected a phrase-detection proxy on reply text (too blunt, or too weak to actually close the requirement). The correct fix needs a live prompt_templates DB CONTENT change (a production data mutation, distinct from a schema migration) -- outside a headless subagent's authorization."
+      size: S
+      recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
+      first_raised: "2026-07-12 full status reconciliation pass"
+
+    - id: GAP-D19-REPORT-CADENCES
+      name: "D19: Escalations/Recommendations/Risk-Trends reporting cadences"
+      old_ids: ["D19 (Tree 1)"]
+      detail: "The daily AI-performance report (Performance/Failures/Token-Usage/Quality/Learning) was built and is real, but does NOT cover these 3 of the domain's named cadences -- honestly documented as having no deterministic source in the current schema, not fabricated."
+      size: M
+      first_raised: "2026-07-12 full status reconciliation pass"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
