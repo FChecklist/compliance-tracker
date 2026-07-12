@@ -112,7 +112,7 @@ open_items:
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
-      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
+      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). FURTHER PARTIALLY CLOSED, Priority 10 (PR #236): a second real graph edge type, dynamic_chain -> worker_agent (relationshipType 'executed_by', upserted by (chain, agent) pair with taskCount/lastTaskId/lastExecutedAt metadata), written at task-execution-engine.ts's updateTaskStatusAndReflect() -- the one chokepoint every real task-completion path already runs through. No new migration needed; the existing GET /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id> endpoint (Wave 153) now answers 'which chains has this agent executed' with zero new API surface. Checked live: 0 historical rows qualified for backfill, so this is forward-only by design. Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
       size: deferred_large
       recommendation: "Design the full graph schema first (per the source doc's own preference for graph over enumerated-permutation), then an additive migration, backfill, cutover. Any migration must preserve existing dynamic_chains rows and their live references from tasks/conversations."
 
@@ -137,18 +137,11 @@ open_items:
       recommendation: "Owner picks a speech-to-text provider (e.g. Whisper API, Deepgram, AssemblyAI) and provisions credentials before this can be scoped further."
 
     - id: GAP-UMR-TABLE-COVERAGE
-      name: "359 of 388 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
+      name: "340 of 396 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []
-      detail: "The auto-registration MECHANISM is complete and proven across 3 domains (29 real tables). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap."
+      detail: "The auto-registration MECHANISM is complete and proven across 4 domains (56 real tables as of Priority 10). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped."
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
-
-    - id: GAP-D1-METRICS-TARGET
-      name: "D1.B1.S1: 99.9% GPT-OSS-120B execution target, 6 named metrics, 31 Aug 2026 deadline"
-      old_ids: ["D1.B1.S1 (Tree 1)"]
-      detail: "Confirmed genuinely absent -- no dashboard/report tracks this anywhere. Deliberately not built as a partial 1-metric slice during Priority 2's D1 closure pass -- would need the other 5 named metrics identified from the source doc plus a real deadline-tracking UI."
-      size: M
-      first_raised: "2026-07-12 full status reconciliation pass"
 
     - id: GAP-D13-ASSUMPTION-VALIDATION
       name: "D13.B1.S2: AI must check with the user before proceeding on an unstated assumption"
@@ -159,19 +152,12 @@ open_items:
       first_raised: "2026-07-12 full status reconciliation pass"
 
     - id: GAP-D15-REMAINING-TRIGGERS
-      name: "D15.B2.S1: 2 of 10 named audit event triggers remain unwired (SOP Changed, Deployment)"
+      name: "D15.B2.S1: 1 of 10 named audit event triggers remains unwired (Deployment)"
       old_ids: ["D15.B2.S1 (Tree 1)"]
-      detail: "Priority 9 (PR #234) wired 7 of the remaining 9 triggers (8 of 10 total, including the pre-existing Code Changed trigger). SOP Changed and Deployment are genuinely, not just deferred: no sop/sops table or SOP-specific status transition exists anywhere in schema.ts, and no in-app deployment-event table or webhook handler exists beyond the already-wired CI workflow. Wiring either would mean inventing a trigger point with nothing real behind it."
+      detail: "Priority 9 (PR #234) wired 7 of the remaining 9 triggers (8 of 10 total, including the pre-existing Code Changed trigger). Priority 10 (PR #238) closed SOP Changed -- investigated a dedicated new sops table and rejected it: the existing policies table (title, free-text category with no enum/CHECK constraint, version, draft/under_review/published maker-checker publish flow via approval_requests) already has exactly the shape a Standard Operating Procedure needs. sop_changed now fires at the real policy_publish approval chokepoint (src/app/api/approvals/[id]/route.ts) when the policy being published has category='sop', routing to roster.ts's pre-existing sop_auditor role. Deployment remains genuinely, not just deferred: no in-app deployment-event table or webhook handler exists beyond the already-wired CI workflow for event #1 (Code Changed). Wiring it would mean inventing a trigger point with nothing real behind it."
       size: S
-      recommendation: "SOP Changed needs a real sop/sops table to exist first (a schema decision, not just wiring). Deployment needs either a real deployment-event table or a webhook from the actual deploy pipeline (Vercel) -- an infra decision."
+      recommendation: "Deployment needs either a real deployment-event table or a webhook from the actual deploy pipeline (Vercel) -- an infra decision."
       first_raised: "2026-07-12 Priority 9 (PR #234)"
-
-    - id: GAP-GLOBAL-REVENUE-SPLIT
-      name: "Separate Global Revenue Operations (under COO) vs Global Revenue Assurance (under CAO) divisions"
-      old_ids: ["G-010"]
-      detail: "No Global Revenue Operations division exists to split assurance from -- CRM/billing is plain service-layer code today. NOT closed by Priority 9's chief_revenue_officer addition (Wave 173, PR #227) -- that added a single role to the existing SALES_MARKETING team, not a new division under COO with a formal Assurance/Operations split. GAP-COO-ROLE (the formal-COO-role half of the old catalog item) is separately confirmed RESOLVED: roster.ts already has a distinct chief_operating_officer role (team EXECUTIVE_LADDER, escalationLevel L3) -- the old catalog's premise that no such role existed was stale, corrected 2026-07-12 (Priority 9)."
-      size: M
-      priority: P2 (low)
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
@@ -275,3 +261,53 @@ closed_priorities:
       down from an initial 7-parallel-subagent batch to sequential single-worktree
       verification for the remainder -- see the trust-rebuild discipline note in
       ai-os/STATUS-REPORT.md.
+
+  - priority: 10
+    name: "Cognitive-integration gap analysis + closures: DCMD 2nd graph edge, UMR +19 tables, D15 SOP Changed, Global Revenue Ops split"
+    summary: |
+      Explicit cognitive-integration gap analysis over open_items (distinguishing
+      real blockers to a coherent, shared, reasoning-capable AI substrate from
+      feature-completeness gaps that don't affect it), plus PROJEXA AI-wiring
+      verification. 4 PRs merged, each independently verified (tsc/eslint/
+      guardrail-presence/asset-registry-coverage/full test suite) before merge:
+        - PR #236: GAP-DCMD further partially closed -- second real
+          entity_relationships graph edge type, dynamic_chain -> worker_agent
+          ('executed_by', upserted by (chain,agent) pair), wired at
+          task-execution-engine.ts's one real completion chokepoint. No new
+          migration; GET /api/v1/brain/entity-relationships (Wave 153) now
+          answers "which chains has this agent executed" for free. Checked live:
+          0 historical rows qualified for backfill (forward-only by design).
+        - PR #237: GAP-UMR-TABLE-COVERAGE -- 19 more real named business-object
+          tables onboarded (ERP/Legal/HR-recruiting/PMS/Construction/Facilities/
+          CA-firm/org-structure/third-party-risk), applied live via Supabase MCP,
+          44 existing rows backfilled and verified. employee_profiles reviewed
+          and deliberately left exempted (no genuine display-name column) with a
+          real documented reason, replacing its generic placeholder. Coverage:
+          37 -> 56 registered / 359 -> 340 exempted.
+        - PR #238: GAP-D15-REMAINING-TRIGGERS narrowed from 2 to 1 open item --
+          SOP Changed closed by reusing the existing policies table
+          (category='sop') and its real maker-checker publish flow, rather than
+          inventing a parallel sops table/workflow. Deployment remains the one
+          honest gap (no real trigger point exists to wire).
+        - PR #239: GAP-GLOBAL-REVENUE-SPLIT closed -- new GLOBAL_REVENUE_OPERATIONS
+          team (roster.ts), the operational counterpart to the existing
+          AUDIT_GLOBAL_REVENUE assurance division; chief_revenue_officer moved
+          onto it (behavior unchanged, only the team label moved). Re-investigated
+          and overturned Wave 173's "no functional gain" reasoning: the feared
+          NON_OPERATIONAL_TEAMS exclusion-list touch point doesn't apply (it's an
+          opt-OUT list; a new operational team needs zero changes to it).
+      PROJEXA's capability-tree/assistant/discuss AI surfaces independently
+      verified as genuinely wired to VERIDIAN's real backend (not stubs) --
+      concluded NOT a gap, no PR needed.
+      Also fixed a pre-existing tracker inconsistency found during this pass:
+      GAP-D1-METRICS-TARGET was still listed in open_items despite
+      closed_priorities' own Priority 9 entry already citing PR #229 as having
+      closed it -- removed from open_items (this is a documentation fix, not a
+      new closure; no new PR work was needed since the underlying gap was
+      already closed).
+      Deliberately NOT touched this pass (investigated, confirmed genuinely
+      out of scope or already covered): GAP-CONNECTOR-LAYERS (ratified
+      not-dispatched, DEC-09), GAP-AUTH-REBUILD (4-digit passcode half,
+      deferred_large), GAP-MOM-VOICE-TICKETS (voice/transcription,
+      owner-blocked on a speech-to-text provider decision),
+      GAP-D13-ASSUMPTION-VALIDATION (owner-blocked on prompt-content sign-off).
