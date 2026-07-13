@@ -36,6 +36,7 @@ import { ComplianceChart, type DeptData } from "@/components/ui/compliance-chart
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import CustomReportsSection from "@/components/CustomReportsSection";
+import ReportCatalogList from "@/components/ReportCatalogList";
 
 type ComplianceItem = {
   id: string;
@@ -549,6 +550,14 @@ export default function ReportsPage() {
       <Suspense fallback={<div className="text-sm text-ct-muted">Loading reports...</div>}>
         <CustomReportsSection />
       </Suspense>
+
+      {/* Unified Reports & Analysis catalog -- report-catalog-service.ts.
+          New, additive section: lists every report type across the 4
+          report-producing services (custom, ERP financial, construction/
+          PROJEXA, AI-ops cadence reports) with a link to where each one
+          actually runs today. Does not touch/replace the compliance-items
+          export above or CustomReportsSection -- purely additive. */}
+      <ReportCatalogList />
     </div>
   );
 }

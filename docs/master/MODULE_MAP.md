@@ -227,7 +227,22 @@ Built incrementally, Waves 49-71 (see `orchestra_changes.md`). Grounded in ERPNe
 |---|---|
 | **Tables** | `knowledgeBasePages`, `automationRules`/`automationRuleRuns`, `savedReports`, `metricAlertRules` (Wave 38 — scheduled threshold alerting) |
 | **Services** | `knowledge-base-service.ts`, `automation-rule-service.ts`, `custom-report-service.ts`, `metric-alert-service.ts` |
-| **Pages** | `/knowledge-base`, `/automation`, folded into `/reports` |
+| **Pages** | `/knowledge-base`, `/automation`, `/reports` (Custom Reports section) — see "Reports & Analysis" below for the full cross-domain report catalog |
+
+## Reports & Analysis (unified catalog across all report-producing services)
+
+Report logic lives in 4 separate services with no single index of what actually
+exists — `report-catalog-service.ts` is that index: a data-only registry
+(`REPORT_CATALOG`), one entry per real report/analysis type, each with its
+domain, source function, real output formats, and the actual route it runs at
+today (honestly noting when that route is API-only or cron-gated, not a page).
+
+| | |
+|---|---|
+| **Catalog** | `src/lib/services/report-catalog-service.ts` — `REPORT_CATALOG` (26 entries across 5 domains: compliance/ERP/construction/AI-ops/custom) |
+| **Source services** | `custom-report-service.ts` (1 generic entry — user-authored saved queries), `erp-financial-report-service.ts` (Trial Balance/P&L/Balance Sheet/Cash Flow — 4 entries), `construction-reports-service.ts` (17 PROJEXA reports), `ai-performance-report-service.ts` + `report-cadence-service.ts` (AI Performance/Escalations/Recommendations/Risk-Trends — 4 entries, cron-only) |
+| **Pages** | `/reports` (Report & Analysis Catalog section, `ReportCatalogList.tsx`, links out to each entry's real route), `/erp/reports` (Trial Balance/P&L/Balance Sheet/Cash Flow tabs), `/reports#custom-reports` (Custom Reports) |
+| **Chain integration** | `capability-tree-service.ts`'s `buildReportCatalogNodes()` surfaces a "Reports & Analysis" branch (grouped by domain) in the Dynamic Chain Options Selector (`ChainSelector.tsx`) — only entries with a directly-navigable, no-required-params route get wired as a clickable leaf; the rest (construction API-only reports, cron-only AI-ops reports) still appear as leaves but fall through to the normal AI-planning path |
 
 ## Facility Management (`facilities_management` product branch)
 
