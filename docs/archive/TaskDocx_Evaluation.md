@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Task.docx Evaluation
 
 **Author:** Claude Code Sonnet Desktop | **Date:** 2026-07-09

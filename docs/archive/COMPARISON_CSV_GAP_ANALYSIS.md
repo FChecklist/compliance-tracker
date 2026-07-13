@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Comparison CSV Gap Analysis
 
 Source: `C:\Users\Dell\Downloads\comparison.txt` (372 lines, 19 module sections, ~340 individual features), benchmarking VERIDIAN against Odoo/ERPNext/Zoho/SAP/Oracle/Dynamics/Salesforce/Coupa. Saved to memory as `comparison_csv_feature_benchmark`.

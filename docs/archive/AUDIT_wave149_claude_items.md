@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Audit — Wave 149: Intent Engine v1 (branch `wave149/intent-engine`)
 
 **Auditor:** Security & Code Reviewer (cross-audit; not the implementer)

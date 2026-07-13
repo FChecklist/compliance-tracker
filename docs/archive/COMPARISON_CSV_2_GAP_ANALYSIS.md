@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Comparison CSV 2 — Gap Analysis (GRC/Legal/CorpSec/DMS/ESG/BCM/CLM/WorkflowEngine/Procurement/Inventory/Manufacturing/LowCode/BPM)
 
 Source: `comparison_csv_2_full_benchmark.csv` (538 lines, 506 feature rows, 13 modules), saved verbatim in this repo root. Saved to memory as `comparison_csv_2_manufacturing_grc_benchmark`.

@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # VERIDIAN AI Orchestra — Phase 1 Discovery Analysis
 
 > **⚠️ STALE CLAIM, corrected 2026-07-09:** This document's RLS findings (§1 Schema Map, §RLS Policies, §Critical sequencing flag — "No RLS at all," "not implemented at the database level") were true when written (commit `df59c34`) but have been false since Wave 1 (`orchestra_changes.md` change-log entry #18, 2026-07-01): a real `app_runtime` Postgres role (`NOSUPERUSER NOBYPASSRLS`) plus `FORCE ROW LEVEL SECURITY` policies on every tenant table, enforced via `withTenantContext()`'s GUC-setting pattern, has been live and independently re-verified in nearly every wave since. See [`docs/master/ARCHITECTURE.md`](docs/master/ARCHITECTURE.md) §8 for the current mechanism. Kept below unedited as the historical Phase 1 snapshot — do not cite this document's RLS claims as current state.

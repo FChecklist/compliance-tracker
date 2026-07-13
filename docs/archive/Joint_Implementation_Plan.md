@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Joint Implementation Plan — VERIDIAN AI OS Constitution Study
 
 **Produced from:** `Study_by_Claude.md` + `GapAnalysis_by_Claude.md` (PR #59) and `Study_by_zaizlm5.2.md` + `GapAnalysis_by_zaizlm5.2.md` (PR #69), reconciled in `CrossReview_VERIDIAN_Study.md`. This is step 4 of the agreed workflow. Per that workflow: implementation now proceeds with **mandatory cross-audit** — whichever of Claude/z.ai does not implement a given task audits it, and both doer and auditor document every completed task.

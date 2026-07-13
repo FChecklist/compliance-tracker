@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # AUDIT — Wave 150: central "Need LLM?" routing gate
 
 **Branch:** `wave150/llm-routing-gate`

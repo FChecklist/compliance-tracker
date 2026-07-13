@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # 100% Completion Plan
 
 **Built 2026-07-11**, in direct response to feedback that closing gaps found in `01-COMPARISON.md` requires an actual execution plan, not just a tree of findings. Covers every one of Tree 4's 149 sub-branches at full granularity, with narrow instructions, input, output, and guardrails per item -- not just the 11 headline items `30-gap-backlog.yaml` originally scoped.

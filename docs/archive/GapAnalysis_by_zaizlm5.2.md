@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # GapAnalysis_by_zaizlm5.2.md
 
 Consolidated, prioritized synthesis by **z.ai GLM-5.2** of my own 6-part independent
