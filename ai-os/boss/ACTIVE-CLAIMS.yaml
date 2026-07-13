@@ -84,6 +84,49 @@ active:
       12's area), report-taxonomy.ts's core schema (Reports & Analysis
       session's area).
 
+  - session_label: "claude-code (this session, CLI) -- Priority 12 (OPEN-07, Universal Builder), OWNER-DIRECTED SOLE OWNER, driving to full completion (2026-07-14)"
+    claimed_at: "2026-07-14T01:55:55+05:30"
+    claim: |
+      OPEN-07 only -- NOT OPEN-08/Priority 13 (that session's own area,
+      already coordinated above). The Owner has explicitly instructed this
+      session, directly in chat, to complete Priority 12 through to full
+      closure, overriding the prior OPEN-06 soft-gate deferral noted in
+      MASTER-TRACKER.yaml, and to resolve conflicts along the way (already
+      done: renamed PR #285's duplicate WAVE-175 entry to WAVE-176 and
+      rebased/merged that PR against current main -- see its own comments).
+      OTHER SESSIONS SHOULD NOT PICK UP ANY OPEN-07 PIECE below.
+
+      Remaining scope (point 8 already closed via PR #282/#285):
+        (A) Foundation pass -- wire a real cron trigger for
+            runCapabilityAudit() via the already-live /api/ai/team/dispatch
+            path (Owner decision a); reclassify capability-audit's own
+            dispatch as integrative-tier so DeepSeek V4 Pro is eligible
+            without loosening model-tier-eligibility.ts's JUDGMENT_ELIGIBLE
+            guardrail platform-wide (Owner decision b, option i); add
+            branchKey scoping into the capability pipeline + Reports &
+            Analysis Engine; surface task_capabilities in
+            capability-tree-service.ts as a Chain Selector pill/URL (points
+            2, 3, 4, 7). Doing this pass directly myself, not via a
+            sub-agent, since it touches a named Rule-9 guardrail.
+        (B) Unify FDE (capability-registry-service.ts) + Dynamic-Chain/Chat
+            (capability-learning-service.ts) intake into one catalog, plus
+            a minimal customer-facing UI/API for
+            capability_improvement_proposals (points 1, 5).
+        (C) Make task_capabilities.status ('ai_only'->'full_software')
+            actually transition off the real rolling counters, and write
+            the one escalation-matrix reference doc unifying
+            escalation-ladder.ts/floor-tier-escalation.ts/
+            model-tier-eligibility.ts/the Auditor->Higher-AI loop/
+            dispatch-completion-monitor's fail-closed pattern (points 6,
+            10).
+      Claiming Drizzle migration numbers 0189+ (0186-0188 already used by
+      the Priority 13 session, confirmed against origin/main before
+      claiming). NOT touching: PROJEXA repo, pms-meeting-service.ts/
+      pms-issue-service.ts, document-classification-service.ts,
+      report-taxonomy.ts's core schema/report-definitions data (Priority
+      11/13 sessions' areas) -- only report-engine-service.ts/
+      report-catalog-service.ts's branch-gating surface, additively.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
