@@ -73,8 +73,22 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
+import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+
+// Priority 12 (OPEN-07 point 8 follow-on): report_definitions rows have no
+// literal `domain` column (see schema.ts) -- domain is derived from
+// classifications, the same inference getFullReportCatalog() already did
+// inline. Extracted to a pure, exported, unit-testable function so
+// executeReportDefinition()'s new branch-enablement gate (below) and the
+// catalog merge use one identical rule, not two copies that could drift.
+export function deriveReportDomainFromClassifications(classifications: string[]): ReportDomain {
+  if (classifications.includes("compliance")) return "compliance"
+  if (classifications.includes("financial") || classifications.includes("revenue")) return "ERP"
+  if (classifications.includes("construction") || classifications.includes("project")) return "construction"
+  return "custom"
+}
 
 export type ExecutionType = "deterministic_aggregation" | "deterministic_formula" | "ai_recipe" | "external_service"
 
@@ -1332,6 +1346,16 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
     db.query.reportDefinitions.findFirst({ where: and(or(eq(reportDefinitions.orgId, ctx.orgId), isNull(reportDefinitions.orgId)), eq(reportDefinitions.id, id)) })
   )
   if (!definition) throw new ServiceError("Report definition not found", 404)
+
+  // Priority 12 (OPEN-07 point 8 follow-on, 2026-07-14): the one real gate
+  // every report/analysis run goes through, before any query or computation
+  // -- this dispatcher had zero branch-check anywhere (confirmed directly,
+  // see ai-os/MASTER-TRACKER.yaml's OPEN-07 entry). classifications, not a
+  // literal `domain` column, are the source of truth (see
+  // deriveReportDomainFromClassifications's own comment).
+  const classifications = Array.isArray(definition.classifications) ? (definition.classifications as string[]) : []
+  await requireReportDomainEnabled(ctx.orgId, deriveReportDomainFromClassifications(classifications))
+
   if (definition.status !== "built") {
     return { columns: ["Note"], rows: [{ Note: `This report/analysis is not yet built (status: ${definition.status}).` }], note: definition.dataGapNote ?? undefined }
   }
@@ -1447,13 +1471,7 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
 
   const definitionEntries: FullCatalogEntry[] = definitions.map((d) => {
     const classifications = Array.isArray(d.classifications) ? (d.classifications as string[]) : []
-    const domain: ReportDomain = classifications.includes("compliance")
-      ? "compliance"
-      : classifications.includes("financial") || classifications.includes("revenue")
-        ? "ERP"
-        : classifications.includes("construction") || classifications.includes("project")
-          ? "construction"
-          : "custom"
+    const domain = deriveReportDomainFromClassifications(classifications)
     return {
       id: d.id,
       name: d.name,
@@ -1473,7 +1491,21 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
     }
   })
 
-  return [...staticEntries, ...definitionEntries]
+  // Priority 12 (OPEN-07 point 8 follow-on): filter out ERP/construction
+  // entries the org can't actually run, rather than list them and 403 on
+  // click -- matches this catalog's own "polite message, not silent 403"
+  // spirit (see this file's header comment on routeNote). Deliberately
+  // filters here (not in capability-tree-service.ts's buildReportCatalogNodes,
+  // which just consumes this function's output) -- that file is a parallel
+  // workstream's area this wave, and filtering at the source means every
+  // consumer of getFullReportCatalog/getFullReportCatalogByDomain benefits
+  // without each needing its own branch-aware filter.
+  const allEntries = [...staticEntries, ...definitionEntries]
+  const domainsPresent = Array.from(new Set(allEntries.map((e) => e.domain)))
+  const enabledByDomain = new Map(
+    await Promise.all(domainsPresent.map(async (domain) => [domain, await isReportDomainEnabledForOrg(ctx.orgId, domain)] as const))
+  )
+  return allEntries.filter((e) => enabledByDomain.get(e.domain) ?? true)
 }
 
 export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
