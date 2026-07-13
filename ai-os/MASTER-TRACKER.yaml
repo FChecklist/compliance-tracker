@@ -107,7 +107,7 @@ open_items:
       recommendation: "Low priority unless a concrete cross-org use case shows up -- the static-catalog approach already satisfies the common case (same report TYPES available everywhere) without needing a live cross-tenant data-sharing mechanism, which would be a real new access-control surface, not a small addition."
 
     - id: OPEN-07
-      name: "Priority 12 (Universal Builder: Task/Functionality/Module/Product/Project/Report/Analysis Builder) -- plan of action prepared 2026-07-13; point (8) ERP/Sales enforcement closed 2026-07-14 (PR #282); the rest deliberately deferred until Priority 11 (Reports & Analysis Engine, incl. OPEN-06) is fully closed, per Owner instruction"
+      name: "Priority 12 (Universal Builder) -- CLOSED 2026-07-14 (11 of 12 points shipped across PRs #282/#296/#297/#298/#299/#300, point 9 honestly never had a concrete referent -- see status_update below and closed_priorities #15 / COMPLETED.yaml WAVE-177 for the full record)"
       detail: |
         Owner's ask: one shared workflow (intake -> auditor-model availability
         check -> if found, give the URL -> if not, escalate to Higher AI to
@@ -277,7 +277,41 @@ open_items:
         an org without 'sales' enabled) -- a real 403 with this exact
         user-facing copy, not a generic "Forbidden".
       first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day. Point (8) closed 2026-07-14 (PR #282), explicitly carved out by the Owner as safe to start early since it shares no file surface with Priority 11's remaining work."
-      status_update: "2026-07-14: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) closed 2026-07-13. Point (8) of this item's 12 points closed 2026-07-14 (PR #282, COMPLETED.yaml WAVE-176). Owner directly instructed (2026-07-14) this session to complete the remaining points now, superseding the prior OPEN-06 deferral -- execution of the foundation pass and remaining points is in progress, see this session's own claim in ai-os/boss/ACTIVE-CLAIMS.yaml."
+      status_update: |
+        2026-07-14: CLOSED. Owner directly instructed this session (in
+        chat, not via this tracker) to complete Priority 12 through to
+        full closure, superseding the prior OPEN-06 soft-gate deferral,
+        and to resolve any conflicts along the way. Final tally against
+        the Owner's own 12-point numbering:
+          - Point 8 (ERP/Sales enablement): closed 2026-07-14, PR #282
+            (COMPLETED.yaml WAVE-176).
+          - Point 2 (DeepSeek auditor model) + point 4 (real cron trigger
+            for runCapabilityAudit()) + decision (a) (advisory dispatch
+            replacing the dead GITHUB_DISPATCH_PAT path): PR #296.
+          - Points 3+7 (task_capabilities surfaced in the Chain Selector):
+            PR #297.
+          - Point 6 (task_capabilities.status derived from real counters)
+            + point 10 (docs/ESCALATION_MATRIX.md): PR #298.
+          - Point 8 follow-on (the identical branch-enablement gap,
+            independently confirmed in the just-built Reports & Analysis
+            Engine): PR #299.
+          - Points 1 (FDE <-> Dynamic-Chain/Chat cross-reference) + 5
+            (capability_improvement_proposals feedback UI/API): PR #300.
+          - Points 11+12: already satisfied before this wave (see detail
+            above) -- no work needed.
+        Honest gap: point 9 was never separately itemized anywhere in
+        this entry's own numbered list above (it jumps 8 -> 10) -- this
+        was not silently dropped during execution, it appears to have
+        been a gap in the ORIGINAL gap-analysis's own numbering, not
+        something this closure skipped. Flagged here rather than
+        inventing a retroactive point 9 to claim a clean 12-for-12.
+        Every PR audited by this session personally before merge (Rule
+        7c, doer != auditor) -- 3 real cross-PR migration-number
+        collisions found and fixed during audit (0190 independently
+        claimed by 3 different PRs; see PR #299/#300's own audit
+        comments), one real backfill-vs-live-function rounding bug found
+        and fixed before merge (PR #298's audit comment). Full doer/
+        auditor record: ai-os/boss/COMPLETED.yaml WAVE-177.
 
     - id: OPEN-08
       name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- CLOSED 2026-07-14 (items 1-6 of the corrected gap list shipped, item 7 deliberately deferred per Owner, item 8 hygiene confirmed already-accurate); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
@@ -1036,15 +1070,40 @@ closed_priorities:
       merged per the standing 2026-07-13 procedure -- Super Boss to
       audit and merge independently.
 
+  - priority: 15
+    name: "Priority 12 (Universal Builder, OPEN-07) -- CLOSED 2026-07-14, Owner-directed sole ownership, all 12 points accounted for"
+    summary: |
+      See OPEN-07 above for the full point-by-point detail and
+      ai-os/boss/COMPLETED.yaml's WAVE-177 for the full doer/auditor
+      record. Summary here for cross-reference only, not a duplicate
+      source of truth.
+
+      Owner instructed this session directly (in chat) to take Priority
+      12 through to full closure, superseding the prior OPEN-06 soft-gate
+      deferral and explicitly asking that any conflicts be resolved along
+      the way. 6 PRs merged (#282 pre-existing + #296/#297/#298/#299/#300
+      this session), 3 built directly by this session and 3 by dispatched
+      worktree-isolated sub-agents, every one personally audited by this
+      session before merge (Rule 7c, doer != auditor) -- none self-
+      certified. Real defects found and fixed during audit, not silently
+      merged: 3 separate cross-PR migration-number collisions (0190
+      independently claimed by PR #298, #299, and #300 -- renumbered to
+      0190/0191/0192 respectively) and one real rounding-boundary mismatch
+      between a Math.round()-based TS function and its own SQL backfill
+      (PR #298's audit comment has the brute-force verification). Honest
+      gap: point 9 of the Owner's original 12-point numbering was never
+      concretely itemized in this tracker's own detail (the list jumps
+      8 -> 10) -- flagged as a pre-existing gap in the original analysis,
+      not invented to force a clean 12-for-12 claim.
+
   - priority: 16
     name: "Priority 13 (PROJEXA PM-ERP integration): discovery lookups, Permits, Meetings/MOM, Kanban board, document auto-classification, self-serve ad-hoc BI"
     summary: |
-      NUMBERING NOTE: deliberately skipped #15 -- that slot is reserved
-      (per this file's own prior note, see closed_priorities #14's
-      cross-session collision resolution above) for PR #285's Priority 12
-      (OPEN-07 point 8) closure entry, which is still open/unmerged as of
-      this writing. If PR #285 lands under a different number later,
-      renumber accordingly rather than leaving a gap silently.
+      NUMBERING NOTE (resolved 2026-07-14): #15 was deliberately reserved
+      here for Priority 12's own closure entry -- filled in above as
+      closed_priorities #15 once the Super Boss session closed OPEN-07
+      in full, not just PR #285's point (8) piece this note originally
+      anticipated. Good cross-session coordination, not a stale gap.
 
       See OPEN-08 above for the full corrected-gap-list history and
       Owner-decision record; summary here for cross-reference only, not a
