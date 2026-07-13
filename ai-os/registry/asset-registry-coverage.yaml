@@ -806,6 +806,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: whistleblower_cases
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: worker_agent_domain_groups
+    reason: "structurally similar to module_registry (platform-wide, has a genuine name column) but newly created this session (PR #252, Agent Hierarchy Registry) with limited proven history; full registration would need an additional migration to attach the auto_register_asset trigger, deferred as a low-priority follow-up rather than compounding live-DB changes during this review pass"
   - table: worker_agent_domain_index
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: worker_agent_learnings

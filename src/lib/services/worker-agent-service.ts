@@ -16,7 +16,7 @@
 // platform agents" is enforced at the database layer already, not just by
 // this service.
 import { after } from "next/server"
-import { db, workerAgents, approvalRequests, userClientAccess, taskExecutionPlan, workerAgentLearnings, workerAgentDomainIndex } from "@/lib/db"
+import { db, workerAgents, approvalRequests, userClientAccess, taskExecutionPlan, workerAgentLearnings, workerAgentDomainIndex, workerAgentDomainGroups } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
@@ -28,6 +28,32 @@ import type { users } from "@/lib/db"
 export type WorkerAgentContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 const PROPOSABLE_TIERS = new Set(["user", "customer", "client"])
+
+// Real Agent Hierarchy Registry write path (see workerAgents.domainGroupId's
+// own comment in schema.ts and drizzle/0173_worker_agent_domain_groups.sql
+// for the full "why not supervisorWorkerAgentId" reasoning). Mirrors exactly
+// the CASE expression the backfill migration used, so a newly proposed
+// agent's domain resolves to the same group an existing agent with the same
+// domain prefix already landed in -- never re-derived differently between
+// the one-time backfill and this ongoing write path.
+//
+// Deliberately a fixed, hand-maintained map, not a DB lookup by prefix --
+// this table is a small, bounded, governable set (PLATFORM_STRATEGY.md
+// §30.1's own finding: governability requires NOT auto-growing this kind of
+// registry at request time). An unrecognized domain (including null/empty)
+// resolves to 'general' rather than silently creating a new group row.
+const DOMAIN_GROUP_PREFIXES: { prefix: string; key: string }[] = [
+  { prefix: "Construction", key: "construction" },
+  { prefix: "Cross-Cutting", key: "cross_cutting" },
+  { prefix: "Finance", key: "finance" },
+  { prefix: "India Compliance", key: "india_compliance" },
+]
+
+export function resolveDomainGroupKey(domain: string | null | undefined): string {
+  if (!domain) return "general"
+  const match = DOMAIN_GROUP_PREFIXES.find((g) => domain.startsWith(g.prefix))
+  return match?.key ?? "general"
+}
 
 export async function proposeWorkerAgent(
   ctx: WorkerAgentContext,
@@ -69,6 +95,16 @@ export async function proposeWorkerAgent(
       if (!access) throw new ServiceError("You don't have access to this client", 403)
     }
 
+    // Real Agent Hierarchy Registry write path (Wave: AHR): every new
+    // worker_agents row gets a real domainGroupId, not a null one -- the
+    // group always exists because worker_agent_domain_groups is seeded with
+    // a 'general' fallback (drizzle/0173), so this lookup never silently
+    // leaves domainGroupId unset the way supervisorWorkerAgentId was.
+    const domainGroupKey = resolveDomainGroupKey(input.domain)
+    const domainGroup = await db.query.workerAgentDomainGroups.findFirst({
+      where: eq(workerAgentDomainGroups.key, domainGroupKey),
+    })
+
     const [agent] = await db.insert(workerAgents).values({
       tier: input.tier,
       name,
@@ -78,6 +114,7 @@ export async function proposeWorkerAgent(
       inputSchema: input.inputSchema || {},
       outputSchema: input.outputSchema || {},
       lifecycleStatus: "proposed",
+      domainGroupId: domainGroup?.id ?? null,
       proposedById: ctx.userId,
       orgId: input.tier !== "user" ? ctx.orgId : null,
       clientId: input.tier === "client" ? input.clientId : null,
@@ -120,11 +157,16 @@ export async function proposeWorkerAgent(
 
     return {
       id: agent.id, tier: agent.tier, name: agent.name, lifecycleStatus: agent.lifecycleStatus,
-      approvalRequestId: approval.id, createdAt: agent.createdAt.toISOString(),
+      domainGroupId: agent.domainGroupId, approvalRequestId: approval.id, createdAt: agent.createdAt.toISOString(),
     }
   })
 }
 
+// Wave: AHR real read path -- `with: { domainGroup: true }` joins the real
+// worker_agent_domain_groups row so callers (GET /api/worker-agents ->
+// AgentLibrarySheet.tsx) can render a real department grouping instead of
+// the previously-dead supervisorWorkerAgentId. See domainGroupId's own
+// comment in schema.ts for the full reasoning.
 export async function discoverWorkerAgent(
   ctx: { orgId: string; userId?: string },
   filters: { lifecycleStatus?: string[] } = {}
@@ -134,6 +176,7 @@ export async function discoverWorkerAgent(
     db.query.workerAgents.findMany({
       where: inArray(workerAgents.lifecycleStatus, statuses),
       orderBy: (t, { asc }) => asc(t.name),
+      with: { domainGroup: true },
     })
   )
 }
