@@ -128,6 +128,8 @@ registered:
     reason: "Priority 10 (drizzle/0171): org-scoped CA-firm client service engagement -- auto_register_asset_trg attached, name_column=title, purpose_column=scope_of_work, owner_column=lead_partner_user_id, active_column=NULL (status is 4-value free text, not boolean)"
   - table: construction_rfis
     reason: "Priority 10 (drizzle/0171): org-scoped construction Request For Information -- registered as asset_type task (same reasoning as pms_issues), auto_register_asset_trg attached, name_column=subject, purpose_column=question, owner_column=assigned_to_id, active_column=NULL (status is a real Postgres enum, not boolean)"
+  - table: report_definitions
+    reason: "Priority 11 (drizzle/0180): the Reports & Analysis Engine's declarative report/analysis definitions -- a genuinely named, purpose-bearing platform asset (asset_type=report), auto_register_asset_trg attached, name_column=name, purpose_column=description, org_column=org_id (nullable -- platform-wide when null, same convention as platform_assets/task_capabilities), owner_column=NULL (no single-user ownership concept), active_column=is_active"
 
 exempted:
   - table: access_review_certifications

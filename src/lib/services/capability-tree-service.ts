@@ -24,7 +24,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
 import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
-import { listReportCatalogByDomain, type ReportDomain } from "./report-catalog-service"
+import { getFullReportCatalogByDomain, type ReportDomain } from "./report-catalog-service"
 
 // The 6 real compliance_status enum values -- shown as clickable targets,
 // not a free-text field, so "update status" dispatch needs zero typing.
@@ -973,8 +973,15 @@ const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
 // have no reportUrl/codeReference/engineKey set -- the same "falls through
 // to the AI-planning path" behavior every other non-deterministic leaf in
 // this file already has (e.g. buildBranchNodes' modsInDomain fallback).
-function buildReportCatalogNodes(): CapabilityNode[] {
-  const byDomain = listReportCatalogByDomain()
+// Priority 11 (2026-07-13): now async, backed by getFullReportCatalogByDomain()
+// -- merges the static REPORT_CATALOG (unchanged) with report_definitions
+// rows (the Reports & Analysis Engine's declarative substrate), so a new
+// report/analysis added as DATA (a report_definitions row) surfaces as a
+// Chain Selector pill automatically, with zero code change here -- the
+// literal "grows automatically as more gets registered" philosophy this
+// file already had for every other branch, now also true for the catalog.
+async function buildReportCatalogNodes(ctx: { orgId: string }): Promise<CapabilityNode[]> {
+  const byDomain = await getFullReportCatalogByDomain(ctx)
   const domainNodes: CapabilityNode[] = (Object.keys(byDomain) as ReportDomain[])
     .filter((domain) => byDomain[domain].length > 0)
     .map((domain) => ({
@@ -1003,7 +1010,7 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
     const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
-    const reportCatalogNodes = buildReportCatalogNodes()
+    const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId })
     const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined

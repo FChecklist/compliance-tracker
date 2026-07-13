@@ -99,12 +99,12 @@ open_items:
     - id: OPEN-05
       name: "Universal Work Object retrofit (DEC-03) -- ratified against, but the underlying gaps it would have closed remain"
       detail: "DEC-03 ratified the current distributed-table architecture (ERP/PMS/Firm/Construction) over a ~30-state Work Object retrofit as hard-to-reverse and disproportionate. This is a real, final decision (not pending), but it means several downstream Tree-1 asks stay permanently only-approximated: a truly universal follow-up engine (G-024/G-028 below), a truly universal cross-type dashboard."
+      recommendation: "Ratification stands. Only reopen if the Owner explicitly wants to revisit DEC-03 itself -- do not re-litigate piecemeal via one of its downstream symptoms."
 
     - id: OPEN-06
       name: "Reports & Analysis template sharing is org-scoped only, not cross-org/cross-product (Owner directive 2026-07-13, Wave 173/PR #266-268)"
       detail: "Owner asked for report/analysis templates to be 'shared across all systems in VERIDIAN, but data init org/user specific.' Built: savedReports.visibility='shared' shares within an org (existing mechanism, unchanged); report-catalog-service.ts's REPORT_CATALOG is a static, code-level registry so it's inherently identical across every deployment of this codebase (PROJEXA/veda-advisors if they ever run this same repo's code). What's still missing: no live mechanism for one org's saved custom-report CONFIGURATION (not its data) to be published/copied into another org, or into a genuinely separate product/repo, without a human manually re-creating it. No cross-tenant sharing table/API exists anywhere else in this codebase to reuse -- building one speculatively was out of scope for Wave 173."
       recommendation: "Low priority unless a concrete cross-org use case shows up -- the static-catalog approach already satisfies the common case (same report TYPES available everywhere) without needing a live cross-tenant data-sharing mechanism, which would be a real new access-control surface, not a small addition."
-      recommendation: "Ratification stands. Only reopen if the Owner explicitly wants to revisit DEC-03 itself -- do not re-litigate piecemeal via one of its downstream symptoms."
 
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
