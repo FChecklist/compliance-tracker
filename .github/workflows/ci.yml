@@ -83,6 +83,21 @@ jobs:
       # ai-os/registry/asset-registry-coverage.yaml. See the script's own
       # header for the honest limitation this does and doesn't guarantee.
       - run: node scripts/check-asset-registry-coverage.mjs
+  metadata-index-coverage:
+    name: Metadata Index Coverage Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # Boss directive, 2026-07-13 (metadata/drift investigation): same
+      # enforcement class as the Asset Registry Coverage Check just above,
+      # applied to governance documents instead of database tables -- fails
+      # the build if a real ai-os/ governance file/directory has neither an
+      # index entry nor an explicit exemption in ai-os/OS.yaml. See that
+      # script's own header for the honest limitation this does and
+      # doesn't guarantee.
+      - run: node scripts/check-metadata-index-coverage.mjs
   e2e:
     name: E2E Tests
     needs: [build]

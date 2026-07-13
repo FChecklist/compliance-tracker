@@ -20,7 +20,7 @@
 // functions) per the design doc's own phasing.
 import { activityLog } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
 import { bandConfidence } from "@/lib/confidence-banding";
@@ -432,6 +432,41 @@ export async function acknowledgeExecutiveEscalation(params: {
     }).where(eq(activityLog.id, params.activityLogId));
 
     return { acknowledged: true as const };
+  });
+}
+
+// Gap closure, 2026-07-13 (Boss directive, metadata/drift investigation):
+// confirmed by direct investigation that handover-protocol.ts's "no agent
+// may just say Done" enforcement only ever fires reactively, at the moment
+// something calls /api/ai/team/review -- there was no query anywhere that
+// could answer "which dispatches are CURRENTLY stuck right now," before a
+// human or another agent happens to try closing them out. lifecycleStage's
+// non-terminal values (requested/classified/validated/executing/reviewing)
+// were already real, persisted data; this just reads it. Deliberately
+// mirrors listReAuditFlagged/listPendingExecutiveEscalations' exact shape
+// (a plain query, oldest-first, no invented status) rather than adding a
+// new "stuck" flag column -- staleness is derived from updatedAt at query
+// time, not written anywhere, so it can never itself go stale.
+//
+// Scope, stated honestly: this only ever sees rows the formal
+// /api/ai/team/dispatch pipeline wrote to activity_log. It has no reach
+// into ad-hoc/conversational work (e.g. a chat session abandoning a task
+// mid-way) -- that work was never instrumented into activity_log at all,
+// which is a real, separate, larger gap (not attempted here).
+const NON_TERMINAL_STAGES = ["requested", "classified", "validated", "executing", "reviewing"] as const;
+
+/** Rows the formal AI Team dispatch pipeline itself has not moved to a terminal lifecycle stage for at least `staleAfterMs` since their last update -- oldest (most overdue) first. A non-empty result means something was dispatched and never finished, failed, or got closed out; nothing else in this codebase currently surfaces that on its own. */
+export function listStuckActivities(orgId: string, staleAfterMs: number) {
+  return withTenantContext({ orgId }, async (db) => {
+    const staleBefore = new Date(Date.now() - staleAfterMs);
+    return db.query.activityLog.findMany({
+      where: and(
+        eq(activityLog.orgId, orgId),
+        inArray(activityLog.lifecycleStage, [...NON_TERMINAL_STAGES]),
+        lt(activityLog.updatedAt, staleBefore),
+      ),
+      orderBy: [asc(activityLog.updatedAt)],
+    });
   });
 }
 
