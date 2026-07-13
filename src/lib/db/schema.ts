@@ -8904,21 +8904,6 @@ export const capabilityImprovementProposals = complianceSchemaDB.table('capabili
   // looked at and deliberately not acted on), so the closed-loop record
   // stays meaningful either way instead of a bare status flip.
   rejectionReason: text('rejection_reason'),
-  // Priority 12 (OPEN-07 point 5): NOT this session's own column -- a
-  // separate, parallel (not yet merged into this branch's git history) PR
-  // added it, and its migration was already applied live to the shared
-  // Supabase project before this schema.ts change landed (confirmed via
-  // execute_sql against compliance.capability_improvement_proposals: the
-  // column exists live, text, nullable, no migration file for it in this
-  // branch's own drizzle/ history). Declared here anyway -- Drizzle's
-  // relational query API (db.query.capabilityImprovementProposals.findMany)
-  // only ever selects columns present in this schema definition, so without
-  // this the real, already-populated dispatchOutput data on the live table
-  // would be silently invisible to listImprovementProposals() and this
-  // point's own UI, which needs to render it. No migration file added here
-  // for it -- that provenance belongs to the other PR whenever it lands;
-  // this is purely a read-path type declaration to match already-live reality.
-  dispatchOutput: text('dispatch_output'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
