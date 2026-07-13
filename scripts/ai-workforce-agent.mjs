@@ -29,6 +29,13 @@ const REPO_ROOT = process.cwd()
 // hard bound, not unlimited.
 const MAX_ITERATIONS = 40
 const MAX_FILE_BYTES = 200_000
+// GAP-UNIFIED-SOT-REMAINDER (c), 2026-07-13: no incident history to tune
+// against yet (unlike MAX_ITERATIONS above, which was raised from a real
+// batch of failures) -- picked conservatively so it fires ~3 times over a
+// full 40-iteration run (iterations 10/20/30 -- see loop-prevention.ts's
+// shouldPromptSelfCheck(), which deliberately never fires at iteration 0
+// since fetchGovernancePreamble() already covers that first turn).
+const SELF_CHECK_EVERY_N_ITERATIONS = 10
 
 const roleKey = process.env.AI_TEAM_ROLE_KEY
 const apiKey = process.env.OPENROUTER_API_KEY
@@ -44,7 +51,7 @@ const apiKey = process.env.OPENROUTER_API_KEY
 // with the same deterministic check the Next.js dispatch route uses,
 // before the agent loop (and any OpenRouter spend) starts.
 const { validateTightTask, assembleTightTaskPrompt, checkFilesWithinDeclaredScope } = await import(path.join(REPO_ROOT, "src/lib/task-tightening.ts"))
-const { checkLoopBudget } = await import(path.join(REPO_ROOT, "src/lib/loop-prevention.ts"))
+const { checkLoopBudget, shouldPromptSelfCheck } = await import(path.join(REPO_ROOT, "src/lib/loop-prevention.ts"))
 const { checkTierEligibility, requiresMandatoryAudit } = await import(path.join(REPO_ROOT, "src/lib/model-tier-eligibility.ts"))
 
 const rawTask = {
@@ -178,6 +185,24 @@ async function fetchGovernancePreamble() {
   }
   if (!sections.length) return ""
   return `The following are this repository's own governing rules (CLAUDE.md / AGENTS.md), read fresh for this dispatch. They apply to you exactly as they apply to any other authorized agent working in this repo:\n\n${sections.join("\n\n")}\n\n--- end governance files ---\n`
+}
+
+// GAP-UNIFIED-SOT-REMAINDER (c), 2026-07-13 (concrete code-level closure
+// for the headless z.ai/OpenRouter dispatch path -- see
+// VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md's "Mid-Session Self-Check"
+// section for the honest interactive-path limitation this does NOT close).
+// Same fail-open discipline as fetchGovernancePreamble() above: a missing
+// or unreadable ai-os/SELF-CHECK.md must never block a dispatch, only log
+// loudly. Read-only -- resolveSafe()'s write-protection for ai-os/ is
+// unaffected; this only makes the file's content visible to the model on
+// a cadence, same non-write guarantee as the governance preamble.
+async function fetchSelfCheckContent() {
+  try {
+    return (await readFile(path.join(REPO_ROOT, "ai-os/SELF-CHECK.md"), "utf8")).trim()
+  } catch (err) {
+    console.error(`[ai-workforce-agent] WARNING: could not read ai-os/SELF-CHECK.md for the mid-session self-check reminder: ${err.message}`)
+    return ""
+  }
 }
 
 function resolveSafe(relPath) {
@@ -373,9 +398,10 @@ function collapseOldReadFileResults(messages, readFileResults, currentIteration)
 }
 
 async function main() {
-  const [systemPrompt, governancePreamble] = await Promise.all([
+  const [systemPrompt, governancePreamble, selfCheckContent] = await Promise.all([
     fetchSystemPrompt(role.promptKey),
     fetchGovernancePreamble(),
+    fetchSelfCheckContent(),
   ])
   const messages = [
     { role: "system", content: `${governancePreamble}${systemPrompt}\n\nYou have read_file, write_file, list_dir, and finish tools against the actual VERIDIAN repo (compliance-tracker). Investigate before writing. Keep changes scoped to exactly what the task asks. Call finish when done.` },
@@ -388,6 +414,19 @@ async function main() {
 
   for (let i = 0; i < MAX_ITERATIONS && !finished; i++) {
     collapseOldReadFileResults(messages, readFileResults, i)
+    // GAP-UNIFIED-SOT-REMAINDER (c): mid-session drift re-affirmation --
+    // shouldPromptSelfCheck() is the same pure/deterministic style as
+    // checkLoopBudget() below; it only decides "is it time," this call
+    // site decides what to do with `true`. Pushed as a real message (not a
+    // side channel) so it's part of the actual conversation the model
+    // sees, the same way governancePreamble is part of the system message
+    // rather than an out-of-band note.
+    if (selfCheckContent && shouldPromptSelfCheck(i, SELF_CHECK_EVERY_N_ITERATIONS)) {
+      messages.push({
+        role: "user",
+        content: `[Mid-session self-check -- re-affirm before continuing, per VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md's "Mid-Session Self-Check" section]\n\n${selfCheckContent}`,
+      })
+    }
     const response = await callOpenRouter(messages)
     const choice = response.choices?.[0]
     if (!choice) throw new Error("No response choice from OpenRouter")
