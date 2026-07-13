@@ -16,18 +16,18 @@
 // now a first-class, addable unit. Executing ANY definition goes through
 // ONE dispatcher (executeReportDefinition), not a new function per report:
 //
-//   - 'deterministic_aggregation' -- a generic group-by/count/sum/avg over
-//     one whitelisted table+column (runAggregation()). This generalizes
-//     custom-report-service.ts's per-entity switch into a single reusable
-//     function that any caller invokes with real, already-imported Drizzle
-//     table/column objects -- it is NOT a registry of raw table-name
-//     strings resolved at runtime (that would reopen the exact arbitrary-
-//     query surface custom-report-service.ts's own header explicitly
-//     rejected). Callers (this file's seed definitions, and whatever
-//     domain-specific report files future waves add) import real
-//     typed Drizzle objects and pass them in -- the whitelist is still
-//     "only what's explicitly wired in code", just wired ONCE per report
-//     instead of once per report AND once per switch-branch.
+//   - 'deterministic_aggregation' -- a generic group-by/count/sum/avg,
+//     resolved through TABLE_REGISTRY (below) -- a hardcoded, code-
+//     reviewed map from a definition's tableKey string to real Drizzle
+//     table/column objects. This generalizes custom-report-service.ts's
+//     per-entity switch into ONE reusable function+registry pair instead
+//     of a switch-branch per entity, while staying exactly as safe: a
+//     report_definitions row's JSON config can only ever resolve to a key
+//     that exists in TABLE_REGISTRY, never an arbitrary table (that would
+//     reopen the exact surface custom-report-service.ts's own header
+//     explicitly rejected). Future waves ADD their own domain's tables as
+//     new TABLE_REGISTRY entries -- this is genuinely executable through
+//     the dispatcher, not left for callers to wire per-report.
 //   - 'deterministic_formula' -- looks up a named pure function in
 //     FORMULA_REGISTRY (below) that computes a real calculated metric
 //     (SPI/CPI/health index) from real queried data, honestly documenting
@@ -51,7 +51,11 @@
 // next time, ai_recipe if the judgment genuinely can't be made
 // deterministic) -- not left as a frozen one-off blob in savedReports.
 
-import { db, reportDefinitions } from "@/lib/db"
+import {
+  db, reportDefinitions,
+  complianceItems, notices, risks, pmsIssues, incidents,
+  constructionBoqs, constructionWorkProgressEntries, constructionAttendance,
+} from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, or, isNull, sql, type SQL } from "drizzle-orm"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
@@ -70,9 +74,13 @@ export type ExecutionType = "deterministic_aggregation" | "deterministic_formula
 
 export type AggregationConfig = {
   kind: "aggregation"
-  /** Human-readable table name, documentation only -- the real binding is the caller-supplied `table`/`groupByColumn` Drizzle objects passed to runAggregation() directly, never resolved from this string at runtime. */
-  tableLabel: string
+  /** Key into TABLE_REGISTRY below -- NOT an arbitrary table name: only keys that exist in that code-reviewed, hardcoded map resolve to anything, exactly like custom-report-service.ts's GROUP_BY_FIELDS whitelist. */
+  tableKey: string
+  /** Key into TABLE_REGISTRY[tableKey].columns, or omitted for a single Total row (no GROUP BY). */
+  groupByColumn?: string
   aggregation: "count" | "sum" | "avg"
+  /** Key into TABLE_REGISTRY[tableKey].columns -- required when aggregation is "sum"/"avg". */
+  aggregationColumnKey?: string
 }
 export type FormulaConfig = { kind: "formula"; formulaKey: string; params?: Record<string, unknown> }
 export type AiRecipeConfig = { kind: "ai_recipe"; promptKey: string; groundingNote: string }
@@ -122,6 +130,39 @@ export async function runAggregation(
     .where(where)
     .groupBy(groupByColumn)
   return rows.map((r) => ({ groupValue: r.groupValue, value: Number(r.value) }))
+}
+
+// ─── Table registry (what makes deterministic_aggregation definitions
+// executable through the ONE dispatcher, not a bespoke function per report)
+// ────────────────────────────────────────────────────────────────────────
+// Every value here is a real, already-imported, code-reviewed Drizzle
+// table/column object -- resolving a report_definitions row's tableKey
+// string against this map is exactly as safe as custom-report-service.ts's
+// GROUP_BY_FIELDS switch (same whitelist discipline, same file this
+// mirrors), just centralized once instead of duplicated per switch-branch.
+// A report_definitions row's executionConfig.tableKey can ONLY ever
+// resolve to something here -- there is no code path from a JSON string to
+// an arbitrary table.
+//
+// Seeded with the same 8 entities custom-report-service.ts already
+// whitelists (not a new decision, just cataloging the existing whitelist
+// under the new engine too). Future waves ADD their own domain's tables as
+// NEW entries appended at the end -- additive-only, never edit an existing
+// entry, so multiple waves adding different domains' tables in parallel
+// stay merge-safe (the same "additive-only, append at the end" discipline
+// already used for reports/page.tsx and CustomReportsSection.tsx in the
+// prior Reports & Analysis wave).
+export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; columns: Record<string, AnyPgColumn> }
+
+export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
+  compliance_items: { table: complianceItems, orgIdColumn: complianceItems.orgId, columns: { status: complianceItems.status, priority: complianceItems.priority, departmentId: complianceItems.departmentId } },
+  notices: { table: notices, orgIdColumn: notices.orgId, columns: { status: notices.status, authority: notices.authority } },
+  risks: { table: risks, orgIdColumn: risks.orgId, columns: { status: risks.status, category: risks.category } },
+  pms_issues: { table: pmsIssues, orgIdColumn: pmsIssues.orgId, columns: { statusId: pmsIssues.statusId, priority: pmsIssues.priority } },
+  incidents: { table: incidents, orgIdColumn: incidents.orgId, columns: { stage: incidents.stage, severity: incidents.severity } },
+  construction_boqs: { table: constructionBoqs, orgIdColumn: constructionBoqs.orgId, columns: { status: constructionBoqs.status } },
+  construction_work_progress_entries: { table: constructionWorkProgressEntries, orgIdColumn: constructionWorkProgressEntries.orgId, columns: { activityId: constructionWorkProgressEntries.activityId } },
+  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { status: constructionAttendance.status, rosterId: constructionAttendance.rosterId } },
 }
 
 // ─── Formula registry (deterministic_formula) ─────────────────────────────
@@ -396,6 +437,19 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
 
   const config = definition.executionConfig as AggregationConfig | FormulaConfig | AiRecipeConfig | ExternalServiceConfig
 
+  if (definition.executionType === "deterministic_aggregation" && config.kind === "aggregation") {
+    const entry = TABLE_REGISTRY[config.tableKey]
+    if (!entry) throw new ServiceError(`No table registered for key "${config.tableKey}" -- see TABLE_REGISTRY in this file`, 500)
+    const groupByColumn = config.groupByColumn ? entry.columns[config.groupByColumn] : undefined
+    if (config.groupByColumn && !groupByColumn) throw new ServiceError(`Unknown groupByColumn "${config.groupByColumn}" for table "${config.tableKey}"`, 500)
+    const aggregationColumn = config.aggregationColumnKey ? entry.columns[config.aggregationColumnKey] : undefined
+    if (config.aggregationColumnKey && !aggregationColumn) throw new ServiceError(`Unknown aggregationColumnKey "${config.aggregationColumnKey}" for table "${config.tableKey}"`, 500)
+    const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+      runAggregation(db, { table: entry.table, orgIdColumn: entry.orgIdColumn, orgId: ctx.orgId, groupByColumn: groupByColumn ?? null, aggregation: config.aggregation, aggregationColumn })
+    )
+    return { columns: ["Group", "Value"], rows: rows.map((r) => ({ Group: String(r.groupValue), Value: r.value })) }
+  }
+
   if (definition.executionType === "deterministic_formula" && config.kind === "formula") {
     const fn = FORMULA_REGISTRY[config.formulaKey]
     if (!fn) throw new ServiceError(`No formula registered for key "${config.formulaKey}"`, 500)
@@ -415,7 +469,7 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
     return { columns: ["Note"], rows: [{ Note: `This report is served by its existing implementation (${(config as ExternalServiceConfig).sourceService}#${(config as ExternalServiceConfig).sourceFunction}), not through this generic engine -- see report-catalog-service.ts for its real route.` }] }
   }
 
-  throw new ServiceError(`Definition ${id} has executionType "${definition.executionType}" but no matching handler (deterministic_aggregation definitions are executed by callers via runAggregation() directly with their own typed table/column objects, not through this dispatcher -- see this file's header).`, 500)
+  throw new ServiceError(`Definition ${id} has executionType "${definition.executionType}" but no matching handler in this dispatcher.`, 500)
 }
 
 // ─── Category 5/6 promotion (the literal "next time software will make
