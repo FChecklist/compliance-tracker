@@ -19,6 +19,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { startApprovalWorkflow } from "./approval-workflow-service"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -29,6 +30,7 @@ type RequisitionItemInput = { itemId?: string; description: string; quantity?: n
 // ============================================================
 
 export async function listPurchaseRequisitions(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpPurchaseRequisitions.findMany({
       where: eq(erpPurchaseRequisitions.orgId, ctx.orgId),
@@ -39,6 +41,7 @@ export async function listPurchaseRequisitions(ctx: { orgId: string }) {
 }
 
 export async function getPurchaseRequisition(ctx: { orgId: string }, requisitionId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const req = await db.query.erpPurchaseRequisitions.findFirst({
       where: and(eq(erpPurchaseRequisitions.id, requisitionId), eq(erpPurchaseRequisitions.orgId, ctx.orgId)),
@@ -53,6 +56,7 @@ export async function createPurchaseRequisition(
   ctx: ErpContext,
   input: { departmentId?: string; purpose?: string; postingDate: string; items: RequisitionItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -83,6 +87,7 @@ export async function createPurchaseRequisition(
  * behavior established by submitJournalEntry.
  */
 export async function submitPurchaseRequisition(ctx: ErpContext, requisitionId: string) {
+  await requireErpEnabled(ctx.orgId)
   const req = await getPurchaseRequisition(ctx, requisitionId)
   if (req.status !== "draft") throw new ServiceError("Only draft requisitions can be submitted", 409)
 
@@ -111,6 +116,7 @@ export async function submitPurchaseRequisition(ctx: ErpContext, requisitionId: 
 
 /** Called from the approval-decide route once a requisition's workflow instance reaches 'approved'. */
 export async function markPurchaseRequisitionApprovedFromApproval(ctx: { orgId: string; userId: string; dbUser: typeof users.$inferSelect }, requisitionId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [updated] = await db.update(erpPurchaseRequisitions).set({ status: "approved" }).where(eq(erpPurchaseRequisitions.id, requisitionId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_requisition.approved", entityType: "erp_purchase_requisition", entityId: requisitionId })
@@ -123,6 +129,7 @@ export async function markPurchaseRequisitionApprovedFromApproval(ctx: { orgId: 
 // ============================================================
 
 export async function listRfqs(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpRfqs.findMany({
       where: eq(erpRfqs.orgId, ctx.orgId),
@@ -136,6 +143,7 @@ export async function createRfq(
   ctx: ErpContext,
   input: { requisitionId?: string; postingDate: string; items: { itemId?: string; description: string; quantity?: number }[]; supplierIds: string[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
   if (!input.supplierIds?.length) throw new ServiceError("At least one supplier is required", 400)
 
@@ -164,6 +172,7 @@ export async function createRfq(
 }
 
 export async function sendRfq(ctx: ErpContext, rfqId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const rfq = await db.query.erpRfqs.findFirst({ where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)) })
     if (!rfq) throw new ServiceError("RFQ not found", 404)
@@ -179,6 +188,7 @@ export async function sendRfq(ctx: ErpContext, rfqId: string) {
 // ============================================================
 
 export async function listSupplierQuotations(ctx: { orgId: string }, rfqId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSupplierQuotations.findMany({
       where: rfqId
@@ -194,6 +204,7 @@ export async function createSupplierQuotation(
   ctx: ErpContext,
   input: { rfqId?: string; supplierId: string; postingDate: string; validTill?: string; items: { itemId?: string; description: string; quantity?: number; rate?: number }[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -221,6 +232,7 @@ export async function createSupplierQuotation(
 
 /** Side-by-side comparison of all quotations received against one RFQ, ranked by total. */
 export async function compareQuotationsForRfq(ctx: { orgId: string }, rfqId: string) {
+  await requireErpEnabled(ctx.orgId)
   const quotations = await listSupplierQuotations(ctx, rfqId)
   const weighted = await getWeightedScoresForRfq(ctx, rfqId)
   return quotations
@@ -238,6 +250,7 @@ export async function compareQuotationsForRfq(ctx: { orgId: string }, rfqId: str
 // ============================================================
 
 export async function addScoringCriterion(ctx: { orgId: string; userId: string }, rfqId: string, input: { name: string; weight: number }) {
+  await requireErpEnabled(ctx.orgId)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -249,12 +262,14 @@ export async function addScoringCriterion(ctx: { orgId: string; userId: string }
 }
 
 export async function listScoringCriteria(ctx: { orgId: string }, rfqId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpRfqScoringCriteria.findMany({ where: and(eq(erpRfqScoringCriteria.orgId, ctx.orgId), eq(erpRfqScoringCriteria.rfqId, rfqId)) })
   )
 }
 
 export async function scoreQuotation(ctx: { orgId: string; userId: string }, quotationId: string, criterionId: string, score: number, notes?: string) {
+  await requireErpEnabled(ctx.orgId)
   if (score < 0 || score > 10) throw new ServiceError("score must be between 0 and 10", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const quotation = await db.query.erpSupplierQuotations.findFirst({ where: and(eq(erpSupplierQuotations.id, quotationId), eq(erpSupplierQuotations.orgId, ctx.orgId)) })
@@ -290,6 +305,7 @@ async function getWeightedScoresForRfq(ctx: { orgId: string }, rfqId: string): P
 }
 
 export async function listQuotationScores(ctx: { orgId: string }, quotationId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpRfqQuotationScores.findMany({ where: and(eq(erpRfqQuotationScores.orgId, ctx.orgId), eq(erpRfqQuotationScores.quotationId, quotationId)) })
   )
@@ -297,6 +313,7 @@ export async function listQuotationScores(ctx: { orgId: string }, quotationId: s
 
 // ─── Negotiation-round log ─────────────────────────────────────────────
 export async function addNegotiationRound(ctx: { orgId: string; userId: string }, quotationId: string, input: { proposedRate: number; notes?: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const quotation = await db.query.erpSupplierQuotations.findFirst({ where: and(eq(erpSupplierQuotations.id, quotationId), eq(erpSupplierQuotations.orgId, ctx.orgId)) })
     if (!quotation) throw new ServiceError("Quotation not found", 404)
@@ -311,6 +328,7 @@ export async function addNegotiationRound(ctx: { orgId: string; userId: string }
 }
 
 export async function listNegotiationRounds(ctx: { orgId: string }, quotationId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpRfqNegotiationRounds.findMany({
       where: and(eq(erpRfqNegotiationRounds.orgId, ctx.orgId), eq(erpRfqNegotiationRounds.quotationId, quotationId)),
@@ -325,6 +343,7 @@ export async function listNegotiationRounds(ctx: { orgId: string }, quotationId:
 // undercut the current lowest; the auction's currentLowestBid/
 // currentLeaderSupplierId are updated atomically with the bid insert.
 export async function createReverseAuction(ctx: { orgId: string; userId: string }, rfqId: string, input: { startAt: string; endAt: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const rfq = await db.query.erpRfqs.findFirst({ where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)) })
     if (!rfq) throw new ServiceError("RFQ not found", 404)
@@ -336,6 +355,7 @@ export async function createReverseAuction(ctx: { orgId: string; userId: string 
 }
 
 export async function listReverseAuctions(ctx: { orgId: string }, rfqId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpRfqReverseAuctions.findMany({
       where: rfqId ? and(eq(erpRfqReverseAuctions.orgId, ctx.orgId), eq(erpRfqReverseAuctions.rfqId, rfqId)) : eq(erpRfqReverseAuctions.orgId, ctx.orgId),
@@ -345,6 +365,7 @@ export async function listReverseAuctions(ctx: { orgId: string }, rfqId?: string
 }
 
 export async function closeReverseAuction(ctx: { orgId: string; userId: string }, auctionId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const auction = await db.query.erpRfqReverseAuctions.findFirst({ where: and(eq(erpRfqReverseAuctions.id, auctionId), eq(erpRfqReverseAuctions.orgId, ctx.orgId)) })
     if (!auction) throw new ServiceError("Auction not found", 404)
@@ -357,6 +378,7 @@ export async function closeReverseAuction(ctx: { orgId: string; userId: string }
 }
 
 export async function listAuctionBids(ctx: { orgId: string }, auctionId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpRfqAuctionBids.findMany({
       where: and(eq(erpRfqAuctionBids.orgId, ctx.orgId), eq(erpRfqAuctionBids.auctionId, auctionId)),

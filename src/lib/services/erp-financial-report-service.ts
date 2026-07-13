@@ -13,6 +13,7 @@ import { and, eq, lte, gte, sql, inArray, ne } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { getCompanyDescendantIds } from "./erp-company-service"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 // Wave 82 (Period Closing checklist workflow, COMPARISON_CSV_GAP_ANALYSIS.md
 // backlog #3): a real month-end close always needs the same handful of
@@ -31,6 +32,7 @@ const DEFAULT_CHECKLIST_ITEMS: { title: string; taskType: string }[] = [
 
 /** Generates one open period per calendar month spanning the fiscal year -- the concrete, usable starting point an org needs before any period-lock control means anything. */
 export async function generatePeriodsForFiscalYear(ctx: { orgId: string }, fiscalYearId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const fy = await db.query.erpFiscalYears.findFirst({ where: and(eq(erpFiscalYears.id, fiscalYearId), eq(erpFiscalYears.orgId, ctx.orgId)) })
     if (!fy) throw new ServiceError("Fiscal year not found", 404)
@@ -70,6 +72,7 @@ export async function generatePeriodsForFiscalYear(ctx: { orgId: string }, fisca
  * starts using periods, closing one is an explicit act (closedAt set).
  */
 export async function isPeriodOpenForDate(ctx: { orgId: string }, isoDate: string): Promise<boolean> {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({
       where: and(eq(erpAccountingPeriods.orgId, ctx.orgId), lte(erpAccountingPeriods.startDate, isoDate), gte(erpAccountingPeriods.endDate, isoDate)),
@@ -80,6 +83,7 @@ export async function isPeriodOpenForDate(ctx: { orgId: string }, isoDate: strin
 }
 
 export async function listPeriods(ctx: { orgId: string }, fiscalYearId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpAccountingPeriods.findMany({
       where: fiscalYearId
@@ -95,6 +99,7 @@ export async function listPeriods(ctx: { orgId: string }, fiscalYearId?: string)
 // exists, so this never blocks an org that hasn't opted into using it yet
 // on a period with zero items (empty checklist = vacuously "all complete").
 export async function listChecklistItems(ctx: { orgId: string }, periodId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
     if (!period) throw new ServiceError("Period not found", 404)
@@ -113,6 +118,7 @@ export async function listChecklistItems(ctx: { orgId: string }, periodId: strin
 }
 
 export async function addChecklistItem(ctx: { orgId: string; userId: string }, periodId: string, input: { title: string; taskType?: string; assignedToId?: string }) {
+  await requireErpEnabled(ctx.orgId)
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
 
@@ -130,6 +136,7 @@ export async function addChecklistItem(ctx: { orgId: string; userId: string }, p
 }
 
 export async function completeChecklistItem(ctx: { orgId: string; userId: string }, itemId: string, notes?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const item = await db.query.erpPeriodClosingChecklistItems.findFirst({ where: and(eq(erpPeriodClosingChecklistItems.id, itemId), eq(erpPeriodClosingChecklistItems.orgId, ctx.orgId)) })
     if (!item) throw new ServiceError("Checklist item not found", 404)
@@ -148,6 +155,7 @@ async function assertChecklistComplete(db: Parameters<Parameters<typeof withTena
 }
 
 export async function signOffPeriod(ctx: { orgId: string; userId: string }, periodId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
     if (!period) throw new ServiceError("Period not found", 404)
@@ -161,6 +169,7 @@ export async function signOffPeriod(ctx: { orgId: string; userId: string }, peri
 }
 
 export async function closePeriod(ctx: { orgId: string; userId: string }, periodId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
     if (!period) throw new ServiceError("Period not found", 404)
@@ -175,6 +184,7 @@ export async function closePeriod(ctx: { orgId: string; userId: string }, period
 }
 
 export async function reopenPeriod(ctx: { orgId: string; userId: string }, periodId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const period = await db.query.erpAccountingPeriods.findFirst({ where: and(eq(erpAccountingPeriods.id, periodId), eq(erpAccountingPeriods.orgId, ctx.orgId)) })
     if (!period) throw new ServiceError("Period not found", 404)
@@ -251,6 +261,7 @@ async function resolveCompanyScope(ctx: { orgId: string }, scope?: CompanyScope)
 
 /** Trial Balance: every account's cumulative debit/credit as of a date, from inception. */
 export async function trialBalance(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
   const companyIds = await resolveCompanyScope(ctx, scope)
   const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate, companyIds)
   const totalDebit = balances.reduce((sum, b) => sum + b.totalDebit, 0)
@@ -260,6 +271,7 @@ export async function trialBalance(ctx: { orgId: string }, asOfDate: string, sco
 
 /** Profit & Loss: income/expense accounts only, over a period (not cumulative from inception). */
 export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
   const companyIds = await resolveCompanyScope(ctx, scope)
   const balances = await accountBalancesInRange(ctx.orgId, fromDate, toDate, companyIds)
   const income = balances.filter((b) => b.rootType === "income")
@@ -272,6 +284,7 @@ export async function profitAndLoss(ctx: { orgId: string }, fromDate: string, to
 
 /** Balance Sheet: asset/liability/equity accounts, cumulative as of a date. */
 export async function balanceSheet(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
   const companyIds = await resolveCompanyScope(ctx, scope)
   const balances = await accountBalancesInRange(ctx.orgId, null, asOfDate, companyIds)
   const assets = balances.filter((b) => b.rootType === "asset")
@@ -302,6 +315,7 @@ export async function balanceSheet(ctx: { orgId: string }, asOfDate: string, sco
  * derivation, not a ported ERPNext/Odoo cash-flow report.
  */
 export async function cashFlowStatement(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
   const companyIds = await resolveCompanyScope(ctx, scope)
   const pnl = await profitAndLoss(ctx, fromDate, toDate, scope)
 

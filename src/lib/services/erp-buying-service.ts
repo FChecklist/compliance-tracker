@@ -7,10 +7,12 @@ import { eq, and, ne, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export async function listSuppliers(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSuppliers.findMany({ where: eq(erpSuppliers.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.supplierName) })
   })
@@ -26,6 +28,7 @@ export async function listSuppliers(ctx: { orgId: string }) {
 export type SupplierInput = { supplierName: string; supplierType?: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number; trade?: string; projectId?: string }
 
 export async function createSupplier(ctx: { orgId: string }, input: SupplierInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.supplierName?.trim()) throw new ServiceError("supplierName is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [supplier] = await db.insert(erpSuppliers).values({
@@ -38,6 +41,7 @@ export async function createSupplier(ctx: { orgId: string }, input: SupplierInpu
 }
 
 export async function updateSupplier(ctx: { orgId: string }, supplierId: string, input: Partial<SupplierInput>) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
     if (!supplier) throw new ServiceError("Supplier not found", 404)
@@ -65,6 +69,7 @@ export async function updateSupplier(ctx: { orgId: string }, supplierId: string,
 export type PurchaseOrderItemInput = { itemId?: string; description: string; quantity?: number; rate?: number }
 
 export async function listPurchaseOrders(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpPurchaseOrders.findMany({
       where: eq(erpPurchaseOrders.orgId, ctx.orgId),
@@ -75,6 +80,7 @@ export async function listPurchaseOrders(ctx: { orgId: string }) {
 }
 
 export async function getPurchaseOrder(ctx: { orgId: string }, purchaseOrderId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const po = await db.query.erpPurchaseOrders.findFirst({
       where: and(eq(erpPurchaseOrders.id, purchaseOrderId), eq(erpPurchaseOrders.orgId, ctx.orgId)),
@@ -89,6 +95,7 @@ export async function createPurchaseOrder(
   ctx: ErpContext,
   input: { supplierId: string; orderDate: string; expectedDeliveryDate?: string; items: PurchaseOrderItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -120,6 +127,7 @@ export async function createPurchaseOrder(
 }
 
 export async function submitPurchaseOrder(ctx: ErpContext, purchaseOrderId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const po = await db.query.erpPurchaseOrders.findFirst({ where: and(eq(erpPurchaseOrders.id, purchaseOrderId), eq(erpPurchaseOrders.orgId, ctx.orgId)) })
     if (!po) throw new ServiceError("Purchase order not found", 404)
@@ -132,6 +140,7 @@ export async function submitPurchaseOrder(ctx: ErpContext, purchaseOrderId: stri
 
 /** Wave 68: assigns (or clears, if categoryId is undefined) a supplier's default Tax Withholding Category -- the opt-in switch for vendor-payment TDS auto-computation at invoice-submit time. */
 export async function updateSupplierTaxWithholding(ctx: { orgId: string }, supplierId: string, categoryId: string | undefined) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
     if (!supplier) throw new ServiceError("Supplier not found", 404)
@@ -154,6 +163,7 @@ export type SupplierScorecard = {
 }
 
 export async function getSupplierScorecard(ctx: { orgId: string }, supplierId: string): Promise<SupplierScorecard> {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
     if (!supplier) throw new ServiceError("Supplier not found", 404)
@@ -196,6 +206,7 @@ export async function getSupplierScorecard(ctx: { orgId: string }, supplierId: s
 }
 
 export async function listSupplierScorecards(ctx: { orgId: string }): Promise<SupplierScorecard[]> {
+  await requireErpEnabled(ctx.orgId)
   const suppliers = await listSuppliers(ctx)
   const scorecards: SupplierScorecard[] = []
   for (const s of suppliers) {

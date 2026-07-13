@@ -11,8 +11,10 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export async function listCustomers(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCustomers.findMany({ where: eq(erpCustomers.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.customerName) })
   })
@@ -21,6 +23,7 @@ export async function listCustomers(ctx: { orgId: string }) {
 export type CustomerInput = { customerName: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number }
 
 export async function createCustomer(ctx: { orgId: string }, input: CustomerInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.customerName?.trim()) throw new ServiceError("customerName is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [customer] = await db.insert(erpCustomers).values({
@@ -32,6 +35,7 @@ export async function createCustomer(ctx: { orgId: string }, input: CustomerInpu
 }
 
 export async function updateCustomer(ctx: { orgId: string }, customerId: string, input: Partial<CustomerInput>) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, customerId), eq(erpCustomers.orgId, ctx.orgId)) })
     if (!customer) throw new ServiceError("Customer not found", 404)

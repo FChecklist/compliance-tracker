@@ -8,6 +8,7 @@ import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -16,6 +17,7 @@ export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$
 // ============================================================
 
 export async function listUomConversions(ctx: { orgId: string }, itemId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpItemUomConversions.findMany({
       where: itemId ? and(eq(erpItemUomConversions.orgId, ctx.orgId), eq(erpItemUomConversions.itemId, itemId)) : eq(erpItemUomConversions.orgId, ctx.orgId),
@@ -25,6 +27,7 @@ export async function listUomConversions(ctx: { orgId: string }, itemId?: string
 }
 
 export async function createUomConversion(ctx: ErpContext, input: { itemId: string; uom: string; conversionFactor: number }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.uom?.trim()) throw new ServiceError("uom is required", 400)
   if (input.conversionFactor <= 0) throw new ServiceError("conversionFactor must be positive", 400)
 
@@ -64,6 +67,7 @@ export async function convertToStockUom(db: TenantDb, orgId: string, itemId: str
 // ============================================================
 
 export async function listBatches(ctx: { orgId: string }, itemId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpItemBatches.findMany({
       where: itemId ? and(eq(erpItemBatches.orgId, ctx.orgId), eq(erpItemBatches.itemId, itemId)) : eq(erpItemBatches.orgId, ctx.orgId),
@@ -74,6 +78,7 @@ export async function listBatches(ctx: { orgId: string }, itemId?: string) {
 }
 
 export async function createBatch(ctx: ErpContext, input: { itemId: string; batchNumber: string; manufacturingDate?: string; expiryDate?: string }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.batchNumber?.trim()) throw new ServiceError("batchNumber is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -95,6 +100,7 @@ export async function createBatch(ctx: ErpContext, input: { itemId: string; batc
 // ============================================================
 
 export async function listSerials(ctx: { orgId: string }, itemId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpItemSerials.findMany({
       where: itemId ? and(eq(erpItemSerials.orgId, ctx.orgId), eq(erpItemSerials.itemId, itemId)) : eq(erpItemSerials.orgId, ctx.orgId),
@@ -105,6 +111,7 @@ export async function listSerials(ctx: { orgId: string }, itemId?: string) {
 }
 
 export async function createSerials(ctx: ErpContext, input: { itemId: string; serialNumbers: string[]; warehouseId?: string }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.serialNumbers?.length) throw new ServiceError("At least one serial number is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -121,6 +128,7 @@ export async function createSerials(ctx: ErpContext, input: { itemId: string; se
 }
 
 export async function updateSerialStatus(ctx: ErpContext, serialId: string, status: "in_stock" | "delivered" | "returned") {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const serial = await db.query.erpItemSerials.findFirst({ where: and(eq(erpItemSerials.id, serialId), eq(erpItemSerials.orgId, ctx.orgId)) })
     if (!serial) throw new ServiceError("Serial not found", 404)
