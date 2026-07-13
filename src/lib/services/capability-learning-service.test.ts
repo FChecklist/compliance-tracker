@@ -5,7 +5,7 @@
 // matching this codebase's established convention (see task-service.test.ts/
 // approval-workflow-service.test.ts's own stated precedent).
 import { describe, test, expect } from "bun:test"
-import { deriveCapabilityKey, tokenizePrompt, wordOverlapScore, computeCoverageStats, ServiceError } from "./capability-learning-service"
+import { deriveCapabilityKey, tokenizePrompt, wordOverlapScore, computeCoverageStats, deriveCapabilityStatus, ServiceError } from "./capability-learning-service"
 
 describe("deriveCapabilityKey", () => {
   test("produces a stable dotted slug from modePill + pathKeys", () => {
@@ -98,5 +98,46 @@ describe("computeCoverageStats", () => {
     const stats = computeCoverageStats(1, 1, 1) // 33.33/33.33/33.33
     expect(stats.total).toBe(3)
     expect(stats.fullSoftwarePercent + stats.packageAvailablePercent + stats.novelPercent).toBeGreaterThanOrEqual(99)
+  })
+})
+
+describe("deriveCapabilityStatus", () => {
+  test("a never-executed capability (zero observations) stays at the 'ai_only' default", () => {
+    expect(deriveCapabilityStatus(0, 0, 0)).toBe("ai_only")
+  })
+
+  test("below the 5-observation floor stays 'ai_only' even if every observation so far was FULL_SOFTWARE", () => {
+    // 3 total, 100% full-software -- too few data points to trust yet.
+    expect(deriveCapabilityStatus(3, 0, 0)).toBe("ai_only")
+  })
+
+  test("at the observation floor, an overwhelming (>=80%) full-software majority transitions to 'full_software'", () => {
+    // 5 total, 4 full-software (80%) -- exactly the threshold.
+    expect(deriveCapabilityStatus(4, 0, 1)).toBe("full_software")
+  })
+
+  test("just under the 80% full-software bar reads 'partial', not 'full_software'", () => {
+    // 5 total, 3 full-software (60%), 1 package, 1 novel -- neither
+    // dominant bucket clears its own threshold.
+    expect(deriveCapabilityStatus(3, 1, 1)).toBe("partial")
+  })
+
+  test("a capability still mostly NOVEL (>=60%) at the observation floor stays 'ai_only'", () => {
+    // 5 total, 3 novel (60%) -- meets the "still mostly novel" bar.
+    expect(deriveCapabilityStatus(1, 1, 3)).toBe("ai_only")
+  })
+
+  test("a genuine three-way mix with no dominant bucket reads 'partial'", () => {
+    // 10 total: 4 full-software (40%), 3 package (30%), 3 novel (30%) --
+    // no bucket clears either the 80% or 60% bar.
+    expect(deriveCapabilityStatus(4, 3, 3)).toBe("partial")
+  })
+
+  test("a large sample overwhelmingly full-software reads 'full_software' regardless of scale", () => {
+    expect(deriveCapabilityStatus(950, 30, 20)).toBe("full_software")
+  })
+
+  test("a large sample overwhelmingly novel reads 'ai_only' regardless of scale", () => {
+    expect(deriveCapabilityStatus(20, 30, 950)).toBe("ai_only")
   })
 })
