@@ -3843,11 +3843,18 @@ export const savedReports = complianceSchemaDB.table('saved_reports', {
   name: text('name').notNull(),
   description: text('description'),
   ownedById: text('owned_by_id').notNull(),
-  sourceEntity: text('source_entity').notNull(), // 'compliance_items' | 'notices' | 'risks' | 'pms_issues' | 'incidents'
+  sourceEntity: text('source_entity').notNull(), // 'compliance_items' | 'notices' | 'risks' | 'pms_issues' | 'incidents' | ... (live query) | 'ai_generated' (static, see aiGeneratedData)
   filters: jsonb('filters').notNull().default({}),
   groupByField: text('group_by_field'),
   chartType: text('chart_type').notNull().default('table'), // 'table' | 'bar' | 'pie' | 'line'
   visibility: text('visibility').notNull().default('private'), // 'private' | 'shared'
+  // Wave (2026-07-13, AI Report Builder / "Need a Report?" upload flow,
+  // drizzle/0177_ai_report_builder.sql): only ever populated when
+  // sourceEntity = 'ai_generated' -- a static, AI-proposed report built from
+  // a user-uploaded image/Excel/Word file, not a live whitelisted query.
+  // Shape: AiGeneratedReportData in ai-report-builder-service.ts.
+  aiGeneratedData: jsonb('ai_generated_data'),
+  sourceFileName: text('source_file_name'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

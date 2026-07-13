@@ -10,11 +10,16 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Presentation,
+  FileType2,
+  FileCode2,
+  Sparkles,
 } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { exportPPTX, exportDocx, exportHTML } from "@/lib/report-export";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -372,6 +377,21 @@ export default function ReportsPage() {
     doc.save(`compliance-report-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
 
+  // PPTX/Word/HTML exports (src/lib/report-export.ts) -- all three consume
+  // the exact same buildExportRows() output as CSV/Excel/PDF above, so
+  // every export format stays column-consistent by construction (no forked
+  // data-shaping path).
+  const exportMeta = { title: "VERIDIAN Compliance Report", fileNamePrefix: "compliance-report" };
+  const handleExportPPTX = () => {
+    void exportPPTX(buildExportRows(), exportMeta);
+  };
+  const handleExportDocx = () => {
+    void exportDocx(buildExportRows(), exportMeta);
+  };
+  const handleExportHTML = () => {
+    exportHTML(buildExportRows(), exportMeta);
+  };
+
   if (loading) return <ReportsSkeleton />;
 
   return (
@@ -408,6 +428,43 @@ export default function ReportsPage() {
             <FileText className="size-4 mr-2" />
             Export PDF
           </Button>
+          {/* Wave (2026-07-13): PPT/Word/HTML export -- same buildExportRows()
+              data, same button style as the 3 exports above (per PR #104's
+              precedent), added via src/lib/report-export.ts. */}
+          <Button
+            onClick={handleExportPPTX}
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <Presentation className="size-4 mr-2" />
+            Export PPT
+          </Button>
+          <Button
+            onClick={handleExportDocx}
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <FileType2 className="size-4 mr-2" />
+            Export Word
+          </Button>
+          <Button
+            onClick={handleExportHTML}
+            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"
+          >
+            <FileCode2 className="size-4 mr-2" />
+            Export HTML
+          </Button>
+          {/* "Need a Report / Need an Analysis" upload-to-AI flow (Owner
+              request, 2026-07-13) -- links to the new
+              src/app/(app)/reports/create page; no existing lines here
+              touched, purely additive. */}
+          <Link href="/reports/create">
+            <Button
+              variant="outline"
+              className="border-ct-saffron text-ct-saffron hover:bg-ct-saffron/10"
+            >
+              <Sparkles className="size-4 mr-2" />
+              Need a Report? Upload &amp; let AI build it
+            </Button>
+          </Link>
         </div>
       </div>
 
