@@ -1802,3 +1802,80 @@ entries:
         Unit Tests) plus E2E Tests and audit-check; only the pre-existing,
         unrelated "Vercel" preview-deployment check failed, consistent
         with every other recent wave on this repo.
+  - id: WAVE-177
+    title: "Priority 12 (OPEN-07, Universal Builder) fully closed -- Owner-directed sole ownership, 11 of 12 numbered points shipped, 1 confirmed a pre-existing gap in the original numbering"
+    doer:
+      agent: "claude-code (Super Boss) directly for the foundation pass (PR #296/#297) and all cross-PR audit fixes; 3 parallel worktree-isolated sub-agents for PR #298/#299/#300, dispatched and reconciled by the same session"
+      date: "2026-07-14"
+      pr: "296, 297, 298, 299, 300 (point 8 itself closed earlier the same day via PR #282)"
+      summary: >
+        Owner instructed this session directly, in chat, to take Priority 12
+        through to full closure -- superseding the prior "wait for Priority
+        11's OPEN-06" soft-gate deferral -- and to resolve any conflicts
+        found along the way. PR #296: chief_audit_officer moved to DeepSeek
+        V4 Pro per the Owner's own 3-rung-ladder decision (b), capability-
+        audit's escalation dispatch switched from the dead GITHUB_DISPATCH_PAT
+        repository_dispatch path to a new advisory-dispatch-service.ts
+        (decision a), and a real cron trigger (/api/internal/capability-audit/run)
+        wired for runCapabilityAudit(), which previously had zero callers
+        anywhere in the deployed app. PR #297: task_capabilities surfaced as
+        a real, DB-driven "Learned Capabilities" branch in the Chain
+        Selector (points 3+7), grown the same "no hand-authored taxonomy"
+        way every other branch in capability-tree-service.ts already works.
+        PR #298 (sub-agent, audited/fixed by this session): task_capabilities.status
+        now derived live from the rolling FULL_SOFTWARE/PACKAGE_AVAILABLE/
+        NOVEL counters inside the same transaction that updates them (point
+        6), plus docs/ESCALATION_MATRIX.md honestly cross-referencing the 5
+        real escalation mechanisms and stating explicitly where they do NOT
+        talk to each other (point 10). PR #299 (sub-agent): the identical
+        "zero branch-check" gap independently confirmed in the Reports &
+        Analysis Engine -- gated ERP/construction-domain report execution
+        and catalog listing the same way ERP/Sales got gated in PR #282,
+        including a real usage-based backfill for the previously-unenforced
+        'construction' branch. PR #300 (sub-agent): a narrow, non-duplicating
+        cross-reference between VERI FDE (capability-registry-service.ts)
+        and Dynamic-Chain/Chat (capability-learning-service.ts) -- two
+        catalogs that answer the same "has the platform seen this before?"
+        question but never talked to each other (point 1) -- plus the first
+        real UI/API surface for capability_improvement_proposals, since
+        closeImprovementLoop() had been manual/human-only (point 5).
+    auditor:
+      agent: "claude-code (Super Boss, same session) -- self-certified for the 2 PRs it authored directly (#296/#297), disclosed per this repo's established transparency precedent; genuinely independent for the 3 sub-agent PRs (#298/#299/#300), per Rule 7c (doer != auditor)"
+      date: "2026-07-14"
+      verdict: PASS
+      summary: >
+        Found and fixed 3 real cross-PR migration-number collisions before
+        merging, none of which the individual PRs could have caught alone:
+        PR #298, #299, and #300 each independently claimed migration 0190
+        (task_capabilities.status backfill, construction-branch backfill,
+        and capability_improvement_proposals.rejection_reason respectively)
+        -- renumbered to 0190/0191/0192 in merge order, same "whichever
+        lands later renumbers" precedent already established for the
+        WAVE-175/176 doc-id collision earlier the same day. Also found a
+        genuine correctness bug in PR #298's backfill migration: its SQL
+        used a naive integer cross-multiplication that its own comment
+        claimed matched deriveCapabilityStatus() exactly but didn't --
+        that function compares Math.round()'d percentages, satisfied by
+        raw values as low as 79.5%/59.5%, not just the literal 80%/60% the
+        naive SQL checked. Brute-force verified every (full, package,
+        novel) combination up to total=500 both before and after the fix
+        -- zero mismatches after rescaling to one-decimal precision.
+        Applied all migrations live via Supabase MCP (verdian-ai project,
+        pcrjmlpuqsbocqfwoxod) and re-queried to confirm; get_advisors(security)
+        showed zero new findings across every change. Re-ran tsc --noEmit
+        and the relevant test suites personally after every rebase/fix
+        before pushing, not just trusting each sub-agent's own report. All
+        6 PRs' required CI gates (Lint/Type Check/Build/Unit Tests/E2E
+        Tests/audit-check) green; only the pre-existing, unrelated Vercel
+        preview-deployment check failed on each, consistent with every
+        other recent wave on this repo. Honest, not oversold: point 9 of
+        the Owner's original 12-point numbering was never separately
+        itemized anywhere in this tracker's own OPEN-07 detail (the list
+        jumps 8 -> 10) -- flagged as a gap in the original gap-analysis
+        itself, not invented as a retroactive point to claim a clean
+        12-for-12. Full production end-to-end verification (a real
+        OpenRouter call reaching the new cron/advisory-dispatch path) was
+        not possible from this local dev environment -- no
+        OPENROUTER_API_KEY/DATABASE_URL available outside the Supabase
+        MCP/CI -- flagged in PR #296's own audit comment as a recommended
+        live spot-check for whichever session next has deploy access.
