@@ -815,6 +815,20 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   // supervisor routing, etc.) is a real, separate feature, not something to
   // infer is "almost done" from this column's presence.
   supervisorWorkerAgentId: text('supervisor_worker_agent_id'),
+  // Real Agent Hierarchy Registry, added after the investigation above
+  // confirmed supervisorWorkerAgentId's 1:1 self-FK shape doesn't fit this
+  // table's actual data (independent capability/tool rows, not agents with
+  // people-style reporting lines). Every real worker_agents row's `domain`
+  // column already follows a "Category > Subcategory" convention -- the
+  // top-level Category is a real, non-arbitrary department grouping,
+  // structurally the same shape as roster.ts's own TeamName enum (a small,
+  // bounded, governable set). See drizzle/0173_worker_agent_domain_groups.sql
+  // for the full reasoning and the live backfill (0 of 27 rows null as of
+  // that migration). Resolved automatically at proposal time by
+  // worker-agent-service.ts's resolveDomainGroupKey() -- see its own comment
+  // for why unrecognized categories fall back to 'general' rather than
+  // auto-growing this table at request time.
+  domainGroupId: text('domain_group_id'),
   proposedById: text('proposed_by_id'),
   projectId: text('project_id'), // Wave 19: optional Product/Project (L2) scope -- distinct from tier='client' (a broader client-account scope)
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -857,6 +871,21 @@ export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_dom
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   domainPath: text('domain_path').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Real Agent Hierarchy Registry (AHR) -- see workerAgents.domainGroupId's
+// own comment and drizzle/0173_worker_agent_domain_groups.sql for the full
+// reasoning. Deliberately a small, bounded, hand-curated set (like
+// roster.ts's TeamName), not auto-grown by app code at request time --
+// app_runtime only has SELECT on this table at the DB level (RLS), so a
+// genuinely new top-level category always falls back to 'general' until a
+// human adds a real row here via a reviewed migration.
+export const workerAgentDomainGroups = complianceSchemaDB.table('worker_agent_domain_groups', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  key: text('key').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -1930,8 +1959,16 @@ export const workerAgentsRelations = relations(workerAgents, ({ one, many }) => 
   domainIndex: many(workerAgentDomainIndex),
   // Wave 16: "Digital Department" grouping -- self-referencing, needs
   // relationName to disambiguate the two directions on the same table.
+  // Confirmed dead (see the column's own comment) -- kept, not removed, as
+  // a reserved/not-yet-implemented relation.
   supervisor: one(workerAgents, { fields: [workerAgents.supervisorWorkerAgentId], references: [workerAgents.id], relationName: 'workerAgentSupervisor' }),
   subordinates: many(workerAgents, { relationName: 'workerAgentSupervisor' }),
+  // Real Agent Hierarchy Registry grouping -- see domainGroupId's own comment.
+  domainGroup: one(workerAgentDomainGroups, { fields: [workerAgents.domainGroupId], references: [workerAgentDomainGroups.id] }),
+}))
+
+export const workerAgentDomainGroupsRelations = relations(workerAgentDomainGroups, ({ many }) => ({
+  members: many(workerAgents),
 }))
 
 export const workerAgentVersionsRelations = relations(workerAgentVersions, ({ one }) => ({

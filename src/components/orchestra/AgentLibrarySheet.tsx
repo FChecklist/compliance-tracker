@@ -41,6 +41,11 @@ type WorkerAgent = {
   version: number;
   usageCount: number;
   accuracyScore: string | null;
+  // Real Agent Hierarchy Registry grouping (see worker-agent-service.ts's
+  // resolveDomainGroupKey / schema.ts's workerAgents.domainGroupId) --
+  // replaces the dead supervisorWorkerAgentId as this sheet's "which
+  // department is this agent in" signal.
+  domainGroup: { id: string; key: string; name: string } | null;
 };
 
 export function AgentLibrarySheet() {
@@ -108,6 +113,11 @@ export function AgentLibrarySheet() {
                           {agent.isImmutable && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">
                               Immutable
+                            </Badge>
+                          )}
+                          {agent.domainGroup && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                              {agent.domainGroup.name}
                             </Badge>
                           )}
                         </div>
