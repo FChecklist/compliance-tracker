@@ -18,10 +18,12 @@ import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export async function listEInvoiceLogs(ctx: { orgId: string }, invoiceId?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpEInvoiceLogs.findMany({
       where: invoiceId
@@ -42,6 +44,7 @@ export async function listEInvoiceLogs(ctx: { orgId: string }, invoiceId?: strin
  * (Wave 65's HSN/SAC, Wave 66's exchangeRate).
  */
 export async function generateEInvoicePayload(ctx: ErpContext, invoiceId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const invoice = await db.query.erpSalesInvoices.findFirst({ where: and(eq(erpSalesInvoices.id, invoiceId), eq(erpSalesInvoices.orgId, ctx.orgId)) })
     if (!invoice) throw new ServiceError("Sales invoice not found", 404)
@@ -96,6 +99,7 @@ export async function markEInvoiceGenerated(
   ctx: ErpContext, logId: string,
   input: { irn: string; ackNumber: string; ackDate: string; signedInvoice?: string; signedQrCode?: string; isGeneratedInSandbox?: boolean }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.irn?.trim()) throw new ServiceError("irn is required", 400)
   if (!input.ackNumber?.trim()) throw new ServiceError("ackNumber is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -115,6 +119,7 @@ export async function markEInvoiceGenerated(
 }
 
 export async function cancelEInvoice(ctx: ErpContext, logId: string, input: { cancelReasonCode: string; cancelRemark?: string }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.cancelReasonCode?.trim()) throw new ServiceError("cancelReasonCode is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const log = await db.query.erpEInvoiceLogs.findFirst({ where: and(eq(erpEInvoiceLogs.id, logId), eq(erpEInvoiceLogs.orgId, ctx.orgId)) })

@@ -12,6 +12,7 @@ import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -22,6 +23,7 @@ function computeTotal(items: CreditNoteItemInput[]): number {
 }
 
 export async function listSalesCreditNotes(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSalesCreditNotes.findMany({ where: eq(erpSalesCreditNotes.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.postingDate) })
   })
@@ -31,6 +33,7 @@ export async function createSalesCreditNote(
   ctx: ErpContext,
   input: { customerId: string; salesInvoiceId?: string; postingDate: string; reason?: string; items: CreditNoteItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -60,6 +63,7 @@ export async function createSalesCreditNote(
 }
 
 export async function submitSalesCreditNote(ctx: ErpContext, noteId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const note = await db.query.erpSalesCreditNotes.findFirst({ where: and(eq(erpSalesCreditNotes.id, noteId), eq(erpSalesCreditNotes.orgId, ctx.orgId)) })
     if (!note) throw new ServiceError("Sales credit note not found", 404)
@@ -71,6 +75,7 @@ export async function submitSalesCreditNote(ctx: ErpContext, noteId: string) {
 }
 
 export async function listPurchaseCreditNotes(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpPurchaseCreditNotes.findMany({ where: eq(erpPurchaseCreditNotes.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.postingDate) })
   })
@@ -80,6 +85,7 @@ export async function createPurchaseCreditNote(
   ctx: ErpContext,
   input: { supplierId: string; purchaseInvoiceId?: string; postingDate: string; reason?: string; items: CreditNoteItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -109,6 +115,7 @@ export async function createPurchaseCreditNote(
 }
 
 export async function submitPurchaseCreditNote(ctx: ErpContext, noteId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const note = await db.query.erpPurchaseCreditNotes.findFirst({ where: and(eq(erpPurchaseCreditNotes.id, noteId), eq(erpPurchaseCreditNotes.orgId, ctx.orgId)) })
     if (!note) throw new ServiceError("Purchase credit note not found", 404)
