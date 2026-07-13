@@ -41,7 +41,7 @@
 // (this file's existing validation logic/exit codes are otherwise
 // untouched), and its own failure is deliberately non-fatal -- a
 // DATABASE_URL that isn't configured, or a live DB whose
-// audit_protocol_findings migration (drizzle/0175) hasn't been applied yet,
+// audit_protocol_findings migration (drizzle/0176) hasn't been applied yet,
 // must never turn an
 // otherwise-valid PASS/FAIL verdict into a blocked merge over an unrelated
 // persistence hiccup. Same fail-open-on-the-side-effect posture as
@@ -55,7 +55,7 @@
 import { validateAuditProtocolFields, type AuditProtocolFields } from "../src/lib/audit-protocol"
 // Named auditProtocolFindings, NOT auditFindings -- that name is already
 // taken by an unrelated, pre-existing, org-scoped internal-audit-engagement
-// CAPA findings table in schema.ts. See drizzle/0175_audit_protocol_findings.sql's
+// CAPA findings table in schema.ts. See drizzle/0176_audit_protocol_findings.sql's
 // header for the full collision writeup.
 import { db, auditProtocolFindings } from "../src/lib/db"
 
@@ -108,7 +108,7 @@ function parseAuditComment(body: string): Partial<AuditProtocolFields> | null {
 }
 
 // Best-effort, non-fatal persistence of a validated audit verdict into
-// compliance.audit_protocol_findings (drizzle/0175). Never throws -- every
+// compliance.audit_protocol_findings (drizzle/0176). Never throws -- every
 // failure mode (no DATABASE_URL configured, migration not yet applied live,
 // network error) is caught and logged as a GitHub Actions warning
 // annotation, not an error, so it never affects this script's exit code.

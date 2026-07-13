@@ -32,7 +32,7 @@
 //
 // GAP-UNIFIED-SOT-REMAINDER slice (d), additive: `auditFindingsSummary`
 // below is a pass/fail/pending rollup of compliance.audit_protocol_findings
-// (drizzle/0175) -- a fourth, DB-backed source alongside the two YAML files
+// (drizzle/0176) -- a fourth, DB-backed source alongside the two YAML files
 // this module already reads, folded into the same "always-current
 // companion" view rather than a second endpoint. Same discipline as every
 // other field here: additive only, computed live, never replaces
@@ -119,7 +119,7 @@ export type AuditFindingsSummary = {
   /** Rows whose `verdict` column is missing or not literally "pass"/"fail" -- kept visible rather than silently folded into either bucket. */
   pending: number
   total: number
-  /** Non-null only when the DB read itself failed (e.g. compliance.audit_protocol_findings' migration, drizzle/0175, hasn't been applied to this environment yet, or DATABASE_URL isn't configured) -- a query failure is reported here, not silently reported as zero counts with no explanation. */
+  /** Non-null only when the DB read itself failed (e.g. compliance.audit_protocol_findings' migration, drizzle/0176, hasn't been applied to this environment yet, or DATABASE_URL isn't configured) -- a query failure is reported here, not silently reported as zero counts with no explanation. */
   unavailableReason: string | null
 }
 
@@ -175,7 +175,7 @@ export function computeAuditFindingsSummary(rows: Array<{ verdict: string | null
  * swallowed and not allowed to break loadStatusSourceOfTruth()'s existing
  * callers (the governance-health route worked before this table existed and
  * must keep working while the migration is still pending live-DB
- * application -- see drizzle/0175_audit_protocol_findings.sql's header).
+ * application -- see drizzle/0176_audit_protocol_findings.sql's header).
  */
 async function loadAuditFindingsSummary(): Promise<AuditFindingsSummary> {
   try {
@@ -187,7 +187,7 @@ async function loadAuditFindingsSummary(): Promise<AuditFindingsSummary> {
       fail: 0,
       pending: 0,
       total: 0,
-      unavailableReason: `audit_protocol_findings query failed (likely migration drizzle/0175 not yet applied, or DATABASE_URL not configured): ${err instanceof Error ? err.message : String(err)}`,
+      unavailableReason: `audit_protocol_findings query failed (likely migration drizzle/0176 not yet applied, or DATABASE_URL not configured): ${err instanceof Error ? err.message : String(err)}`,
     }
   }
 }
