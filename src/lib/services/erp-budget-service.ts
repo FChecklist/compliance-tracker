@@ -8,17 +8,20 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, lte, gte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+import { requireErpEnabled } from "./erp-enablement-service"
 
 type BudgetLineItemInput = { accountId: string; annualAmount: number }
 type BudgetAction = "ignore" | "warn" | "stop"
 
 export async function listBudgets(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpBudgets.findMany({ where: eq(erpBudgets.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
   })
 }
 
 export async function getBudget(ctx: { orgId: string }, budgetId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const budget = await db.query.erpBudgets.findFirst({ where: and(eq(erpBudgets.id, budgetId), eq(erpBudgets.orgId, ctx.orgId)) })
     if (!budget) throw new ServiceError("Budget not found", 404)
@@ -31,6 +34,7 @@ export async function createBudget(
   ctx: { orgId: string; userId: string },
   data: { fiscalYearId: string; companyId?: string; costCenterId?: string; name: string; actionIfExceeded?: BudgetAction; lineItems: BudgetLineItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const fy = await db.query.erpFiscalYears.findFirst({ where: and(eq(erpFiscalYears.id, data.fiscalYearId), eq(erpFiscalYears.orgId, ctx.orgId)) })
     if (!fy) throw new ServiceError("Fiscal year not found", 404)
@@ -60,6 +64,7 @@ export async function createBudget(
 }
 
 export async function updateBudgetLineItems(ctx: { orgId: string }, budgetId: string, lineItems: BudgetLineItemInput[]) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const budget = await db.query.erpBudgets.findFirst({ where: and(eq(erpBudgets.id, budgetId), eq(erpBudgets.orgId, ctx.orgId)) })
     if (!budget) throw new ServiceError("Budget not found", 404)
@@ -72,6 +77,7 @@ export async function updateBudgetLineItems(ctx: { orgId: string }, budgetId: st
 }
 
 export async function submitBudget(ctx: { orgId: string; userId: string }, budgetId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const budget = await db.query.erpBudgets.findFirst({ where: and(eq(erpBudgets.id, budgetId), eq(erpBudgets.orgId, ctx.orgId)) })
     if (!budget) throw new ServiceError("Budget not found", 404)
@@ -82,6 +88,7 @@ export async function submitBudget(ctx: { orgId: string; userId: string }, budge
 }
 
 export async function cancelBudget(ctx: { orgId: string }, budgetId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const budget = await db.query.erpBudgets.findFirst({ where: and(eq(erpBudgets.id, budgetId), eq(erpBudgets.orgId, ctx.orgId)) })
     if (!budget) throw new ServiceError("Budget not found", 404)
@@ -109,6 +116,7 @@ export type BudgetVarianceLine = {
  * accountBalancesInRange precedent exactly.
  */
 export async function getBudgetVariance(ctx: { orgId: string }, budgetId: string, asOfDate?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const budget = await db.query.erpBudgets.findFirst({ where: and(eq(erpBudgets.id, budgetId), eq(erpBudgets.orgId, ctx.orgId)) })
     if (!budget) throw new ServiceError("Budget not found", 404)

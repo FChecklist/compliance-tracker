@@ -17,6 +17,7 @@ import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { recordStockReceipt, recordStockIssue, type ErpContext } from "./erp-inventory-service"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 type ReturnItemInput = { itemId: string; quantity: number; rate?: number; reason?: string }
 
@@ -25,6 +26,7 @@ type ReturnItemInput = { itemId: string; quantity: number; rate?: number; reason
 // ============================================================
 
 export async function listSalesReturns(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const returns = await db.query.erpSalesReturns.findMany({ where: eq(erpSalesReturns.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
     const allItems = await db.query.erpSalesReturnItems.findMany()
@@ -36,6 +38,7 @@ export async function createSalesReturn(
   ctx: ErpContext,
   input: { customerId: string; salesInvoiceId?: string; warehouseId: string; reason?: string; items: ReturnItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.items?.length) throw new ServiceError("At least one return line is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -55,6 +58,7 @@ export async function createSalesReturn(
 }
 
 export async function approveSalesReturn(ctx: ErpContext, returnId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getSalesReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be approved", 400)
@@ -65,6 +69,7 @@ export async function approveSalesReturn(ctx: ErpContext, returnId: string) {
 }
 
 export async function rejectSalesReturn(ctx: ErpContext, returnId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getSalesReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be rejected", 400)
@@ -78,6 +83,7 @@ export async function rejectSalesReturn(ctx: ErpContext, returnId: string) {
 // workflow exists to gate -- it posts through the exact same FIFO engine
 // every other receipt uses, opening a new valuation layer per item.
 export async function receiveSalesReturn(ctx: ErpContext, returnId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getSalesReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "approved") throw new ServiceError("Only an approved return can be received", 400)
@@ -99,6 +105,7 @@ export async function receiveSalesReturn(ctx: ErpContext, returnId: string) {
 // correct revenue account isn't reliably derivable (same reasoning as
 // Wave 60's invoicing submission).
 export async function linkSalesReturnCreditNote(ctx: ErpContext, returnId: string, creditNoteId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getSalesReturnOrThrow(db, ctx.orgId, returnId)
     const creditNote = await db.query.erpSalesCreditNotes.findFirst({ where: and(eq(erpSalesCreditNotes.id, creditNoteId), eq(erpSalesCreditNotes.orgId, ctx.orgId)) })
@@ -120,6 +127,7 @@ async function getSalesReturnOrThrow(db: TenantDb, orgId: string, returnId: stri
 // ============================================================
 
 export async function listPurchaseReturns(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const returns = await db.query.erpPurchaseReturns.findMany({ where: eq(erpPurchaseReturns.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
     const allItems = await db.query.erpPurchaseReturnItems.findMany()
@@ -131,6 +139,7 @@ export async function createPurchaseReturn(
   ctx: ErpContext,
   input: { supplierId: string; purchaseInvoiceId?: string; warehouseId: string; reason?: string; items: ReturnItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.items?.length) throw new ServiceError("At least one return line is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -150,6 +159,7 @@ export async function createPurchaseReturn(
 }
 
 export async function approvePurchaseReturn(ctx: ErpContext, returnId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getPurchaseReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be approved", 400)
@@ -160,6 +170,7 @@ export async function approvePurchaseReturn(ctx: ErpContext, returnId: string) {
 }
 
 export async function rejectPurchaseReturn(ctx: ErpContext, returnId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getPurchaseReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be rejected", 400)
@@ -173,6 +184,7 @@ export async function rejectPurchaseReturn(ctx: ErpContext, returnId: string) {
 // exact same FIFO engine every other issue uses -- consuming layers
 // oldest-first, computing the true weighted-average cost of what left.
 export async function dispatchPurchaseReturn(ctx: ErpContext, returnId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getPurchaseReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "approved") throw new ServiceError("Only an approved return can be dispatched", 400)
@@ -191,6 +203,7 @@ export async function dispatchPurchaseReturn(ctx: ErpContext, returnId: string) 
 }
 
 export async function linkPurchaseReturnCreditNote(ctx: ErpContext, returnId: string, creditNoteId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getPurchaseReturnOrThrow(db, ctx.orgId, returnId)
     const creditNote = await db.query.erpPurchaseCreditNotes.findFirst({ where: and(eq(erpPurchaseCreditNotes.id, creditNoteId), eq(erpPurchaseCreditNotes.orgId, ctx.orgId)) })

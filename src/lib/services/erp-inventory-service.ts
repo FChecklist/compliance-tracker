@@ -14,6 +14,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { convertToStockUom } from "./erp-uom-batch-service"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -38,6 +39,7 @@ export type StockReceiptInput = {
 
 /** Records a stock receipt and opens a new FIFO layer for it. */
 export async function recordStockReceipt(ctx: ErpContext, input: StockReceiptInput) {
+  await requireErpEnabled(ctx.orgId)
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
   if (input.rate < 0) throw new ServiceError("rate cannot be negative", 400)
 
@@ -92,6 +94,7 @@ export type StockIssueInput = {
  * this is the core fix: previously nothing computed this at all.
  */
 export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) {
+  await requireErpEnabled(ctx.orgId)
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -143,6 +146,7 @@ export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) 
 }
 
 export async function getItemValuation(ctx: { orgId: string }, itemId: string, warehouseId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const { qty, value } = await currentBalance(db, itemId, warehouseId)
     return { qty, value, averageCost: qty > 0 ? value / qty : 0 }
@@ -150,6 +154,7 @@ export async function getItemValuation(ctx: { orgId: string }, itemId: string, w
 }
 
 export async function listStockLedger(ctx: { orgId: string }, filters: { itemId?: string; warehouseId?: string } = {}) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const conditions = [eq(erpStockLedgerEntries.orgId, ctx.orgId)]
     if (filters.itemId) conditions.push(eq(erpStockLedgerEntries.itemId, filters.itemId))
