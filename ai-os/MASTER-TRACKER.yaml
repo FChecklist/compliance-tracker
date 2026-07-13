@@ -320,14 +320,66 @@ open_items:
         scope creep from the reference list, (8) hygiene: reconcile/retire
         PROJEXA's now-redundant parallel schemas once (1)-(2) land, and
         update system-tree/20-projexa.yaml to reflect true wiring state.
+
+        **All 4 decisions answered by the Owner, 2026-07-14 -- 3 locked, 1
+        deliberately deferred:**
+
+        (a) Reject the Python stack table -- Owner: "ok". Locked: Next.js/
+        React/Drizzle/Supabase/Vercel stays the one implementation stack.
+
+        (b) Migrate-vs-coexist for PROJEXA's existing Budget/Vendor/Material
+        data -- Owner: "ok" (to the proposed phased approach). Locked:
+        backfill-then-cutover, not big-bang migration, not permanent
+        coexistence -- same discipline as this file's own OPEN-07(c)
+        ERP/Sales backfill precedent (query real usage, backfill, cut over).
+        Keep PROJEXA's construction-only dimension fields (no ERP
+        equivalent); link existing Vendor/Material rows to
+        erp_suppliers/erp_items via reconciliation migration; all NEW
+        financial postings go through the real ERP GL from day one; old
+        PROJEXA tables become read-only mirrors for a grace period, then
+        retired once verified.
+
+        (c) BIM/IFC scope -- Owner's own words: "ok not needed, keep it in
+        pending". Deliberately deferred, not ratified-against -- do not
+        build item (7) above and do not re-raise it as a pending decision
+        until the Owner brings it up again.
+
+        (d) Wiring-vs-BI priority, PLUS a broader architecture principle the
+        Owner restated independently (quoting near-verbatim): "I dont want
+        Projexa modules to be separate. VERIDIAN AI OS is one system,
+        ideally all modules should be under VERIDIAN AI OS inside
+        compliance-tracker. But each product like PROJEXA to have separate
+        repositories connected to VERIDIAN AI OS through api... Zero
+        duplication. But independence of product or project." This
+        independently restates the exact founding PROJEXA decision from
+        2026-07-08 ("build nothing inside PROJEXA itself -- every module
+        lives in VERIDIAN AI OS and gets exposed via /api/v1; PROJEXA is a
+        thin client") -- confirms items (1)-(4) above are a correction of
+        real drift from an already-decided principle, not new scope.
+        Precise boundary: "zero duplication" means zero duplicate OWNERSHIP
+        of business-entity data compliance-tracker already owns
+        (vendors/accounts/issues/meetings/budgets) -- NOT that PROJEXA's own
+        DB must be empty; genuinely product-specific data (auth/session
+        state, UI prefs, construction-only extension fields per (b)) stays
+        local. Same "one owner per data domain, everything else via API"
+        logic as this file's own DEC-03 (ratified separate ERP/PMS/Firm/
+        Construction domain tables over one universal table), now applied
+        across repos. Execution order locked: items (1)-(4) before item (6)
+        -- wiring uses engines that already exist (lower risk, less
+        net-new code, closes an active/worsening data-integrity gap) and
+        will likely make some of Priority 11's 85 data_gap reports usable
+        for free once real data flows through; self-serve BI sequences
+        last, after the already-live 109-report catalog.
       recommendation: |
         Full detail, evidence, and per-item citations in Claude's memory file
-        veridian_priority13_pm_erp_gap_analysis.md (not in this repo). Do not
-        start Wave A until this OPEN-08 entry AND OPEN-07 (Priority 12) both
-        show closed. Do not re-run this analysis from scratch in a future
-        session -- read the memory file first, re-verify OPEN-06/OPEN-07
-        status against origin/main, and only build the confirmed remaining
-        gap.
+        veridian_priority13_pm_erp_gap_analysis.md (not in this repo). All 4
+        Owner decisions needed for Wave A are now resolved (a/b/d locked, c
+        deliberately deferred) -- the only remaining blocker is the Priority
+        12 gate itself. Do not start Wave A until this OPEN-08 entry AND
+        OPEN-07 (Priority 12) both show closed. Do not re-run this analysis
+        from scratch in a future session -- read the memory file first,
+        re-verify OPEN-06/OPEN-07 status against origin/main, and only build
+        the confirmed remaining gap.
       first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 12 (OPEN-07) closes; analysis+plan complete same day, zero execution started"
 
   real_gaps_not_yet_built:
