@@ -1721,3 +1721,84 @@ entries:
         shape isn't wired yet) -- not reported as 100% complete, since
         the data_gap/planned rows are real, honestly-documented future
         work, not filler.
+  - id: WAVE-176
+    title: "Priority 12 OPEN-07 point (8) closed -- real ERP/Sales module-enablement enforcement (Owner directive 2026-07-13)"
+    doer:
+      agent: claude-code (Super Boss, orchestrating one background sub-agent for the mechanical ERP sweep)
+      date: "2026-07-14"
+      pr: 282
+      summary: >
+        ERP (Accounting/Finance/Payroll/Buying/Selling/Stock) and Sales/CRM
+        APIs had zero module-enablement enforcement -- orgProductBranch-
+        Enablements/requireBranchEnabled() existed and was enforced for
+        pms/facilities_management/the_firm/veri_reward/veri_chat_v2, but
+        never wired up for 'erp' or 'sales', despite both branch rows
+        already existing in product_branches. Any org could hit any ERP or
+        CRM endpoint regardless of purchased package -- the Owner's own
+        example scenario, confirmed live before the fix.
+
+        Added erp-enablement-service.ts/crm-enablement-service.ts (same
+        thin-wrapper shape as firm-enablement-service.ts). Queried real
+        usage first per the Owner's decision (c) rather than guessing a
+        backfill list: only demo_org has real ERP transactional usage
+        (already had an enabled row from the 2026-07-06 demo seed, so no
+        ERP backfill was needed); 11 orgs (demo_org + 10 demo_co_*) had
+        real crm_leads/crm_opportunities rows with zero enablement row
+        despite active usage -- backfilled via drizzle/0185, applied live
+        via Supabase MCP, re-queried to confirm all 11 now enabled.
+        requireErpEnabled()/requireSalesEnabled() wired as the first
+        statement of every exported function across the 20 erp-*-
+        service.ts files (202 functions, via a background sub-agent using
+        the TypeScript compiler API to find every ctx.orgId-bearing
+        function, not regex) and crm-service.ts (11 functions, done
+        directly). Denial returns the Owner's exact polite wording naming
+        the actual module, not a generic "Forbidden".
+
+        One residual gap intentionally left open, not closed by this PR:
+        erp-procurement-workflow-service.ts's two supplier-portal endpoints
+        (getActiveAuctionsForSupplierPortal, submitAuctionBid) are
+        authenticated by an external portal token with no ctx.orgId at the
+        call boundary, so they aren't gated -- narrow (only matters if an
+        org enabled ERP long enough to create an RFQ/auction, then disabled
+        it while a supplier still holds a live portal token), flagged as a
+        named follow-up rather than rushed into this PR.
+
+        Only point (8) of OPEN-07's 12 points was in scope here -- the
+        Owner explicitly carved this one out as safe to start immediately
+        (asked directly, via AskUserQuestion, whether to start Priority 12
+        now or wait for Priority 11's OPEN-06; Owner chose to wait for
+        OPEN-06 before starting the rest of Priority 12, but this specific
+        piece shares no file surface with Priority 11's remaining Reports &
+        Analysis Engine work, so it proceeded). The rest of Priority 12
+        stays deferred.
+    auditor:
+      agent: claude-code (Super Boss, same session)
+      date: "2026-07-14"
+      verdict: PASS
+      summary: >
+        Independently re-ran tsc --noEmit and bun run lint after the
+        sub-agent's sweep (did not just trust its self-report) -- both
+        clean, matching the sub-agent's claim exactly (4 pre-existing
+        unrelated missing-module errors, 3 pre-existing unrelated lint
+        warnings, none touching erp-/crm- files). Spot-checked the actual
+        diff on erp-returns-service.ts, erp-payroll-service.ts,
+        erp-financial-report-service.ts, and crm-service.ts -- confirmed
+        pure additive one-line insertions at the correct position (before
+        withTenantContext, before existing validation), no unrelated
+        reformatting, no stray files left behind. Ran bun test directly:
+        1039 pass / 0 fail. Re-queried the live DB after the backfill
+        migration to confirm all 11 target orgs actually have an
+        is_enabled=true row for 'sales' (did not just trust the migration
+        applying without error). Ran get_advisors(security) before and
+        after the backfill -- identical finding set, no new advisories
+        introduced. Hit and resolved a real migration-number collision
+        (0184 was independently claimed by a concurrent session's
+        p11/umr-batch-onboarding-3 PR mid-flight) by renumbering to 0185
+        and re-verifying live no config-row collision existed. Posted the
+        mandatory structured AUDIT: PASS verdict comment on PR #282 per
+        Rule 7c/10 (first attempt was rejected by validate-audit-verdict.ts
+        for a vague "etc." in the Scope Confirmed field -- corrected and
+        reposted). CI green on all required gates (Lint/Type Check/Build/
+        Unit Tests) plus E2E Tests and audit-check; only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed, consistent
+        with every other recent wave on this repo.

@@ -107,7 +107,7 @@ open_items:
       recommendation: "Low priority unless a concrete cross-org use case shows up -- the static-catalog approach already satisfies the common case (same report TYPES available everywhere) without needing a live cross-tenant data-sharing mechanism, which would be a real new access-control surface, not a small addition."
 
     - id: OPEN-07
-      name: "Priority 12 (Universal Builder: Task/Functionality/Module/Product/Project/Report/Analysis Builder) -- plan of action prepared 2026-07-13, execution deliberately deferred until Priority 11 (Reports & Analysis Engine) is fully closed, per Owner instruction"
+      name: "Priority 12 (Universal Builder: Task/Functionality/Module/Product/Project/Report/Analysis Builder) -- plan of action prepared 2026-07-13; point (8) ERP/Sales enforcement closed 2026-07-14 (PR #282); the rest deliberately deferred until Priority 11 (Reports & Analysis Engine, incl. OPEN-06) is fully closed, per Owner instruction"
       detail: |
         Owner's ask: one shared workflow (intake -> auditor-model availability
         check -> if found, give the URL -> if not, escalate to Higher AI to
@@ -173,20 +173,52 @@ open_items:
         only reaches an internal orchestra_executions table never surfaced
         in any chat UI component (grepped, zero hits) -- no further work
         needed for these 2 points.
+
+        **UPDATE 2026-07-14: point (8) CLOSED, PR #282** -- erp-enablement-
+        service.ts/crm-enablement-service.ts added (same thin-wrapper shape
+        as firm-enablement-service.ts); requireErpEnabled()/
+        requireSalesEnabled() wired as the first statement of every exported
+        function across the 20 erp-*-service.ts files (202 functions) and
+        crm-service.ts (11 functions). Backfill (drizzle/0185, applied live
+        via Supabase MCP) built from real usage, not guessed: 'erp' needed
+        none (demo_org, the only org with real ERP transactional usage,
+        already had an enabled row from the 2026-07-06 demo seed); 'sales'
+        backfilled for the 11 orgs (demo_org + 10 demo_co_*) with real
+        crm_leads/crm_opportunities rows that had zero enablement row
+        despite active usage. Denial returns the Owner's exact wording (see
+        decision (c) below) via a real 403, not a generic "Forbidden".
+        Verified: tsc/lint/1039 unit tests clean, get_advisors() no new
+        findings, CI green (Lint/Type Check/Build/Unit Tests/E2E/audit-check
+        all pass; only the pre-existing unrelated Vercel preview check
+        failed, same as prior waves). One residual gap intentionally left
+        open, not closed by PR #282: erp-procurement-workflow-service.ts's
+        two supplier-portal endpoints (getActiveAuctionsForSupplierPortal,
+        submitAuctionBid) are authenticated by an external portal token with
+        no ctx.orgId at the call boundary, so they aren't gated -- narrow
+        (only matters if an org enabled ERP long enough to create an RFQ/
+        auction, then disabled it while a supplier still holds a live portal
+        token), tracked as a named follow-up in PR #282's audit comment
+        rather than closed here.
+
+        Points (1)-(7), (9), (10) remain open -- this PR closed point (8)
+        only, as the one piece of Priority 12 the Owner explicitly approved
+        starting before the rest of Priority 12's foundation pass (which
+        stays deferred until Priority 11's OPEN-06 also closes, per the
+        Owner's 2026-07-13 instruction -- point (8) was carved out
+        specifically because it shares no file surface with Priority 11's
+        remaining Reports & Analysis Engine work).
       recommendation: |
         Do NOT rebuild task_capabilities/capability-learning-service.ts/
         capability-audit-service.ts -- reuse and complete them, per the
         Owner's own "don't duplicate, don't recreate" instruction. Proposed
-        shape when execution starts: a small foundation pass (wire a real
-        cron trigger for runCapabilityAudit(), add branchKey scoping +
-        requireBranchEnabled()-style gating into the capability pipeline AND
-        the Reports & Analysis Engine, surface task_capabilities in
-        capability-tree-service.ts) merged first, then 3 parallel sub-agents
-        (unify FDE+Dynamic-Chain intake + build the customer feedback UI;
-        wire real ERP/Sales enablement enforcement with a safe backfill path
-        for existing orgs, not a hard cutover; make task_capabilities.status
-        actually transition + write the single escalation-matrix reference
-        doc).
+        shape when execution starts (point (8) already closed, see above): a
+        small foundation pass (wire a real cron trigger for
+        runCapabilityAudit(), add branchKey scoping to the capability
+        pipeline AND the Reports & Analysis Engine, surface
+        task_capabilities in capability-tree-service.ts) merged first, then
+        parallel sub-agents (unify FDE+Dynamic-Chain intake + build the
+        customer feedback UI; make task_capabilities.status actually
+        transition + write the single escalation-matrix reference doc).
 
         **All 3 blocking decisions answered by the Owner, 2026-07-13 --
         locked in below, quoted verbatim per AGENTS.md Rule 9 (any guardrail-
@@ -244,8 +276,8 @@ open_items:
         administrator. This capability is already in the Sales module." for
         an org without 'sales' enabled) -- a real 403 with this exact
         user-facing copy, not a generic "Forbidden".
-      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day, execution still deferred until Priority 11 closes"
-      status_update: "2026-07-13: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) is now built and live -- taxonomy, one generic dispatcher, 200 seeded definitions (109 built, 85 data_gap, 6 planned) across Project+Construction/Interior Design/Sales. This is reported honestly, not as a 100%-complete claim, since 91 rows are real documented gaps/not-yet-wired shapes. Execution of this Priority-12 plan remains deliberately NOT started -- awaiting the Owner's own confirmation that Priority 11 is closed to their satisfaction, per their explicit sequencing instruction, not a unilateral judgment call by the agent."
+      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day. Point (8) closed 2026-07-14 (PR #282), explicitly carved out by the Owner as safe to start early since it shares no file surface with Priority 11's remaining work."
+      status_update: "2026-07-14: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) closed 2026-07-13. Point (8) of this item's 12 points closed 2026-07-14 (PR #282, COMPLETED.yaml WAVE-176). Owner directly instructed (2026-07-14) this session to complete the remaining points now, superseding the prior OPEN-06 deferral -- execution of the foundation pass and remaining points is in progress, see this session's own claim in ai-os/boss/ACTIVE-CLAIMS.yaml."
 
     - id: OPEN-08
       name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- CLOSED 2026-07-14 (items 1-6 of the corrected gap list shipped, item 7 deliberately deferred per Owner, item 8 hygiene confirmed already-accurate); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
