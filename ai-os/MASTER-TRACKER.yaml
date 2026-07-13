@@ -172,14 +172,6 @@ open_items:
       recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
       first_raised: "2026-07-12 full status reconciliation pass"
 
-    - id: GAP-UNIFIED-SOT-REMAINDER
-      name: "GAP-UNIFIED-SOURCE-OF-TRUTH's genuinely-still-open pieces, after all 3 dispatched sub-agents merged (PR #256, #257)"
-      old_ids: []
-      detail: "Audited and merged 2026-07-13 (Super Boss/Claude Desktop, independent of implementer, per AGENTS.md Rule 7c): PR #256 (live open/closed/%-complete status-source-of-truth view, extends governance-health) and PR #257 (Tier-3 GPT-OSS-120B dispatch-completion monitor, live LLM round trip independently re-verified against the real Groq API during audit, plus its never-applied prerequisite migration 0173_narrow_monitor_agents_phase0.sql found and applied at the same time). Both closed cleanly with tsc/lint/tests/CI gates green. What GAP-UNIFIED-SOURCE-OF-TRUTH's own evaluation (PLATFORM_STRATEGY.md §31.1) already named as still open and NOT touched by any of the 5 merged PRs (#248/#250/#251/#254/#255/#256/#257): (a) CLAUDE.md/AGENTS.md -- the one file every session auto-loads -- still don't link to ai-os/OS.yaml, ai-os/BRAIN.md, or ai-os/MASTER-TRACKER.yaml, and AGENTS.md Rule 3 still names the stale ai-os/boss/BOARD.yaml; (b) 27 root-level stale dated .md files plus 16 already-archived tracker files sit undifferentiated/discoverable, real duplicate-work risk; (c) mid-session drift (a long interactive session forgetting a standing rule) has no code hook for the interactive Claude Code/Desktop path, and the headless ai-workforce-agent.mjs loop has no periodic self-check re-injection either; (d) audit-protocol.ts's 8 fields are CI-validated but never persisted to a queryable table -- no audit_findings table exists; (e) the new dispatch-completion monitor (PR #257) is pull-based only, no cron wiring, no persisted digest table."
-      size: M
-      recommendation: "5 remaining slices, sequenced as Phase 1 (a/b/c, 3 worktree-isolated sub-agents per standing procedure) and Phase 2 (d/e). Full file-level plan in the session that produced PR #256/#257."
-      first_raised: "2026-07-13, same pass that closed GAP-UNIFIED-SOURCE-OF-TRUTH"
-
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
@@ -418,3 +410,66 @@ closed_priorities:
       existing and unrelated (same failure on already-merged PR #255).
       Genuinely still-open remainder tracked separately, not silently
       dropped -- see GAP-UNIFIED-SOT-REMAINDER above.
+
+  - priority: 13
+    name: "GAP-UNIFIED-SOT-REMAINDER closed: all 5 slices (a-e) audited and merged"
+    summary: |
+      All 5 slices named in GAP-UNIFIED-SOT-REMAINDER's own detail closed
+      2026-07-13, each independently audited (Super Boss/Claude Desktop,
+      per AGENTS.md Rule 7c) and merged as its own PR, dispatched as two
+      waves of 3 parallel worktree-isolated sub-agents per the standing
+      procedure (Owner feedback that day: "you are not using 3 sub agents
+      in parallel... even when you agree than you dont do it" -- recorded
+      as a standing compliance check going forward, this wave is the
+      corrected behavior).
+
+      - (a) Navigation/entry-point fix -- PR #259. CLAUDE.md/AGENTS.md now
+        link ai-os/OS.yaml, ai-os/BRAIN.md, the constitution, and
+        MASTER-TRACKER.yaml; AGENTS.md Rule 3 no longer names the stale
+        BOARD.yaml; docs/master/INDEX.md cross-links both ways.
+      - (b) Stale-doc quarantine -- PR #260. 28 root-level files + 16
+        already-archived tracker files bannered/moved to docs/archive/,
+        new CI-enforced manifest + check-doc-quarantine-banner.mjs.
+        Audit caught and fixed a real bug: the new checker script falsely
+        reported all 13 .yaml files as missing their banner due to a CRLF
+        vs \n line-ending mismatch in its own comparison logic -- the
+        banner content was always correct, only the checker was wrong.
+      - (c) Mid-session drift check -- PR #261. New ai-os/SELF-CHECK.md,
+        a real deterministic shouldPromptSelfCheck() cadence gate wired
+        into ai-workforce-agent.mjs's headless dispatch loop ([ENFORCED]),
+        honestly marked [POLICY ONLY] for the interactive Claude Code/
+        Desktop path since no .claude/settings.json hook slot exists to
+        wire it there (checked directly, not assumed).
+      - (d) audit_findings persistence -- PR #263. New table (named
+        audit_protocol_findings, not audit_findings -- a real pre-existing
+        unrelated CAPA table already used that name, caught by the
+        implementer's own grep before naming), wired into
+        validate-audit-verdict.ts, new /api/ai/team/work-item/[id] read
+        route. Investigation found no real correlation key exists yet
+        between audit findings and task_agent_executions/activity_log --
+        the new route states this honestly (a null correlation block)
+        rather than faking a join.
+      - (e) Monitor cron + digest -- PR #262. New CRON_SECRET-authed route
+        on a dedicated 6-hourly vercel.json slot, new monitor_execution_log
+        table, correctly attributes each per-org sweep to that org's
+        longest-tenured active veridian_admin rather than fabricating an
+        actor. ai-os/sentinel/SENTINEL.yaml cross-referenced, not
+        superseded (different surface: point-in-time vs. ongoing drift).
+
+      Real migration-numbering collision caught and fixed during audit:
+      slices (d) and (e) both independently picked drizzle/0175 as the
+      next-free number from the same origin/main starting point (this
+      repo's documented history of exactly this -- 0172/0173 previously
+      double-assigned). Rebased (d) onto post-(e)-merge origin/main and
+      renumbered to 0176, updated all textual references, re-verified
+      full suite green before merging. Both new tables' migrations applied
+      live via the Supabase MCP during audit, same posture as every other
+      migration this session.
+
+      All 5 PRs: tsc/eslint clean, full test suite green (974-982 tests
+      depending on which PRs had merged by that point), all 4 CI coverage
+      gates (guardrail-presence, asset-registry-coverage,
+      metadata-index-coverage, doc-quarantine-banner) pass. Vercel preview-
+      deployment check failed on every PR, confirmed pre-existing/
+      unrelated (same failure already present on already-merged PR #255)
+      -- not a required status check.
