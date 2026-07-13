@@ -53,6 +53,8 @@
 
 import {
   db, reportDefinitions,
+  crmLeads, crmOpportunities, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
+  salesReferrals, salesCommissionAccruals, veriMeetings,
   complianceItems, notices, risks, pmsIssues, pmsMilestones, incidents,
   constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
   constructionRfis, constructionSubmittals, constructionPunchListItems, constructionChangeOrders,
@@ -63,7 +65,7 @@ import {
   interiorFurniturePlacements, interiorMaterials, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, inArray, sql, gte, lt, type SQL } from "drizzle-orm"
+import { and, eq, or, isNull, isNotNull, inArray, sql, gte, lt, lte, type SQL } from "drizzle-orm"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
@@ -206,6 +208,26 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   erp_purchase_orders: { table: erpPurchaseOrders, orgIdColumn: erpPurchaseOrders.orgId, columns: { status: erpPurchaseOrders.status, supplierId: erpPurchaseOrders.supplierId, grandTotal: erpPurchaseOrders.grandTotal } },
   erp_suppliers: { table: erpSuppliers, orgIdColumn: erpSuppliers.orgId, columns: { qualificationStatus: erpSuppliers.qualificationStatus, sanctionScreeningStatus: erpSuppliers.sanctionScreeningStatus, trade: erpSuppliers.trade } },
   erp_stock_ledger_entries: { table: erpStockLedgerEntries, orgIdColumn: erpStockLedgerEntries.orgId, columns: { itemId: erpStockLedgerEntries.itemId, quantityChange: erpStockLedgerEntries.quantityChange } },
+  // -- new for the Owner's 30 Sales Reports / 30 Sales Analysis / AI Sales Cockpit catalog (2026-07-13) --
+  crm_leads: { table: crmLeads, orgIdColumn: crmLeads.orgId, columns: { status: crmLeads.status, source: crmLeads.source, ownerId: crmLeads.ownerId, aiScore: crmLeads.aiScore } },
+  crm_opportunities: {
+    table: crmOpportunities, orgIdColumn: crmOpportunities.orgId,
+    columns: {
+      stage: crmOpportunities.stage, ownerId: crmOpportunities.ownerId, estimatedValue: crmOpportunities.estimatedValue,
+      aiWinProbability: crmOpportunities.aiWinProbability, aiRecommendedAction: crmOpportunities.aiRecommendedAction,
+      expectedCloseDate: crmOpportunities.expectedCloseDate,
+    },
+  },
+  erp_quotations: { table: erpQuotations, orgIdColumn: erpQuotations.orgId, columns: { status: erpQuotations.status, customerId: erpQuotations.customerId, grandTotal: erpQuotations.grandTotal, quotationDate: erpQuotations.quotationDate } },
+  erp_sales_orders: { table: erpSalesOrders, orgIdColumn: erpSalesOrders.orgId, columns: { status: erpSalesOrders.status, customerId: erpSalesOrders.customerId, grandTotal: erpSalesOrders.grandTotal, orderDate: erpSalesOrders.orderDate } },
+  erp_sales_invoices: { table: erpSalesInvoices, orgIdColumn: erpSalesInvoices.orgId, columns: { status: erpSalesInvoices.status, customerId: erpSalesInvoices.customerId, grandTotal: erpSalesInvoices.grandTotal, outstandingAmount: erpSalesInvoices.outstandingAmount, postingDate: erpSalesInvoices.postingDate } },
+  erp_customers: { table: erpCustomers, orgIdColumn: erpCustomers.orgId, columns: { isActive: erpCustomers.isActive, defaultPaymentTermsDays: erpCustomers.defaultPaymentTermsDays, creditLimit: erpCustomers.creditLimit } },
+  sales_referrals: { table: salesReferrals, orgIdColumn: salesReferrals.orgId, columns: { status: salesReferrals.status, salesPartnerId: salesReferrals.salesPartnerId, productKey: salesReferrals.productKey } },
+  // meetingType='client' is a real but imperfect proxy for a "customer
+  // meeting" -- veri_meetings has no dedicated sales/pre-sales flag, so any
+  // report reading this table documents that limitation in its own
+  // dataGapNote/description rather than silently overclaiming precision.
+  veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType } },
 }
 
 function resolveAggregationTarget(config: { tableKey?: string; groupByColumn?: string; aggregationColumnKey?: string; filterEquals?: { columnKey: string; value: string | number | boolean } }) {
@@ -349,6 +371,32 @@ async function computeProjectHealthIndex(ctx: { orgId: string }, params: Record<
   }
 }
 
+// ─── Sales/CRM formulas (Priority 11 Sales Reports wave, migration 0183) ──
+// Same honesty discipline as the SPI/CPI formulas above: every ratio here
+// documents exactly which real columns it reads and which real rows it
+// excludes, rather than silently padding a denominator or estimating a
+// figure the schema can't actually support.
+
+/** Lead -> Customer conversion rate. "Converted" = crm_leads.converted_client_id set (the real signal convertLeadToClient() writes), not the parallel free-text status column. */
+async function leadConversionRate(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [totalRow] = await db.select({ value: sql<number>`count(*)::float` }).from(crmLeads).where(eq(crmLeads.orgId, ctx.orgId))
+    const [convertedRow] = await db.select({ value: sql<number>`count(*)::float` }).from(crmLeads).where(and(eq(crmLeads.orgId, ctx.orgId), isNotNull(crmLeads.convertedClientId)))
+    const total = Number(totalRow?.value ?? 0)
+    const converted = Number(convertedRow?.value ?? 0)
+    const rate = total > 0 ? Math.round((converted / total) * 1000) / 10 : 0
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Total Leads", Value: total },
+        { Metric: "Converted Leads", Value: converted },
+        { Metric: "Lead -> Customer Conversion Rate (%)", Value: rate },
+      ],
+      note: "\"Converted\" = crm_leads.converted_client_id is set (written by convertLeadToClient()), not the free-text status column, which can lag or be edited independently.",
+    }
+  })
+}
+
 // ─── Priority 11 wave 2 formulas (2026-07-13, Owner's 30 Project Reports /
 // 30 Analysis Dashboards / Executive KPI catalog). Same honesty discipline
 // as the 3 formulas above -- every approximation is documented, every "N/A"
@@ -387,6 +435,29 @@ async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record
         { Metric: "Cost Variance (CV = EV-AC)", Value: Math.round(ev - ac) },
       ],
       note: "PV uses the same linear time-elapsed proxy as the SPI formula; EV uses the same Budget x %-Complete (BCWP) proxy as the CPI formula -- this codebase has no baseline S-curve or per-activity budget breakdown for textbook-precise EVM.",
+    }
+  })
+}
+
+/** Quotation win rate over DECIDED quotations only (ordered/lost/expired) -- draft/submitted quotations are still pending and are excluded from the denominator rather than counted as losses. */
+async function quotationWinRate(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const decided = await db
+      .select({ status: erpQuotations.status, value: sql<number>`count(*)::float` })
+      .from(erpQuotations)
+      .where(and(eq(erpQuotations.orgId, ctx.orgId), or(eq(erpQuotations.status, "ordered"), eq(erpQuotations.status, "lost"), eq(erpQuotations.status, "expired"))))
+      .groupBy(erpQuotations.status)
+    const won = Number(decided.find((r) => r.status === "ordered")?.value ?? 0)
+    const totalDecided = decided.reduce((sum, r) => sum + Number(r.value), 0)
+    const winRate = totalDecided > 0 ? Math.round((won / totalDecided) * 1000) / 10 : 0
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Decided Quotations (ordered/lost/expired)", Value: totalDecided },
+        { Metric: "Won (ordered)", Value: won },
+        { Metric: "Win Rate (%)", Value: winRate },
+      ],
+      note: "Excludes quotations still in draft/submitted (undecided) from the denominator -- a fair win rate only counts quotations that reached a real outcome.",
     }
   })
 }
@@ -430,6 +501,37 @@ async function computePortfolioBudgetUtilization(ctx: { orgId: string }): Promis
         { Metric: "Budget Utilized %", Value: Math.round((actualTotal / budgetTotal) * 1000) / 10 },
       ],
       note: "Scoped to cost centres linked to a construction project (erp_cost_centers.project_id not null); actual cost is construction_expense_entries only, not the full ERP purchase-invoice ledger.",
+    }
+  })
+}
+
+/** Average lead-to-order sales cycle, in days -- ONLY for completed sales orders that trace back through a real quotation to a real lead (quotation_id and quotation.lead_id both set). */
+async function salesCycleLengthDays(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db
+      .select({ orderDate: erpSalesOrders.orderDate, leadCreatedAt: crmLeads.createdAt })
+      .from(erpSalesOrders)
+      .innerJoin(erpQuotations, eq(erpSalesOrders.quotationId, erpQuotations.id))
+      .innerJoin(crmLeads, eq(erpQuotations.leadId, crmLeads.id))
+      .where(and(eq(erpSalesOrders.orgId, ctx.orgId), eq(erpSalesOrders.status, "completed")))
+
+    if (rows.length === 0) {
+      return {
+        columns: ["Metric", "Value"], rows: [{ Metric: "Average Sales Cycle (days)", Value: "N/A" }],
+        note: "No completed sales orders trace back through a quotation to a lead (quotation_id and quotation.lead_id must both be set) -- cannot compute a lead-to-order cycle length.",
+      }
+    }
+    const days = rows
+      .map((r) => (new Date(r.orderDate).getTime() - new Date(r.leadCreatedAt).getTime()) / (1000 * 60 * 60 * 24))
+      .filter((d) => Number.isFinite(d) && d >= 0)
+    const avgDays = days.length > 0 ? Math.round((days.reduce((a, b) => a + b, 0) / days.length) * 10) / 10 : 0
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Completed Orders Traced to a Lead", Value: days.length },
+        { Metric: "Average Sales Cycle (days)", Value: avgDays },
+      ],
+      note: "Only covers completed sales orders that trace back through a real quotation to a real lead -- orders from an opportunity/quotation with no linked lead are excluded rather than estimated.",
     }
   })
 }
@@ -564,6 +666,30 @@ async function computeIssueResolutionAnalysis(ctx: { orgId: string }): Promise<R
   })
 }
 
+/** Repeat-customer % -- "repeat" = more than one COMPLETED erp_sales_order for the same customer_id. */
+async function repeatCustomerPercentage(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const perCustomer = await db
+      .select({ customerId: erpSalesOrders.customerId, orderCount: sql<number>`count(*)::float` })
+      .from(erpSalesOrders)
+      .where(and(eq(erpSalesOrders.orgId, ctx.orgId), eq(erpSalesOrders.status, "completed")))
+      .groupBy(erpSalesOrders.customerId)
+
+    const totalCustomers = perCustomer.length
+    const repeatCustomers = perCustomer.filter((r) => Number(r.orderCount) > 1).length
+    const pct = totalCustomers > 0 ? Math.round((repeatCustomers / totalCustomers) * 1000) / 10 : 0
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Distinct Customers (completed orders)", Value: totalCustomers },
+        { Metric: "Repeat Customers (>1 completed order)", Value: repeatCustomers },
+        { Metric: "Repeat Customer %", Value: pct },
+      ],
+      note: "\"Repeat\" = more than one completed erp_sales_order for the same customer_id -- does not account for repeat business logged only as invoices with no sales order, or a customer whose customer_id changed across deals.",
+    }
+  })
+}
+
 /** Average decision time for submittals and change orders -- only covers decisions actually made, doesn't include still-pending items. */
 async function computeApprovalBottleneckAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -590,6 +716,34 @@ async function computeApprovalBottleneckAnalysis(ctx: { orgId: string }): Promis
   })
 }
 
+/** Referral-attributed deal value + commission, by partner -- sales_commission_accruals has no direct org_id, so this is scoped via an inner join through sales_referrals.org_id (set once a referral's org is provisioned). */
+async function referralRevenueSummary(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db
+      .select({
+        salesPartnerId: salesCommissionAccruals.salesPartnerId,
+        totalDealValue: sql<number>`coalesce(sum(${salesCommissionAccruals.dealValue}), 0)::float`,
+        totalCommission: sql<number>`coalesce(sum(${salesCommissionAccruals.amount}), 0)::float`,
+        accrualCount: sql<number>`count(*)::float`,
+      })
+      .from(salesCommissionAccruals)
+      .innerJoin(salesReferrals, eq(salesCommissionAccruals.salesReferralId, salesReferrals.id))
+      .where(eq(salesReferrals.orgId, ctx.orgId))
+      .groupBy(salesCommissionAccruals.salesPartnerId)
+
+    return {
+      columns: ["Sales Partner ID", "Referred Deal Value", "Commission Accrued", "Accrual Count"],
+      rows: rows.map((r) => ({
+        "Sales Partner ID": r.salesPartnerId,
+        "Referred Deal Value": Number(r.totalDealValue),
+        "Commission Accrued": Number(r.totalCommission),
+        "Accrual Count": Number(r.accrualCount),
+      })),
+      note: "sales_commission_accruals has no direct org_id -- scoped here via an inner join through sales_referrals.org_id (only set once a referral's org is provisioned), so referrals that never reached org_provisioned are correctly excluded.",
+    }
+  })
+}
+
 /** Correlates site-diary weather with same-day, same-project work-progress entries. weather is free text (not an enum), so groups are as noisy as what site staff actually typed. */
 async function computeWeatherImpactAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -609,6 +763,34 @@ async function computeWeatherImpactAnalysis(ctx: { orgId: string }): Promise<Rep
   })
 }
 
+/** Opportunities the real Wave-75 CRM Intelligence scoring (crm_opportunities.ai_win_probability/ai_risk_factors) flagged as high-risk -- low win probability or an explicit risk factor. Never re-scores; only reads whatever a separate scoring flow already computed. Opportunities never AI-analyzed (ai_analyzed_at null) are excluded rather than shown as a false "not risky". */
+async function aiOpportunityRiskSummary(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db
+      .select({
+        id: crmOpportunities.id, name: crmOpportunities.name, stage: crmOpportunities.stage,
+        estimatedValue: crmOpportunities.estimatedValue, aiWinProbability: crmOpportunities.aiWinProbability,
+        aiRiskFactors: crmOpportunities.aiRiskFactors, aiRecommendedAction: crmOpportunities.aiRecommendedAction,
+      })
+      .from(crmOpportunities)
+      .where(and(
+        eq(crmOpportunities.orgId, ctx.orgId),
+        isNotNull(crmOpportunities.aiAnalyzedAt),
+        or(sql`${crmOpportunities.aiWinProbability} < 40`, sql`jsonb_array_length(${crmOpportunities.aiRiskFactors}) > 0`)
+      ))
+    return {
+      columns: ["Opportunity", "Stage", "Estimated Value", "AI Win Probability", "AI Risk Factors", "AI Recommended Action"],
+      rows: rows.map((r) => ({
+        Opportunity: r.name, Stage: r.stage, "Estimated Value": Number(r.estimatedValue ?? 0),
+        "AI Win Probability": r.aiWinProbability ?? "Not scored",
+        "AI Risk Factors": Array.isArray(r.aiRiskFactors) ? (r.aiRiskFactors as string[]).join("; ") : "",
+        "AI Recommended Action": r.aiRecommendedAction ?? "",
+      })),
+      note: "Reads the real Wave-75 CRM Intelligence AI scores (crm_opportunities.ai_win_probability/ai_risk_factors) already computed by a separate scoring flow -- this report never re-scores; opportunities never AI-analyzed (ai_analyzed_at null) are excluded rather than shown as false 'not risky'.",
+    }
+  })
+}
+
 /** Cost + schedule impact of approved change orders, grouped by project. */
 async function computeDesignChangeImpactAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -624,6 +806,30 @@ async function computeDesignChangeImpactAnalysis(ctx: { orgId: string }): Promis
       columns: ["Project ID", "Approved Change Orders", "Total Cost Impact", "Total Schedule Impact (Days)"],
       rows: rows.map((r) => ({ "Project ID": r.projectId, "Approved Change Orders": Number(r.count), "Total Cost Impact": Number(r.totalCostImpact), "Total Schedule Impact (Days)": Number(r.totalScheduleImpactDays) })),
       note: rows.length === 0 ? "No approved change orders logged yet." : undefined,
+    }
+  })
+}
+
+/** Opportunities with expected_close_date in the next 7 days -- reads the real Wave-75 AI win-probability score where present, never re-scores. */
+async function dealsClosingSoon(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const weekStr = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const rows = await db
+      .select({
+        id: crmOpportunities.id, name: crmOpportunities.name, stage: crmOpportunities.stage,
+        estimatedValue: crmOpportunities.estimatedValue, expectedCloseDate: crmOpportunities.expectedCloseDate,
+        aiWinProbability: crmOpportunities.aiWinProbability,
+      })
+      .from(crmOpportunities)
+      .where(and(eq(crmOpportunities.orgId, ctx.orgId), gte(crmOpportunities.expectedCloseDate, todayStr), lte(crmOpportunities.expectedCloseDate, weekStr)))
+    return {
+      columns: ["Opportunity", "Stage", "Estimated Value", "Expected Close", "AI Win Probability"],
+      rows: rows.map((r) => ({
+        Opportunity: r.name, Stage: r.stage, "Estimated Value": Number(r.estimatedValue ?? 0),
+        "Expected Close": String(r.expectedCloseDate), "AI Win Probability": r.aiWinProbability ?? "Not scored",
+      })),
+      note: rows.length === 0 ? "No opportunities have expectedCloseDate within the next 7 days." : "Filters crm_opportunities.expected_close_date only -- does not additionally weight by stage or AI win probability.",
     }
   })
 }
@@ -928,6 +1134,13 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
   project_health_index: computeProjectHealthIndex,
+  lead_conversion_rate: leadConversionRate,
+  quotation_win_rate: quotationWinRate,
+  sales_cycle_length_days: salesCycleLengthDays,
+  repeat_customer_percentage: repeatCustomerPercentage,
+  referral_revenue_summary: referralRevenueSummary,
+  ai_opportunity_risk_summary: aiOpportunityRiskSummary,
+  deals_closing_soon: dealsClosingSoon,
   earned_value_analysis: computeEarnedValueAnalysis,
   portfolio_completion_percent: computePortfolioCompletionPercent,
   portfolio_budget_utilization: computePortfolioBudgetUtilization,
