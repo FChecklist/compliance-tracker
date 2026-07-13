@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  FolderOpen, Upload, Loader2, Download, History, FileText, AlertTriangle, Search, ShieldOff, Trash2, Lock, Clock,
+  FolderOpen, Upload, Loader2, Download, History, FileText, AlertTriangle, Search, ShieldOff, Trash2, Lock, Clock, Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { RequestSignatureButton } from "@/components/esignature/RequestSignatureButton";
+import DocumentClassificationManager from "@/components/DocumentClassificationManager";
 
 type Document = {
   id: string;
@@ -45,6 +46,10 @@ type Document = {
   disposalDate: string | null;
   legalHold: boolean;
   isDisposed: boolean;
+  // Priority 13 (Document Correspondent/Type Auto-Classification)
+  correspondentId?: string | null;
+  tags?: string[] | null;
+  autoClassified?: boolean;
 };
 
 const CATEGORIES = [
@@ -94,6 +99,14 @@ function DocumentRow({ doc, onDownload, onVersions, onUpload, onRetention, onLeg
           {doc.isDisposed ? " -- disposed" : doc.disposalDate ? ` -- disposal ${doc.disposalDate}` : ""}
         </p>
       </div>
+      {doc.autoClassified && (
+        <Badge variant="outline" className="text-xs gap-1 border-ct-teal/30 text-ct-teal" title="Category/correspondent set automatically by a matching rule">
+          <Sparkles className="size-2.5" /> Auto
+        </Badge>
+      )}
+      {(doc.tags ?? []).slice(0, 3).map((tag) => (
+        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+      ))}
       {doc.legalHold && <Badge className="bg-ct-navy/10 text-ct-navy border-ct-navy/20 text-xs">Legal Hold</Badge>}
       {expiryBadge(doc.expiryDate)}
       <Button variant="ghost" size="sm" onClick={() => onRetention(doc)} title="Set retention policy">
@@ -148,6 +161,9 @@ export default function DocumentsPage() {
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versions, setVersions] = useState<Document[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
+
+  // Priority 13 (Document Correspondent/Type Auto-Classification)
+  const [classificationOpen, setClassificationOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -282,6 +298,22 @@ export default function DocumentsPage() {
           <h1 className="text-2xl font-heading text-ct-navy">Documents</h1>
           <p className="text-sm text-ct-muted mt-1">Central repository across every module -- upload, version, and track expiry in one place.</p>
         </div>
+        <div className="flex items-center gap-2">
+        <Dialog open={classificationOpen} onOpenChange={setClassificationOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="border-ct-teal text-ct-teal hover:bg-ct-teal/10">
+              <Sparkles className="size-4 mr-2" />
+              Classification Rules
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Document Classification</DialogTitle>
+              <DialogDescription>Correspondents and auto-classification matching rules -- applied to every new upload, additive only (never overrides a category/correspondent you set yourself).</DialogDescription>
+            </DialogHeader>
+            <DocumentClassificationManager />
+          </DialogContent>
+        </Dialog>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron" onClick={() => openUploadDialog(null)}>
@@ -329,6 +361,7 @@ export default function DocumentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {expiringCount > 0 && (

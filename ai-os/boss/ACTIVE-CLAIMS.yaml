@@ -1,0 +1,96 @@
+# ============================================================================
+# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
+# direct response to the Owner naming 4 parallel Claude sessions working
+# across this codebase at once, with no existing mechanism for one session
+# to see what another is actively touching before it starts new work.
+#
+# THIS FILE IS NOT A SUBSTITUTE FOR GIT'S OWN SAFETY (worktree isolation +
+# PR/CI + branch protection already prevent silent data loss -- see
+# AGENTS.md Rule 6 and [[fchecklist_worktree_isolation_required]]). It exists
+# to prevent a DIFFERENT problem git can't solve on its own: two sessions
+# independently choosing to build the SAME gap at the same time, wasting a
+# full agent-hours cycle on duplicate/conflicting work that then has to be
+# thrown away or painfully reconciled after the fact.
+#
+# PROTOCOL (every session, every time, no exceptions):
+#   1. BEFORE selecting a gap/task from ai-os/MASTER-TRACKER.yaml (or any
+#      other source) to work on: `git pull origin main` this file fresh,
+#      read every entry under `active:` below, and do NOT start work on a
+#      gap/file-area another entry already claims, unless that entry's
+#      `claimed_at` is more than 4 hours stale with no matching open PR
+#      (check `gh pr list`) -- treat a stale claim as abandoned, not binding.
+#   2. IMMEDIATELY when you start real work (dispatching a sub-agent, or
+#      starting to edit yourself): add a new entry under `active:` with your
+#      session label, what you're claiming (gap id + real file/directory
+#      scope, not just a vague area), and a timestamp. Commit and push this
+#      addition on its own, fast, BEFORE the actual work PR -- don't batch it
+#      with the real change, so other sessions see the claim as early as
+#      possible.
+#   3. WHEN your work merges (or you abandon it), move your entry from
+#      `active:` to `recently_completed:` (keep the last ~15 entries there,
+#      drop older ones -- this is a rolling log, not permanent history;
+#      MASTER-TRACKER.yaml's closed_priorities is the permanent record).
+#   4. If you discover an active claim that conflicts with what you were
+#      about to do, do NOT silently work around it or silently pick a
+#      different gap without saying so -- note it in your own session's
+#      final report to your Owner/user, the same honesty standard this
+#      whole initiative already holds for owner-blocked items.
+#   5. Sessions cannot literally message each other -- this file IS the
+#      message. Keep entries short, factual, and file/directory-scoped so a
+#      session with zero other context can act on them correctly.
+# ============================================================================
+
+active:
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    claimed_at: "2026-07-14T00:35:00+05:30"
+    claim: "GAP-UMR-TABLE-COVERAGE 4th batch -- new drizzle migration onboarding ~15-25 more tables onto compliance.auto_register_asset(), plus ai-os/registry/asset-registry-coverage.yaml update. Scope: a NEW migration file only, no existing file edits besides MASTER-TRACKER.yaml/asset-registry-coverage.yaml (both merge-friendly, append-style)."
+    worktree: ".claude/worktrees/agent-ae34ecff115e571b5"
+
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    claimed_at: "2026-07-14T00:35:00+05:30"
+    claim: "GAP-DCMD -- investigating whether a genuine 3rd entity_relationships graph edge type exists to wire (candidates: dynamic_chain<->conversation, dynamic_chain<->dynamic_chain parent/child). Scope: src/lib/db/schema.ts (entityRelationships area only) + task-execution-engine.ts + possibly a new small migration. Explicitly NOT touching capability-learning-service.ts or anything Priority-12/13-adjacent (see below) even if investigation surfaces a tempting edge there -- deferred to whichever session owns that area."
+    worktree: ".claude/worktrees/agent-a7bff280ef03a1539"
+
+  - session_label: "claude-code (this session, CLI) -- Priority 13 (PROJEXA PM-ERP), OPEN-08 -- OWNER-DIRECTED SOLE OWNER, driving to full completion (2026-07-14)"
+    claimed_at: "2026-07-14T (see veridian_priority13_pm_erp_gap_analysis.md memory file for exact timeline; status updated same day per direct Owner instruction: 'you are the owner of Priority 13 completion... complete Priority 13... dont stop till its complete')"
+    claim: |
+      OPEN-08 only -- NOT OPEN-07/Priority 12 (that's a different session,
+      already coordinated via direct message). The Owner has explicitly
+      named this session sole owner of Priority 13 through to full
+      completion -- OTHER SESSIONS SHOULD NOT PICK UP ANY OPEN-08 PIECE,
+      including any of the 4 sub-items below, even if they appear idle.
+      Current status (2026-07-14, updated live as each piece lands):
+        1. Docs auto-classification + self-serve ad-hoc BI (compliance-tracker,
+           branch feat/priority13-docs-classification-adhoc-bi) --
+           PR #290 OPEN (https://github.com/FChecklist/compliance-tracker/pull/290),
+           awaiting this session's own audit + merge.
+        2. ERP discovery lookups + Permits (compliance-tracker, branch
+           priority13-erp-lookups) -- backend PR being finished/opened now;
+           PROJEXA-side proxy already open as projexa PR #4 (MERGEABLE,
+           blocked only on this backend PR landing first).
+        3. Meetings/board API (compliance-tracker, branch
+           priority13-meetings-kanban) -- backend PR being finished/opened now.
+        4. Meetings/Kanban UI (projexa, branch
+           priority13-meetings-kanban-projexa) -- frontend PR being
+           finished/opened now, depends on (3).
+      Merge order once all 4 PRs are open and green: (1) can merge any time
+      (self-contained); (2) compliance-tracker backend merges before
+      projexa PR #4; (3) compliance-tracker backend merges before (4).
+      Claiming Drizzle migration numbers 0186+ for all compliance-tracker
+      pieces (0186-0188 already used by item 1 above). NOT touching:
+      capability-audit-service.ts/capability-learning-service.ts/
+      capability-tree-service.ts, orgProductBranchEnablements (Priority
+      12's area), report-taxonomy.ts's core schema (Reports & Analysis
+      session's area).
+
+# Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
+# closed_priorities is the permanent record, this is just recency context.
+recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-13T23:38:00+05:30"
+    claim: "GAP-D15-REMAINING-TRIGGERS (Deployment webhook), GAP-D13-ASSUMPTION-VALIDATION (chat prompt scoping), GAP-UMR-TABLE-COVERAGE 3rd batch (22 tables) -- PRs #241/#242/#243/#244/#280 all merged."
+
+  - session_label: "claude-code (this session, CLI)"
+    completed_at: "2026-07-13T19:28:28Z"
+    claim: "Priority 11 Reports & Analysis ENGINE fully closed -- PR #279 merged (ai-os/boss/COMPLETED.yaml WAVE-175, MASTER-TRACKER.yaml closed_priorities #14). report-engine-service.ts/report-taxonomy.ts confirmed safe for other sessions to build on (replied to Priority 13/PROJEXA session's cross-session question above). ID COLLISION RESOLVED IN OUR FAVOR: PR #279 merged first, so WAVE-175/closed_priorities-#14 belong to Priority 11 on main now -- PR #285 (Priority 12 OPEN-07 point 8 closure) still needs to renumber its own new entries to WAVE-176/closed_priorities-#15 before it can merge cleanly (its branch will show this as a semantic duplicate on next sync, not a git conflict -- that session should re-check ai-os/boss/COMPLETED.yaml against latest main before pushing). This session has no further active claims."

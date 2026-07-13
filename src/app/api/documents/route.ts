@@ -8,6 +8,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { isVisionExtractable, extractDocumentContent } from "@/lib/services/document-extraction-service"
 import { listDocuments, markSupersededVersion, ServiceError } from "@/lib/services/document-service"
 import { classifyBusinessObjectType } from "@/lib/business-object-classifier"
+import { applyClassificationWithDb } from "@/lib/services/document-classification-service"
 
 const BUCKET = "compliance-documents"
 const MAX_SIZE_BYTES = 25 * 1024 * 1024 // matches the bucket's file_size_limit
@@ -133,6 +134,16 @@ export async function POST(request: NextRequest) {
         dbUser,
         request,
       })
+
+      // Priority 13 (Document Correspondent/Type Auto-Classification):
+      // filename-only pass, run inline (cheap, no OCR/AI dependency) --
+      // never overrides an explicit category/link the caller just set above
+      // (see applyClassificationWithDb's own additive-only discipline). A
+      // second, content-based pass runs after Document AI vision extraction
+      // completes for image uploads (document-extraction-service.ts).
+      await applyClassificationWithDb(db, orgId, doc.id, {}).catch((err) =>
+        console.error("Document auto-classification (filename pass) failed:", err)
+      )
 
       return doc
     })

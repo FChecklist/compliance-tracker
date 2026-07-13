@@ -8,7 +8,7 @@
 // Deterministic only, no LLM call -- matches this codebase's guardrail
 // design discipline everywhere else (see ai-reply-gate.ts's header for why
 // no LLM self-certification exists anywhere in this codebase).
-import { dynamicChains } from "@/lib/db"
+import { dynamicChains, entityRelationships } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 
@@ -103,6 +103,20 @@ export type CreateChainVersionResult =
  * and marking the old row 'retired' (the existing status enum already has
  * this value -- reused, not extended). The new row inherits every field
  * from the previous version except the ones explicitly overridden.
+ *
+ * GAP-DCMD, 3rd real entity_relationships graph edge for chains (after
+ * Priority 9's dynamic_chain -> approval_workflow_instance and Priority
+ * 10's dynamic_chain -> worker_agent): dynamic_chain -> dynamic_chain,
+ * relationshipType 'supersedes'. previousVersionId (Wave 171) already
+ * carries this exact fact as a denormalized FK-shaped column, but this
+ * is the only real chokepoint that ever writes it -- every version of
+ * every chain is created here, never anywhere else (task-service.ts's
+ * resolveDynamicChainId only find-or-creates version-1 rows) -- so it's
+ * the same "genuine chokepoint already exercised by production code"
+ * bar the first two edges used, not a contrived one. Non-blocking: a
+ * failure here must never break chain versioning itself, same posture
+ * as approval-workflow-service.ts/task-execution-engine.ts's own edge
+ * writers.
  */
 export async function createChainVersion(
   orgId: string,
@@ -135,6 +149,20 @@ export async function createChainVersion(
     }).returning()
 
     await db.update(dynamicChains).set({ status: "retired", updatedAt: new Date() }).where(eq(dynamicChains.id, existing.id))
+
+    try {
+      await db.insert(entityRelationships).values({
+        orgId,
+        sourceType: "dynamic_chain",
+        sourceId: created!.id,
+        targetType: "dynamic_chain",
+        targetId: existing.id,
+        relationshipType: "supersedes",
+        metadata: { newVersion: nextVersion, previousVersion: existing.version },
+      })
+    } catch (err) {
+      console.error(`[dynamic-chain-directory-service] Failed to record dynamic_chain->dynamic_chain graph edge for chain ${existingChainId} -> ${created!.id}:`, err)
+    }
 
     return { created: true as const, newChainId: created!.id, version: nextVersion }
   })
