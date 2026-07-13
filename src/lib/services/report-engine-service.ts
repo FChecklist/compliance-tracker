@@ -16,18 +16,18 @@
 // now a first-class, addable unit. Executing ANY definition goes through
 // ONE dispatcher (executeReportDefinition), not a new function per report:
 //
-//   - 'deterministic_aggregation' -- a generic group-by/count/sum/avg over
-//     one whitelisted table+column (runAggregation()). This generalizes
-//     custom-report-service.ts's per-entity switch into a single reusable
-//     function that any caller invokes with real, already-imported Drizzle
-//     table/column objects -- it is NOT a registry of raw table-name
-//     strings resolved at runtime (that would reopen the exact arbitrary-
-//     query surface custom-report-service.ts's own header explicitly
-//     rejected). Callers (this file's seed definitions, and whatever
-//     domain-specific report files future waves add) import real
-//     typed Drizzle objects and pass them in -- the whitelist is still
-//     "only what's explicitly wired in code", just wired ONCE per report
-//     instead of once per report AND once per switch-branch.
+//   - 'deterministic_aggregation' -- a generic group-by/count/sum/avg,
+//     resolved through TABLE_REGISTRY (below) -- a hardcoded, code-
+//     reviewed map from a definition's tableKey string to real Drizzle
+//     table/column objects. This generalizes custom-report-service.ts's
+//     per-entity switch into ONE reusable function+registry pair instead
+//     of a switch-branch per entity, while staying exactly as safe: a
+//     report_definitions row's JSON config can only ever resolve to a key
+//     that exists in TABLE_REGISTRY, never an arbitrary table (that would
+//     reopen the exact surface custom-report-service.ts's own header
+//     explicitly rejected). Future waves ADD their own domain's tables as
+//     new TABLE_REGISTRY entries -- this is genuinely executable through
+//     the dispatcher, not left for callers to wire per-report.
 //   - 'deterministic_formula' -- looks up a named pure function in
 //     FORMULA_REGISTRY (below) that computes a real calculated metric
 //     (SPI/CPI/health index) from real queried data, honestly documenting
@@ -59,9 +59,11 @@ import {
   constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
   erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
   projects,
+  interiorMoodBoards, interiorFfeItems, interiorFloorPlans, interiorFloorPlanRooms,
+  interiorFurniturePlacements, interiorMaterials, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, sql, gte, lt, type SQL } from "drizzle-orm"
+import { and, eq, or, isNull, inArray, sql, gte, lt, type SQL } from "drizzle-orm"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
@@ -78,9 +80,6 @@ export type ExecutionType = "deterministic_aggregation" | "deterministic_formula
 
 export type AggregationConfig = {
   kind: "aggregation"
-  /** Human-readable table name, documentation only. */
-  tableLabel: string
-  aggregation: "count" | "sum" | "avg"
   /**
    * Priority 11 wave 2 (2026-07-13 catalog build-out): resolves against
    * TABLE_REGISTRY below so executeReportDefinition() can actually run this
@@ -88,16 +87,19 @@ export type AggregationConfig = {
    * deterministic_aggregation had no dispatcher handler at all (only direct,
    * hand-coded callers could use runAggregation(), which needs real typed
    * Drizzle objects no report_definitions row could carry). Optional (not
-   * required) purely so the existing unit test's minimal stub config keeps
-   * type-checking -- a row without tableKey will 500 with a clear "cannot
-   * resolve which table" error at run time rather than silently doing
-   * nothing, so this is never a way to accidentally mark something 'built'
-   * without it actually running.
+   * required) purely so a minimal stub config keeps type-checking -- a row
+   * without tableKey will 500 with a clear "cannot resolve which table"
+   * error at run time rather than silently doing nothing, so this is never
+   * a way to accidentally mark something 'built' without it actually
+   * running. NOT an arbitrary table name: only keys that exist in
+   * TABLE_REGISTRY (a code-reviewed, hardcoded map) resolve to anything,
+   * exactly like custom-report-service.ts's GROUP_BY_FIELDS whitelist.
    */
   tableKey?: string
   /** Column key (must exist in TABLE_REGISTRY[tableKey].columns) to GROUP BY. Omit for a single ungrouped total. */
   groupByColumn?: string
-  /** Column key to sum/avg. Required when aggregation is 'sum'|'avg', ignored for 'count'. */
+  aggregation: "count" | "sum" | "avg"
+  /** Column key to sum/avg -- required when aggregation is 'sum'|'avg', ignored for 'count'. */
   aggregationColumnKey?: string
   /** Optional single equality filter (e.g. status='open') -- still whitelist-only: columnKey must be a registered column, never an arbitrary string. */
   filterEquals?: { columnKey: string; value: string | number | boolean }
@@ -185,13 +187,13 @@ export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; col
 
 export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   compliance_items: { table: complianceItems, orgIdColumn: complianceItems.orgId, columns: { status: complianceItems.status, priority: complianceItems.priority, complianceType: complianceItems.complianceType, departmentId: complianceItems.departmentId } },
-  notices: { table: notices, orgIdColumn: notices.orgId, columns: { status: notices.status, departmentId: notices.departmentId } },
+  notices: { table: notices, orgIdColumn: notices.orgId, columns: { status: notices.status, authority: notices.authority, departmentId: notices.departmentId } },
   risks: { table: risks, orgIdColumn: risks.orgId, columns: { status: risks.status, category: risks.category, likelihood: risks.likelihood, impact: risks.impact } },
   pms_issues: { table: pmsIssues, orgIdColumn: pmsIssues.orgId, columns: { statusId: pmsIssues.statusId, priority: pmsIssues.priority, projectId: pmsIssues.projectId } },
   incidents: { table: incidents, orgIdColumn: incidents.orgId, columns: { category: incidents.category, severity: incidents.severity, stage: incidents.stage } },
   construction_boqs: { table: constructionBoqs, orgIdColumn: constructionBoqs.orgId, columns: { status: constructionBoqs.status, projectId: constructionBoqs.projectId } },
   construction_work_progress_entries: { table: constructionWorkProgressEntries, orgIdColumn: constructionWorkProgressEntries.orgId, columns: { projectId: constructionWorkProgressEntries.projectId, activityId: constructionWorkProgressEntries.activityId, percentComplete: constructionWorkProgressEntries.percentComplete } },
-  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status } },
+  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status, rosterId: constructionAttendance.rosterId } },
   // -- new for the Owner's 30 Project Reports / 30 Analysis Dashboards / Executive KPI catalog (2026-07-13) --
   projects: { table: projects, orgIdColumn: projects.orgId, columns: { healthStatus: projects.healthStatus, isActive: projects.isActive } },
   pms_milestones: { table: pmsMilestones, orgIdColumn: pmsMilestones.orgId, columns: { status: pmsMilestones.status, projectId: pmsMilestones.projectId } },
@@ -690,6 +692,238 @@ async function computeLookAheadPlan(ctx: { orgId: string }, params: Record<strin
   })
 }
 
+// ─── Interior Design formulas (Priority 11, interior_design classification)
+// ─── Wired against real interior_* tables (schema confirmed against
+// src/lib/db/schema.ts, verified alongside interior-design-service.ts /
+// interior-floorplan-service.ts, the two existing CRUD services for this
+// domain -- neither of which previously exposed a reporting/rollup
+// function beyond getMarginSummary, which computeInteriorProfitByRoom
+// below deliberately does NOT duplicate: getMarginSummary groups by FF&E
+// `category`, this groups the same cost/price fields by `roomOrArea`
+// instead -- same underlying rows, a genuinely different rollup axis, not
+// a re-implementation.  Every function here documents its own honest
+// limitation inline (free-text room grouping, no order/receipt
+// timestamps, etc.) in the returned `note`, matching computeSpi/computeCpi's
+// own discipline above.
+
+function polygonAreaSqCm(points: { x: number; y: number }[]): number {
+  let area = 0
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length
+    area += points[i].x * points[j].y - points[j].x * points[i].y
+  }
+  return Math.abs(area / 2)
+}
+
+/** Report 1: Mood Board Approval Report -- current draft/shared/approved state per board for a project. */
+async function interiorMoodBoardApprovalReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Mood Board Approval Report", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boards = await db.query.interiorMoodBoards.findMany({
+      where: and(eq(interiorMoodBoards.orgId, ctx.orgId), eq(interiorMoodBoards.projectId, projectId)),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+    })
+    const byStatus = { draft: 0, shared: 0, approved: 0 }
+    for (const b of boards) byStatus[b.status] = (byStatus[b.status] ?? 0) + 1
+    return {
+      columns: ["Mood Board", "Room/Area", "Status", "Created"],
+      rows: boards.map((b) => ({ "Mood Board": b.title, "Room/Area": b.roomOrArea ?? "-", Status: b.status, Created: b.createdAt.toISOString().slice(0, 10) })),
+      note: `${boards.length} mood board(s) -- ${byStatus.draft} draft, ${byStatus.shared} shared (pending client review), ${byStatus.approved} approved. This is a current-state snapshot: interior_mood_boards has no approvedAt/updatedAt timestamp, so WHEN a status change happened cannot be reported, only the current status.`,
+    }
+  })
+}
+
+/** Report 3: Material Selection Report -- room surface materials (floor/wall/ceiling) + fabric/finish FF&E items for a project. */
+async function interiorMaterialSelectionReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Material Selection Report", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const plans = await db.query.interiorFloorPlans.findMany({ where: and(eq(interiorFloorPlans.orgId, ctx.orgId), eq(interiorFloorPlans.projectId, projectId)) })
+    const planIds = plans.map((p) => p.id)
+    const rooms = planIds.length ? await db.query.interiorFloorPlanRooms.findMany({ where: inArray(interiorFloorPlanRooms.floorPlanId, planIds) }) : []
+    const materialIds = [...new Set(rooms.flatMap((r) => [r.floorMaterialId, r.wallMaterialId, r.ceilingMaterialId]).filter((id): id is string => !!id))]
+    const materials = materialIds.length ? await db.query.interiorMaterials.findMany({ where: inArray(interiorMaterials.id, materialIds) }) : []
+    const materialsById = new Map(materials.map((m) => [m.id, m]))
+    const fabricItems = await db.query.interiorFfeItems.findMany({
+      where: and(eq(interiorFfeItems.orgId, ctx.orgId), eq(interiorFfeItems.projectId, projectId), inArray(interiorFfeItems.category, ["textile", "finish"])),
+    })
+
+    const surfaceRows = rooms.flatMap((r) =>
+      ([["floorMaterialId", "Floor"], ["wallMaterialId", "Wall"], ["ceilingMaterialId", "Ceiling"]] as const).map(([key, label]) => {
+        const matId = r[key]
+        const mat = matId ? materialsById.get(matId) : null
+        if (!mat) return null
+        return { Room: r.name, Surface: label, Material: mat.name, Category: mat.category, Color: mat.colorHex }
+      }).filter((row): row is NonNullable<typeof row> => row !== null)
+    )
+    const fabricRows = fabricItems.map((i) => ({ Room: i.roomOrArea ?? "-", Surface: i.category === "textile" ? "Fabric" : "Finish", Material: i.itemName, Category: i.category, Color: "-" }))
+
+    return {
+      columns: ["Room", "Surface", "Material", "Category", "Color"],
+      rows: [...surfaceRows, ...fabricRows],
+      note: "Floor/wall/ceiling selections come from interior_materials via interior_floor_plan_rooms; fabric/finish selections come from interior_ffe_items (category='textile'|'finish'). interior_materials only has 3 category buckets (flooring/wall/ceiling) -- it does not distinguish tile vs laminate vs paint as separate types, only via the material's own free-text name.",
+    }
+  })
+}
+
+/** Report 4: Furniture Procurement Report -- specified/ordered/received/installed status per furniture FF&E line item. */
+async function interiorFurnitureProcurementReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Furniture Procurement Report", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const items = await db.query.interiorFfeItems.findMany({
+      where: and(eq(interiorFfeItems.orgId, ctx.orgId), eq(interiorFfeItems.projectId, projectId), eq(interiorFfeItems.category, "furniture")),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+    })
+    const byStatus = { specified: 0, ordered: 0, received: 0, installed: 0 }
+    for (const i of items) byStatus[i.status] = (byStatus[i.status] ?? 0) + 1
+    return {
+      columns: ["Item", "Room/Area", "Vendor ID", "Quantity", "Status", "Lead Time (days)"],
+      rows: items.map((i) => ({ Item: i.itemName, "Room/Area": i.roomOrArea ?? "-", "Vendor ID": i.vendorId ?? "-", Quantity: i.quantity, Status: i.status, "Lead Time (days)": i.leadTimeDays ?? "-" })),
+      note: `${items.length} furniture item(s) -- ${byStatus.specified} specified, ${byStatus.ordered} ordered, ${byStatus.received} received, ${byStatus.installed} installed.`,
+    }
+  })
+}
+
+/** Report 6: Site Measurement Report -- per-room floor area (shoelace formula over the stored polygon) + ceiling height. */
+async function interiorSiteMeasurementReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Site Measurement Report", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const plans = await db.query.interiorFloorPlans.findMany({ where: and(eq(interiorFloorPlans.orgId, ctx.orgId), eq(interiorFloorPlans.projectId, projectId)) })
+    const planById = new Map(plans.map((p) => [p.id, p]))
+    const planIds = plans.map((p) => p.id)
+    const rooms = planIds.length ? await db.query.interiorFloorPlanRooms.findMany({ where: inArray(interiorFloorPlanRooms.floorPlanId, planIds), orderBy: (t, { asc }) => asc(t.sortOrder) }) : []
+    return {
+      columns: ["Floor Plan", "Room", "Area (sqm)", "Ceiling Height (cm)"],
+      rows: rooms.map((r) => ({
+        "Floor Plan": planById.get(r.floorPlanId)?.name ?? "-",
+        Room: r.name,
+        "Area (sqm)": Math.round((polygonAreaSqCm(r.polygon as { x: number; y: number }[]) / 10000) * 100) / 100,
+        "Ceiling Height (cm)": Number(r.ceilingHeightCm),
+      })),
+      note: "Area is computed from each room's stored polygon (interior_floor_plan_rooms.polygon, shoelace formula, cm -> sqm) -- this is the room shape as drawn in the 2D floor plan editor, not an independently re-verified physical site survey.",
+    }
+  })
+}
+
+/** Report 8: Room-wise Progress Report -- FF&E installation completion per room (a proxy, not full room readiness). */
+async function interiorRoomProgressReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Room-wise Progress Report", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const plans = await db.query.interiorFloorPlans.findMany({ where: and(eq(interiorFloorPlans.orgId, ctx.orgId), eq(interiorFloorPlans.projectId, projectId)) })
+    const planIds = plans.map((p) => p.id)
+    const rooms = planIds.length ? await db.query.interiorFloorPlanRooms.findMany({ where: inArray(interiorFloorPlanRooms.floorPlanId, planIds) }) : []
+    const roomIds = rooms.map((r) => r.id)
+    const placements = roomIds.length ? await db.query.interiorFurniturePlacements.findMany({ where: inArray(interiorFurniturePlacements.roomId, roomIds) }) : []
+    const itemIds = [...new Set(placements.map((p) => p.ffeItemId))]
+    const items = itemIds.length ? await db.query.interiorFfeItems.findMany({ where: inArray(interiorFfeItems.id, itemIds) }) : []
+    const itemsById = new Map(items.map((i) => [i.id, i]))
+    const rows = rooms.map((r) => {
+      const roomPlacements = placements.filter((p) => p.roomId === r.id)
+      const total = roomPlacements.length
+      const installed = roomPlacements.filter((p) => itemsById.get(p.ffeItemId)?.status === "installed").length
+      return { Room: r.name, "FF&E Items Placed": total, Installed: installed, "Installation %": total > 0 ? Math.round((installed / total) * 100) : 0 }
+    })
+    return {
+      columns: ["Room", "FF&E Items Placed", "Installed", "Installation %"],
+      rows,
+      note: "Progress here means FF&E installation completion per room (installed / total placed FF&E items via interior_furniture_placements + interior_ffe_items.status) -- it does NOT include finish/civil work percentage (flooring, painting), which construction_work_progress_entries tracks per activity/project, not per room, so isn't merged in.",
+    }
+  })
+}
+
+/** Analysis 3: Vendor Lead Time -- average QUOTED lead time by vendor (not measured on-time reliability, see note). */
+async function interiorVendorLeadTimeAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = params.projectId ? String(params.projectId) : undefined
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(interiorFfeItems.orgId, ctx.orgId), sql`${interiorFfeItems.vendorId} is not null`, sql`${interiorFfeItems.leadTimeDays} is not null`]
+    if (projectId) conditions.push(eq(interiorFfeItems.projectId, projectId))
+    const items = await db.query.interiorFfeItems.findMany({ where: and(...conditions) })
+    const vendorIds = [...new Set(items.map((i) => i.vendorId).filter((id): id is string => !!id))]
+    const vendors = vendorIds.length ? await db.query.erpSuppliers.findMany({ where: inArray(erpSuppliers.id, vendorIds) }) : []
+    const vendorsById = new Map(vendors.map((v) => [v.id, v]))
+    const byVendor = new Map<string, { count: number; totalDays: number }>()
+    for (const i of items) {
+      if (!i.vendorId || i.leadTimeDays == null) continue
+      const b = byVendor.get(i.vendorId) ?? { count: 0, totalDays: 0 }
+      b.count++
+      b.totalDays += i.leadTimeDays
+      byVendor.set(i.vendorId, b)
+    }
+    const rows = [...byVendor.entries()]
+      .map(([vendorId, b]) => ({ Vendor: vendorsById.get(vendorId)?.supplierName ?? vendorId, "FF&E Items": b.count, "Avg Quoted Lead Time (days)": Math.round(b.totalDays / b.count) }))
+      .sort((a, b) => a["Avg Quoted Lead Time (days)"] - b["Avg Quoted Lead Time (days)"])
+    return {
+      columns: ["Vendor", "FF&E Items", "Avg Quoted Lead Time (days)"],
+      rows,
+      note: "This is each vendor's AVERAGE QUOTED lead time (interior_ffe_items.lead_time_days), not measured delivery reliability -- interior_ffe_items has no order-placed/received timestamps, so actual elapsed delivery time (and true on-time-delivery accuracy) cannot be computed from this schema. Treat as a planned-lead-time comparison, not a performance score.",
+    }
+  })
+}
+
+/** Analysis 9: Profit by Room -- FF&E margin (unit_price - unit_cost) grouped by the free-text roomOrArea field. */
+async function interiorProfitByRoomAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Profit by Room analysis", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const items = await db.query.interiorFfeItems.findMany({ where: and(eq(interiorFfeItems.orgId, ctx.orgId), eq(interiorFfeItems.projectId, projectId)) })
+    const byRoom = new Map<string, { cost: number; price: number }>()
+    for (const i of items) {
+      const key = i.roomOrArea?.trim() || "Unassigned"
+      const cost = Number(i.unitCost) * i.quantity
+      const price = Number(i.unitPrice) * i.quantity
+      const b = byRoom.get(key) ?? { cost: 0, price: 0 }
+      b.cost += cost
+      b.price += price
+      byRoom.set(key, b)
+    }
+    const rows = [...byRoom.entries()].map(([room, b]) => ({
+      Room: room, "FF&E Cost": Math.round(b.cost), "FF&E Client Price": Math.round(b.price),
+      Margin: Math.round(b.price - b.cost), "Margin %": b.price > 0 ? Math.round(((b.price - b.cost) / b.price) * 100) : 0,
+    }))
+    return {
+      columns: ["Room", "FF&E Cost", "FF&E Client Price", "Margin", "Margin %"],
+      rows,
+      note: "Room grouping uses interior_ffe_items.room_or_area, a free-text field (not a foreign key to interior_floor_plan_rooms) -- inconsistent naming across items (e.g. 'Living Room' vs 'living room') will fragment or fail to merge groupings. This reflects FF&E procurement margin ONLY (unit_price - unit_cost) -- it does not allocate design-fee revenue or labour cost per room (no such table exists), so it is not full room profitability.",
+    }
+  })
+}
+
+/** Analysis 10: Designer Productivity -- raw item-creation volume per designer (mood boards + floor plans + FF&E specs). */
+async function interiorDesignerProductivityAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  void params
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [moodBoards, floorPlans, ffeItems] = await Promise.all([
+      db.query.interiorMoodBoards.findMany({ where: eq(interiorMoodBoards.orgId, ctx.orgId) }),
+      db.query.interiorFloorPlans.findMany({ where: eq(interiorFloorPlans.orgId, ctx.orgId) }),
+      db.query.interiorFfeItems.findMany({ where: eq(interiorFfeItems.orgId, ctx.orgId) }),
+    ])
+    const byUser = new Map<string, { moodBoards: number; floorPlans: number; ffeSpecs: number }>()
+    const bump = (id: string, key: "moodBoards" | "floorPlans" | "ffeSpecs") => {
+      const b = byUser.get(id) ?? { moodBoards: 0, floorPlans: 0, ffeSpecs: 0 }
+      b[key]++
+      byUser.set(id, b)
+    }
+    moodBoards.forEach((b) => bump(b.createdById, "moodBoards"))
+    floorPlans.forEach((p) => bump(p.createdById, "floorPlans"))
+    ffeItems.forEach((i) => bump(i.createdById, "ffeSpecs"))
+    const userIds = [...byUser.keys()]
+    const userRows = userIds.length ? await db.query.users.findMany({ where: inArray(users.id, userIds) }) : []
+    const namesById = new Map(userRows.map((u) => [u.id, u.name]))
+    const rows = [...byUser.entries()]
+      .map(([userId, c]) => ({ Designer: namesById.get(userId) ?? userId, "Mood Boards": c.moodBoards, "Floor Plans": c.floorPlans, "FF&E Specs": c.ffeSpecs, Total: c.moodBoards + c.floorPlans + c.ffeSpecs }))
+      .sort((a, b) => b.Total - a.Total)
+    return {
+      columns: ["Designer", "Mood Boards", "Floor Plans", "FF&E Specs", "Total"],
+      rows,
+      note: "Raw output-volume count (mood boards + floor plans + FF&E specifications created), grouped by creator, org-wide -- a proxy for activity, not a quality- or complexity-adjusted productivity score. No time-tracking exists for interior design work specifically (unlike construction-designer-timesheet-report's real PMS hours, which covers project/construction-scoped work, not interior design).",
+    }
+  })
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
@@ -712,6 +946,14 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   profitability_analysis: computeProfitabilityAnalysis,
   delayed_tasks_report: computeDelayedTasksReport,
   look_ahead_plan: computeLookAheadPlan,
+  interior_mood_board_approval_report: interiorMoodBoardApprovalReport,
+  interior_material_selection_report: interiorMaterialSelectionReport,
+  interior_furniture_procurement_report: interiorFurnitureProcurementReport,
+  interior_site_measurement_report: interiorSiteMeasurementReport,
+  interior_room_progress_report: interiorRoomProgressReport,
+  interior_vendor_lead_time_analysis: interiorVendorLeadTimeAnalysis,
+  interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
+  interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────
@@ -869,12 +1111,6 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
 
   const config = definition.executionConfig as AggregationConfig | FormulaConfig | AiRecipeConfig | ExternalServiceConfig
 
-  if (definition.executionType === "deterministic_formula" && config.kind === "formula") {
-    const fn = FORMULA_REGISTRY[config.formulaKey]
-    if (!fn) throw new ServiceError(`No formula registered for key "${config.formulaKey}"`, 500)
-    return fn(ctx, { ...(config.params ?? {}), ...params })
-  }
-
   if (definition.executionType === "deterministic_aggregation" && config.kind === "aggregation") {
     // Priority 11 wave 2 (2026-07-13): resolved against TABLE_REGISTRY --
     // see that registry's own header for why this is safe (still
@@ -882,6 +1118,12 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
     // no tableKey (e.g. hand-authored before this wave) throws a clear
     // "cannot resolve" ServiceError rather than silently doing nothing.
     return runAggregationFromConfig(ctx, config)
+  }
+
+  if (definition.executionType === "deterministic_formula" && config.kind === "formula") {
+    const fn = FORMULA_REGISTRY[config.formulaKey]
+    if (!fn) throw new ServiceError(`No formula registered for key "${config.formulaKey}"`, 500)
+    return fn(ctx, { ...(config.params ?? {}), ...params })
   }
 
   if (definition.executionType === "ai_recipe" && config.kind === "ai_recipe") {
@@ -894,7 +1136,7 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
     // re-runnable end-to-end, not permanently dependent on a bespoke caller.
     let groundingData = params.groundingData
     if (groundingData === undefined && config.groundingQuery) {
-      groundingData = await runAggregationFromConfig(ctx, { kind: "aggregation", tableLabel: config.groundingQuery.tableKey, ...config.groundingQuery })
+      groundingData = await runAggregationFromConfig(ctx, { kind: "aggregation", ...config.groundingQuery })
     }
     return runAiRecipe(ctx, config, groundingData ?? {})
   }
