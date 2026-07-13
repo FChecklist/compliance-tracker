@@ -15,6 +15,17 @@ Each entry has a **maturity tag**:
 
 ---
 
+## Relationship to ai-os/ governance tracking
+
+This file (`docs/master/INDEX.md`) is the **documentation navigation** layer — it catalogs and tags the 32+ narrative `.md` artifacts in this repo so they don't sit as an unlinked flat pile. It is not the same thing as, and does not replace, two files that live under `ai-os/`:
+
+- [`ai-os/MASTER-TRACKER.yaml`](../../ai-os/MASTER-TRACKER.yaml) is the **live gap/task tracker** — the single place for what's open, in-progress, or blocked right now. If you're looking for current work status rather than "what document explains X," go there instead of here.
+- [`ai-os/OS.yaml`](../../ai-os/OS.yaml) is the **governance-file index** — the entry point that lists every governance/tracking document (including this one) and what it's for.
+
+See the new rows for both, plus `ai-os/BRAIN.md`, in the table below.
+
+---
+
 ## Start here (new, this pass)
 
 | Doc | Tag | What it is |
@@ -45,6 +56,9 @@ Each entry has a **maturity tag**:
 | [`MCP_PROTOCOL.md`](../../MCP_PROTOCOL.md) | 🟢 | MCP server spec — two-server architecture (Compliance Data + Dev Dispatch), 9 tools, JSON-RPC 2.0. Consolidated into `ARCHITECTURE.md`. | — |
 | [`VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md`](../../VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md) | 🟢 | 12 canonical input patterns with real-world examples across 6 personas. Living doc, feeds future intent-classifier design. | — |
 | [`VERI_CHAT_COMPOSER_DESIGN.md`](../../VERI_CHAT_COMPOSER_DESIGN.md) | 🟢 | Design doc for the persistent VERI Chat composer, written this session — maps the throwaway HTML prototype to production code, documents deliberate divergences. | Updated this session to reflect the Wave 131 platform-wide rollout. |
+| [`ai-os/OS.yaml`](../../ai-os/OS.yaml) | 🟢 | Governance-file index (added 2026-07-13) — lists every real governance/tracking document under `ai-os/` and what it's for; CI-enforced coverage via `scripts/check-metadata-index-coverage.mjs`. | Entry point for `ai-os/` specifically, distinct from this file's repo-wide doc catalog. |
+| [`ai-os/BRAIN.md`](../../ai-os/BRAIN.md) | 🟢 | Plain-language "what is VERIDIAN AI OS / how does it work" explainer (added 2026-07-13), every claim cited to a file the author actually opened. | Closes the "no narrative explainer" gap `ai-os/OS.yaml`'s own header names. |
+| [`ai-os/MASTER-TRACKER.yaml`](../../ai-os/MASTER-TRACKER.yaml) | 🟢 | THE live gap-analysis / open-work tracker (created 2026-07-12, consolidates 17 prior tracker files). The only place to check "what's open / what's next" going forward. | Supersedes `ai-os/boss/BOARD.yaml` (stale since 2026-06-29). |
 
 ## Gap analyses & certification passes
 

@@ -31,7 +31,7 @@
 ## Operating Rules
 1. Zero human coding — all changes made by AI agents only
 2. All changes logged through SENTINEL (ai-os/sentinel/)
-3. BOSS agent (ai-os/boss/BOARD.yaml) tracks all tasks
+3. Open tasks/gaps are tracked in `ai-os/MASTER-TRACKER.yaml`; closed work is logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
 4. Both agents have identical repo-level permissions via PAT_FCHECKLIST
 5. GitHub is the single source of truth — all work committed here
 6. **Added 2026-07-10 (Boss directive, after two concurrent full-access agents collided on `main` — one agent's uncommitted work got silently swept into the other's unrelated commit): `main` now has GitHub branch protection requiring every change to go through a pull request that passes CI (Lint/Type Check/Build/Unit Tests) before it can merge. Direct pushes to `main`, including from a full-access agent's own PAT, will be rejected (`enforce_admins` is on — there is no bypass). No human approval is required on the PR itself (there's no dedicated reviewer to bottleneck on), so this doesn't slow down single-agent work — it only prevents two agents from silently overwriting each other's in-flight changes. Work on a branch, open a PR, let CI run, merge once green.
