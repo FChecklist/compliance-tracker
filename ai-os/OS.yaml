@@ -93,6 +93,8 @@ index:
       covers: "Which of the 11 lifecycle stages (UNDERSTAND..IMPROVE) the project is currently in. Currently MONITOR (ongoing operation, not a one-time build)."
 
   brain_pointer:
+    - path: ai-os/BRAIN.md
+      covers: "PLATFORM_STRATEGY.md Sec31.4 Phase A item (2): the single plain-language 'what VERIDIAN AI OS is and how it works end-to-end' document that did not exist before 2026-07-13 -- traces a real request flow (VeriComposer -> POST /api/tasks -> resolveModelConfig -> callLLM) and an AI Dev Team dispatch flow, then names the 5 real separate systems (roster.ts, orchestra-model-resolver.ts+model-tier-eligibility.ts, embeddings.ts, activity_log, escalation-ladder.ts+monitor-protocol.ts) that compose into something brain-like without being one. Every claim cites a real file it was read from; start here before system-tree/ or OS.yaml itself."
     - path: ai-os/system-tree/40-veridian-brain.yaml
       covers: "Confirmed status of the separate veridian-brain repo -- empty scaffold, not yet extracted from this codebase. Read this before assuming 'the Brain' is a working system anywhere."
 
