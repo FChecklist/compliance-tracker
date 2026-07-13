@@ -88,6 +88,56 @@ export function computeCoverageStats(fullSoftwareCount: number, packageAvailable
   }
 }
 
+// Priority 12 (OPEN-07 point 6): task_capabilities.status was a dead column
+// -- schema default only, never read or written by any real code (confirmed
+// by grep before writing this). This makes it a real, derived reflection of
+// the SAME rolling counters computeCoverageStats() already aggregates,
+// instead of a value someone would otherwise have to set by hand.
+export type CapabilityStatus = "ai_only" | "partial" | "full_software"
+
+// Below this many total observations, neither "overwhelmingly full-software"
+// nor "still mostly novel" is a meaningful read yet -- status stays at the
+// column's own 'ai_only' default. 5 is the smallest n where the two live
+// percentage thresholds below (80/60) both land on a whole-vote boundary
+// that can actually occur (4-of-5, 3-of-5) rather than a threshold no real
+// split at that sample size could ever cross.
+const MIN_OBSERVATIONS_FOR_STATUS = 5
+
+// 'full_software' requires an OVERWHELMING majority of recent classifications
+// needing zero AI reasoning, not a bare majority -- a capability that's
+// "usually" full-software but still regularly needs AI is exactly the
+// 'partial' case, not this one. 80% (4-in-5) tolerates one stray non-
+// FULL_SOFTWARE classification at the sample floor without flipping back,
+// but stops short of requiring literal unanimity (which would make the
+// status brittle to any single one-off outlier forever).
+const FULL_SOFTWARE_THRESHOLD_PERCENT = 80
+
+// 'ai_only' (beyond the sample-floor case above) requires recent history to
+// still be MOSTLY novel -- set above a bare 50% majority (60%) so a
+// capability that has already crossed into "less than half novel" reads as
+// 'partial' -- the more honest label once non-novel outcomes are becoming
+// the norm -- rather than staying pinned at 'ai_only' until it separately
+// clears the much higher FULL_SOFTWARE_THRESHOLD_PERCENT bar.
+const AI_ONLY_THRESHOLD_PERCENT = 60
+
+/**
+ * Pure derivation of task_capabilities.status from the exact same counters
+ * computeCoverageStats() reports on -- never a separately-tracked value.
+ * Callers that mutate the counters (recordExecutionOutcome() below) must
+ * recompute and write this in the SAME transaction as the counter update,
+ * the same "can never drift out of sync with its source data" discipline
+ * capability-tree-service.ts's markDeterministic() already follows for
+ * CapabilityNode.deterministic -- applied here to a persisted column
+ * instead of a value recomputed on every read.
+ */
+export function deriveCapabilityStatus(fullSoftwareCount: number, packageAvailableCount: number, novelCount: number): CapabilityStatus {
+  const stats = computeCoverageStats(fullSoftwareCount, packageAvailableCount, novelCount)
+  if (stats.total < MIN_OBSERVATIONS_FOR_STATUS) return "ai_only"
+  if (stats.fullSoftwarePercent >= FULL_SOFTWARE_THRESHOLD_PERCENT) return "full_software"
+  if (stats.novelPercent >= AI_ONLY_THRESHOLD_PERCENT) return "ai_only"
+  return "partial"
+}
+
 // ─── DB-touching lookups/writes ────────────────────────────────────────────
 
 export async function findCapabilityByKey(capabilityKey: string): Promise<TaskCapability | null> {
@@ -181,22 +231,47 @@ export async function findApprovedPackage(capabilityId: string, packageType: Pac
 
 export type ExecutionBucket = "FULL_SOFTWARE" | "PACKAGE_AVAILABLE" | "NOVEL"
 
+const COUNTER_RETURNING = {
+  fullSoftwareCount: taskCapabilities.fullSoftwareCount,
+  packageAvailableCount: taskCapabilities.packageAvailableCount,
+  novelCount: taskCapabilities.novelCount,
+} as const
+
 // The "software learning" write -- increments exactly one rolling counter
 // plus occurrenceCount, never overwrites history. This is what feeds
 // computeCoverageStats()'s aggregate reporting. Written as 3 explicit
 // branches rather than a dynamic column-key lookup -- this counter is the
 // load-bearing signal the whole learning loop depends on, worth the extra
 // lines for certainty over a clever-but-riskier single code path.
+//
+// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's
+// createPromptVersion()) so the counter increment and the derived-status
+// write below happen atomically against the SAME row: Postgres holds the
+// UPDATE's row lock for the life of the transaction, so a concurrent call
+// for the same capabilityId blocks until this one commits (counters AND
+// status together), then runs against the already-consistent row. That is
+// what makes "status can never drift out of sync with the counters" true
+// here, not just a comment -- see deriveCapabilityStatus()'s own doc for
+// the markDeterministic() precedent this mirrors.
 export async function recordExecutionOutcome(capabilityId: string, bucket: ExecutionBucket): Promise<void> {
   const common = { occurrenceCount: sql`${taskCapabilities.occurrenceCount} + 1`, updatedAt: new Date() }
 
-  if (bucket === "FULL_SOFTWARE") {
-    await db.update(taskCapabilities).set({ ...common, fullSoftwareCount: sql`${taskCapabilities.fullSoftwareCount} + 1` }).where(eq(taskCapabilities.id, capabilityId))
-  } else if (bucket === "PACKAGE_AVAILABLE") {
-    await db.update(taskCapabilities).set({ ...common, packageAvailableCount: sql`${taskCapabilities.packageAvailableCount} + 1` }).where(eq(taskCapabilities.id, capabilityId))
-  } else {
-    await db.update(taskCapabilities).set({ ...common, novelCount: sql`${taskCapabilities.novelCount} + 1` }).where(eq(taskCapabilities.id, capabilityId))
-  }
+  await db.transaction(async (tx) => {
+    let updated: { fullSoftwareCount: number; packageAvailableCount: number; novelCount: number } | undefined
+
+    if (bucket === "FULL_SOFTWARE") {
+      ;[updated] = await tx.update(taskCapabilities).set({ ...common, fullSoftwareCount: sql`${taskCapabilities.fullSoftwareCount} + 1` }).where(eq(taskCapabilities.id, capabilityId)).returning(COUNTER_RETURNING)
+    } else if (bucket === "PACKAGE_AVAILABLE") {
+      ;[updated] = await tx.update(taskCapabilities).set({ ...common, packageAvailableCount: sql`${taskCapabilities.packageAvailableCount} + 1` }).where(eq(taskCapabilities.id, capabilityId)).returning(COUNTER_RETURNING)
+    } else {
+      ;[updated] = await tx.update(taskCapabilities).set({ ...common, novelCount: sql`${taskCapabilities.novelCount} + 1` }).where(eq(taskCapabilities.id, capabilityId)).returning(COUNTER_RETURNING)
+    }
+
+    if (!updated) return // capabilityId matched no row -- nothing to derive a status from either
+
+    const status = deriveCapabilityStatus(updated.fullSoftwareCount, updated.packageAvailableCount, updated.novelCount)
+    await tx.update(taskCapabilities).set({ status }).where(eq(taskCapabilities.id, capabilityId))
+  })
 }
 
 // Records a package's real usage outcome -- successRate is a simple moving
