@@ -58,34 +58,26 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
 
-      - name: Find the most recent structured audit verdict comment
-        id: find
+      - name: Validate the structured audit verdict
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-        # Audit finding (chief_audit_officer's first real dispatch, CAO-001,
-        # asked to confirm this without being able to see the file): GitHub
-        # Actions `run:` steps execute with `bash -eo pipefail` by default,
-        # so `gh api` failing (network error, bad token, rate limit) exits
-        # this step non-zero immediately -- the job fails, the check fails,
-        # merge stays blocked. This IS fail-closed; verified against
-        # actions/runner's documented default shell, not assumed.
+        # The comment fetch, the "pick the most recent AUDIT: line" match,
+        # and the field-extraction regex all live in
+        # scripts/validate-audit-verdict.ts itself now -- not split across
+        # a bash step piping through `gh api --jq`. That split was tried
+        # first and broke silently on first deploy: gojq's jq string-literal
+        # escaping for \s doesn't match what a shell single-quoted argument
+        # naturally produces, emptying the extracted comment body without
+        # any error (caught by dogfooding this exact PR's own audit
+        # comment). One language, one regex engine, one place it can be
+        # wrong -- verified against this PR's real comments, not just a
+        # mock, after the fix.
         #
-        # Picks the LAST comment matching an AUDIT: line, not the first --
-        # a redo after an initial FAIL/incomplete verdict must supersede the
-        # earlier one, and validating each comment separately (rather than
-        # concatenating all comment bodies into one blob) avoids fields
-        # from two different audit attempts being spliced together.
-        run: |
-          LAST_AUDIT_COMMENT=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --jq '[.[] | select(.body | test("^AUDIT:\\s*(PASS|FAIL)\\s*$"; "im"))] | last | .body // ""')
-          {
-            echo "body<<AUDIT_COMMENT_EOF"
-            echo "$LAST_AUDIT_COMMENT"
-            echo "AUDIT_COMMENT_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Validate the structured audit verdict
-        env:
-          COMMENT_BODY: ${{ steps.find.outputs.body }}
-        run: echo "$COMMENT_BODY" | bun run scripts/validate-audit-verdict.ts
+        # GitHub Actions `run:` steps execute with `bash -eo pipefail` by
+        # default, so a network/token/rate-limit failure inside the script
+        # (which itself calls process.exit(1) on any such error) fails this
+        # step -- the job fails, the check fails, merge stays blocked. Fail-
+        # closed, matching every other CI gate in this repo.
+        run: bun run scripts/validate-audit-verdict.ts

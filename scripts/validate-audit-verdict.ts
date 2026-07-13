@@ -9,17 +9,43 @@
 // 8 structured fields validateAuditProtocolFields() already enforces
 // everywhere else, applied here for the first time.
 //
-// Reads a PR comment body from stdin, extracts the 8 labeled fields (one
-// per line, "Label: value" -- same convention task-tightening.ts's
+// Fetches the PR's own comments directly (GH_TOKEN/REPO/PR_NUMBER env vars,
+// same three the workflow already had), finds the most recent one matching
+// an AUDIT: PASS/FAIL line, and extracts the 8 labeled fields (one per
+// line, "Label: value" -- same convention task-tightening.ts's
 // assembleTightTaskPrompt() already uses, so a reviewer or an AI reading
-// either side of this contract sees one consistent shape), validates them
-// with the actual shared function (not a reimplementation -- single
-// source of truth), and exits 0 (pass) / 1 (fail or malformed) with a
-// precise, actionable reason on stderr either way. This is the "how to
-// report back precisely" half of the agent-communication standard; the
-// "how to give instructions precisely" half already existed and is
-// unchanged (task-tightening.ts's TightTask/assembleTightTaskPrompt).
+// either side of this contract sees one consistent shape). Validates them
+// with the actual shared function (not a reimplementation -- single source
+// of truth), and exits 0 (pass) / 1 (fail or malformed) with a precise,
+// actionable reason on stderr either way.
+//
+// Deliberately does the comment fetch+select itself in one real regex
+// engine, rather than splitting it across a bash step piping into `gh api
+// --jq` -- gojq (gh's bundled jq) requires jq string-literal escaping for
+// \s that differs from what a shell single-quoted heredoc naturally
+// produces, and that mismatch silently emptied the extracted comment body
+// on first deploy (caught by dogfooding this exact PR's own audit
+// comment -- see git history). One language, one regex, one place it can
+// be wrong -- matching the ambiguity-elimination goal this whole change
+// exists for in the first place.
+//
+// This is the "how to report back precisely" half of the agent-
+// communication standard; the "how to give instructions precisely" half
+// already existed and is unchanged (task-tightening.ts's
+// TightTask/assembleTightTaskPrompt).
 import { validateAuditProtocolFields, type AuditProtocolFields } from "../src/lib/audit-protocol"
+
+type GithubComment = { body: string }
+
+async function fetchComments(repo: string, prNumber: string, token: string): Promise<GithubComment[]> {
+  const res = await fetch(`https://api.github.com/repos/${repo}/issues/${prNumber}/comments?per_page=100`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+  })
+  if (!res.ok) {
+    throw new Error(`GitHub API request failed: ${res.status} ${res.statusText}`)
+  }
+  return (await res.json()) as GithubComment[]
+}
 
 const FIELD_LABELS: Record<keyof AuditProtocolFields, string> = {
   objectiveUnderstood: "Objective Understood",
@@ -58,12 +84,19 @@ function parseAuditComment(body: string): Partial<AuditProtocolFields> | null {
 }
 
 async function main() {
-  const chunks: Buffer[] = []
-  for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
-  const body = Buffer.concat(chunks).toString("utf8")
+  const repo = process.env.REPO
+  const prNumber = process.env.PR_NUMBER
+  const token = process.env.GH_TOKEN
+  if (!repo || !prNumber || !token) {
+    console.error("::error::REPO, PR_NUMBER, and GH_TOKEN environment variables are all required.")
+    process.exit(1)
+  }
 
-  const fields = parseAuditComment(body)
-  if (!fields) {
+  const comments = await fetchComments(repo, prNumber, token)
+  const matching = comments.filter((c) => VERDICT_LINE_RE.test(c.body))
+  const last = matching[matching.length - 1]
+
+  if (!last) {
     console.error(
       "::error::No structured audit verdict found. Per AGENTS.md Operating Rule 7c, post a comment starting with " +
         "'AUDIT: PASS' or 'AUDIT: FAIL' followed by the 8 required fields (Objective Understood, Standards Reviewed, " +
@@ -73,6 +106,8 @@ async function main() {
     )
     process.exit(1)
   }
+
+  const fields = parseAuditComment(last.body)!
 
   const result = validateAuditProtocolFields(fields)
   if (!result.valid) {
