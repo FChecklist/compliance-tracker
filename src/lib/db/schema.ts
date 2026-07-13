@@ -3852,6 +3852,55 @@ export const savedReports = complianceSchemaDB.table('saved_reports', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Report Schedules (Owner directive 2026-07-13: reports should be
+// schedulable daily/weekly/monthly, user/org-definable, with real
+// execution+delivery -- not just the 3 hardcoded-daily report-cadence
+// crons report-cadence-service.ts already has) ───────────────────────────
+// reportId is a plain free-text identifier, deliberately NOT a foreign key
+// into savedReports or any report-catalog table -- a separate agent may or
+// may not have merged a catalog table, and this stays decoupled from that
+// either way. See report-schedule-service.ts's header for exactly which
+// reportId values this can actually generate content for today, and which
+// mechanism delivery reuses (it is NOT the 3 existing report-cadence
+// crons -- those honestly disclose "no persistence/delivery layer yet" in
+// their own /api/internal/*/run route comments; the real, already-firing
+// delivery mechanism in this same scheduled-report ecosystem is metric-
+// alert-service.ts's notifications-table insert, Wave 38).
+export const reportSchedules = complianceSchemaDB.table('report_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reportId: text('report_id').notNull(), // e.g. a savedReports.id, or one of report-cadence-service.ts's 3 known keys: 'escalations' | 'recommendations' | 'risk_trends'
+  cadence: text('cadence').notNull(), // 'daily' | 'weekly' | 'monthly'
+  dayOfWeek: integer('day_of_week'), // 0 (Sunday) - 6 (Saturday); only meaningful/required when cadence = 'weekly'
+  dayOfMonth: integer('day_of_month'), // 1-31; only meaningful/required when cadence = 'monthly' (clamped to the real last day of shorter months at run time)
+  recipientUserIds: jsonb('recipient_user_ids').notNull().default([]), // string[]
+  createdBy: text('created_by').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Report Item Actions (Owner directive 2026-07-13: a real accept/send-
+// to-todo/delegate action trail on individual report-result rows) ────────
+// Deliberately NOT a new business-status transition on compliance items/
+// notices/risks/pms_issues/incidents -- those entities already have their
+// own real status semantics (see custom-report-service.ts's sourceEntity
+// whitelist), and inventing a second, report-local "accepted" status on
+// top of them would be fabricated, not honest. "accept" here only ever
+// marks the REPORT ROW ITSELF acknowledged. targetId points at the real
+// row created by a delegate/todo action (scopedDelegations.id or tasks.id
+// respectively) -- null for accept, which creates nothing else.
+export const reportItemActions = complianceSchemaDB.table('report_item_actions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reportId: text('report_id').notNull(),
+  rowId: text('row_id').notNull(), // synthetic identifier for the specific report result row this action was taken on, e.g. its groupValue
+  userId: text('user_id').notNull(),
+  action: text('action').notNull(), // 'accept' | 'delegate' | 'todo'
+  targetId: text('target_id'), // scopedDelegations.id (delegate) or tasks.id (todo); null for accept
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Metric Alert Rules (Wave 38, Grafana-inspired scheduled threshold
 // alerting, PLATFORM_STRATEGY.md §22) ─────────────────────────────────────
 // Reuses the exact same sourceEntity/filterField whitelist custom-report-

@@ -16,6 +16,7 @@
     { "path": "/api/internal/escalations-report/run", "schedule": "15 1 * * *" },
     { "path": "/api/internal/recommendations-report/run", "schedule": "30 1 * * *" },
     { "path": "/api/internal/risk-trends-report/run", "schedule": "45 1 * * *" },
-    { "path": "/api/internal/dispatch-completion-monitor/run", "schedule": "20 */6 * * *" }
+    { "path": "/api/internal/dispatch-completion-monitor/run", "schedule": "20 */6 * * *" },
+    { "path": "/api/internal/report-schedules/run", "schedule": "0 9 * * *" }
   ]
 }

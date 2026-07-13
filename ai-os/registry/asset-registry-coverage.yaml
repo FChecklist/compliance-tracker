@@ -740,6 +740,10 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: related_party_transactions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: report_schedules
+    reason: "Owner directive 2026-07-13 (report scheduling + action flow): has org_id but no single display-name column -- each row is a per-schedule compound record (reportId, cadence, dayOfWeek/dayOfMonth, recipientUserIds), same shape as the already-exempted scoped_delegations (a per-grant/per-config record, not a named platform asset in the UMR sense). reportId is a free-text identifier, not a display name -- it's not unique across orgs and often duplicates the underlying report's own name."
+  - table: report_item_actions
+    reason: "Owner directive 2026-07-13 (report scheduling + action flow): an append-only action-trail log (accept/delegate/todo recorded against report rows), same reasoning as the already-exempted automation_rule_runs -- not itself a named platform asset."
   - table: sales_commission_accruals
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: sales_commission_plans
