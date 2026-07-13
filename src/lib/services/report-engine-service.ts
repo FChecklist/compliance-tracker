@@ -60,6 +60,7 @@ import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport } from "./construction-reports-service"
+import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -460,4 +461,67 @@ export async function promoteAiAnalysisToDefinition(
       promotedFromContext: `savedReports:${input.sourceSavedReportId}`,
     }
   )
+}
+
+// ─── Merged catalog (static REPORT_CATALOG + live report_definitions rows)
+// ─────────────────────────────────────────────────────────────────────────
+// Deliberately lives HERE, not in report-catalog-service.ts, even though it
+// conceptually extends that file's catalog -- report-catalog-service.ts is
+// imported by ReportCatalogList.tsx, a CLIENT component ("use client"), and
+// that file's own header states it is DATA-ONLY with no DB access. Adding a
+// withTenantContext()/db-touching function there once broke the production
+// build (Next.js's client bundler pulled the `postgres` driver, which needs
+// Node's `tls`/`perf_hooks`, into the client JS bundle). This file is
+// already server-only (imports `db`/LLM clients), consumed only by server
+// code (capability-tree-service.ts, API routes) -- the safe place for
+// anything that touches the DB.
+
+export type FullCatalogEntry = ReportCatalogEntry & { source: "static" | "definition"; definitionId?: string; status?: "built" | "data_gap" | "planned" }
+
+export async function getFullReportCatalog(ctx: { orgId: string }): Promise<FullCatalogEntry[]> {
+  const staticEntries: FullCatalogEntry[] = REPORT_CATALOG.map((e) => ({ ...e, source: "static" }))
+
+  const definitions = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.reportDefinitions.findMany({
+      where: (t, { and, eq, or, isNull }) => and(or(eq(t.orgId, ctx.orgId), isNull(t.orgId)), eq(t.isActive, true)),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+    })
+  )
+
+  const definitionEntries: FullCatalogEntry[] = definitions.map((d) => {
+    const classifications = Array.isArray(d.classifications) ? (d.classifications as string[]) : []
+    const domain: ReportDomain = classifications.includes("compliance")
+      ? "compliance"
+      : classifications.includes("financial") || classifications.includes("revenue")
+        ? "ERP"
+        : classifications.includes("construction") || classifications.includes("project")
+          ? "construction"
+          : "custom"
+    return {
+      id: d.id,
+      name: d.name,
+      description: d.description,
+      domain,
+      sourceService: "src/lib/services/report-engine-service.ts#executeReportDefinition",
+      outputFormats: Array.isArray(d.outputFormats) ? (d.outputFormats as string[]) : ["table"],
+      route: `/api/reports/definitions/${d.id}/run`,
+      routeNote: d.status === "built" ? "Real, auth-required API endpoint (POST) executed by the generic Reports & Analysis Engine dispatcher." : `Not yet built -- ${d.dataGapNote ?? "status: " + d.status}`,
+      directlyNavigable: false,
+      category: d.category as ReportCategory,
+      classifications,
+      periodicity: d.periodicity ?? undefined,
+      source: "definition",
+      definitionId: d.id,
+      status: d.status as "built" | "data_gap" | "planned",
+    }
+  })
+
+  return [...staticEntries, ...definitionEntries]
+}
+
+export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
+  const all = await getFullReportCatalog(ctx)
+  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  for (const entry of all) byDomain[entry.domain].push(entry)
+  return byDomain
 }

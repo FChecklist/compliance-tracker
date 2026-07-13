@@ -24,7 +24,8 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
 import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
-import { getFullReportCatalogByDomain, type ReportDomain } from "./report-catalog-service"
+import type { ReportDomain } from "./report-catalog-service"
+import { getFullReportCatalogByDomain } from "./report-engine-service"
 
 // The 6 real compliance_status enum values -- shown as clickable targets,
 // not a free-text field, so "update status" dispatch needs zero typing.

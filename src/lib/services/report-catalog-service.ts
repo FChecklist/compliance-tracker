@@ -28,7 +28,6 @@
 // report-taxonomy.ts (category/classifications/periodicity) -- backfilled
 // below for all 26 pre-existing entries with real values, not left blank.
 import type { ReportCategory } from "./report-taxonomy"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
 
 export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom"
 
@@ -250,62 +249,15 @@ export function listReportCatalogByDomain(): Record<ReportDomain, ReportCatalogE
   return byDomain
 }
 
-// Priority 11 (2026-07-13): the Reports & Analysis Engine's report_definitions
-// table (report-engine-service.ts) is a second, DB-backed source of catalog
-// entries -- new reports/analyses get ADDED there as data, not as new
-// TypeScript in this file. This merges both sources into one list so every
-// caller (ReportCatalogList.tsx, capability-tree-service.ts's Chain Selector
-// wiring) sees the full picture without needing to know there are two
-// sources. Static REPORT_CATALOG entries keep their real, already-verified
-// routes; DB entries get a synthetic route pointing at the generic
-// /reports/definitions/<id>/run engine endpoint (execution_type dependent --
-// see report-engine-service.ts) since they don't have their own bespoke page.
-export type FullCatalogEntry = ReportCatalogEntry & { source: "static" | "definition"; definitionId?: string; status?: "built" | "data_gap" | "planned" }
-
-export async function getFullReportCatalog(ctx: { orgId: string }): Promise<FullCatalogEntry[]> {
-  const staticEntries: FullCatalogEntry[] = REPORT_CATALOG.map((e) => ({ ...e, source: "static" }))
-
-  const definitions = await withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.reportDefinitions.findMany({
-      where: (t, { and, eq, or, isNull }) => and(or(eq(t.orgId, ctx.orgId), isNull(t.orgId)), eq(t.isActive, true)),
-      orderBy: (t, { desc }) => desc(t.createdAt),
-    })
-  )
-
-  const definitionEntries: FullCatalogEntry[] = definitions.map((d) => {
-    const classifications = Array.isArray(d.classifications) ? (d.classifications as string[]) : []
-    const domain: ReportDomain = classifications.includes("compliance")
-      ? "compliance"
-      : classifications.includes("financial") || classifications.includes("revenue")
-        ? "ERP"
-        : classifications.includes("construction") || classifications.includes("project")
-          ? "construction"
-          : "custom"
-    return {
-      id: d.id,
-      name: d.name,
-      description: d.description,
-      domain,
-      sourceService: "src/lib/services/report-engine-service.ts#executeReportDefinition",
-      outputFormats: Array.isArray(d.outputFormats) ? (d.outputFormats as string[]) : ["table"],
-      route: `/api/reports/definitions/${d.id}/run`,
-      routeNote: d.status === "built" ? "Real, auth-required API endpoint (POST) executed by the generic Reports & Analysis Engine dispatcher." : `Not yet built -- ${d.dataGapNote ?? "status: " + d.status}`,
-      directlyNavigable: false,
-      category: d.category as ReportCategory,
-      classifications,
-      periodicity: d.periodicity ?? undefined,
-      source: "definition",
-      definitionId: d.id,
-      status: d.status as "built" | "data_gap" | "planned",
-    }
-  })
-
-  return [...staticEntries, ...definitionEntries]
-}
-
-export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
-  const all = await getFullReportCatalog(ctx)
-  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
-  for (const entry of all) byDomain[entry.domain].push(entry)
-  return byDomain
-}
+// Priority 11 (2026-07-13): the DB-backed merge with report_definitions
+// (report-engine-service.ts) deliberately does NOT live in this file --
+// this file's own header states it is a "DATA-ONLY registry" with no DB
+// access, and it's imported by ReportCatalogList.tsx, a CLIENT component
+// (`"use client"`). Adding a withTenantContext()/db-touching function here
+// once broke the production build: Next.js's client bundler pulled the
+// `postgres` driver (which needs Node's `tls`/`perf_hooks`, absent in the
+// browser) into the client JS bundle via this file. The merge function
+// (getFullReportCatalog/getFullReportCatalogByDomain) lives in
+// report-engine-service.ts instead -- an already server-only file (it
+// already imports `db`/LLM clients), consumed only by server code
+// (capability-tree-service.ts, API routes), never by a client component.
