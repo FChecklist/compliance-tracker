@@ -8887,6 +8887,13 @@ export const capabilityImprovementProposals = complianceSchemaDB.table('capabili
   status: text('status').notNull().default('open'), // 'open' | 'dispatched' | 'resolved' | 'rejected'
   dispatchedToRole: text('dispatched_to_role'),
   dispatchedAt: timestamp('dispatched_at'),
+  // Priority 12 (OPEN-07 decision a, drizzle/0189): the advisory-only
+  // runRole() dispatch path (advisory-dispatch-service.ts) this now goes
+  // through never opens a PR by itself -- its real output is the model's
+  // advisory text, persisted here so a human has a real, queryable artifact
+  // to review instead of a bare 'dispatched' status flag with the response
+  // thrown away.
+  dispatchOutput: text('dispatch_output'),
   prUrl: text('pr_url'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

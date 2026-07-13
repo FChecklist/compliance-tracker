@@ -33,13 +33,25 @@
 //
 //   2. dispatchProposalToHigherAI() is its own exported function, not
 //      inlined into runCapabilityAudit(), even though the spec describes
-//      them as one flow. Reason: dispatch-repo.ts's own header states
-//      GITHUB_DISPATCH_PAT is not yet set on Vercel -- a live dispatch call
-//      from the deployed app throws today. Splitting it out means a failed
-//      dispatch never corrupts the audit's own state (the proposal stays
-//      'open', the capability stays needsImprovement='yes') and the Super
-//      Boss (or a cron once the PAT is configured) can retry the dispatch
-//      alone by proposal id, without re-spending an Auditor LLM call.
+//      them as one flow. Splitting it out means a failed dispatch never
+//      corrupts the audit's own state (the proposal stays 'open', the
+//      capability stays needsImprovement='yes') and the Super Boss (or a
+//      cron) can retry the dispatch alone by proposal id, without
+//      re-spending an Auditor LLM call.
+//
+//      UPDATE (Priority 12/OPEN-07 decision a, Owner directive 2026-07-14):
+//      this used to call dispatch-repo.ts's dispatchRepoTask(), which fires
+//      a GitHub repository_dispatch event requiring GITHUB_DISPATCH_PAT --
+//      never configured on Vercel, confirmed never fired from the deployed
+//      app. Switched to advisory-dispatch-service.ts's dispatchAdvisoryTask(),
+//      the same advisory-only runRole() + tier-eligibility + GUARDRAIL_PLATFORM
+//      path /api/ai/team/dispatch already uses for a human veridian_admin --
+//      no GitHub PAT required. This is advisory-only, not repo-write: it
+//      does not open a PR by itself, so the model's advisory output is now
+//      persisted to capabilityImprovementProposals.dispatchOutput
+//      (drizzle/0189) as the real, queryable artifact a human reviews and
+//      acts on (writing the actual code change themselves, or dispatching a
+//      separate repo-write role) before calling closeImprovementLoop().
 //
 //   3. mapFindingsToRole() only ever routes to ENGINEERING-team roles
 //      confirmed to exist in roster.ts, on models confirmed 'integrative'-
@@ -51,7 +63,7 @@
 import { db, taskCapabilities, instructionPackages, capabilityImprovementProposals } from "@/lib/db"
 import { eq, sql } from "drizzle-orm"
 import { runRole } from "@/lib/ai-team/team-service"
-import { dispatchRepoTask } from "@/lib/ai-team/dispatch-repo"
+import { dispatchAdvisoryTask } from "@/lib/ai-team/advisory-dispatch-service"
 import type { TightTask } from "@/lib/task-tightening"
 import { ServiceError, type TaskCapability, computeCoverageStats, type CoverageStats } from "./capability-learning-service"
 // Priority 6 (UMR <-> Software Orchestrator integration): before Higher AI
@@ -407,6 +419,29 @@ export function buildTightTaskFromFindings(
 
 // ─── DB-touching: audit run, proposal dedup, dispatch, close-out ──────────
 
+/**
+ * Priority 12 (OPEN-07 point 4, Owner directive 2026-07-14): before this,
+ * runCapabilityAudit() had ZERO real callers anywhere in the deployed app --
+ * no cron, no API route -- confirmed by grep. This is the query the new
+ * cron route (/api/internal/capability-audit/run) uses to find real
+ * candidates, mirroring shouldAuditCapability()'s own gate as a SQL
+ * predicate (never re-selects a capability with an in-progress proposal or
+ * one already audited at its current version) rather than fetching
+ * everything and filtering in the app. `limit` bounds one run's LLM spend --
+ * a cron sweeping thousands of capabilities in one pass would burn an
+ * unbounded Auditor budget; ordering by lastAuditedAt (nulls/oldest first)
+ * means every capability eventually gets a turn across repeated runs
+ * instead of the same head-of-table rows winning every time.
+ */
+export async function findCapabilitiesDueForAudit(limit: number): Promise<TaskCapability[]> {
+  return db.query.taskCapabilities.findMany({
+    where: (t, { and, ne, or, isNull, sql: rawSql }) =>
+      and(ne(t.needsImprovement, "in_progress"), or(isNull(t.lastAuditedVersion), rawSql`${t.lastAuditedVersion} != ${t.version}`)),
+    orderBy: (t, { asc, sql: rawSql }) => asc(rawSql`${t.lastAuditedAt} nulls first`),
+    limit,
+  })
+}
+
 export type AuditRunResult =
   | { audited: false; reason: string }
   | { audited: true; needsImprovement: "no" }
@@ -539,8 +574,14 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
   const existingAssetMatch = (proposal.existingAssetMatch ?? null) as ExistingAssetMatch | null
   const tightTask = buildTightTaskFromFindings(capability, findings, stats, existingAssetMatch)
 
+  let advisoryOutput: string
   try {
-    await dispatchRepoTask(roleKey, tightTask)
+    const result = await dispatchAdvisoryTask(roleKey, tightTask)
+    if (!result.dispatched) {
+      console.error(`[capability-audit] Higher AI dispatch failed for proposal ${proposalId} (role '${roleKey}'): ${result.reason}`)
+      return { dispatched: false, reason: result.reason }
+    }
+    advisoryOutput = result.output
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     console.error(`[capability-audit] Higher AI dispatch failed for proposal ${proposalId} (role '${roleKey}'): ${reason}`)
@@ -551,7 +592,7 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
   await Promise.all([
     db
       .update(capabilityImprovementProposals)
-      .set({ status: "dispatched", dispatchedToRole: roleKey, dispatchedAt: now, updatedAt: now })
+      .set({ status: "dispatched", dispatchedToRole: roleKey, dispatchedAt: now, dispatchOutput: advisoryOutput, updatedAt: now })
       .where(eq(capabilityImprovementProposals.id, proposal.id)),
     db
       .update(taskCapabilities)
