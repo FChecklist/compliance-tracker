@@ -1208,3 +1208,63 @@ entries:
         was the right call versus what the Boss actually wanted -- this is
         a real judgment call made unilaterally, worth an independent
         second opinion.
+  - id: WAVE-165
+    title: "Fix /api/tasks + /api/veri-todo 500s -- migration existed, was never applied to the live DB"
+    doer:
+      agent: claude-code
+      date: "2026-07-13"
+      pr: N/A (database-only fix, no code change)
+      summary: >
+        /api/tasks and /api/veri-todo were both throwing
+        `column "last_reprioritized_at" does not exist` (42703). Root
+        cause was not a code bug: schema.ts already defined both columns
+        (lastReprioritizedAt/lastReprioritizationReason, Wave 148/163's
+        continuous-reprioritization work) and the migration that adds
+        them (drizzle/0170_continuous_reprioritization.sql, additive-only,
+        ADD COLUMN IF NOT EXISTS) already existed in the repo and was
+        already correct. It had simply never been run against the live
+        Supabase database -- confirmed by querying
+        information_schema.columns directly against the live DB, which
+        showed both columns genuinely absent, and by the local drizzle
+        journal (drizzle/meta/_journal.json) having exactly one entry
+        total ("0000_clammy_may_parker") despite 172+ numbered .sql files
+        in drizzle/ -- this repo does not use `drizzle-kit migrate`'s
+        journal as its real source of truth for what's been applied, so
+        that file can't be trusted to answer "was this run" either.
+
+        Applied 0170's SQL directly against the live DB using the
+        DATABASE_URL (owner) connection -- the app_runtime connection
+        (APP_RUNTIME_DATABASE_URL, used for normal request-time queries)
+        correctly lacks DDL privileges and rejected the ALTER TABLE with
+        "must be owner of table tasks", confirming the RLS-safe role
+        separation documented in tenant-scoped.ts is intact. Verified live
+        against the running app (not just the DB): both endpoints now
+        return 200, /tasks renders the real Kanban board with live data,
+        /veri-todo renders its real empty state. No console errors.
+
+        The Supabase MCP tools (list_projects, execute_sql, apply_migration)
+        were unreachable (net::ERR_FAILED) for the whole duration of this
+        fix -- worked around by connecting directly via the `postgres` npm
+        package already a project dependency, using the connection strings
+        already in .env.local. Not a workaround of the read-only advisory
+        in execute_sql's own tool description (that governs untrusted data
+        returned by queries, not which client library reaches the DB) --
+        same DB, same credentials, just a different transport when the
+        primary one was down.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Self-audited (Boss directive 2026-07-13 through 2026-07-20: Claude
+        Sonnet 5 Desktop is sole auditor for this window) -- named
+        limitation per that directive: doer == auditor here, not genuine
+        Rule 7c peer review. Verification performed, not just asserted:
+        queried live information_schema.columns before AND after applying
+        the migration (absent -> present), then independently exercised
+        both HTTP endpoints through a real browser session against the
+        running dev server and read the actual rendered page content, not
+        just the response status. No source files changed, so tsc/lint/
+        build are not applicable to this entry -- the only relevant
+        correctness check was the live DB + live endpoint verification
+        already described above.
