@@ -274,10 +274,15 @@ const REQUIRED_MARKERS = [
 
   // Added 2026-07-12 (Priority 2 item 3, U-D2.B6.S1): audit-protocol
   // 3-phase compliance gate -- structured-submission guardrail leaf, real
-  // and registered, honestly disclosed as having no live caller yet (see
-  // audit-protocol.ts's own header).
+  // and registered. Wired to its first real call site 2026-07-13 (Boss
+  // directive, "agent-to-agent communication standard"): mandatory-audit-
+  // check.yml's PR audit-verdict comment now must satisfy the same 8-field
+  // AuditProtocolFields contract, validated by the actual shared function
+  // via scripts/validate-audit-verdict.ts, not a bare "AUDIT: PASS" string.
   { file: "src/lib/audit-protocol.ts", mustContain: ["export function validateAuditProtocolFields"] },
   { file: "src/lib/guardrail-registrations.ts", mustContain: ["AUDIT_PROTOCOL_COMPLIANCE_LEAF"] },
+  { file: "scripts/validate-audit-verdict.ts", mustContain: ["validateAuditProtocolFields", "FIELD_LABELS"] },
+  { file: ".github/workflows/mandatory-audit-check.yml", mustContain: ["validate-audit-verdict.ts"] },
 
   // Added 2026-07-12 (10-priority5-software-orchestrator-tracker.yaml,
   // dispatch 4/Part 2): the Software Orchestrator's Auditor "once per

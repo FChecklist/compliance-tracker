@@ -18,15 +18,28 @@ name: Mandatory Audit Check
 # that one exists; the Claude-only window is enforced by instruction and
 # procedure, not by this check.
 #
+# Structured 2026-07-13 (Boss directive, "agent-to-agent communication
+# standard"): a bare "AUDIT: PASS" line is exactly the loose free text the
+# Boss asked to eliminate from agent-to-agent reporting. audit-protocol.ts
+# already defines the precise 8-field AuditProtocolFields contract and
+# validateAuditProtocolFields() (registered as guardrail leaf
+# AUDIT_PROTOCOL_COMPLIANCE_LEAF) -- built and tested, but its own header
+# stated "no live caller yet." This job is now that caller:
+# scripts/validate-audit-verdict.ts parses the same 8 labeled fields from
+# the PR comment and calls the real shared validator (not a
+# reimplementation), so an incomplete or vague audit is rejected with the
+# exact same precise, actionable reason a human-facing caller would get --
+# not just "no audit found."
+#
 # Honest limitation, same class as every other CI gate in this repo
 # (guardrail-presence-check.mjs's own header states this precedent): this
-# checks for a comment matching a specific marker, not that the audit was
-# actually rigorous -- it can't verify the auditor really ran tsc/lint/
-# build, only that *someone* explicitly asserted they did. That's a real,
+# checks that the 8 fields are present, non-placeholder, and internally
+# consistent -- it cannot verify the auditor actually ran tsc/lint/build,
+# only that they asserted they did in Evidence Recorded. That's a real,
 # stated limit, not a claim of more than this can deliver. Merge is only
-# actually blocked on a missing verdict once this job's name is added to
-# branch protection's required status checks -- a repo access-control
-# change, deliberately left for the Owner to make (see PR description).
+# actually blocked on a missing/invalid verdict once this job's name is
+# added to branch protection's required status checks -- a repo
+# access-control change, deliberately left for the Owner to make.
 
 on:
   pull_request:
@@ -41,28 +54,30 @@ jobs:
   audit-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Require an explicit audit verdict comment
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Validate the structured audit verdict
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-        # Audit finding (chief_audit_officer's first real dispatch, CAO-001,
-        # asked to confirm this without being able to see the file): GitHub
-        # Actions `run:` steps execute with `bash -eo pipefail` by default,
-        # so `COMMENTS=$(gh api ...)` failing (network error, bad token,
-        # rate limit) exits this step non-zero immediately -- the job fails,
-        # the check fails, merge stays blocked. This IS fail-closed;
-        # verified against actions/runner's documented default shell, not
-        # assumed.
-        run: |
-          COMMENTS=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" --jq '.[].body')
-          if echo "$COMMENTS" | grep -q "^AUDIT: PASS"; then
-            echo "Audit verdict found: PASS"
-            exit 0
-          fi
-          if echo "$COMMENTS" | grep -q "^AUDIT: FAIL"; then
-            echo "::error::Audit verdict found: FAIL -- this PR was reviewed and rejected. Address the findings and request a new audit."
-            exit 1
-          fi
-          echo "::error::This PR has no audit verdict yet. Per AGENTS.md Operating Rule 7c (widened 2026-07-13 to cover every PR, not just cheap-tier AI Workforce dispatches), a different agent/reviewer than whoever authored this PR must check out the branch, run tsc/lint/build independently, and post a comment starting with 'AUDIT: PASS' (or 'AUDIT: FAIL' with findings) before this can merge."
-          exit 1
+        # The comment fetch, the "pick the most recent AUDIT: line" match,
+        # and the field-extraction regex all live in
+        # scripts/validate-audit-verdict.ts itself now -- not split across
+        # a bash step piping through `gh api --jq`. That split was tried
+        # first and broke silently on first deploy: gojq's jq string-literal
+        # escaping for \s doesn't match what a shell single-quoted argument
+        # naturally produces, emptying the extracted comment body without
+        # any error (caught by dogfooding this exact PR's own audit
+        # comment). One language, one regex engine, one place it can be
+        # wrong -- verified against this PR's real comments, not just a
+        # mock, after the fix.
+        #
+        # GitHub Actions `run:` steps execute with `bash -eo pipefail` by
+        # default, so a network/token/rate-limit failure inside the script
+        # (which itself calls process.exit(1) on any such error) fails this
+        # step -- the job fails, the check fails, merge stays blocked. Fail-
+        # closed, matching every other CI gate in this repo.
+        run: bun run scripts/validate-audit-verdict.ts
