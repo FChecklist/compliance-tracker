@@ -11,7 +11,14 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
 
-export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// dbUser is optional/nullable: createMeeting() below only reads
+// ctx.orgId/ctx.userId, never ctx.dbUser -- the type used to require it
+// unconditionally. Wave 141 (PROJEXA Meetings/MOM, /api/v1/projexa/meetings)
+// needs to call createMeeting() from an API-key-only request context
+// (requireAuthOrApiKey(), no real session/dbUser), unlike the existing
+// session-only /api/v1/pms/meetings route. Narrowing the type to match
+// actual usage avoids forcing a fake dbUser object at that call site.
+export type PmsContext = { orgId: string; userId: string; dbUser?: typeof users.$inferSelect | null }
 
 export async function listMeetings(ctx: { orgId: string }, projectId: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>

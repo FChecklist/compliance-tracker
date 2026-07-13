@@ -11,7 +11,15 @@ export { ServiceError }
 import type { users } from "@/lib/db"
 import { ensureDefaultStatusesForProject } from "./pms-taxonomy-service"
 
-export type PmsContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// dbUser is optional/nullable: neither createIssue() nor updateIssue() below
+// actually reads ctx.dbUser (only orgId/userId are used), but the type used
+// to require it unconditionally. Wave 141 (PROJEXA Kanban board,
+// /api/v1/projexa/board) needs to call updateIssue() from an API-key-only
+// request context (requireAuthOrApiKey(), no real session/dbUser) -- this
+// narrows the type to match actual usage instead of forcing a fake dbUser
+// object at every API-key call site. Existing callers that do pass a real
+// dbUser (src/app/api/pms/issues/[id]/route.ts) are unaffected.
+export type PmsContext = { orgId: string; userId: string; dbUser?: typeof users.$inferSelect | null }
 
 export type IssueInput = {
   projectId: string
