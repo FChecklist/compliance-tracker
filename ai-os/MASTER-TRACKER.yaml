@@ -157,13 +157,6 @@ open_items:
       size: deferred_large
       recommendation: "Sequence after GAP-NARROW-MONITOR-ESCALATION's Phase 0 (Agent Escalation Registry is the same mechanism). Build Agent Review Registry last -- it needs Agent Performance + Agent Escalation data to act on, and has zero existing precedent to extend."
 
-    - id: GAP-UNIFIED-SOURCE-OF-TRUTH
-      name: "Unified source of truth for drift/duplication/hallucination + GPT-OSS-120B cross-agent monitor (see PLATFORM_STRATEGY.md §31)"
-      old_ids: []
-      detail: "Evaluated 2026-07-13 against 8 named pain points (drift, scattered work-history, undocumented decisions, no pre-work SOP, hallucination/infinite loops, unclear VERIDIAN-AI-OS understanding, no live completion %, no unified open/closed/audited view), applying to every agent working on this codebase's code -- Claude Code, z.ai GLM 5.2, or any future coding agent. Found real, live drift while writing the evaluation: COMPLETED.yaml was 7 real PRs (#246,#248-253) behind, backfilled same pass (WAVE-166..172). The GPT-OSS-120B-as-monitor proposal is not new scope -- it is PLATFORM_STRATEGY.md §29.3's own already-designed Phase 2 (Tier 3 executor), never built. Dispatching Phase A (COMPLETED.yaml backfill [done], ai-os/BRAIN.md plain-language VERIDIAN explainer, live-computed open/closed/%-complete view extending governance-health) and Phase B (generalize the Narrow Monitor beyond APPROVAL_GRANTED/REJECTED to watch AI Dev Team dispatch completion generally, wire the GPT-OSS-120B Tier-3 executor) as 3 parallel sub-agents this session, per the standing 3-sub-agent review procedure."
-      size: "in_progress -- 3 sub-agents dispatched 2026-07-13"
-      recommendation: "Update this entry (or move to closed_priorities) once all 3 sub-agent PRs are reviewed and merged. Tier 2 (Llama 3.1 8B/Cerebras) stays explicitly deferred until Tier 3 is proven in production, per §29's own sequencing."
-
     - id: GAP-UMR-TABLE-COVERAGE
       name: "340 of 396 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []
@@ -178,6 +171,14 @@ open_items:
       size: S
       recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
       first_raised: "2026-07-12 full status reconciliation pass"
+
+    - id: GAP-UNIFIED-SOT-REMAINDER
+      name: "GAP-UNIFIED-SOURCE-OF-TRUTH's genuinely-still-open pieces, after all 3 dispatched sub-agents merged (PR #256, #257)"
+      old_ids: []
+      detail: "Audited and merged 2026-07-13 (Super Boss/Claude Desktop, independent of implementer, per AGENTS.md Rule 7c): PR #256 (live open/closed/%-complete status-source-of-truth view, extends governance-health) and PR #257 (Tier-3 GPT-OSS-120B dispatch-completion monitor, live LLM round trip independently re-verified against the real Groq API during audit, plus its never-applied prerequisite migration 0173_narrow_monitor_agents_phase0.sql found and applied at the same time). Both closed cleanly with tsc/lint/tests/CI gates green. What GAP-UNIFIED-SOURCE-OF-TRUTH's own evaluation (PLATFORM_STRATEGY.md §31.1) already named as still open and NOT touched by any of the 5 merged PRs (#248/#250/#251/#254/#255/#256/#257): (a) CLAUDE.md/AGENTS.md -- the one file every session auto-loads -- still don't link to ai-os/OS.yaml, ai-os/BRAIN.md, or ai-os/MASTER-TRACKER.yaml, and AGENTS.md Rule 3 still names the stale ai-os/boss/BOARD.yaml; (b) 27 root-level stale dated .md files plus 16 already-archived tracker files sit undifferentiated/discoverable, real duplicate-work risk; (c) mid-session drift (a long interactive session forgetting a standing rule) has no code hook for the interactive Claude Code/Desktop path, and the headless ai-workforce-agent.mjs loop has no periodic self-check re-injection either; (d) audit-protocol.ts's 8 fields are CI-validated but never persisted to a queryable table -- no audit_findings table exists; (e) the new dispatch-completion monitor (PR #257) is pull-based only, no cron wiring, no persisted digest table."
+      size: M
+      recommendation: "5 remaining slices, sequenced as Phase 1 (a/b/c, 3 worktree-isolated sub-agents per standing procedure) and Phase 2 (d/e). Full file-level plan in the session that produced PR #256/#257."
+      first_raised: "2026-07-13, same pass that closed GAP-UNIFIED-SOURCE-OF-TRUTH"
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
@@ -385,3 +386,35 @@ closed_priorities:
         add VERCEL_DEPLOYMENT_WEBHOOK_SECRET production`), then redeploy.
         Until that step is done, the receiver code is live but Vercel
         never actually calls it.
+
+  - priority: 12
+    name: "GAP-UNIFIED-SOURCE-OF-TRUTH: all 3 dispatched sub-agent PRs reviewed and merged"
+    summary: |
+      PLATFORM_STRATEGY.md §31's 8-pain-point evaluation dispatched 3
+      parallel worktree-isolated sub-agents 2026-07-13; all 3 audited
+      independently (Super Boss/Claude Desktop, per AGENTS.md Rule 7c --
+      the dispatching agent did not implement any of the 3) and merged:
+      PR #255 (ai-os/BRAIN.md plain-language explainer), PR #256 (live
+      open/closed/%-complete status-source-of-truth view extending
+      /api/ai/team/governance-health -- explicitly a shallow, always-
+      current companion to STATUS-REPORT.md's deeper periodic audit, not
+      a replacement), and PR #257 (Tier-3 GPT-OSS-120B dispatch-completion
+      monitor generalizing Phase 0's Narrow Monitor mechanism -- can only
+      emit one of 5 MonitorReportFields, fails closed to escalate on any
+      model error, never approves/rejects/merges/edits anything).
+      Auditing PR #257 surfaced and fixed a real gap: its own prerequisite
+      migration (drizzle/0173_narrow_monitor_agents_phase0.sql, from the
+      already-merged PR #251) had never actually been applied to the live
+      database -- monitor_agents/monitor_task_state tables didn't exist.
+      Applied both 0173 and 0174 live via the Supabase MCP during this
+      audit. Also independently re-verified the GPT-OSS-120B round trip
+      live (not just the mocked unit test): called this branch's own real
+      describeStuckDispatch()/callLLMJson()/validateMonitorReportFields()
+      against the real Groq API with a synthetic 30h-stuck dispatch --
+      model correctly classified status=escalate with concrete evidence-
+      based reasoning, passed the real validator. tsc/eslint/full test
+      suite (974 tests)/all 3 CI coverage gates green on both merged PRs;
+      Vercel preview-deployment check failed on both, confirmed pre-
+      existing and unrelated (same failure on already-merged PR #255).
+      Genuinely still-open remainder tracked separately, not silently
+      dropped -- see GAP-UNIFIED-SOT-REMAINDER above.
