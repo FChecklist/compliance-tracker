@@ -1,9 +1,113 @@
+# VERIDIAN AI OS -- entry point / "start here" index.
+#
+# Gap closure, 2026-07-13 (Boss directive, metadata/drift investigation):
+# this file was previously a 9-line stub, itself stale and inaccurate
+# (claimed "db: Prisma/SQLite -> PostgreSQL" -- wrong; this codebase uses
+# Drizzle exclusively, zero Prisma, per CLAUDE.md's own explicit rule).
+# Investigation confirmed there is genuinely NO single unified metadata
+# store for this project -- 8+ separate documents each cover a different
+# facet (rules vs. what-exists vs. what-should-exist vs. gaps vs.
+# completed-log vs. point-in-time health), and MASTER-TRACKER.yaml's own
+# header explicitly declines to fold several of them in, for real,
+# documented reasons. Merging them into one file would undo those
+# deliberate decisions, not fix a gap.
+#
+# What this file is instead, honestly: the one place that lists every
+# other governance/tracking document and what it's actually for, so
+# "which file do I check for X" has one answer. scripts/check-metadata-
+# index-coverage.mjs enforces that every real governance file below is
+# either indexed here or explicitly exempted -- the same registered/
+# exempted, nothing-in-neither pattern asset-registry-coverage.yaml
+# already uses for database tables, applied here to documents.
+#
+# This is also, honestly, the closest thing to a "VERIDIAN Brain" pointer
+# that exists today. A separate `veridian-brain` GitHub repo exists but is
+# a confirmed empty scaffold (README + package.json only, nothing
+# extracted from this codebase yet -- see ai-os/system-tree/40-veridian-
+# brain.yaml). This file is not that repo and does not claim to be a
+# working cognitive architecture -- it is an index, kept honest by CI.
+
 id: AIOS-CT
-name: ComplianceTrack AI Operating System
-version: 2.0.0
+name: VERIDIAN AI Operating System (compliance-tracker)
+version: 3.0.0
 repo: FChecklist/compliance-tracker
-stack: { frontend: "Next.js 16", runtime: "Bun", db: "Prisma/SQLite→PostgreSQL", ui: "shadcn/ui", styling: "Tailwind CSS 4" }
-primary_engine: zai
-sentinel: ai-os/sentinel/SENTINEL.yaml
-boss: ai-os/boss/BOSS.yaml
-artifacts: ai-os/registry/ARTIFACTS.yaml
+stack:
+  frontend: "Next.js 16 App Router"
+  runtime: "Bun"
+  db: "Drizzle ORM + postgres.js -> Supabase PostgreSQL (compliance schema) -- zero Prisma, see CLAUDE.md"
+  ui: "shadcn/ui"
+  styling: "Tailwind CSS 4"
+primary_engine: shared (zai + claude-code) # matches ai-os/LIFECYCLE.yaml's own "engine" field -- not zai-only, corrected from the previous stale value
+
+# ==========================================================================
+# GOVERNANCE INDEX -- every real governance/tracking document, one line
+# each. If a document isn't in this list, it's either not governance-scoped
+# (product docs, specs) or a genuine gap -- check `exempted` below before
+# assuming the latter.
+# ==========================================================================
+index:
+  rules_and_authorization:
+    - path: CLAUDE.md
+      covers: "Codebase orientation + hard rules (Drizzle-only, requireAuth() required, DO-NOT-TOUCH paths). Auto-injected into every Claude Code session's system prompt by the CLI itself."
+    - path: AGENTS.md
+      covers: "Which AI agents are authorized (Super Boss / Z.ai GLM / Claude Code Secondary), what each can/cannot do, numbered Operating Rules (branch protection, audit requirements, guardrail-change authorization). NOT auto-injected into the z.ai/OpenRouter dispatch pipeline by the platform itself -- scripts/ai-workforce-agent.mjs's fetchGovernancePreamble() now reads and prepends both this file and CLAUDE.md to every z.ai dispatch's system prompt, closing that gap as of 2026-07-13."
+    - path: ai-os/sentinel/SENTINEL.yaml
+      covers: "Supreme governance rules (validation_rules, e.g. no direct DB access from UI, all changes logged). Never bypassed per AGENTS.md."
+    - path: ai-os/boss/BOSS.yaml
+      covers: "VEDABOSS project-governance identity/authority definition."
+    - path: ai-os/boss/ROSTER.yaml
+      covers: "The 3 top-level agent identities (VEDABOSS/ZAI/SENTINEL) -- verified accurate against AGENTS.md 2026-07-09."
+    - path: ai-os/engines/ENGINES.yaml
+      covers: "Z.ai + Claude Code full-access agent authorization record, dated 2026-06-28 -- overlaps in purpose with AGENTS.md/ROSTER.yaml; AGENTS.md is the actively-maintained one with the numbered Operating Rules, treat this as a historical authorization record."
+
+  work_tracking:
+    - path: ai-os/MASTER-TRACKER.yaml
+      covers: "THE single tracker for open items / gaps / work-in-progress. Consolidated 2026-07-12 from 17 prior scattered tracker files (archived, not deleted). Update discipline documented in the file's own header."
+    - path: ai-os/boss/COMPLETED.yaml
+      covers: "Append-only doer+auditor completion log, per AGENTS.md Rule 7(d) -- every completed task gets a real entry here, by both whoever did it and whoever audited it. Different purpose from MASTER-TRACKER.yaml (a pending-work list) -- this is a permanent historical record, never edited after the fact, only appended to."
+    - path: ai-os/boss/BOARD.yaml
+      covers: "Older task board. Self-declared stale in its own header since 2026-07-09 (stopped tracking ~114 waves ago) -- superseded by COMPLETED.yaml. Kept for historical reference only, not maintained."
+    - path: PLATFORM_STRATEGY.md
+      covers: "Living strategic-direction + architecture-decision document at repo root -- 'what VERIDIAN is becoming and what has to be built to get there.' Each major evaluated technology/feature gets its own numbered section (evaluated -> design -> explicitly deferred)."
+    - path: ai-os/STATUS-REPORT.md
+      covers: "Point-in-time (as of its own 'updated' date) percent-complete rollup reconciling Tree 1 (requirements) against Tree 3 (what's built). Re-derive, don't trust blindly, if significant time has passed."
+
+  what_should_exist_vs_what_does:
+    - path: ai-os/audit-tree/
+      covers: "Tree 1 -- what the 9 source requirement documents say VERIDIAN should be (01-09 per-document trees + 10-merged-tree.yaml)."
+    - path: ai-os/system-tree/
+      covers: "Tree 3 -- what's actually built in the live codebase, per real file/route grep (10-13 = compliance-tracker governance/API/DB/UI, 20/30/40 = PROJEXA/veda-advisors/veridian-brain, 50-merged-tree.yaml = the merge)."
+    - path: ai-os/tree4-unified/
+      covers: "Tree 1 + Tree 3 merge and the original gap backlog this analysis produced -- mostly archived into MASTER-TRACKER.yaml now (see that file's meta.source_files_archived list); 50-completion-plan/ is historical."
+
+  health_and_compliance:
+    - path: ai-os/sentinel/HEALTH.yaml
+      covers: "Point-in-time spot-check (CI green, no committed secrets) -- explicitly NOT a continuous monitor per its own note. Re-run before trusting if time has passed since last_check."
+    - path: ai-os/sentinel/VIOLATIONS.yaml
+      covers: "Point-in-time spot-check scan results, same 'not a full sweep' caveat as HEALTH.yaml."
+    - path: ai-os/registry/asset-registry-coverage.yaml
+      covers: "UMR (Universal Metadata Registry) coverage manifest -- every DB table must be listed registered or exempted, enforced by scripts/check-asset-registry-coverage.mjs on every PR. Row-level registration is genuinely automatic (a live Postgres trigger, zero human/AI touch per row); table-level onboarding is auto-VERIFIED but not auto-performed -- a new table needs a one-time migration + registry entry before the trigger covers it."
+    - path: ai-os/registry/ARTIFACTS.yaml
+      covers: "Enterprise Asset Registry scaffold. NOT YET POPULATED -- a real, named, still-open gap, not silently dropped."
+    - path: ai-os/LIFECYCLE.yaml
+      covers: "Which of the 11 lifecycle stages (UNDERSTAND..IMPROVE) the project is currently in. Currently MONITOR (ongoing operation, not a one-time build)."
+
+  brain_pointer:
+    - path: ai-os/system-tree/40-veridian-brain.yaml
+      covers: "Confirmed status of the separate veridian-brain repo -- empty scaffold, not yet extracted from this codebase. Read this before assuming 'the Brain' is a working system anywhere."
+
+  monitoring_health_check:
+    - path: /api/ai/team/governance-health
+      covers: "Real, queryable governance health endpoint (veridian_admin-gated): Reasoning Quality / Dependency Health / Compliance scores from real reviewer outcomes, plus (as of 2026-07-13) stuckActivities -- AI Team dispatches that have sat in a non-terminal lifecycle stage past a stated threshold with nobody having closed them out."
+
+  exempted:
+    # Real product/spec/reference docs that are NOT governance-scoped --
+    # listed here so check-metadata-index-coverage.mjs's scan doesn't flag
+    # them as an oversight. Add a real reason when adding an entry, same
+    # discipline as asset-registry-coverage.yaml's own exempted list.
+    - path: docs/
+      reason: "Product technical-spec documents (ComplianceTrack_TechSpec_*.docx etc), not AI-OS governance."
+    - path: specs/
+      reason: "Historical product mockups/specs, not AI-OS governance."
+    - path: ai-os/OS.yaml
+      reason: "This file is the index itself -- it does not need to index itself."

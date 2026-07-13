@@ -321,6 +321,23 @@ const REQUIRED_MARKERS = [
   // adding this marker -- "novel_capability" appears exactly once in the
   // file, at this exact gate.
   { file: "src/lib/task-execution-engine.ts", mustContain: ["\"novel_capability\""] },
+
+  // Added 2026-07-13 (Boss directive, metadata/drift investigation): CLAUDE.md
+  // and AGENTS.md are auto-injected into Claude Code's own system prompt by
+  // the CLI, but were confirmed by direct investigation to be NEVER read by
+  // the z.ai/OpenRouter dispatch pipeline -- the two authorized agents
+  // (AGENTS.md's own list) were not guaranteed to work from the same base
+  // rules. fetchGovernancePreamble() closes this by reading both files fresh
+  // on every dispatch and prepending them to the system prompt sent to
+  // OpenRouter. Read-only -- resolveSafe()'s write-protection for these same
+  // paths is a separate, unrelated guardrail and stays exactly as strict.
+  { file: "scripts/ai-workforce-agent.mjs", mustContain: ["async function fetchGovernancePreamble", "fetchGovernancePreamble()"] },
+
+  // Added 2026-07-13 (same Boss directive as the entry above): the
+  // metadata-index coverage gate itself, so its own CI wiring can't be
+  // silently dropped either.
+  { file: "scripts/check-metadata-index-coverage.mjs", mustContain: ["realItems", "OS_YAML"] },
+  { file: ".github/workflows/ci.yml", mustContain: ["check-metadata-index-coverage.mjs"] },
 ]
 
 let failed = false
