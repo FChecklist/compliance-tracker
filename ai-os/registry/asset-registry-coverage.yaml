@@ -136,49 +136,49 @@ registered:
   # CLM, Facilities, Construction, and Interior Design. Backfilled live via
   # compliance.backfill_registered_assets().
   - table: directors_kmp
-    reason: "Priority 11 (drizzle/0172): org-scoped statutory Directors & KMP register -- auto_register_asset_trg attached, name_column=name, active_column=NULL (is_independent is a classification flag, not TRUE-means-active), no owner or purpose column exists"
+    reason: "Priority 11 (drizzle/0184): org-scoped statutory Directors & KMP register -- auto_register_asset_trg attached, name_column=name, active_column=NULL (is_independent is a classification flag, not TRUE-means-active), no owner or purpose column exists"
   - table: cap_table_entries
-    reason: "Priority 11 (drizzle/0172): org-scoped cap table register entry -- auto_register_asset_trg attached, name_column=holder_name, no status or owner column exists"
+    reason: "Priority 11 (drizzle/0184): org-scoped cap table register entry -- auto_register_asset_trg attached, name_column=holder_name, no status or owner column exists"
   - table: company_charges
-    reason: "Priority 11 (drizzle/0172): org-scoped statutory company-charges register -- auto_register_asset_trg attached, name_column=charge_holder, purpose_column=charge_type, active_column=NULL (status is free text, not boolean), no owner column exists"
+    reason: "Priority 11 (drizzle/0184): org-scoped statutory company-charges register -- auto_register_asset_trg attached, name_column=charge_holder, purpose_column=charge_type, active_column=NULL (status is free text, not boolean), no owner column exists"
   - table: legal_vendors
-    reason: "Priority 11 (drizzle/0172): org-scoped legal vendor/law-firm master -- auto_register_asset_trg attached, name_column=name, purpose_column=current_matter, active_column=NULL (status is free text default 'active', not a real boolean column), no owner column exists"
+    reason: "Priority 11 (drizzle/0184): org-scoped legal vendor/law-firm master -- auto_register_asset_trg attached, name_column=name, purpose_column=current_matter, active_column=NULL (status is free text default 'active', not a real boolean column), no owner column exists"
   - table: legal_opinions
-    reason: "Priority 11 (drizzle/0172): registered as asset_type document -- has body_text/generated_at, same AI-generated-content shape as the already-registered erp_contracts, auto_register_asset_trg attached, name_column=topic, no owner column exists (advisor is free text, not a user FK)"
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- has body_text/generated_at, same AI-generated-content shape as the already-registered erp_contracts, auto_register_asset_trg attached, name_column=topic, no owner column exists (advisor is free text, not a user FK)"
   - table: fraud_cases
-    reason: "Priority 11 (drizzle/0172): org-scoped GRC fraud-case register -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=investigator_id (more specific than recorded_by_id), active_column=NULL (status is free text, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped GRC fraud-case register -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=investigator_id (more specific than recorded_by_id), active_column=NULL (status is free text, not boolean)"
   - table: it_dr_plans
-    reason: "Priority 11 (drizzle/0172): org-scoped IT disaster-recovery plan register -- auto_register_asset_trg attached, name_column=system_name, purpose_column=system_description, owner_column=owner_id, active_column=NULL (status is 3-value free text, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped IT disaster-recovery plan register -- auto_register_asset_trg attached, name_column=system_name, purpose_column=system_description, owner_column=owner_id, active_column=NULL (status is 3-value free text, not boolean)"
   - table: posh_committee
-    reason: "Priority 11 (drizzle/0172): org-scoped POSH internal-committee member register -- unlike posh_complaints/whistleblower_cases (deliberately exempted for confidential case content), this table's whole purpose is to name real people, no confidentiality conflict -- auto_register_asset_trg attached, name_column=member_name, purpose_column=role"
+    reason: "Priority 11 (drizzle/0184): org-scoped POSH internal-committee member register -- unlike posh_complaints/whistleblower_cases (deliberately exempted for confidential case content), this table's whole purpose is to name real people, no confidentiality conflict -- auto_register_asset_trg attached, name_column=member_name, purpose_column=role"
   - table: pms_sprints
-    reason: "Priority 11 (drizzle/0172): org-scoped PMS sprint -- same shape/precedent as the already-registered pms_milestones, auto_register_asset_trg attached, name_column=name, purpose_column=goal, active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped PMS sprint -- same shape/precedent as the already-registered pms_milestones, auto_register_asset_trg attached, name_column=name, purpose_column=goal, active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: pms_wiki_pages
-    reason: "Priority 11 (drizzle/0172): registered as asset_type document -- general-purpose wiki page, same shape as the already-registered knowledge_base_pages, auto_register_asset_trg attached, name_column=title, owner_column=updated_by_id"
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- general-purpose wiki page, same shape as the already-registered knowledge_base_pages, auto_register_asset_trg attached, name_column=title, owner_column=updated_by_id"
   - table: tickets
-    reason: "Priority 11 (drizzle/0172): org-scoped support ticket -- registered as asset_type task, same reasoning as leave_requests/pms_issues, auto_register_asset_trg attached, name_column=subject, owner_column=assignee_id, active_column=NULL (status is free text, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped support ticket -- registered as asset_type task, same reasoning as leave_requests/pms_issues, auto_register_asset_trg attached, name_column=subject, owner_column=assignee_id, active_column=NULL (status is free text, not boolean)"
   - table: problem_records
-    reason: "Priority 11 (drizzle/0172): org-scoped ITIL problem/root-cause-analysis register -- auto_register_asset_trg attached, name_column=title, purpose_column=root_cause, owner_column=created_by_id (only option), active_column=NULL (status is free text, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped ITIL problem/root-cause-analysis register -- auto_register_asset_trg attached, name_column=title, purpose_column=root_cause, owner_column=created_by_id (only option), active_column=NULL (status is free text, not boolean)"
   - table: clm_contract_templates
-    reason: "Priority 11 (drizzle/0172): registered as asset_type document -- CLM contract template, same reasoning as erp_contracts, auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id, active_column=is_active (genuine TRUE-means-active flag)"
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- CLM contract template, same reasoning as erp_contracts, auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id, active_column=is_active (genuine TRUE-means-active flag)"
   - table: clm_clauses
-    reason: "Priority 11 (drizzle/0172): registered as asset_type document -- has body_text, contract-clause library entry, same document-shaped precedent as erp_contracts/legal_opinions, auto_register_asset_trg attached, name_column=title, purpose_column=category, owner_column=created_by_id, active_column=NULL (is_standard means 'requires legal review', not active/inactive)"
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- has body_text, contract-clause library entry, same document-shaped precedent as erp_contracts/legal_opinions, auto_register_asset_trg attached, name_column=title, purpose_column=category, owner_column=created_by_id, active_column=NULL (is_standard means 'requires legal review', not active/inactive)"
   - table: fm_checklist_templates
-    reason: "Priority 11 (drizzle/0172): FM PPM checklist-procedure template, org_id nullable by design (NULL=platform-seeded library row, non-null=an org's own fork, a real direct column not an indirect join) -- auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id (nullable for platform-seeded rows), active_column=is_active (genuine boolean)"
+    reason: "Priority 11 (drizzle/0184): FM PPM checklist-procedure template, org_id nullable by design (NULL=platform-seeded library row, non-null=an org's own fork, a real direct column not an indirect join) -- auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id (nullable for platform-seeded rows), active_column=is_active (genuine boolean)"
   - table: fm_visitors
-    reason: "Priority 11 (drizzle/0172): org-scoped front-desk visitor master register, distinct from the per-visit fm_visitor_logs -- auto_register_asset_trg attached, name_column=full_name, purpose_column=company_or_org, no status or owner column exists"
+    reason: "Priority 11 (drizzle/0184): org-scoped front-desk visitor master register, distinct from the per-visit fm_visitor_logs -- auto_register_asset_trg attached, name_column=full_name, purpose_column=company_or_org, no status or owner column exists"
   - table: esignature_requests
-    reason: "Priority 11 (drizzle/0172): registered as asset_type document -- e-signature request wrapper around a document/contract, auto_register_asset_trg attached, name_column=title, owner_column=created_by_id (nullable, only option), active_column=NULL (5-value free-text status)"
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- e-signature request wrapper around a document/contract, auto_register_asset_trg attached, name_column=title, owner_column=created_by_id (nullable, only option), active_column=NULL (5-value free-text status)"
   - table: performance_review_cycles
-    reason: "Priority 11 (drizzle/0172): org-scoped HR performance-review cycle (e.g. 'H1 2026') -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped HR performance-review cycle (e.g. 'H1 2026') -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: construction_boqs
-    reason: "Priority 11 (drizzle/0172): org-scoped Bill of Quantities register, a versioned master object -- auto_register_asset_trg attached, name_column=title, owner_column=created_by_id (approved_by_id is nullable, only set later), active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped Bill of Quantities register, a versioned master object -- auto_register_asset_trg attached, name_column=title, owner_column=created_by_id (approved_by_id is nullable, only set later), active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: construction_kpi_definitions
-    reason: "Priority 11 (drizzle/0172): org-scoped construction KPI metric definition register -- auto_register_asset_trg attached, name_column=metric_name, owner_column=owner_id (specific), active_column=NULL (period is an enum, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped construction KPI metric definition register -- auto_register_asset_trg attached, name_column=metric_name, owner_column=owner_id (specific), active_column=NULL (period is an enum, not boolean)"
   - table: interior_mood_boards
-    reason: "Priority 11 (drizzle/0172): org-scoped interior-design mood board -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped interior-design mood board -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: interior_floor_plans
-    reason: "Priority 11 (drizzle/0172): org-scoped 2D floor-plan register, distinct master object from its child interior_floor_plan_rooms -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is 2-value free text 'draft'/'final', not boolean)"
+    reason: "Priority 11 (drizzle/0184): org-scoped 2D floor-plan register, distinct master object from its child interior_floor_plan_rooms -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is 2-value free text 'draft'/'final', not boolean)"
 
 exempted:
   - table: access_review_certifications
