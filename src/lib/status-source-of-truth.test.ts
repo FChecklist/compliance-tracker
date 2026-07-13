@@ -15,7 +15,7 @@
 // against the live files (pasted in this change's PR description) is the
 // end-to-end proof that the wrapper and the real files' shape agree.
 import { describe, expect, test } from "bun:test"
-import { computeStatusSourceOfTruth } from "./status-source-of-truth"
+import { computeStatusSourceOfTruth, computeAuditFindingsSummary } from "./status-source-of-truth"
 
 describe("computeStatusSourceOfTruth -- open item counting", () => {
   test("counts owner_blocked + needs_owner_decision + real_gaps_not_yet_built, excludes ratified_do_not_build", () => {
@@ -157,5 +157,32 @@ describe("computeStatusSourceOfTruth -- percentComplete", () => {
     const result = computeStatusSourceOfTruth({}, {})
     expect(result.methodology.length).toBeGreaterThan(0)
     expect(result.methodology).toContain("STATUS-REPORT.md")
+  })
+})
+
+// GAP-UNIFIED-SOT-REMAINDER slice (d): computeAuditFindingsSummary() is the
+// pure half of the new auditFindingsSummary field, same split as
+// computeStatusSourceOfTruth() above -- fixture rows in, counts out, no DB.
+// loadAuditFindingsSummary() (the DB-reading wrapper) is deliberately NOT
+// unit-tested here, same convention as loadStatusSourceOfTruth() itself
+// (see this file's own header) -- it's a thin I/O shim, and its fail-soft
+// behavior against a not-yet-applied migration is a live-environment
+// concern, not something a fixture-based unit test can meaningfully fake.
+describe("computeAuditFindingsSummary", () => {
+  test("counts pass/fail verdicts case-insensitively and with surrounding whitespace tolerated", () => {
+    const rows = [{ verdict: "pass" }, { verdict: "PASS" }, { verdict: " Fail " }, { verdict: "fail" }, { verdict: "fail" }]
+    const result = computeAuditFindingsSummary(rows)
+    expect(result).toEqual({ pass: 2, fail: 3, pending: 0, total: 5, unavailableReason: null })
+  })
+
+  test("a verdict that is null, empty, or neither pass nor fail counts as pending, not silently dropped", () => {
+    const rows = [{ verdict: "pass" }, { verdict: null }, { verdict: "" }, { verdict: "unknown" }]
+    const result = computeAuditFindingsSummary(rows)
+    expect(result).toEqual({ pass: 1, fail: 0, pending: 3, total: 4, unavailableReason: null })
+  })
+
+  test("zero rows produces all-zero counts, not a crash", () => {
+    const result = computeAuditFindingsSummary([])
+    expect(result).toEqual({ pass: 0, fail: 0, pending: 0, total: 0, unavailableReason: null })
   })
 })

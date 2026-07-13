@@ -33,7 +33,31 @@
 // communication standard; the "how to give instructions precisely" half
 // already existed and is unchanged (task-tightening.ts's
 // TightTask/assembleTightTaskPrompt).
+//
+// GAP-UNIFIED-SOT-REMAINDER slice (d): the 8 fields above were validated
+// and then discarded -- nothing persisted a passing verdict anywhere
+// queryable. persistAuditFinding() below closes that, additively: it runs
+// only AFTER validateAuditProtocolFields() has already returned valid
+// (this file's existing validation logic/exit codes are otherwise
+// untouched), and its own failure is deliberately non-fatal -- a
+// DATABASE_URL that isn't configured, or a live DB whose
+// audit_protocol_findings migration (drizzle/0176) hasn't been applied yet,
+// must never turn an
+// otherwise-valid PASS/FAIL verdict into a blocked merge over an unrelated
+// persistence hiccup. Same fail-open-on-the-side-effect posture as
+// src/app/api/webhooks/vercel-deployment/route.ts's audit-trigger write.
+//
+// prNumber/prUrl are built from this script's own existing PR_NUMBER/REPO
+// env vars (no new ones needed). branchName/submittedBy come from
+// GITHUB_HEAD_REF/GITHUB_ACTOR -- both set automatically by GitHub Actions
+// for a pull_request-triggered workflow run, so no workflow file change was
+// needed to make them available.
 import { validateAuditProtocolFields, type AuditProtocolFields } from "../src/lib/audit-protocol"
+// Named auditProtocolFindings, NOT auditFindings -- that name is already
+// taken by an unrelated, pre-existing, org-scoped internal-audit-engagement
+// CAPA findings table in schema.ts. See drizzle/0176_audit_protocol_findings.sql's
+// header for the full collision writeup.
+import { db, auditProtocolFindings } from "../src/lib/db"
 
 type GithubComment = { body: string }
 
@@ -83,6 +107,41 @@ function parseAuditComment(body: string): Partial<AuditProtocolFields> | null {
   return fields
 }
 
+// Best-effort, non-fatal persistence of a validated audit verdict into
+// compliance.audit_protocol_findings (drizzle/0176). Never throws -- every
+// failure mode (no DATABASE_URL configured, migration not yet applied live,
+// network error) is caught and logged as a GitHub Actions warning
+// annotation, not an error, so it never affects this script's exit code.
+async function persistAuditFinding(fields: AuditProtocolFields, repo: string, prNumber: string): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    console.warn(
+      "::warning::DATABASE_URL not configured -- skipping audit_protocol_findings persistence (the verdict validation result above is unaffected)."
+    )
+    return
+  }
+  try {
+    await db.insert(auditProtocolFindings).values({
+      prNumber: Number.isFinite(Number(prNumber)) ? Number(prNumber) : null,
+      prUrl: `https://github.com/${repo}/pull/${prNumber}`,
+      branchName: process.env.GITHUB_HEAD_REF || null,
+      objectiveUnderstood: fields.objectiveUnderstood,
+      standardsReviewed: fields.standardsReviewed,
+      scopeConfirmed: fields.scopeConfirmed,
+      evidenceRecorded: fields.evidenceRecorded,
+      severityClassified: fields.severityClassified,
+      verdict: fields.verdict,
+      correctiveActionOwner: fields.correctiveActionOwner,
+      reAuditScheduled: fields.reAuditScheduled,
+      submittedBy: process.env.GITHUB_ACTOR || null,
+    })
+    console.log(`Persisted audit finding for PR #${prNumber} to compliance.audit_protocol_findings.`)
+  } catch (err) {
+    console.warn(
+      `::warning::Failed to persist audit finding to compliance.audit_protocol_findings (non-fatal -- the verdict validation result above still stands): ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+}
+
 async function main() {
   const repo = process.env.REPO
   const prNumber = process.env.PR_NUMBER
@@ -114,6 +173,12 @@ async function main() {
     console.error(`::error::Audit verdict comment is incomplete: ${result.reason} ${result.guidance}`)
     process.exit(1)
   }
+
+  // Fields are structurally valid -- persist the finding now, before the
+  // fail/exit-1 branch below, so a FAIL verdict is recorded too, not just
+  // passing ones (a rejected audit is exactly the kind of finding that
+  // needs to stay queryable).
+  await persistAuditFinding(fields as AuditProtocolFields, repo, prNumber)
 
   const verdict = fields.verdict!.trim().toLowerCase()
   if (verdict === "fail") {

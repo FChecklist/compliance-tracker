@@ -29,9 +29,22 @@
 // Reuses this repo's established js-yaml parsing pattern (see
 // scripts/check-asset-registry-coverage.mjs / check-metadata-index-coverage.mjs):
 // `import yaml from "js-yaml"`, `yaml.load(await readFile(...))`.
+//
+// GAP-UNIFIED-SOT-REMAINDER slice (d), additive: `auditFindingsSummary`
+// below is a pass/fail/pending rollup of compliance.audit_protocol_findings
+// (drizzle/0176) -- a fourth, DB-backed source alongside the two YAML files
+// this module already reads, folded into the same "always-current
+// companion" view rather than a second endpoint. Same discipline as every
+// other field here: additive only, computed live, never replaces
+// STATUS-REPORT.md or the two tracker files. The DB read is isolated in
+// loadAuditFindingsSummary() and fails soft (never throws) -- a
+// not-yet-applied migration or unset DATABASE_URL must not break every
+// existing caller of loadStatusSourceOfTruth() (governance-health route),
+// which worked fine before this table existed.
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import yaml from "js-yaml"
+import { db, auditProtocolFindings } from "@/lib/db"
 
 export const MASTER_TRACKER_FILE = "ai-os/MASTER-TRACKER.yaml"
 export const COMPLETED_FILE = "ai-os/boss/COMPLETED.yaml"
@@ -100,6 +113,23 @@ export type ClosedItemSummary = {
   date: string | null
 }
 
+export type AuditFindingsSummary = {
+  pass: number
+  fail: number
+  /** Rows whose `verdict` column is missing or not literally "pass"/"fail" -- kept visible rather than silently folded into either bucket. */
+  pending: number
+  total: number
+  /** Non-null only when the DB read itself failed (e.g. compliance.audit_protocol_findings' migration, drizzle/0176, hasn't been applied to this environment yet, or DATABASE_URL isn't configured) -- a query failure is reported here, not silently reported as zero counts with no explanation. */
+  unavailableReason: string | null
+}
+
+// Deliberately UNCHANGED by the auditFindingsSummary addition below --
+// computeStatusSourceOfTruth() is a pure function over the two YAML files
+// only, and its existing unit tests assert against exactly this shape.
+// auditFindingsSummary is layered on afterward, only on
+// loadStatusSourceOfTruth()'s return type (see
+// StatusSourceOfTruthWithAuditFindings below) -- additive, not a rewrite of
+// this type or the pure function that produces it.
 export type StatusSourceOfTruth = {
   openCount: number
   closedCount: number
@@ -111,6 +141,55 @@ export type StatusSourceOfTruth = {
   openItems: OpenItemSummary[]
   closedItems: ClosedItemSummary[]
   methodology: string
+}
+
+/** Additive (GAP-UNIFIED-SOT-REMAINDER slice d) -- pass/fail/pending rollup of compliance.audit_protocol_findings, a DB-backed companion to the two YAML-derived fields above, not a replacement for either. */
+export type StatusSourceOfTruthWithAuditFindings = StatusSourceOfTruth & {
+  auditFindingsSummary: AuditFindingsSummary
+}
+
+/**
+ * Pure computation over already-fetched audit_protocol_findings rows --
+ * mirrors computeStatusSourceOfTruth()'s own discipline (separate the pure
+ * counting logic from file/DB I/O so it's directly unit-testable against a
+ * small fixture, no live DB needed).
+ */
+export function computeAuditFindingsSummary(rows: Array<{ verdict: string | null }>): AuditFindingsSummary {
+  let pass = 0
+  let fail = 0
+  let pending = 0
+  for (const row of rows) {
+    const verdict = (row.verdict ?? "").trim().toLowerCase()
+    if (verdict === "pass") pass++
+    else if (verdict === "fail") fail++
+    else pending++
+  }
+  return { pass, fail, pending, total: rows.length, unavailableReason: null }
+}
+
+/**
+ * I/O wrapper around computeAuditFindingsSummary() -- queries
+ * compliance.audit_protocol_findings and fails SOFT, never throws. A query
+ * failure (migration not yet applied, DATABASE_URL unset/unreachable) is
+ * reported via unavailableReason with all counts at 0, not silently
+ * swallowed and not allowed to break loadStatusSourceOfTruth()'s existing
+ * callers (the governance-health route worked before this table existed and
+ * must keep working while the migration is still pending live-DB
+ * application -- see drizzle/0176_audit_protocol_findings.sql's header).
+ */
+async function loadAuditFindingsSummary(): Promise<AuditFindingsSummary> {
+  try {
+    const rows = await db.select({ verdict: auditProtocolFindings.verdict }).from(auditProtocolFindings)
+    return computeAuditFindingsSummary(rows)
+  } catch (err) {
+    return {
+      pass: 0,
+      fail: 0,
+      pending: 0,
+      total: 0,
+      unavailableReason: `audit_protocol_findings query failed (likely migration drizzle/0176 not yet applied, or DATABASE_URL not configured): ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
 }
 
 function extractOwnerOrBlocker(item: RawMasterTrackerItem, category: PendingCategory): string | null {
@@ -189,12 +268,16 @@ export type LoadStatusOptions = {
  */
 export async function loadStatusSourceOfTruth(
   options: LoadStatusOptions = {}
-): Promise<StatusSourceOfTruth & { lastComputed: string }> {
+): Promise<StatusSourceOfTruthWithAuditFindings & { lastComputed: string }> {
   const repoRoot = options.repoRoot ?? process.cwd()
 
-  const [masterTrackerRaw, completedRaw] = await Promise.all([
+  const [masterTrackerRaw, completedRaw, auditFindingsSummary] = await Promise.all([
     readFile(path.resolve(repoRoot, MASTER_TRACKER_FILE), "utf8"),
     readFile(path.resolve(repoRoot, COMPLETED_FILE), "utf8"),
+    // Additive (GAP-UNIFIED-SOT-REMAINDER slice d) -- see
+    // loadAuditFindingsSummary()'s own header for why this never throws and
+    // never blocks the two existing YAML reads above.
+    loadAuditFindingsSummary(),
   ])
 
   const masterTracker = yaml.load(masterTrackerRaw) as RawMasterTracker
@@ -204,6 +287,7 @@ export async function loadStatusSourceOfTruth(
 
   return {
     ...computed,
+    auditFindingsSummary,
     lastComputed: new Date().toISOString(),
   }
 }

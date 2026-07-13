@@ -8741,6 +8741,56 @@ export const deploymentEvents = complianceSchemaDB.table('deployment_events', {
   receivedAt: timestamp('received_at').notNull().defaultNow(),
 })
 
+// ─── Audit PROTOCOL findings (GAP-UNIFIED-SOT-REMAINDER slice d) ──────────
+// audit-protocol.ts's AuditProtocolFields already had a real, CI-enforced
+// validator (validateAuditProtocolFields(), wired to scripts/
+// validate-audit-verdict.ts / .github/workflows/mandatory-audit-check.yml
+// in PR #248) but no persistence -- a validated audit-verdict PR comment
+// was checked and then discarded, not recorded anywhere queryable. This
+// table is that missing landing place: one row per successfully-validated
+// audit-verdict comment, written by validate-audit-verdict.ts's
+// persistAuditFinding() immediately after validateAuditProtocolFields()
+// passes (additive -- a write failure here never turns a valid PASS/FAIL
+// verdict into a blocked merge; see that script's own comment).
+//
+// Named `auditProtocolFindings` / `audit_protocol_findings`, NOT the more
+// obvious `auditFindings` / `audit_findings` -- that name is already taken
+// (see `auditFindings` further up this file, the pre-existing org-scoped
+// internal-audit-engagement CAPA findings table: auditEngagementId,
+// capaStatus, retestResult, ownerId, dueDate -- a completely different
+// domain, an internal/statutory audit finding against a company's own risk
+// register, not an AI-agent PR-review verdict). Verified by direct grep
+// before naming this, not assumed distinct.
+//
+// objectiveUnderstood..reAuditScheduled map 1:1 (same names) to
+// AuditProtocolFields -- single source of truth for the shape lives in
+// audit-protocol.ts, not reimplemented here.
+//
+// PLATFORM-WIDE by design (no org_id column): a PR audit-protocol finding
+// is about a PR/branch in this repository, not any one tenant org's data --
+// same posture as deploymentEvents above (see that table's own header) and
+// module_registry/product_branches before it. See asset-registry-
+// coverage.yaml's exemption entry for this table.
+export const auditProtocolFindings = complianceSchemaDB.table('audit_protocol_findings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  prNumber: integer('pr_number'),
+  prUrl: text('pr_url'),
+  branchName: text('branch_name'),
+  // --- Before ---
+  objectiveUnderstood: text('objective_understood'),
+  standardsReviewed: text('standards_reviewed'),
+  scopeConfirmed: text('scope_confirmed'),
+  // --- During ---
+  evidenceRecorded: text('evidence_recorded'),
+  severityClassified: text('severity_classified'), // 'critical' | 'high' | 'medium' | 'low' | 'none'
+  // --- After ---
+  verdict: text('verdict'), // 'pass' | 'fail'
+  correctiveActionOwner: text('corrective_action_owner'),
+  reAuditScheduled: text('re_audit_scheduled'),
+  submittedBy: text('submitted_by'),
+  submittedAt: timestamp('submitted_at').notNull().defaultNow(),
+})
+
 // ─── Narrow Monitor Agents, Phase 0 (PLATFORM_STRATEGY.md section 29.3) ──
 // 29.1's own investigation considered extending workerAgents (adding a
 // 'monitor' convention value to its `tier` column, which is free text) but
