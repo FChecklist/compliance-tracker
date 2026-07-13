@@ -247,6 +247,89 @@ open_items:
       first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day, execution still deferred until Priority 11 closes"
       status_update: "2026-07-13: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) is now built and live -- taxonomy, one generic dispatcher, 200 seeded definitions (109 built, 85 data_gap, 6 planned) across Project+Construction/Interior Design/Sales. This is reported honestly, not as a 100%-complete claim, since 91 rows are real documented gaps/not-yet-wired shapes. Execution of this Priority-12 plan remains deliberately NOT started -- awaiting the Owner's own confirmation that Priority 11 is closed to their satisfaction, per their explicit sequencing instruction, not a unilateral judgment call by the agent."
 
+    - id: OPEN-08
+      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- gap analysis + plan prepared 2026-07-13, execution deliberately deferred until Priority 12 (OPEN-07) closes, per Owner instruction"
+      detail: |
+        Owner's ask: a complete PM ERP as PROJEXA, referencing ERPNext/Plane/
+        Taiga/Paperless-ngx/Superset/LangGraph/IfcOpenShell as design
+        sources, plus a proposed Python/FastAPI/SQLAlchemy/Celery/Qdrant/
+        Superset tech-stack table. Explicitly sequenced by the Owner himself
+        to run after Priority 12, and scoped this wave as analysis+plan only
+        ("you can analyze and plan"), not execution.
+
+        Core finding (verified directly against origin/main, 3 parallel
+        research passes): this is primarily an INTEGRATION gap, not a build
+        gap. compliance-tracker already has real, non-stub engines for most
+        of the requested scope that PROJEXA (the actual product) doesn't yet
+        consume, instead growing thinner parallel schemas for the overlap:
+        (1) ERP -- erp-accounting-service.ts/erp-procurement-workflow-
+        service.ts/erp-inventory-service.ts/60+ erp_* tables exist; PROJEXA's
+        own Budget/Vendor/Material/Expense modules are a separate thinner
+        schema, and PROJEXA's own PROJEXA_GAP_ANALYSIS.md already flags
+        needing "a VERIDIAN ERP discovery API" it doesn't have yet. (2) PMS
+        Plane/Taiga-style issue tracking -- pmsIssueTypes(isEpic)/
+        pmsIssues(parentIssueId)/pmsSprints/pmsIssueRelations fully built,
+        explicit Plane-parity comments in schema.ts; zero grep hits for
+        kanban/sprint/epic/backlog anywhere in PROJEXA's own src/. (3) MOM --
+        pmsMeetings/pmsMeetingAgendaItems/pmsMeetingOutcomes/
+        pmsMeetingParticipants fully built (schema comment: "OpenProject's
+        unique contribution"); zero meeting/MOM routes in PROJEXA. (4) Permit
+        Management -- built as a category-specific slice of the generic
+        documents table (Wave 117: permitAuthority/permitNumber fields), not
+        yet a first-class PROJEXA module/UI. (5) BI/Reports -- Priority 11's
+        200-row report_definitions engine already covers most of what
+        Superset would add; genuinely missing only Superset's self-serve
+        ad-hoc chart-builder UX, not the reporting substrate. (6) Multi-agent
+        orchestration -- capability-audit-service.ts/roster.ts/
+        dispatch-repo.ts already a real, working, roughly LangGraph-
+        equivalent architecture in intent; no gap. (7) Document OCR exists
+        (ocr-client.ts) but PROJEXA's own documents module is a thin 28-line
+        pass-through; neither repo has Paperless-ngx-style correspondent/
+        doc-type auto-classification -- a real, small gap. (8) BIM/IFC --
+        genuinely missing everywhere; PROJEXA's floor-plans module is a
+        2D/3D scene editor, not an IFC-file parser.
+
+        Tech-stack finding: the proposed Python stack table was checked item
+        by item against real code and rejected as a literal implementation
+        choice -- 6 of 8 items duplicate what's already running (Supabase
+        Auth/Storage, llm-client.ts/orchestra-model-resolver.ts already doing
+        what LiteLLM would, pgvector+HNSW already live per the prior zvec
+        rejection, @sentry/nextjs+OpenTelemetry JS SDK already installed,
+        jspdf already in compliance-tracker's package.json, the reporting
+        substrate already live) and 2 are structurally incompatible with the
+        current single-stack Vercel/Next.js-serverless deployment (Celery
+        needs persistent workers + a broker; FastAPI/SQLAlchemy would stand
+        up a second parallel backend). Recommendation: keep Next.js/React/
+        Drizzle/Supabase/Vercel as the one implementation stack; treat the
+        named OSS projects as design-pattern references only (concrete
+        JS-native substitutes identified per project in the memory file
+        below), not literal dependencies.
+
+        Ranked real gap list for when execution starts: (1) wire PROJEXA's
+        Budget/Vendor/Material/Expense to the real ERP services instead of
+        its own parallel schema [needs Owner migrate-vs-coexist call], (2)
+        wire PROJEXA's Schedule/Scope to the existing PMS issue-tracking
+        engine instead of building new kanban/sprint tables, (3) surface the
+        existing pmsMeetings engine as a first-class PROJEXA Meetings module,
+        (4) promote permit fields into a first-class Permits module with
+        expiry reminders, (5) add document correspondent/type
+        auto-classification on top of the existing OCR pipeline, (6) build a
+        self-serve ad-hoc chart-builder UI on top of the existing report
+        engine (TypeScript, not Superset itself), (7) BIM/IFC ingestion via
+        web-ifc (JS/WASM) IF the Owner confirms it's a real customer ask, not
+        scope creep from the reference list, (8) hygiene: reconcile/retire
+        PROJEXA's now-redundant parallel schemas once (1)-(2) land, and
+        update system-tree/20-projexa.yaml to reflect true wiring state.
+      recommendation: |
+        Full detail, evidence, and per-item citations in Claude's memory file
+        veridian_priority13_pm_erp_gap_analysis.md (not in this repo). Do not
+        start Wave A until this OPEN-08 entry AND OPEN-07 (Priority 12) both
+        show closed. Do not re-run this analysis from scratch in a future
+        session -- read the memory file first, re-verify OPEN-06/OPEN-07
+        status against origin/main, and only build the confirmed remaining
+        gap.
+      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 12 (OPEN-07) closes; analysis+plan complete same day, zero execution started"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
