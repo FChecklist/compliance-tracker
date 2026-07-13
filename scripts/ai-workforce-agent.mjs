@@ -146,6 +146,40 @@ async function fetchSystemPrompt(templateKey) {
   return rows[0].content
 }
 
+// Gap closure, 2026-07-13 (Boss directive, "agent-to-agent communication
+// standard" follow-up: verified this dispatch pipeline's system prompt came
+// ONLY from the DB-stored prompt_templates row -- CLAUDE.md/AGENTS.md are
+// auto-injected into Claude Code's own system prompt by the CLI itself, but
+// were NEVER read by this script, so a z.ai dispatch and an interactive
+// Claude Code session were not guaranteed to be working from the same base
+// rules. This closes that gap: every dispatch now gets the real, current
+// content of both files prepended to its system prompt, read fresh each
+// run (not a stale copy), so a rule change in either file takes effect on
+// the very next dispatch with no separate sync step.
+//
+// Read-only -- resolveSafe()'s write-protection for these same paths is
+// unaffected and still the real enforcement; this only makes the *content*
+// visible to the model, it does not grant write access.
+async function fetchGovernancePreamble() {
+  const files = ["CLAUDE.md", "AGENTS.md"]
+  const sections = []
+  for (const file of files) {
+    try {
+      const content = await readFile(path.join(REPO_ROOT, file), "utf8")
+      sections.push(`--- ${file} ---\n${content.trim()}`)
+    } catch (err) {
+      // Fail open, not closed: a missing/unreadable governance file must
+      // never block a dispatch from running at all (the file's absence is
+      // itself a separate, more visible problem -- CI's own checks, e.g.
+      // check-guardrail-presence.mjs, are what catch that). Logged loudly
+      // so it's not silently swallowed.
+      console.error(`[ai-workforce-agent] WARNING: could not read governance file '${file}' for the system prompt preamble: ${err.message}`)
+    }
+  }
+  if (!sections.length) return ""
+  return `The following are this repository's own governing rules (CLAUDE.md / AGENTS.md), read fresh for this dispatch. They apply to you exactly as they apply to any other authorized agent working in this repo:\n\n${sections.join("\n\n")}\n\n--- end governance files ---\n`
+}
+
 function resolveSafe(relPath) {
   const resolved = path.resolve(REPO_ROOT, relPath)
   if (!resolved.startsWith(REPO_ROOT)) throw new Error(`Path escapes repo root: ${relPath}`)
@@ -339,9 +373,12 @@ function collapseOldReadFileResults(messages, readFileResults, currentIteration)
 }
 
 async function main() {
-  const systemPrompt = await fetchSystemPrompt(role.promptKey)
+  const [systemPrompt, governancePreamble] = await Promise.all([
+    fetchSystemPrompt(role.promptKey),
+    fetchGovernancePreamble(),
+  ])
   const messages = [
-    { role: "system", content: `${systemPrompt}\n\nYou have read_file, write_file, list_dir, and finish tools against the actual VERIDIAN repo (compliance-tracker). Investigate before writing. Keep changes scoped to exactly what the task asks. Call finish when done.` },
+    { role: "system", content: `${governancePreamble}${systemPrompt}\n\nYou have read_file, write_file, list_dir, and finish tools against the actual VERIDIAN repo (compliance-tracker). Investigate before writing. Keep changes scoped to exactly what the task asks. Call finish when done.` },
     { role: "user", content: task },
   ]
 
