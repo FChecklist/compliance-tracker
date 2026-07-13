@@ -12,7 +12,7 @@
 // doesn't set up.
 //
 // These are Apache-2.0 licensed files straight from the npm package (no
-// licensing concern, unlike the model file in litert-worker.ts), but at
+// licensing concern, unlike the model file in worker-src/inference-worker.ts), but at
 // ~9MB/variant they're deliberately left out of git (see .gitignore) so this
 // spike doesn't bloat repo history. Run `node scripts/spike-litert-copy-wasm.mjs`
 // after `bun install` to regenerate them locally.

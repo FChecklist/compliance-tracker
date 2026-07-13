@@ -44,9 +44,9 @@ type InMsg = { type: "init" } | RunMsg;
 // Same-origin, same-directory as this bundled script (see header comment).
 const WASM_JS_URL = "litert_wasm_internal.js";
 
-// See ../litert-worker.ts.bak / page.tsx for the full licensing caveat: this
-// streams from the model's original public GitHub location rather than
-// being vendored into this repo.
+// See ../page.tsx for the full licensing caveat: this streams from the
+// model's original public GitHub location rather than being vendored into
+// this repo.
 const MODEL_URL =
   "https://raw.githubusercontent.com/AhmetFurkanDEMIR/Blur-image-detection-with-Flutter-and-TFLite/main/assets/tflite/model.tflite";
 
