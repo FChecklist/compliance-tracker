@@ -1554,3 +1554,64 @@ entries:
         cross-org/cross-product -- no cross-tenant sharing mechanism
         exists anywhere else in this codebase to reuse, so building one
         speculatively was out of scope for this wave.
+
+  - id: WAVE-174
+    title: "RLS gap fix -- enabled Row Level Security on 7 tables Supabase's advisor flagged as fully exposed to anon/authenticated PostgREST access (Owner directive 2026-07-13)"
+    doer:
+      agent: claude-code (Super Boss)
+      date: "2026-07-13"
+      pr: 270
+      summary: >
+        Found incidentally by Supabase's get_advisors() while auditing the
+        Reports & Analysis wave (WAVE-173) -- 7 compliance-schema tables
+        had RLS disabled: email_intelligence_items,
+        email_intelligence_action_items, drafted_communications,
+        instruction_packages, task_capabilities,
+        capability_improvement_proposals, asset_registration_config. Owner
+        asked for it fixed as a follow-up. Grepped every real call site for
+        all 7 tables across src/ before writing the fix, not assumed:
+        3 tables (email_intelligence_items/action_items,
+        drafted_communications) are 100% accessed via withTenantContext()
+        (app_runtime role, RLS-enforced) with every query already
+        org-filtered -- got the standard app_runtime_org_scoped policy
+        (JOIN predicate for the child table with no own org_id). The other
+        4 (instruction_packages, task_capabilities,
+        capability_improvement_proposals, asset_registration_config) are
+        100% accessed via the raw `db` client, never withTenantContext --
+        confirmed src/lib/db/tenant-scoped.ts's own header states that
+        client connects via DATABASE_URL using the `postgres` role (table
+        owner), which Postgres RLS never restricts regardless of policy
+        (no FORCE ROW LEVEL SECURITY anywhere in this repo). Because of
+        that, these 4 got RLS enabled with NO app_runtime policy at all --
+        provably safe for current app behavior, not just asserted --
+        while fully closing the anon/authenticated PostgREST exposure
+        (RLS defaults to deny). All 7 get a service_role_bypass policy.
+        drizzle/0179_rls_gap_fix_7_tables.sql, idempotent
+        (DO $$ ... EXCEPTION WHEN duplicate_object, matching this repo's
+        convention).
+    auditor:
+      agent: claude-code (Super Boss, same session)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Independently re-ran the same grep sweep the fix was based on
+        (did not just trust the PR description), confirmed zero
+        withTenantContext call sites for the 4 no-app_runtime-policy
+        tables and full withTenantContext coverage for the other 3.
+        Verified the 4 cited precedent migrations
+        (0150_priority3_umr_platform_assets.sql,
+        0164_wave173_scoped_delegations.sql,
+        0024_wave32_34_veri_chat_todo_mom.sql,
+        0176_audit_protocol_findings.sql) actually contain the exact
+        policy syntax reused, by reading each file directly. CI: Lint/
+        Type Check/Build/Unit Tests (all 4 required checks) passed --
+        pure SQL change, no TS/TSX touched. Applied live via Supabase MCP
+        after merge, then ran get_advisors(security) again: the
+        rls_disabled finding is completely gone from the results --
+        confirmed the fix closed the gap, not just assumed. No new
+        advisory findings introduced by this migration. Remaining
+        advisories after this fix are pre-existing and unrelated (public-
+        schema SECURITY DEFINER views/functions for an unrelated
+        marketing-page feature, hstore extension placement, auth leaked-
+        password-protection setting) -- none touched by or in scope of
+        this fix.
