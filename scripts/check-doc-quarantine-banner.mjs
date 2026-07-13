@@ -61,8 +61,14 @@ async function main() {
       continue
     }
 
+    // Normalize CRLF -> LF before comparing: several archived .yaml files on
+    // this Windows checkout have CRLF line endings, and BANNER_YAML's `\n`
+    // join would otherwise silently fail the match even though the banner
+    // text is genuinely present -- caught during audit 2026-07-13 (all 13
+    // .yaml entries falsely reported missing).
+    const normalizedContent = content.replace(/\r\n/g, "\n")
     const expected = expectedBannerFor(file)
-    if (!content.includes(expected)) {
+    if (!normalizedContent.includes(expected)) {
       missingBanner.push(file)
     }
   }
