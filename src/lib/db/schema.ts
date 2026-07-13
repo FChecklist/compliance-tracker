@@ -3876,12 +3876,50 @@ export const savedReports = complianceSchemaDB.table('saved_reports', {
 export const reportSchedules = complianceSchemaDB.table('report_schedules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
-  reportId: text('report_id').notNull(), // e.g. a savedReports.id, or one of report-cadence-service.ts's 3 known keys: 'escalations' | 'recommendations' | 'risk_trends'
-  cadence: text('cadence').notNull(), // 'daily' | 'weekly' | 'monthly'
-  dayOfWeek: integer('day_of_week'), // 0 (Sunday) - 6 (Saturday); only meaningful/required when cadence = 'weekly'
-  dayOfMonth: integer('day_of_month'), // 1-31; only meaningful/required when cadence = 'monthly' (clamped to the real last day of shorter months at run time)
+  reportId: text('report_id').notNull(), // e.g. a savedReports.id, a reportDefinitions.id, or one of report-cadence-service.ts's 3 known keys: 'escalations' | 'recommendations' | 'risk_trends'
+  cadence: text('cadence').notNull(), // report-taxonomy.ts PERIODICITY_BASE_VALUES (was a closed 3-value 'daily'|'weekly'|'monthly' set pre-Priority-11; kept as free text, not a DB enum, so the vocabulary can grow without a migration)
+  dayOfWeek: integer('day_of_week'), // 0 (Sunday) - 6 (Saturday); required for weekly/biweekly/fortnightly
+  dayOfMonth: integer('day_of_month'), // 1-31; required for monthly/bimonthly/quarterly/half_yearly/yearly/biyearly (clamped to the real last day of shorter months at run time)
+  // Priority 11 (2026-07-13): 3 additive columns so the same 3-cadence
+  // scheduler can express the Owner's full periodicity list (hourly through
+  // custom-range) -- see report-taxonomy.ts's PeriodicityConfig. All
+  // nullable; every pre-existing row leaves them null and behaves exactly
+  // as before.
+  timesOfDay: jsonb('times_of_day'), // string[] of "HH:MM" 24h UTC -- only meaningful for hourly/daily; empty/null = fires once at the cron's own default time
+  startDate: date('start_date', { mode: 'string' }), // required for periodicity 'custom_range'
+  endDate: date('end_date', { mode: 'string' }), // required for periodicity 'custom_range'
   recipientUserIds: jsonb('recipient_user_ids').notNull().default([]), // string[]
   createdBy: text('created_by').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Report & Analysis Engine Definitions (Priority 11, Owner directive
+// 2026-07-13, drizzle/0180_report_engine_taxonomy.sql) ────────────────────
+// The declarative substrate the "Report & Analysis Engine" is built on --
+// see report-engine-service.ts's header for the full design rationale.
+// orgId nullable, same convention as platformAssets/taskCapabilities: null
+// = a platform-wide definition (available to every org, the DB-backed
+// equivalent of report-catalog-service.ts's static REPORT_CATALOG entries);
+// a real orgId = an org-specific definition (e.g. one an org's AI report
+// builder promoted into a reusable row).
+export const reportDefinitions = complianceSchemaDB.table('report_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // nullable = platform-wide
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  category: text('category').notNull(), // report-taxonomy.ts ReportCategory (7 values)
+  classifications: jsonb('classifications').notNull().default([]), // string[], report-taxonomy.ts KNOWN_CLASSIFICATIONS (open list)
+  periodicity: text('periodicity'), // null = on_demand/ad-hoc; report-taxonomy.ts PeriodicityBase
+  periodicityConfig: jsonb('periodicity_config'), // report-taxonomy.ts PeriodicityConfig
+  executionType: text('execution_type').notNull(), // 'deterministic_aggregation' | 'deterministic_formula' | 'ai_recipe' | 'external_service'
+  executionConfig: jsonb('execution_config').notNull(), // shape depends on executionType, see report-engine-service.ts
+  outputFormats: jsonb('output_formats').notNull().default(["table"]),
+  status: text('status').notNull().default('built'), // 'built' | 'data_gap' | 'planned'
+  dataGapNote: text('data_gap_note'), // required explanation when status != 'built'
+  createdBy: text('created_by').notNull().default('system'), // 'system' | 'ai' | a real users.id
+  promotedFromContext: text('promoted_from_context'), // free-text traceability pointer when createdBy='ai', not a FK
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

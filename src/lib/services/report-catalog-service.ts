@@ -23,6 +23,12 @@
 // Authorization header); the rest still appear as leaves, they just fall
 // through to the normal AI-planning path instead of a fixed navigation.
 
+// Priority 11 (Owner directive 2026-07-13, Reports & Analysis Engine):
+// every catalog entry now also carries the 3-axis taxonomy from
+// report-taxonomy.ts (category/classifications/periodicity) -- backfilled
+// below for all 26 pre-existing entries with real values, not left blank.
+import type { ReportCategory } from "./report-taxonomy"
+
 export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom"
 
 export type ReportCatalogEntry = {
@@ -39,31 +45,37 @@ export type ReportCatalogEntry = {
   routeNote: string
   /** Whether `route` is a page a user can navigate straight to with no required query params/headers. Drives capability-tree wiring. */
   directlyNavigable: boolean
+  /** report-taxonomy.ts's 7-value CATEGORY axis -- who/what produces this report. */
+  category: ReportCategory
+  /** report-taxonomy.ts's open CLASSIFICATION list -- subject-matter grouping (executive/financial/hr/sales/...). */
+  classifications: string[]
+  /** report-taxonomy.ts's PeriodicityBase, or undefined for on-demand/ad-hoc entries (the 22 API-only/cron-only entries below already run on a fixed real cadence or are param-gated ad-hoc; the daily cron ones are tagged "daily"). */
+  periodicity?: string
 }
 
-const CONSTRUCTION_REPORT_META: { id: string; name: string; description: string }[] = [
-  { id: "construction-work-progress", name: "Work Progress Report", description: "Latest logged % complete and total quantity done per project activity." },
-  { id: "construction-weekly-project", name: "Weekly Project Report", description: "Composite weekly snapshot: progress entries, labour cost/attendance, site diary entries, and expenses for a 7-day window." },
-  { id: "construction-project-status", name: "Project Status Report", description: "Overall project dashboard figures (budget, progress, KPIs) reused verbatim from the project dashboard." },
-  { id: "construction-attendance", name: "Attendance Report", description: "Present/absent/half-day counts and labour cost, grouped by trade." },
-  { id: "construction-site-picture", name: "Site Picture Report", description: "Site photo documents for the project, grouped by date." },
-  { id: "construction-scope", name: "Scope Report", description: "BOQ total value and line-item count for the latest non-superseded revision, plus revision history." },
-  { id: "construction-budget-summary", name: "Budget Summary", description: "Total budget and line items by account, via the project's cost centre." },
-  { id: "construction-budget-vs-actual", name: "Budget vs Actual", description: "Budget total (via cost centre) vs actual expenses, with variance and a by-head breakdown." },
-  { id: "construction-material-consumption", name: "Material Consumption Report", description: "Net stock movement per item for the project (negative = consumed)." },
-  { id: "construction-vendor-cost", name: "Vendor Cost Report", description: "Labour-vendor cost by vendor (purchase-invoice-based vendor cost not included -- no project_id on that table yet)." },
-  { id: "construction-manpower-cost", name: "Manpower Cost Report", description: "Attendance-based labour cost and worker-days, summed by trade." },
-  { id: "construction-designer-timesheet", name: "Designer Timesheet Report", description: "PMS time-entry hours summed by user, for this project's issues." },
-  { id: "construction-kpi", name: "KPI Report", description: "Approved KPI entries for the project's KPI definitions." },
-  { id: "construction-revenue", name: "Revenue Report", description: "Non-cancelled sales invoices for the project, with total value." },
-  { id: "construction-expense", name: "Expense Report", description: "Expense entries for the project, summarized by expense head." },
-  { id: "construction-category-progress", name: "Category Progress Report", description: "Latest % complete averaged per activity category." },
-  { id: "construction-project-completion", name: "Project Completion Report", description: "Overall completion % (from the project dashboard) plus a per-category breakdown." },
+const CONSTRUCTION_REPORT_META: { id: string; name: string; description: string; classifications: string[] }[] = [
+  { id: "construction-work-progress", name: "Work Progress Report", description: "Latest logged % complete and total quantity done per project activity.", classifications: ["project", "construction"] },
+  { id: "construction-weekly-project", name: "Weekly Project Report", description: "Composite weekly snapshot: progress entries, labour cost/attendance, site diary entries, and expenses for a 7-day window.", classifications: ["project", "construction", "executive"] },
+  { id: "construction-project-status", name: "Project Status Report", description: "Overall project dashboard figures (budget, progress, KPIs) reused verbatim from the project dashboard.", classifications: ["project", "construction", "executive"] },
+  { id: "construction-attendance", name: "Attendance Report", description: "Present/absent/half-day counts and labour cost, grouped by trade.", classifications: ["resource", "hr", "construction"] },
+  { id: "construction-site-picture", name: "Site Picture Report", description: "Site photo documents for the project, grouped by date.", classifications: ["project", "construction"] },
+  { id: "construction-scope", name: "Scope Report", description: "BOQ total value and line-item count for the latest non-superseded revision, plus revision history.", classifications: ["project", "procurement", "construction"] },
+  { id: "construction-budget-summary", name: "Budget Summary", description: "Total budget and line items by account, via the project's cost centre.", classifications: ["financial", "project", "construction"] },
+  { id: "construction-budget-vs-actual", name: "Budget vs Actual", description: "Budget total (via cost centre) vs actual expenses, with variance and a by-head breakdown.", classifications: ["financial", "project", "construction"] },
+  { id: "construction-material-consumption", name: "Material Consumption Report", description: "Net stock movement per item for the project (negative = consumed).", classifications: ["procurement", "resource", "construction"] },
+  { id: "construction-vendor-cost", name: "Vendor Cost Report", description: "Labour-vendor cost by vendor (purchase-invoice-based vendor cost not included -- no project_id on that table yet).", classifications: ["financial", "vendor_management", "construction"] },
+  { id: "construction-manpower-cost", name: "Manpower Cost Report", description: "Attendance-based labour cost and worker-days, summed by trade.", classifications: ["resource", "financial", "hr", "construction"] },
+  { id: "construction-designer-timesheet", name: "Designer Timesheet Report", description: "PMS time-entry hours summed by user, for this project's issues.", classifications: ["resource", "project"] },
+  { id: "construction-kpi", name: "KPI Report", description: "Approved KPI entries for the project's KPI definitions.", classifications: ["project", "executive", "construction"] },
+  { id: "construction-revenue", name: "Revenue Report", description: "Non-cancelled sales invoices for the project, with total value.", classifications: ["financial", "revenue", "sales", "construction"] },
+  { id: "construction-expense", name: "Expense Report", description: "Expense entries for the project, summarized by expense head.", classifications: ["financial", "construction"] },
+  { id: "construction-category-progress", name: "Category Progress Report", description: "Latest % complete averaged per activity category.", classifications: ["project", "construction"] },
+  { id: "construction-project-completion", name: "Project Completion Report", description: "Overall completion % (from the project dashboard) plus a per-category breakdown.", classifications: ["project", "executive", "construction"] },
 ]
 
 const CONSTRUCTION_ROUTE_NOTE = "Real, auth-required API endpoint (GET /api/construction/reports/<reportName>?projectId=<id>, also aliased at /api/v1/projexa/reports/<reportName> for API-key callers) -- returns real DB-backed JSON. No dedicated UI page renders it yet, so there is nothing to navigate straight to without already knowing a projectId (and, for weekly-project, a weekStart)."
 
-const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(({ id, name, description }) => {
+const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(({ id, name, description, classifications }) => {
   const reportName = id.replace(/^construction-/, "")
   return {
     id,
@@ -75,6 +87,9 @@ const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(
     route: `/api/construction/reports/${reportName}`,
     routeNote: CONSTRUCTION_ROUTE_NOTE,
     directlyNavigable: false,
+    category: "software_report" as ReportCategory,
+    classifications,
+    periodicity: "on_demand",
   }
 })
 
@@ -93,6 +108,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/erp/reports",
     routeNote: "Real live page -- 'Trial Balance' tab. Optional company/date query params on the page itself, not required to load.",
     directlyNavigable: true,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
   },
   {
     id: "erp-profit-and-loss",
@@ -104,6 +122,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/erp/reports",
     routeNote: "Real live page -- 'Profit & Loss' tab. Optional company/date query params on the page itself, not required to load.",
     directlyNavigable: true,
+    category: "software_report",
+    classifications: ["financial", "revenue", "org_specific"],
+    periodicity: "on_demand",
   },
   {
     id: "erp-balance-sheet",
@@ -115,6 +136,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/erp/reports",
     routeNote: "Real live page -- 'Balance Sheet' tab. Optional company/date query params on the page itself, not required to load.",
     directlyNavigable: true,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
   },
   {
     id: "erp-cash-flow",
@@ -126,6 +150,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/erp/reports",
     routeNote: "Real live page -- 'Cash Flow' tab. Optional company/date query params on the page itself, not required to load.",
     directlyNavigable: true,
+    category: "software_report",
+    classifications: ["financial", "org_specific"],
+    periodicity: "on_demand",
   },
 
   // ── Construction / PROJEXA reports (construction-reports-service.ts) ─
@@ -148,6 +175,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/api/internal/ai-performance-report/run",
     routeNote: "Cron-only endpoint (see vercel.json). Visiting this URL directly in a browser returns 401 -- there is no dashboard/inbox surface for this report today.",
     directlyNavigable: false,
+    category: "software_report",
+    classifications: ["operations", "executive"],
+    periodicity: "daily",
   },
   {
     id: "escalations-report",
@@ -159,6 +189,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/api/internal/escalations-report/run",
     routeNote: "Cron-only endpoint (see vercel.json). Visiting this URL directly in a browser returns 401 -- there is no dashboard/inbox surface for this report today.",
     directlyNavigable: false,
+    category: "software_report",
+    classifications: ["operations", "executive"],
+    periodicity: "daily",
   },
   {
     id: "recommendations-report",
@@ -170,6 +203,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/api/internal/recommendations-report/run",
     routeNote: "Cron-only endpoint (see vercel.json). Visiting this URL directly in a browser returns 401 -- there is no dashboard/inbox surface for this report today.",
     directlyNavigable: false,
+    category: "software_report",
+    classifications: ["operations", "predictive"],
+    periodicity: "daily",
   },
   {
     id: "risk-trends-report",
@@ -181,6 +217,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/api/internal/risk-trends-report/run",
     routeNote: "Cron-only endpoint (see vercel.json). Visiting this URL directly in a browser returns 401 -- there is no dashboard/inbox surface for this report today.",
     directlyNavigable: false,
+    category: "software_analysis",
+    classifications: ["operations", "predictive", "compliance"],
+    periodicity: "daily",
   },
 
   // ── Custom / user-authored reports (custom-report-service.ts) ────────
@@ -194,6 +233,9 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     route: "/reports#custom-reports",
     routeNote: "Real live section (CustomReportsSection.tsx) on the main Reports & Analytics page. A specific saved report can be deep-linked at /reports?report=<id>#custom-reports.",
     directlyNavigable: true,
+    category: "software_report",
+    classifications: ["user_specific", "org_specific"],
+    periodicity: "on_demand",
   },
 ]
 
@@ -206,3 +248,16 @@ export function listReportCatalogByDomain(): Record<ReportDomain, ReportCatalogE
   for (const entry of REPORT_CATALOG) byDomain[entry.domain].push(entry)
   return byDomain
 }
+
+// Priority 11 (2026-07-13): the DB-backed merge with report_definitions
+// (report-engine-service.ts) deliberately does NOT live in this file --
+// this file's own header states it is a "DATA-ONLY registry" with no DB
+// access, and it's imported by ReportCatalogList.tsx, a CLIENT component
+// (`"use client"`). Adding a withTenantContext()/db-touching function here
+// once broke the production build: Next.js's client bundler pulled the
+// `postgres` driver (which needs Node's `tls`/`perf_hooks`, absent in the
+// browser) into the client JS bundle via this file. The merge function
+// (getFullReportCatalog/getFullReportCatalogByDomain) lives in
+// report-engine-service.ts instead -- an already server-only file (it
+// already imports `db`/LLM clients), consumed only by server code
+// (capability-tree-service.ts, API routes), never by a client component.
