@@ -18,6 +18,7 @@ import { SearchTrigger } from "@/components/search-command";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { InviteUserModal } from "@/components/InviteUserModal";
+import { useMe } from "@/lib/queries/use-me";
 
 type NotificationItem = {
   id: string;
@@ -35,7 +36,9 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
-  const [orgName, setOrgName] = useState<string | null>(null);
+  // Shared react-query cache instead of its own /api/me fetch-on-mount.
+  const { data: me } = useMe();
+  const orgName = me?.orgName ?? null;
   const [loggingOut, setLoggingOut] = useState(false);
   // U-D28: "'Invite a team member' control must appear on every screen, on
   // every webpage, upper-right corner" -- AppTopbar is rendered globally by
@@ -61,12 +64,6 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
         setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || null);
       }
     });
-
-    // Fetch org name from /api/me
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((d) => { if (d.orgName) setOrgName(d.orgName); })
-      .catch(() => {});
   }, []);
 
   const handleLogout = async () => {

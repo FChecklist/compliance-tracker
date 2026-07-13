@@ -1,28 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-
-type StatsData = {
-  total: number;
-  completed: number;
-};
+import { useComplianceStats } from "@/lib/queries/use-compliance-stats";
 
 export default function AchievementCard() {
-  const [data, setData] = useState<StatsData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/compliance/stats")
-      .then((r) => r.json())
-      .then((d) => {
-        setData({ total: d.total ?? 0, completed: d.completed ?? 0 });
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  // Shared react-query cache instead of its own /api/compliance/stats
+  // fetch-on-mount.
+  const { data, isLoading: loading } = useComplianceStats();
 
   if (loading) {
     return (

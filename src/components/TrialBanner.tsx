@@ -7,29 +7,26 @@
 // once that fake window lapsed. Now reads the org's real trial_ends_at (via
 // /api/me) and hides entirely for orgs with no trial window (e.g. paid plans,
 // or a trial_ends_at of null).
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Clock, AlertTriangle, X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-type TrialState = { daysRemaining: number; isWarning: boolean };
+import { useMe } from "@/lib/queries/use-me";
 
 export default function TrialBanner() {
   const [dismissed, setDismissed] = useState(false);
-  const [trial, setTrial] = useState<TrialState | null>(null);
+  // Shared react-query cache instead of its own /api/me fetch-on-mount.
+  const { data: me } = useMe();
 
-  useEffect(() => {
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.orgPlan !== "free" || !d?.trialEndsAt) return; // no trial to show
-        const diffMs = new Date(d.trialEndsAt).getTime() - Date.now();
-        const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-        setTrial({ daysRemaining, isWarning: daysRemaining <= 4 });
-      })
-      .catch(() => {});
-  }, []);
+  const trial =
+    me && me.orgPlan === "free" && me.trialEndsAt
+      ? (() => {
+          const diffMs = new Date(me.trialEndsAt!).getTime() - Date.now();
+          const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+          return { daysRemaining, isWarning: daysRemaining <= 4 };
+        })()
+      : null;
 
   if (!trial || dismissed) return null;
 

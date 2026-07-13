@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Share2, Copy, Loader2, UserPlus } from "lucide-react";
@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { ConversationList, type ConversationSummary } from "@/components/chat/ConversationList";
 import { ThreadView } from "@/components/chat/ThreadView";
+import { useResilientPoll } from "@/lib/use-resilient-poll";
+import { useMe } from "@/lib/queries/use-me";
 
 const POLL_MS = 8000;
 
@@ -26,7 +28,9 @@ function ChatPageInner() {
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // Shared react-query cache instead of its own /api/me fetch-on-mount.
+  const { data: me } = useMe();
+  const currentUserId = me?.id ?? null;
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [pickerUserId, setPickerUserId] = useState<string>("");
   const [showPicker, setShowPicker] = useState(false);
@@ -40,35 +44,41 @@ function ChatPageInner() {
   const [guestLink, setGuestLink] = useState<{ guestUrl: string; whatsappHref: string; telegramHref: string } | null>(null);
   const appliedLinkRef = useRef(false);
 
-  function loadConversations() {
-    fetch("/api/conversations")
-      .then((r) => r.json())
-      .then((data) => {
-        // Wave 37: VERI Chat is now human/guest chat only -- the AI thread
-        // has its own dedicated surface at /veri-ai (VERI Chat Intelligence
-        // Engine, PLATFORM_STRATEGY.md §18).
-        const list: ConversationSummary[] = (data.conversations ?? []).filter((c: ConversationSummary) => !c.isAiThread);
-        setConversations(list);
-        setSelectedId((prev) => {
-          if (prev) return prev;
-          // A notification's click-through wins over the default (most-
-          // recent) selection, but only once per page load.
-          if (!appliedLinkRef.current && linkedConversationId && list.some((c) => c.id === linkedConversationId)) {
-            appliedLinkRef.current = true;
-            return linkedConversationId;
-          }
-          return list[0]?.id ?? null;
-        });
-      })
-      .catch(() => {});
-  }
+  // Wave 146 gap-closure fix: previously a bare setInterval(loadConversations,
+  // POLL_MS) with no in-flight guard and no backoff -- during a backend
+  // outage it kept firing every 8s regardless of whether the previous call
+  // had resolved. useResilientPoll waits for each attempt to settle and
+  // backs off (capped) on repeated failures, same as AppShell.tsx's chat
+  // poll.
+  const loadConversations = useCallback(async () => {
+    try {
+      const r = await fetch("/api/conversations");
+      if (!r.ok) return false;
+      const data = await r.json();
+      // Wave 37: VERI Chat is now human/guest chat only -- the AI thread
+      // has its own dedicated surface at /veri-ai (VERI Chat Intelligence
+      // Engine, PLATFORM_STRATEGY.md §18).
+      const list: ConversationSummary[] = (data.conversations ?? []).filter((c: ConversationSummary) => !c.isAiThread);
+      setConversations(list);
+      setSelectedId((prev) => {
+        if (prev) return prev;
+        // A notification's click-through wins over the default (most-
+        // recent) selection, but only once per page load.
+        if (!appliedLinkRef.current && linkedConversationId && list.some((c) => c.id === linkedConversationId)) {
+          appliedLinkRef.current = true;
+          return linkedConversationId;
+        }
+        return list[0]?.id ?? null;
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [linkedConversationId]);
+  useResilientPoll(loadConversations, POLL_MS);
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => setCurrentUserId(d.id));
     fetch("/api/users").then((r) => r.json()).then((d) => setOrgUsers(d.users ?? []));
-    loadConversations();
-    const interval = setInterval(loadConversations, POLL_MS);
-    return () => clearInterval(interval);
   }, []);
 
   async function startConversation() {

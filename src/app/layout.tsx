@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import QueryProvider from "@/components/providers/QueryProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -70,7 +71,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <QueryProvider>{children}</QueryProvider>
         </ThemeProvider>
         <Toaster position="top-right" richColors />
         <Analytics />
