@@ -60,6 +60,34 @@ meta:
       why: "Tree 1 -- 'what actually exists in code' reference, not a gap/pending list."
 
 # ============================================================================
+# IN-FLIGHT CLAIMS -- 2026-07-14, added when 4 Claude Code sessions started
+# running in parallel on this repo the same day (Priority 11 remainder,
+# Priority 12 execution, Priority 13 execution, plus one general-purpose
+# session). Purpose: let a session check "is anyone else already touching
+# this file/migration range" BEFORE starting new work, to avoid silent
+# collisions -- this repo has already hit real migration-number collisions
+# twice in one day (0175->0176, 0184->0185) from exactly this kind of
+# concurrent, uncoordinated work.
+#
+# Maintenance rule: whoever starts a new cross-file/cross-migration work
+# stream adds a claim here immediately (not after finishing). Whoever
+# finishes and merges removes their own claim in the same PR that closes
+# the work. A claim older than ~1 day with no corresponding open PR is
+# stale -- safe to remove on sight, don't treat it as still binding.
+# ============================================================================
+in_flight_claims:
+  - session: "Priority 13 (PROJEXA -> complete PM-ERP), OPEN-08"
+    claimed: "2026-07-14"
+    migration_numbers: "0186+"
+    files_in_progress:
+      - "src/app/api/v1/projexa/fiscal-years, cost-centers, sales-invoices (new) -- wraps erp-accounting-service.ts/erp-invoicing-service.ts, read-only additions, should not conflict with Priority 12's enablement-gate edits to those same files but rebase before merging regardless"
+      - "src/app/api/v1/projexa/meetings, board (new) -- wraps pms-meeting-service.ts/pms-issue-service.ts"
+      - "src/app/api/v1/projexa/permits (new) -- wraps document-service.ts's listExpiringDocuments"
+      - "new document-classification-service.ts (Paperless-ngx-style auto-tagging)"
+      - "additions to report-engine-service.ts / new custom_charts table for self-serve ad-hoc BI (reuses existing TABLE_REGISTRY, does not modify report-taxonomy.ts's core contract)"
+      - "projexa repo: new pages under src/app/(app)/{permits,meetings,board} + budget/dashboard wiring"
+
+# ============================================================================
 # OPEN ITEMS -- everything actually pending right now, as of 2026-07-12
 # ============================================================================
 open_items:
