@@ -1268,3 +1268,215 @@ entries:
         build are not applicable to this entry -- the only relevant
         correctness check was the live DB + live endpoint verification
         already described above.
+
+  - id: WAVE-166
+    title: "Widen mandatory audit check to every PR, not just cheap-tier dispatches"
+    doer:
+      agent: claude-code
+      date: "2026-07-13"
+      pr: 246
+      summary: >
+        .github/workflows/mandatory-audit-check.yml previously ran only
+        against 2 hardcoded branch prefixes, silently exempting every
+        other PR (including this session's own worktree branches) from
+        AGENTS.md Rule 7(c)'s audit requirement. Widened to run on every
+        pull_request, closing a real self-inflicted gap found during this
+        session's git-collision incident review.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Self-audited per the 2026-07-13->2026-07-20 sole-auditor directive.
+        Confirmed via a subsequent real PR (#248) that a branch outside the
+        old 2 prefixes was in fact gated by this workflow post-merge.
+
+  - id: WAVE-167
+    title: "Wire audit-protocol.ts into the real CI audit-verdict gate"
+    doer:
+      agent: claude-code
+      date: "2026-07-13"
+      pr: 248
+      summary: >
+        AuditProtocolFields/validateAuditProtocolFields() (audit-protocol.ts)
+        had zero live caller -- Rule 7(c)'s doer!=auditor requirement was a
+        written norm with no CI enforcement. Built scripts/validate-audit-
+        verdict.ts (fetches PR comments via native fetch(), regex-matches
+        the most recent "AUDIT: PASS/FAIL" comment, extracts the 8 labeled
+        fields, calls the real validateAuditProtocolFields() -- no
+        reimplementation) and wired it into mandatory-audit-check.yml,
+        replacing the old bash/jq comment-matching. Found and fixed a real
+        jq regex-escaping bug during dogfooding (gojq handled \s
+        differently than expected, silently emptying the matched comment
+        body) by eliminating the bash/jq layer entirely.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Self-audited per the sole-auditor directive. Verified via the PR's
+        own audit comment triggering a real pass through the new script
+        (not just a unit test) -- including a genuine self-referential
+        false-positive catch where the audit comment's own wording tripped
+        detectAmbiguousLanguage(), confirmed as a real working self-test
+        rather than a bug, documented in the final PR comment.
+
+  - id: WAVE-168
+    title: "Consolidated AI workforce roadmap -- LiteRT.js, Narrow Monitors, AI Workforce Governance"
+    doer:
+      agent: claude-code
+      date: "2026-07-13"
+      pr: 249
+      summary: >
+        Boss requested evaluation (not yet build) of 3 proposals: LiteRT.js
+        edge-inference for VERIDIAN AI OS, a Narrow Monitor + mandatory
+        escalation policy, and a 6-registry AI Workforce Governance
+        framework covering "millions of agents." Each evaluated against
+        real code (not assumed), written as PLATFORM_STRATEGY.md sections
+        28-30 following the established evaluated->design->deferred
+        convention, cross-referenced into ai-os/MASTER-TRACKER.yaml as 3
+        deferred_large entries. Key correction delivered: "millions of
+        agents" cannot mean millions of registered identities (roster.ts
+        is a deliberately bounded 198-role template); the real unbounded
+        axis is task executions routed through a small governable role set.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Self-audited per the sole-auditor directive. Evaluation-only PR
+        (no runtime code) -- correctness check was re-reading each cited
+        file (roster.ts, workerAgents schema, model-scorecard-service.ts,
+        embeddings.ts, loop-improvement-proposer.ts) directly against the
+        claims made about them rather than trusting recollection.
+
+  - id: WAVE-169
+    title: "Close 5 metadata/drift gaps (UMR single-source-of-truth investigation)"
+    doer:
+      agent: claude-code
+      date: "2026-07-13"
+      pr: 250
+      summary: >
+        Boss asked 5 direct questions about drift/duplication/incomplete-
+        work prevention and a "VERIDIAN Brain" metadata pointer. All 5
+        closed: (1) ai-os/OS.yaml rewritten from a stale 9-line stub (with
+        a wrong Prisma/SQLite claim) into a real governance-document index,
+        enforced non-negotiable by the new scripts/check-metadata-index-
+        coverage.mjs CI gate; (2) scripts/ai-workforce-agent.mjs's new
+        fetchGovernancePreamble() now prepends CLAUDE.md+AGENTS.md to every
+        z.ai/OpenRouter dispatch's system prompt, previously silently
+        missing; (3) activity-log-service.ts's new listStuckActivities()
+        flags any AI Team dispatch sitting >24h in a non-terminal
+        lifecycle stage, surfaced on /api/ai/team/governance-health; (4)
+        ai-os/OS.yaml doubles as the closest honest "Brain" pointer,
+        explicitly stating the separate veridian-brain repo is still an
+        empty scaffold; (5) confirmed UMR row-level registration is a real
+        live Postgres trigger (genuinely automatic) while table-level
+        onboarding needed the new CI gate to be non-negotiable the same
+        way the asset registry already was.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Self-audited per the sole-auditor directive. Independently ran
+        tsc/lint/build/full test suite plus all 3 custom CI gates (asset-
+        registry-coverage, metadata-index-coverage, guardrail-presence)
+        before merge, not just trusting a self-report.
+
+  - id: WAVE-170
+    title: "Narrow Monitor Agent Phase 0 -- rule-engine monitor + escalation lock"
+    doer:
+      agent: claude-code (sub-agent, reviewed and merged by claude-code)
+      date: "2026-07-13"
+      pr: 251
+      summary: >
+        Built per PLATFORM_STRATEGY.md §29.3 Phase 0: MonitorReportFields
+        (status/worker/protocol/confidence/action, deterministic
+        validation, same rigor as audit-protocol.ts) + monitor_agents/
+        monitor_task_state tables (drizzle/0173_narrow_monitor_agents_
+        phase0.sql) + escalation-ladder.ts extended with a single-owner
+        claim lock and retry/timeout counter (evaluateEscalationClaim()/
+        claimEscalation()) + the first real Tier-1 (zero-LLM, rule-engine)
+        monitor wired to APPROVAL_GRANTED/APPROVAL_REJECTED in
+        src/app/api/approvals/[id]/route.ts.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Dispatched as one of 3 parallel sub-agents (Boss standing
+        procedure, 2026-07-13->2026-07-20: Claude Sonnet 5 Desktop reviews
+        all sub-agent work before merge). Independently re-ran tsc/lint/
+        full test suite/all custom CI gates myself rather than trusting
+        the sub-agent's self-report -- caught a real gap it missed
+        (monitor_agents/monitor_task_state were never registered or
+        exempted in ai-os/registry/asset-registry-coverage.yaml, failing
+        CI), fixed and re-verified before merge.
+
+  - id: WAVE-171
+    title: "Agent Hierarchy Registry -- worker_agent_domain_groups"
+    doer:
+      agent: claude-code (sub-agent, reviewed and merged by claude-code)
+      date: "2026-07-13"
+      pr: 252
+      summary: >
+        Boss's literal ask ("Agent Escalation Registry") was rescoped in
+        dispatch to "Agent Hierarchy Registry" -- flagged and explained to
+        the Boss before proceeding, since the escalation half was already
+        covered by WAVE-170/PR #251. workerAgents.supervisorWorkerAgentId
+        was confirmed dead (0 of then-27 rows populated, no write path) and
+        deliberately not resurrected; instead built worker_agent_domain_
+        groups (drizzle/0173_worker_agent_domain_groups.sql, applied live)
+        + resolveDomainGroupKey() in worker-agent-service.ts, structurally
+        similar to the existing module_registry precedent.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Dispatched as one of 3 parallel sub-agents, independently
+        reviewed. Independently queried the live Supabase database and
+        found a row-count discrepancy (sub-agent reported 27 worker_agents
+        rows, independent query showed 22) -- investigated and attributed
+        to other concurrent agents' transient test data on the shared live
+        database, not a defect; documented explicitly in the PR rather
+        than hidden. Also caught and fixed the same asset-registry-
+        coverage.yaml gap as WAVE-170 (worker_agent_domain_groups
+        unregistered), independently of that fix.
+
+  - id: WAVE-172
+    title: "LiteRT.js Phase 0 spike -- blur/sharp classifier feasibility test"
+    doer:
+      agent: claude-code (sub-agent, reviewed and merged by claude-code)
+      date: "2026-07-13"
+      pr: 253
+      summary: >
+        Per PLATFORM_STRATEGY.md §28.4 Phase 0: standalone /litert-spike
+        route (outside src/app/(app)/, no auth/nav) proving/disproving
+        whether @litertjs/core can run real client-side inference in this
+        stack. Real measured results: 2,398ms cold load (WASM+model),
+        ~19.6MB uncompressed payload, confirmed WebGPU full acceleration,
+        5/5 correct on synthetic test images. Found and documented a real,
+        previously-undocumented integration gap: Turbopack-bundled module
+        workers fail outright (importScripts() forbidden) and classic
+        workers resolve the WASM URL relative to the worker script's own
+        location, not the path passed to loadLiteRt() -- worked around by
+        esbuild-bundling the worker separately into the same directory as
+        the WASM binaries. No properly-licensed pretrained model exists
+        for this use case yet (flagged plainly, not silently ignored).
+        Verdict: cautiously viable, not production-ready as-is.
+    auditor:
+      agent: claude-code
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Dispatched as one of 3 parallel sub-agents, independently
+        reviewed after merging latest main into the spike branch (clean,
+        no conflicts). Re-ran tsc/build/full test suite/all 3 custom CI
+        gates myself. Found and fixed a real gap the sub-agent's "eslint
+        clean" self-report missed: public/litert-spike/wasm/*.js (vendored
+        glue) wasn't excluded by eslint.config.mjs, producing 9 errors on
+        generated code in a local lint run (gitignored so it never reached
+        CI as filed, but the config gap was real) -- fixed, plus 2 stale
+        comment references to a renamed file.

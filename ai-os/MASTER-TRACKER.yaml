@@ -157,6 +157,13 @@ open_items:
       size: deferred_large
       recommendation: "Sequence after GAP-NARROW-MONITOR-ESCALATION's Phase 0 (Agent Escalation Registry is the same mechanism). Build Agent Review Registry last -- it needs Agent Performance + Agent Escalation data to act on, and has zero existing precedent to extend."
 
+    - id: GAP-UNIFIED-SOURCE-OF-TRUTH
+      name: "Unified source of truth for drift/duplication/hallucination + GPT-OSS-120B cross-agent monitor (see PLATFORM_STRATEGY.md §31)"
+      old_ids: []
+      detail: "Evaluated 2026-07-13 against 8 named pain points (drift, scattered work-history, undocumented decisions, no pre-work SOP, hallucination/infinite loops, unclear VERIDIAN-AI-OS understanding, no live completion %, no unified open/closed/audited view), applying to every agent working on this codebase's code -- Claude Code, z.ai GLM 5.2, or any future coding agent. Found real, live drift while writing the evaluation: COMPLETED.yaml was 7 real PRs (#246,#248-253) behind, backfilled same pass (WAVE-166..172). The GPT-OSS-120B-as-monitor proposal is not new scope -- it is PLATFORM_STRATEGY.md §29.3's own already-designed Phase 2 (Tier 3 executor), never built. Dispatching Phase A (COMPLETED.yaml backfill [done], ai-os/BRAIN.md plain-language VERIDIAN explainer, live-computed open/closed/%-complete view extending governance-health) and Phase B (generalize the Narrow Monitor beyond APPROVAL_GRANTED/REJECTED to watch AI Dev Team dispatch completion generally, wire the GPT-OSS-120B Tier-3 executor) as 3 parallel sub-agents this session, per the standing 3-sub-agent review procedure."
+      size: "in_progress -- 3 sub-agents dispatched 2026-07-13"
+      recommendation: "Update this entry (or move to closed_priorities) once all 3 sub-agent PRs are reviewed and merged. Tier 2 (Llama 3.1 8B/Cerebras) stays explicitly deferred until Tier 3 is proven in production, per §29's own sequencing."
+
     - id: GAP-UMR-TABLE-COVERAGE
       name: "340 of 396 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []
