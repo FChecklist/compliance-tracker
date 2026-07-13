@@ -136,6 +136,27 @@ open_items:
       size: deferred_large
       recommendation: "Owner picks a speech-to-text provider (e.g. Whisper API, Deepgram, AssemblyAI) and provisions credentials before this can be scoped further."
 
+    - id: GAP-LITERT-EDGE-INFERENCE
+      name: "LiteRT.js dynamic edge-inference layer (see PLATFORM_STRATEGY.md §28)"
+      old_ids: []
+      detail: "Evaluated 2026-07-13: LiteRT.js shipped 4 days before evaluation, extremely early-stage. The 'Gemma 4 in browser' claim that prompted this is a separate, younger project (LiteRT-LM), not core LiteRT.js -- not viable yet for in-browser LLM chat given real WebGPU/WebNN coverage and multi-GB model weights on typical business hardware. Genuinely useful for small non-generative tasks (image quality pre-checks for VERI FM & CS's asset photography). Full evaluation, dynamic-manifest design (mirroring the capability-tree pattern), and phased plan in PLATFORM_STRATEGY.md §28. Not started -- Phase 0 is a small worktree-isolated spike, not committed architecture."
+      size: deferred_large
+      recommendation: "Boss go-ahead needed on Phase 0 (single-model spike) before any permanent architecture is built around a library this new."
+
+    - id: GAP-NARROW-MONITOR-ESCALATION
+      name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md §29)"
+      old_ids: []
+      detail: "Evaluated 2026-07-13. escalation-ladder.ts's fixed 3-rung ladder is real but has no MAX_RETRY/TIMEOUT/ownership fields; audit-event-triggers.ts covers only 8 narrow audit events, not a general event bus; workerAgents.tier can trivially add a 'monitor' value but dispatchTool() is pull-based -- no event-subscription mechanism exists. Ran the proposed ~30 monitored event types through the three-tier design: ~28 of 30 need zero AI (pure rule engine, DB-state changes only), a narrow remainder needs Llama 3.1 8B (Cerebras, already wired end-to-end) for genuine single-line language understanding, and none of the 30 need GPT-OSS-120B (that tier is for a different category -- hallucination/cross-agent-consistency/architectural review). Corrected one proposal detail: protocol/handover structural validation (offered as a Tier-2 example) is already Tier-1-deterministic and already shipped (PR #248). Full phased plan (Phase 0: prove the mechanism on APPROVAL_GRANTED/REJECTED only, zero LLM calls) in PLATFORM_STRATEGY.md §29."
+      size: deferred_large
+      recommendation: "This is the same underlying mechanism as GAP-AI-WORKFORCE-GOVERNANCE's Agent Escalation Registry -- sequence together, don't build twice."
+
+    - id: GAP-AI-WORKFORCE-GOVERNANCE
+      name: "AI Workforce Governance framework: 6 agent registries (see PLATFORM_STRATEGY.md §30)"
+      old_ids: []
+      detail: "Evaluated 2026-07-13, including a scale-reality correction: 'millions of agents' cannot mean millions of distinct registered identities (roster.ts has 198 role definitions, workerAgents has 27 rows, both deliberately small/curated) -- it maps to millions of task executions/dispatches (activityLog, already an unbounded growing log) routed through a small, bounded, governable set of role definitions. Registry-by-registry status verified against real code: Knowledge Registry already real (embeddings.ts pgvector search); Agent Performance real but narrow (model-scorecard-service.ts, no hallucination score/cost field yet); Continuous Learning real but scoped to guardrail violations only; Agent Hierarchy and Agent Review are the two genuinely new pieces (workerAgents.supervisorWorkerAgentId confirmed dead, 0 of 27 rows set; no periodic promote/retrain/deprecate cycle exists anywhere). Agent Capability Registry needs to bridge roster.ts and workerAgents, not merge them -- they're deliberately different concepts. Full registry table and sequencing recommendation in PLATFORM_STRATEGY.md §30."
+      size: deferred_large
+      recommendation: "Sequence after GAP-NARROW-MONITOR-ESCALATION's Phase 0 (Agent Escalation Registry is the same mechanism). Build Agent Review Registry last -- it needs Agent Performance + Agent Escalation data to act on, and has zero existing precedent to extend."
+
     - id: GAP-UMR-TABLE-COVERAGE
       name: "340 of 396 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []

@@ -1095,3 +1095,87 @@ The same migration also adds `compliance.embedding_cache`, an exact-match cache 
 ### 27.4 Is pgvector useful elsewhere in VERIDIAN? Not this pass
 
 Every existing vector-search consumer (`findSimilar`, Capability Registry duplicate-check, VERI FDE resolution) already goes through `compliance.embeddings` via `embeddings.ts`, so there was no second, unindexed vector use site to fix. No new product surface was invented to "use pgvector more" -- consistent with this document's own recurring discipline against building capability nobody asked for.
+
+## 28. LiteRT.js (Google's edge-inference runtime) -- evaluated, dynamic integration planned (not yet built)
+
+Boss asked whether Google's newly open-sourced LiteRT.js could become part of VERIDIAN AI OS ("the Brain"), wired dynamically per-module the same way the capability-tree/chain-selector already is, not a static one-time install.
+
+### 28.1 What LiteRT.js actually is, verified rather than taken from the announcement
+
+LiteRT.js (`@litertjs/core`) shipped **4 days before this evaluation** -- an extremely early package, not a mature GA library. The "Gemma 4 in the browser, 76 tok/s" story that prompted this evaluation is **not core LiteRT.js** -- it's a separate, younger companion project (LiteRT-LM), and the 76 tok/s figure is a best-case benchmark on a high-end Apple Silicon laptop, not a representative business-user device. Real, verified constraints: the runtime itself costs ~3-5MB compressed before any model loads; WebNN (the fast path) is ~0% available in production browsers today; WebGPU (~82-85% available) is younger and CPU fallback is too slow for LLM-scale inference; no Next.js integration guide exists anywhere -- this would be a pioneering integration, not a validated path. License is Apache-2.0, no restrictions.
+
+**Verdict: not viable yet for in-browser LLM chat/reasoning. Genuinely useful for small, narrow, non-generative client-side tasks** (image quality/classification, lightweight pre-flight checks) where CPU fallback is acceptable.
+
+### 28.2 Where it concretely fits VERIDIAN today
+
+VERI FM & CS's asset-register photography (assets digitized *from photographs*) is the clearest fit: a client-side vision model can reject blurry/unusable/wrong-subject photos before upload -- instant, free, no round trip. The same shape applies to document-upload pre-flight checks generally (compliance evidence, invoices) ahead of anything hitting a real LLM or being stored.
+
+### 28.3 Design: dynamic, mirroring the existing capability-tree pattern exactly
+
+Investigated `veri-chat-context.tsx`/`capability-tree-service.ts` before designing anything new: the "dynamic chain options" pattern is `GET /api/capability-tree?module=X` refetched on every navigation, server-computing the tree per-request from live DB registries (`workerAgents`, `computationEngines`), never a hardcoded taxonomy. The LiteRT.js integration should be the same shape, not a static bundle load:
+- New `edge_inference_models` registry (modelKey, target module scope, LiteRT model URL/version, status) -- a DB row change swaps which model runs where, no redeploy, matching the capability tree's own "dynamic" property.
+- New endpoint mirroring `/api/capability-tree` (e.g. `/api/edge-inference-manifest?module=X`) -- server decides which model(s) apply to the current page/org; client lazy-loads only that one WASM+model (critical given the 3-5MB runtime cost alone -- must never be bundled into every page).
+
+### 28.4 Explicitly deferred until Phase 0 proves the runtime works in this stack
+
+No production commitment yet. **Phase 0**: a single, small, worktree-isolated spike -- load one real, narrow LiteRT.js model (image blur/quality check) on one page, measure real load time/accuracy, before any permanent architecture is built around a 4-day-old library. Only after Phase 0 succeeds does Phase 1 (the dynamic manifest infrastructure in §28.3) get built.
+
+## 29. Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing -- evaluated, phased plan (not yet built)
+
+Boss proposed a "Narrow Monitor Agent" policy (one instruction, one YES/NO decision, no business reasoning, silent by default, escalate only on rule-failure/timeout/conflict/ambiguity) plus a mandatory escalation-hierarchy policy (every agent needs OWNER/REPORT_TO/ESCALATE_TO/MAX_RETRY/TIMEOUT/etc, no self-selected escalation target, no circular escalation, no infinite retry, single active owner, every escalation logged with reason+timestamp+task_id), then a three-tier model-routing refinement: status-only checks need no AI (rule engine); very narrow single-line language understanding needs a cheap model (proposed: Llama 3.1 8B on Cerebras); complex monitoring (hallucination detection, cross-agent consistency, architectural validation) needs a stronger model (proposed: GPT-OSS-120B).
+
+### 29.1 What already exists, investigated before designing anything new
+
+- **Escalation ladder**: `escalation-ladder.ts` is real -- a fixed 3-rung ladder (CSEO -> COO -> Super Boss), pure function `nextEscalationRung()`, reason-driven start rung. Structurally cannot loop (fixed array, not a graph) but has **no MAX_RETRY, TIMEOUT, or ownership concept** -- callers decide what escalating concretely means. `floor-tier-escalation.ts` is a different, unrelated mechanism (model-tier bump on low-confidence text signals) -- not to be conflated.
+- **Event-trigger logging**: `audit-event-triggers.ts` is real but narrow -- exactly 8 audit-firing event types (`feature_completed`, `report_generated`, `knowledge_updated`, `revenue_posted`, `ai_escalation`, `customer_complaint`, `new_prompt`, `sop_changed`), routing to specific auditor roles via `logActivity()`/`audit_logs`. Good pattern to imitate; does not already cover a general TASK_CREATED/DOCUMENT_APPROVED/EMAIL_RECEIVED event bus.
+- **Single-owner/no-self-selection precedent**: `activity-log-service.ts`'s `recordPeerReview()` already blocks `reviewedBy === userId` (`self_review_not_allowed`) -- the exact fail-closed shape needed for "no agent may select its own escalation target," but scoped only to peer review today.
+- **Notification/lifecycle events**: `notificationTypeEnum` has only 7 values (`deadline_reminder, assignment, status_change, comment, system, mention, instruction_mismatch`). Most of the ~30 proposed monitor event types (TASK_CREATED, DOCUMENT_APPROVED, EMAIL_RECEIVED, FILE_UPLOADED, etc.) fire nothing today and need new instrumentation at their real source.
+- **Worker-agent dispatch is pull-based, not push**: `workerAgents.tier` is free text (adding a `'monitor'` convention value is trivial), but `dispatchTool()` is only ever called by something already reacting to an event -- there is no existing "event X happened -> look up which monitor cares -> run it" subscription layer. This is the one genuinely missing piece underneath the whole policy.
+
+### 29.2 Software-first, verified with real numbers, not just endorsed as a slogan
+
+Ran the proposed ~30-event list through the three-tier design: **~28 of 30 events are pure DB-state changes** (did a row/column change to X) -- TASK_*, TODO_*, MEETING_*, MOM_*, DOCUMENT_*, APPROVAL_*, FILE_*, WORKFLOW_*, HANDOVER_COMPLETED, REMINDER_SENT, NOTIFICATION_DELIVERED, LOGIN_SUCCESS, API_SUCCESS/FAILED, DATABASE_UPDATED, REPORT_GENERATED, DASHBOARD_UPDATED -- every one of these needs a rule engine, never a model call. Only a narrow remainder (e.g. EMAIL_REPLIED, judging whether free-text reply content actually addresses the original ask) needs real single-line language understanding (Tier 2). **Zero of the listed 30 events need Tier 3** -- hallucination detection/cross-agent consistency/architectural validation are a different category from status monitoring entirely.
+
+One correction made to the proposal: "protocol validation, handover verification" (offered as Tier 2 examples) are **already Tier 1** -- `audit-protocol.ts`/`handover-protocol.ts` (see PR #248, merged 2026-07-13) validate field *structure* deterministically, zero AI, already shipped. Real Tier 2 work is narrower than proposed: only where the underlying signal itself is unstructured text.
+
+One caveat flagged on Tier 3: GPT-OSS-120B has a documented, confirmed failure mode in this codebase -- burned its full iteration budget twice on multi-file *agentic* work, zero output either time (`model-tier-eligibility.ts` excludes it from integrative/judgment tier for exactly this reason). Monitoring calls are single-shot (evaluate input, return one verdict), a narrower shape than what broke it before, so it's plausibly fine here -- but Tier 3 monitors should keep the existing `glm-5.2` escalation fallback rather than hard-lock to GPT-OSS-120B, so an unreliable monitor type escalates automatically instead of silently staying wrong.
+
+### 29.3 Phased plan
+
+- **Phase 0**: `MonitorReportFields` contract (status/worker/protocol/confidence/action, deterministically validated, same shape as `audit-protocol.ts`) + a monitor registry with OWNER/REPORT_TO/ESCALATE_TO/ESCALATION_LEVEL/MAX_RETRY/MAX_EXECUTION_TIME/TIMEOUT/FAILURE_ACTION/SUCCESS_ACTION/NEXT_AGENT/`tier` as real columns + extend `escalation-ladder.ts` with a single-owner lock (reusing the self-review-block pattern) and a real retry/timeout counter. Proven on `APPROVAL_GRANTED`/`APPROVAL_REJECTED` only (already partially wired via `approval_requests` + `recordAuditTrigger`) -- Tier 1, zero LLM calls, cheapest possible proof of the mechanism.
+- **Phase 1**: expand event coverage via the registry -- each remaining event is a registry row + one instrumentation call at its real source, no new architecture per event.
+- **Phase 2**: wire the Tier 2 (Llama 3.1 8B/Cerebras -- provider already wired end-to-end in `llm-client.ts`/`orchestra-model-resolver.ts`, new model ID only) and Tier 3 (GPT-OSS-120B + `glm-5.2` fallback) executors for the narrow remainder of monitors that genuinely need language understanding.
+
+### 29.4 Explicitly not started
+
+No code written yet for §29 -- this section records the evaluation and plan only, pending Boss go-ahead on Phase 0.
+
+## 30. AI Workforce Governance framework (6 registries) -- evaluated, "millions of agents" scale corrected, registry-by-registry status
+
+Boss proposed a governance framework across 6 registries (Agent Capability, Agent Hierarchy, Agent Escalation, Agent Performance, Continuous Learning, Agent Review) plus a Knowledge Registry, applying to "ALL_CURRENT_AND_FUTURE_REPOSITORIES" and "millions of agents."
+
+### 30.1 The scale claim, checked against real numbers before evaluating the design
+
+`roster.ts` hardcodes exactly **198 role definitions** (`AI_TEAM_ROSTER`), a deliberately fixed template backbone per its own header -- explicitly not meant to grow per-task. `workerAgents` (the customer-facing capability catalog) has **27 rows**, per the codebase's own comment. Both are small, curated sets by design.
+
+**"Millions of agents" cannot mean millions of distinct registered identities, and shouldn't.** A governance framework where millions of distinct entities each need their own OWNER/REPORTS_TO/ESCALATE_TO/performance history is not more powerful than a small curated set -- it's ungovernable; nobody can periodically review a million distinct entities, which defeats Agent Review's entire purpose. The correct mapping: **millions of task *executions/dispatches*** (an unbounded, ever-growing log -- `activityLog`, `activity_type='ai_team_dispatch'`) **routed through a small, bounded, governable set of agent role definitions** (198 today, plausibly growing to low thousands over time, never millions). Any registry design registers per-*role*, not per-execution; execution volume is a normal data-volume/indexing/archival problem, not a role-explosion problem.
+
+### 30.2 Registry-by-registry status, verified against the actual codebase
+
+| Registry | Status |
+|---|---|
+| Agent Capability (ACR) | Real, but **split across two genuinely different systems** -- `roster.ts` (internal AI Dev Team roles) and `workerAgents` (customer-facing capability catalog) are deliberately separate concepts per `roster.ts`'s own header. A governance layer should bridge both, not merge them into one. |
+| Agent Hierarchy (AHR) | Mostly dormant. `escalationLevel` exists on only 4 of 198 roles. `workerAgents.supervisorWorkerAgentId` is confirmed dead -- 0 of 27 rows populated, no code path writes to it. |
+| Agent Escalation (AER) | **Already in progress as §29** -- same underlying mechanism (`escalation-ladder.ts` + the MAX_RETRY/TIMEOUT/OWNER extension), not a second thing to build. |
+| Agent Performance (APR) | Real but narrow. `model-scorecard-service.ts` genuinely aggregates real dispatch data into per-(model,tier) success rates, but by its own documented admission cannot compute iteration count and has no hallucination-score or cost field yet (cost lives separately in `token-usage-service.ts`). |
+| Continuous Learning (CLR) | Real but scoped narrowly. `loop-improvement-proposer.ts` is real and wired, but fires only on guardrail *rule* violations, not "every completed task/failure/correction" -- always human-gated (`isDeployed: false`) before anything is applied, a discipline worth keeping, not loosening. |
+| Knowledge Registry (KR) | **Already real.** `embeddings.ts` has genuine pgvector semantic search (see §27.3), org-scoped and global, with a caching layer -- essentially done. |
+| Agent Review (ARR) | **Does not exist.** `workerAgents.lifecycleStatus` (draft->published->retired) is a real but manually-triggered publish workflow -- no periodic, performance-driven promote/retrain/deprecate/retire cycle exists anywhere. Genuinely new territory. |
+
+### 30.3 This is the parent framework, not a fifth separate initiative
+
+§28 (LiteRT.js edge models), §29 (Narrow Monitor Agents + escalation), and the three-tier model routing are specific instances of this framework's ACR/AER/APR, not parallel systems. Designing them independently would fragment exactly the precise, non-duplicated architecture this document exists to prevent.
+
+### 30.4 Explicitly not started
+
+No registry code written yet. Recommended sequencing once resumed: extend §29's Phase 0 escalation work to cover ACR/AER generally (not just monitor agents) before building ARR (the one registry with zero existing precedent), since a periodic review cycle is meaningless without the performance data (APR) and escalation state (AER) it needs to act on.
