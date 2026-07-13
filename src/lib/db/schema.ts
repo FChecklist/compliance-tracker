@@ -8895,6 +8895,15 @@ export const capabilityImprovementProposals = complianceSchemaDB.table('capabili
   // thrown away.
   dispatchOutput: text('dispatch_output'),
   prUrl: text('pr_url'),
+  // Priority 12 (OPEN-07 point 5, migration 0190): the 'rejected' status
+  // value was already in the CHECK constraint (migration 0156) but had no
+  // real write path anywhere -- closeImprovementLoop() only ever wrote
+  // 'resolved'. rejectionReason is the human-facing counterpart to prUrl
+  // above: prUrl records WHY a 'resolved' row is closed (the merged fix);
+  // this records WHY a 'rejected' row is closed (the Auditor's finding was
+  // looked at and deliberately not acted on), so the closed-loop record
+  // stays meaningful either way instead of a bare status flip.
+  rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
