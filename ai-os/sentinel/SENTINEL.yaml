@@ -59,3 +59,22 @@ logging:
   violations: ai-os/sentinel/VIOLATIONS.yaml
   health: ai-os/sentinel/HEALTH.yaml
   audit: GitHub Actions (sentinel.yml workflow)
+
+# ─── Related Monitors (cross-reference, NOT a supersession) ────
+# Added 2026-07-13 (GAP-UNIFIED-SOT-REMAINDER Wave-2 slice; owner directive
+# that day asked for monitoring/status to be real and automatic, not
+# manual-trigger-only). SENTINEL above validates a genuinely different
+# surface -- point-in-time spot checks at PR/commit time (CI green, no
+# secrets, agent conduct via validation_rules). It says nothing about
+# whether an AI Dev Team dispatch, once started, actually completes.
+# dispatch_completion_monitor (below) is the mechanism that watches THAT --
+# ongoing drift/completion over time, not a commit-time gate. Neither
+# supersedes the other; both are real, both stay.
+related_monitors:
+  - id: dispatch_completion_monitor
+    what: "Tier-3 (GPT-OSS-120B) monitor classifying whether a stuck AI Dev Team dispatch (an activity_log row past its staleAfterMs in a non-terminal lifecycle_stage) shows real completion signs or looks abandoned."
+    registry: compliance.monitor_agents (drizzle/0174_dispatch_completion_monitor.sql)
+    code: src/lib/monitors/dispatch-completion-monitor.ts
+    cron: /api/internal/dispatch-completion-monitor/run (see vercel.json)
+    digest: compliance.monitor_execution_log (drizzle/0175_monitor_execution_log.sql) -- one row per cron sweep, cross-referenced back to this file in that route's own header comment
+    relationship_to_sentinel: "Different surface, not a supersession -- SENTINEL's validation_rules (SE-*/AR-*/AC-*) are point-in-time PR/commit checks; this monitor watches ongoing AI Dev Team dispatch completion drift after a dispatch has already started. Cross-linked from src/app/api/internal/dispatch-completion-monitor/run/route.ts's own header comment."
