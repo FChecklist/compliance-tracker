@@ -246,8 +246,22 @@ function resolveAggregationTarget(config: { tableKey?: string; groupByColumn?: s
   return { entry, groupByColumn: groupByColumn ?? null, aggregationColumn, filterColumn }
 }
 
-/** The real execution path for a deterministic_aggregation report_definitions row -- resolves its config against TABLE_REGISTRY and runs it through runAggregation(). */
-async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig): Promise<ReportDefinitionResult> {
+/**
+ * Read-only metadata view of TABLE_REGISTRY (table keys + their whitelisted
+ * column keys) -- safe to hand to a client (e.g. custom-chart-service.ts's
+ * dataset picker) because it exposes only string keys, never the real
+ * Drizzle table/column objects themselves. Priority 13 (self-serve ad-hoc
+ * BI): this is what lets the chart-builder UI list "which datasets can I
+ * build a chart from" without duplicating TABLE_REGISTRY's contents by hand.
+ */
+export function getTableRegistryMetadata(): Record<string, { columns: string[] }> {
+  return Object.fromEntries(
+    Object.entries(TABLE_REGISTRY).map(([key, entry]) => [key, { columns: Object.keys(entry.columns) }])
+  )
+}
+
+/** The real execution path for a deterministic_aggregation report_definitions row -- resolves its config against TABLE_REGISTRY and runs it through runAggregation(). Priority 13: also the direct executor custom-chart-service.ts reuses for ad-hoc charts (exported, not duplicated). */
+export async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig): Promise<ReportDefinitionResult> {
   const { entry, groupByColumn, aggregationColumn, filterColumn } = resolveAggregationTarget(config)
   const extraWhere = filterColumn && config.filterEquals ? eq(filterColumn, config.filterEquals.value) : undefined
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
