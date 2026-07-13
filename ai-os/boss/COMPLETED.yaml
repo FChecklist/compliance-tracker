@@ -1480,3 +1480,77 @@ entries:
         generated code in a local lint run (gitignored so it never reached
         CI as filed, but the config gap was real) -- fixed, plus 2 stale
         comment references to a renamed file.
+
+  - id: WAVE-173
+    title: "Reports & Analysis foundation -- catalog/Chain Selector pills, schedulable cadences + accept/todo/delegate action flow, PPT/Word/HTML export + upload-to-AI report builder (Owner directive 2026-07-13)"
+    doer:
+      agent: "3 parallel claude worktree-isolated sub-agents, dispatched by claude-code (Super Boss)"
+      date: "2026-07-13"
+      pr: "266, 267, 268"
+      summary: >
+        Owner directive: unify Reports & Analysis across the platform. A
+        pre-work X-Files/gap-analysis check (not a fresh ground-up
+        analysis) found 5 of 13 requirements already done (live-data
+        reports, org-scoped saved-report templates, main-screen 5-section
+        shell with recharts) and 6 genuine gaps, closed as 3 parallel PRs:
+        PR #266 -- report-catalog-service.ts (26 verified entries across
+        5 domains, data-only, every route grep-verified before listing)
+        wired into capability-tree-service.ts as a new "Reports & Analysis"
+        Chain Selector branch, plus a ReportCatalogList UI section on
+        /reports. PR #267 -- report_schedules + report_item_actions
+        tables (user/org-definable daily/weekly/monthly cadences,
+        delivered via the existing Wave-38 notifications mechanism since
+        the 3 existing report-cadence crons have no delivery layer of
+        their own; real accept/send-to-todo/delegate row actions calling
+        the pre-existing createTask()/createDelegation() services, first
+        real UI caller of /api/delegations found in this codebase). PR
+        #268 -- PPT/Word/HTML export (pptxgenjs/docx, reusing
+        buildExportRows() with no forked data path) and a "Need a Report?"
+        upload-to-AI flow (ai-report-builder-service.ts, grounded strictly
+        in the uploaded file's own extracted content, image/Excel/Word via
+        vision/xlsx/mammoth, saved via the existing createSavedReport()
+        under a new ai_generated sourceEntity kept outside the live-query
+        security whitelist). Requirement 13 (separate repo) was raised to
+        the Owner and explicitly declined in favor of an in-repo module,
+        matching how PROJEXA was integrated.
+    auditor:
+      agent: claude-code (Super Boss, same session, all 3 PRs audited personally per the 2026-07-13->07-20 Claude-only-review window)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Read all 3 full diffs before merge (not just PR descriptions).
+        PR #266: spot-checked 10/26 catalog entries against real source
+        files, confirmed reports/page.tsx diff was genuinely additive
+        (1 import + 1 JSX block). PR #267: confirmed both new tables have
+        RLS matching metric_alert_rules' precedent, confirmed Delegate/
+        Send-to-To-Do call real pre-existing services (not stubs),
+        confirmed sendToTodo() honors the existing Wave-146 high-impact
+        confirmation gate rather than bypassing it, confirmed Accept never
+        touches domain-entity status fields. PR #268: confirmed the AI
+        report proposal's only inputs are the uploaded file's own
+        extracted bytes/text (no other interpolated data), confirmed
+        ai_generated is excluded from GROUP_BY_FIELDS (the live-query
+        security boundary). Found and fixed for real (not just flagged):
+        both PR #267 and #268 independently created a migration named
+        drizzle/0177_*.sql -- renumbered #268's to 0178, merged latest
+        main into its branch by hand, resolved one real conflict in
+        CustomReportsSection.tsx (both PRs added different per-report-card
+        UI), re-ran tsc/lint clean before re-pushing. All 3 PRs' required
+        checks (Lint/Type Check/Build/Unit Tests) passed; audit-check
+        posted as the structured 8-field format (audit-protocol.ts) per
+        the agent-communication standard, not free-text "AUDIT: PASS".
+        Applied both live migrations (0177, 0178) via Supabase MCP after
+        merge -- both additive/idempotent (CREATE TABLE IF NOT EXISTS /
+        ADD COLUMN IF NOT EXISTS), get_advisors() run before and after
+        showed zero new findings attributable to either migration.
+        Vercel preview deploy fails on all 3 PRs (and pre-existed on
+        unrelated PRs before this wave) -- its status link resolves to
+        Vercel's own cron-jobs/usage-and-pricing docs, indicating an
+        account-level cron-count/usage condition, not a code defect;
+        flagged to the Owner, not silently ignored, since Vercel is not
+        one of this repo's 4 required status checks. Honest open gap
+        left for the Owner: requirement 9 (templates shared cross-system
+        with org/user-scoped data) is still org-scoped-only, not
+        cross-org/cross-product -- no cross-tenant sharing mechanism
+        exists anywhere else in this codebase to reuse, so building one
+        speculatively was out of scope for this wave.
