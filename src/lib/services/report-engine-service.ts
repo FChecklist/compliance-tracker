@@ -53,19 +53,23 @@
 
 import {
   db, reportDefinitions,
+  complianceItems, notices, risks, pmsIssues, pmsMilestones, incidents,
+  constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
+  constructionRfis, constructionSubmittals, constructionPunchListItems, constructionChangeOrders,
+  constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
+  erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
+  projects,
   interiorMoodBoards, interiorFfeItems, interiorFloorPlans, interiorFloorPlanRooms,
-  interiorFurniturePlacements, interiorMaterials, erpSuppliers, users,
-  complianceItems, notices, risks, pmsIssues, incidents,
-  constructionBoqs, constructionWorkProgressEntries, constructionAttendance,
+  interiorFurniturePlacements, interiorMaterials, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, inArray, sql, type SQL } from "drizzle-orm"
+import { and, eq, or, isNull, inArray, sql, gte, lt, type SQL } from "drizzle-orm"
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
-import { budgetVsActual, projectCompletionReport } from "./construction-reports-service"
+import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -76,16 +80,47 @@ export type ExecutionType = "deterministic_aggregation" | "deterministic_formula
 
 export type AggregationConfig = {
   kind: "aggregation"
-  /** Key into TABLE_REGISTRY below -- NOT an arbitrary table name: only keys that exist in that code-reviewed, hardcoded map resolve to anything, exactly like custom-report-service.ts's GROUP_BY_FIELDS whitelist. */
-  tableKey: string
-  /** Key into TABLE_REGISTRY[tableKey].columns, or omitted for a single Total row (no GROUP BY). */
+  /**
+   * Priority 11 wave 2 (2026-07-13 catalog build-out): resolves against
+   * TABLE_REGISTRY below so executeReportDefinition() can actually run this
+   * definition end-to-end via runAggregation() -- previously
+   * deterministic_aggregation had no dispatcher handler at all (only direct,
+   * hand-coded callers could use runAggregation(), which needs real typed
+   * Drizzle objects no report_definitions row could carry). Optional (not
+   * required) purely so a minimal stub config keeps type-checking -- a row
+   * without tableKey will 500 with a clear "cannot resolve which table"
+   * error at run time rather than silently doing nothing, so this is never
+   * a way to accidentally mark something 'built' without it actually
+   * running. NOT an arbitrary table name: only keys that exist in
+   * TABLE_REGISTRY (a code-reviewed, hardcoded map) resolve to anything,
+   * exactly like custom-report-service.ts's GROUP_BY_FIELDS whitelist.
+   */
+  tableKey?: string
+  /** Column key (must exist in TABLE_REGISTRY[tableKey].columns) to GROUP BY. Omit for a single ungrouped total. */
   groupByColumn?: string
   aggregation: "count" | "sum" | "avg"
-  /** Key into TABLE_REGISTRY[tableKey].columns -- required when aggregation is "sum"/"avg". */
+  /** Column key to sum/avg -- required when aggregation is 'sum'|'avg', ignored for 'count'. */
   aggregationColumnKey?: string
+  /** Optional single equality filter (e.g. status='open') -- still whitelist-only: columnKey must be a registered column, never an arbitrary string. */
+  filterEquals?: { columnKey: string; value: string | number | boolean }
 }
 export type FormulaConfig = { kind: "formula"; formulaKey: string; params?: Record<string, unknown> }
-export type AiRecipeConfig = { kind: "ai_recipe"; promptKey: string; groundingNote: string }
+export type AiRecipeConfig = {
+  kind: "ai_recipe"
+  promptKey: string
+  groundingNote: string
+  /**
+   * Priority 11 wave 2: when set, and the caller doesn't already pass
+   * params.groundingData, executeReportDefinition() auto-runs this against
+   * the same TABLE_REGISTRY/runAggregation() whitelist deterministic_
+   * aggregation uses, and feeds the real result to the LLM as grounding --
+   * making an ai_recipe definition genuinely re-runnable end-to-end instead
+   * of permanently depending on a caller that knows how to pre-query data
+   * for it. Still bounded to one simple group-by/count/sum/avg query, same
+   * honesty limits as deterministic_aggregation.
+   */
+  groundingQuery?: { tableKey: string; groupByColumn?: string; aggregation: "count" | "sum" | "avg"; aggregationColumnKey?: string; filterEquals?: { columnKey: string; value: string | number | boolean } }
+}
 export type ExternalServiceConfig = { kind: "external_service"; sourceService: string; sourceFunction: string; requiredParams?: string[] }
 
 export type ReportDefinitionResult = { columns: string[]; rows: Record<string, string | number>[]; narrative?: string; note?: string }
@@ -134,37 +169,73 @@ export async function runAggregation(
   return rows.map((r) => ({ groupValue: r.groupValue, value: Number(r.value) }))
 }
 
-// ─── Table registry (what makes deterministic_aggregation definitions
-// executable through the ONE dispatcher, not a bespoke function per report)
-// ────────────────────────────────────────────────────────────────────────
-// Every value here is a real, already-imported, code-reviewed Drizzle
-// table/column object -- resolving a report_definitions row's tableKey
-// string against this map is exactly as safe as custom-report-service.ts's
-// GROUP_BY_FIELDS switch (same whitelist discipline, same file this
-// mirrors), just centralized once instead of duplicated per switch-branch.
-// A report_definitions row's executionConfig.tableKey can ONLY ever
-// resolve to something here -- there is no code path from a JSON string to
-// an arbitrary table.
-//
-// Seeded with the same 8 entities custom-report-service.ts already
-// whitelists (not a new decision, just cataloging the existing whitelist
-// under the new engine too). Future waves ADD their own domain's tables as
-// NEW entries appended at the end -- additive-only, never edit an existing
-// entry, so multiple waves adding different domains' tables in parallel
-// stay merge-safe (the same "additive-only, append at the end" discipline
-// already used for reports/page.tsx and CustomReportsSection.tsx in the
-// prior Reports & Analysis wave).
+// ─── Table registry (Priority 11 wave 2, 2026-07-13 catalog build-out) ────
+// A whitelist of table+column objects deterministic_aggregation/ai_recipe's
+// groundingQuery are allowed to resolve a string key against, so a
+// report_definitions row's JSON config can actually be executed by
+// executeReportDefinition() instead of only being runnable by a caller that
+// separately imports the real Drizzle objects. This does NOT reopen an
+// arbitrary-query surface: a tableKey/columnKey that isn't listed here
+// throws immediately (ServiceError, 500) rather than resolving to anything,
+// and runAggregation() itself is unchanged -- still a parameterized,
+// injection-safe group-by/count/sum/avg, just resolved from a name instead
+// of hand-imported per call site. Additive-only -- append new domain tables
+// at the end, never rename/remove an existing key (report_definitions rows
+// reference these keys by string in their jsonb execution_config, so a
+// rename silently breaks every row that used the old key).
 export type TableRegistryEntry = { table: PgTable; orgIdColumn: AnyPgColumn; columns: Record<string, AnyPgColumn> }
 
 export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
-  compliance_items: { table: complianceItems, orgIdColumn: complianceItems.orgId, columns: { status: complianceItems.status, priority: complianceItems.priority, departmentId: complianceItems.departmentId } },
-  notices: { table: notices, orgIdColumn: notices.orgId, columns: { status: notices.status, authority: notices.authority } },
-  risks: { table: risks, orgIdColumn: risks.orgId, columns: { status: risks.status, category: risks.category } },
-  pms_issues: { table: pmsIssues, orgIdColumn: pmsIssues.orgId, columns: { statusId: pmsIssues.statusId, priority: pmsIssues.priority } },
-  incidents: { table: incidents, orgIdColumn: incidents.orgId, columns: { stage: incidents.stage, severity: incidents.severity } },
-  construction_boqs: { table: constructionBoqs, orgIdColumn: constructionBoqs.orgId, columns: { status: constructionBoqs.status } },
-  construction_work_progress_entries: { table: constructionWorkProgressEntries, orgIdColumn: constructionWorkProgressEntries.orgId, columns: { activityId: constructionWorkProgressEntries.activityId } },
-  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { status: constructionAttendance.status, rosterId: constructionAttendance.rosterId } },
+  compliance_items: { table: complianceItems, orgIdColumn: complianceItems.orgId, columns: { status: complianceItems.status, priority: complianceItems.priority, complianceType: complianceItems.complianceType, departmentId: complianceItems.departmentId } },
+  notices: { table: notices, orgIdColumn: notices.orgId, columns: { status: notices.status, authority: notices.authority, departmentId: notices.departmentId } },
+  risks: { table: risks, orgIdColumn: risks.orgId, columns: { status: risks.status, category: risks.category, likelihood: risks.likelihood, impact: risks.impact } },
+  pms_issues: { table: pmsIssues, orgIdColumn: pmsIssues.orgId, columns: { statusId: pmsIssues.statusId, priority: pmsIssues.priority, projectId: pmsIssues.projectId } },
+  incidents: { table: incidents, orgIdColumn: incidents.orgId, columns: { category: incidents.category, severity: incidents.severity, stage: incidents.stage } },
+  construction_boqs: { table: constructionBoqs, orgIdColumn: constructionBoqs.orgId, columns: { status: constructionBoqs.status, projectId: constructionBoqs.projectId } },
+  construction_work_progress_entries: { table: constructionWorkProgressEntries, orgIdColumn: constructionWorkProgressEntries.orgId, columns: { projectId: constructionWorkProgressEntries.projectId, activityId: constructionWorkProgressEntries.activityId, percentComplete: constructionWorkProgressEntries.percentComplete } },
+  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status, rosterId: constructionAttendance.rosterId } },
+  // -- new for the Owner's 30 Project Reports / 30 Analysis Dashboards / Executive KPI catalog (2026-07-13) --
+  projects: { table: projects, orgIdColumn: projects.orgId, columns: { healthStatus: projects.healthStatus, isActive: projects.isActive } },
+  pms_milestones: { table: pmsMilestones, orgIdColumn: pmsMilestones.orgId, columns: { status: pmsMilestones.status, projectId: pmsMilestones.projectId } },
+  construction_rfis: { table: constructionRfis, orgIdColumn: constructionRfis.orgId, columns: { status: constructionRfis.status, projectId: constructionRfis.projectId, ballInCourt: constructionRfis.ballInCourt } },
+  construction_submittals: { table: constructionSubmittals, orgIdColumn: constructionSubmittals.orgId, columns: { status: constructionSubmittals.status, projectId: constructionSubmittals.projectId, type: constructionSubmittals.type } },
+  construction_punch_list_items: { table: constructionPunchListItems, orgIdColumn: constructionPunchListItems.orgId, columns: { status: constructionPunchListItems.status, projectId: constructionPunchListItems.projectId, priority: constructionPunchListItems.priority } },
+  construction_change_orders: { table: constructionChangeOrders, orgIdColumn: constructionChangeOrders.orgId, columns: { status: constructionChangeOrders.status, projectId: constructionChangeOrders.projectId, costImpact: constructionChangeOrders.costImpact } },
+  construction_site_diaries: { table: constructionSiteDiaries, orgIdColumn: constructionSiteDiaries.orgId, columns: { projectId: constructionSiteDiaries.projectId, weather: constructionSiteDiaries.weather } },
+  construction_expense_entries: { table: constructionExpenseEntries, orgIdColumn: constructionExpenseEntries.orgId, columns: { projectId: constructionExpenseEntries.projectId, expenseHead: constructionExpenseEntries.expenseHead, amount: constructionExpenseEntries.amount } },
+  erp_purchase_orders: { table: erpPurchaseOrders, orgIdColumn: erpPurchaseOrders.orgId, columns: { status: erpPurchaseOrders.status, supplierId: erpPurchaseOrders.supplierId, grandTotal: erpPurchaseOrders.grandTotal } },
+  erp_suppliers: { table: erpSuppliers, orgIdColumn: erpSuppliers.orgId, columns: { qualificationStatus: erpSuppliers.qualificationStatus, sanctionScreeningStatus: erpSuppliers.sanctionScreeningStatus, trade: erpSuppliers.trade } },
+  erp_stock_ledger_entries: { table: erpStockLedgerEntries, orgIdColumn: erpStockLedgerEntries.orgId, columns: { itemId: erpStockLedgerEntries.itemId, quantityChange: erpStockLedgerEntries.quantityChange } },
+}
+
+function resolveAggregationTarget(config: { tableKey?: string; groupByColumn?: string; aggregationColumnKey?: string; filterEquals?: { columnKey: string; value: string | number | boolean } }) {
+  if (!config.tableKey) throw new ServiceError("Aggregation config has no tableKey set -- cannot resolve which table to query.", 500)
+  const entry = TABLE_REGISTRY[config.tableKey]
+  if (!entry) throw new ServiceError(`No table registered in TABLE_REGISTRY for key "${config.tableKey}".`, 500)
+  const groupByColumn = config.groupByColumn ? entry.columns[config.groupByColumn] : null
+  if (config.groupByColumn && !groupByColumn) throw new ServiceError(`Column "${config.groupByColumn}" is not whitelisted for table "${config.tableKey}".`, 500)
+  const aggregationColumn = config.aggregationColumnKey ? entry.columns[config.aggregationColumnKey] : undefined
+  if (config.aggregationColumnKey && !aggregationColumn) throw new ServiceError(`Column "${config.aggregationColumnKey}" is not whitelisted for table "${config.tableKey}".`, 500)
+  let filterColumn: AnyPgColumn | undefined
+  if (config.filterEquals) {
+    filterColumn = entry.columns[config.filterEquals.columnKey]
+    if (!filterColumn) throw new ServiceError(`Column "${config.filterEquals.columnKey}" is not whitelisted for table "${config.tableKey}".`, 500)
+  }
+  return { entry, groupByColumn: groupByColumn ?? null, aggregationColumn, filterColumn }
+}
+
+/** The real execution path for a deterministic_aggregation report_definitions row -- resolves its config against TABLE_REGISTRY and runs it through runAggregation(). */
+async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig): Promise<ReportDefinitionResult> {
+  const { entry, groupByColumn, aggregationColumn, filterColumn } = resolveAggregationTarget(config)
+  const extraWhere = filterColumn && config.filterEquals ? eq(filterColumn, config.filterEquals.value) : undefined
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await runAggregation(db, {
+      table: entry.table, orgIdColumn: entry.orgIdColumn, orgId: ctx.orgId,
+      groupByColumn, aggregation: config.aggregation, aggregationColumn, extraWhere,
+    })
+    const groupLabel = config.groupByColumn ?? "Group"
+    return { columns: [groupLabel, "Value"], rows: rows.map((r) => ({ [groupLabel]: String(r.groupValue), Value: r.value })) }
+  })
 }
 
 // ─── Formula registry (deterministic_formula) ─────────────────────────────
@@ -276,6 +347,349 @@ async function computeProjectHealthIndex(ctx: { orgId: string }, params: Record<
     ],
     note: "Transparent weighted average of normalized SPI and CPI (50/50) -- not an AI-derived score.",
   }
+}
+
+// ─── Priority 11 wave 2 formulas (2026-07-13, Owner's 30 Project Reports /
+// 30 Analysis Dashboards / Executive KPI catalog). Same honesty discipline
+// as the 3 formulas above -- every approximation is documented, every "N/A"
+// case is a real data-gap explanation, not a fabricated number. Most are
+// org-wide (not scoped to one project) because Executive/portfolio-level
+// KPIs are the actual ask; the project-scoped ones take params.projectId.
+
+/** Backs 3 catalog rows (Schedule Variance / Cost Variance / Earned Value Analysis) -- all three are genuinely the same PV/EV/AC computation, just read differently. Reuses the exact PV/EV approximations documented on computeSpi/computeCpi above. */
+async function computeEarnedValueAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Earned Value Analysis formula", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: (t, { and, eq }) => and(eq(t.id, projectId), eq(t.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+    if (!project.startDate || !project.targetDate) {
+      return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no startDate/targetDate set -- cannot compute a time-linear Planned Value baseline." }
+    }
+    const [budget, completion] = await Promise.all([budgetVsActual(ctx, projectId), projectCompletionReport(ctx, projectId)])
+    if (budget.budget <= 0) {
+      return { columns: ["Metric", "Value"], rows: [{ Metric: "Earned Value Analysis", Value: "N/A" }], note: "Project has no budget set (via its cost centre) -- cannot compute Planned/Earned Value in cost terms." }
+    }
+    const start = new Date(project.startDate).getTime()
+    const target = new Date(project.targetDate).getTime()
+    const totalMs = target - start
+    const plannedPercent = totalMs <= 0 ? 100 : Math.max(0, Math.min(100, ((Date.now() - start) / totalMs) * 100))
+    const pv = budget.budget * (plannedPercent / 100)
+    const ev = budget.budget * (completion.overallPercentComplete / 100)
+    const ac = budget.actual
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Planned Value (PV)", Value: Math.round(pv) },
+        { Metric: "Earned Value (EV)", Value: Math.round(ev) },
+        { Metric: "Actual Cost (AC)", Value: Math.round(ac) },
+        { Metric: "Schedule Variance (SV = EV-PV)", Value: Math.round(ev - pv) },
+        { Metric: "Cost Variance (CV = EV-AC)", Value: Math.round(ev - ac) },
+      ],
+      note: "PV uses the same linear time-elapsed proxy as the SPI formula; EV uses the same Budget x %-Complete (BCWP) proxy as the CPI formula -- this codebase has no baseline S-curve or per-activity budget breakdown for textbook-precise EVM.",
+    }
+  })
+}
+
+/** Org-wide average of each construction activity's latest logged percent_complete -- the portfolio-level "Overall Completion %" executive KPI. */
+async function computePortfolioCompletionPercent(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const activities = await db.query.constructionActivities.findMany({ where: eq(constructionActivities.orgId, ctx.orgId), columns: { id: true } })
+    if (activities.length === 0) return { columns: ["Metric", "Value"], rows: [{ Metric: "Overall Completion %", Value: 0 }], note: "No construction activities logged for this organisation yet." }
+    const ids = activities.map((a) => a.id)
+    const idsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
+    const rows = (await db.execute(sql`
+      SELECT DISTINCT ON (activity_id) activity_id, percent_complete
+      FROM compliance.construction_work_progress_entries
+      WHERE activity_id = ANY(ARRAY[${idsSql}])
+      ORDER BY activity_id, entry_date DESC
+    `)) as unknown as { activity_id: string; percent_complete: number }[]
+    const avg = rows.length > 0 ? rows.reduce((s, r) => s + Number(r.percent_complete), 0) / rows.length : 0
+    return { columns: ["Metric", "Value"], rows: [{ Metric: "Overall Completion % (org-wide average of each activity's latest log)", Value: Math.round(avg) }], note: "Simple average of each activity's latest logged percent_complete -- not weighted by BOQ value or activity size." }
+  })
+}
+
+/** Org-wide budget utilization -- sums erp_budget_line_items for cost centres linked to a construction project, vs total construction_expense_entries. */
+async function computePortfolioBudgetUtilization(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [budgetRow] = await db.select({ total: sql<number>`coalesce(sum(${erpBudgetLineItems.annualAmount}), 0)::float` })
+      .from(erpBudgetLineItems)
+      .innerJoin(erpBudgets, eq(erpBudgetLineItems.budgetId, erpBudgets.id))
+      .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
+      .where(and(eq(erpBudgets.orgId, ctx.orgId), sql`${erpCostCenters.projectId} is not null`))
+    const [actualRow] = await db.select({ total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` })
+      .from(constructionExpenseEntries).where(eq(constructionExpenseEntries.orgId, ctx.orgId))
+    const budgetTotal = Number(budgetRow?.total ?? 0)
+    const actualTotal = Number(actualRow?.total ?? 0)
+    if (budgetTotal <= 0) return { columns: ["Metric", "Value"], rows: [{ Metric: "Budget Utilized %", Value: "N/A" }], note: "No project-linked budget line items exist for this organisation's cost centres yet." }
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Total Budget (project-linked cost centres)", Value: Math.round(budgetTotal) },
+        { Metric: "Total Actual Expense", Value: Math.round(actualTotal) },
+        { Metric: "Budget Utilized %", Value: Math.round((actualTotal / budgetTotal) * 1000) / 10 },
+      ],
+      note: "Scoped to cost centres linked to a construction project (erp_cost_centers.project_id not null); actual cost is construction_expense_entries only, not the full ERP purchase-invoice ledger.",
+    }
+  })
+}
+
+/** Today's logged site progress, org-wide, grouped by project. */
+async function computeTodaysSiteProgress(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = await db.select({
+      projectId: constructionWorkProgressEntries.projectId,
+      entries: sql<number>`count(*)`,
+      totalQuantity: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)::float`,
+    }).from(constructionWorkProgressEntries)
+      .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.entryDate, today)))
+      .groupBy(constructionWorkProgressEntries.projectId)
+    return { columns: ["Project ID", "Entries Logged Today", "Total Quantity Done Today"], rows: rows.map((r) => ({ "Project ID": r.projectId, "Entries Logged Today": Number(r.entries), "Total Quantity Done Today": Number(r.totalQuantity) })), note: rows.length === 0 ? "No progress entries logged for today's date yet." : undefined }
+  })
+}
+
+/** Labour marked present today, org-wide, grouped by project. */
+async function computeLabourOnSiteToday(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = await db.select({
+      projectId: constructionAttendance.projectId,
+      count: sql<number>`count(*)`,
+    }).from(constructionAttendance)
+      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.attendanceDate, today), eq(constructionAttendance.status, "present")))
+      .groupBy(constructionAttendance.projectId)
+    return { columns: ["Project ID", "Labour Present Today"], rows: rows.map((r) => ({ "Project ID": r.projectId, "Labour Present Today": Number(r.count) })), note: rows.length === 0 ? "No attendance recorded for today's date yet." : undefined }
+  })
+}
+
+/** Purchase orders past their expected delivery date and not yet completed/cancelled, grouped by supplier. Backs both the "Vendors Delayed" KPI and the "Procurement Delay Analysis" dashboard. */
+async function computeVendorsDelayedPurchaseOrders(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = await db.select({
+      supplierId: erpPurchaseOrders.supplierId,
+      overdueCount: sql<number>`count(*)`,
+      overdueValue: sql<number>`coalesce(sum(${erpPurchaseOrders.grandTotal}), 0)::float`,
+    }).from(erpPurchaseOrders)
+      .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), sql`${erpPurchaseOrders.expectedDeliveryDate} < ${today}`, sql`${erpPurchaseOrders.status} not in ('completed', 'cancelled')`))
+      .groupBy(erpPurchaseOrders.supplierId)
+    return { columns: ["Supplier ID", "Overdue PO Count", "Overdue PO Value"], rows: rows.map((r) => ({ "Supplier ID": r.supplierId, "Overdue PO Count": Number(r.overdueCount), "Overdue PO Value": Number(r.overdueValue) })), note: "Overdue = expected_delivery_date in the past and status not yet completed/cancelled -- no separate 'delayed' flag exists on the PO row itself." }
+  })
+}
+
+/** Safety-category incidents logged this calendar month, grouped by severity. */
+async function computeSafetyIncidentsThisMonth(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const now = new Date()
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const rows = await db.select({ severity: incidents.severity, count: sql<number>`count(*)` })
+      .from(incidents)
+      .where(and(eq(incidents.orgId, ctx.orgId), eq(incidents.category, "Safety"), gte(incidents.createdAt, monthStart)))
+      .groupBy(incidents.severity)
+    return { columns: ["Severity", "Count"], rows: rows.map((r) => ({ Severity: r.severity, Count: Number(r.count) })), note: rows.length === 0 ? "No incidents logged with category='Safety' this month." : undefined }
+  })
+}
+
+/** Org-wide labour-vendor cost + attendance, joined by vendor -- the org-wide counterpart to the per-project Vendor Cost Report. Cost/attendance-based, not a quality or on-time-delivery score (no such tracking exists for labour subcontractors). */
+async function computeContractorPerformanceReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.select({
+      vendorId: constructionLabourRoster.vendorId,
+      totalCost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
+      workerDays: sql<number>`count(*)`,
+      presentDays: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'present')`,
+    }).from(constructionAttendance)
+      .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
+      .where(and(eq(constructionAttendance.orgId, ctx.orgId), sql`${constructionLabourRoster.vendorId} is not null`))
+      .groupBy(constructionLabourRoster.vendorId)
+    return {
+      columns: ["Vendor ID", "Total Labour Cost", "Worker-Days", "Present Days"],
+      rows: rows.map((r) => ({ "Vendor ID": r.vendorId ?? "unknown", "Total Labour Cost": Number(r.totalCost), "Worker-Days": Number(r.workerDays), "Present Days": Number(r.presentDays) })),
+      note: "Org-wide (all projects) version of the per-project Vendor Cost Report -- cost/attendance-based, not a quality or on-time-delivery score (no such tracking exists for labour subcontractors).",
+    }
+  })
+}
+
+/** Monthly trend of punch-list/snag items raised, org-wide. */
+async function computeSnagTrendAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = (await db.execute(sql`
+      SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, count(*)::int AS count
+      FROM compliance.construction_punch_list_items
+      WHERE org_id = ${ctx.orgId}
+      GROUP BY 1 ORDER BY 1
+    `)) as unknown as { month: string; count: number }[]
+    return { columns: ["Month", "Snags Raised"], rows: rows.map((r) => ({ Month: r.month, "Snags Raised": Number(r.count) })), note: rows.length === 0 ? "No punch-list/snag items logged for this organisation yet." : undefined }
+  })
+}
+
+/** Open risks grouped by (likelihood, impact) cell -- a real 2-axis heat map, org-wide (compliance.risks has no project_id column). */
+async function computeRiskHeatMap(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.select({ likelihood: risks.likelihood, impact: risks.impact, count: sql<number>`count(*)` })
+      .from(risks).where(and(eq(risks.orgId, ctx.orgId), eq(risks.status, "open")))
+      .groupBy(risks.likelihood, risks.impact)
+    return {
+      columns: ["Likelihood", "Impact", "Count"],
+      rows: rows.map((r) => ({ Likelihood: Number(r.likelihood), Impact: Number(r.impact), Count: Number(r.count) })),
+      note: "Org-wide risk register (compliance.risks) has no project_id column -- this heat map is organisation-wide, not filterable to a single project.",
+    }
+  })
+}
+
+/** Average closure time for the 2 real closure-timestamp pairs this schema has: punch-list verification and RFI response. pms_issues has no closed_at column so general task closure time isn't included. */
+async function computeIssueResolutionAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const snagRows = (await db.execute(sql`
+      SELECT avg(extract(epoch from (verified_at - created_at)) / 86400)::float AS avg_days
+      FROM compliance.construction_punch_list_items
+      WHERE org_id = ${ctx.orgId} AND status = 'verified_closed' AND verified_at IS NOT NULL
+    `)) as unknown as { avg_days: number | null }[]
+    const rfiRows = (await db.execute(sql`
+      SELECT avg(extract(epoch from (answered_at - created_at)) / 86400)::float AS avg_days
+      FROM compliance.construction_rfis
+      WHERE org_id = ${ctx.orgId} AND answered_at IS NOT NULL
+    `)) as unknown as { avg_days: number | null }[]
+    const snagAvg = snagRows[0]?.avg_days
+    const rfiAvg = rfiRows[0]?.avg_days
+    return {
+      columns: ["Metric", "Average Days"],
+      rows: [
+        { Metric: "Avg Snag/Punch-List Closure Time (days)", "Average Days": snagAvg != null ? Math.round(snagAvg * 10) / 10 : "N/A" },
+        { Metric: "Avg RFI Response Time (days)", "Average Days": rfiAvg != null ? Math.round(rfiAvg * 10) / 10 : "N/A" },
+      ],
+      note: "Scoped to the 2 real closure-timestamp pairs in this schema (punch_list_items.verified_at / rfis.answered_at) -- pms_issues has no closed_at column so general task closure time isn't included.",
+    }
+  })
+}
+
+/** Average decision time for submittals and change orders -- only covers decisions actually made, doesn't include still-pending items. */
+async function computeApprovalBottleneckAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const submittalRows = (await db.execute(sql`
+      SELECT avg(extract(epoch from (reviewed_at - created_at)) / 86400)::float AS avg_days
+      FROM compliance.construction_submittals
+      WHERE org_id = ${ctx.orgId} AND reviewed_at IS NOT NULL
+    `)) as unknown as { avg_days: number | null }[]
+    const coRows = (await db.execute(sql`
+      SELECT avg(extract(epoch from (approved_at - created_at)) / 86400)::float AS avg_days
+      FROM compliance.construction_change_orders
+      WHERE org_id = ${ctx.orgId} AND approved_at IS NOT NULL
+    `)) as unknown as { avg_days: number | null }[]
+    const submittalAvg = submittalRows[0]?.avg_days
+    const coAvg = coRows[0]?.avg_days
+    return {
+      columns: ["Metric", "Average Days"],
+      rows: [
+        { Metric: "Avg Submittal Review Time (days)", "Average Days": submittalAvg != null ? Math.round(submittalAvg * 10) / 10 : "N/A" },
+        { Metric: "Avg Change Order Approval Time (days)", "Average Days": coAvg != null ? Math.round(coAvg * 10) / 10 : "N/A" },
+      ],
+      note: "Only covers decisions actually made (reviewed_at/approved_at not null) -- a bottleneck of many still-stuck items won't inflate this average (see the RFI/Change Order Pending counts for that).",
+    }
+  })
+}
+
+/** Correlates site-diary weather with same-day, same-project work-progress entries. weather is free text (not an enum), so groups are as noisy as what site staff actually typed. */
+async function computeWeatherImpactAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = (await db.execute(sql`
+      SELECT d.weather AS weather, count(*)::int AS entries, avg(p.quantity_done)::float AS avg_quantity_done
+      FROM compliance.construction_site_diaries d
+      JOIN compliance.construction_work_progress_entries p
+        ON p.project_id = d.project_id AND p.entry_date = d.diary_date
+      WHERE d.org_id = ${ctx.orgId} AND d.weather IS NOT NULL
+      GROUP BY d.weather ORDER BY entries DESC
+    `)) as unknown as { weather: string; entries: number; avg_quantity_done: number }[]
+    return {
+      columns: ["Weather", "Matched Progress Entries", "Avg Quantity Done"],
+      rows: rows.map((r) => ({ Weather: r.weather, "Matched Progress Entries": Number(r.entries), "Avg Quantity Done": Math.round(Number(r.avg_quantity_done) * 100) / 100 })),
+      note: rows.length === 0 ? "No site-diary entries with both a weather value and a same-day progress entry exist yet." : "weather is free text entered by site staff, not a fixed enum ('Rain'/'rain'/'Heavy Rain' are distinct groups) -- a real correlation, but noisy until weather entry is standardized. Matches by identical project_id + date, not a lag/delay model.",
+    }
+  })
+}
+
+/** Cost + schedule impact of approved change orders, grouped by project. */
+async function computeDesignChangeImpactAnalysis(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.select({
+      projectId: constructionChangeOrders.projectId,
+      totalCostImpact: sql<number>`coalesce(sum(${constructionChangeOrders.costImpact}), 0)::float`,
+      totalScheduleImpactDays: sql<number>`coalesce(sum(${constructionChangeOrders.scheduleImpactDays}), 0)::int`,
+      count: sql<number>`count(*)`,
+    }).from(constructionChangeOrders)
+      .where(and(eq(constructionChangeOrders.orgId, ctx.orgId), eq(constructionChangeOrders.status, "approved")))
+      .groupBy(constructionChangeOrders.projectId)
+    return {
+      columns: ["Project ID", "Approved Change Orders", "Total Cost Impact", "Total Schedule Impact (Days)"],
+      rows: rows.map((r) => ({ "Project ID": r.projectId, "Approved Change Orders": Number(r.count), "Total Cost Impact": Number(r.totalCostImpact), "Total Schedule Impact (Days)": Number(r.totalScheduleImpactDays) })),
+      note: rows.length === 0 ? "No approved change orders logged yet." : undefined,
+    }
+  })
+}
+
+/** Active projects whose actual expense exceeds budget, via the existing per-project budgetVsActual(). */
+async function computeCostOverrunReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const activeProjects = await db.query.projects.findMany({ where: and(eq(projects.orgId, ctx.orgId), eq(projects.isActive, true)), columns: { id: true, name: true } })
+    const results: { name: string; budget: number; actual: number; overrun: number }[] = []
+    for (const p of activeProjects) {
+      const bva = await budgetVsActual(ctx, p.id)
+      if (bva.budget > 0 && bva.variance < 0) results.push({ name: p.name, budget: bva.budget, actual: bva.actual, overrun: Math.abs(bva.variance) })
+    }
+    results.sort((a, b) => b.overrun - a.overrun)
+    return {
+      columns: ["Project", "Budget", "Actual", "Overrun"],
+      rows: results.map((r) => ({ Project: r.name, Budget: Math.round(r.budget), Actual: Math.round(r.actual), Overrun: Math.round(r.overrun) })),
+      note: results.length === 0 ? "No active project currently has actual expenses exceeding its budget." : undefined,
+    }
+  })
+}
+
+/** Revenue minus expense for one project, via the existing revenueReport()/expenseReport(). Not a full accrual-basis GL profit/loss. */
+async function computeProfitabilityAnalysis(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Profitability Analysis formula", 400)
+  const [revenue, expense] = await Promise.all([revenueReport(ctx, projectId), expenseReport(ctx, projectId)])
+  const margin = revenue.total - expense.total
+  const marginPercent = revenue.total > 0 ? Math.round((margin / revenue.total) * 1000) / 10 : null
+  return {
+    columns: ["Metric", "Value"],
+    rows: [
+      { Metric: "Revenue", Value: Math.round(revenue.total) },
+      { Metric: "Expense", Value: Math.round(expense.total) },
+      { Metric: "Margin", Value: Math.round(margin) },
+      { Metric: "Margin %", Value: marginPercent ?? "N/A" },
+    ],
+    note: "Revenue is non-cancelled sales invoices for the project; expense is construction_expense_entries only -- not a full accrual-basis GL profit/loss.",
+  }
+}
+
+/** Tasks (pms_issues) past their due date and not fully complete, grouped by project. Based on VERIDIAN AI PMS tasks, not a separate construction-activity schedule (construction_activities has no due date). */
+async function computeDelayedTasksReport(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const rows = await db.select({ projectId: pmsIssues.projectId, count: sql<number>`count(*)` })
+      .from(pmsIssues)
+      .where(and(eq(pmsIssues.orgId, ctx.orgId), lt(pmsIssues.dueDate, today), sql`${pmsIssues.completionPercentage} < 100`, eq(pmsIssues.isArchived, false)))
+      .groupBy(pmsIssues.projectId)
+    return { columns: ["Project ID", "Delayed Tasks"], rows: rows.map((r) => ({ "Project ID": r.projectId, "Delayed Tasks": Number(r.count) })), note: "Delayed = due_date in the past and completion_percentage < 100, based on pms_issues (VERIDIAN AI PMS) -- construction_activities has no per-activity scheduled date to compare against." }
+  })
+}
+
+/** Tasks (pms_issues) due within the next N days (default 7), grouped by project. */
+async function computeLookAheadPlan(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const days = Number(params.days ?? 7)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const endStr = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+    const rows = await db.select({ projectId: pmsIssues.projectId, count: sql<number>`count(*)` })
+      .from(pmsIssues)
+      .where(and(eq(pmsIssues.orgId, ctx.orgId), gte(pmsIssues.dueDate, todayStr), lt(pmsIssues.dueDate, endStr), eq(pmsIssues.isArchived, false)))
+      .groupBy(pmsIssues.projectId)
+    const label = `Tasks Due in Next ${days} Days`
+    return { columns: ["Project ID", label], rows: rows.map((r) => ({ "Project ID": r.projectId, [label]: Number(r.count) })), note: "Based on pms_issues.due_date (VERIDIAN AI PMS tasks) -- construction_activities has no per-activity scheduled date to look ahead against." }
+  })
 }
 
 // ─── Interior Design formulas (Priority 11, interior_design classification)
@@ -514,6 +928,24 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
   project_health_index: computeProjectHealthIndex,
+  earned_value_analysis: computeEarnedValueAnalysis,
+  portfolio_completion_percent: computePortfolioCompletionPercent,
+  portfolio_budget_utilization: computePortfolioBudgetUtilization,
+  todays_site_progress: computeTodaysSiteProgress,
+  labour_on_site_today: computeLabourOnSiteToday,
+  vendors_delayed_purchase_orders: computeVendorsDelayedPurchaseOrders,
+  safety_incidents_this_month: computeSafetyIncidentsThisMonth,
+  contractor_performance_report: computeContractorPerformanceReport,
+  snag_trend_analysis: computeSnagTrendAnalysis,
+  risk_heat_map: computeRiskHeatMap,
+  issue_resolution_analysis: computeIssueResolutionAnalysis,
+  approval_bottleneck_analysis: computeApprovalBottleneckAnalysis,
+  weather_impact_analysis: computeWeatherImpactAnalysis,
+  design_change_impact_analysis: computeDesignChangeImpactAnalysis,
+  cost_overrun_report: computeCostOverrunReport,
+  profitability_analysis: computeProfitabilityAnalysis,
+  delayed_tasks_report: computeDelayedTasksReport,
+  look_ahead_plan: computeLookAheadPlan,
   interior_mood_board_approval_report: interiorMoodBoardApprovalReport,
   interior_material_selection_report: interiorMaterialSelectionReport,
   interior_furniture_procurement_report: interiorFurnitureProcurementReport,
@@ -680,16 +1112,12 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
   const config = definition.executionConfig as AggregationConfig | FormulaConfig | AiRecipeConfig | ExternalServiceConfig
 
   if (definition.executionType === "deterministic_aggregation" && config.kind === "aggregation") {
-    const entry = TABLE_REGISTRY[config.tableKey]
-    if (!entry) throw new ServiceError(`No table registered for key "${config.tableKey}" -- see TABLE_REGISTRY in this file`, 500)
-    const groupByColumn = config.groupByColumn ? entry.columns[config.groupByColumn] : undefined
-    if (config.groupByColumn && !groupByColumn) throw new ServiceError(`Unknown groupByColumn "${config.groupByColumn}" for table "${config.tableKey}"`, 500)
-    const aggregationColumn = config.aggregationColumnKey ? entry.columns[config.aggregationColumnKey] : undefined
-    if (config.aggregationColumnKey && !aggregationColumn) throw new ServiceError(`Unknown aggregationColumnKey "${config.aggregationColumnKey}" for table "${config.tableKey}"`, 500)
-    const rows = await withTenantContext({ orgId: ctx.orgId }, (db) =>
-      runAggregation(db, { table: entry.table, orgIdColumn: entry.orgIdColumn, orgId: ctx.orgId, groupByColumn: groupByColumn ?? null, aggregation: config.aggregation, aggregationColumn })
-    )
-    return { columns: ["Group", "Value"], rows: rows.map((r) => ({ Group: String(r.groupValue), Value: r.value })) }
+    // Priority 11 wave 2 (2026-07-13): resolved against TABLE_REGISTRY --
+    // see that registry's own header for why this is safe (still
+    // whitelist-only, no arbitrary-query surface). A row whose config has
+    // no tableKey (e.g. hand-authored before this wave) throws a clear
+    // "cannot resolve" ServiceError rather than silently doing nothing.
+    return runAggregationFromConfig(ctx, config)
   }
 
   if (definition.executionType === "deterministic_formula" && config.kind === "formula") {
@@ -699,19 +1127,25 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
   }
 
   if (definition.executionType === "ai_recipe" && config.kind === "ai_recipe") {
-    // Grounding data comes from the same aggregation/formula primitives
-    // this file already exposes -- callers that register an ai_recipe
-    // definition are expected to pass their own already-queried grounding
-    // data via params.groundingData (built the same way ai-report-builder-
-    // service.ts extracts real content before ever calling the LLM).
-    return runAiRecipe(ctx, config, params.groundingData ?? {})
+    // Grounding data: prefer whatever the caller already queried and passed
+    // via params.groundingData (built the same way ai-report-builder-
+    // service.ts extracts real content before ever calling the LLM). If
+    // neither the caller nor params supplied it, but the definition itself
+    // carries a groundingQuery (Priority 11 wave 2), auto-run that against
+    // the same TABLE_REGISTRY whitelist so the definition is genuinely
+    // re-runnable end-to-end, not permanently dependent on a bespoke caller.
+    let groundingData = params.groundingData
+    if (groundingData === undefined && config.groundingQuery) {
+      groundingData = await runAggregationFromConfig(ctx, { kind: "aggregation", ...config.groundingQuery })
+    }
+    return runAiRecipe(ctx, config, groundingData ?? {})
   }
 
   if (definition.executionType === "external_service") {
     return { columns: ["Note"], rows: [{ Note: `This report is served by its existing implementation (${(config as ExternalServiceConfig).sourceService}#${(config as ExternalServiceConfig).sourceFunction}), not through this generic engine -- see report-catalog-service.ts for its real route.` }] }
   }
 
-  throw new ServiceError(`Definition ${id} has executionType "${definition.executionType}" but no matching handler in this dispatcher.`, 500)
+  throw new ServiceError(`Definition ${id} has executionType "${definition.executionType}" but its execution_config has no matching "kind" for that type.`, 500)
 }
 
 // ─── Category 5/6 promotion (the literal "next time software will make
