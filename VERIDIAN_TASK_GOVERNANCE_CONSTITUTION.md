@@ -96,6 +96,51 @@ The source document specifies an 18-stage per-task lifecycle (Request -> Classif
 
 **[PARTIALLY ENFORCED, iteration budgets generalized as of Wave 159]** -- `src/lib/loop-prevention.ts`'s `checkLoopBudget()` is now a reusable, registerable primitive (`guardrail-engine.ts`'s `"logic"` phase, leaf `ai_workforce.loop_budget`) any pipeline can adopt instead of hand-rolling its own iteration cap; `ai-workforce-agent.mjs` uses it for its own `MAX_ITERATIONS` exhaustion message. **Still not covered**: max recursive delegation count and deadlock/circular-dependency detection, which need a real task-dependency graph to check against -- deferred alongside the universal Task wrapper design work, not fabricated with nothing real to detect.
 
+## 7a. Mid-Session Self-Check
+
+GAP-UNIFIED-SOT-REMAINDER (c), 2026-07-13 (Owner directive: *"our system has
+become huge and complicated. without proper metadata architecture, it
+cannot be managed,"* naming "hallucination and unending loop" and drift as
+pain points to close -- same authorization basis as the `ai-os/`-adjacent
+edit precedent set by PR #250). `PLATFORM_STRATEGY.md` §31.1 row 1 already
+named this gap honestly: nothing forces a long-running session to re-read a
+standing rule as new work merges underneath it -- that is a discipline gap,
+not (fully) a code one. This section defines what closes and what remains
+open, without overclaiming either.
+
+**Cadence**: every ~25-30 turns of a long-running session, or immediately
+before any merge, destructive, or otherwise high-impact action -- whichever
+comes first. The five questions to re-affirm live in `ai-os/SELF-CHECK.md`
+(kept short deliberately, so re-affirming it is cheap).
+
+**[ENFORCED, headless dispatch path]** -- `src/lib/loop-prevention.ts`'s
+`shouldPromptSelfCheck(iteration, everyN)` is a pure, deterministic cadence
+gate (no DB, no LLM, same discipline as `checkLoopBudget()`). Wired into
+`ai-workforce-agent.mjs`'s iteration loop alongside its existing
+`fetchGovernancePreamble()` call: when it returns `true` for the current
+iteration, `ai-os/SELF-CHECK.md`'s content is prepended to that iteration's
+context, the same mechanism that already prepends `CLAUDE.md`/`AGENTS.md`
+once per dispatch. This is real, running code, not a policy statement --
+verifiable by reading that call site directly.
+
+**[POLICY ONLY, interactive Claude Code / Claude Desktop path]** -- checked
+directly, not assumed: this repository has no `.claude/settings.json` (only
+`.claude/launch.json` exists, unrelated to this), and no periodic-reminder
+or hook slot of any kind that could re-inject content into a running
+interactive session's context on a cadence. Nothing was found to wire, so
+nothing was wired. `ai-os/SELF-CHECK.md` exists on this path purely as a
+document a session can voluntarily re-read -- the same class of guarantee
+as `CLAUDE.md`'s "Read Before Starting Work" list (added 2026-07-13, PR
+#259), except that one is read once at start and this one is meant to be
+re-read mid-session. Stating this plainly because this repository has a
+documented history of "100% claimed, 17% real" style overclaiming (see
+`ai-os/STATUS-REPORT.md`'s own methodology note) that the Owner explicitly
+does not want repeated: **there is no code-level enforcement that an
+interactive session actually re-reads this file.** A future session with
+genuine cause to add a Claude Code hook (if the harness ever exposes one)
+should wire it here; until then this is honestly [POLICY ONLY] for that
+path.
+
 ## 8. Loop Engineering / Continuous Learning / AI Improvement Framework
 
 **[PARTIALLY ENFORCED]** -- the CLEE pipeline (`loop-improvement-proposer.ts`'s `proposeLoopImprovement()`) is real and now has this wave's Guardrail Engine violations as one more real feed into it (alongside high-impact-action confirmations and floor-tier escalation-rate analysis, Loop 14). Every proposal is human-gated (`isDeployed` hardcoded `false`) -- consistent with the source document's implicit expectation that improvements need approval before becoming standard, not auto-applied.

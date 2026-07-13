@@ -59,6 +59,8 @@ index:
       covers: "The 3 top-level agent identities (VEDABOSS/ZAI/SENTINEL) -- verified accurate against AGENTS.md 2026-07-09."
     - path: ai-os/engines/ENGINES.yaml
       covers: "Z.ai + Claude Code full-access agent authorization record, dated 2026-06-28 -- overlaps in purpose with AGENTS.md/ROSTER.yaml; AGENTS.md is the actively-maintained one with the numbered Operating Rules, treat this as a historical authorization record."
+    - path: ai-os/SELF-CHECK.md
+      covers: "GAP-UNIFIED-SOT-REMAINDER (c) mid-session drift: fixed 5-question checklist a session re-affirms periodically (not read-once-at-start like CLAUDE.md). Re-injected on a real cadence for the headless ai-workforce-agent.mjs dispatch path via loop-prevention.ts's shouldPromptSelfCheck(); no equivalent hook exists for the interactive Claude Code/Desktop path -- see VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md's 'Mid-Session Self-Check' section for the honest per-path breakdown."
 
   work_tracking:
     - path: ai-os/MASTER-TRACKER.yaml
