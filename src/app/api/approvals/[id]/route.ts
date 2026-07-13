@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { runApprovalDecisionMonitor } from "@/lib/monitors/approval-decision-monitor"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -49,6 +50,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         }
         const [updated] = await db.update(approvalRequests).set({ status: "rejected", approvedById: dbUser.id, rejectionReason: rejectionReason.trim(), resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
         await logActivity({ tx: db, action: "reject", entityType: "ApprovalRequest", entityId: id, details: `Rejected — ${req_.requestType}: "${req_.description}" (${rejectionReason.trim()})`, orgId, dbUser, request })
+        // PLATFORM_STRATEGY.md 29.3 Phase 0: the one real Tier-1 rule-engine
+        // monitor this phase wires -- proven on APPROVAL_REJECTED here.
+        // Same transaction, never blocks the decision above.
+        if (updated?.resolvedAt) {
+          await runApprovalDecisionMonitor(db, orgId, dbUser, {
+            approvalRequestId: id, requestType: req_.requestType, createdAt: req_.createdAt, resolvedAt: updated.resolvedAt, decision: "reject", decidedByUserId: dbUser.id,
+          }, request)
+        }
         return { kind: "ok", updated }
       }
 
@@ -84,6 +93,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
       const [updated] = await db.update(approvalRequests).set({ status: "approved", approvedById: dbUser.id, resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
       await logActivity({ tx: db, action: "approve", entityType: "ApprovalRequest", entityId: id, details: `Approved — ${req_.requestType}: "${req_.description}"`, orgId, dbUser, request })
+      // PLATFORM_STRATEGY.md 29.3 Phase 0: the one real Tier-1 rule-engine
+      // monitor this phase wires -- proven on APPROVAL_GRANTED here. Same
+      // transaction, never blocks the decision above.
+      if (updated?.resolvedAt) {
+        await runApprovalDecisionMonitor(db, orgId, dbUser, {
+          approvalRequestId: id, requestType: req_.requestType, createdAt: req_.createdAt, resolvedAt: updated.resolvedAt, decision: "approve", decidedByUserId: dbUser.id,
+        }, request)
+      }
       return { kind: "ok", updated }
     })
 
