@@ -95,6 +95,8 @@ index:
       covers: "GAP-UNIFIED-SOT-REMAINDER (b) quarantine manifest -- every root-level stale doc moved to docs/archive/ plus every file already under the tree4-unified/audit-tree archive dirs, each must carry the exact ARCHIVED/STALE banner, enforced by scripts/check-doc-quarantine-banner.mjs on every PR."
     - path: ai-os/LIFECYCLE.yaml
       covers: "Which of the 11 lifecycle stages (UNDERSTAND..IMPROVE) the project is currently in. Currently MONITOR (ongoing operation, not a one-time build)."
+    - path: scripts/check-doc-cross-references.mjs
+      covers: "Gap closure, 2026-07-13: link-validity check for the 6 entry-point governance docs (CLAUDE.md, AGENTS.md, this file, docs/master/INDEX.md, ai-os/BRAIN.md, VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md) -- verifies every file path they name (YAML `path:` keys, markdown links, or backtick-quoted paths in prose) still resolves on disk, enforced on every PR. Distinct from the other 4 coverage gates in this section: those check registration coverage (is X registered in a registry); this checks link validity (does a path someone actually named still exist)."
 
   brain_pointer:
     - path: ai-os/BRAIN.md
@@ -113,7 +115,5 @@ index:
     # discipline as asset-registry-coverage.yaml's own exempted list.
     - path: docs/
       reason: "Product technical-spec documents (ComplianceTrack_TechSpec_*.docx etc), not AI-OS governance."
-    - path: specs/
-      reason: "Historical product mockups/specs, not AI-OS governance."
     - path: ai-os/OS.yaml
       reason: "This file is the index itself -- it does not need to index itself."
