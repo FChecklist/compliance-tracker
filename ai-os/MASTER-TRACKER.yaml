@@ -279,7 +279,7 @@ open_items:
       first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day. Point (8) closed 2026-07-14 (PR #282), explicitly carved out by the Owner as safe to start early since it shares no file surface with Priority 11's remaining work. Every other point, and Priority 12's foundation pass as a whole, stays deferred until Priority 11's OPEN-06 also closes."
 
     - id: OPEN-08
-      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- gap analysis + plan prepared 2026-07-13, execution deliberately deferred until Priority 12 (OPEN-07) closes, per Owner instruction"
+      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- IN PROGRESS as of 2026-07-14 (gate lifted by Owner, corrected gap list below); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
       detail: |
         Owner's ask: a complete PM ERP as PROJEXA, referencing ERPNext/Plane/
         Taiga/Paperless-ngx/Superset/LangGraph/IfcOpenShell as design
@@ -404,14 +404,65 @@ open_items:
       recommendation: |
         Full detail, evidence, and per-item citations in Claude's memory file
         veridian_priority13_pm_erp_gap_analysis.md (not in this repo). All 4
-        Owner decisions needed for Wave A are now resolved (a/b/d locked, c
-        deliberately deferred) -- the only remaining blocker is the Priority
-        12 gate itself. Do not start Wave A until this OPEN-08 entry AND
-        OPEN-07 (Priority 12) both show closed. Do not re-run this analysis
-        from scratch in a future session -- read the memory file first,
-        re-verify OPEN-06/OPEN-07 status against origin/main, and only build
-        the confirmed remaining gap.
-      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 12 (OPEN-07) closes; analysis+plan complete same day, zero execution started"
+        Owner decisions resolved (a/b/d locked, c deliberately deferred).
+
+        **Gate lifted 2026-07-14, Owner's own words**: "yes. I agree with
+        you. You can immediately start on Priority 13. Let other session do
+        Priority 11 and Priority 12. You complete the Priority 13." This is
+        a deliberate parallel-workstream split -- a DIFFERENT session/agent
+        is expected to close OPEN-06/OPEN-07 independently; the session
+        executing this OPEN-08 stays in its own scope.
+
+        **CORRECTION, same day, before execution started**: re-verifying the
+        ranked gap list directly against real route code (not file
+        names/prior research-agent claims) found items (1)-(4) above
+        materially OVERSTATED the gap. 44 of PROJEXA's 47 API routes already
+        thin-proxy to compliance-tracker's real engines via a
+        `callVeridian()` Bearer-token client (vendors/materials/expenses/
+        project-budgets/scope/schedule/rfis/submittals/punch-list/ffe/
+        site-diary/work-progress/documents/kpis/etc., confirmed by reading
+        actual route source, e.g. vendors/route.ts's own header: "Wave 124:
+        /api/v1/projexa/* is a thin ALIASING namespace -- zero new business
+        logic"). There is NO parallel PROJEXA schema to migrate away from --
+        decision (b) above was answered against a false premise for this
+        specific item.
+
+        **Corrected real gap list** (backend service functions for most of
+        these ALREADY EXIST -- listCostCenters/listFiscalYears in
+        erp-accounting-service.ts, createSalesInvoice/listSalesInvoices in
+        erp-invoicing-service.ts, listMeetings/createMeeting/
+        addMeetingOutcome in pms-meeting-service.ts, listIssues in
+        pms-issue-service.ts -- the real gap is missing thin v1 aliases +
+        PROJEXA UI, the exact same mechanical pattern as 44 other routes,
+        not new engine design):
+        1. Fiscal-year/cost-center discovery lookups + sales-invoice
+           create/link alias, wired into PROJEXA's Budget form + Dashboard.
+        2. Meetings/MOM: /api/v1/pms/meetings already exists and is
+           API-key-callable, but wrongly gated behind requirePmsEnabled()
+           for PROJEXA (construction) customers who never buy the separate
+           PMS module -- schedule/gantt/route.ts's own comment already
+           carves out this exact exception for the same reason. Add a
+           projexa/meetings alias without that gate + a PROJEXA Meetings
+           page.
+        3. Permits: data access already works (documents proxy supports
+           category=permit); listExpiringDocuments exists but is cookie-auth
+           only, incompatible with PROJEXA's Bearer-key model -- add an
+           API-key-compatible alias + a dedicated Permits UI page.
+        4. Kanban/backlog board: pms_issues data already flows into PROJEXA
+           via Schedule/Gantt -- missing piece is a board VIEW, not data.
+        5. Document correspondent/type auto-classification (Paperless-ngx
+           pattern) -- confirmed still genuinely missing, real new build.
+        6. Self-serve ad-hoc BI/chart-builder -- confirmed still genuinely
+           missing, real new build (MVP scope: dataset/metric/chart-config
+           on top of the existing report engine, not a Superset clone).
+        7. BIM/IFC -- unchanged, deliberately deferred per Owner (c).
+        8. Hygiene shrinks correspondingly -- no parallel schema to retire
+           for vendors/materials/expenses/budgets; just verify
+           veridian-client.ts's own flagged MVP gap (single stubbed API
+           credential, not real per-org lookup) and update
+           system-tree/20-projexa.yaml to reflect the true, already-good
+           wiring state once (1)-(4) land.
+      first_raised: "2026-07-13, gate lifted + gap-analysis corrected + execution started 2026-07-14, Owner's explicit instruction"
 
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
