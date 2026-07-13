@@ -8703,3 +8703,114 @@ export const deploymentEvents = complianceSchemaDB.table('deployment_events', {
   signatureVerified: boolean('signature_verified').notNull().default(true),
   receivedAt: timestamp('received_at').notNull().defaultNow(),
 })
+
+// ─── Narrow Monitor Agents, Phase 0 (PLATFORM_STRATEGY.md section 29.3) ──
+// 29.1's own investigation considered extending workerAgents (adding a
+// 'monitor' convention value to its `tier` column, which is free text) but
+// that column is NOT a free-standing label -- it is load-bearing scope
+// routing already read by real dispatch/capability queries (task-execution-
+// engine.ts's isToolAllowedForDomain gate, capability-tree-service.ts's
+// several `eq(workerAgents.tier, 'global')` lookups, worker-agent-
+// service.ts's tier-based authorization). `tier` here means "how broadly
+// this dispatchable agent is scoped" (global/customer/client/user); it does
+// not mean "what kind of agent this is." Overloading it with 'monitor'
+// would either (a) make monitor rows invisible to every one of those
+// existing tier='global' filters, or (b) force a monitor to also claim
+// tier='global' with nothing left to distinguish it from a normal
+// dispatchable worker agent -- both silently break real, already-working
+// code paths. A monitor is also a fundamentally different shape: it is
+// never dispatched via dispatchTool()/task-execution-engine.ts's pull-based
+// path, has no promptTemplate/inputSchema/outputSchema (Tier 1 has no LLM
+// call at all), and needs OWNER/REPORT_TO/ESCALATE_TO/MAX_RETRY/etc.
+// columns workerAgents was never designed to carry. Decision: a new,
+// dedicated, deliberately small registry table instead -- same posture as
+// this file's other narrow registries (module_registry, deployment_events)
+// rather than stretching an existing table's meaning.
+//
+// PLATFORM-WIDE by design (no org_id column): a monitor DEFINITION (e.g.
+// "check approval decisions were timely") is a platform-level rule, not
+// per-tenant data -- same posture as module_registry/deployment_events
+// above. Per-tenant STATE (who currently owns a given task's escalation,
+// how many retries) is a separate concept, tracked in monitor_task_state
+// below, which IS tenant-scoped.
+export const monitorAgents = complianceSchemaDB.table('monitor_agents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull().unique(),
+  description: text('description'),
+  // The event name(s) this monitor reacts to, comma-separated free text
+  // (mirrors auditLogs.action's "don't gate on an enum" precedent) -- Phase
+  // 0 seeds exactly one row covering 'approval_granted,approval_rejected'.
+  eventTypes: text('event_types').notNull(),
+  // 'rule_engine' (Tier 1, the only tier Phase 0 wires) | 'cheap_model'
+  // (Tier 2, Phase 2) | 'strong_model' (Tier 3, Phase 2) -- forward-
+  // compatible metadata column only; nothing in Phase 0 reads this to
+  // decide whether to make an LLM call. Zero LLM calls happen anywhere in
+  // this phase regardless of this column's value.
+  executionTier: text('execution_tier').notNull().default('rule_engine'),
+  // roster.ts roleKey accountable for this monitor's correctness.
+  owner: text('owner').notNull(),
+  // roster.ts roleKey this monitor's routine (status: 'ok') reports fire to.
+  reportTo: text('report_to').notNull(),
+  // roster.ts roleKey this monitor escalates to FIRST on rule failure --
+  // informational/traceable; the actual live rung is always resolved by
+  // escalation-ladder.ts's nextEscalationRung() at escalation time, never
+  // read directly off this column, so a stale value here can't silently
+  // desync from the real ladder.
+  escalateTo: text('escalate_to').notNull(),
+  // Starting rung index into escalation-ladder.ts's LADDER (0=CSEO,
+  // 1=COO, 2=Super Boss) -- documents which rung `escalateTo` above
+  // corresponds to; also just informational, not read by the ladder itself.
+  escalationLevel: integer('escalation_level').notNull().default(1),
+  maxRetry: integer('max_retry').notNull().default(3),
+  // Milliseconds: the SLA/threshold the monitor's own rule checks against
+  // (e.g. "was this decided within maxExecutionTimeMs of being created").
+  maxExecutionTimeMs: integer('max_execution_time_ms').notNull(),
+  // Milliseconds: how long a claimed escalation may sit with a single owner
+  // before it's considered stale and reclaimable -- see escalation-
+  // ladder.ts's claimEscalation()/evaluateEscalationClaim().
+  timeoutMs: integer('timeout_ms').notNull(),
+  failureAction: text('failure_action').notNull().default('escalate'), // matches MonitorReportFields.action's VALID_ACTION
+  successAction: text('success_action').notNull().default('log_only'),
+  // roster.ts roleKey of the next agent in a chain, if any -- Phase 1/2
+  // concept (event coverage expansion / chained monitors); nullable and
+  // unused by Phase 0's single wired monitor.
+  nextAgent: text('next_agent'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Per-(org, task) escalation ownership + retry/timeout state -- the piece
+// escalation-ladder.ts's own header historically flagged as missing ("has
+// no MAX_RETRY, TIMEOUT, or ownership concept -- callers decide what
+// escalating concretely means"). One row per task that has EVER been
+// escalated; a task that never fails a monitor's rule never gets a row
+// here. Tenant-scoped (unlike monitor_agents above): ownership/retry state
+// is real per-org operational data, not a platform-level rule definition.
+export const monitorTaskState = complianceSchemaDB.table('monitor_task_state', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  // The entity being escalated (e.g. approval_requests.id) -- deliberately
+  // free text, not a FK, matching auditLogs.entityId's own precedent, since
+  // this table's rows can point at any entity type a future monitor covers.
+  taskId: text('task_id').notNull(),
+  monitorName: text('monitor_name').notNull(), // monitor_agents.name, informational (not a DB FK, same posture as entityId above)
+  // roster.ts roleKey that currently owns/claimed this escalation -- the
+  // single-owner lock's whole point: a second claim attempt whose resolved
+  // rung differs from this value is rejected fail-closed while this row is
+  // still active and not timed out. See claimEscalation()'s
+  // 'already_owned_by_other_agent' result.
+  ownerRoleKey: text('owner_role_key').notNull(),
+  rungIndex: integer('rung_index').notNull(),
+  retryCount: integer('retry_count').notNull().default(1),
+  maxRetry: integer('max_retry').notNull(),
+  timeoutMs: integer('timeout_ms').notNull(),
+  // 'active' | 'retry_exhausted' -- a task whose retryCount has passed
+  // maxRetry stops being reclaimable at all (fails closed rather than
+  // looping forever), matching the "no infinite retry" requirement named in
+  // section 29's intro.
+  status: text('status').notNull().default('active'),
+  lastEscalatedAt: timestamp('last_escalated_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

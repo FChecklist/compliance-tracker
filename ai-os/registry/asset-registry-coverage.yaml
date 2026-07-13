@@ -632,6 +632,10 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: module_rule_configs
     reason: "Priority 4 domain B reviewed 2026-07-12: NO genuine org_id column -- scoping is polymorphic via (scopeType, scopeId) where scopeType can be 'platform'|'product_branch'|'org'|'project'|'client'|'user'. This is exactly the cross-tenant-leak pattern the dispatch brief warned about (a real leak already happened once this session in another part of the registry): registering with org_column=NULL would silently mark every row platform-tier regardless of its real scope. Exempted rather than forcing a wrong mapping; also has no single display-name column (moduleKey+ruleKey compound)."
+  - table: monitor_agents
+    reason: "PLATFORM_STRATEGY.md 29.3 Phase 0 (Narrow Monitor Agents): same reasoning as worker_agents/computation_engines just above -- a platform-wide rule-definition registry seeded and managed via reviewed migrations, not runtime app CRUD the generic trigger's ON CONFLICT UPDATE model fits. Single Phase-0 row exists; revisit registration once a real management surface exists to CRUD these rows."
+  - table: monitor_task_state
+    reason: "Same class as task_capabilities (see that table's own entry below) -- internal per-(org,task) escalation ownership/retry/timeout state (escalation-ladder.ts's claimEscalation()), not itself a discoverable platform asset. One row per task that has ever failed a monitor's rule, not a named business object."
   - table: notice_dispatches
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: notifications
