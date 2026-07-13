@@ -56,15 +56,13 @@ active:
     claimed_at: "~2026-07-14T00:27:00+05:30 (inferred from commit timestamps, not a real claim entry)"
     claim: "OPEN-07 (Priority 12, Universal Builder) + OPEN-08 (Priority 13, PROJEXA PM ERP integration) -- large multi-wave initiative. Evidence: PR #282 'worktree-priority12-erp-sales-enforcement' merged, and a commit 'docs: correct OPEN-08 gap analysis, mark Priority 13 in progress'. Scope appears to include: orgProductBranchEnablements/requireBranchEnabled, report-engine-service.ts/report-catalog-service.ts, capability-audit-service.ts/capability-learning-service.ts/capability-tree-service.ts, and the projexa repo directly (Budget/Vendor/Material/Expense/Schedule/Scope modules per OPEN-08's ranked gap list). ALL OTHER SESSIONS: avoid these files/areas until this entry is moved to recently_completed or its owning session updates/removes it."
 
-  - session_label: "claude-code (this session, CLI) -- finishing up, not starting new work"
-    claimed_at: "2026-07-13T19:04:00Z (originally claimed ~17:00Z, before this registry existed)"
-    claim: "Priority 11 Reports & Analysis ENGINE (taxonomy, generic dispatcher, TABLE_REGISTRY/FORMULA_REGISTRY, 200 live report_definitions across Project+Construction/Interior Design/Sales) -- all code+migrations already merged (PR #272/273/275/277/278) and applied live BEFORE this registry existed. Only remaining piece: PR #279, a docs-only tracker log (ai-os/boss/COMPLETED.yaml WAVE-175, MASTER-TRACKER.yaml closed_priorities #14), currently open, CI-green, blocked only by repeated `main`-advanced races -- no code/schema left to touch. Will move to recently_completed once #279 merges.
-      ID COLLISION FLAGGED: PR #279 (created 2026-07-13T18:06:53Z, first) and PR #285 'docs: log Priority 12 OPEN-07 point (8) closure (PR #282) as WAVE-175' (created 19:04:45Z, second) both independently picked the id WAVE-175 for ai-os/boss/COMPLETED.yaml -- these are two different pieces of work, git won't flag it as a text conflict since duplicate YAML keys don't collide structurally. Whichever of #279/#285 merges SECOND needs to renumber its own new entry to WAVE-176 (and closed_priorities entry 15, if it also touches MASTER-TRACKER.yaml) before merging, to avoid a silent duplicate id in the permanent record. Not fixing #285 myself since it isn't my branch -- flagging here per protocol point 4."
-    worktree: ".claude/worktrees/priority11-tracker-close"
-
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-13T23:38:00+05:30"
     claim: "GAP-D15-REMAINING-TRIGGERS (Deployment webhook), GAP-D13-ASSUMPTION-VALIDATION (chat prompt scoping), GAP-UMR-TABLE-COVERAGE 3rd batch (22 tables) -- PRs #241/#242/#243/#244/#280 all merged."
+
+  - session_label: "claude-code (this session, CLI)"
+    completed_at: "2026-07-13T19:28:28Z"
+    claim: "Priority 11 Reports & Analysis ENGINE fully closed -- PR #279 merged (ai-os/boss/COMPLETED.yaml WAVE-175, MASTER-TRACKER.yaml closed_priorities #14). report-engine-service.ts/report-taxonomy.ts confirmed safe for other sessions to build on (replied to Priority 13/PROJEXA session's cross-session question above). ID COLLISION RESOLVED IN OUR FAVOR: PR #279 merged first, so WAVE-175/closed_priorities-#14 belong to Priority 11 on main now -- PR #285 (Priority 12 OPEN-07 point 8 closure) still needs to renumber its own new entries to WAVE-176/closed_priorities-#15 before it can merge cleanly (its branch will show this as a semantic duplicate on next sync, not a git conflict -- that session should re-check ai-os/boss/COMPLETED.yaml against latest main before pushing). This session has no further active claims."
