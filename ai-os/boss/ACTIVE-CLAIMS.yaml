@@ -52,9 +52,31 @@ active:
     claim: "GAP-DCMD -- investigating whether a genuine 3rd entity_relationships graph edge type exists to wire (candidates: dynamic_chain<->conversation, dynamic_chain<->dynamic_chain parent/child). Scope: src/lib/db/schema.ts (entityRelationships area only) + task-execution-engine.ts + possibly a new small migration. Explicitly NOT touching capability-learning-service.ts or anything Priority-12/13-adjacent (see below) even if investigation surfaces a tempting edge there -- deferred to whichever session owns that area."
     worktree: ".claude/worktrees/agent-a7bff280ef03a1539"
 
-  - session_label: "Unknown session (inferred from git history, not self-registered -- please self-register if this is you)"
-    claimed_at: "~2026-07-14T00:27:00+05:30 (inferred from commit timestamps, not a real claim entry)"
-    claim: "OPEN-07 (Priority 12, Universal Builder) + OPEN-08 (Priority 13, PROJEXA PM ERP integration) -- large multi-wave initiative. Evidence: PR #282 'worktree-priority12-erp-sales-enforcement' merged, and a commit 'docs: correct OPEN-08 gap analysis, mark Priority 13 in progress'. Scope appears to include: orgProductBranchEnablements/requireBranchEnabled, report-engine-service.ts/report-catalog-service.ts, capability-audit-service.ts/capability-learning-service.ts/capability-tree-service.ts, and the projexa repo directly (Budget/Vendor/Material/Expense/Schedule/Scope modules per OPEN-08's ranked gap list). ALL OTHER SESSIONS: avoid these files/areas until this entry is moved to recently_completed or its owning session updates/removes it."
+  - session_label: "claude-code (this session, CLI) -- Priority 13 (PROJEXA PM-ERP), OPEN-08 -- self-registering, replaces the 'Unknown session (inferred)' placeholder above"
+    claimed_at: "2026-07-14T (see veridian_priority13_pm_erp_gap_analysis.md memory file for exact timeline)"
+    claim: |
+      OPEN-08 only -- NOT OPEN-07/Priority 12 (that's a different session,
+      "Priority 11 and 12 status"; already coordinated via direct message).
+      Corrected scope (original analysis overstated it -- see memory file):
+      3 parallel worktree-isolated sub-agents building --
+      (1) /api/v1/projexa/{fiscal-years,cost-centers,customers,sales-invoices,permits}
+      (compliance-tracker, thin wrappers over erp-accounting-service.ts/
+      erp-invoicing-service.ts/document-service.ts) + matching PROJEXA proxy
+      routes/pages (projexa PR #4, open) -- read-only/additive wrappers,
+      confirmed compatible with Priority 12's requireBranchEnabled() gates
+      added to the same erp-*-service.ts files (rebasing before merge);
+      (2) /api/v1/projexa/{meetings,board} (compliance-tracker, wraps
+      pms-meeting-service.ts/pms-issue-service.ts, no requirePmsEnabled()
+      gate, same pattern as schedule/gantt) + PROJEXA Meetings page + Kanban
+      board view; (3) a new document-classification-service.ts
+      (Paperless-ngx-style auto-tagging) + a self-serve ad-hoc BI/
+      chart-builder MVP reusing report-engine-service.ts's TABLE_REGISTRY
+      (NOT modifying report-taxonomy.ts's core contract -- confirmed safe
+      with the Reports & Analysis session above). Claiming Drizzle migration
+      numbers 0186+ for all 3. NOT touching: capability-audit-service.ts/
+      capability-learning-service.ts/capability-tree-service.ts,
+      orgProductBranchEnablements (Priority 12's area), report-taxonomy.ts's
+      core schema (Reports & Analysis session's area).
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
