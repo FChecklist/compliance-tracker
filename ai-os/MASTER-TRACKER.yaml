@@ -387,9 +387,9 @@ open_items:
       recommendation: "Sequence after GAP-NARROW-MONITOR-ESCALATION's Phase 0 (Agent Escalation Registry is the same mechanism). Build Agent Review Registry last -- it needs Agent Performance + Agent Escalation data to act on, and has zero existing precedent to extend."
 
     - id: GAP-UMR-TABLE-COVERAGE
-      name: "340 of 396 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
+      name: "326 of 405 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []
-      detail: "The auto-registration MECHANISM is complete and proven across 4 domains (56 real tables as of Priority 10). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped."
+      detail: "The auto-registration MECHANISM is complete and proven across 4+ domains (79 real tables as of Priority 11). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped. Priority 11 (PR #242) onboarded a further 22 tables (directors_kmp, cap_table_entries, company_charges, legal_vendors, legal_opinions, fraud_cases, it_dr_plans, posh_committee, pms_sprints, pms_wiki_pages, tickets, problem_records, clm_contract_templates, clm_clauses, fm_checklist_templates, fm_visitors, esignature_requests, performance_review_cycles, construction_boqs, construction_kpi_definitions, interior_mood_boards, interior_floor_plans), applied live via Supabase MCP with all 71 existing rows across 8 non-empty tables backfilled and verified (79 active asset_registration_config rows confirmed live, matching the coverage manifest exactly). Total tracked table count also grew 396 -> 405 in parallel as other concurrent Priority 11 work added new tables (report_definitions now registered; deployment_events/audit_protocol_findings correctly exempted as platform-wide append-only event logs)."
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
@@ -547,7 +547,7 @@ closed_priorities:
       GAP-D13-ASSUMPTION-VALIDATION (owner-blocked on prompt-content sign-off).
 
   - priority: 11
-    name: "GAP-D15-REMAINING-TRIGGERS closed (Deployment trigger) + GAP-D13-ASSUMPTION-VALIDATION closed (chat assumption-check prompt content)"
+    name: "GAP-D15-REMAINING-TRIGGERS closed (Deployment trigger) + GAP-D13-ASSUMPTION-VALIDATION closed (chat assumption-check prompt content) + GAP-UMR-TABLE-COVERAGE third batch (+22 tables)"
     summary: |
       - PR #241: GAP-D13-ASSUMPTION-VALIDATION closed -- U-D13.B1.S2
         ("before AI makes any input/output/process assumption, it must
@@ -631,6 +631,61 @@ closed_priorities:
         add VERCEL_DEPLOYMENT_WEBHOOK_SECRET production`), then redeploy.
         Until that step is done, the receiver code is live but Vercel
         never actually calls it.
+      - PR #242: GAP-UMR-TABLE-COVERAGE -- a third real batch of 22 more
+        named business-object tables onboarded from the grandfather-
+        exempted list onto the generic auto_register_asset() trigger
+        (drizzle/0184, following Priority 8/PR #225's drizzle/0161 and
+        Priority 10/PR #237's drizzle/0171 pattern exactly): directors_kmp,
+        cap_table_entries, company_charges, legal_vendors, legal_opinions,
+        fraud_cases, it_dr_plans, posh_committee, pms_sprints,
+        pms_wiki_pages, tickets, problem_records, clm_contract_templates,
+        clm_clauses, fm_checklist_templates, fm_visitors,
+        esignature_requests, performance_review_cycles, construction_boqs,
+        construction_kpi_definitions, interior_mood_boards,
+        interior_floor_plans -- spanning Company Secretarial, Legal, GRC,
+        IT/DR, HR, PMS, Customer Service/ITSM, CLM, Facilities,
+        Construction, and Interior Design so no single domain dominates
+        this pass. Deliberately NOT onboarded (reviewed and rejected with a
+        real reason, same discipline as Priority 10's employee_profiles
+        exclusion): client_entities/legal_arbitration_cases (no direct
+        org_id column, only reachable via a parent FK join), challans (no
+        genuine display-name column), secretarial_audits/mca_filings
+        (shared type-slug repeated across rows, not a unique per-row
+        name), related_party_transactions/posh_complaints/
+        whistleblower_cases (confidentiality-sensitive content, same
+        sensitivity class as api_keys/sso_configurations), fde_requests/
+        job_applications/performance_reviews/fm_amc_contracts (no single
+        genuine display-name column). Applied live via Supabase MCP
+        (project pcrjmlpuqsbocqfwoxod) and verified with direct queries:
+        all 22 config rows + auto_register_asset_trg triggers confirmed
+        attached via compliance.attached_asset_triggers; backfill via
+        compliance.backfill_registered_assets() upserted 71 existing rows
+        across the 8 tables that had data (posh_committee 4, pms_sprints
+        2, tickets 53, performance_review_cycles 1, construction_boqs 3,
+        construction_kpi_definitions 3, interior_mood_boards 4,
+        interior_floor_plans 1 -- the other 14 tables were empty, future
+        rows register automatically going forward); live
+        compliance.asset_registration_config count confirmed at 79 active
+        registrations, matching ai-os/registry/asset-registry-coverage.yaml
+        exactly. Coverage: 56 -> 79 registered (of 405 total tables now
+        declared in schema.ts, up from 396 as other concurrent Priority 11
+        work added new tables in parallel) / 326 still grandfather-
+        exempted. Hit two real migration-number collisions mid-flight from
+        concurrent sibling agents (0172 and then 0173 both got taken twice
+        over by other in-flight PRs before this branch could merge) --
+        renumbered to the next genuinely free slot (0184) each time and
+        re-verified live no config-row collision existed before applying.
+        tsc/eslint (0 errors)/bun test (1039 pass)/build/guardrail-
+        presence/asset-registry-coverage checks all clean; CI green on all
+        required gates (Lint/Type Check/Build/Unit Tests/E2E Tests/
+        Guardrail Presence/Asset Registry Coverage/Analyze/Secret Scanning/
+        Security Pattern/Documentation Sentinel) -- only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed (same as on
+        already-merged PR #240/#241), and "audit-check" is pending the
+        mandatory AUDIT: PASS/FAIL structured verdict comment per Rule 7c/
+        10 (this PR was prepared by a sub-agent; per the standing 2026-07-13
+        procedure it is not self-merged -- Super Boss reviews and merges
+        directly).
 
   - priority: 12
     name: "GAP-UNIFIED-SOURCE-OF-TRUTH: all 3 dispatched sub-agent PRs reviewed and merged"

@@ -130,6 +130,55 @@ registered:
     reason: "Priority 10 (drizzle/0171): org-scoped construction Request For Information -- registered as asset_type task (same reasoning as pms_issues), auto_register_asset_trg attached, name_column=subject, purpose_column=question, owner_column=assigned_to_id, active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: report_definitions
     reason: "Priority 11 (drizzle/0180): the Reports & Analysis Engine's declarative report/analysis definitions -- a genuinely named, purpose-bearing platform asset (asset_type=report), auto_register_asset_trg attached, name_column=name, purpose_column=description, org_column=org_id (nullable -- platform-wide when null, same convention as platform_assets/task_capabilities), owner_column=NULL (no single-user ownership concept), active_column=is_active"
+  # Priority 11 (GAP-UMR-TABLE-COVERAGE, drizzle/0184): third real batch of
+  # 22 tables onboarded from the grandfather-exempted list, spanning
+  # Company Secretarial, Legal, GRC, IT/DR, HR, PMS, Customer Service/ITSM,
+  # CLM, Facilities, Construction, and Interior Design. Backfilled live via
+  # compliance.backfill_registered_assets().
+  - table: directors_kmp
+    reason: "Priority 11 (drizzle/0184): org-scoped statutory Directors & KMP register -- auto_register_asset_trg attached, name_column=name, active_column=NULL (is_independent is a classification flag, not TRUE-means-active), no owner or purpose column exists"
+  - table: cap_table_entries
+    reason: "Priority 11 (drizzle/0184): org-scoped cap table register entry -- auto_register_asset_trg attached, name_column=holder_name, no status or owner column exists"
+  - table: company_charges
+    reason: "Priority 11 (drizzle/0184): org-scoped statutory company-charges register -- auto_register_asset_trg attached, name_column=charge_holder, purpose_column=charge_type, active_column=NULL (status is free text, not boolean), no owner column exists"
+  - table: legal_vendors
+    reason: "Priority 11 (drizzle/0184): org-scoped legal vendor/law-firm master -- auto_register_asset_trg attached, name_column=name, purpose_column=current_matter, active_column=NULL (status is free text default 'active', not a real boolean column), no owner column exists"
+  - table: legal_opinions
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- has body_text/generated_at, same AI-generated-content shape as the already-registered erp_contracts, auto_register_asset_trg attached, name_column=topic, no owner column exists (advisor is free text, not a user FK)"
+  - table: fraud_cases
+    reason: "Priority 11 (drizzle/0184): org-scoped GRC fraud-case register -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=investigator_id (more specific than recorded_by_id), active_column=NULL (status is free text, not boolean)"
+  - table: it_dr_plans
+    reason: "Priority 11 (drizzle/0184): org-scoped IT disaster-recovery plan register -- auto_register_asset_trg attached, name_column=system_name, purpose_column=system_description, owner_column=owner_id, active_column=NULL (status is 3-value free text, not boolean)"
+  - table: posh_committee
+    reason: "Priority 11 (drizzle/0184): org-scoped POSH internal-committee member register -- unlike posh_complaints/whistleblower_cases (deliberately exempted for confidential case content), this table's whole purpose is to name real people, no confidentiality conflict -- auto_register_asset_trg attached, name_column=member_name, purpose_column=role"
+  - table: pms_sprints
+    reason: "Priority 11 (drizzle/0184): org-scoped PMS sprint -- same shape/precedent as the already-registered pms_milestones, auto_register_asset_trg attached, name_column=name, purpose_column=goal, active_column=NULL (status is a real Postgres enum, not boolean)"
+  - table: pms_wiki_pages
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- general-purpose wiki page, same shape as the already-registered knowledge_base_pages, auto_register_asset_trg attached, name_column=title, owner_column=updated_by_id"
+  - table: tickets
+    reason: "Priority 11 (drizzle/0184): org-scoped support ticket -- registered as asset_type task, same reasoning as leave_requests/pms_issues, auto_register_asset_trg attached, name_column=subject, owner_column=assignee_id, active_column=NULL (status is free text, not boolean)"
+  - table: problem_records
+    reason: "Priority 11 (drizzle/0184): org-scoped ITIL problem/root-cause-analysis register -- auto_register_asset_trg attached, name_column=title, purpose_column=root_cause, owner_column=created_by_id (only option), active_column=NULL (status is free text, not boolean)"
+  - table: clm_contract_templates
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- CLM contract template, same reasoning as erp_contracts, auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id, active_column=is_active (genuine TRUE-means-active flag)"
+  - table: clm_clauses
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- has body_text, contract-clause library entry, same document-shaped precedent as erp_contracts/legal_opinions, auto_register_asset_trg attached, name_column=title, purpose_column=category, owner_column=created_by_id, active_column=NULL (is_standard means 'requires legal review', not active/inactive)"
+  - table: fm_checklist_templates
+    reason: "Priority 11 (drizzle/0184): FM PPM checklist-procedure template, org_id nullable by design (NULL=platform-seeded library row, non-null=an org's own fork, a real direct column not an indirect join) -- auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id (nullable for platform-seeded rows), active_column=is_active (genuine boolean)"
+  - table: fm_visitors
+    reason: "Priority 11 (drizzle/0184): org-scoped front-desk visitor master register, distinct from the per-visit fm_visitor_logs -- auto_register_asset_trg attached, name_column=full_name, purpose_column=company_or_org, no status or owner column exists"
+  - table: esignature_requests
+    reason: "Priority 11 (drizzle/0184): registered as asset_type document -- e-signature request wrapper around a document/contract, auto_register_asset_trg attached, name_column=title, owner_column=created_by_id (nullable, only option), active_column=NULL (5-value free-text status)"
+  - table: performance_review_cycles
+    reason: "Priority 11 (drizzle/0184): org-scoped HR performance-review cycle (e.g. 'H1 2026') -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
+  - table: construction_boqs
+    reason: "Priority 11 (drizzle/0184): org-scoped Bill of Quantities register, a versioned master object -- auto_register_asset_trg attached, name_column=title, owner_column=created_by_id (approved_by_id is nullable, only set later), active_column=NULL (status is a real Postgres enum, not boolean)"
+  - table: construction_kpi_definitions
+    reason: "Priority 11 (drizzle/0184): org-scoped construction KPI metric definition register -- auto_register_asset_trg attached, name_column=metric_name, owner_column=owner_id (specific), active_column=NULL (period is an enum, not boolean)"
+  - table: interior_mood_boards
+    reason: "Priority 11 (drizzle/0184): org-scoped interior-design mood board -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
+  - table: interior_floor_plans
+    reason: "Priority 11 (drizzle/0184): org-scoped 2D floor-plan register, distinct master object from its child interior_floor_plan_rooms -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is 2-value free text 'draft'/'final', not boolean)"
 
 exempted:
   - table: access_review_certifications
@@ -182,8 +231,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: board_meetings
     reason: "reviewed by Priority 4 domain A (subagent-p4-domain-a): has a genuine org_id and a natural title column, and could be onboarded (e.g. as 'document' or 'other') in a future pass. Deferred this dispatch in favor of registering its task-shaped child board_action_items instead, and because the classification column ('board_only' etc.) signals this table can carry confidentiality-sensitive content -- surfacing its name/content into registry search deserves a dedicated review of what's safe to expose there, not a default mapping bundled into a larger tranche."
-  - table: cap_table_entries
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: cap_table_events
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: capability_improvement_proposals
@@ -194,17 +241,11 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: client_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: clm_clauses
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: clm_contract_templates
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: clm_template_clauses
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: code_change_requests
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: comments
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: company_charges
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: compliance_costs
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -220,15 +261,11 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_boq_line_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: construction_boqs
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_categories
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_change_orders
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_expense_entries
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: construction_kpi_definitions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_kpi_entries
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -264,8 +301,6 @@ exempted:
     reason: "Priority 11 (GAP-D15-REMAINING-TRIGGERS, drizzle new table, schema.ts): PLATFORM-WIDE by design, no org_id column -- one row per real Vercel deployment webhook delivery for this app's own single Vercel project (veridian-compliance-ai), not any one tenant org's data, same posture as module_registry/product_branches above. An append-only external-event receipt log, not an org-owned asset in the UMR sense."
   - table: audit_protocol_findings
     reason: "GAP-UNIFIED-SOT-REMAINDER slice d (drizzle/0176_audit_protocol_findings.sql, renumbered from 0175 during audit to resolve a collision with PR #262's 0175_monitor_execution_log.sql): PLATFORM-WIDE by design, no org_id column -- one row per successfully-validated AuditProtocolFields verdict on a PR (mandatory-audit-check.yml/validate-audit-verdict.ts), keyed by PR number/branch in this repository, not any one tenant org's data. Same posture as deployment_events just above: an append-only external-event receipt log, not an org-owned asset in the UMR sense. Deliberately NOT named audit_findings -- that name is already taken by the unrelated, registered, org-scoped internal-audit-engagement CAPA table above (line ~86); see the new migration's own header for the full collision writeup. Owner-authorized ai-os/ edit 2026-07-13 (Rajat Agarwal: \"metadata for all your work... audit findings... reviewed by, audited by\" to be queryable, not scattered), same PR #250 precedent as other ai-os/-adjacent edits under the active Boss directive."
-  - table: directors_kmp
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: doc_processing_jobs
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: drafted_communications
@@ -480,8 +515,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: esg_metrics
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: esignature_requests
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: esignature_signers
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: fde_requests
@@ -514,8 +547,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: fm_checklist_template_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: fm_checklist_templates
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: fm_ppm_occurrence_item_results
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: fm_ppm_occurrences
@@ -528,11 +559,7 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: fm_visitor_logs
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: fm_visitors
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: forge_project_requests
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: fraud_cases
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: gst_ai_review_reports
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -578,15 +605,11 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: interior_floor_plan_rooms
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: interior_floor_plans
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: interior_furniture_placements
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: interior_materials
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: interior_mood_board_items
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: interior_mood_boards
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: interview_feedback
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -596,8 +619,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: it_dr_failover_tests
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: it_dr_plans
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: job_applications
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: knowledge_flow_log
@@ -606,11 +627,7 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: legal_arbitration_cases
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: legal_opinions
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: legal_spend_entries
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: legal_vendors
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: llm_response_cache
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -662,8 +679,6 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: organisations
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: this IS the root tenant table -- org_column would have to be the row's own id (self-referential, not covered by the standard org_column pattern), it also carries CIN/GSTIN/PAN government-ID columns, and it is the platform's single largest blast-radius table (fires on every org signup/update) -- deliberately left for explicit Super Boss-level review rather than a domain dispatch's own judgment call"
-  - table: performance_review_cycles
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: performance_reviews
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: personal_model_config
@@ -710,21 +725,13 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: pms_sprint_issues
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: pms_sprints
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: pms_time_entries
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: pms_wiki_pages
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: pms_workflow_transitions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: posh_annual_reports
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: posh_committee
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: posh_complaints
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: problem_records
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: problem_tickets
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
@@ -779,8 +786,6 @@ exempted:
   - table: ticket_intelligence_items
     reason: "AI detection/suggestion staging row (drizzle/0169, mirrors email_intelligence_items), pending human promotion -- not itself a business asset in the UMR sense; the ticket it analyzes is the real asset and is already covered by the tickets exemption above"
   - table: ticket_satisfaction_surveys
-    reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
-  - table: tickets
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: token_usage_ledger
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
