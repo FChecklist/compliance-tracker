@@ -8664,3 +8664,42 @@ export const capabilityImprovementProposals = complianceSchemaDB.table('capabili
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── Deployment webhook receipt (GAP-D15-REMAINING-TRIGGERS, Priority 11) ──
+// audit-event-triggers.ts's module header named this the one remaining
+// unwired named trigger of D15.B2.S1's 10 ("no in-app deployment-event
+// table or webhook handler exists beyond the already-wired CI workflow for
+// event #1"). This table is that missing record: one row per real Vercel
+// deployment webhook delivery this app receives and HMAC-verifies (see
+// src/app/api/webhooks/vercel-deployment/route.ts). Distinct from the
+// audit_trigger.deployment row recordAuditTrigger() writes into audit_logs
+// for a `deployment.succeeded` event -- that row is "an audit was
+// triggered and routed to deployment_auditor"; this table is the
+// deployment fact itself (what/when/where), kept regardless of whether the
+// audit-trigger side-effect below could also fire.
+//
+// PLATFORM-WIDE by design (no org_id column): a Vercel deployment belongs
+// to this app's own single Vercel project (veridian-compliance-ai), not to
+// any one tenant org -- same precedent as module_registry/product_branches
+// above. See asset-registry-coverage.yaml's exemption entry for this table.
+export const deploymentEvents = complianceSchemaDB.table('deployment_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  vercelDeploymentId: text('vercel_deployment_id').notNull(),
+  // Vercel's own event type string, verbatim, e.g. 'deployment.succeeded' |
+  // 'deployment.error' | 'deployment.created' -- free text, not an enum,
+  // matching auditLogs.action's own "don't gate on an enum we'd have to
+  // keep in lockstep with an external provider" precedent.
+  eventType: text('event_type').notNull(),
+  projectId: text('project_id'),
+  projectName: text('project_name'),
+  target: text('target'), // 'production' | 'staging' | null, verbatim from Vercel's payload.target
+  deploymentUrl: text('deployment_url'),
+  state: text('state'), // Vercel's own deployment state string, when the payload includes one
+  // true only for a request whose x-vercel-signature verified against
+  // VERCEL_DEPLOYMENT_WEBHOOK_SECRET -- an unverified delivery is rejected
+  // (403) before reaching this insert, so this is always true in practice;
+  // kept as an explicit column (not just "row exists therefore verified")
+  // so a future re-read of this table never has to assume that invariant.
+  signatureVerified: boolean('signature_verified').notNull().default(true),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+})

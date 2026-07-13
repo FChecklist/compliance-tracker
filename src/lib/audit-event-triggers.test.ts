@@ -17,15 +17,17 @@ const EXPECTED_EVENTS: AuditTriggerEventName[] = [
   "customer_complaint",
   "new_prompt",
   "sop_changed",
+  "deployment",
 ]
 
 describe("AUDIT_TRIGGER_REGISTRY", () => {
-  test("wires exactly the 8 events this session found real, concrete call sites for (Priority 10 added sop_changed)", () => {
+  test("wires all 9 remaining named events (Priority 10 added sop_changed, Priority 11 added deployment -- all of D15.B2.S1's 10 events are now wired, #10/Code Changed via the pre-existing CI workflow)", () => {
     expect(Object.keys(AUDIT_TRIGGER_REGISTRY).sort()).toEqual([...EXPECTED_EVENTS].sort())
   })
 
-  test("does not register Deployment -- genuinely absent, not force-fit", () => {
-    expect("deployment" in AUDIT_TRIGGER_REGISTRY).toBe(false)
+  test("registers Deployment, routed to roster.ts's pre-existing deployment_auditor role -- fired from the real Vercel webhook receiver, not force-fit", () => {
+    expect("deployment" in AUDIT_TRIGGER_REGISTRY).toBe(true)
+    expect(getAuditTriggerDefinition("deployment").roleKey).toBe("deployment_auditor")
   })
 
   test("every entry has a non-empty roleKey, auditType, and sourceRequirement traceable to D15.B2.S1's named event list", () => {
@@ -46,6 +48,7 @@ describe("AUDIT_TRIGGER_REGISTRY", () => {
     expect(getAuditTriggerDefinition("customer_complaint").roleKey).toBe("exception_auditor")
     expect(getAuditTriggerDefinition("new_prompt").roleKey).toBe("prompt_auditor")
     expect(getAuditTriggerDefinition("sop_changed").roleKey).toBe("sop_auditor")
+    expect(getAuditTriggerDefinition("deployment").roleKey).toBe("deployment_auditor")
   })
 
   test("ai_escalation and customer_complaint carry an honest roleKeyRationale (no dedicated role exists for either)", () => {
@@ -57,6 +60,7 @@ describe("AUDIT_TRIGGER_REGISTRY", () => {
     expect(getAuditTriggerDefinition("feature_completed").roleKeyRationale).toBeUndefined()
     expect(getAuditTriggerDefinition("new_prompt").roleKeyRationale).toBeUndefined()
     expect(getAuditTriggerDefinition("sop_changed").roleKeyRationale).toBeUndefined()
+    expect(getAuditTriggerDefinition("deployment").roleKeyRationale).toBeUndefined()
   })
 })
 
