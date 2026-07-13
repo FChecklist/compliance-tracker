@@ -179,6 +179,12 @@ registered:
     reason: "Priority 11 (drizzle/0184): org-scoped interior-design mood board -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: interior_floor_plans
     reason: "Priority 11 (drizzle/0184): org-scoped 2D floor-plan register, distinct master object from its child interior_floor_plan_rooms -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id, active_column=NULL (status is 2-value free text 'draft'/'final', not boolean)"
+  - table: document_correspondents
+    reason: "Priority 13 (drizzle/0188): org-scoped user-managed correspondent register, same shape as departments/committees -- auto_register_asset_trg attached, asset_type=other, name_column=name, no purpose/owner/active column exists"
+  - table: document_matching_rules
+    reason: "Priority 13 (drizzle/0188): org-scoped named document auto-classification rule -- auto_register_asset_trg attached, asset_type=rule, name_column=name, active_column=is_active (genuine boolean), no purpose/owner column exists"
+  - table: custom_charts
+    reason: "Priority 13 (drizzle/0188): org-scoped self-serve ad-hoc BI chart definition, same asset_type as the already-registered saved_reports (drizzle/0153) -- auto_register_asset_trg attached, asset_type=report, name_column=name, owner_column=created_by_id, no purpose/module/active column exists"
 
 exempted:
   - table: access_review_certifications
