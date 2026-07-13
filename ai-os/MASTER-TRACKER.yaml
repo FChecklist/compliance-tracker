@@ -245,6 +245,7 @@ open_items:
         an org without 'sales' enabled) -- a real 403 with this exact
         user-facing copy, not a generic "Forbidden".
       first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day, execution still deferred until Priority 11 closes"
+      status_update: "2026-07-13: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) is now built and live -- taxonomy, one generic dispatcher, 200 seeded definitions (109 built, 85 data_gap, 6 planned) across Project+Construction/Interior Design/Sales. This is reported honestly, not as a 100%-complete claim, since 91 rows are real documented gaps/not-yet-wired shapes. Execution of this Priority-12 plan remains deliberately NOT started -- awaiting the Owner's own confirmation that Priority 11 is closed to their satisfaction, per their explicit sequencing instruction, not a unilateral judgment call by the agent."
 
     - id: OPEN-08
       name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- IN PROGRESS as of 2026-07-14 (gate lifted by Owner, corrected gap list below); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
@@ -882,4 +883,37 @@ closed_priorities:
       metadata-index-coverage, doc-quarantine-banner) pass. Vercel preview-
       deployment check failed on every PR, confirmed pre-existing/
       unrelated (same failure already present on already-merged PR #255)
+
+  - priority: 14
+    name: "Owner's Priority 11 -- Reports & Analysis ENGINE: taxonomy, generic dispatcher, 200 seeded definitions across 3 domains"
+    summary: |
+      See ai-os/boss/COMPLETED.yaml's WAVE-175 for the full doer/auditor
+      record (PR #272, #273, #275, #277, #278). Summary here for
+      cross-reference only, not a duplicate source of truth.
+
+      Built the report_definitions taxonomy (7 categories, open-ended
+      classifications, 15 periodicity types) and the one real dispatcher
+      (executeReportDefinition() -> deterministic_aggregation via
+      TABLE_REGISTRY/resolveAggregationTarget(), deterministic_formula via
+      FORMULA_REGISTRY, ai_recipe grounded-only, external_service) that
+      lets reports be added/merged without per-report bespoke code, per
+      the Owner's explicit "without reworking and without duplicacy"
+      requirement. Seeded 204 candidate rows across 3 domain waves
+      (Project+Construction, Interior Design, Sales); 200 landed live
+      after 4 benign platform-wide name collisions (traced individually,
+      each confirmed a strictly-non-worse dedup, not a loss -- see
+      WAVE-175's auditor summary). Final tally: 109 built (genuinely
+      executable through the dispatcher), 85 data_gap (each with a
+      specific real schema gap named in data_gap_note, not a vague
+      placeholder), 6 planned (real data exists, join/bucketing/listing
+      shape not wired this wave). "Reports & Analysis" promoted to its
+      own top-level left-rail section (2nd position). Not claimed 100%
+      complete -- the data_gap/planned rows are honest, specific,
+      tracked future work.
+
+      Owner's Priority 12 (Universal Builder) remains explicitly deferred
+      per the Owner's own instruction until this priority is confirmed
+      closed to their satisfaction -- see OPEN-07 below, whose 3 blocking
+      decisions are already locked in and ready to execute once
+      unblocked.
       -- not a required status check.
