@@ -13,6 +13,7 @@ export { ServiceError }
 import { parseFile } from "@/lib/ingest/parser"
 import type { ParsedRow } from "@/lib/ingest/types"
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -42,6 +43,7 @@ export async function importBankStatement(
   ctx: ErpContext,
   input: { bankAccountId: string; fileName: string; buffer: Buffer; mimeType: string }
 ) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const bankAccount = await db.query.erpBankAccounts.findFirst({ where: and(eq(erpBankAccounts.id, input.bankAccountId), eq(erpBankAccounts.orgId, ctx.orgId)) })
     if (!bankAccount) throw new ServiceError("Bank account not found", 404)
@@ -95,12 +97,14 @@ export async function importBankStatement(
 }
 
 export async function listImports(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpBankStatementImports.findMany({ where: eq(erpBankStatementImports.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.importedAt) })
   })
 }
 
 export async function listLines(ctx: { orgId: string }, importId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpBankStatementLines.findMany({
       where: and(eq(erpBankStatementLines.orgId, ctx.orgId), eq(erpBankStatementLines.importId, importId)),
@@ -115,6 +119,7 @@ export async function listLines(ctx: { orgId: string }, importId: string) {
  * window -- a candidate list for a human to confirm, not an auto-match.
  */
 export async function suggestMatches(ctx: { orgId: string }, lineId: string, bankGlAccountId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const line = await db.query.erpBankStatementLines.findFirst({ where: and(eq(erpBankStatementLines.id, lineId), eq(erpBankStatementLines.orgId, ctx.orgId)) })
     if (!line) throw new ServiceError("Statement line not found", 404)
@@ -142,6 +147,7 @@ export async function suggestMatches(ctx: { orgId: string }, lineId: string, ban
 }
 
 export async function matchLine(ctx: ErpContext, lineId: string, journalEntryId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const line = await db.query.erpBankStatementLines.findFirst({ where: and(eq(erpBankStatementLines.id, lineId), eq(erpBankStatementLines.orgId, ctx.orgId)) })
     if (!line) throw new ServiceError("Statement line not found", 404)
@@ -152,6 +158,7 @@ export async function matchLine(ctx: ErpContext, lineId: string, journalEntryId:
 }
 
 export async function ignoreLine(ctx: ErpContext, lineId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [updated] = await db.update(erpBankStatementLines).set({ status: "ignored" }).where(and(eq(erpBankStatementLines.id, lineId), eq(erpBankStatementLines.orgId, ctx.orgId))).returning()
     if (!updated) throw new ServiceError("Statement line not found", 404)

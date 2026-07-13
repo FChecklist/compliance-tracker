@@ -16,6 +16,7 @@ export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -63,6 +64,7 @@ function validateBalanced(lines: JournalEntryLineInput[]): { totalDebit: number;
 }
 
 export async function listAccounts(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpAccounts.findMany({ where: eq(erpAccounts.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.accountNumber) })
   })
@@ -78,6 +80,7 @@ export type AccountInput = {
 }
 
 export async function createAccount(ctx: ErpContext, input: AccountInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.accountName?.trim()) throw new ServiceError("accountName is required", 400)
   if (!input.rootType) throw new ServiceError("rootType is required", 400)
 
@@ -100,6 +103,7 @@ export async function createAccount(ctx: ErpContext, input: AccountInput) {
 // entry lines into a real dimension. listAccounts/createAccount above is
 // the direct template.
 export async function listCostCenters(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
   })
@@ -108,6 +112,7 @@ export async function listCostCenters(ctx: { orgId: string }) {
 export type CostCenterInput = { name: string; parentCostCenterId?: string; isGroup?: boolean; departmentId?: string; projectId?: string }
 
 export async function createCostCenter(ctx: ErpContext, input: CostCenterInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [cc] = await db.insert(erpCostCenters).values({
@@ -125,6 +130,7 @@ export async function createCostCenter(ctx: ErpContext, input: CostCenterInput) 
 // create one through the app. listCostCenters/createCostCenter above is
 // the direct template.
 export async function listFiscalYears(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpFiscalYears.findMany({ where: eq(erpFiscalYears.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.startDate) })
   })
@@ -133,6 +139,7 @@ export async function listFiscalYears(ctx: { orgId: string }) {
 export type FiscalYearInput = { yearName: string; startDate: string; endDate: string }
 
 export async function createFiscalYear(ctx: ErpContext, input: FiscalYearInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.yearName?.trim()) throw new ServiceError("yearName is required", 400)
   if (!input.startDate || !input.endDate) throw new ServiceError("startDate and endDate are required", 400)
   if (input.endDate <= input.startDate) throw new ServiceError("endDate must be after startDate", 400)
@@ -147,12 +154,14 @@ export async function createFiscalYear(ctx: ErpContext, input: FiscalYearInput) 
 // erpBankAccounts has existed since Wave 49 with no service-layer
 // consumer until now.
 export async function listBankAccounts(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpBankAccounts.findMany({ where: eq(erpBankAccounts.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.accountName) })
   })
 }
 
 export async function listJournalEntries(ctx: { orgId: string }, filters: { status?: string } = {}) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpJournalEntries.findMany({
       where: filters.status
@@ -164,6 +173,7 @@ export async function listJournalEntries(ctx: { orgId: string }, filters: { stat
 }
 
 export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const entry = await db.query.erpJournalEntries.findFirst({ where: and(eq(erpJournalEntries.id, entryId), eq(erpJournalEntries.orgId, ctx.orgId)) })
     if (!entry) throw new ServiceError("Journal entry not found", 404)
@@ -173,6 +183,7 @@ export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
 }
 
 export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.postingDate) throw new ServiceError("postingDate is required", 400)
   const { totalDebit, totalCredit } = validateBalanced(input.lines)
 
@@ -242,6 +253,7 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
  * route once an instance completes).
  */
 export async function submitJournalEntry(ctx: ErpContext, entryId: string) {
+  await requireErpEnabled(ctx.orgId)
   const entry = await getJournalEntry(ctx, entryId)
   if (entry.status !== "draft") throw new ServiceError("Only draft entries can be submitted", 409)
 
@@ -266,6 +278,7 @@ export async function submitJournalEntry(ctx: ErpContext, entryId: string) {
 
 /** Called from the approval-decide route once a journal entry's workflow instance reaches 'approved'. */
 export async function markJournalEntrySubmittedFromApproval(ctx: { orgId: string; userId: string; dbUser: typeof users.$inferSelect }, entryId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [updated] = await db.update(erpJournalEntries).set({ status: "submitted", submittedAt: new Date() }).where(and(eq(erpJournalEntries.id, entryId), eq(erpJournalEntries.orgId, ctx.orgId))).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.approved_and_submitted", entityType: "erp_journal_entry", entityId: entryId })
@@ -281,6 +294,7 @@ export async function markJournalEntrySubmittedFromApproval(ctx: { orgId: string
 // ============================================================
 
 export async function listCurrencies(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCurrencies.findMany({ where: eq(erpCurrencies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.code) })
   })
@@ -289,6 +303,7 @@ export async function listCurrencies(ctx: { orgId: string }) {
 export type CurrencyInput = { code: string; name: string; symbol?: string; isBaseCurrency?: boolean }
 
 export async function createCurrency(ctx: ErpContext, input: CurrencyInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.code?.trim()) throw new ServiceError("code is required", 400)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
 
@@ -308,6 +323,7 @@ export async function createCurrency(ctx: ErpContext, input: CurrencyInput) {
 }
 
 export async function listExchangeRates(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpExchangeRates.findMany({ where: eq(erpExchangeRates.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.rateDate) })
   })
@@ -316,6 +332,7 @@ export async function listExchangeRates(ctx: { orgId: string }) {
 export type ExchangeRateInput = { fromCurrencyId: string; toCurrencyId: string; rate: number; rateDate: string }
 
 export async function createExchangeRate(ctx: ErpContext, input: ExchangeRateInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.fromCurrencyId || !input.toCurrencyId) throw new ServiceError("fromCurrencyId and toCurrencyId are required", 400)
   if (!input.rate || input.rate <= 0) throw new ServiceError("rate must be a positive number", 400)
   if (!input.rateDate) throw new ServiceError("rateDate is required", 400)
@@ -338,6 +355,7 @@ export async function createExchangeRate(ctx: ErpContext, input: ExchangeRateInp
  * stale or wrong suggested rate silently accepted would be a real risk.
  */
 export async function getLatestExchangeRate(ctx: { orgId: string }, fromCurrencyId: string, toCurrencyId: string, asOfDate: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpExchangeRates.findFirst({
       where: and(eq(erpExchangeRates.orgId, ctx.orgId), eq(erpExchangeRates.fromCurrencyId, fromCurrencyId), eq(erpExchangeRates.toCurrencyId, toCurrencyId), lte(erpExchangeRates.rateDate, asOfDate)),
@@ -356,6 +374,7 @@ export async function getLatestExchangeRate(ctx: { orgId: string }, fromCurrency
 // ============================================================
 
 export async function listTaxWithholdingCategories(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const categories = await db.query.erpTaxWithholdingCategories.findMany({ where: eq(erpTaxWithholdingCategories.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.categoryName) })
     const allRates = await db.query.erpTaxWithholdingRates.findMany({ where: sql`${erpTaxWithholdingRates.categoryId} IN (SELECT id FROM compliance.erp_tax_withholding_categories WHERE org_id = ${ctx.orgId})` })
@@ -367,6 +386,7 @@ export async function createTaxWithholdingCategory(
   ctx: ErpContext,
   input: { categoryName: string; taxDeductionBasis?: "gross_total" | "net_total"; rates: { fromDate: string; toDate?: string; rate: number; singleThreshold?: number; cumulativeThreshold?: number }[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.categoryName?.trim()) throw new ServiceError("categoryName is required", 400)
   if (!input.rates?.length) throw new ServiceError("At least one withholding rate is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {

@@ -20,6 +20,7 @@ import { and, eq, lte, or, isNull, gte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -28,6 +29,7 @@ export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$
 // ============================================================
 
 export async function listSalaryComponents(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSalaryComponents.findMany({ where: eq(erpSalaryComponents.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
   })
@@ -37,6 +39,7 @@ export async function createSalaryComponent(
   ctx: ErpContext,
   input: { name: string; componentType: "earning" | "deduction"; calculationType?: "flat" | "percentage_of_basic" | "percentage_of_gross"; defaultPercentage?: number; defaultAmount?: number; isStatutory?: boolean; includeInPfWage?: boolean }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [component] = await db.insert(erpSalaryComponents).values({
@@ -55,6 +58,7 @@ export async function createSalaryComponent(
 // ============================================================
 
 export async function listStatutoryRules(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpStatutoryRules.findMany({ where: eq(erpStatutoryRules.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.effectiveFrom) })
   })
@@ -64,6 +68,7 @@ export async function createStatutoryRule(
   ctx: ErpContext,
   input: { ruleType: "pf" | "esi" | "professional_tax"; state?: string; effectiveFrom: string; effectiveTo?: string; employeeRate?: number; employerRate?: number; wageCeiling?: number; slabs?: { uptoAmount: number; taxAmount: number }[]; notes?: string }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (input.ruleType === "professional_tax" && !input.state?.trim()) throw new ServiceError("state is required for professional_tax rules", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [rule] = await db.insert(erpStatutoryRules).values({
@@ -95,6 +100,7 @@ async function findActiveRule(db: TenantDb, orgId: string, ruleType: "pf" | "esi
 // ============================================================
 
 export async function listSalaryStructures(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const structures = await db.query.erpSalaryStructures.findMany({
       where: eq(erpSalaryStructures.orgId, ctx.orgId),
@@ -117,6 +123,7 @@ export async function createSalaryStructure(
   ctx: ErpContext,
   input: { employeeId: string; effectiveFrom: string; ctcAnnual: number; state?: string; components: { componentId: string; amount?: number; percentage?: number }[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.components?.length) throw new ServiceError("At least one component is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const employee = await db.query.employeeProfiles.findFirst({ where: and(eq(employeeProfiles.id, input.employeeId), eq(employeeProfiles.orgId, ctx.orgId)) })
@@ -141,12 +148,14 @@ export async function createSalaryStructure(
 // ============================================================
 
 export async function listPayrollRuns(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpPayrollRuns.findMany({ where: eq(erpPayrollRuns.orgId, ctx.orgId), orderBy: (t, { desc }) => [desc(t.year), desc(t.month)] })
   })
 }
 
 export async function createPayrollRun(ctx: ErpContext, input: { month: number; year: number }) {
+  await requireErpEnabled(ctx.orgId)
   if (input.month < 1 || input.month > 12) throw new ServiceError("month must be 1-12", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.erpPayrollRuns.findFirst({ where: and(eq(erpPayrollRuns.orgId, ctx.orgId), eq(erpPayrollRuns.month, input.month), eq(erpPayrollRuns.year, input.year)) })
@@ -174,6 +183,7 @@ function computeEarning(componentType: string, calcType: string, amount: string 
  * so they are intentionally not reflected as payslip lines in this scope.
  */
 export async function processPayrollRun(ctx: ErpContext, runId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const run = await db.query.erpPayrollRuns.findFirst({ where: and(eq(erpPayrollRuns.id, runId), eq(erpPayrollRuns.orgId, ctx.orgId)) })
     if (!run) throw new ServiceError("Payroll run not found", 404)
@@ -307,6 +317,7 @@ export async function processPayrollRun(ctx: ErpContext, runId: string) {
 }
 
 export async function listPayslips(ctx: { orgId: string }, runId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const slips = await db.query.erpPayslips.findMany({
       where: and(eq(erpPayslips.orgId, ctx.orgId), eq(erpPayslips.payrollRunId, runId)),
@@ -326,6 +337,7 @@ export async function listPayslips(ctx: { orgId: string }, runId: string) {
 
 /** Sets the manually-entered TDS line for a payslip and recomputes net pay. Only allowed while the payslip is still 'draft'. */
 export async function updatePayslipTds(ctx: ErpContext, payslipId: string, tdsAmount: number) {
+  await requireErpEnabled(ctx.orgId)
   if (tdsAmount < 0) throw new ServiceError("tdsAmount cannot be negative", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const payslip = await db.query.erpPayslips.findFirst({ where: and(eq(erpPayslips.id, payslipId), eq(erpPayslips.orgId, ctx.orgId)), with: { lines: true } })
@@ -347,6 +359,7 @@ export async function updatePayslipTds(ctx: ErpContext, payslipId: string, tdsAm
 }
 
 export async function finalizePayslip(ctx: ErpContext, payslipId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const payslip = await db.query.erpPayslips.findFirst({ where: and(eq(erpPayslips.id, payslipId), eq(erpPayslips.orgId, ctx.orgId)) })
     if (!payslip) throw new ServiceError("Payslip not found", 404)
@@ -364,6 +377,7 @@ export async function finalizePayslip(ctx: ErpContext, payslipId: string) {
 // ============================================================
 
 export async function listIncomeTaxSlabs(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const slabs = await db.query.erpIncomeTaxSlabs.findMany({ where: eq(erpIncomeTaxSlabs.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.effectiveFrom) })
     const allRates = await db.query.erpIncomeTaxSlabRates.findMany({ where: sql`${erpIncomeTaxSlabRates.slabId} IN (SELECT id FROM compliance.erp_income_tax_slabs WHERE org_id = ${ctx.orgId})` })
@@ -375,6 +389,7 @@ export async function createIncomeTaxSlab(
   ctx: ErpContext,
   input: { name: string; effectiveFrom: string; standardDeduction?: number; rates: { fromAmount: number; toAmount?: number; percentDeduction: number }[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   if (!input.rates?.length) throw new ServiceError("At least one slab rate is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -391,6 +406,7 @@ export async function createIncomeTaxSlab(
 
 /** Assigns (or clears, if slabId is undefined) an employee's income tax slab -- the opt-in switch for payroll TDS auto-computation. */
 export async function assignIncomeTaxSlab(ctx: ErpContext, employeeId: string, slabId: string | undefined) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const employee = await db.query.employeeProfiles.findFirst({ where: and(eq(employeeProfiles.id, employeeId), eq(employeeProfiles.orgId, ctx.orgId)) })
     if (!employee) throw new ServiceError("Employee not found", 404)
@@ -405,6 +421,7 @@ export async function assignIncomeTaxSlab(ctx: ErpContext, employeeId: string, s
 }
 
 export async function listEmployeeTaxExemptions(ctx: { orgId: string }, employeeId: string, financialYear?: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpEmployeeTaxExemptions.findMany({
       where: financialYear
@@ -416,6 +433,7 @@ export async function listEmployeeTaxExemptions(ctx: { orgId: string }, employee
 }
 
 export async function createEmployeeTaxExemption(ctx: ErpContext, input: { employeeId: string; financialYear: string; category: string; amount: number }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.financialYear?.trim()) throw new ServiceError("financialYear is required", 400)
   if (!input.category?.trim()) throw new ServiceError("category is required", 400)
   if (!input.amount || input.amount < 0) throw new ServiceError("amount must be a non-negative number", 400)

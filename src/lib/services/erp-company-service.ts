@@ -10,10 +10,12 @@ import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export async function listCompanies(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCompanies.findMany({ where: eq(erpCompanies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.companyName) })
   })
@@ -30,6 +32,7 @@ export type CompanyInput = {
 }
 
 export async function createCompany(ctx: ErpContext, input: CompanyInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.companyName?.trim()) throw new ServiceError("companyName is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -48,6 +51,7 @@ export async function createCompany(ctx: ErpContext, input: CompanyInput) {
 }
 
 export async function updateCompany(ctx: ErpContext, companyId: string, input: Partial<CompanyInput> & { isActive?: boolean }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.erpCompanies.findFirst({ where: and(eq(erpCompanies.id, companyId), eq(erpCompanies.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Company not found", 404)
@@ -73,6 +77,7 @@ export async function updateCompany(ctx: ErpContext, companyId: string, input: P
  * walk in document-service.ts's version history).
  */
 export async function getCompanyDescendantIds(ctx: { orgId: string }, rootCompanyId: string): Promise<string[]> {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const all = await db.query.erpCompanies.findMany({ where: eq(erpCompanies.orgId, ctx.orgId) })
     const byParent = new Map<string, string[]>()

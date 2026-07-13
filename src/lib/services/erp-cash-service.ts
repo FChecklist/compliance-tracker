@@ -12,16 +12,19 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export async function listCashAccounts(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCashAccounts.findMany({ where: eq(erpCashAccounts.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.accountName) })
   })
 }
 
 export async function createCashAccount(ctx: ErpContext, input: { accountName: string; glAccountId?: string; isPettyCash?: boolean }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.accountName?.trim()) throw new ServiceError("accountName is required", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [acc] = await db.insert(erpCashAccounts).values({
@@ -33,6 +36,7 @@ export async function createCashAccount(ctx: ErpContext, input: { accountName: s
 }
 
 export async function listCashVouchers(ctx: { orgId: string }, filters: { cashAccountId?: string } = {}) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCashVouchers.findMany({
       where: filters.cashAccountId
@@ -56,6 +60,7 @@ export type CashVoucherInput = {
 
 /** Creates a cash voucher and immediately posts it (cash is inherently a same-day, no-draft-review instrument in every benchmarked ERP -- unlike journal entries there's no meaningful "draft cash receipt" state). */
 export async function createAndPostCashVoucher(ctx: ErpContext, input: CashVoucherInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.cashAccountId || !input.againstAccountId) throw new ServiceError("cashAccountId and againstAccountId are required", 400)
   if (!input.amount || input.amount <= 0) throw new ServiceError("amount must be positive", 400)
   if (!input.postingDate) throw new ServiceError("postingDate is required", 400)
