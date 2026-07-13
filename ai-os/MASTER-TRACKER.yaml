@@ -186,17 +186,65 @@ open_items:
         wire real ERP/Sales enablement enforcement with a safe backfill path
         for existing orgs, not a hard cutover; make task_capabilities.status
         actually transition + write the single escalation-matrix reference
-        doc). 3 things need an explicit Owner decision before/during
-        execution, cannot be an agent's unilateral call: (a) GITHUB_DISPATCH_PAT
-        -- create it, or approve switching the escalation dispatch to the
-        already-live /api/ai/team/dispatch path instead (needs no new
-        credential); (b) DeepSeek vs GLM-5.2 for the Auditor role (GLM is
-        already judgment-tier trusted per model-tier-eligibility.ts,
-        DeepSeek currently is not); (c) ERP/Sales enforcement rollout needs
-        a one-time backfill of orgProductBranchEnablements rows for orgs
-        currently using those modules before the gate goes live, not an
-        instant hard cutover that would lock existing users out.
-      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes"
+        doc).
+
+        **All 3 blocking decisions answered by the Owner, 2026-07-13 --
+        locked in below, quoted verbatim per AGENTS.md Rule 9 (any guardrail-
+        adjacent change needs the Owner's own words in the PR):**
+
+        (a) GITHUB_DISPATCH_PAT -- Owner: "make sure its working". Decision:
+        do NOT create a new PAT -- switch capability-audit's escalation
+        dispatch (dispatchProposalToHigherAI() in capability-audit-
+        service.ts) from repository_dispatch (dispatch-repo.ts, PAT-gated,
+        never worked) to the already-live /api/ai/team/dispatch path. Must
+        be verified genuinely working end-to-end (a real dispatch, a real PR
+        or equivalent artifact produced), not just "wired and assumed."
+
+        (b) DeepSeek vs GLM-5.2 -- Owner: "lower level single line narrow
+        instructions is by OSS GPT and lower, auditor is by DeepSeek
+        specifically; above DeepSeek for escalation is GLM-5.2". Decision: a
+        3-rung ladder for this specific capability-audit workflow --
+        mechanical/narrow (GPT-OSS-120B and below, already the floor tier)
+        -> Auditor verdict (DeepSeek V4 Pro, deepseek/deepseek-v4-pro,
+        replacing chief_audit_officer's current GLM-5.2 pin in roster.ts) ->
+        Higher-AI build/escalation (GLM-5.2, unchanged). Real tension found
+        while confirming this is implementable: model-tier-eligibility.ts's
+        JUDGMENT_ELIGIBLE set (glm-5.2, gpt-5.5 only) explicitly names
+        "audit verdicts" as judgment-tier work, and DeepSeek is currently
+        only INTEGRATIVE_ELIGIBLE, one tier below. Do NOT resolve this by
+        broadening DeepSeek's eligibility platform-wide (that would loosen a
+        named Rule-9 guardrail for every judgment-tier dispatch, not just
+        this one narrow role, and contradicts the Owner's own "above
+        DeepSeek" framing which implies DeepSeek is deliberately NOT trusted
+        with full judgment-tier authority generally). Correct fix: either
+        (i) reclassify capability-audit's own dispatch as integrative-tier
+        complexity (DeepSeek is already eligible there, and "narrow
+        instructions" is itself the integrative/mechanical framing, not
+        judgment), or (ii) add a narrow, explicitly-documented role-specific
+        carve-out rather than touching JUDGMENT_ELIGIBLE itself. Decide
+        which of (i)/(ii) during implementation, whichever keeps the
+        existing guardrail's stated purpose ("an auditor weaker than the
+        work it checks isn't real assurance") intact for every OTHER
+        judgment-tier audit in this codebase (e.g. Claude's own PR/code
+        audits, unaffected either way).
+
+        (c) ERP/Sales enforcement rollout -- Owner: "do it, user should not
+        get locked out, instead polite message comes, this is not part of
+        the Module your organization purchased. Please contact your
+        organizations administrator. This capability is already in another
+        Module". Decision: (1) one-time backfill migration inserting
+        orgProductBranchEnablements rows (isEnabled=true) for every org
+        already using erp/sales endpoints (query real usage first --
+        erp_sales_invoices/erp_purchase_invoices/crm_leads/etc. rows with a
+        distinct orgId -- to build the backfill list, don't guess), THEN (2)
+        add requireBranchEnabled()-style enforcement to the erp/sales API
+        surfaces, THEN (3) on denial, return the Owner's exact message
+        (adapted per-branch, e.g. "...this is not part of the Module your
+        organization purchased. Please contact your organization's
+        administrator. This capability is already in the Sales module." for
+        an org without 'sales' enabled) -- a real 403 with this exact
+        user-facing copy, not a generic "Forbidden".
+      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day, execution still deferred until Priority 11 closes"
 
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
