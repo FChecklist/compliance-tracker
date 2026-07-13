@@ -34,6 +34,14 @@ const GROUP_BY_FIELDS: Record<string, string[]> = {
 
 export type SourceEntity = keyof typeof GROUP_BY_FIELDS
 
+// AI Report Builder (2026-07-13, "Need a Report?" upload flow,
+// drizzle/0177_ai_report_builder.sql): a distinct, non-live sourceEntity --
+// its data is a static AI proposal stored in savedReports.aiGeneratedData,
+// never a whitelisted grouped-count query, so it's deliberately kept OUT of
+// GROUP_BY_FIELDS (which is the security boundary for the live-query switch
+// in runReport() below) and checked separately everywhere that matters.
+export const AI_GENERATED_SOURCE_ENTITY = "ai_generated" as const
+
 export function isValidSourceEntity(value: string): value is SourceEntity {
   return value in GROUP_BY_FIELDS
 }
@@ -53,12 +61,25 @@ export async function listSavedReports(ctx: { orgId: string }) {
 
 export async function createSavedReport(
   ctx: ReportContext,
-  input: { name: string; description?: string; sourceEntity: string; filters?: Record<string, unknown>; groupByField?: string; chartType?: string; visibility?: "private" | "shared" }
+  input: {
+    name: string; description?: string; sourceEntity: string; filters?: Record<string, unknown>; groupByField?: string
+    chartType?: string; visibility?: "private" | "shared"
+    // AI Report Builder fields -- only meaningful (and only validated) when
+    // sourceEntity === AI_GENERATED_SOURCE_ENTITY.
+    aiGeneratedData?: Record<string, unknown>; sourceFileName?: string
+  }
 ) {
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
-  if (!isValidSourceEntity(input.sourceEntity)) throw new ServiceError(`sourceEntity must be one of: ${Object.keys(GROUP_BY_FIELDS).join(", ")}`, 400)
-  if (input.groupByField && !isValidGroupByField(input.sourceEntity, input.groupByField)) {
+
+  if (input.sourceEntity === AI_GENERATED_SOURCE_ENTITY) {
+    const data = input.aiGeneratedData
+    if (!data || !Array.isArray(data.columns) || !Array.isArray(data.rows)) {
+      throw new ServiceError("aiGeneratedData with columns[] and rows[] is required for sourceEntity 'ai_generated'", 400)
+    }
+  } else if (!isValidSourceEntity(input.sourceEntity)) {
+    throw new ServiceError(`sourceEntity must be one of: ${Object.keys(GROUP_BY_FIELDS).join(", ")}, ${AI_GENERATED_SOURCE_ENTITY}`, 400)
+  } else if (input.groupByField && !isValidGroupByField(input.sourceEntity, input.groupByField)) {
     throw new ServiceError(`groupByField must be one of: ${GROUP_BY_FIELDS[input.sourceEntity].join(", ")}`, 400)
   }
 
@@ -67,6 +88,8 @@ export async function createSavedReport(
       orgId: ctx.orgId, name, description: input.description || null, ownedById: ctx.userId,
       sourceEntity: input.sourceEntity, filters: input.filters || {}, groupByField: input.groupByField || null,
       chartType: input.chartType || "table", visibility: input.visibility || "private",
+      aiGeneratedData: input.sourceEntity === AI_GENERATED_SOURCE_ENTITY ? input.aiGeneratedData : null,
+      sourceFileName: input.sourceEntity === AI_GENERATED_SOURCE_ENTITY ? (input.sourceFileName || null) : null,
     }).returning()
     return report
   })
@@ -100,6 +123,19 @@ export async function runReport(ctx: { orgId: string }, reportId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const report = await db.query.savedReports.findFirst({ where: and(eq(savedReports.id, reportId), eq(savedReports.orgId, ctx.orgId)) })
     if (!report) throw new ServiceError("Report not found", 404)
+
+    // AI-generated reports are static (built once from an uploaded file, see
+    // ai-report-builder-service.ts) -- there's no live query to run, so this
+    // just echoes back the stored proposal. `rows` mirrors the groupValue/
+    // count shape the existing chart renderer (ReportChart in
+    // CustomReportsSection.tsx) already knows how to draw for bar/pie/line;
+    // the full multi-column table lives in aiGeneratedData.columns/rows,
+    // returned alongside for the table view.
+    if (report.sourceEntity === AI_GENERATED_SOURCE_ENTITY) {
+      const data = (report.aiGeneratedData ?? {}) as { chartRows?: ReportRow[] }
+      return { report, rows: data.chartRows ?? [], aiGeneratedData: report.aiGeneratedData }
+    }
+
     if (!isValidSourceEntity(report.sourceEntity)) throw new ServiceError("Report has an invalid sourceEntity", 400)
 
     const groupBy = report.groupByField && isValidGroupByField(report.sourceEntity, report.groupByField) ? report.groupByField : null

@@ -21,7 +21,24 @@ import {
 } from "@/components/ui/dialog";
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
-type SavedReport = { id: string; name: string; description: string | null; sourceEntity: string; groupByField: string | null; chartType: string; visibility: string };
+// AI Report Builder (2026-07-13, "Need a Report?" upload flow): aiGeneratedData
+// is only ever present when sourceEntity === "ai_generated" -- see
+// drizzle/0177_ai_report_builder.sql and ai-report-builder-service.ts for
+// the shape's origin. Already included in every /api/reports/saved list
+// response (listSavedReports() returns full rows), so it needs no separate
+// /run fetch the way live-query reports do.
+type AiGeneratedReportData = {
+  title: string;
+  summary: string;
+  columns: string[];
+  rows: Record<string, string | number>[];
+  chartType: string;
+  chartRows: { groupValue: string; count: number }[];
+};
+type SavedReport = {
+  id: string; name: string; description: string | null; sourceEntity: string; groupByField: string | null
+  chartType: string; visibility: string; aiGeneratedData?: AiGeneratedReportData | null; sourceFileName?: string | null
+};
 type ReportRow = { groupValue: string | null; count: number };
 
 const SOURCE_ENTITIES: Record<string, { label: string; groupByFields: { value: string; label: string }[] }> = {
@@ -30,7 +47,44 @@ const SOURCE_ENTITIES: Record<string, { label: string; groupByFields: { value: s
   risks: { label: "Risks", groupByFields: [{ value: "status", label: "Status" }, { value: "category", label: "Category" }] },
   pms_issues: { label: "PMS Issues", groupByFields: [{ value: "statusId", label: "Status" }, { value: "priority", label: "Priority" }] },
   incidents: { label: "Incidents", groupByFields: [{ value: "stage", label: "Stage" }, { value: "severity", label: "Severity" }] },
+  ai_generated: { label: "AI-Generated", groupByFields: [] },
 };
+
+// Full multi-column table for an AI-generated report -- ReportChart's
+// existing "table" branch below is a fixed 2-column name/value view (built
+// for groupValue/count rows) and can't represent an arbitrary-column
+// AI proposal, so this is a small, separate renderer rather than forcing
+// AI output through that shape.
+function AiReportTable({ data }: { data: AiGeneratedReportData }) {
+  if (data.columns.length === 0 || data.rows.length === 0) {
+    return <p className="text-xs text-ct-muted">No data in this report.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {data.summary && <p className="text-xs text-ct-muted">{data.summary}</p>}
+      <div className="overflow-x-auto max-h-[220px] overflow-y-auto rounded border border-ct-border">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-ct-navy text-white">
+            <tr>
+              {data.columns.map((col) => (
+                <th key={col} className="py-1.5 px-2 text-left font-medium whitespace-nowrap">{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ct-border">
+            {data.rows.map((row, i) => (
+              <tr key={i} className={i % 2 === 1 ? "bg-ct-cloud/40" : ""}>
+                {data.columns.map((col) => (
+                  <td key={col} className="py-1.5 px-2 whitespace-nowrap">{String(row[col] ?? "")}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 const PIE_COLORS = ["#0E7C6E", "#F5820A", "#1C2B3A", "#EF4444", "#3B82F6", "#F59E0B"];
 
@@ -114,6 +168,11 @@ export default function CustomReportsSection() {
     setReports(list);
     setLoading(false);
     for (const r of list) {
+      // AI-generated reports carry their full data inline (aiGeneratedData,
+      // above) -- no live query to run, so skip the /run round-trip
+      // entirely for them (also avoids logging a spurious
+      // "report_generated" audit event just for viewing a static report).
+      if (r.sourceEntity === "ai_generated") continue;
       fetch(`/api/reports/saved/${r.id}/run`).then((res) => res.json()).then((d) => {
         setResults((prev) => ({ ...prev, [r.id]: d.rows ?? [] }));
       }).catch(() => {});
@@ -194,7 +253,11 @@ export default function CustomReportsSection() {
                 <Select value={sourceEntity} onValueChange={(v) => { setSourceEntity(v); setGroupByField(SOURCE_ENTITIES[v].groupByFields[0].value); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(SOURCE_ENTITIES).map(([value, e]) => <SelectItem key={value} value={value}>{e.label}</SelectItem>)}
+                    {/* "ai_generated" is intentionally excluded here -- it has
+                        no groupByFields (the line above would throw) and is
+                        only ever created via the "Need a Report?" upload
+                        flow, never this manual live-query builder. */}
+                    {Object.entries(SOURCE_ENTITIES).filter(([value]) => value !== "ai_generated").map(([value, e]) => <SelectItem key={value} value={value}>{e.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -254,7 +317,13 @@ export default function CustomReportsSection() {
                     <Trash2 className="size-3.5 text-ct-error" />
                   </Button>
                 </div>
-                {results[report.id] ? <ReportChart chartType={report.chartType} rows={results[report.id]} /> : <p className="text-xs text-ct-muted">Loading data...</p>}
+                {report.sourceEntity === "ai_generated" && report.aiGeneratedData ? (
+                  <AiReportTable data={report.aiGeneratedData} />
+                ) : results[report.id] ? (
+                  <ReportChart chartType={report.chartType} rows={results[report.id]} />
+                ) : (
+                  <p className="text-xs text-ct-muted">Loading data...</p>
+                )}
               </div>
             ))}
           </div>
