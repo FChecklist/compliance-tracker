@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { getGovernanceHealthCounts, listStuckActivities } from "@/lib/activity-log-service"
 import { computeGovernanceHealthScore } from "@/lib/monitoring-engine"
+import { loadStatusSourceOfTruth } from "@/lib/status-source-of-truth"
 
 // tree4-unified/50-completion-plan area 6 "Monitoring", the one remaining
 // item: Reasoning Quality / Dependency Health / Instruction-Policy-Security
@@ -32,9 +33,18 @@ export async function GET() {
   }
   if (!orgId) return NextResponse.json({ error: "No organisation context" }, { status: 400 })
 
-  const [counts, stuckActivities] = await Promise.all([
+  const [counts, stuckActivities, sourceOfTruth] = await Promise.all([
     getGovernanceHealthCounts(orgId),
     listStuckActivities(orgId, STUCK_THRESHOLD_MS),
+    // PLATFORM_STRATEGY.md §31.4 Phase A item 3: the merged open+closed+
+    // audited-by view (pain points #3/#7/#8) -- read-only, always-current,
+    // parsed live from ai-os/MASTER-TRACKER.yaml + ai-os/boss/COMPLETED.yaml
+    // on every request (no caching, nothing persisted). Shares its
+    // counting/extraction logic with scripts/compute-status.ts via
+    // src/lib/status-source-of-truth.ts -- see that module's header for why
+    // this is explicitly NOT the same methodology as
+    // ai-os/STATUS-REPORT.md's periodic Tree1-vs-Tree3 reconciliation.
+    loadStatusSourceOfTruth(),
   ])
   const scores = computeGovernanceHealthScore(counts)
   return NextResponse.json({
@@ -48,5 +58,6 @@ export async function GET() {
       updatedAt: a.updatedAt,
     })),
     stuckThresholdHours: STUCK_THRESHOLD_MS / (60 * 60 * 1000),
+    sourceOfTruth,
   })
 }
