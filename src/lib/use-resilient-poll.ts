@@ -16,7 +16,13 @@ import { useEffect, useRef } from "react";
 // forever on a fixed cadence with no cap during a backend outage.
 export function useResilientPoll(fn: () => Promise<boolean>, baseMs: number, maxMs = 120_000) {
   const fnRef = useRef(fn);
-  fnRef.current = fn;
+  // Assigning a ref during render trips react-hooks/refs (React Compiler
+  // rule) -- this effect has no dependency array so it runs after every
+  // render/commit instead, keeping fnRef.current up to date without
+  // mutating it mid-render.
+  useEffect(() => {
+    fnRef.current = fn;
+  });
 
   useEffect(() => {
     let cancelled = false;
