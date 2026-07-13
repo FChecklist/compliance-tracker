@@ -63,6 +63,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          # GAP-UNIFIED-SOT-REMAINDER slice (d): optional, additive. If the
+          # DATABASE_URL secret isn't set at the repo/org level yet, this
+          # resolves to an empty string and persistAuditFinding() in
+          # validate-audit-verdict.ts treats that as "not configured" and
+          # skips the DB write without failing the job -- the actual
+          # verdict-validation gate below is entirely unaffected either way.
+          # Same "wired but needs an Owner-provisioned secret" posture as
+          # VERCEL_DEPLOYMENT_WEBHOOK_SECRET (ai-os/MASTER-TRACKER.yaml).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         # The comment fetch, the "pick the most recent AUDIT: line" match,
         # and the field-extraction regex all live in
         # scripts/validate-audit-verdict.ts itself now -- not split across
