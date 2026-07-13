@@ -83,6 +83,12 @@ import { registerAsset, getAssetBySource, updateAsset, type AssetType } from "./
 export { ServiceError }
 
 export type CapabilityImprovementProposal = typeof capabilityImprovementProposals.$inferSelect
+// The column itself is a plain `text` (matching this table's own established
+// style of documenting the enum in a comment rather than a real pg enum
+// type, e.g. taskCapabilities.status) -- this alias exists purely so
+// listImprovementProposals()/rejectImprovementProposal() below get real
+// literal-union type checking instead of `string`.
+export type ProposalStatus = "open" | "dispatched" | "resolved" | "rejected"
 
 // ─── Findings shape (the spec's exact list) ────────────────────────────────
 
@@ -601,6 +607,67 @@ export async function dispatchProposalToHigherAI(proposalId: string): Promise<Di
   ])
 
   return { dispatched: true, roleKey }
+}
+
+/**
+ * Priority 12 (OPEN-07 point 5): the read side of the customer-facing
+ * feedback surface -- until this wave, the only way to even see an open/
+ * dispatched capabilityImprovementProposals row was a raw DB query. Optional
+ * status filter for the "show me what's still open" / "what got rejected"
+ * views the UI needs; omitted returns every proposal, newest-updated first.
+ * Deliberately a plain findMany, not a relational `with` join --
+ * capabilityImprovementProposals has no defined drizzle relation to
+ * taskCapabilities in schema.ts (checked before writing this), so the route
+ * layer batches a second findCapabilityById() lookup per distinct
+ * capabilityId instead of asking this function to fabricate a join that
+ * doesn't exist in the schema.
+ */
+export async function listImprovementProposals(status?: ProposalStatus): Promise<CapabilityImprovementProposal[]> {
+  return db.query.capabilityImprovementProposals.findMany({
+    where: status ? eq(capabilityImprovementProposals.status, status) : undefined,
+    orderBy: (t, { desc }) => desc(t.updatedAt),
+  })
+}
+
+/**
+ * Priority 12 (OPEN-07 point 5): the reject half of the manual close-out the
+ * spec asked for -- 'rejected' has been a valid `status` value since this
+ * table's very first migration (0156's CHECK constraint) but had no real
+ * write path anywhere until now. Only an 'open' or 'dispatched' proposal can
+ * be rejected (mirrors dispatchProposalToHigherAI()'s own `status !== 'open'`
+ * guard) -- an already-'resolved'/'rejected' proposal is a closed record, not
+ * something to flip again.
+ *
+ * Deliberately does NOT bump taskCapabilities.version the way
+ * closeImprovementLoop() does -- nothing was actually built, so there is no
+ * new version to audit against. It DOES reset needsImprovement back to 'no'
+ * so the capability stops showing as "improvement in progress"/"needs
+ * improvement" in any UI reading that column, but leaves lastAuditedVersion
+ * untouched -- shouldAuditCapability()'s gate (lastAuditedVersion ===
+ * version) still holds, so a rejected finding is not re-proposed on the very
+ * next request. It only becomes eligible for a fresh Auditor pass once the
+ * capability's `version` itself changes for a real reason, same as any other
+ * already-audited capability -- a deliberate choice to avoid burning a repeat
+ * Auditor LLM call on a gap a human just said "no" to.
+ */
+export async function rejectImprovementProposal(proposalId: string, reason: string): Promise<void> {
+  const proposal = await db.query.capabilityImprovementProposals.findFirst({ where: eq(capabilityImprovementProposals.id, proposalId) })
+  if (!proposal) throw new ServiceError(`No improvement proposal found for ${proposalId}`, 404)
+  if (proposal.status !== "open" && proposal.status !== "dispatched") {
+    throw new ServiceError(`Proposal ${proposalId} is already '${proposal.status}' -- only an 'open' or 'dispatched' proposal can be rejected.`, 409)
+  }
+
+  const now = new Date()
+  await Promise.all([
+    db
+      .update(capabilityImprovementProposals)
+      .set({ status: "rejected", rejectionReason: reason, updatedAt: now })
+      .where(eq(capabilityImprovementProposals.id, proposal.id)),
+    db
+      .update(taskCapabilities)
+      .set({ needsImprovement: "no", updatedAt: now })
+      .where(eq(taskCapabilities.id, proposal.capabilityId)),
+  ])
 }
 
 /**

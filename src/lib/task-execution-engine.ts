@@ -29,6 +29,9 @@ import {
   findOrCreateCapability, findApprovedPackage, recordExecutionOutcome, recordPackageUsage,
   type TaskCapability, type InstructionPackage,
 } from "@/lib/services/capability-learning-service";
+// Priority 12 (OPEN-07 point 1): the Dynamic-Chain/Chat -> FDE side of the
+// cross-catalog bridge -- see capability-bridge-service.ts's own header.
+import { findFdeMatchesForCapability } from "@/lib/services/capability-bridge-service";
 import { resolvePackageVariablesOrThrow, MissingInformationError } from "@/lib/services/package-variable-resolver";
 // Priority 6 (UMR <-> Software Orchestrator integration): NOVEL-classified
 // tasks get one more check against the Universal Metadata Registry before
@@ -1789,7 +1792,28 @@ async function resolveTaskCapability(orgId: string, userId: string, taskId: stri
     // Deliberately orgId: null -- capability LEARNING is platform-wide by
     // design (capability-learning-service.ts's own header comment), not
     // scoped to the org that happened to trigger this particular task.
-    return await findOrCreateCapability({ modePill: chain.modePill, pathKeys: chain.pathKeys as string[], promptText, orgId: null });
+    const capability = await findOrCreateCapability({ modePill: chain.modePill, pathKeys: chain.pathKeys as string[], promptText, orgId: null });
+
+    // Priority 12 (OPEN-07 point 1, GAP-FDE-CHAIN-INTAKE-SPLIT): the
+    // Dynamic-Chain/Chat -> FDE side of the cross-catalog bridge (see
+    // capability-bridge-service.ts's own header for the full design). Never
+    // awaited into the return value and never blocking -- this is a
+    // logging-only signal so a strong FDE match is visible in server logs
+    // (surfacing it to the requester itself would need a return-shape
+    // change that ripples through every caller of resolveTaskCapability(),
+    // out of scope for a same-request-cycle learning signal). Real callers
+    // needing the match data directly (e.g. an admin UI) should call
+    // findFdeMatchesForCapability() themselves rather than parsing logs.
+    void findFdeMatchesForCapability(capability, orgId, 3)
+      .then((matches) => {
+        const strongMatch = matches.find((m) => m.score >= 0.9 && m.entityType !== "dynamic_chain")
+        if (strongMatch) {
+          console.warn(`[capability-bridge] Capability "${capability.capabilityKey}" has a strong existing VERI FDE match: ${strongMatch.entityType} ${strongMatch.entityId} (${Math.round(strongMatch.score * 100)}%) -- consider reusing it instead of treating this as a novel gap.`);
+        }
+      })
+      .catch(() => {}); // findFdeMatchesForCapability already degrades internally; this catch is belt-and-suspenders only.
+
+    return capability;
   } catch (err) {
     console.error("Priority 5: resolveTaskCapability failed, continuing without capability tracking:", err);
     return null;

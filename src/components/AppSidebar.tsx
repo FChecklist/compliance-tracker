@@ -62,6 +62,7 @@ import {
   Fingerprint,
   FlaskConical,
   Gem,
+  Wrench,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -350,6 +351,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           label: "Sales HQ",
           href: "/sales-hq",
           icon: Users,
+        },
+        {
+          label: "Capability Improvements",
+          href: "/capability-improvements",
+          icon: Wrench,
         },
         {
           label: "Checklists",
