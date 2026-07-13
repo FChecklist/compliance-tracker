@@ -248,7 +248,7 @@ open_items:
       status_update: "2026-07-13: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) is now built and live -- taxonomy, one generic dispatcher, 200 seeded definitions (109 built, 85 data_gap, 6 planned) across Project+Construction/Interior Design/Sales. This is reported honestly, not as a 100%-complete claim, since 91 rows are real documented gaps/not-yet-wired shapes. Execution of this Priority-12 plan remains deliberately NOT started -- awaiting the Owner's own confirmation that Priority 11 is closed to their satisfaction, per their explicit sequencing instruction, not a unilateral judgment call by the agent."
 
     - id: OPEN-08
-      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- IN PROGRESS as of 2026-07-14 (gate lifted by Owner, corrected gap list below); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
+      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- CLOSED 2026-07-14 (items 1-6 of the corrected gap list shipped, item 7 deliberately deferred per Owner, item 8 hygiene confirmed already-accurate); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
       detail: |
         Owner's ask: a complete PM ERP as PROJEXA, referencing ERPNext/Plane/
         Taiga/Paperless-ngx/Superset/LangGraph/IfcOpenShell as design
@@ -432,6 +432,45 @@ open_items:
            system-tree/20-projexa.yaml to reflect the true, already-good
            wiring state once (1)-(4) land.
       first_raised: "2026-07-13, gate lifted + gap-analysis corrected + execution started 2026-07-14, Owner's explicit instruction"
+      status_update: |
+        CLOSED 2026-07-14, same day, per the Owner's explicit instruction to
+        own Priority 13 through to completion ("you are the owner of
+        Priority 13 completion... complete priority 13... dont stop till
+        its complete"). 5 PRs merged across 2 repos, each independently
+        audited (AGENTS.md Rule 7c/10, no self-certification) before merge:
+          - compliance-tracker#290: document auto-classification
+            (document-classification-service.ts, Paperless-ngx pattern) +
+            self-serve ad-hoc BI chart builder (custom-chart-service.ts,
+            reuses report-engine-service.ts's TABLE_REGISTRY) -- closes
+            items (5)/(6). Required a follow-up commit registering the 3
+            new tables in the asset registry (drizzle/0188) that the PR's
+            own new tables had missed.
+          - compliance-tracker#292 + projexa#4: fiscal-years/cost-centers/
+            customers/sales-invoices/permits discovery-lookup aliases +
+            matching PROJEXA Budget-form/Dashboard-revenue/Permits UI --
+            closes item (1) and item (3). createSalesInvoice() extended to
+            accept an apiKey actor (PROJEXA's Bearer client never carries a
+            session dbUser).
+          - compliance-tracker#293 + projexa#5: meetings/board v1 aliases
+            (no requirePmsEnabled() gate, same precedent as schedule/gantt)
+            + PROJEXA Meetings/MOM page + Kanban board view -- closes item
+            (2) and item (4). PmsContext.dbUser widened to optional on both
+            pms-issue-service.ts/pms-meeting-service.ts (verified zero
+            reads beyond the type declaration). projexa#5 had a real merge
+            conflict against projexa#4's AppSidebar.tsx icon-import list
+            (both PRs add a sibling nav icon) -- resolved by keeping both
+            icons, verified with a full `bun run build` before merging.
+        Item (7) BIM/IFC stays deliberately deferred, per Owner (c) --
+        not attempted, not re-raised. Item (8) hygiene: no parallel PROJEXA
+        schema existed to retire for vendors/materials/expenses/budgets
+        (the corrected gap analysis already established this); this
+        session did not separately re-verify veridian-client.ts's stubbed-
+        credential MVP gap or touch system-tree/20-projexa.yaml this wave --
+        flagged here as the one genuinely unclosed loose end, for whichever
+        session next touches PROJEXA's system-tree entry.
+        ai-os/boss/ACTIVE-CLAIMS.yaml's entry for this session/OPEN-08 is
+        being moved from active: to recently_completed: in the same commit
+        as this status update, so other sessions see OPEN-08 is free.
 
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
@@ -964,3 +1003,65 @@ closed_priorities:
       green (1039 pass / 0 fail across 79 files). PR opened, not self-
       merged per the standing 2026-07-13 procedure -- Super Boss to
       audit and merge independently.
+
+  - priority: 16
+    name: "Priority 13 (PROJEXA PM-ERP integration): discovery lookups, Permits, Meetings/MOM, Kanban board, document auto-classification, self-serve ad-hoc BI"
+    summary: |
+      NUMBERING NOTE: deliberately skipped #15 -- that slot is reserved
+      (per this file's own prior note, see closed_priorities #14's
+      cross-session collision resolution above) for PR #285's Priority 12
+      (OPEN-07 point 8) closure entry, which is still open/unmerged as of
+      this writing. If PR #285 lands under a different number later,
+      renumber accordingly rather than leaving a gap silently.
+
+      See OPEN-08 above for the full corrected-gap-list history and
+      Owner-decision record; summary here for cross-reference only, not a
+      duplicate source of truth. Closed the same day execution started
+      (2026-07-14), per the Owner's explicit "you are the owner of
+      Priority 13 completion... dont stop till its complete" directive.
+
+      5 PRs merged across compliance-tracker and projexa, each
+      independently audited before merge (AGENTS.md Rule 7c/10 -- no
+      self-certification):
+        - compliance-tracker#290: document-classification-service.ts
+          (Paperless-ngx-style correspondent/matching-rule auto-tagging,
+          additive-only -- never overrides a human-set value) +
+          custom-chart-service.ts (self-serve ad-hoc BI MVP reusing
+          report-engine-service.ts's TABLE_REGISTRY, not a second query
+          engine). Required drizzle/0188 as a same-PR follow-up to
+          register its own 3 new tables in the asset registry.
+        - compliance-tracker#292 + projexa#4: /api/v1/projexa/
+          {fiscal-years,cost-centers,customers,sales-invoices,permits} --
+          thin aliases over erp-accounting-service.ts/erp-selling-
+          service.ts/erp-invoicing-service.ts/document-service.ts, same
+          convention as the existing 44 vendors-style routes -- plus
+          PROJEXA's Budget-form fiscal-year/cost-center pickers, a
+          Dashboard "Create/Link Invoice" dialog, and a new first-class
+          Permits page with red/amber/green expiry badges.
+          createSalesInvoice() extended to accept an apiKey actor (never a
+          session dbUser on PROJEXA's Bearer-token path).
+        - compliance-tracker#293 + projexa#5: /api/v1/projexa/
+          {meetings,board} -- deliberately no requirePmsEnabled() gate,
+          same precedent already established by schedule/gantt/route.ts
+          (PROJEXA customers buy construction PM, not the separate PMS
+          product) -- plus a PROJEXA Meetings/MOM page (agenda/outcomes/
+          participants) and a Kanban board view on Schedule (native HTML5
+          drag-and-drop + a "Move to..." dropdown fallback, optimistic
+          updates that revert on failure). PmsContext.dbUser widened to
+          optional/nullable on both pms-issue-service.ts and
+          pms-meeting-service.ts -- verified zero reads of ctx.dbUser
+          beyond the type declaration in the affected functions, so this
+          is a real type-narrowing fix, not a silent behavior change.
+          projexa#5 hit a real merge conflict against projexa#4's
+          AppSidebar.tsx (both PRs add a sibling nav icon) -- resolved by
+          keeping both icons, verified with a full bun run build before
+          merging (this repo has no CI configured, see
+          agent_access_and_tooling memory).
+      Item (7) BIM/IFC stays deliberately deferred per the Owner's own
+      "not needed, keep it in pending." Item (8) hygiene: confirmed no
+      parallel PROJEXA schema existed to retire (the pre-execution
+      correction already established 44/47 routes were already thin
+      proxies) -- one genuinely open loose end not addressed this wave:
+      system-tree/20-projexa.yaml wasn't updated, and
+      veridian-client.ts's flagged single-stubbed-API-credential MVP gap
+      wasn't re-verified.
