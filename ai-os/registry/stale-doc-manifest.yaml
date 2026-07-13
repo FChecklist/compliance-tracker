@@ -1,0 +1,133 @@
+# GAP-UNIFIED-SOT-REMAINDER (b) (ai-os/MASTER-TRACKER.yaml): the mechanical
+# half of the root-level stale-doc quarantine pass. Every file listed below
+# MUST carry the exact quarantine banner -- checked by
+# scripts/check-doc-quarantine-banner.mjs, same enforcement class as
+# check-asset-registry-coverage.mjs and check-guardrail-presence.mjs: a
+# reviewable-diff guarantee via PR/CI, not a runtime-unbypassable lock.
+#
+# The banner, verbatim, for .md files:
+#   > **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+# and for .yaml files (comment form, same two sentences split across two lines):
+#   # ARCHIVED / STALE — do not treat as current.
+#   # See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+#
+# Owner authorization (2026-07-13, quoted in the PR description that created
+# this manifest): "our system has become huge and complicated. without
+# proper metadata architecture, it cannot be managed" -- an explicit request
+# to find and fix gap-analysis-report duplication, not create yet another
+# competing tracker. PR #250 (merged same thread) is the precedent for
+# touching ai-os/ under this directive.
+#
+# Two groups:
+#   - moved: root-level dated one-off status/gap-analysis/study files that
+#     were undifferentiated and grep/glob-discoverable before a future
+#     session would find ai-os/MASTER-TRACKER.yaml -- git-mv'd into
+#     docs/archive/ during this pass (git history preserved via `git mv`,
+#     nothing deleted). Each was confirmed stale either by an explicit
+#     docs/master/INDEX.md 🔴/RESOLVED/superseded tag, or (for files that
+#     postdate INDEX.md's 2026-07-09 snapshot) by its own header stating a
+#     completed, point-in-time status. Two filename-pattern matches
+#     (Study_by_Claude.md, Study_by_zaizlm5.2.md) were deliberately NOT
+#     moved despite matching the "Study_by_*.md" pattern, because AGENTS.md
+#     Rule 7 and the Super Boss role description cite them by name as the
+#     historical source of a still-referenced process -- AGENTS.md is on
+#     CLAUDE.md's do-not-touch list, so its citations cannot be repaired if
+#     broken; leaving the files in place was the safer call.
+#   - already_archived: files under
+#     ai-os/tree4-unified/50-completion-plan/archive/ and
+#     ai-os/audit-tree/archive/ that were already correctly quarantined by
+#     directory placement (and are CI-ignored by
+#     check-metadata-index-coverage.mjs's IGNORE_NAMES=["archive", ...]) --
+#     only bannered in place here, not moved again.
+
+moved:
+  - file: docs/archive/AUDIT_wave144.md
+    reason: "Dated one-off z.ai audit report for Wave 144; superseded by ai-os/boss/COMPLETED.yaml's live wave record."
+  - file: docs/archive/AUDIT_wave145.md
+    reason: "Dated one-off audit report for Wave 145; superseded by ai-os/boss/COMPLETED.yaml's live wave record."
+  - file: docs/archive/AUDIT_wave146_claude_items.md
+    reason: "Dated one-off cross-audit report (Claude's items, Wave 146); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave146_zai_items.md
+    reason: "Dated one-off cross-audit report (z.ai's items, Wave 146); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave148_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 148); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave149_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 149); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave150_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 150); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave151_zai_items.md
+    reason: "Dated one-off cross-audit report (Wave 151, structured-response renderer v1); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave152_prediction_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 152, Prediction Engine slice); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave152b_zai_items.md
+    reason: "Dated one-off cross-audit report (Wave 152's Wisdom+Innovation Engines slice); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave153_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 153, Phase A strangler-fig migration); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave154_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 154, Response Engine); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave155_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 155); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave156_zai_items.md
+    reason: "Dated one-off cross-audit report (Wave 156); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_wave157_claude_items.md
+    reason: "Dated one-off cross-audit report (Wave 157); superseded by ai-os/boss/COMPLETED.yaml."
+  - file: docs/archive/AUDIT_phase3_claude_items.md
+    reason: "Dated one-off cross-audit report of Phase3_Design_by_Claude.md; both sides of that review are now historical."
+  - file: docs/archive/CrossReview_VERIDIAN_Study.md
+    reason: "Dated (2026-07-09) point-in-time reconciliation of the two independent constitution studies; the reconciled output was carried forward into Joint_Implementation_Plan.md, which itself is archived below."
+  - file: docs/archive/GapAnalysis_by_Claude.md
+    reason: "Dated (2026-07-09) pre-implementation gap-analysis snapshot; superseded by everything actually shipped since (see docs/archive/VERIDIAN_Status_Review_2026-07-09.md's own note that it consolidates this doc against shipped work)."
+  - file: docs/archive/GapAnalysis_by_zaizlm5.2.md
+    reason: "z.ai's dated (2026-07-09) pre-implementation gap-analysis snapshot; same staleness class as GapAnalysis_by_Claude.md."
+  - file: docs/archive/Phase3_Design_by_Claude.md
+    reason: "Dated (2026-07-09) design doc for 3 foundational-substrate decisions; the decisions it made are now implemented, live architecture, not a pending design."
+  - file: docs/archive/Phase4_Implementation_Plan.md
+    reason: "Self-describes as 'All 6 waves complete (2026-07-09)' in its own title; a closed implementation plan, not a current backlog."
+  - file: docs/archive/Joint_Implementation_Plan.md
+    reason: "Dated (2026-07-09) 4-phase implementation plan for the VERIDIAN.docx constitution study; all 4 phases it tracked are resolved per docs/archive/VERIDIAN_Status_Review_2026-07-09.md."
+  - file: docs/archive/VERIDIAN_Status_Review_2026-07-09.md
+    reason: "Point-in-time status snapshot explicitly dated in its own filename; superseded by ai-os/MASTER-TRACKER.yaml as the live status source of truth."
+  - file: docs/archive/TaskDocx_Evaluation.md
+    reason: "Dated (2026-07-09) one-off evaluation of a Boss-supplied Task.docx; its verdicts are historical requirements-source-of-truth, cited by docs/archive/AUDIT_wave154_claude_items.md, not a live doc."
+  - file: docs/archive/review_of_vedian.md
+    reason: "docs/master/INDEX.md already tagged this 🔴 STALE/ARCHIVED, 'largely superseded' -- was sitting at root undifferentiated despite the tag."
+  - file: docs/archive/COMPARISON_CSV_GAP_ANALYSIS.md
+    reason: "docs/master/INDEX.md already tagged this 🔴 RESOLVED (both gaps closed, Waves 70-71) -- was sitting at root undifferentiated despite the tag."
+  - file: docs/archive/COMPARISON_CSV_2_GAP_ANALYSIS.md
+    reason: "docs/master/INDEX.md already tagged this 🔴 RESOLVED (all 6 waves 86-91 done) -- was sitting at root undifferentiated despite the tag."
+  - file: docs/archive/analysis.md
+    reason: "docs/master/INDEX.md's own 'Known open documentation debt' #2 flagged this very-early doc's stale, security-relevant RLS claim and asked for 'a correction note or archival' -- this move + banner is that fix."
+
+already_archived:
+  - file: ai-os/tree4-unified/50-completion-plan/archive/00-INDEX.md
+    reason: "Index page for the retired 100%-completion-plan tracker tree; the tree itself is superseded by ai-os/MASTER-TRACKER.yaml."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/01-phase0-owner-decisions.yaml
+    reason: "Phase 0 owner-decisions tracker from the retired completion-plan tree; decisions it recorded are already reflected in live config, not this file."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/02-plan-items.yaml
+    reason: "Plan-items tracker from the retired completion-plan tree; superseded by ai-os/MASTER-TRACKER.yaml's gap list."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/03-coverage-matrix.yaml
+    reason: "Coverage-matrix tracker from the retired completion-plan tree; superseded by the live coverage-check scripts (check-asset-registry-coverage.mjs, check-metadata-index-coverage.mjs)."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/04-implementation-log.yaml
+    reason: "Implementation log from the retired completion-plan tree; superseded by ai-os/boss/COMPLETED.yaml as the live per-task record."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/05-eighteen-areas-tracker.yaml
+    reason: "18-areas tracker from the retired completion-plan tree; superseded by ai-os/MASTER-TRACKER.yaml."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/06-associate-dispatch-log.yaml
+    reason: "Associate-dispatch log from the retired completion-plan tree; superseded by the live AI Dev Team dispatch record (src/lib/ai-team/roster.ts + ai-os/boss/COMPLETED.yaml)."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/07-priority2-tracker.yaml
+    reason: "Priority 2 tracker from the retired completion-plan tree; that priority's work is closed and recorded in ai-os/boss/COMPLETED.yaml."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/08-priority3-umr-tracker.yaml
+    reason: "Priority 3 UMR tracker from the retired completion-plan tree; superseded by ai-os/registry/asset-registry-coverage.yaml, the live UMR coverage source of truth."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/09-priority4-umr-universal-tracker.yaml
+    reason: "Priority 4 UMR-universal tracker from the retired completion-plan tree; superseded by ai-os/registry/asset-registry-coverage.yaml."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/10-priority5-software-orchestrator-tracker.yaml
+    reason: "Priority 5 tracker from the retired completion-plan tree; that priority's work is closed and recorded in ai-os/boss/COMPLETED.yaml."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/11-priority6-one-brain-integration-tracker.yaml
+    reason: "Priority 6 tracker from the retired completion-plan tree; that priority's work is closed and recorded in ai-os/boss/COMPLETED.yaml."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/12-priority6-governance-foundation-drift.md
+    reason: "Priority 6 governance-drift finding from the retired completion-plan tree; the drift it documented has since been closed (see AGENTS.md's own rule history)."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/13-priority7-remaining-gaps-tracker.yaml
+    reason: "Priority 7 remaining-gaps tracker from the retired completion-plan tree; superseded by ai-os/MASTER-TRACKER.yaml's open_gaps section."
+  - file: ai-os/tree4-unified/50-completion-plan/archive/README.md
+    reason: "README for the retired 100%-completion-plan tracker tree; the tree it introduces is superseded by ai-os/MASTER-TRACKER.yaml."
+  - file: ai-os/audit-tree/archive/GAPS.yaml
+    reason: "Retired gaps tracker from the audit-tree; superseded by ai-os/MASTER-TRACKER.yaml's open_gaps section."

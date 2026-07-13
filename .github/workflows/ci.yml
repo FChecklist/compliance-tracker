@@ -98,6 +98,20 @@ jobs:
       # script's own header for the honest limitation this does and
       # doesn't guarantee.
       - run: node scripts/check-metadata-index-coverage.mjs
+  doc-quarantine-banner:
+    name: Doc Quarantine Banner Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # GAP-UNIFIED-SOT-REMAINDER (b) (ai-os/MASTER-TRACKER.yaml): same
+      # enforcement class as the two coverage checks above, applied to the
+      # root-level stale-doc quarantine pass -- fails the build if any file
+      # listed in ai-os/registry/stale-doc-manifest.yaml is missing its
+      # exact "ARCHIVED / STALE" banner. See that script's own header for
+      # the honest limitation this does and doesn't guarantee.
+      - run: node scripts/check-doc-quarantine-banner.mjs
   e2e:
     name: E2E Tests
     needs: [build]

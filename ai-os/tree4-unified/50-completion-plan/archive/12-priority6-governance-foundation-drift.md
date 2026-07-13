@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Priority 6 item 2 — Constitutional foundation drift: veda-advisors + projexa
 
 **Status: research/tracking artifact only — no code in this repo changed for this item.** This document is the deliverable itself, per the Priority 6 scope note: "produce a concrete, actionable delta document... so that a future dispatch (which WILL have access to those [sibling] repos) has a precise, no-research-needed task list rather than a vague 'keep in sync' note."

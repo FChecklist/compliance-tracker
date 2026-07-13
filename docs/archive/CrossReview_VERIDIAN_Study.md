@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Cross-Review — Study_by_Claude vs Study_by_zaizlm5.2
 
 **Author:** Claude Code Sonnet Desktop | **Date:** 2026-07-09

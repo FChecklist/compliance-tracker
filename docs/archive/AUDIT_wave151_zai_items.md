@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # AUDIT_wave151_zai_items.md
 
 **Auditor:** Claude Code Sonnet Desktop | **Date:** 2026-07-09

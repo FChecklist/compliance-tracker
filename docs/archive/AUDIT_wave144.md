@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # AUDIT_wave144.md
 
 **Auditor:** Security & Code Reviewer (VERIDIAN AI Workforce)

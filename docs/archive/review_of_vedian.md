@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # VERIDIAN AI — Veridian AI: End-to-End CEO Review
 
 > **Author:** DEVABOSS (Claude Code acting as CEO, VERIDIAN AI)

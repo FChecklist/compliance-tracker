@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # GapAnalysis_by_Claude — VERIDIAN AI OS, Consolidated & Prioritized
 
 **Author:** Claude Code Sonnet Desktop (local machine) | **Date:** 2026-07-09

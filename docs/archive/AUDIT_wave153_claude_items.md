@@ -1,3 +1,5 @@
+> **ARCHIVED / STALE — do not treat as current.** See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
 # Audit — Wave 153 (Claude): Brain architecture groundwork
 
 **Branch:** `wave153/brain-groundwork`
