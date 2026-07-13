@@ -24,6 +24,7 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
 import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
+import { listReportCatalogByDomain, type ReportDomain } from "./report-catalog-service"
 
 // The 6 real compliance_status enum values -- shown as clickable targets,
 // not a free-text field, so "update status" dispatch needs zero typing.
@@ -911,7 +912,7 @@ const MODULE_SCOPE_TOP_LEVEL_KEYS: Record<string, string[]> = {
   "tds-returns": ["calculators"],
   crm: ["customer", "vendor"],
   erp: ["customer", "vendor", "product"],
-  reports: ["reports"],
+  reports: ["reports", "reports_analysis_catalog"],
 }
 
 // Wave 173 (chain-integration for reports, "a new capability-tree leaf kind
@@ -942,6 +943,56 @@ async function buildReportLinkNodes(db: TenantDb, orgId: string): Promise<Capabi
   return [{ key: "reports", label: "Reports", leaf: false, children }]
 }
 
+const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
+  compliance: "Compliance",
+  ERP: "ERP / Finance",
+  construction: "Construction (PROJEXA)",
+  "AI-ops": "AI Ops",
+  custom: "Custom Reports",
+}
+
+// New "Reports & Analysis" branch, built from the unified REPORT_CATALOG
+// (report-catalog-service.ts) rather than a hand-authored taxonomy --
+// same "grows automatically as more gets registered" spirit as every other
+// branch in this file. Deliberately a SEPARATE top-level node from
+// buildReportLinkNodes' existing "reports" node above (which is the
+// custom/saved-report deep-linking leaf set from Wave 173) -- this one
+// catalogs every report type across all 4 report-producing services
+// (custom, ERP financial, construction/PROJEXA, AI-ops cadence reports),
+// not just custom/saved reports.
+//
+// Only entries with `directlyNavigable: true` get a reportUrl leaf --
+// VeriComposer.tsx's dispatchInstruction() does a plain
+// router.push(leaf.reportUrl) with no way to attach query params or an
+// Authorization header, so wiring reportUrl onto a cron-secret-gated
+// internal endpoint (the 4 AI-ops reports) or a param-requiring API route
+// with no dedicated UI page (the 17 construction reports) would silently
+// send a user to a 401 or a 400 error response instead of a real report.
+// Those entries still appear as real leaves (so every catalog entry is
+// represented in the tree, per the catalog's own completeness), they just
+// have no reportUrl/codeReference/engineKey set -- the same "falls through
+// to the AI-planning path" behavior every other non-deterministic leaf in
+// this file already has (e.g. buildBranchNodes' modsInDomain fallback).
+function buildReportCatalogNodes(): CapabilityNode[] {
+  const byDomain = listReportCatalogByDomain()
+  const domainNodes: CapabilityNode[] = (Object.keys(byDomain) as ReportDomain[])
+    .filter((domain) => byDomain[domain].length > 0)
+    .map((domain) => ({
+      key: `report_catalog_domain::${domain}`,
+      label: REPORT_DOMAIN_LABELS[domain],
+      leaf: false,
+      children: byDomain[domain].map((entry): CapabilityNode => ({
+        key: `report_catalog::${entry.id}`,
+        label: entry.name,
+        leaf: true,
+        ...(entry.directlyNavigable ? { reportUrl: entry.route } : {}),
+      })),
+    }))
+
+  if (domainNodes.length === 0) return []
+  return [{ key: "reports_analysis_catalog", label: "Reports & Analysis", leaf: false, children: domainNodes }]
+}
+
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
   const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
@@ -952,7 +1003,8 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
     const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes]
+    const reportCatalogNodes = buildReportCatalogNodes()
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
