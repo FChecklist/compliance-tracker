@@ -52,38 +52,6 @@ active:
     claim: "GAP-DCMD -- investigating whether a genuine 3rd entity_relationships graph edge type exists to wire (candidates: dynamic_chain<->conversation, dynamic_chain<->dynamic_chain parent/child). Scope: src/lib/db/schema.ts (entityRelationships area only) + task-execution-engine.ts + possibly a new small migration. Explicitly NOT touching capability-learning-service.ts or anything Priority-12/13-adjacent (see below) even if investigation surfaces a tempting edge there -- deferred to whichever session owns that area."
     worktree: ".claude/worktrees/agent-a7bff280ef03a1539"
 
-  - session_label: "claude-code (this session, CLI) -- Priority 13 (PROJEXA PM-ERP), OPEN-08 -- OWNER-DIRECTED SOLE OWNER, driving to full completion (2026-07-14)"
-    claimed_at: "2026-07-14T (see veridian_priority13_pm_erp_gap_analysis.md memory file for exact timeline; status updated same day per direct Owner instruction: 'you are the owner of Priority 13 completion... complete Priority 13... dont stop till its complete')"
-    claim: |
-      OPEN-08 only -- NOT OPEN-07/Priority 12 (that's a different session,
-      already coordinated via direct message). The Owner has explicitly
-      named this session sole owner of Priority 13 through to full
-      completion -- OTHER SESSIONS SHOULD NOT PICK UP ANY OPEN-08 PIECE,
-      including any of the 4 sub-items below, even if they appear idle.
-      Current status (2026-07-14, updated live as each piece lands):
-        1. Docs auto-classification + self-serve ad-hoc BI (compliance-tracker,
-           branch feat/priority13-docs-classification-adhoc-bi) --
-           PR #290 OPEN (https://github.com/FChecklist/compliance-tracker/pull/290),
-           awaiting this session's own audit + merge.
-        2. ERP discovery lookups + Permits (compliance-tracker, branch
-           priority13-erp-lookups) -- backend PR being finished/opened now;
-           PROJEXA-side proxy already open as projexa PR #4 (MERGEABLE,
-           blocked only on this backend PR landing first).
-        3. Meetings/board API (compliance-tracker, branch
-           priority13-meetings-kanban) -- backend PR being finished/opened now.
-        4. Meetings/Kanban UI (projexa, branch
-           priority13-meetings-kanban-projexa) -- frontend PR being
-           finished/opened now, depends on (3).
-      Merge order once all 4 PRs are open and green: (1) can merge any time
-      (self-contained); (2) compliance-tracker backend merges before
-      projexa PR #4; (3) compliance-tracker backend merges before (4).
-      Claiming Drizzle migration numbers 0186+ for all compliance-tracker
-      pieces (0186-0188 already used by item 1 above). NOT touching:
-      capability-audit-service.ts/capability-learning-service.ts/
-      capability-tree-service.ts, orgProductBranchEnablements (Priority
-      12's area), report-taxonomy.ts's core schema (Reports & Analysis
-      session's area).
-
   - session_label: "claude-code (this session, CLI) -- Priority 12 (OPEN-07, Universal Builder), OWNER-DIRECTED SOLE OWNER, driving to full completion (2026-07-14)"
     claimed_at: "2026-07-14T01:55:55+05:30"
     claim: |
@@ -130,6 +98,23 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (this session, CLI) -- Priority 13 (PROJEXA PM-ERP), OPEN-08"
+    completed_at: "2026-07-14T (same day as claim; see veridian_priority13_pm_erp_gap_analysis.md memory + MASTER-TRACKER.yaml OPEN-08 status_update / closed_priorities #16 for full detail)"
+    claim: |
+      Owner-directed sole ownership through to completion ("you are the
+      owner of Priority 13 completion... complete priority 13... dont
+      stop till its complete") -- CLOSED same day. 5 PRs merged:
+      compliance-tracker#290 (doc auto-classification + self-serve ad-hoc
+      BI), compliance-tracker#292 + projexa#4 (ERP discovery lookups +
+      Permits), compliance-tracker#293 + projexa#5 (Meetings/MOM + Kanban
+      board -- required resolving a real AppSidebar.tsx merge conflict
+      against #4). Item (7) BIM/IFC deliberately deferred per Owner. This
+      session has no further active OPEN-08 claims -- the area is free
+      for any session that wants item (8)'s remaining loose end
+      (system-tree/20-projexa.yaml update + re-verifying
+      veridian-client.ts's stubbed-credential MVP gap) or a genuinely new
+      Priority 13 follow-on.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-13T23:38:00+05:30"
     claim: "GAP-D15-REMAINING-TRIGGERS (Deployment webhook), GAP-D13-ASSUMPTION-VALIDATION (chat prompt scoping), GAP-UMR-TABLE-COVERAGE 3rd batch (22 tables) -- PRs #241/#242/#243/#244/#280 all merged."
