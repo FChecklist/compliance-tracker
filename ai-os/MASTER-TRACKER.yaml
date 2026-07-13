@@ -310,14 +310,6 @@ open_items:
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
-    - id: GAP-D13-ASSUMPTION-VALIDATION
-      name: "D13.B1.S2: AI must check with the user before proceeding on an unstated assumption"
-      old_ids: ["D13.B1.S2 (Tree 1)"]
-      detail: "Confirmed real, deliberately not built. Considered and rejected a phrase-detection proxy on reply text (too blunt, or too weak to actually close the requirement). The correct fix needs a live prompt_templates DB CONTENT change (a production data mutation, distinct from a schema migration) -- outside a headless subagent's authorization."
-      size: S
-      recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
-      first_raised: "2026-07-12 full status reconciliation pass"
-
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
@@ -472,8 +464,40 @@ closed_priorities:
       GAP-D13-ASSUMPTION-VALIDATION (owner-blocked on prompt-content sign-off).
 
   - priority: 11
-    name: "GAP-D15-REMAINING-TRIGGERS closed: the last of D15.B2.S1's 10 named audit-event triggers, Deployment"
+    name: "GAP-D15-REMAINING-TRIGGERS closed (Deployment trigger) + GAP-D13-ASSUMPTION-VALIDATION closed (chat assumption-check prompt content)"
     summary: |
+      - PR #241: GAP-D13-ASSUMPTION-VALIDATION closed -- U-D13.B1.S2
+        ("before AI makes any input/output/process assumption, it must
+        validate with the user via chat, scoped to the current selection").
+        Owner gave standing full-autonomy authorization for prompt-content
+        decisions on this initiative (previously the sole cited blocker),
+        so this was made directly rather than deferred again: a new
+        production-labeled prompt_versions row for chat.ai_thread_system
+        (drizzle/0172, applied via the real versioning mechanism -- label
+        flip + new row, never a live content mutation of an existing row).
+        Wave 155 (migration 0132, already live) had added a general "ask
+        instead of guessing" clause; this is an additive refinement, not a
+        rewrite -- keeps 100% of that content and appends one sentence
+        requiring the assumption to be stated explicitly and confirmed
+        before proceeding, scoped to whatever module/chain/workflow
+        selection is active in the conversation, closing the gap between
+        the earlier generic clause and U-D13.B1.S2's specific bar.
+        Investigated whether structural/UX support (a "pending
+        confirmation" reply state) was needed first: chat-service.ts's
+        generateAiReply() has no tool-calling capability -- a reply is
+        only ever stored as a chat message, never followed by an
+        autonomous action -- so VERI Chat's existing turn-based flow
+        already provides the pause with zero new plumbing.
+        conversations.currentState/previousState (Wave 144) remain
+        available, unwired, for a future pass if an autonomous-action
+        surface (e.g. task_execution.planning_system) ever needs real
+        pause/resume -- deliberately not built speculatively here. Applied
+        live via Supabase MCP (project pcrjmlpuqsbocqfwoxod) and verified
+        with a direct query: version 4 is the sole `production`-labeled,
+        active row, version 3 correctly demoted to label NULL. tsc/eslint/
+        bun test (921 pass) all clean; CI green (only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed, same as on
+        already-merged PR #240).
       - PR #243: GAP-D15-REMAINING-TRIGGERS fully closed -- Deployment, the
         one event Priority 10 (PR #238) left genuinely open ("no in-app
         deployment-event table or webhook handler exists beyond the
