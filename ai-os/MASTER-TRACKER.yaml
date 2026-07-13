@@ -106,6 +106,98 @@ open_items:
       detail: "Owner asked for report/analysis templates to be 'shared across all systems in VERIDIAN, but data init org/user specific.' Built: savedReports.visibility='shared' shares within an org (existing mechanism, unchanged); report-catalog-service.ts's REPORT_CATALOG is a static, code-level registry so it's inherently identical across every deployment of this codebase (PROJEXA/veda-advisors if they ever run this same repo's code). What's still missing: no live mechanism for one org's saved custom-report CONFIGURATION (not its data) to be published/copied into another org, or into a genuinely separate product/repo, without a human manually re-creating it. No cross-tenant sharing table/API exists anywhere else in this codebase to reuse -- building one speculatively was out of scope for Wave 173."
       recommendation: "Low priority unless a concrete cross-org use case shows up -- the static-catalog approach already satisfies the common case (same report TYPES available everywhere) without needing a live cross-tenant data-sharing mechanism, which would be a real new access-control surface, not a small addition."
 
+    - id: OPEN-07
+      name: "Priority 12 (Universal Builder: Task/Functionality/Module/Product/Project/Report/Analysis Builder) -- plan of action prepared 2026-07-13, execution deliberately deferred until Priority 11 (Reports & Analysis Engine) is fully closed, per Owner instruction"
+      detail: |
+        Owner's ask: one shared workflow (intake -> auditor-model availability
+        check -> if found, give the URL -> if not, escalate to Higher AI to
+        build it -> customer feedback -> once approved, ensure it becomes
+        software-driven for next time -> surface in Dynamic Mode Pill/Chain)
+        for every builder type, gated by the org's module/package
+        (GRC/Sales/HR/Accounting/PM/etc.), with a real escalation matrix and
+        VERI AI as the single user-facing interface regardless of what ran
+        behind it. Owner's framing: "THIS IS ALREADY BUILD IN VERIDIAN AI OS,
+        check it and make it work."
+
+        Verified against real code (2 research passes, not just this
+        tracker's own summary) -- Priority 5 "Software Orchestrator" +
+        Priority 6 "UMR<->Software Orchestrator integration" (both closed
+        priorities, see closed_priorities below) already implement most of
+        the requested shape, genuinely and non-trivially:
+        task_capabilities/instruction_packages/capability_improvement_proposals
+        schema, software-coverage-service.ts's deterministic FULL_SOFTWARE/
+        PACKAGE_AVAILABLE/NOVEL classifier, capability-learning-service.ts's
+        findOrCreateCapability()/recordExecutionOutcome() (the rolling
+        fullSoftwareCount/packageAvailableCount/novelCount counters
+        genuinely update live), capability-audit-service.ts's Auditor ->
+        Higher-AI escalation code.
+
+        Real gaps found, mapped to the Owner's numbering (12 points):
+        (1) intake is NOT unified -- FDE (capability-registry-service.ts,
+        embedding search -> proposeWorkerAgent) and Dynamic-Chain/Chat
+        (capability-learning-service.ts, task_capabilities) are two
+        disconnected catalogs. (2) the Auditor-verdict model is GLM-5.2, not
+        DeepSeek as the Owner specified -- DeepSeek (deepseek-v4-pro) isn't
+        wired into this path. (3)+(7) task_capabilities never surfaces as a
+        Chain Selector pill/URL -- capability-tree-service.ts has zero
+        reference to it. (4) worse than "PAT-blocked" (OPEN-01's existing
+        note): runCapabilityAudit() has ZERO real callers anywhere in the
+        deployed app -- no cron, no API route -- so nothing ever triggers an
+        audit today regardless of the PAT. (5) zero customer-facing UI/API
+        for capability_improvement_proposals -- closeImprovementLoop() is
+        manual/human-only. (6) task_capabilities.status ('ai_only'->
+        'full_software') is a dead column, never read or written anywhere
+        (only the rolling counters are real). (8) REAL, LIVE GAP independent
+        of Priority 12 itself: orgProductBranchEnablements +
+        requireBranchEnabled() is real and enforced, but ONLY for
+        pms/facilities_management/the_firm/veri_reward/veri_chat_v2 --
+        **ERP (Accounting/Finance/Payroll) and Sales have ZERO enablement
+        enforcement anywhere today** (grepped, zero call sites) -- any org
+        can hit payroll/sales APIs regardless of package right now, the
+        Owner's own example scenario, already live. The Software Orchestrator
+        pipeline also ignores module scoping entirely
+        (task_capabilities.orgId is nullable by design, platform-wide). The
+        just-built Priority-11 Reports & Analysis Engine has the same gap
+        (confirmed directly, not via research agent -- zero branch-check
+        anywhere in report-engine-service.ts/report-catalog-service.ts).
+        (10) no single "escalation matrix" artifact -- 5 real, independently
+        working mechanisms (escalation-ladder.ts's task-failure authority
+        ladder, floor-tier-escalation.ts's per-chat-call model escalation,
+        model-tier-eligibility.ts's static dispatch-time trust gate, the
+        (unreachable) Auditor->Higher-AI loop, dispatch-completion-monitor's
+        fail-closed pattern) with no unifying reference, though a source doc
+        (Consutitution.docx's "AI Escalation Matrix") describes the intent.
+        (11)+(12) ALREADY SATISFIED, confirmed working -- chat-service.ts's
+        generateAiReply() always presents one unified "VERI" voice; the
+        `messages` table has no model/provider/tier column; that metadata
+        only reaches an internal orchestra_executions table never surfaced
+        in any chat UI component (grepped, zero hits) -- no further work
+        needed for these 2 points.
+      recommendation: |
+        Do NOT rebuild task_capabilities/capability-learning-service.ts/
+        capability-audit-service.ts -- reuse and complete them, per the
+        Owner's own "don't duplicate, don't recreate" instruction. Proposed
+        shape when execution starts: a small foundation pass (wire a real
+        cron trigger for runCapabilityAudit(), add branchKey scoping +
+        requireBranchEnabled()-style gating into the capability pipeline AND
+        the Reports & Analysis Engine, surface task_capabilities in
+        capability-tree-service.ts) merged first, then 3 parallel sub-agents
+        (unify FDE+Dynamic-Chain intake + build the customer feedback UI;
+        wire real ERP/Sales enablement enforcement with a safe backfill path
+        for existing orgs, not a hard cutover; make task_capabilities.status
+        actually transition + write the single escalation-matrix reference
+        doc). 3 things need an explicit Owner decision before/during
+        execution, cannot be an agent's unilateral call: (a) GITHUB_DISPATCH_PAT
+        -- create it, or approve switching the escalation dispatch to the
+        already-live /api/ai/team/dispatch path instead (needs no new
+        credential); (b) DeepSeek vs GLM-5.2 for the Auditor role (GLM is
+        already judgment-tier trusted per model-tier-eligibility.ts,
+        DeepSeek currently is not); (c) ERP/Sales enforcement rollout needs
+        a one-time backfill of orgProductBranchEnablements rows for orgs
+        currently using those modules before the gate goes live, not an
+        instant hard cutover that would lock existing users out.
+      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
