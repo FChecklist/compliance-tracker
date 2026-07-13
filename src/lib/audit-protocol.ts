@@ -21,15 +21,16 @@
 // call site exists, the same posture qa-precompletion-gate.ts and
 // closureReviewCheck already use for their own submissions.
 //
-// Honest scope note, not glossed over: like guardrail-engine.ts's own
-// empty-registry precedent (FOLLOWUP-1) and handover-protocol.ts before
-// this session wired it into /api/ai/team/dispatch, this module has NO
-// live caller yet -- no dedicated "submit audit finding" endpoint exists
-// in this codebase today. What ships is real, tested, additive
-// infrastructure (registered as a genuine guardrail leaf, not just a
-// comment), not a claim that every audit dispatch is enforced against it
-// end-to-end. Wiring a real call site is future work once the Owner wants
-// audit roles to submit structured findings instead of free text.
+// Wired to its first real call site 2026-07-13 (Boss directive,
+// "agent-to-agent communication standard" -- precise structured reporting,
+// not loose prose): .github/workflows/mandatory-audit-check.yml's PR
+// audit-verdict comment now requires all 8 fields below, validated by
+// scripts/validate-audit-verdict.ts calling validateAuditProtocolFields()
+// directly (not a reimplementation). This does not mean every audit-role
+// dispatch anywhere in the codebase is enforced against it end-to-end --
+// only the one real call site named above is wired; a future in-product
+// "submit audit finding" endpoint for AI Dev Team audit-role dispatches is
+// still open work, same honest-scope discipline as before.
 
 import { detectAmbiguousLanguage, type TightTaskValidation } from "./task-tightening"
 
