@@ -8851,3 +8851,41 @@ export const monitorTaskState = complianceSchemaDB.table('monitor_task_state', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// GAP-UNIFIED-SOT-REMAINDER Wave-2 slice: PR #257 shipped a real
+// dispatch-completion-monitor.ts but named two remaining gaps in its own
+// header -- no cron wiring, and no persisted digest. This table closes the
+// second gap: one row per cron-triggered sweep (see
+// /api/internal/dispatch-completion-monitor/run), aggregating
+// DispatchCompletionSweepResult's own field names (checked/ok/escalated/
+// invalidReports, dispatch-completion-monitor.ts) across every org that
+// sweep touched, plus a short human-readable summary.
+//
+// Deliberately NOT loop_executions above, even though the shape rhymes: that
+// table FKs to loop_id -> loop_definitions, a different registry (the 15
+// canonical self-improvement loops) than monitor_agents (PR #251's Narrow
+// Monitor registry) that this monitor is actually seeded in -- reusing
+// loop_executions would misrepresent what ran. Also NOT monitor_task_state
+// above: that table is per-(org,task) escalation OWNERSHIP state, not a
+// per-RUN execution record -- a sweep that finds zero stuck activities still
+// deserves a monitor_execution_log row (proof the cron fired), but creates
+// no monitor_task_state rows at all.
+//
+// PLATFORM-WIDE by design (no org_id column), same posture as monitor_agents
+// above: one cron invocation sweeps every org in a single run, so the
+// natural grain of "one row per run" is a platform-level record, not
+// per-tenant data. Per-org/per-activity detail already exists separately --
+// each individual escalation or invalid-report is its own auditLogs row via
+// logActivity() inside dispatch-completion-monitor.ts.
+export const monitorExecutionLog = complianceSchemaDB.table('monitor_execution_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  // monitor_agents.name (e.g. 'dispatch_completion_monitor') -- informational
+  // free text, not a DB FK, same posture as monitor_task_state.monitorName.
+  monitorName: text('monitor_name').notNull(),
+  ranAt: timestamp('ran_at').notNull().defaultNow(),
+  checked: integer('checked').notNull(),
+  ok: integer('ok').notNull(),
+  escalated: integer('escalated').notNull(),
+  invalidReports: integer('invalid_reports').notNull(),
+  summaryText: text('summary_text'),
+})
