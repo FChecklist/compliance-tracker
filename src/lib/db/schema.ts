@@ -308,6 +308,78 @@ export const documents = complianceSchemaDB.table('documents', {
   // same reasoning already applied to `category` itself being free text
   // instead of an enum. Follows the extractedData precedent directly above.
   metadata: jsonb('metadata'),
+  // Priority 13 (Document Correspondent/Type Auto-Classification,
+  // Paperless-ngx pattern): `category` above already covers Paperless-ngx's
+  // "DocumentType" concept (nullable free text, advisory) -- this wave does
+  // NOT fork that into a parallel entity table. `correspondentId` is the
+  // genuinely missing half: WHO sent/issued the document (a vendor, a
+  // government department, a bank), which nothing in this schema modeled
+  // before. Nullable FK to document_correspondents (below), ON DELETE SET
+  // NULL in the migration -- deleting a correspondent must never delete or
+  // orphan-break the documents it was linked to.
+  correspondentId: text('correspondent_id'),
+  // string[] -- unlike category (single value), a document can carry
+  // multiple tags. Auto-classification (document-classification-service.ts)
+  // only ever UNIONS into this array, never removes a tag a human added.
+  tags: jsonb('tags').notNull().default([]),
+  // True only when document-classification-service.ts's rule engine set
+  // category/correspondentId on this row (never when a human explicitly
+  // set them at upload/edit time) -- the honesty signal a UI needs to show
+  // "auto-tagged, please confirm" instead of silently presenting a rule's
+  // guess as if a person had typed it.
+  autoClassified: boolean('auto_classified').notNull().default(false),
+})
+
+// Priority 13 (Document Correspondent/Type Auto-Classification): a real,
+// user-managed correspondent register -- "Acme Bank", "GST Department",
+// "XYZ Vendor Pvt Ltd" -- that document_matching_rules (below) can target,
+// and documents.correspondentId (above) can point at. Deliberately NOT
+// forking documents.category into a parallel "document type" entity table
+// (see that column's own comment) -- correspondent is the one Paperless-ngx
+// concept this codebase genuinely had no equivalent for.
+export const documentCorrespondents = complianceSchemaDB.table('document_correspondents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// 'any_word'/'all_words'/'exact' are plain (case-insensitive) substring
+// matches against a whitespace-split pattern; 'regex' runs the pattern as a
+// real (case-insensitive) JS RegExp -- the exact 4-algorithm vocabulary
+// Paperless-ngx's own matching rules use, kept deliberately small and
+// deterministic (no AI call) for this MVP.
+export const documentMatchingRuleTypeEnum = complianceSchemaDB.enum('document_matching_rule_type', ['any_word', 'all_words', 'exact', 'regex'])
+// 'both' (the default) checks the filename first, then the extracted text if
+// the filename alone didn't match -- see document-classification-service.ts's
+// evaluateRule(). 'content' rules only ever match after Document AI vision
+// extraction has actually populated extractedData (image uploads only, see
+// document-extraction-service.ts) -- until then they simply never match,
+// which is a real, disclosed limitation, not a silent failure.
+export const documentMatchingRuleFieldEnum = complianceSchemaDB.enum('document_matching_rule_field', ['filename', 'content', 'both'])
+
+// Org-scoped matching rules, evaluated in `priority` order (lowest first,
+// first match wins -- same "first matching rule wins" semantics as
+// Paperless-ngx, not "merge every match", so a user's rule list stays
+// predictable and explainable). Each rule sets at least one of
+// targetCorrespondentId/targetCategory/targetTags -- enforced by
+// validateMatchingRuleInput() in document-classification-service.ts, not a
+// DB constraint (matches this codebase's existing validate-then-throw
+// convention elsewhere, e.g. report-taxonomy.ts).
+export const documentMatchingRules = complianceSchemaDB.table('document_matching_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  matchField: documentMatchingRuleFieldEnum('match_field').notNull().default('both'),
+  ruleType: documentMatchingRuleTypeEnum('rule_type').notNull(),
+  pattern: text('pattern').notNull(),
+  priority: integer('priority').notNull().default(100),
+  targetCorrespondentId: text('target_correspondent_id'),
+  targetCategory: text('target_category'),
+  targetTags: jsonb('target_tags'), // nullable string[] -- null/empty means this rule doesn't add any tags
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── Compliance Costs (Wave 7) ───────────────────────────────────────────
@@ -3921,6 +3993,30 @@ export const reportDefinitions = complianceSchemaDB.table('report_definitions', 
   createdBy: text('created_by').notNull().default('system'), // 'system' | 'ai' | a real users.id
   promotedFromContext: text('promoted_from_context'), // free-text traceability pointer when createdBy='ai', not a FK
   isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Custom Charts (Priority 13, self-serve ad-hoc BI/chart-builder MVP) ──
+// Deliberately NOT a new row shape in report_definitions above -- that table
+// is the curated, platform-or-org catalog of named reports/analyses
+// (report-taxonomy.ts's 7-category system); an ad-hoc chart a business user
+// throws together in 30 seconds is a different lifecycle (private, quickly
+// created/discarded, never appears in the report catalog) and mixing the two
+// would force every ad-hoc chart through report-taxonomy.ts's
+// category/classification/periodicity vocabulary for no real benefit. This
+// table is intentionally thin: aggregationConfig reuses report-engine-
+// service.ts's own AggregationConfig shape verbatim (tableKey/groupByColumn/
+// aggregation/aggregationColumnKey/filterEquals) and is executed through
+// that same file's runAggregationFromConfig() -- no second query engine, no
+// second table whitelist (TABLE_REGISTRY is reused as-is).
+export const customCharts = complianceSchemaDB.table('custom_charts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  chartType: text('chart_type').notNull().default('bar'), // 'bar' | 'line' | 'pie' | 'table'
+  aggregationConfig: jsonb('aggregation_config').notNull(), // report-engine-service.ts AggregationConfig shape (kind:'aggregation', tableKey, groupByColumn?, aggregation, aggregationColumnKey?, filterEquals?)
+  createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

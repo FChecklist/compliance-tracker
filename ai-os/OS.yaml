@@ -63,6 +63,8 @@ index:
       covers: "GAP-UNIFIED-SOT-REMAINDER (c) mid-session drift: fixed 5-question checklist a session re-affirms periodically (not read-once-at-start like CLAUDE.md). Re-injected on a real cadence for the headless ai-workforce-agent.mjs dispatch path via loop-prevention.ts's shouldPromptSelfCheck(); no equivalent hook exists for the interactive Claude Code/Desktop path -- see VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md's 'Mid-Session Self-Check' section for the honest per-path breakdown."
 
   work_tracking:
+    - path: ai-os/boss/ACTIVE-CLAIMS.yaml
+      covers: "Real-time registry of what each parallel session is actively working on right now, added 2026-07-14 after the Owner confirmed 4 parallel Claude sessions active across this codebase with no way to see each other's in-flight work. Read FIRST, before MASTER-TRACKER.yaml, before picking any gap -- prevents duplicate/colliding work, not data loss (that's Rule 6's PR/CI gate, unaffected). Rolling log, not permanent history -- see its own header for the claim/release protocol."
     - path: ai-os/MASTER-TRACKER.yaml
       covers: "THE single tracker for open items / gaps / work-in-progress. Consolidated 2026-07-12 from 17 prior scattered tracker files (archived, not deleted). Update discipline documented in the file's own header."
     - path: ai-os/boss/COMPLETED.yaml

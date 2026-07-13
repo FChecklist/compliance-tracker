@@ -245,7 +245,21 @@ export async function listSalesInvoices(ctx: { orgId: string }) {
   })
 }
 
-export async function createSalesInvoice(ctx: ErpContext, input: { customerId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }) {
+// Priority 13 (PROJEXA sales-invoice creation): ctx is intentionally NOT
+// ErpContext here (unlike submitSalesInvoice/createPurchaseInvoice below) --
+// this is the one write in this file a Bearer-API-key caller legitimately
+// needs (PROJEXA's callVeridian() never carries a session cookie, so
+// ctx.dbUser is always null on that path per requireAuthOrApiKey's
+// discriminated CombinedAuthContext). logActivity already has a proper
+// dbUser-or-apiKey discriminated union for exactly this case (Wave 9); this
+// function was just never wired to use the apiKey branch, which would have
+// silently made "PROJEXA can create/link an invoice" impossible to actually
+// call. Every other ErpContext-typed function in this file keeps requiring
+// a real dbUser unchanged.
+export async function createSalesInvoice(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  input: { customerId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
+) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
@@ -283,7 +297,11 @@ export async function createSalesInvoice(ctx: ErpContext, input: { customerId: s
       resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId, hsnSacCode: i.hsnSacCode }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
+    )
     return invoice
   })
 }

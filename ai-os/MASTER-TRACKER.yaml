@@ -245,9 +245,10 @@ open_items:
         an org without 'sales' enabled) -- a real 403 with this exact
         user-facing copy, not a generic "Forbidden".
       first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day, execution still deferred until Priority 11 closes"
+      status_update: "2026-07-13: Priority 11 (Reports & Analysis Engine, closed_priorities entry 14 / COMPLETED.yaml WAVE-175) is now built and live -- taxonomy, one generic dispatcher, 200 seeded definitions (109 built, 85 data_gap, 6 planned) across Project+Construction/Interior Design/Sales. This is reported honestly, not as a 100%-complete claim, since 91 rows are real documented gaps/not-yet-wired shapes. Execution of this Priority-12 plan remains deliberately NOT started -- awaiting the Owner's own confirmation that Priority 11 is closed to their satisfaction, per their explicit sequencing instruction, not a unilateral judgment call by the agent."
 
     - id: OPEN-08
-      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- gap analysis + plan prepared 2026-07-13, execution deliberately deferred until Priority 12 (OPEN-07) closes, per Owner instruction"
+      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- IN PROGRESS as of 2026-07-14 (gate lifted by Owner, corrected gap list below); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
       detail: |
         Owner's ask: a complete PM ERP as PROJEXA, referencing ERPNext/Plane/
         Taiga/Paperless-ngx/Superset/LangGraph/IfcOpenShell as design
@@ -372,14 +373,65 @@ open_items:
       recommendation: |
         Full detail, evidence, and per-item citations in Claude's memory file
         veridian_priority13_pm_erp_gap_analysis.md (not in this repo). All 4
-        Owner decisions needed for Wave A are now resolved (a/b/d locked, c
-        deliberately deferred) -- the only remaining blocker is the Priority
-        12 gate itself. Do not start Wave A until this OPEN-08 entry AND
-        OPEN-07 (Priority 12) both show closed. Do not re-run this analysis
-        from scratch in a future session -- read the memory file first,
-        re-verify OPEN-06/OPEN-07 status against origin/main, and only build
-        the confirmed remaining gap.
-      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 12 (OPEN-07) closes; analysis+plan complete same day, zero execution started"
+        Owner decisions resolved (a/b/d locked, c deliberately deferred).
+
+        **Gate lifted 2026-07-14, Owner's own words**: "yes. I agree with
+        you. You can immediately start on Priority 13. Let other session do
+        Priority 11 and Priority 12. You complete the Priority 13." This is
+        a deliberate parallel-workstream split -- a DIFFERENT session/agent
+        is expected to close OPEN-06/OPEN-07 independently; the session
+        executing this OPEN-08 stays in its own scope.
+
+        **CORRECTION, same day, before execution started**: re-verifying the
+        ranked gap list directly against real route code (not file
+        names/prior research-agent claims) found items (1)-(4) above
+        materially OVERSTATED the gap. 44 of PROJEXA's 47 API routes already
+        thin-proxy to compliance-tracker's real engines via a
+        `callVeridian()` Bearer-token client (vendors/materials/expenses/
+        project-budgets/scope/schedule/rfis/submittals/punch-list/ffe/
+        site-diary/work-progress/documents/kpis/etc., confirmed by reading
+        actual route source, e.g. vendors/route.ts's own header: "Wave 124:
+        /api/v1/projexa/* is a thin ALIASING namespace -- zero new business
+        logic"). There is NO parallel PROJEXA schema to migrate away from --
+        decision (b) above was answered against a false premise for this
+        specific item.
+
+        **Corrected real gap list** (backend service functions for most of
+        these ALREADY EXIST -- listCostCenters/listFiscalYears in
+        erp-accounting-service.ts, createSalesInvoice/listSalesInvoices in
+        erp-invoicing-service.ts, listMeetings/createMeeting/
+        addMeetingOutcome in pms-meeting-service.ts, listIssues in
+        pms-issue-service.ts -- the real gap is missing thin v1 aliases +
+        PROJEXA UI, the exact same mechanical pattern as 44 other routes,
+        not new engine design):
+        1. Fiscal-year/cost-center discovery lookups + sales-invoice
+           create/link alias, wired into PROJEXA's Budget form + Dashboard.
+        2. Meetings/MOM: /api/v1/pms/meetings already exists and is
+           API-key-callable, but wrongly gated behind requirePmsEnabled()
+           for PROJEXA (construction) customers who never buy the separate
+           PMS module -- schedule/gantt/route.ts's own comment already
+           carves out this exact exception for the same reason. Add a
+           projexa/meetings alias without that gate + a PROJEXA Meetings
+           page.
+        3. Permits: data access already works (documents proxy supports
+           category=permit); listExpiringDocuments exists but is cookie-auth
+           only, incompatible with PROJEXA's Bearer-key model -- add an
+           API-key-compatible alias + a dedicated Permits UI page.
+        4. Kanban/backlog board: pms_issues data already flows into PROJEXA
+           via Schedule/Gantt -- missing piece is a board VIEW, not data.
+        5. Document correspondent/type auto-classification (Paperless-ngx
+           pattern) -- confirmed still genuinely missing, real new build.
+        6. Self-serve ad-hoc BI/chart-builder -- confirmed still genuinely
+           missing, real new build (MVP scope: dataset/metric/chart-config
+           on top of the existing report engine, not a Superset clone).
+        7. BIM/IFC -- unchanged, deliberately deferred per Owner (c).
+        8. Hygiene shrinks correspondingly -- no parallel schema to retire
+           for vendors/materials/expenses/budgets; just verify
+           veridian-client.ts's own flagged MVP gap (single stubbed API
+           credential, not real per-org lookup) and update
+           system-tree/20-projexa.yaml to reflect the true, already-good
+           wiring state once (1)-(4) land.
+      first_raised: "2026-07-13, gate lifted + gap-analysis corrected + execution started 2026-07-14, Owner's explicit instruction"
 
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
@@ -392,7 +444,7 @@ open_items:
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
-      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). FURTHER PARTIALLY CLOSED, Priority 10 (PR #236): a second real graph edge type, dynamic_chain -> worker_agent (relationshipType 'executed_by', upserted by (chain, agent) pair with taskCount/lastTaskId/lastExecutedAt metadata), written at task-execution-engine.ts's updateTaskStatusAndReflect() -- the one chokepoint every real task-completion path already runs through. No new migration needed; the existing GET /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id> endpoint (Wave 153) now answers 'which chains has this agent executed' with zero new API surface. Checked live: 0 historical rows qualified for backfill, so this is forward-only by design. Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
+      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). FURTHER PARTIALLY CLOSED, Priority 10 (PR #236): a second real graph edge type, dynamic_chain -> worker_agent (relationshipType 'executed_by', upserted by (chain, agent) pair with taskCount/lastTaskId/lastExecutedAt metadata), written at task-execution-engine.ts's updateTaskStatusAndReflect() -- the one chokepoint every real task-completion path already runs through. No new migration needed; the existing GET /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id> endpoint (Wave 153) now answers 'which chains has this agent executed' with zero new API surface. Checked live: 0 historical rows qualified for backfill, so this is forward-only by design. FURTHER PARTIALLY CLOSED, Priority 14 (PR #TBD): a third real graph edge type, dynamic_chain -> dynamic_chain (relationshipType 'supersedes'), written at dynamic-chain-directory-service.ts's createChainVersion() -- the sole real chokepoint every chain-versioning path runs through (task-service.ts's resolveDynamicChainId only find-or-creates version-1 rows, never touches previousVersionId). Wave 171's previousVersionId column already carried this fact as a denormalized FK-shaped index; this adds it to entity_relationships as the graph source of truth, same division of labor as linkedApprovalWorkflowIds/entity_relationships in Priority 9. Investigated and ruled out this pass: dynamic_chain -> conversation (conversations.dynamicChainId column exists per Wave 161 but is explicitly documented as unwired -- no conversation-creation flow offers a Chain Selector step yet, so no real chokepoint exists); worker_agent -> capability (the only real chokepoint, capability-learning-service.ts's findOrCreateCapability()/recordExecutionOutcome(), is Priority-12/13-adjacent and explicitly out of scope this pass -- deferred to whichever session owns that area). No new migration needed; checked live via Supabase MCP: 0 dynamic_chains rows and 0 entity_relationships rows exist yet in either direction, so this is forward-only with nothing to backfill. Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
       size: deferred_large
       recommendation: "Design the full graph schema first (per the source doc's own preference for graph over enumerated-permutation), then an additive migration, backfill, cutover. Any migration must preserve existing dynamic_chains rows and their live references from tasks/conversations."
 
@@ -831,4 +883,84 @@ closed_priorities:
       metadata-index-coverage, doc-quarantine-banner) pass. Vercel preview-
       deployment check failed on every PR, confirmed pre-existing/
       unrelated (same failure already present on already-merged PR #255)
+
+  - priority: 14
+    name: "Owner's Priority 11 -- Reports & Analysis ENGINE: taxonomy, generic dispatcher, 200 seeded definitions across 3 domains"
+    summary: |
+      See ai-os/boss/COMPLETED.yaml's WAVE-175 for the full doer/auditor
+      record (PR #272, #273, #275, #277, #278). Summary here for
+      cross-reference only, not a duplicate source of truth.
+
+      Built the report_definitions taxonomy (7 categories, open-ended
+      classifications, 15 periodicity types) and the one real dispatcher
+      (executeReportDefinition() -> deterministic_aggregation via
+      TABLE_REGISTRY/resolveAggregationTarget(), deterministic_formula via
+      FORMULA_REGISTRY, ai_recipe grounded-only, external_service) that
+      lets reports be added/merged without per-report bespoke code, per
+      the Owner's explicit "without reworking and without duplicacy"
+      requirement. Seeded 204 candidate rows across 3 domain waves
+      (Project+Construction, Interior Design, Sales); 200 landed live
+      after 4 benign platform-wide name collisions (traced individually,
+      each confirmed a strictly-non-worse dedup, not a loss -- see
+      WAVE-175's auditor summary). Final tally: 109 built (genuinely
+      executable through the dispatcher), 85 data_gap (each with a
+      specific real schema gap named in data_gap_note, not a vague
+      placeholder), 6 planned (real data exists, join/bucketing/listing
+      shape not wired this wave). "Reports & Analysis" promoted to its
+      own top-level left-rail section (2nd position). Not claimed 100%
+      complete -- the data_gap/planned rows are honest, specific,
+      tracked future work.
+
+      Owner's Priority 12 (Universal Builder) remains explicitly deferred
+      per the Owner's own instruction until this priority is confirmed
+      closed to their satisfaction -- see OPEN-07 below, whose 3 blocking
+      decisions are already locked in and ready to execute once
+      unblocked.
       -- not a required status check.
+
+  - priority: 14
+    name: "GAP-DCMD 3rd graph edge: dynamic_chain -> dynamic_chain ('supersedes')"
+    summary: |
+      Investigated whether a genuine 3rd entity_relationships graph edge
+      type exists for chains, after Priority 9's dynamic_chain ->
+      approval_workflow_instance and Priority 10's dynamic_chain ->
+      worker_agent, holding the same bar both used: a real chokepoint
+      every instance of some real event already passes through, not a
+      contrived one invented for this task.
+
+      Found: dynamic-chain-directory-service.ts's createChainVersion()
+      is the sole real chokepoint that writes dynamicChains.previousVersionId
+      (Wave 171) -- every version of every chain is created there and
+      nowhere else (task-service.ts's resolveDynamicChainId only find-or-
+      creates version-1 rows), and it already has a real caller: POST
+      /api/dynamic-chains/[id]/versions. Added the corresponding
+      entity_relationships edge (dynamic_chain -> dynamic_chain,
+      relationshipType 'supersedes', metadata.newVersion/previousVersion)
+      right after the existing insert/retire logic, wrapped in the same
+      non-blocking try/catch posture as the two prior edge writers so a
+      graph-write failure can never break chain versioning itself. No
+      new migration -- entity_relationships already supports arbitrary
+      entity-type pairs, exactly like the first two edges.
+
+      Investigated and ruled out (honest no-go, not forced):
+        - dynamic_chain -> conversation: conversations.dynamicChainId
+          (Wave 161) exists but is explicitly documented as unwired --
+          no conversation-creation flow offers a Chain Selector step
+          yet, so there is no real chokepoint to hang an edge on.
+        - worker_agent -> capability (task_capabilities <-> worker_agent):
+          the only real chokepoint is capability-learning-service.ts's
+          findOrCreateCapability()/recordExecutionOutcome(), which is
+          explicitly Priority-12/13-adjacent per this session's own
+          scope exclusion and ai-os/boss/ACTIVE-CLAIMS.yaml's active
+          claim for that area -- deferred to whichever session owns it,
+          not attempted here.
+
+      Verified live via Supabase MCP (verdian-ai project,
+      pcrjmlpuqsbocqfwoxod): 0 dynamic_chains rows and 0
+      entity_relationships rows exist yet at all, so 0 historical rows
+      needed backfill -- forward-only by design, same posture Priority
+      10 documented for its own edge. tsc --noEmit clean, eslint clean
+      (0 errors, 3 pre-existing unrelated warnings), full bun test suite
+      green (1039 pass / 0 fail across 79 files). PR opened, not self-
+      merged per the standing 2026-07-13 procedure -- Super Boss to
+      audit and merge independently.
