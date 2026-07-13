@@ -12,7 +12,7 @@ const BASE: CreateReportDefinitionInput = {
   category: "software_report",
   classifications: ["project"],
   executionType: "deterministic_aggregation",
-  executionConfig: { kind: "aggregation", tableLabel: "test_table", aggregation: "count" },
+  executionConfig: { kind: "aggregation", tableKey: "compliance_items", aggregation: "count" },
 }
 
 describe("validateReportDefinitionInput", () => {
