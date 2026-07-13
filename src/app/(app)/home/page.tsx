@@ -22,6 +22,8 @@ import { MessageContent } from "@/components/chat/MessageContent";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { cn } from "@/lib/utils";
+import { useMe } from "@/lib/queries/use-me";
+import { useComplianceStats } from "@/lib/queries/use-compliance-stats";
 // AchievementCard was built in an earlier session wave but never wired into
 // any render tree — rendered here on the home page alongside the briefing
 // stats so users see their compliance progress at a glance.
@@ -31,7 +33,6 @@ import AchievementCard from "@/components/home/AchievementCard";
 import VeriTreasureWidget from "@/components/home/VeriTreasureWidget";
 
 type AiMessage = { id: string; senderId: string | null; content: string; createdAt: string };
-type Stats = { total: number; overdue: number; dueThisWeek: number; completed: number; dueIn30Days?: number; safe?: number };
 type Conversation = {
   id: string;
   isAiThread: boolean;
@@ -73,9 +74,19 @@ function convoName(c: Conversation): string {
 }
 
 export default function HomePage() {
-  const [firstName, setFirstName] = useState<string>("");
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [statsError, setStatsError] = useState(false);
+  // Shared react-query cache -- previously its own /api/me and
+  // /api/compliance/stats fetch-on-mount here, duplicating the same
+  // requests AppShell, AppTopbar, HealthRibbon and AchievementCard were
+  // independently making too.
+  const { data: me } = useMe();
+  const firstName = me?.name ? String(me.name).split(" ")[0] : "";
+  // veriChatV2Enabled orgs get the persistent global composer (AppShell) +
+  // independent VERI Chat panel everywhere, Home included -- this page's
+  // own bespoke two-column assistant/chat layout below is only rendered for
+  // orgs still on the previous flow, so the two composers never double up.
+  const veriChatV2Enabled = Boolean(me?.veriChatV2Enabled);
+
+  const { data: stats, isError: statsError } = useComplianceStats();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [chats, setChats] = useState<Conversation[]>([]);
@@ -86,22 +97,12 @@ export default function HomePage() {
   const [workingStep, setWorkingStep] = useState(0);
   const [briefingReady, setBriefingReady] = useState(false);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
-  // veriChatV2Enabled orgs get the persistent global composer (AppShell) +
-  // independent VERI Chat panel everywhere, Home included -- this page's
-  // own bespoke two-column assistant/chat layout below is only rendered for
-  // orgs still on the previous flow, so the two composers never double up.
-  const [veriChatV2Enabled, setVeriChatV2Enabled] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useAutoGrowTextarea(content, 180);
 
   useEffect(() => {
-    fetch("/api/me").then((r) => r.json()).then((d) => {
-      if (d?.name) setFirstName(String(d.name).split(" ")[0]);
-      setVeriChatV2Enabled(Boolean(d?.veriChatV2Enabled));
-    }).catch(() => {});
-    fetch("/api/compliance/stats").then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then(setStats).catch(() => setStatsError(true));
     fetch("/api/conversations").then((r) => r.json()).then((d) => {
       const all: Conversation[] = d?.conversations ?? [];
       const ai = all.find((c) => c.isAiThread);
@@ -120,16 +121,45 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  const loadMessages = useCallback((id: string) => {
-    fetch(`/api/conversations/${id}/messages`).then((r) => r.json())
-      .then((d) => { setMessages(d.messages ?? []); setMessagesLoaded(true); }).catch(() => {});
+  const loadMessages = useCallback(async (id: string) => {
+    try {
+      const r = await fetch(`/api/conversations/${id}/messages`);
+      if (!r.ok) return false;
+      const d = await r.json();
+      setMessages(d.messages ?? []);
+      setMessagesLoaded(true);
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
 
+  // Wave 146 gap-closure fix: this used to be loadMessages(id) +
+  // setInterval(..., POLL_MS) with no in-flight guard and no backoff --
+  // during a backend outage it kept firing a new request every 6s
+  // regardless of whether the previous one had resolved. Now each poll
+  // waits for the previous to settle and backs off (capped) on repeated
+  // failures, recovering to the normal 6s cadence the moment a call
+  // succeeds -- same pattern as AppShell.tsx's chat poll.
   useEffect(() => {
     if (!conversationId) return;
-    loadMessages(conversationId);
-    const interval = setInterval(() => loadMessages(conversationId), POLL_MS);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let delay = POLL_MS;
+
+    async function tick() {
+      if (cancelled) return;
+      const ok = await loadMessages(conversationId!);
+      if (cancelled) return;
+      delay = ok ? POLL_MS : Math.min(delay * 2, 120_000);
+      timer = setTimeout(tick, delay);
+    }
+
+    tick();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [conversationId, loadMessages]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: "end" }); }, [messages.length]);
@@ -185,8 +215,8 @@ export default function HomePage() {
     messagesLoaded &&
     messages.length <= 1 &&
     messages.every((m) => m.senderId === null) &&
-    stats !== null &&
-    (stats.total ?? 0) === 0;
+    stats !== undefined &&
+    stats.total === 0;
 
   // Wave 111 finding: a failed /api/compliance/stats fetch used to leave
   // `stats` null, which fed the exact same `overdue ?? 0` path as a genuine
