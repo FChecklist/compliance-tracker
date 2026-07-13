@@ -1616,7 +1616,7 @@ entries:
         password-protection setting) -- none touched by or in scope of
         this fix.
 
-  - id: WAVE-175
+  - id: WAVE-176
     title: "Priority 12 OPEN-07 point (8) closed -- real ERP/Sales module-enablement enforcement (Owner directive 2026-07-13)"
     doer:
       agent: claude-code (Super Boss, orchestrating one background sub-agent for the mechanical ERP sweep)
