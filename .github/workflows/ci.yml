@@ -112,6 +112,24 @@ jobs:
       # exact "ARCHIVED / STALE" banner. See that script's own header for
       # the honest limitation this does and doesn't guarantee.
       - run: node scripts/check-doc-quarantine-banner.mjs
+  doc-cross-references:
+    name: Doc Cross-Reference Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # Gap closure, 2026-07-13 (Boss directive, metadata/drift investigation
+      # follow-up): the coverage checks above verify registration coverage
+      # (is X registered in a registry) -- none of them verify that a file
+      # path one governance doc names for another (CLAUDE.md, AGENTS.md,
+      # ai-os/OS.yaml, docs/master/INDEX.md, ai-os/BRAIN.md,
+      # VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md) still resolves on disk --
+      # fails the build if a renamed/deleted file leaves a dangling
+      # cross-reference behind. See that script's own header for the three
+      # distinct reference styles it parses and the honest limitation this
+      # does and doesn't guarantee.
+      - run: node scripts/check-doc-cross-references.mjs
   e2e:
     name: E2E Tests
     needs: [build]
