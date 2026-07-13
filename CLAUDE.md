@@ -4,10 +4,11 @@
 
 Before doing anything nontrivial in this repo, read these in order — they are the real source-of-truth governance docs and are not optional context:
 
-1. `ai-os/OS.yaml` — governance-file index: the one place that lists every other tracking/governance document and what it's actually for.
-2. `ai-os/BRAIN.md` — plain-language explainer of what VERIDIAN AI OS is and how it works, grounded in cited files.
-3. `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md` — the standing constitution for task lifecycle, multi-agent orchestration, and mandatory guardrails; supersedes conflicting informal instructions.
-4. `ai-os/MASTER-TRACKER.yaml` — the live gap-analysis / open-work tracker (see corrected "AI-OS Rules" note below).
+1. `ai-os/boss/ACTIVE-CLAIMS.yaml` — **read this FIRST, before picking any gap/task**: a real-time registry of what other parallel sessions are actively working on right now, so you don't duplicate or collide with in-flight work. Added 2026-07-14 after the Owner confirmed 4 parallel Claude sessions were running across this codebase simultaneously with no way to see each other's current work. Register your own claim here before starting, per that file's own protocol.
+2. `ai-os/OS.yaml` — governance-file index: the one place that lists every other tracking/governance document and what it's actually for.
+3. `ai-os/BRAIN.md` — plain-language explainer of what VERIDIAN AI OS is and how it works, grounded in cited files.
+4. `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md` — the standing constitution for task lifecycle, multi-agent orchestration, and mandatory guardrails; supersedes conflicting informal instructions.
+5. `ai-os/MASTER-TRACKER.yaml` — the live gap-analysis / open-work tracker (see corrected "AI-OS Rules" note below).
 
 # Veridian AI — Agent Context
 
