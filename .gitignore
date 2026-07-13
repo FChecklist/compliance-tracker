@@ -62,3 +62,8 @@ server.log
 /prisma/
 /db/custom.db
 /tool-results/
+
+# litert-spike (experimental, see src/app/litert-spike/page.tsx) -- Apache-2.0
+# wasm binaries copied from node_modules by scripts/spike-litert-copy-wasm.mjs,
+# regenerated on demand rather than committed (~18MB, two variants)
+/public/litert-spike/wasm/
