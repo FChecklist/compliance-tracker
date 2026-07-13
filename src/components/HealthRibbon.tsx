@@ -1,30 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Circle, CircleAlert, CircleCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type StatsData = {
-  overdue: number;
-  dueIn30Days: number;
-  safe: number;
-};
+import { useComplianceStats } from "@/lib/queries/use-compliance-stats";
 
 export function HealthRibbon() {
-  const [stats, setStats] = useState<StatsData | null>(null);
-
-  useEffect(() => {
-    fetch("/api/compliance/stats")
-      .then((r) => r.json())
-      .then((d) =>
-        setStats({
-          overdue: d.overdue ?? 0,
-          dueIn30Days: d.dueIn30Days ?? 0,
-          safe: d.safe ?? 0,
-        })
-      )
-      .catch(() => {});
-  }, []);
+  // Shared react-query cache instead of its own /api/compliance/stats
+  // fetch-on-mount.
+  const { data: stats } = useComplianceStats();
 
   if (!stats) {
     return (

@@ -22,6 +22,7 @@ import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Send, Loader2, Paperclip } from "lucide-react";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
+import { useMe } from "@/lib/queries/use-me";
 
 // Home (the assistant screen, Wave 105) and /veri-ai and /chat all have
 // their own full composer -- showing the dock on top would be a second,
@@ -47,27 +48,25 @@ export default function GlobalChatDock() {
   const draftKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Shared react-query cache instead of its own /api/me fetch-on-mount.
+  const { data: me } = useMe();
   useEffect(() => {
     // Restore any draft the moment we know who the user is -- namespaced
     // per user so a shared/kiosk machine never shows one person's draft to
-    // another. Done inside this same fetch callback (not a separate effect
-    // keyed off userId) so the localStorage read stays async-callback-scoped
-    // rather than a synchronous setState-in-effect.
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d?.id) return;
-        const key = `veridian-dock-draft:${d.id}`;
-        draftKeyRef.current = key;
-        try {
-          const saved = window.localStorage.getItem(key);
-          if (saved) setValue(saved);
-        } catch {
-          // localStorage unavailable (private browsing, etc.) -- draft
-          // persistence just silently doesn't happen, nothing else breaks.
-        }
-      })
-      .catch(() => {});
+    // another.
+    if (!me?.id) return;
+    const key = `veridian-dock-draft:${me.id}`;
+    draftKeyRef.current = key;
+    try {
+      const saved = window.localStorage.getItem(key);
+      if (saved) setValue(saved);
+    } catch {
+      // localStorage unavailable (private browsing, etc.) -- draft
+      // persistence just silently doesn't happen, nothing else breaks.
+    }
+  }, [me?.id]);
+
+  useEffect(() => {
     fetch("/api/conversations")
       .then((r) => r.json())
       .then((d) => {

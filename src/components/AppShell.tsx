@@ -17,42 +17,36 @@ import VeriComposer from "@/components/veri-chat/VeriComposer";
 import VeriChatPanel from "@/components/veri-chat/VeriChatPanel";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useResilientPoll } from "@/lib/use-resilient-poll";
+import { useMe } from "@/lib/queries/use-me";
+import { useComplianceStats } from "@/lib/queries/use-compliance-stats";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const dockHidden = isDockHiddenForPath(pathname);
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [noticeCount, setNoticeCount] = useState(0);
-  const [accountType, setAccountType] = useState("company");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [unreadAiCount, setUnreadAiCount] = useState(0);
   const [connectedConnectorsCount, setConnectedConnectorsCount] = useState(0);
-  const [pmsEnabled, setPmsEnabled] = useState(false);
-  const [veriChatV2Enabled, setVeriChatV2Enabled] = useState(false);
-  const [firmEnabled, setFirmEnabled] = useState(false);
-  const [orgName, setOrgName] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Shared react-query cache -- previously each of these was its own
+  // fetch-on-mount effect here, duplicating the same /api/me and
+  // /api/compliance/stats requests HealthRibbon, AchievementCard, AppTopbar
+  // and the home page were independently making too. useMe()/useComplianceStats()
+  // dedupe across every consumer instead.
+  const { data: me } = useMe();
+  const { data: stats } = useComplianceStats();
+  const overdueCount = stats?.overdue ?? 0;
+  const noticeCount = stats?.noticeCount ?? 0;
+  const accountType = me?.orgAccountType ?? "company";
+  const pmsEnabled = me?.pmsEnabled ?? false;
+  const veriChatV2Enabled = me?.veriChatV2Enabled ?? false;
+  const firmEnabled = me?.firmEnabled ?? false;
+  const orgName = me?.orgName ?? "";
+
   useEffect(() => {
-    fetch("/api/compliance/stats")
-      .then((r) => r.json())
-      .then((d) => {
-        setOverdueCount(d.overdue ?? 0);
-        setNoticeCount(d.noticeCount ?? 0);
-      })
-      .catch(() => {});
-    fetch("/api/me")
-      .then((r) => r.json())
-      .then((d) => {
-        setAccountType(d.orgAccountType ?? "company");
-        setPmsEnabled(d.pmsEnabled ?? false);
-        setVeriChatV2Enabled(d.veriChatV2Enabled ?? false);
-        setFirmEnabled(d.firmEnabled ?? false);
-        setOrgName(d.orgName ?? "");
-      })
-      .catch(() => {});
     // Connectors sidebar/composer badge (Connectors.docx wave, 2026-07-10):
     // one-shot fetch, not polled -- connection status changes rarely enough
     // (a user connecting/disconnecting a toolkit) that a 15s interval like
@@ -65,24 +59,33 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setConnectedConnectorsCount(toolkits.filter((t) => t.connected).length);
       })
       .catch(() => {});
-
-    function loadUnreadChat() {
-      fetch("/api/conversations")
-        .then((r) => r.json())
-        .then((d) => {
-          // Wave 37: VERI AI and VERI Chat are now separate nav entries, so
-          // their unread badges are computed separately from the same
-          // fetch (PLATFORM_STRATEGY.md §18).
-          const conversations: { unreadCount: number; isAiThread: boolean }[] = d.conversations ?? [];
-          setUnreadAiCount(conversations.filter((c) => c.isAiThread).reduce((sum, c) => sum + c.unreadCount, 0));
-          setUnreadChatCount(conversations.filter((c) => !c.isAiThread).reduce((sum, c) => sum + c.unreadCount, 0));
-        })
-        .catch(() => {});
-    }
-    loadUnreadChat();
-    const interval = setInterval(loadUnreadChat, 15000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Wave 146 gap-closure fix: this used to be a bare loadUnreadChat() +
+  // setInterval(loadUnreadChat, 15000) with no in-flight guard and no
+  // backoff -- during a real backend outage (DB unreachable etc.) it kept
+  // firing a brand-new request every 15s regardless of whether the
+  // previous one had even resolved yet, on every authenticated screen,
+  // indefinitely. useResilientPoll only schedules the next attempt after
+  // the current one settles, and backs off (capped) on repeated failures,
+  // recovering back to the normal 15s cadence the moment a call succeeds.
+  const loadUnreadChat = useCallback(async () => {
+    try {
+      const r = await fetch("/api/conversations");
+      if (!r.ok) return false;
+      const d = await r.json();
+      // Wave 37: VERI AI and VERI Chat are now separate nav entries, so
+      // their unread badges are computed separately from the same
+      // fetch (PLATFORM_STRATEGY.md §18).
+      const conversations: { unreadCount: number; isAiThread: boolean }[] = d.conversations ?? [];
+      setUnreadAiCount(conversations.filter((c) => c.isAiThread).reduce((sum, c) => sum + c.unreadCount, 0));
+      setUnreadChatCount(conversations.filter((c) => !c.isAiThread).reduce((sum, c) => sum + c.unreadCount, 0));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+  useResilientPoll(loadUnreadChat, 15000);
 
   // veriChatV2Enabled orgs get the persistent composer + independent VERI
   // Chat panel (product branch 'veri_chat_v2', gated per-org, reversible
