@@ -1615,3 +1615,109 @@ entries:
         marketing-page feature, hstore extension placement, auth leaked-
         password-protection setting) -- none touched by or in scope of
         this fix.
+
+  - id: WAVE-175
+    title: "Priority 11 -- Reports & Analysis ENGINE: 3-axis taxonomy, generic dispatcher (aggregation/formula/AI-recipe/external-service), 200 seeded report/analysis definitions across Project+Construction, Interior Design, and Sales domains (Owner directive 2026-07-13)"
+    doer:
+      agent: "claude-code (Super Boss) for taxonomy/dispatcher/engine foundation, then 3 parallel claude worktree-isolated sub-agents for the 3 domain catalogs, reconciled and merged by claude-code (Super Boss)"
+      date: "2026-07-13"
+      pr: "272, 273, 275, 277, 278"
+      summary: >
+        Owner directive: treat Reports & Analysis as a genuine "Software
+        and/or Software+AI Generated Decision System" -- 7 categories,
+        an open-ended classification list, 15 periodicity types (hourly
+        through custom_range/on_demand), and a flexible ENGINE that can
+        generate/merge/create reports "without reworking and without
+        duplicacy," not one hand-written function per report. PR #272 --
+        report-taxonomy.ts (category/classifications/periodicity types +
+        validators), drizzle/0180 creating compliance.report_definitions
+        (org_id nullable = platform-wide, RLS + UMR-registered), extended
+        report-schedule-service.ts's isScheduleDue() for all 15
+        periodicity types including a real custom_range date-truncation
+        bug found and fixed by this wave's own test suite. PR #273 --
+        the dispatcher gap found before dispatching sub-agents: Wave A
+        had no deterministic_aggregation handler, which would have
+        forced a bespoke wrapper per report (violating the Owner's
+        no-duplication requirement) -- added TABLE_REGISTRY (whitelist-
+        only, same discipline as the pre-existing custom-report-service.ts)
+        + resolveAggregationTarget()/runAggregationFromConfig(), wired
+        into executeReportDefinition() as the one real dispatcher for all
+        4 execution types (deterministic_aggregation, deterministic_formula,
+        ai_recipe, external_service). Also fixed a real production-build-
+        breaking bug: DB-touching catalog functions had been added to
+        report-catalog-service.ts, which ReportCatalogList.tsx ("use
+        client") imports -- pulled the postgres Node driver into the
+        client bundle (tsc and bun test both stayed green; only
+        `bun run build` caught it). Moved them into the server-only
+        report-engine-service.ts instead. Promoted "Reports & Analysis"
+        to its own top-level AppSidebar section (2nd position). 3 parallel
+        sub-agents then built the domain catalogs: PR #278 (Project +
+        Construction, 74 rows: 30 Project Reports minus 6 dupes, 30
+        Analysis Dashboards, 20 Executive KPIs), PR #275 (Interior
+        Design, 20 rows: 8 built, 12 data_gap), PR #277 (Sales, 110 rows:
+        50 built, 53 data_gap, 7 planned, covering the Lead->Opportunity->
+        Proposal->Negotiation->Order->Project->Customer lifecycle). All 3
+        sub-agent worktrees were branched before PR #273 merged (a
+        worktree-creation timing lag, not a dispatch-order mistake), so
+        each independently rebuilt its own copy of TABLE_REGISTRY/
+        AggregationConfig/the dispatcher -- reconciled by hand against
+        origin/main for all 3 (6 conflict regions for #278, 13 for #277),
+        including a recurring "shared closing brace" git auto-merge
+        artifact (both branches' last formula function shared an
+        identical trailing `})\n}` that git silently factored out as
+        unconflicted context, leaving both sides' real last function
+        unclosed) diagnosed precisely per conflict and fixed. Every
+        'built' row is genuinely executable through the one dispatcher --
+        not a catalog placeholder -- verified via bun test/tsc/lint/build
+        clean after every merge.
+    auditor:
+      agent: claude-code (Super Boss, same session, all 5 PRs audited personally)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Read all 5 full diffs before merge. Verified engine mechanics
+        directly, not just PR descriptions: confirmed TABLE_REGISTRY stays
+        whitelist-only (same 8 base entities as custom-report-service.ts,
+        grown to 26 across the 3 domain waves), confirmed the AI-recipe
+        path (AI_RECIPE_SYSTEM_PROMPT) forbids invented figures and every
+        ai_analysis-category 'built' row grounds in a real formula or
+        query, confirmed the dispatcher's final branch is a hard
+        ServiceError (never a silent no-op) for any executionType/config
+        mismatch. For PR #277 specifically: standardized a competing
+        filterColumn/filterValue migration-SQL shape onto the
+        already-established filterEquals nested shape used by the other
+        94 rows (via a verified perl rewrite, JSONB-parse-checked
+        afterward, 0 malformed across all 139 execution_config blobs in
+        that file), removed a dead duplicate dispatcher branch left by
+        git's auto-merge, re-ran the reconciled branch through
+        tsc/lint/build/bun test (1039 pass / 0 fail / 1984 expect() calls,
+        zero regressions) before pushing. All 5 PRs' required checks
+        (Lint/Type Check/Build/Unit Tests) passed; audit-check required 2
+        format-correction iterations on PR #277's comment (learned:
+        validate-audit-verdict.ts requires each of the 8 fields as a bare
+        "Label: value" line with no markdown bold, and severityClassified/
+        verdict must be exactly one of the enum words -- not a sentence)
+        before passing structurally. Applied all 3 domain migrations
+        (0181, 0182, 0183) live via Supabase MCP, split into
+        section-sized apply_migration calls given their size. Verified
+        row counts at every stage: 74+20=94 after #278/#275, then 204
+        expected after #183's 110 rows but 200 landed -- traced precisely
+        (not just accepted) to 4 platform-wide name collisions from
+        compliance.report_definitions' own ux_report_definitions_platform_name
+        unique index, all 4 confirmed benign: 2 Sales data_gap placeholders
+        (Material Selection Report, Mood Board Approval Report) lost to
+        already-built Interior Design rows of the same name, 1 Sales
+        planned placeholder (Profitability Analysis) lost to an
+        already-built Construction row, and 1 case (Customer Satisfaction
+        Analysis) where Sales and Construction had independently flagged
+        the identical real data_gap under the same name -- zero functional
+        loss in any case, confirmed by direct row-content comparison, not
+        assumption. get_advisors(security) run after all 3 migrations:
+        zero new findings attributable to report_definitions or this
+        wave. Final honest tally: 200 report/analysis definitions live
+        (109 built and genuinely executable through the dispatcher, 85
+        data_gap with a specific named schema gap in data_gap_note, 6
+        planned where real data exists but the join/bucketing/listing
+        shape isn't wired yet) -- not reported as 100% complete, since
+        the data_gap/planned rows are real, honestly-documented future
+        work, not filler.
