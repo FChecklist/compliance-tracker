@@ -1,5 +1,14 @@
 @AGENTS.md
 
+## Read Before Starting Work
+
+Before doing anything nontrivial in this repo, read these in order — they are the real source-of-truth governance docs and are not optional context:
+
+1. `ai-os/OS.yaml` — governance-file index: the one place that lists every other tracking/governance document and what it's actually for.
+2. `ai-os/BRAIN.md` — plain-language explainer of what VERIDIAN AI OS is and how it works, grounded in cited files.
+3. `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md` — the standing constitution for task lifecycle, multi-agent orchestration, and mandatory guardrails; supersedes conflicting informal instructions.
+4. `ai-os/MASTER-TRACKER.yaml` — the live gap-analysis / open-work tracker (see corrected "AI-OS Rules" note below).
+
 # Veridian AI — Agent Context
 
 **Brand:** VERIDIAN AI | **Product:** Veridian AI | **Tagline:** One Portal. One Truth.
@@ -36,7 +45,7 @@
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role (server-side only)
 
 ## AI-OS Rules
-- All tasks tracked in `ai-os/boss/BOARD.yaml`
+- Open tasks/gaps tracked in `ai-os/MASTER-TRACKER.yaml`; closed work logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
 - SENTINEL.yaml is supreme — never bypass
 - Dispatch tasks via `repository_dispatch` with event_type: `zai-task` or `claude-task`
 - DO NOT touch: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `SENTINEL.md`, `ai-os/`
