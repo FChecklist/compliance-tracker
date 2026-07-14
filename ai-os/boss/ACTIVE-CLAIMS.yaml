@@ -42,7 +42,11 @@
 # ============================================================================
 
 active:
-# (empty -- this session has no active claims right now)
+  - session_label: "claude-code (sub-agent) -- Sales Engine channel-coverage audit + Dependabot PR triage"
+    claimed_at: "2026-07-14T00:00:00Z"
+    claim: "Sales Engine channel-coverage audit + Dependabot PR triage, scope: sales-engine-service.ts / src/app/partner/[token]/** / src/app/(app)/sales-hq/**, dispatched by Super Boss supervisor 2026-07-14"
+    worktree: ".claude/worktrees/agent-sales-engine-audit"
+    branch: "feat/sales-engine-channel-audit"
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
