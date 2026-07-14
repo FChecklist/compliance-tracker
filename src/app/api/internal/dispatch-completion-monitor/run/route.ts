@@ -39,6 +39,13 @@ import { runDispatchCompletionSweep, DISPATCH_COMPLETION_MONITOR_NAME } from "@/
  */
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000 // matches the pull-based route's DEFAULT_STALE_THRESHOLD_MS and drizzle/0174's max_execution_time_ms -- the same "stuck" definition everywhere this monitor runs.
 
+// Cron runs once daily (see vercel.json) -- was every 6 hours until
+// 2026-07-14, which exceeded the Vercel Hobby plan's once-per-day cron
+// limit and was silently failing every deploy. Since STALE_AFTER_MS above
+// is itself a 24-hour threshold, a daily sweep still catches every stale
+// dispatch the same day it crosses that threshold -- 6-hourly checks were
+// never buying earlier detection in practice, only extra invocations.
+
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false

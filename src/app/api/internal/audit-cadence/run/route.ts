@@ -6,6 +6,12 @@ import { scanForL2Violations, scanForL4PendingEscalations } from "@/lib/audit-ca
  * cadence -- same shared-secret pattern as /api/internal/metric-alerts/run
  * and /api/internal/loops/run, since there is no user session for a
  * scheduled job.
+ *
+ * Runs once daily (see vercel.json) -- was every 3 hours until 2026-07-14,
+ * which exceeded the Vercel Hobby plan's once-per-day cron limit and was
+ * silently failing every deploy. No code here has a sub-daily latency
+ * requirement (this is a background sweep, not a real-time alert path), so
+ * daily is both plan-compliant and functionally sufficient.
  */
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET

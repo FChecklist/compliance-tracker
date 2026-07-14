@@ -48,6 +48,10 @@ active:
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
   - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-14T (same day, small scoped fix)"
+    claim: "Fixed 3 Vercel crons (audit-cadence, dispatch-completion-monitor, report-schedules) exceeding the Hobby plan's once-per-day limit, which was silently failing every deployment. All 3 now run once daily at non-colliding times -- none had a real sub-daily latency requirement (report-schedules' own code comment already claimed 'once daily' but vercel.json had it hourly, a real pre-existing bug now fixed to match). Scope: vercel.json + 2 route.ts comment updates only, no cron logic changed."
+
+  - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T06:57:24Z"
     claim: "Full PageAgent removal (Owner directive: \"remove PageAgent it doesn fit VERIDIAN\") -- PR #317 merged. Deleted the component, both API routes, the settings-config route, and personal-model-resolver.ts; dropped personal_model_config table + organisations.pageAgentEnabled column (drizzle/0196, applied live); updated VERIDIAN_AI_CONSTITUTION.md/docs/master/ARCHITECTURE.md/VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md's '3 wired call sites' claims to 2; updated check-guardrail-presence.mjs's manifest per Operating Rule 9. See ai-os/MASTER-TRACKER.yaml closed_priorities #21 for full detail. This session has no further active claims."
 
