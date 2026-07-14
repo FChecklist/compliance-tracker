@@ -20,7 +20,7 @@ import {
   erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts, erpCurrencies, erpCompanies,
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
-  erpTaxWithholdingCategories, erpTaxWithholdingRates,
+  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders,
   users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -289,7 +289,7 @@ export async function listSalesInvoicesPaged(ctx: { orgId: string }, filters: Sa
 // a real dbUser unchanged.
 export async function createSalesInvoice(
   ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
-  input: { customerId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
+  input: { customerId: string; salesOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
@@ -298,6 +298,15 @@ export async function createSalesInvoice(
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.customerId), eq(erpCustomers.orgId, ctx.orgId)) })
     if (!customer) throw new ServiceError("Customer not found", 404)
+    // Priority 15 (Sales & CRM depth wave): erp_sales_invoices.salesOrderId
+    // has existed since Wave 60 with nothing ever setting it -- this closes
+    // the loop from erp-selling-service.ts's sales orders through to
+    // invoicing, so a construction PM can see "this invoice came from that
+    // order" instead of the two documents being invisibly disconnected.
+    if (input.salesOrderId) {
+      const salesOrder = await db.query.erpSalesOrders.findFirst({ where: and(eq(erpSalesOrders.id, input.salesOrderId), eq(erpSalesOrders.orgId, ctx.orgId)) })
+      if (!salesOrder) throw new ServiceError("Sales order not found", 404)
+    }
     const { currencyId, exchangeRate } = await resolveInvoiceCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
     const companyId = await resolveInvoiceCompany(db, ctx.orgId, input.companyId)
 
@@ -318,7 +327,7 @@ export async function createSalesInvoice(
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpSalesInvoices.invoiceNumber}), 0)` }).from(erpSalesInvoices).where(eq(erpSalesInvoices.orgId, ctx.orgId))
 
     const [invoice] = await db.insert(erpSalesInvoices).values({
-      orgId: ctx.orgId, customerId: input.customerId, invoiceNumber: Number(maxNumber) + 1,
+      orgId: ctx.orgId, customerId: input.customerId, salesOrderId: input.salesOrderId ?? null, invoiceNumber: Number(maxNumber) + 1,
       postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(), companyId,
       subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
       createdById: ctx.userId,

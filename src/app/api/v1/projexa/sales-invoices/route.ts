@@ -20,6 +20,7 @@ function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: st
     invoiceNumber: inv.invoiceNumber,
     customerId: inv.customerId,
     customerName: inv.customer?.customerName ?? null,
+    salesOrderId: inv.salesOrderId,
     postingDate: inv.postingDate,
     dueDate: inv.dueDate,
     grandTotal: inv.grandTotal,
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
       : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
     const invoice = await createSalesInvoice(actorCtx, {
-      customerId: body.customerId, postingDate: body.postingDate, dueDate: body.dueDate,
+      customerId: body.customerId, salesOrderId: body.salesOrderId, postingDate: body.postingDate, dueDate: body.dueDate,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, companyId: body.companyId,
       items,
     })

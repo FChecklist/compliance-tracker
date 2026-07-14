@@ -5,9 +5,9 @@
 // needed for a compliance-service-provider's business). Gated identically
 // to the existing Clients page (accountType !== 'company') at the UI
 // layer, matching that page's own precedent.
-import { crmLeads, crmOpportunities, clients, tasks } from "@/lib/db"
+import { crmLeads, crmOpportunities, crmStageHistory, clients, erpCustomers, tasks } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq, and } from "drizzle-orm"
+import { eq, and, ilike, inArray, sql, lte, isNotNull } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -27,9 +27,38 @@ export async function listLeads(ctx: { orgId: string }) {
   )
 }
 
+// Priority 15 (Sales & CRM depth wave): a real, DB-level paginated/filtered
+// list -- listLeads() above is left completely untouched (native VERIDIAN
+// CRM UI at /api/crm/leads still returns a flat array from it, unchanged
+// behavior). This is the variant PROJEXA's alias route calls: a 100-person
+// firm running 500 projects can have thousands of leads, so "fetch
+// everything, paginate client-side" was never going to hold up.
+export type ListLeadsOptions = { search?: string; status?: string; ownerId?: string; source?: string; page?: number; pageSize?: number }
+export type PagedResult<T> = { items: T[]; total: number; page: number; pageSize: number }
+
+export async function listLeadsPaged(ctx: { orgId: string }, opts: ListLeadsOptions = {}): Promise<PagedResult<typeof crmLeads.$inferSelect>> {
+  await requireSalesEnabled(ctx.orgId)
+  const page = Math.max(1, opts.page ?? 1)
+  const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? 25))
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(crmLeads.orgId, ctx.orgId)]
+    if (opts.status) conditions.push(eq(crmLeads.status, opts.status))
+    if (opts.ownerId) conditions.push(eq(crmLeads.ownerId, opts.ownerId))
+    if (opts.source) conditions.push(eq(crmLeads.source, opts.source))
+    if (opts.search?.trim()) conditions.push(ilike(crmLeads.name, `%${opts.search.trim()}%`))
+    const where = and(...conditions)
+
+    const [items, totalRows] = await Promise.all([
+      db.query.crmLeads.findMany({ where, orderBy: (t, { desc }) => desc(t.createdAt), limit: pageSize, offset: (page - 1) * pageSize }),
+      db.select({ count: sql<number>`count(*)` }).from(crmLeads).where(where),
+    ])
+    return { items, total: Number(totalRows[0]?.count ?? 0), page, pageSize }
+  })
+}
+
 export async function createLead(
   ctx: CrmContext,
-  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string }
+  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; nextActionDate?: string; nextActionNote?: string }
 ) {
   await requireSalesEnabled(ctx.orgId)
   const name = input.name?.trim()
@@ -39,17 +68,44 @@ export async function createLead(
     const [lead] = await db.insert(crmLeads).values({
       orgId: ctx.orgId, name, contactEmail: input.contactEmail || null, contactPhone: input.contactPhone || null,
       source: input.source || null, ownerId: input.ownerId || null, createdById: ctx.userId,
+      nextActionDate: input.nextActionDate || null, nextActionNote: input.nextActionNote || null,
     }).returning()
+    // Opening entry in the stage ledger -- every lead's funnel history now
+    // starts from a real row, not an implicit "created, no record" gap.
+    await db.insert(crmStageHistory).values({ orgId: ctx.orgId, entityType: "lead", entityId: lead.id, fromStage: null, toStage: lead.status, changedById: ctx.userId })
     return lead
   })
 }
 
-export async function updateLead(ctx: CrmContext, leadId: string, patch: Partial<{ status: string; ownerId: string | null; source: string | null }>) {
+export async function updateLead(
+  ctx: CrmContext,
+  leadId: string,
+  patch: Partial<{ status: string; ownerId: string | null; source: string | null; nextActionDate: string | null; nextActionNote: string | null }>,
+  stageChangeNote?: string
+) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Lead not found", 404)
     const [updated] = await db.update(crmLeads).set({ ...patch, updatedAt: new Date() }).where(eq(crmLeads.id, leadId)).returning()
+    if (patch.status && patch.status !== existing.status) {
+      await db.insert(crmStageHistory).values({
+        orgId: ctx.orgId, entityType: "lead", entityId: leadId, fromStage: existing.status, toStage: patch.status, note: stageChangeNote ?? null, changedById: ctx.userId,
+      })
+    }
+    return updated
+  })
+}
+
+// Priority 15 (Sales & CRM depth wave): bulk owner reassignment -- a sales
+// manager redistributing a rep's queue (e.g. on leave/departure) across
+// hundreds of leads one-at-a-time was never realistic at this firm's scale.
+export async function bulkReassignLeads(ctx: CrmContext, leadIds: string[], ownerId: string | null) {
+  await requireSalesEnabled(ctx.orgId)
+  if (!leadIds?.length) throw new ServiceError("leadIds is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const updated = await db.update(crmLeads).set({ ownerId, updatedAt: new Date() })
+      .where(and(eq(crmLeads.orgId, ctx.orgId), inArray(crmLeads.id, leadIds))).returning()
     return updated
   })
 }
@@ -78,21 +134,54 @@ export async function listOpportunities(ctx: { orgId: string }) {
   )
 }
 
+// Priority 15 (Sales & CRM depth wave): same paginated/filtered variant as
+// listLeadsPaged above, additive alongside the untouched listOpportunities.
+export type ListOpportunitiesOptions = { search?: string; stage?: string; ownerId?: string; erpCustomerId?: string; page?: number; pageSize?: number }
+
+export async function listOpportunitiesPaged(ctx: { orgId: string }, opts: ListOpportunitiesOptions = {}): Promise<PagedResult<typeof crmOpportunities.$inferSelect>> {
+  await requireSalesEnabled(ctx.orgId)
+  const page = Math.max(1, opts.page ?? 1)
+  const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? 25))
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(crmOpportunities.orgId, ctx.orgId)]
+    if (opts.stage) conditions.push(eq(crmOpportunities.stage, opts.stage))
+    if (opts.ownerId) conditions.push(eq(crmOpportunities.ownerId, opts.ownerId))
+    if (opts.erpCustomerId) conditions.push(eq(crmOpportunities.erpCustomerId, opts.erpCustomerId))
+    if (opts.search?.trim()) conditions.push(ilike(crmOpportunities.name, `%${opts.search.trim()}%`))
+    const where = and(...conditions)
+
+    const [items, totalRows] = await Promise.all([
+      db.query.crmOpportunities.findMany({ where, orderBy: (t, { desc }) => desc(t.createdAt), limit: pageSize, offset: (page - 1) * pageSize }),
+      db.select({ count: sql<number>`count(*)` }).from(crmOpportunities).where(where),
+    ])
+    return { items, total: Number(totalRows[0]?.count ?? 0), page, pageSize }
+  })
+}
+
 export async function createOpportunity(
   ctx: CrmContext,
-  input: { name: string; leadId?: string; clientId?: string; stage?: string; estimatedValue?: number; expectedCloseDate?: string; ownerId?: string }
+  input: {
+    name: string; leadId?: string; clientId?: string; erpCustomerId?: string; stage?: string; estimatedValue?: number;
+    expectedCloseDate?: string; ownerId?: string; nextActionDate?: string; nextActionNote?: string
+  }
 ) {
   await requireSalesEnabled(ctx.orgId)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
-  if (!input.leadId && !input.clientId) throw new ServiceError("An opportunity needs a leadId or a clientId", 400)
+  if (!input.leadId && !input.clientId && !input.erpCustomerId) throw new ServiceError("An opportunity needs a leadId, a clientId, or an erpCustomerId", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    if (input.erpCustomerId) {
+      const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, input.erpCustomerId), eq(erpCustomers.orgId, ctx.orgId)) })
+      if (!customer) throw new ServiceError("Customer not found", 404)
+    }
     const [opportunity] = await db.insert(crmOpportunities).values({
-      orgId: ctx.orgId, name, leadId: input.leadId || null, clientId: input.clientId || null,
+      orgId: ctx.orgId, name, leadId: input.leadId || null, clientId: input.clientId || null, erpCustomerId: input.erpCustomerId || null,
       stage: input.stage || "prospecting", estimatedValue: input.estimatedValue != null ? String(input.estimatedValue) : null,
       expectedCloseDate: input.expectedCloseDate || null, ownerId: input.ownerId || null, createdById: ctx.userId,
+      nextActionDate: input.nextActionDate || null, nextActionNote: input.nextActionNote || null,
     }).returning()
+    await db.insert(crmStageHistory).values({ orgId: ctx.orgId, entityType: "opportunity", entityId: opportunity.id, fromStage: null, toStage: opportunity.stage, changedById: ctx.userId })
     return opportunity
   })
 }
@@ -100,7 +189,8 @@ export async function createOpportunity(
 export async function updateOpportunity(
   ctx: CrmContext,
   opportunityId: string,
-  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null }>
+  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null }>,
+  stageChangeNote?: string
 ) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -109,7 +199,84 @@ export async function updateOpportunity(
     const [updated] = await db.update(crmOpportunities)
       .set({ ...patch, estimatedValue: patch.estimatedValue != null ? String(patch.estimatedValue) : undefined, updatedAt: new Date() })
       .where(eq(crmOpportunities.id, opportunityId)).returning()
+    if (patch.stage && patch.stage !== existing.stage) {
+      await db.insert(crmStageHistory).values({
+        orgId: ctx.orgId, entityType: "opportunity", entityId: opportunityId, fromStage: existing.stage, toStage: patch.stage, note: stageChangeNote ?? null, changedById: ctx.userId,
+      })
+    }
     return updated
+  })
+}
+
+// Priority 15 (Sales & CRM depth wave): bulk owner reassignment, same
+// rationale as bulkReassignLeads above.
+export async function bulkReassignOpportunities(ctx: CrmContext, opportunityIds: string[], ownerId: string | null) {
+  await requireSalesEnabled(ctx.orgId)
+  if (!opportunityIds?.length) throw new ServiceError("opportunityIds is required", 400)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const updated = await db.update(crmOpportunities).set({ ownerId, updatedAt: new Date() })
+      .where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.id, opportunityIds))).returning()
+    return updated
+  })
+}
+
+// Priority 15 (Sales & CRM depth wave): the stage-change ledger reader --
+// backs a "history" tab on a lead/opportunity detail page.
+export async function listStageHistory(ctx: { orgId: string }, entityType: "lead" | "opportunity", entityId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmStageHistory.findMany({
+      where: and(eq(crmStageHistory.orgId, ctx.orgId), eq(crmStageHistory.entityType, entityType), eq(crmStageHistory.entityId, entityId)),
+      orderBy: (t, { desc }) => desc(t.changedAt),
+    })
+  )
+}
+
+// Priority 15 (Sales & CRM depth wave): the pipeline/funnel dashboard's
+// cross-cutting rollup -- stage totals + win/loss rate + overdue follow-ups,
+// computed directly from crm_leads/crm_opportunities/crm_stage_history
+// rather than a separate materialized/cached table (org-scale here, not
+// platform-scale, so a live aggregate is cheap enough not to need caching).
+export async function getSalesPipelineOverview(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const [leads, opportunities, overdueLeadCountRows, overdueOppCountRows] = await Promise.all([
+      db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId) }),
+      db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId) }),
+      db.select({ count: sql<number>`count(*)` }).from(crmLeads).where(and(eq(crmLeads.orgId, ctx.orgId), isNotNull(crmLeads.nextActionDate), lte(crmLeads.nextActionDate, today))),
+      db.select({ count: sql<number>`count(*)` }).from(crmOpportunities).where(and(eq(crmOpportunities.orgId, ctx.orgId), isNotNull(crmOpportunities.nextActionDate), lte(crmOpportunities.nextActionDate, today))),
+    ])
+
+    const leadsByStatus: Record<string, number> = {}
+    for (const l of leads) leadsByStatus[l.status] = (leadsByStatus[l.status] ?? 0) + 1
+
+    const opportunitiesByStage: Record<string, { count: number; value: number }> = {}
+    for (const o of opportunities) {
+      const bucket = (opportunitiesByStage[o.stage] ??= { count: 0, value: 0 })
+      bucket.count += 1
+      bucket.value += o.estimatedValue != null ? Number(o.estimatedValue) : 0
+    }
+
+    const won = opportunities.filter((o) => o.stage === "won").length
+    const lost = opportunities.filter((o) => o.stage === "lost").length
+    const winRate = won + lost > 0 ? won / (won + lost) : null
+    const openPipelineValue = opportunities
+      .filter((o) => o.stage !== "won" && o.stage !== "lost")
+      .reduce((sum, o) => sum + (o.estimatedValue != null ? Number(o.estimatedValue) : 0), 0)
+
+    return {
+      totalLeads: leads.length,
+      totalOpportunities: opportunities.length,
+      leadsByStatus,
+      opportunitiesByStage,
+      wonCount: won,
+      lostCount: lost,
+      winRate,
+      openPipelineValue,
+      overdueLeadFollowUps: Number(overdueLeadCountRows[0]?.count ?? 0),
+      overdueOpportunityFollowUps: Number(overdueOppCountRows[0]?.count ?? 0),
+    }
   })
 }
 
