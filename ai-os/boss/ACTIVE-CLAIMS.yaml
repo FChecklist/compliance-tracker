@@ -42,12 +42,6 @@
 # ============================================================================
 
 active:
-  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
-    claimed_at: "2026-07-14T00:00:00Z"
-    claim: "VERI Reward end-to-end wiring audit, scope: src/lib/services/veri-reward-service.ts / src/lib/services/veri-reward-enablement-service.ts / src/app/(app)/rewards/**, dispatched by Super Boss supervisor 2026-07-14"
-    worktree: ".claude/worktrees/agent-veri-reward-audit"
-    branch: "feat/veri-reward-wiring-audit"
-
   - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
     claimed_at: "2026-07-14T00:00:00Z"
     claim: "Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit, scope: capability-registry-service.ts / fde-service.ts / worker-agent-service.ts / chat-service.ts / task-execution-engine.ts, dispatched by Super Boss supervisor 2026-07-14"
@@ -56,6 +50,10 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
+    completed_at: "2026-07-14T00:00:00Z"
+    claim: "Audited veri-reward-service.ts / veri-reward-enablement-service.ts / src/app/(app)/rewards/** end-to-end -- found CORRECTLY WIRED already (awardPoints/checkAndUnlockAchievements have real callers in compliance-service.ts + auth-guard.ts; on-by-default enablement confirmed for new orgs via auth-guard.ts's raw insert; no cash-referral bridge and no redemption mechanism exist, both intentional per Owner decisions; /rewards renders real data end-to-end). ZERO code changes made. See MASTER-TRACKER.yaml priority 18 for full evidence. One secondary finding flagged via spawn_task, not built: 4 of 5 seeded achievement definitions have no caller and can never unlock. This session has no further active claims."
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T03:37:44Z"
     claim: "GAP-UMR-TABLE-COVERAGE 4th batch (23 tables, migration 0193 after 2 real renumbering collisions) -- PR #302 merged. GAP-DCMD 3rd graph edge (dynamic_chain->dynamic_chain 'supersedes', createChainVersion() chokepoint) -- PR #288 merged. This session has no further active claims."
