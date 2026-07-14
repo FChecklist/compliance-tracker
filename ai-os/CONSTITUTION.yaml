@@ -281,9 +281,9 @@ browser_client_architecture:
 
   browser_cache_for_speed:
     ask: "most work to be loaded in the browser cache for fast work"
-    ref: "NONE -- confirmed by direct grep: zero localStorage/indexedDB/serviceWorker usage anywhere in src/"
+    ref: "CORRECTED 2026-07-14 -- an earlier pass of this file wrongly claimed 'zero localStorage usage anywhere in src/'. Re-verified by direct grep: 4 real, narrow uses exist -- GlobalChatDock.tsx (per-user chat-draft persistence, orchestra_changes.md Wave 96), OnboardingChecklist.tsx (completion/dismissal state), resizable.tsx (react-resizable-panels' own panel-size persistence), visitor-id.ts/VisitorIntelligence.tsx/signup/page.tsx (anonymous pre-login visitor id). Zero indexedDB or serviceWorker usage anywhere -- that part of the original claim holds."
     status: NOT_YET_BUILT
-    note: "No client-side caching layer exists in this codebase today, of any kind. This is a real, currently-nonexistent architecture direction, not a small addition."
+    note: "The 4 existing uses are all small, single-purpose UI-state keys (draft text, checklist flags, panel width, a visitor id) -- NONE of them implement 'cache resolved work/calculator output/capability-tree structure for fast repeat access,' which is what this ask actually means. So the CONCLUSION is unchanged (this specific caching architecture doesn't exist) but the REASONING was wrong -- localStorage as a primitive is already proven safe here (each use wraps reads/writes in try/catch for private-browsing/unavailable-storage graceful degradation, per GlobalChatDock.tsx's own comment), which actually LOWERS the barrier to building this: there's a working, established pattern to extend, not a first-of-its-kind mechanism to invent from nothing."
 
   cross_session_cache_persistence:
     ask: "if user opens a new browser [tab/window], the cache to automatically work for that session on the same machine"
