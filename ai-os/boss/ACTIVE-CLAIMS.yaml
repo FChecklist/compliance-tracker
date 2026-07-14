@@ -42,19 +42,16 @@
 # ============================================================================
 
 active:
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    claimed_at: "2026-07-14T00:35:00+05:30"
-    claim: "GAP-UMR-TABLE-COVERAGE 4th batch -- new drizzle migration onboarding ~15-25 more tables onto compliance.auto_register_asset(), plus ai-os/registry/asset-registry-coverage.yaml update. Scope: a NEW migration file only, no existing file edits besides MASTER-TRACKER.yaml/asset-registry-coverage.yaml (both merge-friendly, append-style)."
-    worktree: ".claude/worktrees/agent-ae34ecff115e571b5"
-
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    claimed_at: "2026-07-14T00:35:00+05:30"
-    claim: "GAP-DCMD -- investigating whether a genuine 3rd entity_relationships graph edge type exists to wire (candidates: dynamic_chain<->conversation, dynamic_chain<->dynamic_chain parent/child). Scope: src/lib/db/schema.ts (entityRelationships area only) + task-execution-engine.ts + possibly a new small migration. Explicitly NOT touching capability-learning-service.ts or anything Priority-12/13-adjacent (see below) even if investigation surfaces a tempting edge there -- deferred to whichever session owns that area."
-    worktree: ".claude/worktrees/agent-a7bff280ef03a1539"
+# (empty -- this session has no active claims right now)
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-14T03:37:44Z"
+    claim: "GAP-UMR-TABLE-COVERAGE 4th batch (23 tables, migration 0193 after 2 real renumbering collisions) -- PR #302 merged. GAP-DCMD 3rd graph edge (dynamic_chain->dynamic_chain 'supersedes', createChainVersion() chokepoint) -- PR #288 merged. This session has no further active claims."
+
+
   - session_label: "claude-code (this session, CLI) -- Priority 12 (OPEN-07, Universal Builder), OWNER-DIRECTED SOLE OWNER"
     completed_at: "2026-07-14T (same day as claim; see MASTER-TRACKER.yaml OPEN-07 status_update / closed_priorities #15 and COMPLETED.yaml WAVE-177 for full detail)"
     claim: |
