@@ -93,6 +93,41 @@ active:
       files). Does NOT touch auth-guard.ts, apiKeys, or platform_applications
       (Wave 1's territory, already closed).
 
+  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, ERP multi-company/office UI exposure"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed Priority 17 Wave 1: expose the already-real, already-
+      working multi-company/office backend (erp-company-service.ts's
+      listCompanies/createCompany/updateCompany/getCompanyDescendantIds,
+      and erp-financial-report-service.ts's resolveCompanyScope threaded
+      through trialBalance/profitAndLoss/balanceSheet/cashFlowStatement)
+      through PROJEXA's UI, which never surfaced it at all. Confirmed by
+      direct code read: trial-balance/profit-and-loss/balance-sheet routes
+      under src/app/api/v1/projexa/* ALREADY accept companyId/consolidate
+      query params and thread them to resolveCompanyScope (built in a prior
+      Priority 15 wave) -- the one genuine gap in that family is
+      profit-and-loss-by-project (profitAndLossByCostCenter), which has no
+      company-scope support at all. Scope: (1) new
+      src/app/api/v1/projexa/companies/route.ts (GET list + POST create,
+      thin alias over erp-company-service.ts) -- createCompany's ctx type
+      extended to the same dbUser-or-apiKey actor union already precedented
+      by createJournalEntry/createSalesInvoice/createSalesCreditNote, so a
+      Bearer-key PROJEXA caller can create a company/office. (2)
+      erp-financial-report-service.ts's profitAndLossByCostCenter gains an
+      optional CompanyScope param (same resolveCompanyScope mechanism, new
+      companyId/consolidate query params on its route). (3) projexa side:
+      a company/office selector on AccountingClient.tsx's Trial
+      Balance/P&L/Balance Sheet/P&L-by-Project tabs (defaults to "All
+      companies / consolidated"), a new Companies tab on the same page
+      (list + create) since erp_companies is ERP-scoped data, not a
+      generic org setting, plus a new src/app/api/companies proxy route.
+      NOT building inter-company elimination accounting (bigger feature,
+      explicitly out of scope) and NOT touching auth-guard.ts/schema.ts's
+      auth tables (PLATFORM-01's Wave 1, PR #339, already merged into main
+      by the time this claim rebased -- confirmed disjoint file scope by
+      diff, no overlap). Branch: priority17-companies-office-selector
+      (both repos).
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |
