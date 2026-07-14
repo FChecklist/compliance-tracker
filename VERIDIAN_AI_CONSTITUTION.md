@@ -136,7 +136,7 @@ Meeting Intelligence may only update tasks, CRM, projects, risks, decisions, and
 
 Every request shall pass through: Authentication → Authorization → Context validation → Business purpose validation → Module validation → Permission validation → Policy validation → AI safety validation → Data governance validation → Audit logging → Execution. Any failed validation denies the request with a clear explanation.
 
-**[ENFORCED for the gated call sites; not yet universal]** -- see the Policy Enforcement Engine section below for the exact real chain and which call sites currently run through it (Wave 46 wired VERI Chat, VERI FDE, and the Page Agent proxy -- VERIDIAN's 3 free-text-to-LLM surfaces). Internal platform loops and structured document extraction are not yet wired through this gate (see remediation note at the end of this document).
+**[ENFORCED for the gated call sites; not yet universal]** -- see the Policy Enforcement Engine section below for the exact real chain and which call sites currently run through it (Wave 46 wired VERI Chat and VERI FDE -- VERIDIAN's 2 free-text-to-LLM surfaces; a 3rd, the Page Agent proxy, was removed entirely 2026-07-14 per Owner directive -- see the PageAgent Removal note below). Internal platform loops and structured document extraction are not yet wired through this gate (see remediation note at the end of this document).
 
 ## 23. Principle of Enterprise Integrity
 
@@ -179,9 +179,12 @@ Audit Log                  (recordOrchestraExecution(), existing, Wave 22/23)
 
 - **VERI Chat** (`chat-service.ts`'s `generateAiReply`) -- every message to the pinned AI thread
 - **VERI FDE** (`fde-service.ts`'s `submitFdeRequest`) -- every natural-language capability request, gated before the embedding search even runs
-- **Page Agent** (`api/page-agent/proxy/route.ts`) -- every DOM-control instruction, gated in addition to the pre-existing path-based restriction (`/posh`, `/whistleblower`)
 
-These 3 are VERIDIAN's only surfaces where arbitrary free-text user input reaches an LLM with real side effects (a chat reply, a new Worker Agent proposal, or control of the live page) -- chosen deliberately as the highest-leverage first wave, matching `AI_OS_CERTIFICATION.md`'s own remediation priority #6.
+These 2 are VERIDIAN's only remaining surfaces where arbitrary free-text user input reaches an LLM with real side effects (a chat reply or a new Worker Agent proposal) -- chosen deliberately as the highest-leverage first wave, matching `AI_OS_CERTIFICATION.md`'s own remediation priority #6.
+
+### PageAgent Removal (2026-07-14)
+
+A 3rd surface, **Page Agent** (`api/page-agent/proxy/route.ts`, DOM-control instructions), was gated here at Wave 46 alongside its own pre-existing path-based restriction (`/posh`, `/whistleblower`). Per Owner directive ("remove PageAgent it doesn fit VERIDIAN"), PageAgent was removed from the codebase entirely -- the component, its two API routes, the personal-model-resolver, the `personal_model_config` table, and the `organisations.page_agent_enabled` column are all gone (`drizzle/0196_remove_pageagent.sql`). It had also already been globally kill-switched (`PAGE_AGENT_ENABLED = false`) and non-functional in production since Wave 45, independent of this removal. This section is left as a historical record of what the 3rd wired call site used to be -- it is not still enforced, because the feature it gated no longer exists.
 
 ### Explicitly not yet wired (honest, not hidden)
 

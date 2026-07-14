@@ -66,9 +66,9 @@ Auth → Role/RLS → Domain Validity → Prompt-Injection Check → Business-Pu
   → DENY (logged, zero LLM call, zero cost) or ALLOW → provider call → audit log
 ```
 
-**Wired call sites (3, Wave 46):** VERI Chat, VERI FDE, Page Agent proxy — VERIDIAN's 3 surfaces where arbitrary free-text reaches an LLM with real side effects.
+**Wired call sites (2, Wave 46; was 3 until PageAgent's 2026-07-14 removal):** VERI Chat, VERI FDE — VERIDIAN's remaining surfaces where arbitrary free-text reaches an LLM with real side effects. (The 3rd, Page Agent proxy, was removed from the codebase entirely per Owner directive — see `VERIDIAN_AI_CONSTITUTION.md`'s "PageAgent Removal" note.)
 
-**Explicitly NOT yet wired (honest, stated in the source doc, not hidden):** `src/lib/loops/*.ts` (system-generated, not user-facing), `document-extraction-service.ts` (structured extraction, lower injection surface but untested), `api/ai/orchestrate/route.ts` + `task-execution-engine.ts` (operates on system-generated task descriptions today, not raw chat — should be wired as task-creation surfaces grow). **This is the concrete detail behind the audit's "policy enforcement only covers 3 of N call sites" finding** — see `CRITICAL_GAPS.md`.
+**Explicitly NOT yet wired (honest, stated in the source doc, not hidden):** `src/lib/loops/*.ts` (system-generated, not user-facing), `document-extraction-service.ts` (structured extraction, lower injection surface but untested), `api/ai/orchestrate/route.ts` + `task-execution-engine.ts` (operates on system-generated task descriptions today, not raw chat — should be wired as task-creation surfaces grow). **This is the concrete detail behind the audit's original "policy enforcement only covers 3 of N call sites" finding (now 2 of N, one surface having been removed rather than wired)** — see `CRITICAL_GAPS.md`.
 
 **Real, honestly-graded gaps in the Constitution itself** (not exhaustive — full grading is in the source doc):
 - §9 (Coding Governance) — "Level 1 only" is an *organizational* boundary (who has repo access) today, not a runtime AI-level check. No code distinguishes "Claude Code acting as Level 1" from any other authenticated session.

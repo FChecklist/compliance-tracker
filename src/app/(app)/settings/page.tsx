@@ -16,7 +16,6 @@ import {
   Webhook,
   Bot,
   Rocket,
-  Cpu,
   ShieldAlert,
   Users2,
   TrendingUp,
@@ -26,7 +25,6 @@ import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
-import PersonalAiConfigSection from "@/components/PersonalAiConfigSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import MfaSection from "@/components/MfaSection";
 import WebhookSection from "@/components/WebhookSection";
@@ -57,7 +55,6 @@ const SETTINGS_NAV = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "ai-assistants", label: "AI Assistants", icon: Bot },
-  { id: "my-ai", label: "My AI", icon: Cpu },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "pms", label: "Project Management", icon: Rocket },
   { id: "security", label: "Security (MFA)", icon: ShieldCheck },
@@ -90,10 +87,6 @@ export default function SettingsPage() {
   const [orgSaving, setOrgSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // PageAgent org-level toggle
-  const [pageAgentOrgEnabled, setPageAgentOrgEnabled] = useState(true);
-  const [pageAgentToggleSaving, setPageAgentToggleSaving] = useState(false);
-
   useEffect(() => {
     fetch('/api/me').then(r => r.json()).then(d => {
       setProfileName(d.name ?? '');
@@ -103,29 +96,8 @@ export default function SettingsPage() {
       setOrgAccountType(d.orgAccountType ?? 'company');
       setOrgRegulatoryEntityType(d.orgRegulatoryEntityType ?? 'general');
       setIsAdmin(d.role === 'admin');
-      setPageAgentOrgEnabled(d.pageAgentEnabled ?? true);
     }).catch(() => {});
   }, []);
-
-  const togglePageAgentOrgEnabled = async (next: boolean) => {
-    setPageAgentToggleSaving(true);
-    const previous = pageAgentOrgEnabled;
-    setPageAgentOrgEnabled(next);
-    try {
-      const res = await fetch('/api/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageAgentEnabled: next }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success(next ? 'PageAgent enabled for your organisation' : 'PageAgent disabled for your organisation');
-    } catch {
-      setPageAgentOrgEnabled(previous);
-      toast.error('Failed to update PageAgent setting');
-    } finally {
-      setPageAgentToggleSaving(false);
-    }
-  };
 
   const saveProfile = async () => {
     setProfileSaving(true);
@@ -365,39 +337,6 @@ export default function SettingsPage() {
                 <AiAssistantsSection />
               </CardContent>
             </Card>
-          )}
-
-          {activeSection === "my-ai" && (
-            <div className="space-y-6">
-              {isAdmin && (
-                <Card className="rounded-xl shadow-card bg-white">
-                  <CardHeader>
-                    <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-                      <Cpu className="size-4" />
-                      PageAgent (Organisation)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label className="text-sm font-medium text-ct-navy">Enable PageAgent for this organisation</Label>
-                        <p className="text-xs text-ct-muted mt-0.5">
-                          When off, no one in your organisation gets the PageAgent assistant, regardless of
-                          their personal configuration below.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={pageAgentOrgEnabled}
-                        onCheckedChange={togglePageAgentOrgEnabled}
-                        disabled={pageAgentToggleSaving}
-                        className="data-[state=checked]:bg-ct-saffron"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              <PersonalAiConfigSection />
-            </div>
           )}
 
           {activeSection === "preferences" && (

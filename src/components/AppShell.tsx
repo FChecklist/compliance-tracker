@@ -5,7 +5,6 @@ import { AppTopbar } from "@/components/AppTopbar";
 import { HealthRibbon } from "@/components/HealthRibbon";
 import TrialBanner from "@/components/TrialBanner";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
-import PageAgentInitializer from "@/components/PageAgentInitializer";
 import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock";
 // HelpWidget was built in an earlier session wave but never wired into any
 // render tree — imported and rendered here as a fixed-position floating
@@ -101,7 +100,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // not a rewrite of the existing flow.
   const body = (
     <>
-      <PageAgentInitializer />
       <AppTopbar
         sidebarCollapsed={veriChatV2Enabled ? sidebarCollapsed : undefined}
         onToggleSidebar={veriChatV2Enabled ? () => setSidebarCollapsed((v) => !v) : undefined}

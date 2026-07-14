@@ -252,7 +252,7 @@ This section shows, module by module, which input patterns actually occur and ho
 - **#2** Partner checks their own dashboard → **Output H** (pipeline + commission summary).
 - **#5** Admin marks a commission accrual as paid → append-only ledger insert → **Output A**.
 
-### VERI Chat / VERI AI / Page Agent (the only 3 free-text-to-LLM surfaces with real guardrails today)
+### VERI Chat / VERI AI (the only 2 free-text-to-LLM surfaces with real guardrails today -- Page Agent, formerly a 3rd, was removed 2026-07-14 per Owner directive; see VERIDIAN_AI_CONSTITUTION.md's "PageAgent Removal" note)
 - **#10** is the dominant pattern here by design — open conversation.
 - **#1** embedded inside conversation ("send this to the finance team") → multi-agent chaining (Wave 78) routes to the relevant module's action.
 - **#7** injection/off-purpose attempts → Policy Enforcement Engine intercepts before the LLM call → **Output F**.

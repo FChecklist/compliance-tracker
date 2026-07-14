@@ -1535,3 +1535,33 @@ closed_priorities:
       tracker entry and schema.ts's own header comment to match, rather
       than leaving a silent duplicate-number collision for the supervisor
       to find.
+
+  - priority: 21
+    name: "PageAgent removal (Owner directive)"
+    summary: |
+      Owner directive: "remove PageAgent it doesn fit VERIDIAN" -- full
+      removal, not a freeze-in-place, superseding the earlier open question
+      in ai-os/CONSTITUTION.yaml's page_agent entry. Deleted
+      PageAgentInitializer.tsx, PersonalAiConfigSection.tsx,
+      api/page-agent/{config,proxy}/route.ts,
+      api/settings/page-agent-config/route.ts, personal-model-resolver.ts.
+      Edited AppShell.tsx (removed mount), schema.ts (dropped
+      personalModelConfig table + organisations.pageAgentEnabled column),
+      api/me/route.ts + use-me.ts (removed the field), settings/page.tsx
+      (removed the 'My AI' org-toggle section + PersonalAiConfigSection),
+      package.json (removed the page-agent dependency). New migration
+      drizzle/0196_remove_pageagent.sql applied live to Supabase (project
+      pcrjmlpuqsbocqfwoxod): DROP TABLE compliance.personal_model_config,
+      DROP COLUMN compliance.organisations.page_agent_enabled. Live-data
+      check before removal: personal_model_config had 0 rows; only 1 of 16
+      orgs had page_agent_enabled=true, and PageAgent's own
+      PAGE_AGENT_ENABLED=false kill-switch had already made it fully
+      non-functional in production since before Wave 45, so this removal
+      deleted dead code, not live behavior. Updated
+      VERIDIAN_AI_CONSTITUTION.md (Policy Enforcement Engine's wired call
+      sites: 3 -> 2, VERI Chat + VERI FDE, with a dated removal note left
+      as historical record), docs/master/ARCHITECTURE.md, and
+      VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md to match. Historical
+      changelog docs (orchestra_changes.md, AI_OS_CERTIFICATION.md,
+      AI_OS_MASTER_PROMPT_GAP_ANALYSIS.md, TEST_LOG.md) deliberately left
+      as-is -- they describe a specific past pass/wave, not current state.
