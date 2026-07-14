@@ -67,6 +67,31 @@ active:
       will very likely collide with both; expected and resolved by keeping
       all nav sections on merge, per this project's own precedent.
 
+  - session_label: "claude-code (sub-agent) -- Priority 14, GAP-LITERT-EDGE-INFERENCE"
+    claimed_at: "2026-07-14T16:30:00Z"
+    claim: |
+      Owner-directed Phase 0 spike only (PLATFORM_STRATEGY.md section 28.4): loading
+      one real, small LiteRT.js embeddings model client-side to measure real
+      load time/accelerator/dimensionality/similarity sanity-check, before
+      any commitment to Phase 1 (the dynamic edge_inference_models manifest
+      infra in section 28.3 -- explicitly NOT built here). New isolated route
+      only (src/app/litert-spike-embeddings/), alongside the existing
+      (unrelated, vision-model) src/app/litert-spike/ -- not replacing it,
+      not touching chat-service.ts/UMR/any production path. Branch:
+      feat/litert-embeddings-spike, worktree
+      .claude/worktrees/agent-litert-embeddings-spike.
+
+  - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
+    claimed_at: "2026-07-14T00:00:00Z"
+    claim: |
+      Onboarding the next real batch (~15-25 tables) of the 303 still
+      grandfather-exempted asset_registration_config rows onto the UMR
+      auto-registration mechanism -- 5th batch after Priority 10 (+19,
+      PR #237), Priority 11 (+22, PR #242), Priority 17 (+23, migration
+      0193, PR #302). Scope: ai-os/registry/asset-registry-coverage.yaml,
+      a new drizzle/0XXX migration, src/lib/db/schema.ts (read-only, no
+      schema changes). Branch: gap-umr-table-coverage-batch5.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"
     claim: |
@@ -89,6 +114,61 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      GAP-UMR-TABLE-COVERAGE 5th batch -- 24 more tables onboarded from the
+      grandfather-exempted list onto the UMR auto-registration mechanism
+      (drizzle/0198), after Priority 10 (+19, PR #237), Priority 11 (+22,
+      PR #242), Priority 17 (+23, migration 0193, PR #302). Spans
+      Compliance core (including the platform's own flagship
+      compliance_items table), HR/Sector-regulator compliance trackers,
+      Sales Engine, VERI Reward, ESG, Company Secretarial, Worker-Agent
+      Governance, e-Signature, and ERP Sales/Purchase transactional
+      documents (including erp_sales_invoices/erp_purchase_invoices, both
+      explicitly deferred by Priority 17's own migration). Applied live via
+      Supabase MCP with 207 existing rows across 8 non-empty tables
+      backfilled via compliance.backfill_registered_assets() and verified
+      (129 active asset_registration_config rows confirmed live, matching
+      the coverage manifest exactly: 129 registered / 280 exempted / 409
+      total). 31 additional investigated-but-left-exempted tables got their
+      generic placeholder reason upgraded to a specific one (not
+      re-registered) -- most were either indirect-org-scope-only (join
+      chain to a parent table's org_id, same cross-tenant-leak class as
+      Priority 4 domain B's approval_workflow_step_* exclusions) or carried
+      sensitive per-individual evaluation content (same confidentiality
+      class as board_meetings/posh_complaints/whistleblower_cases). tsc
+      clean, lint 0 errors, bun test 1113 pass/0 fail, no new Supabase
+      security advisories introduced. PR opened from
+      gap-umr-table-coverage-batch5, NOT merged by this session per this
+      task's own instruction (a supervisor session audits and merges). This
+      session has no further active claims.
+
+  - session_label: "claude-code (sub-agent) -- Priority 15 HR & Payroll module for PROJEXA"
+    completed_at: "2026-07-14T (this session)"
+    claim: |
+      Company-employee HR & Payroll for PROJEXA, Wave 1 -- 26 thin-alias
+      routes under /api/v1/projexa/* (employees + department roster + org
+      chart, leave requests/balances, payroll runs/payslips/salary
+      structures & components/statutory rules/income tax slabs &
+      exemptions, recruitment job-openings/candidates/applications/
+      interviews/hire-link), all reusing the existing hr-service.ts /
+      erp-payroll-service.ts / recruitment-service.ts engines with zero new
+      schema and zero new business logic (the one exception,
+      hr/departments/route.ts, re-authenticates the platform's own existing
+      inline /api/departments query via requireAuthOrApiKey -- no dedicated
+      department service module exists anywhere in this codebase to import
+      from instead). Explicitly did NOT touch /api/v1/projexa/labour or
+      /attendance (site-labour manpower, a separate concept, already
+      built). bunx tsc --noEmit and bun run lint both clean; full `next
+      build` currently fails on this branch AND on origin/main itself due
+      to pre-existing unrelated breakage (missing mammoth/pptxgenjs
+      packages, a react-resizable-panels v3->v4 API mismatch) confirmed via
+      `git diff origin/main` returning empty for every failing file --
+      already tracked by this repo's own dep-panels/dep-recharts/dep-ts
+      worktrees. PR #330. Companion PROJEXA-side UI in FChecklist/projexa#7
+      (full build green there). This session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- GAP-NARROW-MONITOR-ESCALATION Phase 0"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
