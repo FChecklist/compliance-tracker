@@ -48,14 +48,32 @@ active:
     worktree: ".claude/worktrees/agent-veri-reward-audit"
     branch: "feat/veri-reward-wiring-audit"
 
-  - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
-    claimed_at: "2026-07-14T00:00:00Z"
-    claim: "Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit, scope: capability-registry-service.ts / fde-service.ts / worker-agent-service.ts / chat-service.ts / task-execution-engine.ts, dispatched by Super Boss supervisor 2026-07-14"
-    worktree: ".claude/worktrees/agent-worker-classify-audit"
-
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Investigated both items dispatched by Super Boss supervisor. Item A
+      (Worker Agent Phase-1 read-only auto-dispatch) turned out already
+      fully wired (PR #51, predates this session) -- fde-service.ts's
+      high-confidence worker_agent match reuses task-execution-engine.ts's
+      dispatchTool(), gated through purpose-bound-ai.ts's
+      DOMAIN_ALLOWED_TOOLS allowlist which already excludes every write
+      action. The one real gap: the shared threshold constant was still
+      the originally-proposed 0.9, not the Owner's 2026-07-10 correction to
+      0.95 -- fixed as a one-line change. Item B (llm-response-cache
+      wiring): chat-service.ts, task-execution-engine.ts, and
+      /api/ai/orchestrate/route.ts all called the LLM directly. Wired
+      /api/ai/orchestrate/route.ts (a genuine fit per the cache module's
+      own documented safety bar). Deliberately left chat-service.ts and
+      task-execution-engine.ts's planning call unwired for concrete
+      architectural reasons (history not in the cache key; a cached
+      malformed response would defeat the existing SyntaxError-retry
+      self-heal) -- see ai-os/boss/COMPLETED.yaml WAVE-178 for full detail.
+      PR opened from feat/worker-agent-dispatch-classify-audit, not
+      self-merged. This session has no further active claims.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T03:37:44Z"
     claim: "GAP-UMR-TABLE-COVERAGE 4th batch (23 tables, migration 0193 after 2 real renumbering collisions) -- PR #302 merged. GAP-DCMD 3rd graph edge (dynamic_chain->dynamic_chain 'supersedes', createChainVersion() chokepoint) -- PR #288 merged. This session has no further active claims."
