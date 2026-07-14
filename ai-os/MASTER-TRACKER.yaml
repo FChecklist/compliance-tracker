@@ -1630,3 +1630,34 @@ closed_priorities:
       ai-os/CONSTITUTION.yaml's meta.doc_debt_found_this_pass DEBT-02 and here
       for a future session to pick up, not silently dropped).
 
+  - priority: 23
+    name: "Prompt & Cache Management Framework, Phase 1"
+    summary: |
+      Owner-directed, scoped per control/CONTROLLER.yaml's CACHE-01
+      requirements artifact -- Phase 1 only (deterministic static-prefix
+      compilation + fingerprint, Anthropic cache_control wiring, metrics),
+      wired into chat-service.ts's generateAiReply() (VERI Chat's 1:1 AI
+      thread) as the single highest-traffic real call site, not every
+      Orchestra Layer. New: src/lib/prompt-cache/{fingerprint,compiler,
+      metrics}.ts, prompt_cache_metrics table (drizzle/0197, RLS per
+      ARCH-03, applied live). Extended src/lib/llm-client.ts additively --
+      CallLLMOptions.enablePromptCache (opt-in, every pre-existing call
+      site unaffected), LLMUsage.cacheReadTokens/cacheCreationTokens
+      (optional, undefined when not attempted), callAnthropic() now sends
+      system as a cache_control content block above the minimum cacheable
+      size (character-count proxy for Anthropic's real 1024/2048-token
+      floor, Haiku double). OpenAI's own caching is automatic, deliberately
+      untouched; Groq/OpenRouter/Cerebras/Google get no special handling --
+      caching support unresearched for those providers, no adapter guessed
+      into existence. tsc/lint/guardrail-presence/doc-governance clean;
+      15 new unit tests (fingerprint determinism, compiler, 4 real
+      cache_control request-shape assertions against a mocked Anthropic
+      response). Logged in ai-os/CONSTITUTION.yaml's new
+      prompt_cache_framework section (CACHE-01 through CACHE-04).
+      Deliberately NOT built this wave: a "cache_registry" as a data store
+      (corrected before implementation -- the provider already stores the
+      cached content, VERIDIAN's own code only needs metrics, not a second
+      store); wiring into any other call site (VERI FDE, AI Dev Team
+      dispatch) -- phased per the requirements artifact's own §3.2, not a
+      one-shot retrofit.
+

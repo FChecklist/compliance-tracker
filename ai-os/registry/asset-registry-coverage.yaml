@@ -801,6 +801,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: tool_health_events
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: prompt_cache_metrics
+    reason: "Prompt & Cache Management Framework, Phase 1 (2026-07-14, control/CONTROLLER.yaml CACHE-01): pure operational telemetry, one row per LLM call's cache outcome -- no display-name column exists or would make sense (fingerprint is a SHA-256 hash, not a human-readable name), and no user/admin ever browses this table by name the way they would a report/screen/dashboard/ai_agent. Same self-exemption class as orchestra_executions/tool_health_events (both exempted above as pre-Priority-4 grandfathers) -- this table is new, not grandfathered, but shares their real reason: internal AI-observability state, not a discoverable platform asset."
   - table: scoped_delegations
     reason: "Wave 173 (GAP-DELEGATION-AUTHORITY, recovered from an interrupted background agent's worktree, verified 2026-07-13): has org_id but no single display-name column -- each row is a per-grant (delegatorUserId, delegateUserId|delegateRoleKey, scopeType, scopeId) compound record, same shape as the already-exempted approval_preferences (a per-user permission/authority setting, not a named platform asset in the UMR sense)."
   - table: user_active_sessions
