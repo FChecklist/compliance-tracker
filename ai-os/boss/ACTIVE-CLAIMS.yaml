@@ -42,7 +42,11 @@
 # ============================================================================
 
 active:
-# (empty -- this session has no active claims right now)
+  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
+    claimed_at: "2026-07-14T00:00:00Z"
+    claim: "VERI Reward end-to-end wiring audit, scope: src/lib/services/veri-reward-service.ts / src/lib/services/veri-reward-enablement-service.ts / src/app/(app)/rewards/**, dispatched by Super Boss supervisor 2026-07-14"
+    worktree: ".claude/worktrees/agent-veri-reward-audit"
+    branch: "feat/veri-reward-wiring-audit"
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
