@@ -24,6 +24,8 @@ import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/hi
 // ChainSelector.tsx (shared with the new ChainSelectorDialog used by
 // AiThreadSwitcher below) instead of being defined privately here.
 import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, type ChainSelectorResult } from "./ChainSelector";
+import { IntentCommandPalette } from "./IntentCommandPalette";
+import { saveIntent } from "@/lib/browser-intent-cache";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -157,6 +159,10 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   // change (below) so a stale query never silently hides options at a row
   // the user has already moved past.
   const [pickerSearch, setPickerSearch] = useState("");
+  // Owner spec 2026-07-14 (CONTROLLER.yaml PALETTE-01): Spotlight-style
+  // recall of previous chain+text submissions, opened via "/" or Tab while
+  // the chat box is empty. See IntentCommandPalette.tsx / browser-intent-cache.ts.
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<ConfirmationResolution> {
     return new Promise((resolve) => setPendingConfirmation({ category, categoryLabel, matchedPhrase, resolve }));
@@ -223,6 +229,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
       return;
     }
     const displayCrumb = pathDisplayString(path);
+    // Browser Intent Cache (CONTROLLER.yaml PALETTE-01, task 1): capture the
+    // ORIGINAL pre-expansion selection (path/text), not each concrete
+    // expanded leaf below -- that's what the palette should offer back as
+    // "restore this workflow", matching what the user actually picked.
+    // Fire-and-forget: never blocks the real send, and browser-intent-cache.ts
+    // swallows its own errors.
+    void saveIntent({ composerMode, selectedPath: path, displayLabel: displayCrumb, chatMessage: text });
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
@@ -436,6 +449,23 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     setQueue([]);
   }
 
+  // Restores a previously-cached workflow into the composer. Local-cache
+  // entries carry the real PathSegment[] the composer produced; server
+  // library entries carry pathKeys as a plain jsonb value (always a flat
+  // string[] in practice today -- dynamicChains has no multi-select rows
+  // yet -- but typed as PathSegment[] to match what setSelectedPath expects).
+  function handlePaletteSelect(sel: { source: "local"; intent: { selectedPath: PathSegment[]; chatMessage: string } } | { source: "server"; chain: { pathKeys: unknown; description: string | null } }) {
+    if (sel.source === "local") {
+      setSelectedPath(sel.intent.selectedPath);
+      setValue(sel.intent.chatMessage);
+    } else {
+      setSelectedPath(Array.isArray(sel.chain.pathKeys) ? (sel.chain.pathKeys as PathSegment[]) : []);
+      setValue(sel.chain.description ?? "");
+    }
+    setPickerSearch("");
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }
+
   const disabled = !fdeFallback && !isThreadOpen && composerMode !== "discuss" && composerMode !== "chats" && !(isChainMode && chainComplete) && !needsEngineInputs;
   const placeholder = fdeFallback
     ? "Describe what you need — VERI will look for a match or propose it for approval…"
@@ -573,13 +603,32 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           </div>
         )}
 
-        <div className="rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
+        <div className="relative rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
+          {isChainMode && !isThreadOpen && (
+            <IntentCommandPalette
+              open={paletteOpen}
+              composerMode={composerMode}
+              onClose={() => setPaletteOpen(false)}
+              onSelect={handlePaletteSelect}
+            />
+          )}
           <textarea
             ref={textareaRef}
             rows={1}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); return; }
+              // Owner spec 2026-07-14 (PALETTE-01, task 2): "/" or Tab on an
+              // empty chat box opens the workflow recall palette -- only in
+              // chain modes (mode+path is what gets restored), only when
+              // there's nothing already typed (so "/" and Tab keep their
+              // normal behavior once the user has started typing).
+              if ((e.key === "/" || e.key === "Tab") && value.length === 0 && isChainMode && !isThreadOpen && !disabled) {
+                e.preventDefault();
+                setPaletteOpen(true);
+              }
+            }}
             placeholder={placeholder}
             disabled={disabled}
             className="w-full bg-transparent text-[15px] text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[160px] overflow-y-auto disabled:cursor-not-allowed"
