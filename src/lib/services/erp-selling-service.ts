@@ -30,7 +30,7 @@
 // bulk sales-order status updates, and getCustomerOverview() ("customer
 // 360": opportunities + quotations + sales orders + sales invoices +
 // linked projects for one erp_customers row in a single call).
-import { erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices, crmLeads, crmOpportunities, projects, users } from "@/lib/db"
+import { erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices, crmLeads, crmOpportunities, projects, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -215,6 +215,28 @@ export async function createQuotation(
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...actorLogFields(ctx), action: "erp_quotation.created", entityType: "erp_quotation", entityId: quotation.id })
     return quotation
+  })
+}
+
+// Priority 15, Wave 2: single-quotation fetch with everything a PDF export
+// needs in one call -- the quotation + its items + customer + the org's own
+// letterhead details (name/address/GSTIN/PAN). Mirrors erp-einvoice-
+// service.ts's generateEInvoicePayload() org-lookup pattern for the same
+// class of GST-compliant outbound document. No prior single-quotation
+// getter existed (list/create/revise/status/convert all query inline);
+// added here rather than duplicated in the PDF route, matching this
+// codebase's "business logic lives in the service, routes stay thin" rule.
+export async function getQuotationForPdf(ctx: { orgId: string }, quotationId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const quotation = await db.query.erpQuotations.findFirst({
+      where: and(eq(erpQuotations.id, quotationId), eq(erpQuotations.orgId, ctx.orgId)),
+      with: { items: true, customer: true },
+    })
+    if (!quotation) throw new ServiceError("Quotation not found", 404)
+    const org = await db.query.organisations.findFirst({ where: eq(organisations.id, ctx.orgId) })
+    if (!org) throw new ServiceError("Organisation not found", 404)
+    return { quotation, org }
   })
 }
 
