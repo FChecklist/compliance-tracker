@@ -42,6 +42,63 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 18a, VERI Chat second-screen panel unification"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed Priority 18a: extend VeriChatPanel.tsx's existing tab
+      bar (Overview/Tasks/Chats/To Do) with (1) a new Meetings tab surfacing
+      veri-meeting-service.ts's listVeriMeetings/getVeriMeeting/
+      generateMeetingIntelligence/addMeetingActionItem, click-through to a
+      thread-style detail view, link-out to /veri-meetings for deep editing,
+      and a Share action reusing createMeetingShareLink; (2) a new Approvals
+      tab unifying approval-workflow-service.ts-backed change-order/
+      quotation approvals + drafted-communications email-draft approve/
+      reject into one queue with inline approve/reject; (3) folding
+      email-intelligence-service.ts's flagged items into the existing
+      Overview tab's merged feed (extending its Item type, not a new tab);
+      (4) checking whether src/app/api/conversations already supports
+      >2-participant/named group conversations for the Chats tab (UI tweak
+      only) or needs a real backend extension. Scope: primarily
+      src/components/veri-chat/VeriChatPanel.tsx and
+      src/components/veri-chat/veri-chat-context.tsx, new thin GET-only
+      aggregation route(s) under src/app/api/veri-chat/** if needed (no
+      duplicate business logic -- reusing veri-meeting-service.ts/
+      approval-workflow-service.ts/email-intelligence-service.ts as-is).
+      Explicitly NOT touching src/lib/supabase/auth-guard.ts or any auth/
+      membership table shape in schema.ts (PLATFORM-01/PR #339 is actively
+      rewriting those). Branch: feat/priority18a-verichat-panel-tabs,
+      worktree .claude/worktrees/priority18a-verichat-panel. No other
+      active claim in this registry touches VeriChatPanel.tsx,
+      veri-meeting-service.ts, approval-workflow-service.ts, or
+      email-intelligence-service.ts at claim time.
+
+  - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed, cross-repo, platform-wide (NOT PROJEXA-specific):
+      VERIDIAN becomes a real multi-tenant foundation so every product branch
+      (PROJEXA, The Firm, FM & CS, Office AI OS, Forge) can be sold to many
+      independent mid-size customers, each with real data isolation, multiple
+      offices, multiple currencies, and eventually multiple countries/
+      languages. Full plan: C:\Users\Dell\.claude\plans\floating-launching-lagoon.md
+      (6 workstreams). WAVE 1 (this claim) = Workstream 1 (platform-level
+      tenant provisioning: new platform_applications table, apiKeys.
+      issuedForApplicationId, POST /api/v1/platform/provision-org,
+      organisations.primaryProductBranchId, factoring autoProvisionUser()'s
+      org-creation body into a shared provisionOrganisation() helper) +
+      Workstream 2 (RLS-bypass audit/fix pass on /api/v1/projexa/* and other
+      money/PII routes -- confirm withTenantContext() coverage, no schema
+      change). Scope: compliance-tracker src/lib/db/schema.ts (2 new/changed
+      tables+columns), src/lib/supabase/auth-guard.ts (refactor only, same
+      external behavior), new src/app/api/v1/platform/provision-org/route.ts,
+      audit pass across src/app/api/v1/projexa/**. Companion PROJEXA-side
+      claim (signup flow + veridian-client.ts rewire) dispatched in parallel,
+      see projexa repo's own tracking (no ai-os/ layer there yet -- tracked
+      in CONTROLLER.yaml PLATFORM-01 instead). Workstreams 3-6 (offices,
+      currency, language, per-country compliance) are Wave 2, dispatched only
+      after this wave merges (real dependency, not just sequencing
+      preference -- they hang data off what this wave creates).
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |
