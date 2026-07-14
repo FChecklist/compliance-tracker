@@ -15,7 +15,8 @@ import TaskVisibilityPanel from "@/components/TaskVisibilityPanel";
 import { VeriChatProvider } from "@/components/veri-chat/veri-chat-context";
 import VeriComposer from "@/components/veri-chat/VeriComposer";
 import VeriChatPanel from "@/components/veri-chat/VeriChatPanel";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle, ssrSafeLocalStorage } from "@/components/ui/resizable";
+import { useDefaultLayout } from "react-resizable-panels";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [unreadAiCount, setUnreadAiCount] = useState(0);
   const [connectedConnectorsCount, setConnectedConnectorsCount] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // react-resizable-panels v4 dropped Group's `autoSaveId` prop in favor of
+  // this hook (see resizable.tsx's own header comment for the rest of the
+  // v3->v4 migration) -- same persisted layout key as before, just wired
+  // through the officially documented replacement API instead of a prop.
+  const { defaultLayout: veriChatPanelLayout, onLayoutChange: onVeriChatPanelLayoutChange } = useDefaultLayout({ id: "veridian-shell-panels", storage: ssrSafeLocalStorage });
 
   // Shared react-query cache -- previously each of these was its own
   // fetch-on-mount effect here, duplicating the same /api/me and
@@ -116,7 +123,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
         )}
         {veriChatV2Enabled ? (
-          <ResizablePanelGroup direction="horizontal" autoSaveId="veridian-shell-panels" className="flex-1 overflow-hidden">
+          <ResizablePanelGroup orientation="horizontal" defaultLayout={veriChatPanelLayout} onLayoutChange={onVeriChatPanelLayoutChange} className="flex-1 overflow-hidden">
             <ResizablePanel defaultSize={72} minSize={50}>
               <div className="h-full flex flex-col overflow-hidden">
                 <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream">
