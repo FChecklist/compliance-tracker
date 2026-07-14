@@ -586,11 +586,49 @@ open_items:
       recommendation: "Owner picks a speech-to-text provider (e.g. Whisper API, Deepgram, AssemblyAI) and provisions credentials before this can be scoped further."
 
     - id: GAP-LITERT-EDGE-INFERENCE
-      name: "LiteRT.js dynamic edge-inference layer (see PLATFORM_STRATEGY.md §28)"
+      name: "LiteRT.js dynamic edge-inference layer (see PLATFORM_STRATEGY.md §28) -- Owner directive 2026-07-14, re-evaluated with current sources"
       old_ids: []
-      detail: "Evaluated 2026-07-13: LiteRT.js shipped 4 days before evaluation, extremely early-stage. The 'Gemma 4 in browser' claim that prompted this is a separate, younger project (LiteRT-LM), not core LiteRT.js -- not viable yet for in-browser LLM chat given real WebGPU/WebNN coverage and multi-GB model weights on typical business hardware. Genuinely useful for small non-generative tasks (image quality pre-checks for VERI FM & CS's asset photography). Full evaluation, dynamic-manifest design (mirroring the capability-tree pattern), and phased plan in PLATFORM_STRATEGY.md §28. Not started -- Phase 0 is a small worktree-isolated spike, not committed architecture."
+      detail: |
+        Originally evaluated 2026-07-13, 4 days after LiteRT.js shipped --
+        that pass correctly flagged it as too new to commit architecture
+        around and deferred pending Boss go-ahead.
+
+        RE-EVALUATED 2026-07-14 against current sources (Owner-provided:
+        developers.googleblog.com's LiteRT.js announcement +
+        github.com/google-ai-edge/litert), per Owner directive "LiteRT.js
+        to be used." Findings, corrected from the original snapshot:
+        - Genuinely production-grade infra, not a fringe experiment:
+          Apache-2.0, Google-maintained, active (v2.1.6 as of this
+          check, 3000+ stars, 5426+ commits). The "extremely early-stage"
+          framing from the 4-day-old evaluation was accurate AT THE TIME
+          but is now stale -- corrected here, not silently left wrong.
+        - Confirmed real, demonstrated capabilities today: object
+          detection, monocular depth estimation, image upscaling,
+          embeddings/vector search -- all hardware-accelerated in-browser
+          via XNNPACK (CPU/WASM), WebGPU (GPU), WebNN (NPU, experimental).
+        - STILL CONFIRMED NOT SUITABLE for in-browser LLM chat: the
+          announcement itself names LLM support as a SEPARATE product,
+          "LiteRT-LM.js" -- not evaluated, not the same library. Do not
+          conflate the two when scoping any future LiteRT work.
+        - Real, promising fit found this pass, not previously identified:
+          LiteRT.js's embeddings/vector-search capability is a genuine
+          candidate mechanism for the separately-tracked "chat instruction
+          word-level learning for reuse" gap (see
+          ai-os/CONSTITUTION.yaml's learning_and_umr section) -- running
+          semantic similarity matching client-side, in-browser, before
+          falling back to a server round-trip / AI planning call. Not
+          scoped or built -- named as a lead worth pursuing together with
+          that gap, not a green light to build either in isolation.
+        - Explicitly NOT the same problem as "most-used calculator loads
+          in browser" (a separate Owner ask, ai-os/CONSTITUTION.yaml's
+          end_user_experience section): VERIDIAN's VCEL calculators
+          (EMI/GST/depreciation/etc., src/lib/engines/*.ts) are plain
+          deterministic math, not ML models -- they need zero LiteRT.js
+          dependency to run client-side, just a port of existing TS logic.
+          Do not force LiteRT.js into that ask; it solves a different
+          problem (ML MODEL inference, not arbitrary business-logic math).
       size: deferred_large
-      recommendation: "Boss go-ahead needed on Phase 0 (single-model spike) before any permanent architecture is built around a library this new."
+      recommendation: "Owner directive received to adopt LiteRT.js (2026-07-14) -- the original Phase 0 single-model-spike plan (PLATFORM_STRATEGY.md §28) is now authorized to proceed. Scope Phase 0 to the embeddings/vector-search use case first (highest-leverage, most novel finding this pass), not image pre-checks (the original, more conservative starting point) -- confirm this sequencing choice with the Owner before starting, since it changes the original plan's own stated first step."
 
     - id: GAP-NARROW-MONITOR-ESCALATION
       name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md §29)"
