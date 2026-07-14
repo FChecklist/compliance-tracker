@@ -42,6 +42,41 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 15 Wave 2, HR & Payroll follow-up"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed Priority 15 Wave 2 -- 3 items explicitly deferred from
+      HR & Payroll Wave 1 (PR #330 / projexa#7), NOT a re-opening of the
+      whole module. (1) employmentStatus + emergencyContactName/Phone on
+      employeeProfiles: new employmentStatusEnum + 2 text columns, a real
+      drizzle/0XXX migration applied live via Supabase MCP, wired into
+      hr-service.ts's upsertEmployeeProfile, the existing
+      /api/v1/projexa/employees[/[id]] routes, and PROJEXA's
+      EmployeesClient.tsx. (2) Real per-payslip PDF: first jsPDF/
+      jspdf-autotable usage in this codebase (both already installed, zero
+      prior call sites) -- a new src/lib/pdf-generator.ts reusable
+      header/footer helper, a getPayslipDetail() addition to
+      erp-payroll-service.ts, and a new
+      /api/v1/projexa/payroll/payslips/[id]/pdf route + PROJEXA "Download
+      PDF" button. Known-concurrent per this same registry: a Sales/CRM
+      sibling claim may also be building the first jsPDF usage for
+      quotation PDFs -- if that PR merges first, this session rebases onto
+      it and reuses its shared PDF helper instead of keeping two. (3)
+      Role-based UI branching in PROJEXA's HR/Payroll pages: reuses the
+      already-existing GET /api/organization (role: 'owner'|'admin'|
+      'member', from PROJEXA's own memberships table) to conditionally
+      render (not just disable) HR-admin-only actions in
+      EmployeesClient.tsx/PayrollClient.tsx -- server-side
+      requireRoleOrScope stays the actual security boundary, this is a UX
+      fix only. Scope: compliance-tracker src/lib/db/schema.ts
+      (employeeProfiles only), src/lib/services/hr-service.ts,
+      erp-payroll-service.ts, src/app/api/v1/projexa/employees/**,
+      src/app/api/v1/projexa/payroll/payslips/**, new
+      src/lib/pdf-generator.ts; projexa src/components/EmployeesClient.tsx,
+      PayrollClient.tsx, HrDashboardClient.tsx, src/app/api/employees/**,
+      src/app/api/payroll/payslips/**, a new src/hooks/use-org-role.ts(x).
+      Branch: priority15-hr-payroll-wave2 (both repos).
+
   - session_label: "claude-code (sub-agent) -- Priority 15 GRC/Accounting/Invoicing modules"
     claimed_at: "2026-07-14T (this session)"
     claim: |

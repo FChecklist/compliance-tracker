@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     const profile = await upsertEmployeeProfile({ orgId: ctx.orgId, userId: ctx.dbUser.id }, body.userId, {
       employeeCode: body.employeeCode, jobTitle: body.jobTitle, employmentType: body.employmentType,
       dateOfJoining: body.dateOfJoining, dateOfBirth: body.dateOfBirth,
+      employmentStatus: body.employmentStatus, emergencyContactName: body.emergencyContactName, emergencyContactPhone: body.emergencyContactPhone,
     })
     return NextResponse.json(profile, { status: 201 })
   } catch (error) {
