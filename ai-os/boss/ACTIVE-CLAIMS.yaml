@@ -42,6 +42,20 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 14, GAP-LITERT-EDGE-INFERENCE"
+    claimed_at: "2026-07-14T16:30:00Z"
+    claim: |
+      Owner-directed Phase 0 spike only (PLATFORM_STRATEGY.md section 28.4): loading
+      one real, small LiteRT.js embeddings model client-side to measure real
+      load time/accelerator/dimensionality/similarity sanity-check, before
+      any commitment to Phase 1 (the dynamic edge_inference_models manifest
+      infra in section 28.3 -- explicitly NOT built here). New isolated route
+      only (src/app/litert-spike-embeddings/), alongside the existing
+      (unrelated, vision-model) src/app/litert-spike/ -- not replacing it,
+      not touching chat-service.ts/UMR/any production path. Branch:
+      feat/litert-embeddings-spike, worktree
+      .claude/worktrees/agent-litert-embeddings-spike.
+
   - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
     claimed_at: "2026-07-14T00:00:00Z"
     claim: |

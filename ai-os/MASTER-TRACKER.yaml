@@ -594,6 +594,20 @@ open_items:
         that pass correctly flagged it as too new to commit architecture
         around and deferred pending Boss go-ahead.
 
+        CROSS-REFERENCE ADDED 2026-07-14 (this entry was stale on this point
+        until now): the "original Phase 0 single-model-spike plan" this
+        entry's own recommendation refers to was ALREADY BUILT AND MERGED
+        the day before this re-evaluation was written -- WAVE-172 / PR #253
+        (2026-07-13, see ai-os/boss/COMPLETED.yaml), a real /litert-spike
+        route proving @litertjs/core runs client-side in this stack via an
+        image blur/sharp classifier (2,398ms cold load, ~19.6MB payload,
+        confirmed WebGPU full acceleration, 5/5 correct, real Turbopack/
+        worker-bundling workaround documented and reused since). This
+        entry's recommendation below already correctly pointed the NEXT
+        spike at the embeddings/vector-search use case instead of repeating
+        the image one -- it just never cited WAVE-172/PR #253 by ID, which
+        this note fixes for traceability.
+
         RE-EVALUATED 2026-07-14 against current sources (Owner-provided:
         developers.googleblog.com's LiteRT.js announcement +
         github.com/google-ai-edge/litert), per Owner directive "LiteRT.js
@@ -630,6 +644,56 @@ open_items:
           problem (ML MODEL inference, not arbitrary business-logic math).
       size: deferred_large
       recommendation: "Owner directive received to adopt LiteRT.js (2026-07-14) -- the original Phase 0 single-model-spike plan (PLATFORM_STRATEGY.md §28) is now authorized to proceed. Scope Phase 0 to the embeddings/vector-search use case first (highest-leverage, most novel finding this pass), not image pre-checks (the original, more conservative starting point) -- confirm this sequencing choice with the Owner before starting, since it changes the original plan's own stated first step."
+      status_update: |
+        Phase 0b (embeddings/vector-search variant) CLOSED 2026-07-14, same
+        day. New isolated route src/app/litert-spike-embeddings/ (page.tsx,
+        types.ts, worker-src/*.ts), reusing WAVE-172/PR #253's proven
+        esbuild-separate-worker-bundling fix rather than re-solving it.
+
+        Real measured numbers (local dev, this session's test browser --
+        WAVE-172's own numbers were also local-dev, not a production CDN, so
+        this is an apples-to-apples comparison): wasm load 1.4s (browser-
+        cached) to ~25s (cold); model fetch+compile 7-43s (22.8MB payload,
+        network-bound); total cold load ranged ~20-56s across runs.
+        Accelerator: WASM CPU fallback every run in this test browser (no
+        WebGPU available here) -- contrast with WAVE-172's "confirmed WebGPU
+        full acceleration," a real, honestly-reported discrepancy attributed
+        to this specific browser/environment, not re-tested against a
+        WebGPU-capable browser this pass. Embedding dimensionality: 384,
+        confirmed from the compiled model's own output signature.
+
+        Real blocker found, not worked around: the cosine-similarity sanity
+        check could NOT be completed. Two real public tflite embeddings-
+        model conversions were tried and both hit genuine @litertjs/core
+        v2.5.2 API walls -- (1) Nihal2000/all-MiniLM-L6-v2-quant.tflite (TF-
+        signature export, INT8 weight-only quant, apache-2.0): loads and
+        compiles fine, but model.run() rejects a concretized input shape
+        against the model's own fully-dynamic Int32[-1,-1] declaration, and
+        passing [-1,-1] straight through instead crashes inside LiteRT's
+        native layout code -- no public resize-input-tensor call exists to
+        concretize a dynamic-shape model first. (2)
+        Bombek1/all-MiniLM-L12-v2-litert (ai-edge-torch/PyTorch-traced,
+        fixed shape, apache-2.0): avoids the shape problem but kept native
+        int64 input_ids, which @litertjs/core's exposed Tensor/DATATYPES
+        surface (float32/int32/uint8 only) cannot represent --
+        "Element type INT64 is not supported.", thrown at compile time.
+
+        RECOMMENDATION ON PHASE 1: do NOT proceed to the dynamic
+        edge_inference_models manifest infrastructure (PLATFORM_STRATEGY.md
+        §28.3) yet. This spike's own honest purpose was to produce real
+        numbers before an architecture commitment, and the real number here
+        is that the two most obvious public embeddings-model conversions
+        both failed to actually run inference via @litertjs/core v2.5.2's
+        current JS API -- a genuine model-compatibility/API-maturity gap,
+        not a licensing or load-time problem (load time itself was
+        acceptable). Phase 1 would build a registry to dynamically swap
+        models the runtime can't yet reliably run at all for this use case;
+        that's premature. Next step before any Phase 1 work: either find/
+        vet a tflite embeddings conversion with BOTH fixed shape AND int32
+        dtype (neither of the two tried here had both), or wait for a newer
+        @litertjs/core release that adds a resize-input-tensor path for
+        dynamic-shape models and/or wider DATATYPES support. Full detail,
+        code, and real numbers: PR (branch feat/litert-embeddings-spike).
 
     - id: GAP-NARROW-MONITOR-ESCALATION
       name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md §29) -- Phase 0 CLOSED, Phase 1/2 remain"

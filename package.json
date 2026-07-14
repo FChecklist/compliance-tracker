@@ -15,7 +15,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "bun src/db/seed.ts",
     "test:prompts": "promptfoo eval -c promptfooconfig.yaml",
-    "spike:litert-setup": "node scripts/spike-litert-copy-wasm.mjs && node scripts/spike-litert-build-worker.mjs"
+    "spike:litert-setup": "node scripts/spike-litert-copy-wasm.mjs && node scripts/spike-litert-build-worker.mjs",
+    "spike:litert-embeddings-setup": "node scripts/spike-litert-embeddings-setup.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
