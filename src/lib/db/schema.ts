@@ -7424,7 +7424,18 @@ export const firmInvoiceLineItemsRelations = relations(firmInvoiceLineItems, ({ 
 // withTenantContext, the same posture auth-guard.ts's autoProvisionUser()
 // already uses for the identical reason (creating a brand-new tenant is
 // inherently a platform-level operation).
-export const salesPartnerTypeEnum = complianceSchemaDB.enum('sales_partner_type', ['reseller', 'consultant', 'referral_agent', 'commission_agent', 'third_party'])
+// Channel-coverage audit, 2026-07-14 (drizzle/0194): the Owner's 7 named
+// channels (direct/digital, freelance commission agents, third-party
+// online/offline sellers, BSNL enterprise, own employees, call-centre
+// agents) map onto these 7 values as: direct/digital needs no partner row
+// at all (no referral link used); freelance commission agents =
+// commission_agent; third-party online/offline sellers = third_party; BSNL
+// enterprise = reseller; own employees = internal_employee; call-centre
+// agents = call_centre_agent. The last two were added this pass -- neither
+// is representable by an external-partner value (reseller/consultant/
+// referral_agent/commission_agent/third_party all describe entities
+// outside the company; an in-house team member or telecaller is first-party).
+export const salesPartnerTypeEnum = complianceSchemaDB.enum('sales_partner_type', ['reseller', 'consultant', 'referral_agent', 'commission_agent', 'third_party', 'internal_employee', 'call_centre_agent'])
 export const salesPartnerStatusEnum = complianceSchemaDB.enum('sales_partner_status', ['active', 'suspended', 'offboarded'])
 // Real enum: the service layer state-machines over this exact fixed list
 // with forward-only transitions (mirrors recruitment-service.ts's

@@ -1234,3 +1234,71 @@ closed_priorities:
       PR (see PR description for exact pass/fail state at merge time -- not
       self-merged, left for Super Boss's independent 8-field AUDIT: PASS/
       FAIL review per the standing 2026-07-13 procedure).
+
+  - priority: 18
+    name: "Sales Engine channel-coverage audit -- correcting a stale memory claim"
+    summary: |
+      A prior memory snapshot claimed the Sales Engine was "designed but not
+      built." That claim was WRONG -- verified this session: Wave 109 (see
+      sales-engine-service.ts's own header comment, drizzle/0087) shipped a
+      real, fully wired implementation, not stubs. Confirmed by reading the
+      actual code (not just grepping for filenames): sales-engine-service.ts
+      exports 16 real functions (createSalesPartner/listSalesPartners/
+      revokePartnerToken/rotatePartnerToken/suspendSalesPartner/
+      createReferralLink/listReferralLinksForPartner/
+      createOrUpdateCommissionPlan/listCommissionPlans/
+      resolveReferralLinkAndRecordClick/
+      recordReferralSignupAndOrgProvisioned/markReferralPaidIfApplicable/
+      markCommissionPaid/voidCommissionAccrual/getPartnerDashboard/
+      getPlatformSalesOverview/getOrgPlan) against 5 real tables
+      (sales_partners, sales_referral_links, sales_referrals,
+      sales_commission_plans, sales_commission_accruals -- the last is the
+      accrual ledger, append-only by convention like costPayments/
+      auditLogs). src/app/partner/[token]/page.tsx and
+      src/app/(app)/sales-hq/page.tsx both genuinely fetch and render real
+      data via /api/partner/[token] and /api/sales-hq/* (overview,
+      partners, commission-plans, referral-links, commission-accruals,
+      visitors) -- not placeholder UI. "Sales HQ" is a live sidebar entry
+      (AppSidebar.tsx, SALES & CRM section).
+
+      This session's actual job (channel-coverage audit): compared the
+      Owner's 7 originally-named channels (direct/digital, freelance
+      commission agents, third-party online sellers, BSNL enterprise,
+      third-party offline sellers, own employees, call-centre agents,
+      2026-07-06) against sales_partner_type's 5 existing values (reseller,
+      consultant, referral_agent, commission_agent, third_party). 5 of 7
+      map cleanly with no schema change: direct/digital needs no partner
+      row at all (it's simply the absence of a referral link -- organic/
+      paid-marketing signups go straight through /signup); freelance
+      commission agents = commission_agent (exact match); third-party
+      online sellers and third-party offline sellers both = third_party
+      (distinguished operationally by which referral link/productKey they
+      use, not by a separate enum value); BSNL enterprise = reseller (an
+      enterprise channel partner reselling into its own customer base is
+      exactly what reseller already models).
+
+      Real gap found in the remaining 2: "own employees" and "call-centre
+      agents" are first-party/internal channels, and none of the 5
+      existing values fit an in-house team member or telecaller --
+      reseller/consultant/referral_agent/commission_agent/third_party all
+      describe entities outside the company. Added exactly 2 new enum
+      values via drizzle/0194 (ALTER TYPE ... ADD VALUE IF NOT EXISTS, own
+      migration file per the Postgres restriction on using a new enum value
+      in the same transaction it's added in -- same pattern as 0011/0035):
+      'internal_employee' and 'call_centre_agent'. No new tables, no new
+      pages, no new commission logic, no new service functions -- the
+      mechanism already existed and only needed 2 more values in one enum.
+      The admin UI's own hardcoded PARTNER_TYPES list in sales-hq/page.tsx
+      (separate from the DB enum, used to populate the "New Partner" type
+      dropdown) was updated to match, or the two new values would exist in
+      the DB but be uncreatable from the admin UI. tsc/eslint/bun test all
+      run clean locally (1098 pass / 0 fail); a stray drizzle-kit
+      db:generate artifact (0001_damp_reptil.sql, produced because
+      drizzle/meta/_journal.json was never kept in sync with the 194
+      hand-authored migration files already in this repo -- confirming
+      db:generate/migrate is not this repo's actual live-migration
+      mechanism) was discarded, not committed. Migration file is
+      PR-reviewable but NOT applied to the live Supabase DB by this
+      session -- left for the supervisor's own review since it touches
+      schema, per this task's own instruction not to self-merge a
+      schema-touching PR.

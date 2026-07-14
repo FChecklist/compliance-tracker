@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { VisitorIntelligencePanel } from "@/components/VisitorIntelligencePanel";
 
-const PARTNER_TYPES = ["reseller", "consultant", "referral_agent", "commission_agent", "third_party"];
+const PARTNER_TYPES = ["reseller", "consultant", "referral_agent", "commission_agent", "third_party", "internal_employee", "call_centre_agent"];
 const PRODUCT_KEYS = ["grc", "erp", "pms", "hr", "crm", "facilities_management", "the_firm", "forge"];
 
 type Partner = { id: string; name: string; email: string; partnerType: string; status: string; companyName: string | null; createdAt: string };
