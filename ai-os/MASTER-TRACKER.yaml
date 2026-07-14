@@ -1234,3 +1234,82 @@ closed_priorities:
       PR (see PR description for exact pass/fail state at merge time -- not
       self-merged, left for Super Boss's independent 8-field AUDIT: PASS/
       FAIL review per the standing 2026-07-13 procedure).
+
+  - priority: 18
+    name: "VERI Reward end-to-end wiring audit (2026-07-14) -- AUDITED, FOUND COMPLETE, zero code changes"
+    summary: |
+      Dispatched to correct a stale memory-snapshot claim that VERI Reward
+      was "designed but not built." Verified against live code, not
+      memory: it IS built (src/lib/services/veri-reward-service.ts,
+      veri-reward-enablement-service.ts, schema.ts's 5 veri_reward_*
+      tables, src/app/(app)/rewards/page.tsx, all pre-existing from Wave
+      113 / PR #187 per git blame). This audit's real job was checking
+      whether it's actually WIRED to a live event, not just present as
+      dead code -- a prior 4-file sample check (task-execution-engine.ts,
+      chat-service.ts, fde-service.ts, recruitment-service.ts) had found
+      zero callers of awardPoints()/checkAndUnlockAchievements() and
+      flagged this as the likely real gap. That sample simply didn't
+      include the actual caller's file.
+
+      All 5 points verified with file:line evidence, no code changes
+      needed:
+        1. awardPoints()/checkAndUnlockAchievements() ARE called from a
+           real event: compliance-service.ts:281 (updateComplianceItem,
+           checks the 'first_compliance_item' achievement the instant a
+           compliance item's status flips to 'completed', added commit
+           7b5d1bf / PR #187, Jul 8) and auth-guard.ts:267-284
+           (autoProvisionUser's referral-signup bonus, points-only).
+           checkAndUnlockAchievements() itself calls awardPoints()
+           internally on first unlock (veri-reward-service.ts:174-183).
+           Not dead code. Secondary, smaller finding worth a future
+           follow-up: only 1 of the 5 platform-default achievement
+           definitions seeded in 0092_veri_reward.sql (first_compliance_
+           item) has any real caller -- login_streak_3, first_document_
+           upload, weekly_task_5, and onboarding_complete are seeded and
+           rendered on /rewards with real 0/target progress bars but
+           nothing in the codebase ever calls checkAndUnlockAchievements()
+           with those 4 keys, so they can never actually unlock. Flagged
+           as a spawn_task suggestion, not built here (out of this
+           audit's "verify wiring" scope, and not the zero-callers
+           pattern this task was dispatched to find/fix).
+        2. On-by-default DOES apply automatically to new orgs -- confirmed
+           at auth-guard.ts:154-172, a raw orgProductBranchEnablements
+           insert immediately after the organisations insert (not a call
+           to the named enableVeriRewardForOrg() helper, which requires
+           an admin dbUser that doesn't exist yet mid-signup -- same
+           pattern used for veri_chat_v2 right below it). Existing orgs
+           covered by 0098_veri_reward_branch.sql's backfill. Both paths
+           verified consistent with the migration's own "auto-enabled at
+           signup time in autoProvisionUser()" comment.
+        3. No real-cash referral bridge exists, and that's correct/
+           intentional, not an oversight: veri-reward-service.ts:354-355
+           and schema.ts:7792-7793 both explicitly comment "Boss decision
+           2026-07-08: no cash bridge into sales-engine-service.ts for
+           now" -- rewardPoints only, no currency column. The Sales
+           Engine's own cash-commission referral path
+           (recordReferralSignupAndOrgProvisioned, auth-guard.ts:232) is
+           a completely separate mechanism keyed off a different query
+           param (?ref= vs ?vref=), matching Owner decision #2 exactly
+           (cash only through Sales Engine's existing machinery, not
+           enabled day one).
+        4. No redemption mechanism exists anywhere -- confirmed by full-
+           repo search. 'redemption' appears only as a documented (unused)
+           sourceType string in veri_reward_points_ledger's schema comment
+           (schema.ts:7731) and veriRewardReferrals.paidAt is a schema
+           column that's declared but never set by any code path. Owner's
+           "Phase 5 not scheduled" decision is intact -- nothing to flag.
+        5. /rewards/page.tsx renders real data end-to-end: fetches
+           /api/veri-reward (getPointsBalance/listPointsHistory/
+           listAchievementsWithProgress/listStreaks), /api/veri-reward/
+           leaderboard (getOrgLeaderboard), and /api/veri-reward/referral
+           (getOrCreateReferralLink/listMyReferrals) -- all real service
+           calls, all gated through requireVeriRewardEnabled()/
+           isVeriRewardEnabledForOrg(), no mock/placeholder data found.
+
+      Claimed in ai-os/boss/ACTIVE-CLAIMS.yaml before starting (PR #306,
+      coordination-only). Worktree
+      .claude/worktrees/agent-veri-reward-audit /
+      feat/veri-reward-wiring-audit created but carries no functional
+      diff -- this MASTER-TRACKER.yaml entry is the only content change,
+      opened as its own PR per dispatch instructions, not merged by this
+      session.
