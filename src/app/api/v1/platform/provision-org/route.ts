@@ -13,11 +13,33 @@
 // key must never be able to provision new orgs; a leaked platform pk_...
 // key must never be able to read/write one specific customer's data.
 import { NextRequest, NextResponse } from "next/server"
-import { db, apiKeys, productBranches } from "@/lib/db"
-import { eq } from "drizzle-orm"
+import { db, apiKeys, productBranches, orgProductBranchEnablements } from "@/lib/db"
+import { eq, inArray } from "drizzle-orm"
 import { validatePlatformApplicationKey } from "@/lib/supabase/platform-application-auth"
 import { provisionOrganisation } from "@/lib/services/org-provisioning-service"
 import { hashSHA256, generateApiKey } from "@/lib/api-keys"
+
+// Which product_branches (beyond the 2 free/on-by-default ones
+// provisionOrganisation() already enables for every org: veri_reward,
+// veri_chat_v2) a given calling application's own product needs enabled for
+// its own routes to actually work. Deliberately NOT generalized into
+// provisionOrganisation() itself (that helper stays product-agnostic,
+// shared by the human-signup path too, which has no concept of "which
+// product's routes will this org's users hit"). Confirmed exact requirement
+// for 'projexa' via PROJEXA-MODULE-ENTITLEMENT-01 (Priority 16 Part 2,
+// drizzle/0201_projexa_demo_org_erp_sales_hr_enablement.sql): erp/sales are
+// real gates (requireErpEnabled()/requireSalesEnabled()) that 502 most of
+// PROJEXA's Sales/CRM+ERP surface (Vendors, Materials, Accounting, Invoices,
+// Payroll, Budgets, Sales Dashboard, Leads, Customers, Opportunities,
+// Quotations, Sales Orders) when missing; construction is PROJEXA's own
+// core domain; hr is included for parity with the demo org even though no
+// route currently gates on it (future-proofing, same reasoning as that
+// migration's own note). Without this, every NEW PROJEXA customer signing
+// up via this endpoint would hit the exact same 502 wall the demo org had
+// before that fix -- this closes that for new orgs going forward.
+const REQUIRED_BRANCHES_BY_APPLICATION: Record<string, string[]> = {
+  projexa: ["construction", "erp", "sales", "hr"],
+}
 
 export async function POST(request: NextRequest) {
   const authResult = await validatePlatformApplicationKey(request)
@@ -65,6 +87,34 @@ export async function POST(request: NextRequest) {
       primaryCurrency,
       primaryProductBranchId: branch.id,
     })
+
+    // Enable the calling application's own required product branches (see
+    // REQUIRED_BRANCHES_BY_APPLICATION above) -- same non-fatal-on-failure
+    // posture provisionOrganisation() already uses for VERI Reward/VERI
+    // Chat v2, so a branch-enablement hiccup doesn't fail the whole
+    // provisioning call (the org and its API key are still usable; a
+    // missing branch just means that specific module 403s, not a broken
+    // signup).
+    const requiredBranchKeys = REQUIRED_BRANCHES_BY_APPLICATION[platformApp.applicationKey]
+    if (requiredBranchKeys?.length) {
+      try {
+        const requiredBranches = await db.query.productBranches.findMany({
+          where: inArray(productBranches.branchKey, requiredBranchKeys),
+        })
+        if (requiredBranches.length) {
+          await db.insert(orgProductBranchEnablements).values(
+            requiredBranches.map((rb) => ({
+              orgId: organisationId,
+              productBranchId: rb.id,
+              isEnabled: true,
+              enabledAt: new Date(),
+            }))
+          )
+        }
+      } catch (err) {
+        console.warn(`Required branch enablement failed for application '${platformApp.applicationKey}' (non-fatal):`, err)
+      }
+    }
 
     // Mint one vk_... key scoped to just this new org, tagged to the
     // calling platform application -- the exact same generateApiKey()/
