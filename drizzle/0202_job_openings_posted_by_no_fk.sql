@@ -1,0 +1,37 @@
+-- Priority 16 Part 2: fixes the reproducible "Create Job Opening" failure
+-- found during PROJEXA's real-user E2E test pass
+-- (control/priority16_e2e_testing_plan.md, Recruitment gap entry).
+--
+-- Root cause: job_openings.posted_by_id carries a hard
+-- FOREIGN KEY REFERENCES compliance.users(id) (added in
+-- drizzle/0055_wave62_recruitment_performance.sql), but
+-- src/app/api/v1/projexa/recruitment/job-openings/route.ts's POST handler
+-- legitimately passes the caller's API-key id (ctx.dbUser?.id ??
+-- ctx.apiKey?.id) as the actor whenever PROJEXA calls this route
+-- server-to-server with no real per-user session -- which is every call
+-- PROJEXA currently makes (PROJEXA-IDENTITY-BRIDGE-01: the org-wide API
+-- key bridge carries no per-user identity). That API-key id
+-- (e.g. "projexa_demo_key") is never a row in compliance.users, so every
+-- API-key-driven job-opening create hit this FK constraint, which
+-- createJobOpening()'s generic catch block turned into an opaque 500,
+-- re-masked by PROJEXA's own hardcoded 502 "Failed to create job opening".
+--
+-- Fix: drop the FK. This matches the existing, established precedent
+-- elsewhere in this exact codebase for the identical "actor may be a real
+-- user OR a bare API-key id" situation:
+--   - erp_sales_invoices.created_by_id: text, nullable, NO foreign key
+--   - construction_punch_list_items.created_by_id: text, NO foreign key
+-- Both already accept a non-real-user id as best-effort attribution rather
+-- than hard-failing the write. job_openings.posted_by_id is the outlier
+-- that still hard-fails; this migration brings it in line with the
+-- codebase's own established pattern. Not a security/guardrail change --
+-- posted_by_id is not in scripts/check-guardrail-presence.mjs's manifest,
+-- and compliance.job_openings' RLS (app_runtime_org_scoped) already scopes
+-- every row by org_id regardless of this FK.
+--
+-- posted_by_id itself stays NOT NULL and text-typed (no schema.ts change
+-- needed -- it was never declared with .references() there in the first
+-- place; the FK existed only as a raw constraint from the 0055 migration).
+
+ALTER TABLE compliance.job_openings
+  DROP CONSTRAINT IF EXISTS job_openings_posted_by_id_fkey;
