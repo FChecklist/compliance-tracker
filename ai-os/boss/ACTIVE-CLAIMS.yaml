@@ -42,6 +42,31 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 15 GRC/Accounting/Invoicing modules"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed Priority 15 slice: bring PROJEXA to Odoo/ERPNext-
+      equivalent coverage for GRC, Accounting, and Invoicing, reusing
+      VERIDIAN's existing mature services -- zero new PROJEXA-side schema,
+      thin aliasing routes only, per the locked "Zero duplication" principle
+      from Priority 13. Scope: new src/app/api/v1/projexa/* routes for a
+      compliance/risk register + access-review view (compliance-service.ts /
+      access-review-service.ts), chart of accounts + journal entries +
+      trial balance / P&L / balance sheet (erp-accounting-service.ts /
+      erp-financial-report-service.ts), and sales credit notes extending
+      the existing sales-invoices route (erp-credit-note-service.ts).
+      Touches erp-accounting-service.ts's createJournalEntry and
+      erp-credit-note-service.ts's createSalesCreditNote to accept the
+      same dbUser-or-apiKey actor union already precedented by Priority
+      13's createSalesInvoice change, so a Bearer-key PROJEXA caller can
+      create them (existing session-based callers unaffected). Branch:
+      priority15-grc-fin. Known-concurrent per this same registry:
+      priority15-hr-payroll-backend and priority15-sales-crm-backend
+      worktrees (Sales/CRM, HR/Payroll) -- disjoint file scope (no shared
+      service files identified), but AppSidebar.tsx on the PROJEXA side
+      will very likely collide with both; expected and resolved by keeping
+      all nav sections on merge, per this project's own precedent.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"
     claim: |
