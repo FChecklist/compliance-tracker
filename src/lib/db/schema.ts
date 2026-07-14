@@ -1102,6 +1102,35 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Prompt & Cache Management Framework, Phase 1 (2026-07-14): a NEW table
+// rather than columns on orchestraExecutions, deliberately -- this is
+// specifically about the prompt-caching OUTCOME of a call (did a
+// cache_control breakpoint get sent, did the provider actually report a
+// cache hit), a genuinely different axis from that table's general
+// cost/duration/status record of every LLM call regardless of whether
+// caching was ever attempted. `fingerprint` groups rows by static-prefix
+// version, so "did this template's hit rate change after the last edit" is
+// a real, answerable question. Not a cache STORE -- the actual cached
+// content lives on the provider's side (Anthropic's own 5-minute-TTL
+// server-side cache); this table is metrics only, per the framework's own
+// requirements doc (Phase 1: prompt_cache, cache_registry, cache_fingerprint,
+// cache_metrics -- this table covers fingerprint+metrics; there is
+// deliberately no separate "registry" table since there is nothing to
+// register beyond what this row's own fingerprint+layerKey already say).
+export const promptCacheMetrics = complianceSchemaDB.table('prompt_cache_metrics', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  layerKey: text('layer_key').notNull(), // e.g. "user_assistant_oa" -- which Orchestra Layer's call this was
+  fingerprint: text('fingerprint').notNull(), // SHA-256 of the static prefix actually sent, see fingerprint.ts
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  cacheAttempted: boolean('cache_attempted').notNull(), // true only when enablePromptCache was honored by the provider adapter (currently: Anthropic only, and only above the minimum cacheable size)
+  promptTokens: integer('prompt_tokens'),
+  cacheReadTokens: integer('cache_read_tokens'), // null when cacheAttempted is false -- "not attempted", not "zero"
+  cacheCreationTokens: integer('cache_creation_tokens'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Wave 166 (tree4-unified/10-merged-governance-layer.yaml U-D14.B1.S1 "Tool
 // Health" gap): a NEW table rather than columns on orchestraExecutions,
 // deliberately -- a single execution (one row there) can invoke several

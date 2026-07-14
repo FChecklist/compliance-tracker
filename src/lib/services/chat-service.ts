@@ -15,6 +15,8 @@ import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { compileStaticPrefix } from "@/lib/prompt-cache/compiler"
+import { recordPromptCacheMetric } from "@/lib/prompt-cache/metrics"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { redactPii } from "@/lib/pii-redaction"
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
@@ -495,6 +497,14 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   try {
     const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system")
     const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // Prompt & Cache Management Framework, Phase 1 (2026-07-14): systemPrompt
+    // above is already the real static-prefix boundary for this call site --
+    // resolved once per domain, substituted, identical across every message
+    // in that domain regardless of which user/conversation sent it. The
+    // fingerprint groups recordPromptCacheMetric() rows by exactly this
+    // version, so a future template edit shows up as a new fingerprint, not
+    // silently blended into the old one's hit-rate numbers.
+    const { fingerprint: promptCacheFingerprint } = compileStaticPrefix(systemPrompt)
     const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
     // VERIDIAN.docx Study 1 Level 2 / Joint_Implementation_Plan.md Phase 2
     // (z.ai-owned item): normalize the user's message before it reaches the
@@ -542,7 +552,11 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
       systemPrompt,
       normalizedMessage,
-      { temperature: 0.4, maxTokens: 800, history },
+      // enablePromptCache is opt-in and additive (see llm-client.ts) -- only
+      // callAnthropic reads it today, and only above its own minimum
+      // cacheable size; every other provider silently ignores the flag and
+      // behaves exactly as before this change.
+      { temperature: 0.4, maxTokens: 800, history, enablePromptCache: true },
       effectiveConfig.fallback
     )
 
@@ -554,7 +568,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
           const retried = await callLLM(
             escalated.provider, escalated.model, escalated.apiKey,
             systemPrompt, normalizedMessage,
-            { temperature: 0.4, maxTokens: 800, history },
+            { temperature: 0.4, maxTokens: 800, history, enablePromptCache: true },
             escalated.fallback
           )
           reply = retried.content
@@ -608,6 +622,14 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
         : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
       status: gateResult.passed ? "completed" : "gated",
       durationMs: Date.now() - startedAt,
+      provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
+    })
+    // Prompt & Cache Management Framework, Phase 1 (2026-07-14): a separate,
+    // fire-and-forget record from the log above -- see promptCacheMetrics'
+    // own schema comment for why this is a distinct table, not new columns
+    // on orchestraExecutions.
+    recordPromptCacheMetric({
+      orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     })
     if (!gateResult.passed) {

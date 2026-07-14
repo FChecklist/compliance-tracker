@@ -133,6 +133,7 @@ meta:
 
   amendment_log:
     - { date: "2026-07-14", change: "v2.0 -- full rewrite as sole authority, absorbing all 9 prose docs' rules, fixing DEBT-01 through DEBT-07 above.", by: "Super Boss (Claude Desktop)" }
+    - { date: "2026-07-14", change: "Added prompt_cache_framework section (CACHE-01 through CACHE-04), Phase 1 of the Prompt & Cache Management Framework (control/CONTROLLER.yaml CACHE-01) -- wired into chat-service.ts's generateAiReply only.", by: "Super Boss (Claude Desktop)" }
 
 # ============================================================================
 # 1. IDENTITY AND PURPOSE
@@ -755,6 +756,35 @@ end_user_experience:
       rule: "Minimum 90% of work is done automated by software over time."
       status: NOT_YET_TRACKED
       gap: "GAP-D1-METRICS-TARGET (MASTER-TRACKER.yaml) tracks '99.9% GPT-OSS-120B usage' -- a MODEL-TIER-DISTRIBUTION metric, NOT a software-vs-AI automation-ratio metric. These must not be conflated. Tracking this needs its own new metric definition + MASTER-TRACKER.yaml entry."
+
+# ============================================================================
+# 20. PROMPT & CACHE MANAGEMENT (Owner directive 2026-07-14 -- see
+#     control/CONTROLLER.yaml CACHE-01 for the original requirements spec)
+# ============================================================================
+prompt_cache_framework:
+  rule: "Static prompt content (system prompt, tools, constitution) is compiled deterministically and cached at the provider level where the provider supports it; dynamic content (user message, history) is never cached. Phase 1 only -- see gap for what's deferred."
+  rules:
+    - id: CACHE-01
+      rule: "Compile the static system-prompt prefix deterministically and fingerprint it (SHA-256), so a template edit is detectable as a new fingerprint rather than silently blended into prior metrics."
+      status: ENFORCED
+      mechanism: "src/lib/prompt-cache/compiler.ts::compileStaticPrefix(), src/lib/prompt-cache/fingerprint.ts::computeFingerprint()"
+      source: "control/CONTROLLER.yaml CACHE-01 requirements artifact, §4.1"
+    - id: CACHE-02
+      rule: "Anthropic calls send the system prompt as a cache_control-tagged content block (not a plain string) when caching is requested and the prompt is above the minimum cacheable size (1024 tokens Sonnet/Opus, 2048 Haiku, approximated via char-count proxy)."
+      status: ENFORCED
+      mechanism: "src/lib/llm-client.ts::callAnthropic(), CallLLMOptions.enablePromptCache"
+      gap: "Only Anthropic has explicit code changes. OpenAI's own caching is automatic above ~1024 tokens with no request-shape change (deliberately not touched). Groq/OpenRouter/Cerebras/Google get no special handling -- caching support unresearched for those providers, no adapter built rather than guessed."
+      source: "control/CONTROLLER.yaml CACHE-01, §3.1"
+    - id: CACHE-03
+      rule: "Every gated LLM call records whether a cache attempt was made and, if so, the real cache_read_input_tokens/cache_creation_input_tokens the provider reported -- never a locally-computed guess."
+      status: ENFORCED
+      mechanism: "prompt_cache_metrics table (drizzle/0197), src/lib/prompt-cache/metrics.ts::recordPromptCacheMetric()"
+      gap: "Wired into exactly ONE call site this slice: chat-service.ts's generateAiReply() (VERI Chat's 1:1 AI thread, the highest-traffic real call site). VERI FDE, AI Dev Team dispatch, and every other Orchestra Layer call site are NOT wired -- phased rollout per the requirements artifact's own §3.2, not a one-shot retrofit."
+      source: "control/CONTROLLER.yaml CACHE-01, §5 Phase 1"
+    - id: CACHE-04
+      rule: "This table is metrics only -- it is not a cache store. The actual cached content lives on the provider's own infrastructure (Anthropic's 5-minute-TTL server-side cache); VERIDIAN's own code never stores or serves cached prompt content itself."
+      status: ENFORCED
+      note: "A prior draft of this framework proposed a 'cache_registry' as if it were a data store -- corrected before implementation: there is nothing for VERIDIAN to store, since the provider already stores it. Recorded here so a future session doesn't rebuild a redundant local cache."
 
 # ============================================================================
 # HOW TO KEEP THIS FILE HONEST

@@ -48,11 +48,27 @@ export type CallLLMOptions = {
   // key throws LLMVerificationError instead of handing the caller
   // malformed data to discover later. Optional and additive.
   expectedKeys?: string[];
+  // Prompt & Cache Management Framework, Phase 1 (2026-07-14): opt-in --
+  // every pre-existing call site passes nothing and behaves identically.
+  // Consumed by callAnthropic only (the one provider in this file needing
+  // an explicit cache_control breakpoint). OpenAI's own caching is
+  // automatic above ~1024 tokens with no request-shape change required --
+  // deliberately not touched this slice. Groq/OpenRouter/Cerebras/Google
+  // get no special handling this slice either.
+  enablePromptCache?: boolean;
 };
 
 export type LLMUsage = {
   promptTokens: number;
   completionTokens: number;
+  // Prompt & Cache Management Framework, Phase 1 (2026-07-14): only ever
+  // populated by callAnthropic when enablePromptCache was honored (real
+  // cache_control breakpoint sent AND Anthropic's own response reported
+  // these fields). Undefined for every other provider/call, and undefined
+  // on Anthropic calls below the minimum cacheable size -- absence means
+  // "not attempted," not "zero."
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
 };
 
 export type LLMResult = {
@@ -232,6 +248,21 @@ async function callOpenAICompatible(
   };
 }
 
+// Prompt & Cache Management Framework, Phase 1 (2026-07-14): Anthropic's own
+// documented minimum cacheable size is 1024 tokens (Sonnet/Opus) / 2048
+// (Haiku) -- below that floor the cache write premium costs more than a
+// read ever saves back (see the framework's requirements doc, §3.1/§3.2).
+// No live tokenizer is wired into this file, so this is a deliberately
+// conservative character-count proxy (~4 chars/token in English prose,
+// rounded down), the same class of honest-approximation constant as
+// MODEL_PRICING above -- named as approximate, not precise, in the comment
+// rather than silently presented as exact.
+const ANTHROPIC_MIN_CACHEABLE_CHARS = 3500;
+
+function isHaikuModel(model: string): boolean {
+  return model.toLowerCase().includes("haiku");
+}
+
 async function callAnthropic(
   apiKey: string,
   model: string,
@@ -246,6 +277,12 @@ async function callAnthropic(
     ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.`
     : systemPrompt;
 
+  // Haiku's real minimum is 2048 tokens (~8000 chars), roughly double the
+  // Sonnet/Opus floor used above -- checked here rather than baked into the
+  // shared constant so the one caller that cares can see why.
+  const minChars = isHaikuModel(model) ? ANTHROPIC_MIN_CACHEABLE_CHARS * 2 : ANTHROPIC_MIN_CACHEABLE_CHARS;
+  const cacheEligible = Boolean(options?.enablePromptCache) && system.length >= minChars;
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -257,7 +294,18 @@ async function callAnthropic(
       model,
       max_tokens: options?.maxTokens ?? 2048,
       temperature: options?.temperature ?? 0.2,
-      system,
+      // Plain string when not cache-eligible (byte-identical to this
+      // function's pre-2026-07-14 behavior -- every existing call site that
+      // doesn't opt in sees no request-shape change at all). Anthropic's
+      // documented cache_control shape when eligible: system becomes a
+      // content-block array, cache_control on the one static block. Only
+      // ONE breakpoint is used here (Anthropic allows up to 4) -- this
+      // slice caches the whole system prompt as one static unit, matching
+      // VERI Chat's real call site where the resolved+substituted template
+      // IS the static prefix boundary, not a multi-layer split.
+      system: cacheEligible
+        ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
+        : system,
       messages: [...(options?.history ?? []), { role: "user", content: userMessage }],
     }),
   });
@@ -265,7 +313,19 @@ async function callAnthropic(
   const data = await res.json();
   return {
     content: data.content[0].text as string,
-    usage: { promptTokens: data.usage?.input_tokens ?? 0, completionTokens: data.usage?.output_tokens ?? 0 },
+    usage: {
+      promptTokens: data.usage?.input_tokens ?? 0,
+      completionTokens: data.usage?.output_tokens ?? 0,
+      // Only present on the response when a cache_control breakpoint was
+      // actually sent -- Anthropic omits these fields entirely on requests
+      // that didn't ask for caching, which is why this stays undefined
+      // (not 0) for every non-cache-eligible call, per LLMUsage's own
+      // "absence means not attempted" contract above.
+      ...(cacheEligible ? {
+        cacheReadTokens: data.usage?.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: data.usage?.cache_creation_input_tokens ?? 0,
+      } : {}),
+    },
   };
 }
 
