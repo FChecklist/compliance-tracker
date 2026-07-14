@@ -10,7 +10,7 @@
 // default behavior.
 import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, sql, desc, lte } from "drizzle-orm"
+import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
@@ -172,6 +172,39 @@ export async function listJournalEntries(ctx: { orgId: string }, filters: { stat
   })
 }
 
+export type JournalEntryListFilters = { status?: string; fromDate?: string; toDate?: string; search?: string; page?: number; limit?: number }
+
+/**
+ * Priority 15 (PROJEXA Accounting depth, 500-project scale): a real, paged
+ * variant of listJournalEntries above -- a firm at this scale will have
+ * thousands of GL entries, so a flat unpaginated list isn't usable. Kept
+ * additive alongside listJournalEntries (not a breaking rewrite of it) so
+ * every existing caller of the plain array-returning function is
+ * unaffected; PROJEXA's alias route calls this one instead.
+ */
+export async function listJournalEntriesPaged(ctx: { orgId: string }, filters: JournalEntryListFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 25))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId)]
+    if (filters.status) conditions.push(eq(erpJournalEntries.status, filters.status as typeof erpJournalEntries.$inferSelect.status))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    if (filters.search) conditions.push(like(erpJournalEntries.userRemark, `%${filters.search}%`))
+    const where = and(...conditions)
+
+    const [entries, [{ count }]] = await Promise.all([
+      db.query.erpJournalEntries.findMany({ where, orderBy: (t, { desc }) => desc(t.postingDate), limit, offset }),
+      db.select({ count: sql<number>`count(*)::int` }).from(erpJournalEntries).where(where),
+    ])
+
+    return { entries, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
 export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -182,7 +215,20 @@ export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
   })
 }
 
-export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInput) {
+// Priority 15 (PROJEXA GL alias): same dbUser-or-apiKey actor union
+// erp-invoicing-service.ts's createSalesInvoice adopted in Priority 13, for
+// the identical reason -- PROJEXA's callVeridian() Bearer-token path never
+// carries a session cookie, so requireAuthOrApiKey's ctx.dbUser is always
+// null on that route. Every other ErpContext-typed function in this file
+// (submitJournalEntry, listAccounts, etc.) keeps requiring a real dbUser
+// unchanged -- this is the one write PROJEXA's General Ledger view
+// legitimately needs (draft creation), matching the "basic create where it
+// makes sense" scope for this wave. Submitting into the GL (which starts an
+// approval workflow) is left to VERIDIAN's own UI for now.
+export async function createJournalEntry(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  input: JournalEntryInput
+) {
   await requireErpEnabled(ctx.orgId)
   if (!input.postingDate) throw new ServiceError("postingDate is required", 400)
   const { totalDebit, totalCredit } = validateBalanced(input.lines)
@@ -239,7 +285,11 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
+    )
     return entry
   })
 }

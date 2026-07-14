@@ -14,6 +14,13 @@ import { logActivity } from "@/lib/audit"
 
 export type FraudContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
+// Priority 15 (PROJEXA GRC alias): same dbUser-or-apiKey actor union as
+// erp-invoicing-service.ts's createSalesInvoice (Priority 13) -- PROJEXA's
+// Bearer-key caller never carries a session dbUser, so gating fraud-case
+// creation on FraudContext's strict dbUser would make it permanently
+// unreachable from PROJEXA rather than just "deferred".
+export type FraudActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+
 export type FraudCaseInput = {
   title: string
   fraudType?: string
@@ -39,7 +46,7 @@ export async function getFraudCase(ctx: { orgId: string }, caseId: string) {
   })
 }
 
-export async function createFraudCase(ctx: FraudContext, input: FraudCaseInput) {
+export async function createFraudCase(ctx: FraudActorCtx, input: FraudCaseInput) {
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
   if (!input.reportedDate) throw new ServiceError("reportedDate is required", 400)
 
@@ -55,7 +62,11 @@ export async function createFraudCase(ctx: FraudContext, input: FraudCaseInput) 
       recordedById: ctx.userId,
     }).returning()
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
+    )
     return fraudCase
   })
 }
@@ -68,7 +79,7 @@ const VALID_FRAUD_TRANSITIONS: Record<string, string[]> = {
   resolved: [],
 }
 
-export async function updateFraudCaseStatus(ctx: FraudContext, caseId: string, status: string, resolutionSummary?: string) {
+export async function updateFraudCaseStatus(ctx: FraudActorCtx, caseId: string, status: string, resolutionSummary?: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const fraudCase = await db.query.fraudCases.findFirst({ where: and(eq(fraudCases.id, caseId), eq(fraudCases.orgId, ctx.orgId)) })
     if (!fraudCase) throw new ServiceError("Fraud case not found", 404)
@@ -82,7 +93,11 @@ export async function updateFraudCaseStatus(ctx: FraudContext, caseId: string, s
       updatedAt: new Date(),
     }).where(eq(fraudCases.id, caseId)).returning()
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
+    )
     return updated
   })
 }

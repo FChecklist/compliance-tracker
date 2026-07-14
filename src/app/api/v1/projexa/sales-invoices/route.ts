@@ -12,9 +12,9 @@
 // customerId choice; this route does not invent a new column.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listSalesInvoices, createSalesInvoice, ServiceError, type SalesInvoiceItemInput } from "@/lib/services/erp-invoicing-service"
+import { listSalesInvoicesPaged, createSalesInvoice, ServiceError, type SalesInvoiceItemInput } from "@/lib/services/erp-invoicing-service"
 
-function toInvoiceShape(inv: Awaited<ReturnType<typeof listSalesInvoices>>[number]) {
+function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: string; customer?: { customerName: string } | null; postingDate: string; dueDate: string | null; grandTotal: string; outstandingAmount: string; status: string; items?: { id: string; description: string; quantity: string; rate: string; amount: string }[] }) {
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
@@ -29,14 +29,28 @@ function toInvoiceShape(inv: Awaited<ReturnType<typeof listSalesInvoices>>[numbe
   }
 }
 
+// Priority 15 (full invoice lifecycle + 500-project scale): the Priority 13
+// list was a flat unpaginated array -- extended in place (not a competing
+// new route) to add status/customerId/date-range filters and real DB-level
+// pagination, per listSalesInvoicesPaged's own comment in
+// erp-invoicing-service.ts. POST (invoice creation) below is unchanged
+// from Priority 13.
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ salesInvoices: [] })
+  if (!ctx.orgId) return NextResponse.json({ salesInvoices: [], total: 0, page: 1, limit: 25, totalPages: 0 })
 
   try {
-    const invoices = await listSalesInvoices({ orgId: ctx.orgId })
-    return NextResponse.json({ salesInvoices: invoices.map(toInvoiceShape) })
+    const sp = request.nextUrl.searchParams
+    const result = await listSalesInvoicesPaged({ orgId: ctx.orgId }, {
+      status: sp.get("status") ?? undefined,
+      customerId: sp.get("customerId") ?? undefined,
+      fromDate: sp.get("fromDate") ?? undefined,
+      toDate: sp.get("toDate") ?? undefined,
+      page: sp.get("page") ? Number(sp.get("page")) : undefined,
+      limit: sp.get("limit") ? Number(sp.get("limit")) : undefined,
+    })
+    return NextResponse.json({ salesInvoices: result.invoices.map(toInvoiceShape), total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa sales-invoices list error:", error)

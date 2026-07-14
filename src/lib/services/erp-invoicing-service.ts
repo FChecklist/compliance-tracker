@@ -24,11 +24,11 @@ import {
   users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, lte, gte, sql } from "drizzle-orm"
+import { and, eq, or, isNull, lte, gte, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
-import { isPeriodOpenForDate } from "./erp-financial-report-service"
+import { isPeriodOpenForDate, trialBalance, profitAndLoss } from "./erp-financial-report-service"
 import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { requireErpEnabled } from "./erp-enablement-service"
 
@@ -242,6 +242,37 @@ export async function listSalesInvoices(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSalesInvoices.findMany({ where: eq(erpSalesInvoices.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.postingDate), with: { items: true, customer: true } })
+  })
+}
+
+export type SalesInvoiceListFilters = { status?: string; customerId?: string; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+/**
+ * Priority 15 (PROJEXA Invoicing depth, 500-project scale): a real, paged/
+ * filtered variant of listSalesInvoices above -- kept additive (not a
+ * breaking rewrite) so every existing caller of the plain array-returning
+ * function is unaffected. PROJEXA's alias route uses this one.
+ */
+export async function listSalesInvoicesPaged(ctx: { orgId: string }, filters: SalesInvoiceListFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 25))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpSalesInvoices.orgId, ctx.orgId)]
+    if (filters.status) conditions.push(eq(erpSalesInvoices.status, filters.status as typeof erpSalesInvoices.$inferSelect.status))
+    if (filters.customerId) conditions.push(eq(erpSalesInvoices.customerId, filters.customerId))
+    if (filters.fromDate) conditions.push(gte(erpSalesInvoices.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpSalesInvoices.postingDate, filters.toDate))
+    const where = and(...conditions)
+
+    const [invoices, [{ count }]] = await Promise.all([
+      db.query.erpSalesInvoices.findMany({ where, orderBy: (t, { desc }) => desc(t.postingDate), limit, offset, with: { items: true, customer: true } }),
+      db.select({ count: sql<number>`count(*)::int` }).from(erpSalesInvoices).where(where),
+    ])
+
+    return { invoices, total: count, page, limit, totalPages: Math.ceil(count / limit) }
   })
 }
 
@@ -496,4 +527,161 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.submitted", entityType: "erp_purchase_invoice", entityId: invoiceId })
     return updated
   })
+}
+
+// ============================================================
+// Priority 15 (PROJEXA Invoicing depth): full invoice lifecycle beyond
+// draft->submitted. erp_payment_entries (Wave 49 schema) has no invoiceId
+// column and no service-layer consumer anywhere in this codebase -- rather
+// than force-fit a generic, un-invoice-scoped payment-entry record, this
+// posts a real, direct, invoice-scoped receipt (mirrors erp-cash-service.ts's
+// own "post immediately, no draft state" convention for cash-like
+// instruments) and reduces THIS invoice's own outstandingAmount/status,
+// which is what "record a payment against an invoice" concretely needs.
+// A generic multi-invoice payment-allocation engine (one receipt applied
+// across several invoices) is a real, larger feature left for a follow-up.
+// ============================================================
+
+export type RecordPaymentActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+
+export async function recordSalesInvoicePayment(
+  ctx: RecordPaymentActorCtx,
+  invoiceId: string,
+  input: { amount: number; bankOrCashAccountId: string; postingDate: string; referenceNo?: string }
+) {
+  await requireErpEnabled(ctx.orgId)
+  if (!input.amount || input.amount <= 0) throw new ServiceError("amount must be positive", 400)
+  if (!input.bankOrCashAccountId) throw new ServiceError("bankOrCashAccountId is required", 400)
+  if (!input.postingDate) throw new ServiceError("postingDate is required", 400)
+
+  const periodOpen = await isPeriodOpenForDate(ctx, input.postingDate)
+  if (!periodOpen) throw new ServiceError(`The accounting period covering ${input.postingDate} is closed`, 409)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const invoice = await db.query.erpSalesInvoices.findFirst({ where: and(eq(erpSalesInvoices.id, invoiceId), eq(erpSalesInvoices.orgId, ctx.orgId)) })
+    if (!invoice) throw new ServiceError("Sales invoice not found", 404)
+    if (!["submitted", "partially_paid", "overdue"].includes(invoice.status)) throw new ServiceError(`Cannot record a payment against an invoice in '${invoice.status}' status`, 409)
+
+    const outstanding = Number(invoice.outstandingAmount)
+    if (input.amount > outstanding + 0.01) throw new ServiceError(`Payment amount (${input.amount}) exceeds the outstanding balance (${outstanding})`, 400)
+
+    const receivableAccount = await findControlAccount(db, ctx.orgId, "receivable")
+
+    const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpJournalEntries.entryNumber}), 0)` }).from(erpJournalEntries).where(eq(erpJournalEntries.orgId, ctx.orgId))
+    const [je] = await db.insert(erpJournalEntries).values({
+      orgId: ctx.orgId, entryNumber: Number(maxNumber) + 1, postingDate: input.postingDate,
+      referenceType: "sales_invoice_payment", referenceId: invoiceId,
+      userRemark: `Payment received against Sales Invoice #${invoice.invoiceNumber}${input.referenceNo ? ` (Ref: ${input.referenceNo})` : ""}`,
+      companyId: invoice.companyId, status: "submitted",
+      totalDebit: input.amount.toString(), totalCredit: input.amount.toString(),
+      createdById: ctx.userId, submittedAt: new Date(),
+    }).returning()
+
+    await db.insert(erpJournalEntryLines).values([
+      { journalEntryId: je.id, accountId: input.bankOrCashAccountId, debit: input.amount.toString(), credit: "0", partyType: "customer", partyId: invoice.customerId, remark: input.referenceNo },
+      { journalEntryId: je.id, accountId: receivableAccount.id, debit: "0", credit: input.amount.toString(), partyType: "customer", partyId: invoice.customerId },
+    ])
+
+    const newOutstanding = Math.max(0, outstanding - input.amount)
+    const newStatus = newOutstanding <= 0.01 ? "paid" : "partially_paid"
+    const [updated] = await db.update(erpSalesInvoices).set({ outstandingAmount: newOutstanding.toString(), status: newStatus }).where(eq(erpSalesInvoices.id, invoiceId)).returning()
+
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.payment_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ amount: input.amount, journalEntryId: je.id }) }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.payment_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ amount: input.amount, journalEntryId: je.id }) }
+    )
+    return updated
+  })
+}
+
+/** Cancels a DRAFT invoice only -- a submitted invoice has already posted a real GL entry, so cancelling it safely needs a reversing entry (a real feature, left for a follow-up rather than silently leaving the ledger unbalanced). */
+export async function cancelSalesInvoice(ctx: { orgId: string; userId: string }, invoiceId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const invoice = await db.query.erpSalesInvoices.findFirst({ where: and(eq(erpSalesInvoices.id, invoiceId), eq(erpSalesInvoices.orgId, ctx.orgId)) })
+    if (!invoice) throw new ServiceError("Sales invoice not found", 404)
+    if (invoice.status !== "draft") throw new ServiceError("Only draft invoices can be cancelled directly -- a submitted invoice needs a reversing credit note instead", 409)
+    const [updated] = await db.update(erpSalesInvoices).set({ status: "cancelled" }).where(eq(erpSalesInvoices.id, invoiceId)).returning()
+    return updated
+  })
+}
+
+/**
+ * AR Aging report: every non-fully-paid sales invoice bucketed by days past
+ * due (current / 1-30 / 31-60 / 61-90 / 90+), the standard AR aging shape
+ * used across every benchmarked ERP. Pure aggregation over erp_sales_invoices'
+ * own outstandingAmount/dueDate -- no new schema.
+ */
+export async function arAgingReport(ctx: { orgId: string }, asOfDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
+  const asOfMs = new Date(asOf).getTime()
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpSalesInvoices.findMany({
+      where: and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { customer: true },
+    })
+
+    const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90Plus: 0 }
+    const rows = invoices
+      .filter((inv) => Number(inv.outstandingAmount) > 0.01)
+      .map((inv) => {
+        const dueMs = new Date(inv.dueDate ?? inv.postingDate).getTime()
+        const daysOverdue = Math.floor((asOfMs - dueMs) / 86400000)
+        const outstanding = Number(inv.outstandingAmount)
+        let bucket: "current" | "1-30" | "31-60" | "61-90" | "90+"
+        if (daysOverdue <= 0) { bucket = "current"; buckets.current += outstanding }
+        else if (daysOverdue <= 30) { bucket = "1-30"; buckets.d1_30 += outstanding }
+        else if (daysOverdue <= 60) { bucket = "31-60"; buckets.d31_60 += outstanding }
+        else if (daysOverdue <= 90) { bucket = "61-90"; buckets.d61_90 += outstanding }
+        else { bucket = "90+"; buckets.d90Plus += outstanding }
+        return {
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerId: inv.customerId,
+          customerName: inv.customer?.customerName ?? null, dueDate: inv.dueDate, postingDate: inv.postingDate,
+          outstandingAmount: inv.outstandingAmount, daysOverdue: Math.max(0, daysOverdue), bucket, status: inv.status,
+        }
+      })
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+
+    const totalOutstanding = buckets.current + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.d90Plus
+    return { asOfDate: asOf, buckets, totalOutstanding, invoices: rows }
+  })
+}
+
+/**
+ * Finance dashboard rollup for PROJEXA's Finance overview: cash/bank
+ * position (sum of bank+cash account balances from the GL, as of today),
+ * AR aging summary + the 5 most-overdue invoices, and this-month vs
+ * last-month revenue (reuses profitAndLoss's own totalIncome, not a
+ * reimplementation). Pure composition of existing report functions --
+ * no new aggregation logic beyond the cash-position query.
+ */
+export async function getFinanceDashboard(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  const today = new Date()
+  const todayIso = today.toISOString().slice(0, 10)
+  const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString().slice(0, 10)
+  const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0).toISOString().slice(0, 10)
+
+  const [tb, aging, thisMonthPnl, lastMonthPnl] = await Promise.all([
+    trialBalance(ctx, todayIso),
+    arAgingReport(ctx, todayIso),
+    profitAndLoss(ctx, thisMonthStart, todayIso),
+    profitAndLoss(ctx, lastMonthStart, lastMonthEnd),
+  ])
+
+  const cashPosition = tb.accounts
+    .filter((a) => a.accountType === "bank" || a.accountType === "cash")
+    .reduce((sum, a) => sum + a.netBalance, 0)
+
+  return {
+    asOfDate: todayIso,
+    cashPosition,
+    arAging: { totalOutstanding: aging.totalOutstanding, buckets: aging.buckets },
+    topOverdueInvoices: aging.invoices.filter((i) => i.daysOverdue > 0).slice(0, 5),
+    revenue: { thisMonth: thisMonthPnl.totalIncome, lastMonth: lastMonthPnl.totalIncome },
+  }
 }
