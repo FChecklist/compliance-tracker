@@ -383,10 +383,28 @@ export async function cashFlowStatement(ctx: { orgId: string }, fromDate: string
  * excluded (an org that never tags cost centers on its postings gets an
  * empty list here, not a misleading "Unassigned" bucket that would imply
  * this report tried and failed to attribute them).
+ *
+ * Priority 17 Wave 1: gained the same optional CompanyScope every other
+ * report in this file already supports -- erp_cost_centers itself carries
+ * no companyId (a cost center/project is org-wide, not owned by one legal
+ * entity), so scoping is applied the same way as accountBalancesInRange:
+ * filtering the underlying erp_journal_entries.companyId, not the cost
+ * center row.
  */
-export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate: string, toDate: string) {
+export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
   await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [
+      eq(erpJournalEntries.orgId, ctx.orgId),
+      eq(erpJournalEntries.status, "submitted"),
+      gte(erpJournalEntries.postingDate, fromDate),
+      lte(erpJournalEntries.postingDate, toDate),
+      inArray(erpAccounts.rootType, ["income", "expense"]),
+      isNotNull(erpJournalEntryLines.costCenterId),
+    ]
+    if (companyIds) conditions.push(inArray(erpJournalEntries.companyId, companyIds))
+
     const rows = await db
       .select({
         costCenterId: erpJournalEntryLines.costCenterId,
@@ -397,14 +415,7 @@ export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate
       .from(erpJournalEntryLines)
       .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
       .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
-      .where(and(
-        eq(erpJournalEntries.orgId, ctx.orgId),
-        eq(erpJournalEntries.status, "submitted"),
-        gte(erpJournalEntries.postingDate, fromDate),
-        lte(erpJournalEntries.postingDate, toDate),
-        inArray(erpAccounts.rootType, ["income", "expense"]),
-        isNotNull(erpJournalEntryLines.costCenterId),
-      ))
+      .where(and(...conditions))
       .groupBy(erpJournalEntryLines.costCenterId, erpAccounts.rootType)
 
     const costCenters = await db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId) })
