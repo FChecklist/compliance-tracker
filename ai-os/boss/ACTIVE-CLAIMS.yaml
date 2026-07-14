@@ -42,6 +42,33 @@
 # ============================================================================
 
 active:
+  - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed, cross-repo, platform-wide (NOT PROJEXA-specific):
+      VERIDIAN becomes a real multi-tenant foundation so every product branch
+      (PROJEXA, The Firm, FM & CS, Office AI OS, Forge) can be sold to many
+      independent mid-size customers, each with real data isolation, multiple
+      offices, multiple currencies, and eventually multiple countries/
+      languages. Full plan: C:\Users\Dell\.claude\plans\floating-launching-lagoon.md
+      (6 workstreams). WAVE 1 (this claim) = Workstream 1 (platform-level
+      tenant provisioning: new platform_applications table, apiKeys.
+      issuedForApplicationId, POST /api/v1/platform/provision-org,
+      organisations.primaryProductBranchId, factoring autoProvisionUser()'s
+      org-creation body into a shared provisionOrganisation() helper) +
+      Workstream 2 (RLS-bypass audit/fix pass on /api/v1/projexa/* and other
+      money/PII routes -- confirm withTenantContext() coverage, no schema
+      change). Scope: compliance-tracker src/lib/db/schema.ts (2 new/changed
+      tables+columns), src/lib/supabase/auth-guard.ts (refactor only, same
+      external behavior), new src/app/api/v1/platform/provision-org/route.ts,
+      audit pass across src/app/api/v1/projexa/**. Companion PROJEXA-side
+      claim (signup flow + veridian-client.ts rewire) dispatched in parallel,
+      see projexa repo's own tracking (no ai-os/ layer there yet -- tracked
+      in CONTROLLER.yaml PLATFORM-01 instead). Workstreams 3-6 (offices,
+      currency, language, per-country compliance) are Wave 2, dispatched only
+      after this wave merges (real dependency, not just sequencing
+      preference -- they hang data off what this wave creates).
+
   - session_label: "claude-code (sub-agent) -- Priority 15 Wave 2, HR & Payroll follow-up"
     claimed_at: "2026-07-14T (this session)"
     claim: |
