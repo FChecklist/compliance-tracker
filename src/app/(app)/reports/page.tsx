@@ -537,7 +537,7 @@ export default function ReportsPage() {
                         fontSize: "12px",
                         boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
                       }}
-                      formatter={(value: number, name: string) => [
+                      formatter={(value, name) => [
                         `${value} items`,
                         name,
                       ]}
