@@ -30,6 +30,7 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -40,6 +41,7 @@ export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$
 // ============================================================
 
 export async function listTaxTemplates(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const templates = await db.query.erpTaxTemplates.findMany({ where: eq(erpTaxTemplates.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
     const allItems = await db.query.erpTaxTemplateItems.findMany({ where: sql`${erpTaxTemplateItems.taxTemplateId} IN (SELECT id FROM compliance.erp_tax_templates WHERE org_id = ${ctx.orgId})` })
@@ -51,6 +53,7 @@ export async function createTaxTemplate(
   ctx: ErpContext,
   input: { name: string; isSalesTax?: boolean; isPurchaseTax?: boolean; items: { taxAccountId: string; rate: number; description?: string }[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one tax line (e.g. CGST, SGST) is required", 400)
 
@@ -71,6 +74,7 @@ export async function createTaxTemplate(
 // ============================================================
 
 export async function listPricingRules(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpPricingRules.findMany({ where: eq(erpPricingRules.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.priority) })
   })
@@ -80,6 +84,7 @@ export async function createPricingRule(
   ctx: ErpContext,
   input: { name: string; appliesTo: "all" | "customer" | "item"; targetId?: string; discountType: "percentage" | "flat"; discountValue: number; minQty?: number; validFrom: string; validTo?: string; priority?: number }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   if (input.appliesTo !== "all" && !input.targetId) throw new ServiceError("targetId is required when appliesTo is not 'all'", 400)
 
@@ -234,12 +239,28 @@ async function computeInvoiceTotals(db: TenantDb, items: { quantity: number; rat
 export type SalesInvoiceItemInput = { itemId?: string; description: string; quantity?: number; rate?: number; taxTemplateId?: string }
 
 export async function listSalesInvoices(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSalesInvoices.findMany({ where: eq(erpSalesInvoices.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.postingDate), with: { items: true, customer: true } })
   })
 }
 
-export async function createSalesInvoice(ctx: ErpContext, input: { customerId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }) {
+// Priority 13 (PROJEXA sales-invoice creation): ctx is intentionally NOT
+// ErpContext here (unlike submitSalesInvoice/createPurchaseInvoice below) --
+// this is the one write in this file a Bearer-API-key caller legitimately
+// needs (PROJEXA's callVeridian() never carries a session cookie, so
+// ctx.dbUser is always null on that path per requireAuthOrApiKey's
+// discriminated CombinedAuthContext). logActivity already has a proper
+// dbUser-or-apiKey discriminated union for exactly this case (Wave 9); this
+// function was just never wired to use the apiKey branch, which would have
+// silently made "PROJEXA can create/link an invoice" impossible to actually
+// call. Every other ErpContext-typed function in this file keeps requiring
+// a real dbUser unchanged.
+export async function createSalesInvoice(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  input: { customerId: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
+) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -276,12 +297,17 @@ export async function createSalesInvoice(ctx: ErpContext, input: { customerId: s
       resolvedItems.map((i) => ({ invoiceId: invoice.id, itemId: i.itemId, description: i.description, quantity: i.quantity.toString(), rate: i.rate.toString(), amount: (i.quantity * i.rate).toString(), taxTemplateId: i.taxTemplateId, hsnSacCode: i.hsnSacCode }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.created", entityType: "erp_sales_invoice", entityId: invoice.id }
+    )
     return invoice
   })
 }
 
 export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, input: { revenueAccountId: string }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.revenueAccountId) throw new ServiceError("revenueAccountId is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -364,6 +390,7 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
 export type PurchaseInvoiceItemInput = { itemId?: string; description: string; quantity?: number; rate: number; taxTemplateId?: string; purchaseOrderItemId?: string }
 
 export async function listPurchaseInvoices(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpPurchaseInvoices.findMany({ where: eq(erpPurchaseInvoices.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.postingDate), with: { items: true, supplier: true } })
   })
@@ -375,6 +402,7 @@ export async function listPurchaseInvoices(ctx: { orgId: string }) {
 // erp-goods-receipt-service.ts's getThreeWayMatchReport compare this
 // invoice's lines against the same PO's receipt lines.
 export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; purchaseOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: PurchaseInvoiceItemInput[] }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
 
@@ -409,6 +437,7 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
 }
 
 export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, input: { expenseAccountId: string; tdsPayableAccountId?: string }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.expenseAccountId) throw new ServiceError("expenseAccountId is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {

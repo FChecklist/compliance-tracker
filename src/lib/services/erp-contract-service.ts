@@ -14,6 +14,7 @@ import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContractContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -33,12 +34,14 @@ export type ContractInput = {
 }
 
 export async function listContracts(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpContracts.findMany({ where: eq(erpContracts.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
   })
 }
 
 export async function getContract(ctx: { orgId: string }, contractId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Contract not found", 404)
@@ -54,6 +57,7 @@ export async function getContract(ctx: { orgId: string }, contractId: string) {
 }
 
 export async function createContract(ctx: ErpContractContext, input: ContractInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
   if (!input.startDate) throw new ServiceError("startDate is required", 400)
@@ -97,6 +101,7 @@ const VALID_CONTRACT_TRANSITIONS: Record<string, string[]> = {
 }
 
 export async function updateContractStatus(ctx: ErpContractContext, contractId: string, status: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Contract not found", 404)
@@ -112,6 +117,7 @@ export async function updateContractStatus(ctx: ErpContractContext, contractId: 
 export type AmendmentInput = { description: string; previousValue?: number; newValue?: number; effectiveDate: string }
 
 export async function addAmendment(ctx: ErpContractContext, contractId: string, input: AmendmentInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.description?.trim()) throw new ServiceError("description is required", 400)
   if (!input.effectiveDate) throw new ServiceError("effectiveDate is required", 400)
 
@@ -138,6 +144,7 @@ export async function addAmendment(ctx: ErpContractContext, contractId: string, 
 }
 
 export async function approveAmendment(ctx: ErpContractContext, amendmentId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const amendment = await db.query.erpContractAmendments.findFirst({ where: eq(erpContractAmendments.id, amendmentId) })
     if (!amendment) throw new ServiceError("Amendment not found", 404)
@@ -157,6 +164,7 @@ export async function approveAmendment(ctx: ErpContractContext, amendmentId: str
 export type BillingScheduleInput = { billingFrequency: "monthly" | "quarterly" | "half_yearly" | "annually" | "milestone"; nextBillingDate: string; amount: number }
 
 export async function addBillingSchedule(ctx: { orgId: string }, contractId: string, input: BillingScheduleInput) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Contract not found", 404)
@@ -170,6 +178,7 @@ export async function addBillingSchedule(ctx: { orgId: string }, contractId: str
 export type RevenueScheduleInput = { periodStart: string; periodEnd: string; recognizedAmount: number; deferredAmount: number }
 
 export async function addRevenueSchedule(ctx: { orgId: string }, contractId: string, input: RevenueScheduleInput) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Contract not found", 404)
@@ -184,6 +193,7 @@ export async function addRevenueSchedule(ctx: { orgId: string }, contractId: str
 export type ObligationInput = { description: string; dueDate: string; responsibleUserId?: string }
 
 export async function addObligation(ctx: { orgId: string }, contractId: string, input: ObligationInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.description?.trim()) throw new ServiceError("description is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
@@ -196,6 +206,7 @@ export async function addObligation(ctx: { orgId: string }, contractId: string, 
 }
 
 export async function completeObligation(ctx: { orgId: string }, obligationId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const obligation = await db.query.erpContractObligations.findFirst({ where: eq(erpContractObligations.id, obligationId) })
     if (!obligation) throw new ServiceError("Obligation not found", 404)
@@ -211,12 +222,14 @@ export async function completeObligation(ctx: { orgId: string }, obligationId: s
 export type SubscriptionPlanInput = { name: string; billingFrequency: "monthly" | "quarterly" | "half_yearly" | "annually" | "milestone"; price: number; currencyId?: string }
 
 export async function listSubscriptionPlans(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSubscriptionPlans.findMany({ where: eq(erpSubscriptionPlans.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
   })
 }
 
 export async function createSubscriptionPlan(ctx: { orgId: string }, input: SubscriptionPlanInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [plan] = await db.insert(erpSubscriptionPlans).values({
@@ -229,12 +242,14 @@ export async function createSubscriptionPlan(ctx: { orgId: string }, input: Subs
 export type SubscriptionInput = { customerId: string; planId: string; contractId?: string; startDate: string; nextRenewalDate?: string }
 
 export async function listSubscriptions(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpSubscriptions.findMany({ where: eq(erpSubscriptions.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
   })
 }
 
 export async function createSubscription(ctx: { orgId: string }, input: SubscriptionInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.planId) throw new ServiceError("planId is required", 400)
   if (!input.startDate) throw new ServiceError("startDate is required", 400)
@@ -263,6 +278,7 @@ const VALID_SUBSCRIPTION_TRANSITIONS: Record<string, string[]> = {
 }
 
 export async function updateSubscriptionStatus(ctx: { orgId: string }, subscriptionId: string, status: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const subscription = await db.query.erpSubscriptions.findFirst({ where: and(eq(erpSubscriptions.id, subscriptionId), eq(erpSubscriptions.orgId, ctx.orgId)) })
     if (!subscription) throw new ServiceError("Subscription not found", 404)
@@ -281,12 +297,14 @@ export async function updateSubscriptionStatus(ctx: { orgId: string }, subscript
 export type ClauseInput = { title: string; category?: string; bodyText: string; riskLevel?: string; isStandard?: boolean }
 
 export async function listClauses(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.clmClauses.findMany({ where: eq(clmClauses.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.title) })
   )
 }
 
 export async function createClause(ctx: { orgId: string; userId: string }, input: ClauseInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
   if (!input.bodyText?.trim()) throw new ServiceError("bodyText is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -299,6 +317,7 @@ export async function createClause(ctx: { orgId: string; userId: string }, input
 }
 
 export async function updateClause(ctx: { orgId: string }, clauseId: string, input: Partial<ClauseInput>) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const clause = await db.query.clmClauses.findFirst({ where: and(eq(clmClauses.id, clauseId), eq(clmClauses.orgId, ctx.orgId)) })
     if (!clause) throw new ServiceError("Clause not found", 404)
@@ -314,12 +333,14 @@ export async function updateClause(ctx: { orgId: string }, clauseId: string, inp
 export type TemplateInput = { name: string; contractType?: string; description?: string }
 
 export async function listContractTemplates(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.clmContractTemplates.findMany({ where: eq(clmContractTemplates.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.name) })
   )
 }
 
 export async function createContractTemplate(ctx: { orgId: string; userId: string }, input: TemplateInput) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [template] = await db.insert(clmContractTemplates).values({
@@ -330,6 +351,7 @@ export async function createContractTemplate(ctx: { orgId: string; userId: strin
 }
 
 export async function getContractTemplate(ctx: { orgId: string }, templateId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const template = await db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) })
     if (!template) throw new ServiceError("Template not found", 404)
@@ -341,6 +363,7 @@ export async function getContractTemplate(ctx: { orgId: string }, templateId: st
 }
 
 export async function addClauseToTemplate(ctx: { orgId: string }, templateId: string, clauseId: string, isOptional?: boolean) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [template, clause] = await Promise.all([
       db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) }),
@@ -358,6 +381,7 @@ export async function addClauseToTemplate(ctx: { orgId: string }, templateId: st
 }
 
 export async function removeClauseFromTemplate(ctx: { orgId: string }, templateId: string, templateClauseId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const template = await db.query.clmContractTemplates.findFirst({ where: and(eq(clmContractTemplates.id, templateId), eq(clmContractTemplates.orgId, ctx.orgId)) })
     if (!template) throw new ServiceError("Template not found", 404)
@@ -371,6 +395,7 @@ export async function removeClauseFromTemplate(ctx: { orgId: string }, templateI
 // clauses -- deliberately NOT generative/AI authoring (that's CLM004,
 // explicitly out of scope this wave).
 export async function generateContractFromTemplate(ctx: ErpContractContext, contractId: string, templateId: string, includeOptionalClauseIds?: string[]) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)), with: { customer: true } })
     if (!contract) throw new ServiceError("Contract not found", 404)
@@ -406,6 +431,7 @@ export async function generateContractFromTemplate(ctx: ErpContractContext, cont
 // contracts instead of quotations.
 
 export async function addContractNegotiationRound(ctx: { orgId: string; userId: string }, contractId: string, input: { proposedValue?: number; notes?: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Contract not found", 404)
@@ -420,6 +446,7 @@ export async function addContractNegotiationRound(ctx: { orgId: string; userId: 
 }
 
 export async function listContractNegotiationRounds(ctx: { orgId: string }, contractId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpContractNegotiationRounds.findMany({
       where: and(eq(erpContractNegotiationRounds.orgId, ctx.orgId), eq(erpContractNegotiationRounds.contractId, contractId)),

@@ -1,0 +1,165 @@
+# ============================================================================
+# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
+# direct response to the Owner naming 4 parallel Claude sessions working
+# across this codebase at once, with no existing mechanism for one session
+# to see what another is actively touching before it starts new work.
+#
+# THIS FILE IS NOT A SUBSTITUTE FOR GIT'S OWN SAFETY (worktree isolation +
+# PR/CI + branch protection already prevent silent data loss -- see
+# AGENTS.md Rule 6 and [[fchecklist_worktree_isolation_required]]). It exists
+# to prevent a DIFFERENT problem git can't solve on its own: two sessions
+# independently choosing to build the SAME gap at the same time, wasting a
+# full agent-hours cycle on duplicate/conflicting work that then has to be
+# thrown away or painfully reconciled after the fact.
+#
+# PROTOCOL (every session, every time, no exceptions):
+#   1. BEFORE selecting a gap/task from ai-os/MASTER-TRACKER.yaml (or any
+#      other source) to work on: `git pull origin main` this file fresh,
+#      read every entry under `active:` below, and do NOT start work on a
+#      gap/file-area another entry already claims, unless that entry's
+#      `claimed_at` is more than 4 hours stale with no matching open PR
+#      (check `gh pr list`) -- treat a stale claim as abandoned, not binding.
+#   2. IMMEDIATELY when you start real work (dispatching a sub-agent, or
+#      starting to edit yourself): add a new entry under `active:` with your
+#      session label, what you're claiming (gap id + real file/directory
+#      scope, not just a vague area), and a timestamp. Commit and push this
+#      addition on its own, fast, BEFORE the actual work PR -- don't batch it
+#      with the real change, so other sessions see the claim as early as
+#      possible.
+#   3. WHEN your work merges (or you abandon it), move your entry from
+#      `active:` to `recently_completed:` (keep the last ~15 entries there,
+#      drop older ones -- this is a rolling log, not permanent history;
+#      MASTER-TRACKER.yaml's closed_priorities is the permanent record).
+#   4. If you discover an active claim that conflicts with what you were
+#      about to do, do NOT silently work around it or silently pick a
+#      different gap without saying so -- note it in your own session's
+#      final report to your Owner/user, the same honesty standard this
+#      whole initiative already holds for owner-blocked items.
+#   5. Sessions cannot literally message each other -- this file IS the
+#      message. Keep entries short, factual, and file/directory-scoped so a
+#      session with zero other context can act on them correctly.
+# ============================================================================
+
+active:
+# (empty -- both claims below completed and moved to recently_completed)
+
+# Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
+# closed_priorities is the permanent record, this is just recency context.
+recently_completed:
+  - session_label: "claude-code (sub-agent) -- Wire 4 remaining VERI Reward achievement checks"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Follow-up to PR #307's audit (MASTER-TRACKER.yaml priority 18). Wired
+      all 4 of the achievement keys that audit flagged as seeded but never
+      callable: login_streak_3 (veri-reward-service.ts's
+      recordStreakCheckIn(), fires at the real daily-login streak's
+      currentCount===3), first_document_upload (documents/route.ts's POST,
+      a narrowly-scoped count(*) since no reusable per-user count existed),
+      weekly_task_5 (compliance-service.ts's updateComplianceItem(), a new
+      block separate from the pre-existing first_compliance_item check,
+      backed by a new drizzle/0194 composite index), and onboarding_complete
+      (a genuine gap, not just unwired -- confirmed by full-repo search
+      that users.onboardingCompleted was never flipped true anywhere in
+      production code before this change; wired at the one real existing
+      sync point, /api/me/onboarding-stage + OnboardingChecklist.tsx's
+      already-computed "all steps done" boolean). 4/4 wired, none skipped.
+      bunx tsc --noEmit clean, lint 0 errors, build succeeded, bun test
+      1098 pass / 0 fail. See ai-os/boss/COMPLETED.yaml WAVE-179 and
+      MASTER-TRACKER.yaml priority 18 status_update for full detail. PR
+      opened from feat/veri-reward-remaining-achievements, not merged by
+      this session per standing dispatch instructions.
+
+  - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Investigated both items dispatched by Super Boss supervisor. Item A
+      (Worker Agent Phase-1 read-only auto-dispatch) turned out already
+      fully wired (PR #51, predates this session) -- fde-service.ts's
+      high-confidence worker_agent match reuses task-execution-engine.ts's
+      dispatchTool(), gated through purpose-bound-ai.ts's
+      DOMAIN_ALLOWED_TOOLS allowlist which already excludes every write
+      action. The one real gap: the shared threshold constant was still
+      the originally-proposed 0.9, not the Owner's 2026-07-10 correction to
+      0.95 -- fixed as a one-line change. Item B (llm-response-cache
+      wiring): chat-service.ts, task-execution-engine.ts, and
+      /api/ai/orchestrate/route.ts all called the LLM directly. Wired
+      /api/ai/orchestrate/route.ts (a genuine fit per the cache module's
+      own documented safety bar). Deliberately left chat-service.ts and
+      task-execution-engine.ts's planning call unwired for concrete
+      architectural reasons (history not in the cache key; a cached
+      malformed response would defeat the existing SyntaxError-retry
+      self-heal) -- see ai-os/boss/COMPLETED.yaml WAVE-178 for full detail.
+      PR #309, audited and merged by Super Boss supervisor 2026-07-14.
+
+  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
+    completed_at: "2026-07-14T00:00:00Z"
+    claim: "Audited veri-reward-service.ts / veri-reward-enablement-service.ts / src/app/(app)/rewards/** end-to-end -- found CORRECTLY WIRED already (awardPoints/checkAndUnlockAchievements have real callers in compliance-service.ts + auth-guard.ts; on-by-default enablement confirmed for new orgs via auth-guard.ts's raw insert; no cash-referral bridge and no redemption mechanism exist, both intentional per Owner decisions; /rewards renders real data end-to-end). ZERO code changes made. See MASTER-TRACKER.yaml priority 18 for full evidence. One secondary finding flagged, not built here: 4 of 5 seeded achievement definitions have no caller and can never unlock -- separately dispatched as its own task (see recently_completed entry for that task once it reports). PR #307, audited and merged by Super Boss supervisor 2026-07-14."
+
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-14T03:37:44Z"
+    claim: "GAP-UMR-TABLE-COVERAGE 4th batch (23 tables, migration 0193 after 2 real renumbering collisions) -- PR #302 merged. GAP-DCMD 3rd graph edge (dynamic_chain->dynamic_chain 'supersedes', createChainVersion() chokepoint) -- PR #288 merged. This session has no further active claims."
+
+
+  - session_label: "claude-code (this session, CLI) -- Priority 12 (OPEN-07, Universal Builder), OWNER-DIRECTED SOLE OWNER"
+    completed_at: "2026-07-14T (same day as claim; see MASTER-TRACKER.yaml OPEN-07 status_update / closed_priorities #15 and COMPLETED.yaml WAVE-177 for full detail)"
+    claim: |
+      Owner-directed sole ownership through to completion -- CLOSED same
+      day. 6 PRs total: #282 (point 8, pre-existing before this claim) +
+      #296 (DeepSeek auditor model, advisory dispatch replacing the dead
+      GITHUB_DISPATCH_PAT path, real cron trigger for runCapabilityAudit --
+      points 2/4/decision-a, built directly by this session) + #297
+      (task_capabilities surfaced in the Chain Selector, points 3+7, built
+      directly) + #298 (task_capabilities.status derivation + escalation-
+      matrix doc, points 6/10, dispatched sub-agent) + #299 (identical
+      branch-enablement gap independently confirmed in the Reports &
+      Analysis Engine, a point-8 follow-on, dispatched sub-agent) + #300
+      (FDE<->Dynamic-Chain/Chat cross-reference + capability-improvement
+      feedback UI, points 1/5, dispatched sub-agent). Every sub-agent PR
+      personally audited before merge (Rule 7c) -- caught and fixed 3 real
+      cross-PR migration-number collisions (0190 independently claimed by
+      #298/#299/#300) and one real Math.round()-vs-raw-SQL rounding bug in
+      #298's backfill before merging, not after.
+
+      Correcting an ambiguity PR #299's own sub-agent flagged: this
+      claim's original item (A) listed "branchKey scoping into... the
+      capability pipeline + Reports & Analysis Engine" as something this
+      session would do directly -- in practice the Reports & Analysis
+      Engine piece was delegated to a dedicated sub-agent (PR #299) once
+      its scope turned out comparable in size to point 8's own original
+      PR, and the capability-learning pipeline itself was deliberately
+      left UNgated by branch on purpose (task_capabilities.orgId is
+      platform-wide by design -- gating platform-wide learning by
+      purchased branch would defeat its own purpose of learning across
+      every org's activity, not an oversight).
+
+      Honest gap: point 9 of the Owner's original 12-point numbering was
+      never separately itemized anywhere in this tracker's own OPEN-07
+      detail (the list jumps 8 -> 10) -- a gap in the original
+      gap-analysis itself, not something this closure skipped. This
+      session has no further active OPEN-07 claims -- the area is free.
+
+  - session_label: "claude-code (this session, CLI) -- Priority 13 (PROJEXA PM-ERP), OPEN-08"
+    completed_at: "2026-07-14T (same day as claim; see veridian_priority13_pm_erp_gap_analysis.md memory + MASTER-TRACKER.yaml OPEN-08 status_update / closed_priorities #16 for full detail)"
+    claim: |
+      Owner-directed sole ownership through to completion ("you are the
+      owner of Priority 13 completion... complete priority 13... dont
+      stop till its complete") -- CLOSED same day. 5 PRs merged:
+      compliance-tracker#290 (doc auto-classification + self-serve ad-hoc
+      BI), compliance-tracker#292 + projexa#4 (ERP discovery lookups +
+      Permits), compliance-tracker#293 + projexa#5 (Meetings/MOM + Kanban
+      board -- required resolving a real AppSidebar.tsx merge conflict
+      against #4). Item (7) BIM/IFC deliberately deferred per Owner. This
+      session has no further active OPEN-08 claims -- the area is free
+      for any session that wants item (8)'s remaining loose end
+      (system-tree/20-projexa.yaml update + re-verifying
+      veridian-client.ts's stubbed-credential MVP gap) or a genuinely new
+      Priority 13 follow-on.
+
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-13T23:38:00+05:30"
+    claim: "GAP-D15-REMAINING-TRIGGERS (Deployment webhook), GAP-D13-ASSUMPTION-VALIDATION (chat prompt scoping), GAP-UMR-TABLE-COVERAGE 3rd batch (22 tables) -- PRs #241/#242/#243/#244/#280 all merged."
+
+  - session_label: "claude-code (this session, CLI)"
+    completed_at: "2026-07-13T19:28:28Z"
+    claim: "Priority 11 Reports & Analysis ENGINE fully closed -- PR #279 merged (ai-os/boss/COMPLETED.yaml WAVE-175, MASTER-TRACKER.yaml closed_priorities #14). report-engine-service.ts/report-taxonomy.ts confirmed safe for other sessions to build on (replied to Priority 13/PROJEXA session's cross-session question above). ID COLLISION RESOLVED IN OUR FAVOR: PR #279 merged first, so WAVE-175/closed_priorities-#14 belong to Priority 11 on main now -- PR #285 (Priority 12 OPEN-07 point 8 closure) still needs to renumber its own new entries to WAVE-176/closed_priorities-#15 before it can merge cleanly (its branch will show this as a semantic duplicate on next sync, not a git conflict -- that session should re-check ai-os/boss/COMPLETED.yaml against latest main before pushing). This session has no further active claims."

@@ -62,6 +62,7 @@ import {
   Fingerprint,
   FlaskConical,
   Gem,
+  Wrench,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -98,6 +99,21 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         ...(accountType !== "company"
           ? [{ label: "VERI CUSTOMERS AI", href: "/clients", icon: Building2 }]
           : []),
+      ],
+    },
+    // Priority 11 (Owner directive 2026-07-13, Reports & Analysis Engine):
+    // "add Reports & Analysis as one of the top 5 items" -- promoted from
+    // the TOOLS section (was "VERI REPORTS AI", buried well down the
+    // sidebar) to its own top-level section, second only to OVERVIEW, so
+    // it's genuinely one of the first items a user sees. Renamed to plain
+    // "Reports & Analysis" per the Owner's own "user end nomenclature
+    // should be the one that user can understand" instruction. Same /reports
+    // route and icon as before -- no duplicate nav entry (removed from
+    // TOOLS below).
+    {
+      title: "REPORTS & ANALYSIS",
+      items: [
+        { label: "Reports & Analysis", href: "/reports", icon: BarChart3 },
       ],
     },
     // VERI Treasure (Wave 113): the 'veri_reward' product branch, free and
@@ -337,6 +353,11 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           icon: Users,
         },
         {
+          label: "Capability Improvements",
+          href: "/capability-improvements",
+          icon: Wrench,
+        },
+        {
           label: "Checklists",
           href: "/checklists",
           icon: CheckSquare,
@@ -351,11 +372,9 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
           href: "/documents",
           icon: FolderOpen,
         },
-        {
-          label: "VERI REPORTS AI",
-          href: "/reports",
-          icon: BarChart3,
-        },
+        // "VERI REPORTS AI" -> /reports moved to its own top-level
+        // "REPORTS & ANALYSIS" section (Priority 11) -- removed here to
+        // avoid a duplicate nav entry pointing at the same route.
         {
           label: "Enterprise KPI Hub",
           href: "/kpi-hub",

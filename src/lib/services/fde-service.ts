@@ -23,6 +23,10 @@ import { redactPii } from "@/lib/pii-redaction"
 import { hasRole } from "@/lib/supabase/auth-guard"
 import { proposeWorkerAgent } from "./worker-agent-service"
 import { findSimilarCapabilities } from "./capability-registry-service"
+// Priority 12 (OPEN-07 point 1): the FDE -> Dynamic-Chain/Chat side of the
+// cross-catalog bridge -- see capability-bridge-service.ts's own header.
+import { findTaskCapabilityForDynamicChainMatch } from "./capability-bridge-service"
+import { computeCoverageStats } from "./capability-learning-service"
 import { ServiceError } from "./compliance-service"
 import { isToolAllowedForDomain } from "@/lib/purpose-bound-ai"
 import { dispatchTool } from "@/lib/task-execution-engine"
@@ -34,7 +38,20 @@ export type FdeContext = { orgId: string; userId: string; dbUser: typeof users.$
 // A match this strong answers instantly with no LLM call at all -- the
 // concrete token-reduction the user asked for. Below this, the LLM still
 // reasons, but only over the top-K candidates, not the full catalog.
-const HIGH_CONFIDENCE_THRESHOLD = 0.9
+//
+// Owner correction (2026-07-10, Worker Agent Library Phase 1 sign-off):
+// the originally-proposed value here was 0.9 -- the Owner explicitly raised
+// it to 0.95 when approving Phase 1 read-only auto-dispatch (the
+// `topMatch.entityType === "worker_agent"` branch below, which reuses
+// task-execution-engine.ts's dispatchTool() to actually run the matched
+// agent), on the grounds that 0.9 is loose enough to occasionally auto-run
+// a real action for a request that was only superficially similar. This is
+// VERI FDE's single no-LLM-reasoning-at-all gate -- both the "already
+// covered" short-circuit for module/rule matches AND the worker-agent
+// auto-dispatch branch share it, and the Owner's sign-off was never asked
+// to split them into two separate thresholds, so raising the one shared
+// constant is the correct, complete fix.
+const HIGH_CONFIDENCE_THRESHOLD = 0.95
 const CANDIDATE_LIMIT = 8
 
 type FdeEvaluation = {
@@ -138,6 +155,26 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       } catch {
         // Dispatch failure -- fall back to the existing static message
         // rather than surfacing an error to the user.
+      }
+    }
+
+    // Priority 12 (OPEN-07 point 1, GAP-FDE-CHAIN-INTAKE-SPLIT): the
+    // worker_agent branch above has always had a real special case; a
+    // dynamic_chain match never did -- FDE would report "already covered"
+    // using nothing but the embedded label, with zero visibility into
+    // whether Dynamic-Chain/Chat has actually learned anything about that
+    // chain. capability-bridge-service.ts's findTaskCapabilityForDynamicChainMatch()
+    // resolves the SAME (modePill, pathKeys) pair back to its
+    // taskCapabilities row (if the chain has ever really been executed
+    // through the Dynamic-Chain/Chat path), so the response can state real,
+    // persisted coverage history instead of just the FDE similarity score.
+    // Best-effort and additive only -- a null/failed lookup falls back to
+    // the exact same generic message every other match type already gets.
+    if (topMatch.entityType === "dynamic_chain") {
+      const linkedCapability = await findTaskCapabilityForDynamicChainMatch(topMatch)
+      if (linkedCapability && linkedCapability.occurrenceCount > 0) {
+        const stats = computeCoverageStats(linkedCapability.fullSoftwareCount, linkedCapability.packageAvailableCount, linkedCapability.novelCount)
+        responseText += ` This exact Dynamic Chain has been run ${stats.total} time(s) before: ${stats.fullSoftwarePercent}% required zero AI reasoning, ${stats.packageAvailablePercent}% used an approved instruction package, ${stats.novelPercent}% needed fresh judgment.`
       }
     }
 

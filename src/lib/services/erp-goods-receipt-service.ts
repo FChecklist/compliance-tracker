@@ -16,6 +16,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { recordStockReceipt } from "./erp-inventory-service"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -26,6 +27,7 @@ type ReceiptItemInput = { purchaseOrderItemId?: string; itemId?: string; quantit
 // ============================================================
 
 export async function listPurchaseReceipts(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpPurchaseReceipts.findMany({
       where: eq(erpPurchaseReceipts.orgId, ctx.orgId),
@@ -36,6 +38,7 @@ export async function listPurchaseReceipts(ctx: { orgId: string }) {
 }
 
 export async function getPurchaseReceipt(ctx: { orgId: string }, receiptId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const receipt = await db.query.erpPurchaseReceipts.findFirst({
       where: and(eq(erpPurchaseReceipts.id, receiptId), eq(erpPurchaseReceipts.orgId, ctx.orgId)),
@@ -50,6 +53,7 @@ export async function createPurchaseReceipt(
   ctx: ErpContext,
   input: { supplierId: string; purchaseOrderId?: string; postingDate: string; items: ReceiptItemInput[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
   if (input.items.some((i) => !i.warehouseId)) throw new ServiceError("Every line item requires a receiving warehouse", 400)
@@ -91,6 +95,7 @@ export async function createPurchaseReceipt(
  * writer at all.
  */
 export async function submitPurchaseReceipt(ctx: ErpContext, receiptId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const receipt = await db.query.erpPurchaseReceipts.findFirst({
       where: and(eq(erpPurchaseReceipts.id, receiptId), eq(erpPurchaseReceipts.orgId, ctx.orgId)),
@@ -143,6 +148,7 @@ export async function submitPurchaseReceipt(ctx: ErpContext, receiptId: string) 
 // ============================================================
 
 export async function updatePutawayLocation(ctx: { orgId: string }, receiptItemId: string, warehouseId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const item = await db.query.erpPurchaseReceiptItems.findFirst({ where: eq(erpPurchaseReceiptItems.id, receiptItemId) })
     if (!item) throw new ServiceError("Receipt item not found", 404)
@@ -152,6 +158,7 @@ export async function updatePutawayLocation(ctx: { orgId: string }, receiptItemI
 }
 
 export async function markPutawayComplete(ctx: ErpContext, receiptId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const receipt = await db.query.erpPurchaseReceipts.findFirst({ where: and(eq(erpPurchaseReceipts.id, receiptId), eq(erpPurchaseReceipts.orgId, ctx.orgId)) })
     if (!receipt) throw new ServiceError("Purchase receipt not found", 404)
@@ -180,6 +187,7 @@ export type ThreeWayMatchLine = {
 
 /** Reads three genuinely independent documents (never a duplicated reconciliation ledger) and reports variance per PO line. */
 export async function getThreeWayMatchReport(ctx: { orgId: string }, purchaseOrderId: string): Promise<ThreeWayMatchLine[]> {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const po = await db.query.erpPurchaseOrders.findFirst({
       where: and(eq(erpPurchaseOrders.id, purchaseOrderId), eq(erpPurchaseOrders.orgId, ctx.orgId)),
@@ -229,6 +237,7 @@ export async function createLandedCostVoucher(
   purchaseReceiptId: string,
   input: { postingDate: string; charges: { expenseType: string; amount: number; description?: string }[] }
 ) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.charges?.length) throw new ServiceError("At least one charge is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -279,6 +288,7 @@ export async function createLandedCostVoucher(
 }
 
 export async function listLandedCostVouchers(ctx: { orgId: string }, purchaseReceiptId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpLandedCostVouchers.findMany({
       where: and(eq(erpLandedCostVouchers.orgId, ctx.orgId), eq(erpLandedCostVouchers.purchaseReceiptId, purchaseReceiptId)),
