@@ -1879,3 +1879,175 @@ entries:
         OPENROUTER_API_KEY/DATABASE_URL available outside the Supabase
         MCP/CI -- flagged in PR #296's own audit comment as a recommended
         live spot-check for whichever session next has deploy access.
+
+  - id: WAVE-178
+    title: "Worker Agent Phase-1 auto-dispatch threshold correction (0.9 -> 0.95) + llm-response-cache wired into /api/ai/orchestrate -- both items found MOSTLY already done, narrow real gaps closed"
+    doer:
+      agent: "claude-code (sub-agent, worktree feat/worker-agent-dispatch-classify-audit), dispatched by Super Boss supervisor"
+      date: "2026-07-14"
+      pr: "TBD -- see PR opened from feat/worker-agent-dispatch-classify-audit"
+      summary: >
+        Item A (Worker Agent Library Phase 1 auto-dispatch): investigation
+        found this was NOT a gap at all -- PR #51 ("AI Workforce: Phase 1
+        of Worker Agent Dispatch (READ-ONLY actions only)") already wired
+        real auto-dispatch into fde-service.ts's high-confidence-match
+        branch (src/lib/services/fde-service.ts:127-146): when the top
+        semantic match is a worker_agent, it reuses task-execution-engine.ts's
+        exported dispatchTool() to actually run the matched capability and
+        append real JSON output to the response, gated through the
+        pre-existing purpose-bound-ai.ts DOMAIN_ALLOWED_TOOLS allowlist
+        (isToolAllowedForDomain, src/lib/purpose-bound-ai.ts:84-88) which
+        deliberately excludes every write action (update_compliance_status,
+        create_compliance_item, confirm_gst_batch, generate_gst_return,
+        generate_gst_ai_review are all explicitly commented as excluded on
+        purpose) -- so "read-only actions only" was already a real,
+        server-enforced guarantee, not a documentation promise. The one
+        genuine gap: HIGH_CONFIDENCE_THRESHOLD (fde-service.ts:41) was still
+        0.9, the originally-proposed value the Owner explicitly corrected to
+        0.95 on 2026-07-10 when signing off on Phase 1. Fixed: bumped the
+        single shared constant to 0.95 (it gates both the no-LLM
+        "already covered" short-circuit and the worker-agent auto-dispatch
+        branch together -- the Owner's sign-off was never asked to split
+        them into two separate thresholds).
+
+        Item B (llm-response-cache wiring): grepped all importers of
+        src/lib/llm-response-cache.ts across the repo -- only
+        fde-service.ts and src/app/api/internal/loops/run/route.ts used it
+        before this change; chat-service.ts, task-execution-engine.ts, and
+        /api/ai/orchestrate/route.ts all independently called callLLM/
+        callLLMJson directly, confirming the gap was real. Read the cache
+        module's own header carefully before wiring anything -- it states
+        explicitly it is "deliberately OPT-IN, not automatic at every
+        existing call site," safe only where "the caller has already
+        judged the exact same (org, provider, model, systemPrompt,
+        userMessage) tuple is likely to repeat." Applying that test
+        honestly to each of the 3 named call sites: (1) /api/ai/orchestrate/route.ts
+        is a genuine fit -- its userMessage embeds Math.floor()-granularity
+        fields (daysOverdue/daysUntilDeadline) that only change once per
+        calendar day, so a duplicate webhook delivery or repeat UI open of
+        the same item's AI panel the same day produces a byte-identical
+        tuple; wired callLLMJsonCached in, matching fde-service.ts's exact
+        usage pattern (org-scoped, `cached` flag threaded into
+        recordOrchestraExecution's output). (2) chat-service.ts's sendMessage
+        was deliberately NOT wired -- its callLLM call passes a `history`
+        array that grows every turn, but the cache key (orgId|provider|model|
+        systemPrompt|userMessage) does not include history at all, so caching
+        here would risk serving a reply from one conversation's context into
+        an unrelated later conversation that happens to send the same literal
+        message (e.g. "yes"). (3) task-execution-engine.ts's planning call
+        (callLLMJson at line ~2259) was deliberately NOT wired -- its
+        userMessage is a specific task's title+description, essentially
+        never a verbatim repeat, and more importantly the existing
+        SyntaxError-retry logic (lines ~2276-2284) deliberately re-issues the
+        identical call hoping for a non-truncated response; callLLMJsonCached
+        writes its raw content to the cache BEFORE attempting JSON.parse, so
+        wiring this specific site would have cached the truncated/malformed
+        first response and made the "retry once, usually succeeds" self-heal
+        permanently fail instead. Both non-wirings are architecture-fit
+        decisions grounded in the cache module's own documented safety bar,
+        not scope-cutting.
+
+        No new table, service, embedding pipeline, or worker-agent runner
+        was created -- both fixes reuse existing infrastructure exactly as
+        instructed (dispatchTool/isToolAllowedForDomain for Item A,
+        callLLMJsonCached for Item B). Total diff: 2 files touched
+        (src/lib/services/fde-service.ts, src/app/api/ai/orchestrate/route.ts),
+        34 lines changed. bunx tsc --noEmit clean, `bun run lint` 0 errors
+        (3 pre-existing unrelated warnings), `bun test` 1098 pass / 0 fail
+        across 83 files.
+
+  - id: WAVE-179
+    title: "VERI Reward remaining-achievements wiring -- 4/4 of the achievement keys PR #307's audit flagged as never-callable now have real call sites"
+    doer:
+      agent: "claude-code (sub-agent, worktree feat/veri-reward-remaining-achievements), dispatched by Super Boss supervisor"
+      date: "2026-07-14"
+      pr: "TBD -- see PR opened from feat/veri-reward-remaining-achievements"
+      summary: >
+        Follow-up to PR #307's audit (MASTER-TRACKER.yaml priority 18),
+        which confirmed VERI Reward's core wiring was already complete but
+        flagged, as a secondary finding, that only 1 of the 5 seeded
+        platform-default achievement definitions (first_compliance_item)
+        had any real caller -- login_streak_3, first_document_upload,
+        weekly_task_5, and onboarding_complete were seeded and rendered on
+        /rewards with real 0/target progress bars that could never reach
+        100%. This wave wired all 4, each at a real, individually-confirmed
+        chokepoint -- none of the task brief's suggested file paths were
+        assumed correct without checking the actual code first.
+
+        1. login_streak_3 (src/lib/services/veri-reward-service.ts,
+           recordStreakCheckIn()): confirmed the real trigger chain first --
+           src/app/(app)/rewards/page.tsx fires a fire-and-forget POST to
+           /api/veri-reward/streak with streakKey='daily_login' on every
+           page visit, which calls recordStreakCheckIn() via
+           streak/route.ts. Added a check right after the streak's
+           currentCount is computed: when streakKey === 'daily_login' and
+           currentCount === 3 (the exact threshold crossing, not every day
+           after), calls checkAndUnlockAchievements(). Wrapped in try/catch,
+           logged on failure, never blocks the actual streak check-in.
+
+        2. first_document_upload (src/app/api/documents/route.ts, POST):
+           confirmed this is the one real upload chokepoint by reading
+           document-service.ts in full -- no parallel insert path into the
+           documents table exists. No existing per-user document count was
+           found to reuse (document-service.ts's queries are all org-scoped
+           listings, not per-uploader counts), so a narrowly-scoped
+           count(*) against (org_id, uploaded_by_id) was added inline
+           inside the same withTenantContext block as the insert; fires the
+           achievement check when the count is exactly 1. Wrapped in
+           try/catch, never blocks the actual upload.
+
+        3. weekly_task_5 (src/lib/services/compliance-service.ts,
+           updateComplianceItem()): reused the same status==='completed'
+           chokepoint the pre-existing first_compliance_item check already
+           uses, but as a clearly separate block placed AFTER the
+           db.update() call (not merged into the first_compliance_item
+           block, and not before the write like that block is -- the
+           weekly count needs this item's own completion to already be
+           persisted to count correctly). compliance_items has no
+           completedById column, so "this user's completions" is
+           approximated via assignedToId -- documented in-code as a real
+           design tradeoff, not silently assumed. Added
+           drizzle/0194_weekly_task_completion_index.sql (composite index
+           on org_id, assigned_to_id, status, completed_at) so the weekly
+           count is an indexed range scan, not a full table scan -- not yet
+           applied to the live DB by this session (file-only, matching
+           this repo's existing convention of migration files being
+           applied separately; see PR body for the explicit flag). Fires
+           checkAndUnlockAchievements() with incrementBy=5 exactly when the
+           real weekly count reaches 5, immediately satisfying the
+           definition's targetValue=5 in one atomic call rather than
+           silently drifting into a lifetime-count semantic the
+           "this week" framing doesn't intend.
+
+        4. onboarding_complete (src/lib/supabase/auth-guard.ts sets
+           onboardingCompleted: false at signup; src/app/api/me/
+           onboarding-stage/route.ts and src/components/
+           OnboardingChecklist.tsx): this one was a genuine gap, not just
+           an unwired achievement -- confirmed by a full-repo search that
+           users.onboardingCompleted was NEVER flipped to true anywhere in
+           production code before this change (only a test fixture set it
+           true). A separate onboarding_steps DB table exists in schema.ts
+           but is completely dead code (zero reads or writes anywhere in
+           the app) -- deliberately not reused, per the instruction not to
+           invent/adopt a parallel tracking mechanism. Instead wired at the
+           one real, already-existing sync point: OnboardingChecklist.tsx
+           already PATCHes /api/me/onboarding-stage on every step toggle
+           and already computes, client-side, whether all 4 steps are now
+           done (STEPS.length comparison). That same boolean is now also
+           sent as `allComplete`; the route persists
+           onboardingCompleted=true only when true, then fires
+           checkAndUnlockAchievements() inside a fresh withTenantContext
+           (the route previously used raw, non-tenant-scoped db). Wrapped
+           in try/catch, never blocks the actual onboarding-stage sync.
+
+        None of the 5 veri_reward_* tables or checkAndUnlockAchievements()
+        itself were touched or rebuilt, per the task's explicit
+        constraint -- this wave is 4 new call sites plus one supporting
+        index, nothing else. No redemption/cash-payout mechanism was built
+        (still explicitly out of scope per the Owner's 2026-07-10
+        decision, unaffected by this wave). bunx tsc --noEmit clean,
+        `bun run lint` 0 errors (3 pre-existing unrelated warnings),
+        `bun run build` succeeded, `bun test` 1098 pass / 0 fail across 83
+        files (no test file needed new/changed assertions -- none of the 4
+        call sites had prior test coverage of the achievement-check branch
+        itself, same as the pre-existing first_compliance_item wiring).

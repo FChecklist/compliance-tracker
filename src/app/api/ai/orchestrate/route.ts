@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/supabase/auth-guard";
 import { complianceItems, notices } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
-import { callLLMJson } from "@/lib/llm-client";
+import { callLLMJsonCached } from "@/lib/llm-response-cache";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
@@ -227,10 +227,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: result, usage } = await callLLMJson<{
+    // Gap closure, 2026-07-14 (Item B, llm-response-cache wiring audit):
+    // this event-driven endpoint fires from real system events (an item
+    // going overdue, a notice arriving) whose userMessage embeds
+    // Math.floor()-granularity fields (daysOverdue/daysUntilDeadline) that
+    // only change once per calendar day -- so a duplicate webhook delivery,
+    // a UI retry, or the user reopening the same item's AI panel more than
+    // once the same day genuinely produces the exact same (org, provider,
+    // model, systemPrompt, userMessage) tuple llm-response-cache.ts's own
+    // header names as the safety bar for using it (see fde-service.ts's
+    // identical use of callLLMJsonCached for the same reasoning). Unlike
+    // chat-service.ts (whose cache key would ignore conversation `history`
+    // and risk cross-conversation collisions) or task-execution-engine.ts's
+    // planning call (whose SyntaxError-retry path deliberately wants a
+    // fresh completion, not a replay of a truncated cached one), this call
+    // site has neither hazard -- a clean fit, not a blanket "cache
+    // everywhere" change.
+    const { data: result, usage, cached } = await callLLMJsonCached<{
       context: string;
       actions: OrchestratedAction[];
-    }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
+    }>({ orgId }, modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, {
       temperature: 0.3,
       maxTokens: 2048,
     }, modelConfig.fallback);
@@ -252,7 +268,7 @@ export async function POST(request: NextRequest) {
     recordOrchestraExecution({
       orgId, layerKey: "task_oa", eventType: typedEvent, input: { entityId, payload: enrichedPayload },
       status: "completed", durationMs: Date.now() - startedAt,
-      output: { actions: response.actions, isCustomerConfigured: modelConfig.isCustomerConfigured },
+      output: { actions: response.actions, isCustomerConfigured: modelConfig.isCustomerConfigured, cached },
       provider: modelConfig.provider, model: modelConfig.model, usage,
     });
     return NextResponse.json(response);

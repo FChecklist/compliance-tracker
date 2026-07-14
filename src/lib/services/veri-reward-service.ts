@@ -344,6 +344,22 @@ export async function recordStreakCheckIn(db: TenantDb, orgId: string, userId: s
     .set({ currentCount, longestCount, lastIncrementedAt: now, graceUsedAt, updatedAt: now })
     .where(eq(veriRewardStreaks.id, existing.id))
 
+  // VERI Reward: nudge the 'login_streak_3' achievement the moment the
+  // daily_login streak reaches 3 days. Only fires on the exact threshold
+  // crossing (not every day after) -- checkAndUnlockAchievements' own
+  // unlockedAt guard makes repeat calls harmless anyway, but gating here
+  // avoids pointless extra writes once the streak is well past 3. Wrapped
+  // so a points-engine failure can never break the actual streak check-in
+  // (logged, not thrown) -- same discipline as compliance-service.ts's
+  // first_compliance_item wiring.
+  if (streakKey === "daily_login" && currentCount === 3) {
+    try {
+      await checkAndUnlockAchievements(db, { orgId, userId, achievementKey: "login_streak_3" })
+    } catch (err) {
+      console.error("[veri-reward] failed to check login_streak_3 achievement", err)
+    }
+  }
+
   return { streakKey, currentCount, longestCount, graceAvailable: graceUsedAt === null }
 }
 
