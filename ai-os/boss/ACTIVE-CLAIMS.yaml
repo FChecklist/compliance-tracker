@@ -42,6 +42,17 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
+    claimed_at: "2026-07-14T00:00:00Z"
+    claim: |
+      Onboarding the next real batch (~15-25 tables) of the 303 still
+      grandfather-exempted asset_registration_config rows onto the UMR
+      auto-registration mechanism -- 5th batch after Priority 10 (+19,
+      PR #237), Priority 11 (+22, PR #242), Priority 17 (+23, migration
+      0193, PR #302). Scope: ai-os/registry/asset-registry-coverage.yaml,
+      a new drizzle/0XXX migration, src/lib/db/schema.ts (read-only, no
+      schema changes). Branch: gap-umr-table-coverage-batch5.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"
     claim: |
