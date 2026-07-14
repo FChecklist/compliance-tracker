@@ -135,6 +135,35 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Priority 14 GAP-DCMD rich schema slice"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Designed the remaining 8 named DCMD sub-fields' rich schema
+      (ai-os/DCMD-SCHEMA-DESIGN.md, full per-field reasoning) and shipped
+      7 new additive nullable/defaulted columns on dynamic_chains
+      (drizzle/0199, renumbered from an original 0198 after PR #327's
+      drizzle/0198_gap_umr_batch5_onboarding.sql merged first): classification, ownerDepartmentId, inputContract,
+      outputContract, aiConfig, workflowStepsConfig,
+      linkedKnowledgeBasePageIds. The 8th (software) deliberately got no
+      new column -- re-scoped onto the pre-existing linkedModuleRefs
+      column instead of duplicating it. Real wiring (not just schema):
+      task-service.ts's resolveDynamicChainId() now populates
+      classification.domain from a value it already computes for
+      capability-embedding indexing. All new fields threaded through
+      createChainVersion()'s copy-forward logic and the versions API
+      body. 3 candidate graph edges investigated and explicitly ruled
+      out for lack of a real chokepoint (dynamic_chain->department,
+      dynamic_chain->approval_workflow_definition,
+      dynamic_chain->knowledge_base_page) -- 0 new entity_relationships
+      edge types this pass, honestly schema-only for those 6 fields.
+      Flagged, not fixed: createChainVersion() doesn't copy forward
+      linkedApprovalWorkflowIds/governanceNotes/deprecationReason/
+      monitoringRules from the previous version (pre-existing bug).
+      tsc/lint/bun test all clean (1113 pass/0 fail). See
+      MASTER-TRACKER.yaml's GAP-DCMD status_update for full detail. PR
+      opened from feat/gap-dcmd-rich-schema, NOT merged by this session
+      per standing dispatch instructions -- left for supervisor audit.
+      This session has no further active claims.
   - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |

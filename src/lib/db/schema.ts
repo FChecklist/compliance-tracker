@@ -1396,6 +1396,25 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   linkedApprovalWorkflowIds: jsonb('linked_approval_workflow_ids').notNull().default([]), // string[] of approval_workflow_definitions.id this chain has triggered
   governanceNotes: text('governance_notes'), // free-form governance/compliance annotation an admin can attach to a chain
   deprecationReason: text('deprecation_reason'), // why a 'retired' chain was retired -- null for every non-retired chain and every pre-Wave-173 retired row
+  // Priority 14 (GAP-DCMD rich schema slice, ai-os/DCMD-SCHEMA-DESIGN.md):
+  // 7 of the remaining 8 named DCMD sub-fields (business/classification/
+  // inputs/outputs/AI/workflow/knowledge -- software is deliberately NOT a
+  // new column, see the design doc for why linkedModuleRefs above already
+  // covers it). All schema-only except classification.domain, which is
+  // populated at chain-creation time by task-service.ts's
+  // resolveDynamicChainId() reusing a value it already computes for
+  // capability-embedding indexing -- see that function for the one real
+  // chokepoint this migration wires. The rest are honestly unwired: no
+  // real call site in this codebase derives them automatically yet,
+  // settable only via the existing POST /api/dynamic-chains/[id]/versions
+  // body, same status as businessRules/workflowRef/aiBehaviorRef above.
+  classification: jsonb('classification'), // { domain?, chainType?, riskTier?, dataSensitivity?, complianceDomain? }
+  ownerDepartmentId: text('owner_department_id'), // FK-shaped ref to departments.id, unenforced (same convention as moduleRef) -- business sub-field
+  inputContract: jsonb('input_contract'), // { requiredFields?: string[]; sourceHint?: string } -- inputs sub-field
+  outputContract: jsonb('output_contract'), // deliberately distinct from reportsKpisSlas (cadence/KPI targets, not output shape) -- outputs sub-field
+  aiConfig: jsonb('ai_config'), // { modelTier?; requiresHumanApproval?: boolean; confidenceThreshold?: number } -- generalizes aiBehaviorRef, AI sub-field
+  workflowStepsConfig: jsonb('workflow_steps_config'), // step/SLA/escalation shape -- generalizes workflowRef, workflow sub-field
+  linkedKnowledgeBasePageIds: jsonb('linked_knowledge_base_page_ids').notNull().default([]), // string[] of knowledge_base_pages.id -- knowledge sub-field, same denormalized-index shape as linkedApprovalWorkflowIds
 })
 
 // Priority 10 (GAP-DCMD, second real slice): task-execution-engine.ts's
