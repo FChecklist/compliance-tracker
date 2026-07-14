@@ -315,7 +315,12 @@ export async function updateComplianceItem(ctx: ServiceContext, id: string, inpu
               sql`${complianceItems.completedAt} >= date_trunc('week', now())`
             )
           )
-        if (weeklyCount === 5) {
+        if (weeklyCount >= 5) {
+          // >= not === : checkAndUnlockAchievements() already guards against
+          // re-unlocking, so this is safe to call on every completion past 5;
+          // an exact-match check would permanently miss the unlock for any
+          // user whose weekly count jumps past 5 without ever equaling it
+          // exactly (audit correction, 2026-07-14 -- Super Boss supervisor).
           await checkAndUnlockAchievements(db, { orgId, userId, achievementKey: "weekly_task_5", incrementBy: 5 })
         }
       } catch (err) {
