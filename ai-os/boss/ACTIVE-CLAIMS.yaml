@@ -42,6 +42,21 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 14 GAP-DCMD rich schema slice"
+    claimed_at: "2026-07-14T16:00:00Z"
+    claim: |
+      Owner-directed Priority 14 slice: GAP-DCMD's remaining 8 rich
+      sub-fields (business/classification/inputs/outputs/software/AI/
+      workflow/knowledge -- governance already partially covered via
+      governanceNotes). Designing schema (ai-os/DCMD-SCHEMA-DESIGN.md),
+      then an additive migration for the column-level fits, honestly
+      documenting any sub-field left schema-only with no real chokepoint
+      found. Scope: dynamic_chains table + entity_relationships graph
+      edges only. NOT touching dynamic_chain->conversation (already
+      ruled out, no chokepoint) or worker_agent->capability (explicitly
+      Priority-12/13-adjacent, out of scope). Branch:
+      feat/gap-dcmd-rich-schema.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"
     claim: |
