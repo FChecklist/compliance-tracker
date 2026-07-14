@@ -75,6 +75,8 @@ index:
       covers: "Living strategic-direction + architecture-decision document at repo root -- 'what VERIDIAN is becoming and what has to be built to get there.' Each major evaluated technology/feature gets its own numbered section (evaluated -> design -> explicitly deferred)."
     - path: ai-os/STATUS-REPORT.md
       covers: "Point-in-time (as of its own 'updated' date) percent-complete rollup reconciling Tree 1 (requirements) against Tree 3 (what's built). Re-derive, don't trust blindly, if significant time has passed."
+    - path: ai-os/DCMD-SCHEMA-DESIGN.md
+      covers: "Priority 14, GAP-DCMD: per-sub-field architecture design (column vs. entity_relationships graph edge) for the source doc's 9 named DCMD rich-schema fields (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge). Records which sub-fields got real chokepoint wiring vs. schema-only this pass, and 3 candidate graph edges investigated and ruled out for lack of a real chokepoint -- read this before proposing new dynamic_chains columns or entity_relationships edge types for chains."
 
   what_should_exist_vs_what_does:
     - path: ai-os/audit-tree/
