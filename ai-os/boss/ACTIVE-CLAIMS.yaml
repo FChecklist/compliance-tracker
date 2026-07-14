@@ -42,6 +42,32 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 15, Wave 2: Sales & CRM deferred items"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed narrow follow-up closing 2 items explicitly deferred
+      from the Priority 15 Sales & CRM module (PR #332 / projexa#8): (1)
+      real PDF export for a quotation (jspdf/jspdf-autotable were installed
+      dependencies with zero prior usage anywhere in either repo -- this is
+      the first real PDF-generation call site), new
+      compliance-tracker/src/app/api/v1/projexa/quotations/[id]/pdf/
+      route.ts + src/lib/pdf/quotation-pdf.ts + a new
+      getQuotationForPdf() in erp-selling-service.ts, wired to a
+      "Download PDF" button in projexa/src/components/QuotationsClient.tsx
+      via a new projexa/src/app/api/quotations/[id]/pdf/route.ts proxy
+      (adds callVeridianRaw() to projexa/src/lib/veridian-client.ts for a
+      binary, non-JSON response -- callVeridian() itself unchanged in
+      behavior). (2) real manager-role gating on the quotation
+      pending_approval->approved transition in
+      compliance-tracker/src/app/api/v1/projexa/quotations/[id]/route.ts's
+      PATCH -- that transition now requires a real ctx.dbUser at manager
+      rank or above, not just a write-scoped API key (closes the gap where
+      PROJEXA's single shared org-wide API key could rubber-stamp every
+      transition including approval). Not touching any other Priority 15
+      module or file outside this narrow scope. Branch (compliance-
+      tracker): priority15-wave2-quotation-pdf-approval. Branch (projexa):
+      priority15-wave2-quotation-pdf-approval.
+
   - session_label: "claude-code (sub-agent) -- Priority 15 GRC/Accounting/Invoicing modules"
     claimed_at: "2026-07-14T (this session)"
     claim: |
