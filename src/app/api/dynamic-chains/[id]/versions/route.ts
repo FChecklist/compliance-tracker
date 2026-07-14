@@ -43,6 +43,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       workflowRef: body.workflowRef,
       aiBehaviorRef: body.aiBehaviorRef,
       reportsKpisSlas: body.reportsKpisSlas,
+      // Priority 14 (GAP-DCMD rich schema slice) -- same partial-override
+      // shape as the fields above, see ai-os/DCMD-SCHEMA-DESIGN.md.
+      classification: body.classification,
+      ownerDepartmentId: body.ownerDepartmentId,
+      inputContract: body.inputContract,
+      outputContract: body.outputContract,
+      aiConfig: body.aiConfig,
+      workflowStepsConfig: body.workflowStepsConfig,
+      linkedKnowledgeBasePageIds: body.linkedKnowledgeBasePageIds,
     })
     if (!result.created) return NextResponse.json({ error: "Chain not found" }, { status: 404 })
     return NextResponse.json(result, { status: 201 })

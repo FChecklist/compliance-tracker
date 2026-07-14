@@ -68,8 +68,20 @@ export async function resolveDynamicChainId(
     ),
   })
   if (existing) return existing.id
+
+  // Priority 14 (GAP-DCMD rich schema slice): compute the path-label domain
+  // string once, before the insert, so it can seed classification.domain on
+  // the same write -- genuine reuse of a value this chokepoint already
+  // derives for capability-embedding indexing below (Wave 173), not a new
+  // fabricated computation. See ai-os/DCMD-SCHEMA-DESIGN.md's classification
+  // section for why this is the one DCMD sub-field with real wiring this
+  // pass rather than schema-only.
+  const labels = Array.isArray(pathLabels) ? pathLabels.map((l) => String(l)) : []
+  const domain = labels.join(" > ") || null
+
   const [created] = await db.insert(dynamicChains).values({
     orgId, modePill, pathKeys, pathLabels, createdById: userId, status: "approved",
+    classification: { domain },
   }).returning()
 
   // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): index the newly created chain the
@@ -77,11 +89,10 @@ export async function resolveDynamicChainId(
   // own creation points -- best-effort, never blocks chain creation on a
   // failed embedding call.
   if (created) {
-    const labels = Array.isArray(pathLabels) ? pathLabels.map((l) => String(l)) : []
     indexCapability(
       "dynamic_chain",
       created.id,
-      buildCapabilityContent({ name: modePill, domain: labels.join(" > ") || null }),
+      buildCapabilityContent({ name: modePill, domain }),
       orgId
     ).catch((err) => console.error(`Failed to index dynamic chain ${created.id}:`, err))
   }
