@@ -29,8 +29,13 @@ export async function listSalesCreditNotes(ctx: { orgId: string }) {
   })
 }
 
+// Priority 15 (PROJEXA invoicing alias): same dbUser-or-apiKey actor union
+// as erp-invoicing-service.ts's createSalesInvoice (Priority 13) and
+// erp-accounting-service.ts's createJournalEntry (this wave) -- PROJEXA's
+// Bearer-key caller never has a session dbUser. submitSalesCreditNote and
+// the purchase-side functions below keep requiring a real dbUser unchanged.
 export async function createSalesCreditNote(
-  ctx: ErpContext,
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
   input: { customerId: string; salesInvoiceId?: string; postingDate: string; reason?: string; items: CreditNoteItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -57,7 +62,11 @@ export async function createSalesCreditNote(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_credit_note.created", entityType: "erp_sales_credit_note", entityId: note.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_credit_note.created", entityType: "erp_sales_credit_note", entityId: note.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_credit_note.created", entityType: "erp_sales_credit_note", entityId: note.id }
+    )
     return note
   })
 }
