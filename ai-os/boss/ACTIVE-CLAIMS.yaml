@@ -42,32 +42,6 @@
 # ============================================================================
 
 active:
-  - session_label: "claude-code (sub-agent) -- Priority 15, Wave 2: Sales & CRM deferred items"
-    claimed_at: "2026-07-14T (this session)"
-    claim: |
-      Owner-directed narrow follow-up closing 2 items explicitly deferred
-      from the Priority 15 Sales & CRM module (PR #332 / projexa#8): (1)
-      real PDF export for a quotation (jspdf/jspdf-autotable were installed
-      dependencies with zero prior usage anywhere in either repo -- this is
-      the first real PDF-generation call site), new
-      compliance-tracker/src/app/api/v1/projexa/quotations/[id]/pdf/
-      route.ts + src/lib/pdf/quotation-pdf.ts + a new
-      getQuotationForPdf() in erp-selling-service.ts, wired to a
-      "Download PDF" button in projexa/src/components/QuotationsClient.tsx
-      via a new projexa/src/app/api/quotations/[id]/pdf/route.ts proxy
-      (adds callVeridianRaw() to projexa/src/lib/veridian-client.ts for a
-      binary, non-JSON response -- callVeridian() itself unchanged in
-      behavior). (2) real manager-role gating on the quotation
-      pending_approval->approved transition in
-      compliance-tracker/src/app/api/v1/projexa/quotations/[id]/route.ts's
-      PATCH -- that transition now requires a real ctx.dbUser at manager
-      rank or above, not just a write-scoped API key (closes the gap where
-      PROJEXA's single shared org-wide API key could rubber-stamp every
-      transition including approval). Not touching any other Priority 15
-      module or file outside this narrow scope. Branch (compliance-
-      tracker): priority15-wave2-quotation-pdf-approval. Branch (projexa):
-      priority15-wave2-quotation-pdf-approval.
-
   - session_label: "claude-code (sub-agent) -- Priority 15 GRC/Accounting/Invoicing modules"
     claimed_at: "2026-07-14T (this session)"
     claim: |
@@ -161,6 +135,51 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Priority 15, Wave 2: Sales & CRM deferred items"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Owner-directed narrow follow-up closing 2 items explicitly deferred
+      from the Priority 15 Sales & CRM module (PR #332 / projexa#8): (1)
+      real PDF export for a quotation -- jspdf/jspdf-autotable were
+      installed dependencies with zero prior usage anywhere in either repo
+      (confirmed via a full-repo grep first), so this is the first real
+      PDF-generation call site: new getQuotationForPdf() in
+      erp-selling-service.ts (mirrors erp-einvoice-service.ts's own
+      org-lookup pattern), src/lib/pdf/quotation-pdf.ts (real binary PDF
+      via jsPDF + jspdf-autotable's functional autoTable(doc, options)
+      API -- letterhead, quotation number/date/customer, line-items table,
+      totals, status), and GET /api/v1/projexa/quotations/[id]/pdf.
+      PROJEXA side: a "Download PDF" button in QuotationsClient.tsx, a new
+      thin proxy route, and callVeridianRaw() factored out of
+      veridian-client.ts's callVeridian() so a binary response can be
+      relayed without breaking any existing JSON caller. (2) real
+      per-user manager-role gating on the quotation
+      pending_approval->approved transition in
+      /api/v1/projexa/quotations/[id]/route.ts's PATCH -- found that
+      requireRoleOrScope's "manager" minimumRole only actually applies to
+      a real dbUser session (an API-key caller falls through to a plain
+      write-scope check regardless of minimumRole, per that function's own
+      branching in auth-guard.ts), so PROJEXA's single shared org-wide
+      write-scoped API key could rubber-stamp every transition including
+      approval with no distinction between a sales rep and an actual
+      manager. The 'approved' transition specifically now requires a real
+      ctx.dbUser at manager rank or above, matching the "requires a real
+      user session, not an API key" convention already used throughout
+      this same wave (hr/departments POST, payroll run/payslip
+      finalization, leave-request decisions, change-order e-signature
+      submission). Honest limitation carried over from that same
+      precedent, not a regression introduced here: PROJEXA's shared-API-
+      key proxy has no per-user identity bridge to VERIDIAN today, so
+      clicking "Approve" from the PROJEXA UI gets the same 400 this change
+      returns -- identical to how PROJEXA's existing leave-approval button
+      already behaves for the same reason; a real fix needs a bigger
+      auth-architecture change, out of this wave's scope. bunx tsc
+      --noEmit clean and bun run build succeeded in both repos; bun run
+      lint 0 errors in both (pre-existing unrelated warnings only). PR
+      #333 (compliance-tracker) and projexa#10, NOT merged by this session
+      per this task's own instruction (a supervisor session audits and
+      merges). This session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- Priority 14 GAP-DCMD rich schema slice"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
