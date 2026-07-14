@@ -69,6 +69,47 @@ active:
       after this wave merges (real dependency, not just sequencing
       preference -- they hang data off what this wave creates).
 
+  - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed Priority 16 Part 2: implementing 2 confirmed
+      "missing UI, working backend" gaps from the Part 1 E2E test log
+      (control/priority16_e2e_testing_plan.md, "GAP -- Schedule" and
+      "GAP -- Work Progress" entries). (1) Schedule has no create-task UI
+      despite pms-issue-service.ts's createIssue() working fully -- adding
+      a new POST to src/app/api/v1/projexa/schedule/route.ts (new file;
+      only schedule/{gantt,baselines,workload}/ subroutes existed before)
+      plus a new GET src/app/api/v1/projexa/schedule/types/route.ts
+      (aliases pms-taxonomy-service.ts's listIssueTypes(), needed so the
+      new PROJEXA "New Task" dialog can populate a real type dropdown
+      instead of the route silently guessing). (2) Work Progress's "Log
+      Progress" dialog has a free-text "paste the activity ID" box with
+      zero discovery/creation UI -- adding a new
+      src/app/api/v1/projexa/work-progress/activities/route.ts (GET list +
+      POST create, aliasing construction-progress-service.ts's
+      listActivities()/createActivity(), auto-provisioning a default
+      "General" category on first use so a brand-new project isn't blocked
+      on category setup). No requirePmsEnabled()/requireErpEnabled() gate
+      added to either -- matches the existing precedent on every other
+      /v1/projexa/schedule/* and /v1/projexa/board route (pms_issues is
+      PROJEXA's generic task substrate, not gated behind a separately-
+      purchased branch) and construction_activities is under the
+      always-enabled `construction` branch. PROJEXA-side: new
+      src/app/api/schedule/tasks/route.ts + src/app/api/schedule/types/
+      route.ts + src/app/api/work-progress/activities/route.ts proxies,
+      a "New Task" dialog added to ScheduleBoardClient.tsx (Kanban view --
+      Gantt/Timeline view intentionally left read-only per the brief,
+      drag-to-reschedule is a separate larger feature), and
+      WorkProgressClient.tsx's free-text Activity ID field replaced with a
+      real Select populated from the new activities endpoint plus an
+      inline "+ New Activity" create flow. Branch:
+      priority16-schedule-workprogress (both repos). No other active claim
+      in this registry touches src/app/api/v1/projexa/schedule/**,
+      src/app/api/v1/projexa/work-progress/**, pms-issue-service.ts,
+      pms-taxonomy-service.ts, or construction-progress-service.ts at
+      claim time -- only overlap risk is AppSidebar.tsx-style incidental
+      merge conflicts on shared PROJEXA layout files, none touched here.
+
   - session_label: "claude-code (sub-agent) -- Priority 15 Wave 2, HR & Payroll follow-up"
     claimed_at: "2026-07-14T (this session)"
     claim: |
