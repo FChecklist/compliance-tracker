@@ -1,0 +1,313 @@
+# ============================================================================
+# VERIDIAN AI OS -- MACHINE-READABLE CONSTITUTION
+# ============================================================================
+# Added 2026-07-14 (Owner directive: "recheck the VERIDIAN AI OS and its
+# constitution... written in machine language for agents to understand, not
+# in english"). This file is the single structured entry point answering
+# "what IS VERIDIAN AI OS and how does it work" -- every field below is
+# {ask: <owner's stated intent>, ref: <real file(s) that back it>,
+# status: <ENFORCED|PARTIALLY_ENFORCED|POLICY_ONLY|NOT_YET_BUILT|
+# NOT_YET_TRACKED>, note: <gap detail, only where status is not ENFORCED>}.
+# Where a claim and a cited file disagree, THE FILE IS GROUND TRUTH -- fix or
+# remove the claim here.
+#
+# THIS DOES NOT REPLACE the 6 existing prose constitution documents
+# (VERIDIAN_AI_CONSTITUTION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md,
+# VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, VERI_CHAT_GOVERNANCE.md,
+# VAIOS_ARCHITECTURE_STRATEGY.md, ai-os/BRAIN.md). Those were re-read in full
+# 2026-07-14 before writing this file and found to be honestly
+# cross-referenced, not contradictory -- each states its own supersession
+# relationship, each marks its own enforcement status per section, none
+# silently duplicates another's content. What was missing was ONE place an
+# agent can machine-parse the Owner's actual operating objectives against
+# real status, without reading 2,000+ lines of prose first. This file is
+# that place -- it references the 6 prose docs by section, it does not
+# restate their content.
+#
+# ONE REAL TERMINOLOGY COLLISION FOUND AND RESOLVED IN THIS PASS: see
+# ai_orchestra_tiers.terminology_collision below.
+# ============================================================================
+
+meta:
+  version: 1.0
+  reconciled_against_docs:
+    - VERIDIAN_AI_CONSTITUTION.md
+    - VERIDIAN_DMP_DCF_CONSTITUTION.md
+    - VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md
+    - VERI_CHAT_GOVERNANCE.md
+    - VAIOS_ARCHITECTURE_STRATEGY.md
+    - ai-os/BRAIN.md
+  reconciled_against_code:
+    - src/lib/model-tier-eligibility.ts
+    - src/lib/orchestra-model-resolver.ts
+    - src/lib/ai-team/roster.ts
+    - src/lib/escalation-ladder.ts
+    - src/lib/floor-tier-escalation.ts
+    - src/lib/loop-prevention.ts
+    - src/lib/monitor-protocol.ts
+    - src/lib/embeddings.ts
+    - src/lib/composio-connectors.ts
+  last_reconciled: "2026-07-14"
+  reconciliation_note: "grep-verified against live code where cited; full-read prose docs are trusted as already-verified per their own [ENFORCED]/file:line discipline, not independently re-verified line-by-line in this pass. Re-verify before trusting a claim for anything consequential -- same rule ai-os/BRAIN.md states about itself."
+
+# ----------------------------------------------------------------------------
+identity:
+  ask: "VERIDIAN AI OS is a cognitive AI OS brain for business, not for personal use"
+  name: "VERIDIAN AI OS"
+  brand: "Veridian AI"
+  tagline: "One Portal. One Truth."
+  ref: "VERIDIAN_AI_CONSTITUTION.md #1,2,3,4,23"
+  status: ENFORCED
+  enforcement_mechanism: "src/lib/policy-enforcement-engine.ts::enforcePolicy(), PERSONAL_USE_PATTERNS denylist"
+  honest_limitation: "keyword/regex gate, not semantic understanding -- can miss a personal request phrased without a matching term"
+
+control_model:
+  ask: "FChecklist = VERIDIAN AI OS, the complete system controlling every repository. All modules/functions live in compliance-tracker. Other repos (PROJEXA) are independent-feeling products actually controlled through compliance-tracker's modules."
+  brain_repo: "FChecklist/compliance-tracker"
+  brain_holds: "every module and function"
+  verification_rule: "NEVER infer 'is a VERIDIAN product' from GitHub org membership alone. Grep for a veridian-client-equivalent + /api/v1/* calls before treating any repo as governed by this brain."
+  ref: "ai-os/BRAIN.md #1, MASTER-TRACKER.yaml OPEN-10"
+  products:
+    - repo: "FChecklist/projexa"
+      status: CONFIRMED_TRUE
+      evidence: "zero local domain data, zero local LLM client, all reads/writes via src/lib/veridian-client.ts calling compliance-tracker's /api/v1/projexa/*"
+    - repo: "FChecklist/veda-advisors"
+      status: CONFIRMED_FALSE_TODAY
+      evidence: "zero references to a veridian-client equivalent, runs Prisma (forbidden by this repo's own CLAUDE.md), independent business codebase"
+      owner_decision: "declared in-scope under VERIDIAN AI OS 2026-07-14 (MASTER-TRACKER.yaml OPEN-10) -- intent only, no migration authorized without separate go-ahead"
+
+human_ai_boundary:
+  ask: "makes work easy for org/CEO/HoD/end-user without replacing humans; decisions/approvals stay human until explicitly delegated to VERIDIAN AI OS for that specific work/function"
+  default_authority: human
+  ai_acts_alone_condition: "explicit delegation, scoped per module/function, revocable"
+  ref: "VERIDIAN_AI_CONSTITUTION.md #20 (Human Approval), VERI_CHAT_GOVERNANCE.md (approval_preferences)"
+  status: PARTIALLY_ENFORCED
+  real_mechanism: "approval_preferences table (scopeType: communication_type|conversation|task|workflow, decision: always_approve|always_reject, revocable)"
+  note: "no generic cross-module 'has delegation been granted for X' check exists -- delegation is per-feature today, not a unified authority model"
+
+software_first:
+  ask: "predictive/repetitive work and workflows done by Software. If software doesn't exist, AI designs it, tests it, implements it, based on user requirement."
+  dispatch_order: ["deterministic software (executeEngineDispatch/executeStructuredDispatch)", "AI free-text planning fallback (task-execution-engine.ts)"]
+  ref: "VERIDIAN_DMP_DCF_CONSTITUTION.md #12, src/lib/task-execution-engine.ts"
+  software_first_dispatch:
+    status: ENFORCED
+  ai_autonomously_builds_new_software:
+    status: POLICY_ONLY
+    note: "closest real mechanism: capability-audit-service.ts's Auditor -> Higher-AI escalation, which proposes a capability but is still human-reviewed/merged, not autonomous end-to-end"
+
+# ----------------------------------------------------------------------------
+navigation_and_intent_capture:
+  ask: "Dynamic Mode Pills + Dynamic Option Selection + chat is how the user communicates. Changes per module/functionality/organization/end-user. Must stay flexible, not become rigid."
+  ref: "VERIDIAN_DMP_DCF_CONSTITUTION.md"
+  real_mechanism: "CapabilityNode tree (veri-chat-context.tsx), rendered by VeriComposer.tsx, built live by capability-tree-service.ts::buildCapabilityTree() from real per-org enabled data"
+  design_constraint_honored: "flexibility preserved -- tree only shows enabled branches per org, not a fixed rigid hierarchy"
+  pill_and_chain_render:
+    status: ENFORCED
+  no_activity_without_a_chain:
+    status: PARTIALLY_ENFORCED
+    note: "true only for new task/conversation creation via the Chain Selector -- NOT true for chats/reports/workflows generally"
+  per_screen_adaptive_reflow:
+    status: POLICY_ONLY
+  predictive_frequency_based_prioritization:
+    status: POLICY_ONLY
+  global_and_user_library:
+    status: NOT_YET_BUILT
+    note: "zero 'library' concept exists in the codebase -- confirmed by grep"
+
+veri_identity:
+  ask: "VERI is the customer-facing AI name ('VERI -- Your Assistant'). VERI Chat is the chat engine with other human members; VERI is one member of VERI Chat, only acts when told, notes intent and asks the end user before acting."
+  customer_facing_name: "VERI -- Your Assistant"
+  ref: "VERI_CHAT_GOVERNANCE.md"
+  terminology_rule: "Do NOT conflate 'VERI' (the assistant) with 'VERI Chat' (the multi-party human/guest messaging platform). Wave 37 deliberately split these: VERI Chat = human<->human/guest messaging; VERI/VERI AI = the assistant's own dedicated 1:1 thread at /veri-ai. VERI participates IN VERI Chat as an invitable member when a human adds it -- VERI Chat is not VERI, and VERI is not replaced by joining VERI Chat."
+  veri_role_in_veri_chat: "read/summarize/recommend only when invited; NEVER auto-acts; notes intent, asks end user before acting"
+  identity_and_1to1_thread:
+    status: ENFORCED
+  veri_as_group_participant:
+    status: PARTIALLY_ENFORCED
+    note: "read/summarize on invitation shipped; proactive/unprompted participation NOT shipped"
+  veri_never_auto_acts:
+    status: ENFORCED
+    ref: "high-impact-action-detector.ts confirmation gate, ai-reply-gate.ts (blocks VERI claiming an action it didn't take)"
+  min_dmp_dcf_levels_required_in_veri_chat:
+    value: 2
+    status: POLICY_ONLY
+    note: "no conversation-creation flow currently requires ANY chain selection, let alone 2 levels -- deferred, real UX change to a live surface, needs its own scoped wave"
+
+communication_engine:
+  ask: "VERI keeps chatting with the user -- updates, reminders, like a human -- through the Communication engine. Most communication triggered by software, rest by low-level AI, until escalated to higher-level AI."
+  trigger_order: ["software (deterministic)", "low-tier AI (narrow, tightly instructed)", "escalate to higher-tier AI"]
+  ref: "src/lib/floor-tier-escalation.ts, VERI_CHAT_GOVERNANCE.md (VERI-Assisted Communication Protocol)"
+  status: PARTIALLY_ENFORCED
+  real_mechanism: "approval-preference-gated confirmation dialog with a real menu (Approve Once/Edit&Approve/Reject/Always Approve/etc.)"
+  note: "VERI does not yet proactively send unprompted updates/reminders -- today VERI only replies when addressed. Proactive outreach is NOT built."
+
+# ----------------------------------------------------------------------------
+learning_and_umr:
+  ask: "every activity gets recorded in UMR. Every chat (DMP+DCS+chat) stored individual-word-wise in UMR so next time a similar instruction is given, software can check how to do it."
+  every_activity_recorded:
+    status: ENFORCED
+    ref: "activity_log table (schema.ts) -- lifecycleStage: requested->classified->validated->executing->reviewing->completed|failed->closed"
+  table_level_registration:
+    status: ENFORCED
+    ref: "ai-os/registry/asset-registry-coverage.yaml, compliance.auto_register_asset() trigger"
+  chat_instruction_word_level_learning_for_reuse:
+    status: POLICY_ONLY
+    real_analogs_found:
+      - "embeddings.ts's embedding_cache (sha256-keyed) -- caches embeddings for SEMANTIC SEARCH, not instruction->execution-path mappings"
+      - "capability-registry-service.ts::findSimilarCapabilities() -- duplicate-CAPABILITY detection (similarity >= 0.92), not a per-instruction learned-execution cache"
+    note: "the specific mechanism described (an instruction's exact/similar text checked before falling back to AI planning, learned from prior identical asks) does not exist as literally described. Real, distinct, NOT-YET-SCOPED gap -- needs its own MASTER-TRACKER.yaml entry if the Owner wants it built."
+
+ai_engineering_disciplines:
+  ask: "intent AI engineering, context AI engineering, loop AI engineering"
+  loop_engineering:
+    status: PARTIALLY_ENFORCED
+    ref: "VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md #8, src/lib/loop-improvement-proposer.ts (CLEE pipeline)"
+    note: "real pipeline exists, every proposal human-gated (isDeployed hardcoded false)"
+  intent_engineering:
+    status: POLICY_ONLY_UNDER_THIS_NAME
+    note: "closest real mechanism: src/lib/task-tightening.ts's TightTask (objective/scope/successCriteria) -- captures intent structurally, not named 'intent engineering' anywhere in code"
+  context_engineering:
+    status: POLICY_ONLY_UNDER_THIS_NAME
+    note: "closest real mechanism: capability-tree-service.ts + DMP resolution -- captures business context structurally, not named 'context engineering' anywhere in code"
+  recommendation: "either formally adopt these 2 names onto the mechanisms above in a future amendment, or treat as naming-only, not a functional gap"
+
+confidence_and_continuous_learning:
+  ask: "for every activity, continuous learning and loop engineering built based on % confidence"
+  ref: "VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md #10 (Guardrail #9, Confidence)"
+  status: POLICY_ONLY
+  note: "no code path computes or checks a numeric confidence percentage against tiered thresholds today -- explicitly named as absent in the existing constitution doc, not silently missing"
+
+# ----------------------------------------------------------------------------
+ai_orchestra_tiers:
+  ask: "4 levels of AI orchestra. Software checks first if user/software can do it; if not, escalates lower AI -> middle AI -> higher AI. Models change over time via the AI router."
+  terminology_collision: "'Orchestra LAYER' (src/lib/orchestra-model-resolver.ts) and 'AI Orchestra TIER/LEVEL' (this section) are TWO DIFFERENT CONCEPTS that both use the word 'orchestra' -- do not conflate them. Orchestra LAYER = a per-FEATURE customer-facing routing KEY (e.g. task_oa, chat_oa, page_agent_oa) that resolves to a provider/model via resolveModelConfig() -- answers 'which model handles THIS FEATURE for THIS ORG.' AI Orchestra TIER/LEVEL (below) = the 4-rung escalation hierarchy of which model handles a request based on difficulty/risk, independent of which feature it's for -- answers 'which model is TRUSTED for work THIS HARD.' A future agent reading 'Orchestra' in this codebase must check which meaning the source actually means before acting on it."
+  models_will_change: "AI router (roster.ts / model-tier-eligibility.ts / orchestra-model-resolver.ts) is the single source of truth for CURRENT model identities -- this file references it, never hardcodes a value that could drift"
+  software_checks_before_ai:
+    status: ENFORCED
+    ref: "task-execution-engine.ts's executeEngineDispatch/executeStructuredDispatch run before any LLM call"
+  escalation_ladder_ref: "src/lib/escalation-ladder.ts -- 2 DELIBERATELY UN-MERGED ladders: (a) CSEO->COO->SuperBoss failure-routing, (b) a separate L0-L5 staffing-hierarchy ladder from a different source document. Do not merge them -- the file's own header explains why merging loses information."
+  levels:
+    - level: 1
+      name: lower
+      model: "openai/gpt-oss-120b"
+      role: "narrow, tightly-tightened instructions; monitoring; platform-default execution tier"
+      ref: "src/lib/orchestra-model-resolver.ts::PLATFORM_DEFAULT_MODEL"
+      status: ENFORCED
+    - level: 2
+      name: middle
+      model: "deepseek/deepseek-v4-pro"
+      role: "specific instructions, limited thinking -- 1st-level analysis, approval, audit, governance, report analysis"
+      ref: "src/lib/ai-team/roster.ts::DEEPSEEK_V4_PRO -- wired to chief_audit_officer, governance_backend_engineer"
+      status: ENFORCED_FOR_NAMED_ROLES
+      note: "not a platform-wide auto-assigned tier for ALL '1st-level analysis' work -- still assigned role-by-role in roster.ts, not a generic tier rule"
+    - level: 3
+      name: higher
+      model: "z-ai/glm-5.2"
+      role: "everything"
+      ref: "src/lib/model-tier-eligibility.ts::JUDGMENT_ELIGIBLE"
+      status: ENFORCED
+      open_question_for_owner: "JUDGMENT_ELIGIBLE also includes openai/gpt-5.5, not named in this 3-tier list. Confirm: intentional 2nd top-tier model, or should it be removed to match the stated ladder exactly?"
+    - level: 4
+      name: super_boss
+      model: "Claude Desktop (Sonnet 5.0) -- the Owner's own interactive session"
+      role: "everything; orchestrates every other agent"
+      ref: "AGENTS.md 'Super Boss' role"
+      status: ENFORCED
+      known_limit: "cannot self-merge on veda-advisors -- GitHub blocks self-approval there, a human review is required regardless of Super Boss authority"
+
+# ----------------------------------------------------------------------------
+end_user_experience:
+  ui_layout:
+    ask: "5 parts: (1) left rail, (2) chat box [permanent position, DMP+DCS live here], (3) main screen [dynamic, changes like traditional software], (4) right rail = VERI Chat, (5) top narrow rail. Communication keeps arriving to the user."
+    ref: "NONE -- grep confirmed zero hits for left-rail/right-rail/5-part-layout anywhere in src/components"
+    status: NOT_YET_BUILT
+    current_reality: "AppSidebar + AppTopbar + a single VeriComposer -- not a 5-region layout"
+    recommendation: "this is a genuinely new UI specification. Needs its own scoped design+build wave. Do not assume DMP-DCF's existing capability-tree work already covers this -- it doesn't; that work is the pill/chain DATA layer, not this specific 5-region SCREEN layout."
+  traditional_software_mode:
+    ask: "end user can work like a traditional software also"
+    ref: "docs/master/MODULE_MAP.md -- existing (app)/ CRUD pages"
+    status: ENFORCED
+  request_new_functionality:
+    ask: "end user can ask for new functionality/module based on their package"
+    ref: "src/lib/services/fde-service.ts::submitFdeRequest() ('My Option Is Not Available' flow)"
+    status: ENFORCED
+  bring_your_own_ai:
+    ask: "option to integrate own AI, or take from us"
+    ref: "customer_model_config table, checked first in orchestra-model-resolver.ts's resolution order"
+    status: ENFORCED
+  automation_target:
+    ask: "minimum 90% of work done automated by software over time"
+    ref: "NONE -- distinct from the existing tracked D1 metric"
+    status: NOT_YET_TRACKED
+    note: "GAP-D1-METRICS-TARGET (MASTER-TRACKER.yaml) tracks '99.9% GPT-OSS-120B usage' -- a MODEL-TIER-DISTRIBUTION metric, NOT a software-vs-AI automation-ratio metric. Do not conflate these two numbers. If the Owner wants the 90%-automated-by-software target tracked, it needs its own new metric definition and MASTER-TRACKER.yaml entry."
+
+monitoring_and_escalation_priority:
+  ask: "monitoring by software is important, then escalation to AI. Monitoring by low-tier AI is important, then escalation to higher AI."
+  order: ["software monitor (deterministic, zero LLM calls)", "narrow low-tier AI monitor", "escalate to higher-tier AI"]
+  ref: "src/lib/monitor-protocol.ts (Phase 0: 1 real Tier-1 rule-engine monitor wired -- approval-decision-monitor.ts), PLATFORM_STRATEGY.md #29 (Tier 2/3 model-backed monitors, designed not built)"
+  status: PARTIALLY_ENFORCED
+  note: "GAP-NARROW-MONITOR-ESCALATION (MASTER-TRACKER.yaml) -- Phase 0 proven on 1 of ~30 named monitored event types; broader rollout designed, not built"
+
+self_learning_self_improving:
+  ref: "CLEE pipeline (loop-improvement-proposer.ts), worker_agents.accuracyScore/usageCount"
+  status: PARTIALLY_ENFORCED
+  note: "proposals are real; the loop is human-gated (isDeployed always false), not a closed autonomous self-improvement cycle"
+
+# ----------------------------------------------------------------------------
+data_protection_and_separation:
+  ask: "data stored so every organization/end-user's data is identifiable; org/end-user can download their own data if they want"
+  per_org_isolation:
+    status: ENFORCED_PRODUCTION_PROVEN
+    ref: "RLS via app_runtime Postgres role + withTenantContext()'s GUC-setting pattern"
+  per_user_identifiability:
+    status: ENFORCED
+    ref: "org_id + user scoping throughout schema.ts, verified across every table touched this session"
+  downloadable_export:
+    status: NOT_YET_BUILT
+    ref: "MASTER-TRACKER.yaml OPEN-09"
+    note: "data-policy/page.tsx PROMISES export; only /api/veri-meetings/[id]/export (single-meeting) actually exists. Logged as pending, explicitly NOT scheduled per Owner instruction 2026-07-14 -- do not build without a separate go-ahead."
+  shared_visibility_within_org:
+    ask: "duplicacy prevented -- if a module/functionality/report/analysis exists for an org and the user has the right, they can see and use it"
+    status: ENFORCED_WITHIN_ORG
+    ref: "RLS + hasRole() (existing); report-catalog-service.ts's static REPORT_CATALOG makes the same report TYPES available org-wide already"
+  cross_org_template_sharing:
+    status: PARTIALLY_ENFORCED
+    ref: "MASTER-TRACKER.yaml OPEN-06"
+    note: "sharing a saved CUSTOM-REPORT CONFIGURATION across orgs/products has no live mechanism yet -- low priority per existing entry unless a concrete use case appears"
+
+resilience_and_redundancy:
+  ask: "redundancy to be built; error to be identified and resolved"
+  real_mechanism: "Cerebras failover when Groq's free-tier daily cap is hit (orchestra-model-resolver.ts::platformFallbackFor())"
+  status: PARTIALLY_ENFORCED
+  note: "one real documented failover path exists; not a generalized redundancy policy across every provider/service dependency"
+
+connectors:
+  ask: "connectors so the user can connect to various systems like Gmail etc"
+  name: "VERI Connect"
+  ref: "src/lib/composio-connectors.ts, src/lib/services/connector-data-service.ts"
+  status: ENFORCED
+  note: "13 Composio toolkits per prior session record (veridian_connectors_docx_analysis memory) -- re-verify the current count before quoting if significant time has passed"
+
+# ----------------------------------------------------------------------------
+guardrails:
+  ask: "every action has guidelines and guardrails, check mechanism, to ensure correctness and completeness of the outcome"
+  hallucination_prevention:
+    status: PARTIALLY_ENFORCED
+    ref: "VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md #10, src/lib/policy-enforcement-engine.ts"
+    note: "policy/injection checks real; numeric confidence-threshold scoring is POLICY_ONLY (see confidence_and_continuous_learning above)"
+  infinite_loop_breaker:
+    status: PARTIALLY_ENFORCED
+    ref: "src/lib/loop-prevention.ts::checkLoopBudget()"
+    note: "iteration-budget enforcement real and reusable (guardrail-engine.ts 'logic' phase); recursive-delegation-count / circular-dependency detection is POLICY_ONLY -- needs a task-dependency graph that doesn't exist yet"
+  decision_ladder:
+    status: ENFORCED
+    ref: "src/lib/model-tier-eligibility.ts (which model may decide what), approval_preferences (which decisions need human sign-off)"
+  escalation_ladder:
+    status: PARTIALLY_ENFORCED
+    ref: "src/lib/escalation-ladder.ts, src/lib/floor-tier-escalation.ts"
+    note: "real and enforced for customer-facing Orchestra Layers; POLICY_ONLY for dynamic escalation within the internal AI Dev Team roster -- every internal role there is a static, fixed model assignment today, no 'low-confidence answer, escalate to a different model' path exists for it yet"
+
+# ----------------------------------------------------------------------------
+# HOW TO KEEP THIS FILE HONEST
+# ----------------------------------------------------------------------------
+maintenance_rule: "When any cited file changes in a way that would flip a status value above (ENFORCED -> POLICY_ONLY or vice versa), update this file in the SAME PR, not as a follow-up. When a NOT_YET_BUILT / POLICY_ONLY / NOT_YET_TRACKED item gets built, move its status here AND log the real PR number as evidence -- do not silently leave this file stale. If a future session finds a claim here that no longer matches the cited file, that is drift in THIS document, not a hidden intentional inaccuracy -- fix it or remove it."
