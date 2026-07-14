@@ -170,6 +170,43 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, PROJEXA-MODULE-ENTITLEMENT-01 (Fix 1: erp/sales/hr entitlement) + 502-status-masking (Fix 2, projexa repo)"
+    completed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed Priority 16 Part 2 fix for PROJEXA-MODULE-ENTITLEMENT-01
+      (control/priority16_e2e_testing_plan.md). Fix 1 (this repo, data-only,
+      no code change): enabled the `erp`, `sales`, and `hr` product-branch
+      entitlements for `org_id='projexa_demo_org'` in
+      compliance.org_product_branch_enablements (the shared backend org
+      every PROJEXA customer currently reads/writes via
+      PROJEXA-NO-TENANT-ISOLATION-01) -- applied live via Supabase MCP
+      execute_sql against project pcrjmlpuqsbocqfwoxod, verified with a
+      fresh join query after (5 branches now enabled for this org:
+      veri_chat_v2, construction (pre-existing) + erp, hr, sales (new)).
+      Matches this repo's own established convention (confirmed by grep:
+      enableErpForOrg/enableSalesForOrg/enableConstructionForOrg/
+      enableVeriChatV2ForOrg have ZERO application-code call sites anywhere
+      in src/app -- every existing org-branch enablement, including the 2
+      already active for this org, was applied the same way, as a one-off
+      DB write, not through a self-serve UI/script). No
+      hr-enablement-service.ts exists anywhere in this codebase and no
+      route calls requireBranchEnabled(..., "hr") -- confirmed by grep --
+      so the `hr` row is inert today (no code currently gates on it) but
+      matches the Owner's explicit instruction and future-proofs the row
+      once/if an hr-enablement-service.ts is built. PR #335, NOT merged by
+      this session -- data change already live regardless of PR merge
+      status (this repo has no scripts/ convention for one-off
+      org-entitlement grants, so drizzle/0201_*.sql is documentation-only,
+      not run by the migration runner). Fix 2 (separate repo,
+      FChecklist/projexa, PR #13): threaded the real
+      `VeridianApiError.status` through every API route's catch block
+      instead of hardcoding `status: 502` -- 179 occurrences across 123
+      files under projexa/src/app/api/**, found via grep and fixed
+      mechanically (verified safe: every matching file imports
+      VeridianApiError, every catch clause uses `err`). bunx tsc --noEmit
+      clean, bun run lint clean (0 errors), bun run build succeeds. Not
+      merged by this session. This session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- Priority 15, Wave 2: Sales & CRM deferred items"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
