@@ -42,33 +42,6 @@
 # ============================================================================
 
 active:
-  - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
-    claimed_at: "2026-07-14T (this session)"
-    claim: |
-      Owner-directed, cross-repo, platform-wide (NOT PROJEXA-specific):
-      VERIDIAN becomes a real multi-tenant foundation so every product branch
-      (PROJEXA, The Firm, FM & CS, Office AI OS, Forge) can be sold to many
-      independent mid-size customers, each with real data isolation, multiple
-      offices, multiple currencies, and eventually multiple countries/
-      languages. Full plan: C:\Users\Dell\.claude\plans\floating-launching-lagoon.md
-      (6 workstreams). WAVE 1 (this claim) = Workstream 1 (platform-level
-      tenant provisioning: new platform_applications table, apiKeys.
-      issuedForApplicationId, POST /api/v1/platform/provision-org,
-      organisations.primaryProductBranchId, factoring autoProvisionUser()'s
-      org-creation body into a shared provisionOrganisation() helper) +
-      Workstream 2 (RLS-bypass audit/fix pass on /api/v1/projexa/* and other
-      money/PII routes -- confirm withTenantContext() coverage, no schema
-      change). Scope: compliance-tracker src/lib/db/schema.ts (2 new/changed
-      tables+columns), src/lib/supabase/auth-guard.ts (refactor only, same
-      external behavior), new src/app/api/v1/platform/provision-org/route.ts,
-      audit pass across src/app/api/v1/projexa/**. Companion PROJEXA-side
-      claim (signup flow + veridian-client.ts rewire) dispatched in parallel,
-      see projexa repo's own tracking (no ai-os/ layer there yet -- tracked
-      in CONTROLLER.yaml PLATFORM-01 instead). Workstreams 3-6 (offices,
-      currency, language, per-country compliance) are Wave 2, dispatched only
-      after this wave merges (real dependency, not just sequencing
-      preference -- they hang data off what this wave creates).
-
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |
@@ -238,6 +211,47 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
+    completed_at: "2026-07-15T (same day as claim)"
+    claim: |
+      Owner-directed platform-wide tenant-isolation fix -- Workstream 1
+      (platform-level tenant provisioning) + Workstream 2 (RLS-bypass
+      audit), CLOSED this wave. Full plan: the floating-launching-lagoon
+      plan file this wave implements Workstream 1+2 of (see prior active
+      entry / PR description for the full path -- kept out of this line
+      to avoid backslash-escaping issues in this registry's own tooling).
+      Workstream 1: new platform_applications table
+      (drizzle/0202_platform_applications_provisioning.sql, applied live
+      to pcrjmlpuqsbocqfwoxod in 4 statements after a combined-batch lock
+      timeout), seeded one live 'projexa' row (pk_... key, hash-only in
+      DB/migration, raw key reported to the Owner once);
+      apiKeys.issuedForApplicationId + organisations.primaryProductBranchId
+      (both nullable FKs, additive); autoProvisionUser()'s org-creation
+      body factored into provisionOrganisation()
+      (src/lib/services/org-provisioning-service.ts), external behavior
+      verified unchanged for the existing human-signup path; new POST
+      /api/v1/platform/provision-org authenticated exclusively by a
+      platform_applications bearer token (validatePlatformApplicationKey,
+      src/lib/supabase/platform-application-auth.ts) -- structurally
+      rejects both a human session and a customer vk_... key. Workstream
+      2: static-import audit (not a full manual per-file read) across all
+      128 src/app/api/v1/projexa/** routes + the 31 service files they
+      reach + 103 native money/PII-named routes + a 638-route repo-wide
+      sweep -- 0 raw `db` (RLS-bypassing) bypasses found anywhere in the
+      audited surface, 0 fixes needed. Full methodology and honest
+      coverage caveats in the PR description. bunx tsc --noEmit clean on
+      every changed file (pre-existing react-resizable-panels/recharts/
+      litert/mammoth/pptxgenjs failures confirmed already on origin/main,
+      untouched by this branch); bun run lint 0 errors; bun test 1113
+      pass/0 fail; guardrail-presence 88/88. PR #339
+      (feat/platform-tenant-isolation), NOT merged by this session per
+      Rule 7(c) -- left for supervisor audit. Companion PROJEXA-side work
+      (signup flow calling provision-org, veridian-client.ts rewire) and
+      Wave 2 (Workstreams 3-6: offices/currency/language/per-country
+      compliance) are explicitly NOT started -- both wait on this PR
+      merging first (real dependency: they hang data off what this wave
+      creates). This session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, PROJEXA-MODULE-ENTITLEMENT-01 (Fix 1: erp/sales/hr entitlement) + 502-status-masking (Fix 2, projexa repo)"
     completed_at: "2026-07-14T (this session)"
     claim: |
