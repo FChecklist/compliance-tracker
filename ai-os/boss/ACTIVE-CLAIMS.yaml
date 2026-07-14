@@ -42,11 +42,7 @@
 # ============================================================================
 
 active:
-  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
-    claimed_at: "2026-07-14T00:00:00Z"
-    claim: "VERI Reward end-to-end wiring audit, scope: src/lib/services/veri-reward-service.ts / src/lib/services/veri-reward-enablement-service.ts / src/app/(app)/rewards/**, dispatched by Super Boss supervisor 2026-07-14"
-    worktree: ".claude/worktrees/agent-veri-reward-audit"
-    branch: "feat/veri-reward-wiring-audit"
+# (empty -- both claims below completed and moved to recently_completed)
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
@@ -71,8 +67,11 @@ recently_completed:
       architectural reasons (history not in the cache key; a cached
       malformed response would defeat the existing SyntaxError-retry
       self-heal) -- see ai-os/boss/COMPLETED.yaml WAVE-178 for full detail.
-      PR opened from feat/worker-agent-dispatch-classify-audit, not
-      self-merged. This session has no further active claims.
+      PR #309, audited and merged by Super Boss supervisor 2026-07-14.
+
+  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
+    completed_at: "2026-07-14T00:00:00Z"
+    claim: "Audited veri-reward-service.ts / veri-reward-enablement-service.ts / src/app/(app)/rewards/** end-to-end -- found CORRECTLY WIRED already (awardPoints/checkAndUnlockAchievements have real callers in compliance-service.ts + auth-guard.ts; on-by-default enablement confirmed for new orgs via auth-guard.ts's raw insert; no cash-referral bridge and no redemption mechanism exist, both intentional per Owner decisions; /rewards renders real data end-to-end). ZERO code changes made. See MASTER-TRACKER.yaml priority 18 for full evidence. One secondary finding flagged, not built here: 4 of 5 seeded achievement definitions have no caller and can never unlock -- separately dispatched as its own task (see recently_completed entry for that task once it reports). PR #307, audited and merged by Super Boss supervisor 2026-07-14."
 
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T03:37:44Z"
