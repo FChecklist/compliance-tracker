@@ -7424,7 +7424,7 @@ export const firmInvoiceLineItemsRelations = relations(firmInvoiceLineItems, ({ 
 // withTenantContext, the same posture auth-guard.ts's autoProvisionUser()
 // already uses for the identical reason (creating a brand-new tenant is
 // inherently a platform-level operation).
-// Channel-coverage audit, 2026-07-14 (drizzle/0194): the Owner's 7 named
+// Channel-coverage audit, 2026-07-14 (drizzle/0195): the Owner's 7 named
 // channels (direct/digital, freelance commission agents, third-party
 // online/offline sellers, BSNL enterprise, own employees, call-centre
 // agents) map onto these 7 values as: direct/digital needs no partner row

@@ -1282,7 +1282,7 @@ closed_priorities:
       existing values fit an in-house team member or telecaller --
       reseller/consultant/referral_agent/commission_agent/third_party all
       describe entities outside the company. Added exactly 2 new enum
-      values via drizzle/0194 (ALTER TYPE ... ADD VALUE IF NOT EXISTS, own
+      values via drizzle/0195 (ALTER TYPE ... ADD VALUE IF NOT EXISTS, own
       migration file per the Postgres restriction on using a new enum value
       in the same transaction it's added in -- same pattern as 0011/0035):
       'internal_employee' and 'call_centre_agent'. No new tables, no new
@@ -1302,3 +1302,15 @@ closed_priorities:
       session -- left for the supervisor's own review since it touches
       schema, per this task's own instruction not to self-merge a
       schema-touching PR.
+
+      Real cross-PR migration-number collision caught before merge, same
+      class this tracker has flagged before (see priority 12/OPEN-07's own
+      "3 real cross-PR migration-number collisions" note above): a
+      different, already-merged session independently claimed
+      drizzle/0194 too (0194_weekly_task_completion_index.sql). Caught by
+      re-syncing this branch with origin/main before requesting merge --
+      renumbered this session's file to drizzle/0195_
+      sales_partner_type_internal_channels.sql and updated both this
+      tracker entry and schema.ts's own header comment to match, rather
+      than leaving a silent duplicate-number collision for the supervisor
+      to find.
