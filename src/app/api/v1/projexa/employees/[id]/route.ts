@@ -41,6 +41,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const profile = await upsertEmployeeProfile({ orgId: ctx.orgId, userId: ctx.dbUser.id }, id, {
       employeeCode: body.employeeCode, jobTitle: body.jobTitle, employmentType: body.employmentType,
       dateOfJoining: body.dateOfJoining, dateOfBirth: body.dateOfBirth,
+      employmentStatus: body.employmentStatus, emergencyContactName: body.emergencyContactName, emergencyContactPhone: body.emergencyContactPhone,
     })
     return NextResponse.json(profile)
   } catch (error) {

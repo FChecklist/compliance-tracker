@@ -4221,6 +4221,18 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
 // of scope (VERIDIAN tracks payroll *compliance*, `hrComplianceItems`,
 // never runs payroll itself); org chart needs zero new schema at all --
 // it's a read-only tree over the already-existing reportingToId.
+//
+// Priority 15 Wave 2: employmentStatus + emergency contact were deferred
+// from Wave 1 (PR #330). employmentStatusEnum follows this schema's own
+// `complianceSchemaDB.enum(...)` convention for status-like fields (see
+// e.g. salesPartnerStatusEnum, erpPayrollRunStatusEnum) rather than the
+// free-text `text('status')` convention used for a handful of older
+// tables -- new status fields in this codebase have used a real pg enum
+// for a while now. Emergency contact is 2 plain text columns (name +
+// phone) on the same row, not a separate table -- one contact per
+// employee is the real requirement here, no need for a 1:many join.
+export const employmentStatusEnum = complianceSchemaDB.enum('employment_status', ['active', 'on_leave', 'terminated', 'resigned'])
+
 export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().unique(),
@@ -4234,6 +4246,14 @@ export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   // employee has opted into for annual TDS projection. No slab assigned
   // means payroll keeps Wave 56's original manual-TDS-entry-only behavior.
   incomeTaxSlabId: text('income_tax_slab_id'),
+  // Priority 15 Wave 2: defaults to 'active' with a NOT NULL constraint --
+  // safe for existing rows (every employee profile that already exists is,
+  // by definition, currently active; nothing in this codebase soft-deletes
+  // employeeProfiles rows). Emergency contact fields are nullable free text
+  // -- not every org will have collected this yet.
+  employmentStatus: employmentStatusEnum('employment_status').notNull().default('active'),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactPhone: text('emergency_contact_phone'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
