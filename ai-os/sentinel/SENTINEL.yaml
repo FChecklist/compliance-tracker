@@ -1,6 +1,13 @@
 # ═══════════════════════════════════════════════════════════════
 # SENTINEL — SUPREME GUARDIAN
 # Version: 2.1.0 | Updated: 2026-06-28
+#
+# AUTHORITY NOTE (2026-07-14): ai-os/CONSTITUTION.yaml is now the single,
+# machine-readable constitution for VERIDIAN AI OS and is authoritative over
+# this file on any conflict. validation_rules below (SE-*/AR-*/AC-*) are
+# absorbed verbatim into that file's security_and_guardrails.sentinel_rules
+# section as the single copy -- this file remains as the original source and
+# the authorized-agents record, not duplicated with drift risk in two places.
 # ═══════════════════════════════════════════════════════════════
 
 sentinel:

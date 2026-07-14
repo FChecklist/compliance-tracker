@@ -1,5 +1,7 @@
 # The VERIDIAN AI Constitution
 
+> **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict. This document remains as detailed narrative evidence and reasoning -- read it for full context and worked examples, not to determine current status.
+
 **Version 1.0 -- 2026-07-04. Enterprise AI Governance & Guardrail Framework.**
 
 Every AI model, Worker Agent, and orchestration layer (Levels 1-4) operating within VERIDIAN AI OS must comply with this Constitution before executing any request. This is not documentation of intent -- where a section is marked **[ENFORCED]**, a real, running mechanism verifies it on every request, cited by file:line. Where a section is marked **[POLICY ONLY]**, it is a governance rule not yet backed by code -- named honestly as a gap, not glossed over, consistent with `AI_OS_CERTIFICATION.md`'s own discipline.

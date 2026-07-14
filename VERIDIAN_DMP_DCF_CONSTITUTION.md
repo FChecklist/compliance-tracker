@@ -1,5 +1,7 @@
 # VERIDIAN Dynamic Mode Pills & Dynamic Chain Framework (DMP-DCF)
 
+> **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict. This document remains as detailed narrative evidence and reasoning -- read it for full context and worked examples, not to determine current status.
+
 **Version 1.0 -- 2026-07-11. The universal business-classification, navigation, and orchestration language of VERIDIAN AI OS.**
 
 Adopted from two documents supplied by the repository owner ("Dynamic Mode Pills and Dynamic Option Selection.docx" and its later addendum adding the Context-Aware Adaptive UI and Dynamic Chain Master Directory sections). Same discipline as the sibling constitutional documents: **[ENFORCED]** = real, running, cited by file:line. **[PARTIALLY ENFORCED]** = part real, named explicitly. **[POLICY ONLY]** = not yet backed by code. **[NOT APPLICABLE YET]** = nothing to enforce against. **[OUT OF SCOPE, STATED]** = a deliberate business/content decision, not a code gap.

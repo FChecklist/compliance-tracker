@@ -1565,3 +1565,68 @@ closed_priorities:
       changelog docs (orchestra_changes.md, AI_OS_CERTIFICATION.md,
       AI_OS_MASTER_PROMPT_GAP_ANALYSIS.md, TEST_LOG.md) deliberately left
       as-is -- they describe a specific past pass/wave, not current state.
+
+  - priority: 22
+    name: "Constitution unification -- ONE machine-readable constitution for VERIDIAN AI OS"
+    summary: |
+      Owner directive: "recheck the VERIDIAN AI OS and its constitution...
+      remove conflicts, duplication, confusion... only 1 constitution... machine
+      language, not english... no assumption, ensure you have audited
+      everything before writing the constitution... 100% complete." Full-read
+      (not grepped) every candidate constitutional/governance document before
+      writing anything: SENTINEL.md, AGENTS.md, CLAUDE.md, VERI_CHAT_GOVERNANCE.md,
+      ai-os/sentinel/SENTINEL.yaml, UNIVERSAL_TASK_WRAPPER_DESIGN.md,
+      MASTER_AI_OS_ARCHITECTURE.md, VERIDIAN_AUDIT_ORGANIZATION.md,
+      docs/master/ARCHITECTURE.md, VAIOS_ARCHITECTURE_STRATEGY.md,
+      VERIDIAN_DMP_DCF_CONSTITUTION.md, VERIDIAN_AI_CONSTITUTION.md,
+      VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md,
+      VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md, MCP_PROTOCOL.md, ai-os/BRAIN.md,
+      ai-os/OS.yaml, docs/master/INDEX.md, ai-os/registry/stale-doc-manifest.yaml,
+      plus the prior version of ai-os/CONSTITUTION.yaml itself (~3,500 lines
+      total) -- cross-checked the highest-risk claims against live code by
+      direct grep (PageAgent removal state, gpt-5.5 judgment-eligibility state,
+      localStorage usage, whether MCP_PROTOCOL.md's "Groq orchestrator" exists).
+
+      Found 6+ documents each self-identifying as "a constitutional document,"
+      internally inconsistent about how many total exist. Found 3 separate
+      documents (AGENTS.md, ai-os/BRAIN.md, VERIDIAN_AUDIT_ORGANIZATION.md)
+      still citing gpt-5.5 as judgment-tier-eligible, stale since this same
+      session's earlier PR #315. Found CLAUDE.md's "DO NOT touch ai-os/" rule
+      directly contradicted by sanctioned, constant practice. Found SENTINEL.md
+      still claiming Prisma/SQLite (confirmed wrong) and pointing at the
+      self-declared-stale BOARD.yaml. Found MCP_PROTOCOL.md describing a
+      "Groq orchestrator" + Supabase-Edge-Function dev-dispatch system with
+      ZERO matches anywhere in src/ -- never built or built-then-removed with
+      no record, yet still tagged CURRENT elsewhere. Found docs/master/INDEX.md
+      (built 2026-07-09) missing 4 constitutional docs written after its
+      snapshot (2026-07-11/12). Found ai-os/OS.yaml's own docs/ exemption
+      directly contradicted by check-doc-cross-references.mjs's real behavior.
+
+      Rewrote ai-os/CONSTITUTION.yaml as v2.0, THE sole authority: every real
+      rule from 9 previously-separate "constitutional" documents
+      (VERIDIAN_AI_CONSTITUTION.md, VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md,
+      VERIDIAN_AUDIT_ORGANIZATION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md,
+      VERI_CHAT_GOVERNANCE.md, MASTER_AI_OS_ARCHITECTURE.md, SENTINEL.md,
+      ai-os/sentinel/SENTINEL.yaml, VAIOS_ARCHITECTURE_STRATEGY.md) now lives
+      in one place with a stable ID per rule, strict {id/rule/status/mechanism/
+      gap/source} schema, zero multi-paragraph prose -- built for a machine/AI
+      to parse before starting work, not for a human to read as an essay, per
+      the Owner's explicit ask. None of the 9 source documents were deleted --
+      each keeps its full narrative/evidence content and now carries an
+      AUTHORITY NOTE banner pointing back to the new file, since much of their
+      content is still accurate, just no longer the top-level authority.
+      Fixed every stale fact found above in the same pass: AGENTS.md,
+      ai-os/BRAIN.md, VERIDIAN_AUDIT_ORGANIZATION.md (gpt-5.5), CLAUDE.md
+      (ai-os/ do-not-touch, "9 tables/6 enums", tiny ai-os/ directory
+      description), SENTINEL.md (stack, task-tracking pointer),
+      MASTER_AI_OS_ARCHITECTURE.md (page_agent_oa grandfather note),
+      docs/master/INDEX.md (4 missing rows added, MCP_PROTOCOL.md downgraded
+      🟢->🟡 with the Groq-orchestrator finding), ai-os/OS.yaml (brain_pointer
+      rewritten, docs/ exemption note corrected).
+
+      Explicitly NOT fixed this pass, logged not lost: MCP_PROTOCOL.md's own
+      content (its Server 2 spec is likely fictional/dead, but rewriting an
+      integration spec is a different axis from a constitution -- flagged in
+      ai-os/CONSTITUTION.yaml's meta.doc_debt_found_this_pass DEBT-02 and here
+      for a future session to pick up, not silently dropped).
+
