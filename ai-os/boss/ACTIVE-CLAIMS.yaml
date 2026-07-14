@@ -42,11 +42,60 @@
 # ============================================================================
 
 active:
-# (empty -- this session has no active claims right now)
+# (empty -- both claims below completed and moved to recently_completed)
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Wire 4 remaining VERI Reward achievement checks"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Follow-up to PR #307's audit (MASTER-TRACKER.yaml priority 18). Wired
+      all 4 of the achievement keys that audit flagged as seeded but never
+      callable: login_streak_3 (veri-reward-service.ts's
+      recordStreakCheckIn(), fires at the real daily-login streak's
+      currentCount===3), first_document_upload (documents/route.ts's POST,
+      a narrowly-scoped count(*) since no reusable per-user count existed),
+      weekly_task_5 (compliance-service.ts's updateComplianceItem(), a new
+      block separate from the pre-existing first_compliance_item check,
+      backed by a new drizzle/0194 composite index), and onboarding_complete
+      (a genuine gap, not just unwired -- confirmed by full-repo search
+      that users.onboardingCompleted was never flipped true anywhere in
+      production code before this change; wired at the one real existing
+      sync point, /api/me/onboarding-stage + OnboardingChecklist.tsx's
+      already-computed "all steps done" boolean). 4/4 wired, none skipped.
+      bunx tsc --noEmit clean, lint 0 errors, build succeeded, bun test
+      1098 pass / 0 fail. See ai-os/boss/COMPLETED.yaml WAVE-179 and
+      MASTER-TRACKER.yaml priority 18 status_update for full detail. PR
+      opened from feat/veri-reward-remaining-achievements, not merged by
+      this session per standing dispatch instructions.
+
+  - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Investigated both items dispatched by Super Boss supervisor. Item A
+      (Worker Agent Phase-1 read-only auto-dispatch) turned out already
+      fully wired (PR #51, predates this session) -- fde-service.ts's
+      high-confidence worker_agent match reuses task-execution-engine.ts's
+      dispatchTool(), gated through purpose-bound-ai.ts's
+      DOMAIN_ALLOWED_TOOLS allowlist which already excludes every write
+      action. The one real gap: the shared threshold constant was still
+      the originally-proposed 0.9, not the Owner's 2026-07-10 correction to
+      0.95 -- fixed as a one-line change. Item B (llm-response-cache
+      wiring): chat-service.ts, task-execution-engine.ts, and
+      /api/ai/orchestrate/route.ts all called the LLM directly. Wired
+      /api/ai/orchestrate/route.ts (a genuine fit per the cache module's
+      own documented safety bar). Deliberately left chat-service.ts and
+      task-execution-engine.ts's planning call unwired for concrete
+      architectural reasons (history not in the cache key; a cached
+      malformed response would defeat the existing SyntaxError-retry
+      self-heal) -- see ai-os/boss/COMPLETED.yaml WAVE-178 for full detail.
+      PR #309, audited and merged by Super Boss supervisor 2026-07-14.
+
+  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
+    completed_at: "2026-07-14T00:00:00Z"
+    claim: "Audited veri-reward-service.ts / veri-reward-enablement-service.ts / src/app/(app)/rewards/** end-to-end -- found CORRECTLY WIRED already (awardPoints/checkAndUnlockAchievements have real callers in compliance-service.ts + auth-guard.ts; on-by-default enablement confirmed for new orgs via auth-guard.ts's raw insert; no cash-referral bridge and no redemption mechanism exist, both intentional per Owner decisions; /rewards renders real data end-to-end). ZERO code changes made. See MASTER-TRACKER.yaml priority 18 for full evidence. One secondary finding flagged, not built here: 4 of 5 seeded achievement definitions have no caller and can never unlock -- separately dispatched as its own task (see recently_completed entry for that task once it reports). PR #307, audited and merged by Super Boss supervisor 2026-07-14."
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T03:37:44Z"
     claim: "GAP-UMR-TABLE-COVERAGE 4th batch (23 tables, migration 0193 after 2 real renumbering collisions) -- PR #302 merged. GAP-DCMD 3rd graph edge (dynamic_chain->dynamic_chain 'supersedes', createChainVersion() chokepoint) -- PR #288 merged. This session has no further active claims."

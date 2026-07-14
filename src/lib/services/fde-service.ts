@@ -38,7 +38,20 @@ export type FdeContext = { orgId: string; userId: string; dbUser: typeof users.$
 // A match this strong answers instantly with no LLM call at all -- the
 // concrete token-reduction the user asked for. Below this, the LLM still
 // reasons, but only over the top-K candidates, not the full catalog.
-const HIGH_CONFIDENCE_THRESHOLD = 0.9
+//
+// Owner correction (2026-07-10, Worker Agent Library Phase 1 sign-off):
+// the originally-proposed value here was 0.9 -- the Owner explicitly raised
+// it to 0.95 when approving Phase 1 read-only auto-dispatch (the
+// `topMatch.entityType === "worker_agent"` branch below, which reuses
+// task-execution-engine.ts's dispatchTool() to actually run the matched
+// agent), on the grounds that 0.9 is loose enough to occasionally auto-run
+// a real action for a request that was only superficially similar. This is
+// VERI FDE's single no-LLM-reasoning-at-all gate -- both the "already
+// covered" short-circuit for module/rule matches AND the worker-agent
+// auto-dispatch branch share it, and the Owner's sign-off was never asked
+// to split them into two separate thresholds, so raising the one shared
+// constant is the correct, complete fix.
+const HIGH_CONFIDENCE_THRESHOLD = 0.95
 const CANDIDATE_LIMIT = 8
 
 type FdeEvaluation = {

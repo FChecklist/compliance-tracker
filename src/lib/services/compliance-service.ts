@@ -287,6 +287,47 @@ export async function updateComplianceItem(ctx: ServiceContext, id: string, inpu
 
     await db.update(complianceItems).set(updateData as any).where(eq(complianceItems.id, id))
 
+    // VERI Reward: nudge the 'weekly_task_5' achievement ("Resolve 5 tasks
+    // this week") once this user's own completions in the current ISO week
+    // reach 5. Runs AFTER the update above (not inside the
+    // first_compliance_item block, which fires before the write lands) so
+    // this item's own completion is already counted. There's no
+    // completedById column on compliance_items, so "this user's tasks" is
+    // approximated via assignedToId -- the closest real signal without
+    // inventing a parallel tracking mechanism. date_trunc('week', ...) in
+    // Postgres returns the Monday of the current ISO week, matching the
+    // "this week" framing in the achievement's own description. Backed by
+    // the compliance_items_weekly_completion_idx index (drizzle/0194) so
+    // this stays an indexed range count, not a full table scan. Wrapped so
+    // a points-engine failure can never break the actual compliance-item
+    // update (logged, not thrown) -- same discipline as the
+    // first_compliance_item block above.
+    if (status === "completed" && userId) {
+      try {
+        const [{ count: weeklyCount }] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(complianceItems)
+          .where(
+            and(
+              eq(complianceItems.orgId, orgId),
+              eq(complianceItems.assignedToId, userId),
+              eq(complianceItems.status, "completed"),
+              sql`${complianceItems.completedAt} >= date_trunc('week', now())`
+            )
+          )
+        if (weeklyCount >= 5) {
+          // >= not === : checkAndUnlockAchievements() already guards against
+          // re-unlocking, so this is safe to call on every completion past 5;
+          // an exact-match check would permanently miss the unlock for any
+          // user whose weekly count jumps past 5 without ever equaling it
+          // exactly (audit correction, 2026-07-14 -- Super Boss supervisor).
+          await checkAndUnlockAchievements(db, { orgId, userId, achievementKey: "weekly_task_5", incrementBy: 5 })
+        }
+      } catch (err) {
+        console.error("[veri-reward] failed to check weekly_task_5 achievement", err)
+      }
+    }
+
     const actorParam = actor.dbUser ? { dbUser: actor.dbUser } : { apiKey: actor.apiKey! }
     const logChange = (action: string, details: string) => logActivity({
       tx: db, action, entityType: "ComplianceItem", entityId: id, details, orgId, clientId: existingItem.clientId, request, ...actorParam,
