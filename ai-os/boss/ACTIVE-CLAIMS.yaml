@@ -105,6 +105,31 @@ recently_completed:
       task's own instruction (a supervisor session audits and merges). This
       session has no further active claims.
 
+  - session_label: "claude-code (sub-agent) -- Priority 15 HR & Payroll module for PROJEXA"
+    completed_at: "2026-07-14T (this session)"
+    claim: |
+      Company-employee HR & Payroll for PROJEXA, Wave 1 -- 26 thin-alias
+      routes under /api/v1/projexa/* (employees + department roster + org
+      chart, leave requests/balances, payroll runs/payslips/salary
+      structures & components/statutory rules/income tax slabs &
+      exemptions, recruitment job-openings/candidates/applications/
+      interviews/hire-link), all reusing the existing hr-service.ts /
+      erp-payroll-service.ts / recruitment-service.ts engines with zero new
+      schema and zero new business logic (the one exception,
+      hr/departments/route.ts, re-authenticates the platform's own existing
+      inline /api/departments query via requireAuthOrApiKey -- no dedicated
+      department service module exists anywhere in this codebase to import
+      from instead). Explicitly did NOT touch /api/v1/projexa/labour or
+      /attendance (site-labour manpower, a separate concept, already
+      built). bunx tsc --noEmit and bun run lint both clean; full `next
+      build` currently fails on this branch AND on origin/main itself due
+      to pre-existing unrelated breakage (missing mammoth/pptxgenjs
+      packages, a react-resizable-panels v3->v4 API mismatch) confirmed via
+      `git diff origin/main` returning empty for every failing file --
+      already tracked by this repo's own dep-panels/dep-recharts/dep-ts
+      worktrees. PR #330. Companion PROJEXA-side UI in FChecklist/projexa#7
+      (full build green there). This session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- GAP-NARROW-MONITOR-ESCALATION Phase 0"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
