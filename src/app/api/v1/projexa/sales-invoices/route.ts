@@ -14,12 +14,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { listSalesInvoicesPaged, createSalesInvoice, ServiceError, type SalesInvoiceItemInput } from "@/lib/services/erp-invoicing-service"
 
-function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: string; customer?: { customerName: string } | null; postingDate: string; dueDate: string | null; grandTotal: string; outstandingAmount: string; status: string; items?: { id: string; description: string; quantity: string; rate: string; amount: string }[] }) {
+function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: string; customer?: { customerName: string } | null; salesOrderId: string | null; postingDate: string; dueDate: string | null; grandTotal: string; outstandingAmount: string; status: string; items?: { id: string; description: string; quantity: string; rate: string; amount: string }[] }) {
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
     customerId: inv.customerId,
     customerName: inv.customer?.customerName ?? null,
+    salesOrderId: inv.salesOrderId,
     postingDate: inv.postingDate,
     dueDate: inv.dueDate,
     grandTotal: inv.grandTotal,
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
       : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
     const invoice = await createSalesInvoice(actorCtx, {
-      customerId: body.customerId, postingDate: body.postingDate, dueDate: body.dueDate,
+      customerId: body.customerId, salesOrderId: body.salesOrderId, postingDate: body.postingDate, dueDate: body.dueDate,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, companyId: body.companyId,
       items,
     })
