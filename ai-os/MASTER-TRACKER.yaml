@@ -491,7 +491,7 @@ open_items:
     - id: GAP-UMR-TABLE-COVERAGE
       name: "326 of 405 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []
-      detail: "The auto-registration MECHANISM is complete and proven across 4+ domains (79 real tables as of Priority 11). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped. Priority 11 (PR #242) onboarded a further 22 tables (directors_kmp, cap_table_entries, company_charges, legal_vendors, legal_opinions, fraud_cases, it_dr_plans, posh_committee, pms_sprints, pms_wiki_pages, tickets, problem_records, clm_contract_templates, clm_clauses, fm_checklist_templates, fm_visitors, esignature_requests, performance_review_cycles, construction_boqs, construction_kpi_definitions, interior_mood_boards, interior_floor_plans), applied live via Supabase MCP with all 71 existing rows across 8 non-empty tables backfilled and verified (79 active asset_registration_config rows confirmed live, matching the coverage manifest exactly). Total tracked table count also grew 396 -> 405 in parallel as other concurrent Priority 11 work added new tables (report_definitions now registered; deployment_events/audit_protocol_findings correctly exempted as platform-wide append-only event logs)."
+      detail: "The auto-registration MECHANISM is complete and proven across 5+ domains (102 real tables as of Priority 14). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped. Priority 11 (PR #242) onboarded a further 22 tables (directors_kmp, cap_table_entries, company_charges, legal_vendors, legal_opinions, fraud_cases, it_dr_plans, posh_committee, pms_sprints, pms_wiki_pages, tickets, problem_records, clm_contract_templates, clm_clauses, fm_checklist_templates, fm_visitors, esignature_requests, performance_review_cycles, construction_boqs, construction_kpi_definitions, interior_mood_boards, interior_floor_plans), applied live via Supabase MCP with all 71 existing rows across 8 non-empty tables backfilled and verified (79 active asset_registration_config rows confirmed live, matching the coverage manifest exactly). Total tracked table count also grew 396 -> 405 in parallel as other concurrent Priority 11 work added new tables (report_definitions now registered; deployment_events/audit_protocol_findings correctly exempted as platform-wide append-only event logs). Priority 14 (drizzle/0186, this batch) onboarded a fourth real batch of 23 tables (erp_accounts, erp_cost_centers, erp_fiscal_years, erp_accounting_periods, erp_budgets, erp_tax_templates, erp_item_groups, erp_asset_categories, erp_salary_components, erp_subscription_plans, gst_gstin_master, gst_hsn_master, gst_source_profiles, firm_invoices, pms_saved_views, pms_estimate_schemes, pms_meetings, construction_categories, construction_activities, construction_submittals, construction_change_orders, fm_asset_categories, interior_materials), spanning ERP Finance/HR, GST Engine, CA-Firm billing, PMS, Construction, Interior Design, and Facilities, applied live via Supabase MCP with 100 existing rows across 13 non-empty tables backfilled and verified (102 active asset_registration_config rows confirmed live, matching the coverage manifest exactly: 102 registered / 303 exempted / 405 total). board_meetings investigated and deliberately left exempted (classification defaults to 'board_only', same confidentiality-sensitive shape as Priority 11's related_party_transactions/posh_complaints/whistleblower_cases exclusion) -- documented with a real reason, not silently skipped."
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
@@ -883,3 +883,81 @@ closed_priorities:
       deployment check failed on every PR, confirmed pre-existing/
       unrelated (same failure already present on already-merged PR #255)
       -- not a required status check.
+
+  - priority: 14
+    name: "GAP-UMR-TABLE-COVERAGE fourth batch (+23 tables, Super Boss direct)"
+    summary: |
+      A real fourth batch of 23 more named business-object tables onboarded
+      from the grandfather-exempted list onto the generic
+      auto_register_asset() trigger (drizzle/0186, following Priority 8/PR
+      #225's drizzle/0161, Priority 10/PR #237's drizzle/0171, and Priority
+      11/PR #242's drizzle/0184 pattern exactly): erp_accounts,
+      erp_cost_centers, erp_fiscal_years, erp_accounting_periods,
+      erp_budgets, erp_tax_templates, erp_item_groups, erp_asset_categories,
+      erp_salary_components, erp_subscription_plans, gst_gstin_master,
+      gst_hsn_master, gst_source_profiles, firm_invoices, pms_saved_views,
+      pms_estimate_schemes, pms_meetings, construction_categories,
+      construction_activities, construction_submittals,
+      construction_change_orders, fm_asset_categories, interior_materials --
+      spanning ERP Finance/HR, GST Engine, CA-Firm billing, PMS,
+      Construction, Interior Design, and Facilities so no single domain
+      dominates this pass. Two new judgment calls extended this batch's
+      discipline beyond the prior 3 batches' precedent: (1) gst_gstin_master
+      and gst_hsn_master are genuinely PLATFORM-WIDE (no org_id column --
+      shared reference/lookup caches every org reads the same rows from),
+      registered with org_column=NULL and name_column pointed at their own
+      NOT-NULL unique identifier (gstin, hsn_sac_code) rather than a
+      nullable display-name field; (2) erp_accounts.is_frozen and
+      erp_fiscal_years.is_closed are booleans that are the INVERSE of
+      "active" (true means frozen/closed, not active) -- force-fitting
+      either as active_column would have inverted the trigger's `= 'false'`
+      check and silently mismarked every genuinely active row as inactive,
+      so both are left NULL, extending the established enum-vs-boolean
+      discipline to inverse-boolean columns too. Applied live via the
+      Supabase MCP; 100 existing rows across 13 non-empty tables backfilled
+      via compliance.backfill_registered_assets() and verified live
+      afterward (102 active asset_registration_config rows, 306 trigger
+      rows i.e. 102 tables x 3 events, 100 new platform_assets rows for
+      exactly these 23 tables). ai-os/registry/asset-registry-coverage.yaml
+      updated to move all 23 tables from exempted to registered with real
+      per-table reasons; scripts/check-asset-registry-coverage.mjs run
+      locally and confirmed passing (102 registered / 303 exempted / 405
+      total, no missing/duplicate/weak-reason tables).
+
+      Deliberately NOT onboarded from this same investigation (reviewed and
+      rejected with a real reason, same discipline as the prior 3 batches):
+      board_meetings (classification defaults to 'board_only', same
+      confidentiality-sensitive shape as Priority 11's
+      related_party_transactions/posh_complaints/whistleblower_cases
+      exclusion); holiday_list_filings and it_dr_failover_tests (no single
+      genuine per-row display-name column -- state+year and
+      drPlanId+testDate are compound identities, same class as Priority
+      11's secretarial_audits/mca_filings exclusion); erp_sales_invoices,
+      erp_purchase_invoices, and all erp_*_items/erp_*_line_items tables
+      (reviewed but deliberately left for a future batch rather than
+      rubber-stamping the whole ERP module at once -- firm_invoices already
+      establishes the "named invoice header" precedent this batch needed);
+      pms_meeting_agenda_items/pms_meeting_outcomes/pms_meeting_participants
+      (no org_id column, scoped only via parent meetingId chain, same
+      cross-tenant-leak reasoning as Priority 4 domain B's
+      approval_workflow_step_* exclusions).
+
+      Stayed completely out of the concurrent Priority 12/13 (Universal
+      Builder + PROJEXA PM ERP integration, OPEN-07/OPEN-08) session's
+      active work per explicit instruction -- did not touch
+      orgProductBranchEnablements, requireBranchEnabled,
+      report-engine-service.ts, report-catalog-service.ts,
+      capability-audit-service.ts, capability-learning-service.ts, or the
+      PROJEXA repo, and deliberately deferred registering
+      erp_sales_invoices/erp_purchase_invoices/Sales-Engine-domain tables
+      (sales_partners, sales_commission_plans, sales_referrals, etc.) this
+      pass to avoid any file-touch overlap with that session's in-flight
+      report/branch-enablement work, even though some would otherwise have
+      qualified. Verified this worktree's branch was fast-forwarded onto
+      origin/main (which by then included that session's merged PRs #282
+      and #284) before starting, and re-synced with origin/main again
+      immediately before applying the migration -- no file-level collision
+      in either sync. tsc/eslint/full test suite run locally before opening the
+      PR (see PR description for exact pass/fail state at merge time -- not
+      self-merged, left for Super Boss's independent 8-field AUDIT: PASS/
+      FAIL review per the standing 2026-07-13 procedure).
