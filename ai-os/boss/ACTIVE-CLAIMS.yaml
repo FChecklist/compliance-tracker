@@ -42,6 +42,74 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Multi-currency Selling & Buying"
+    claimed_at: "2026-07-15T (this session, updated after rebasing onto PR #339)"
+    claim: |
+      Owner-directed Priority 17 Wave 1: extend the confirmed-real multi-
+      currency pattern already built in erp-invoicing-service.ts
+      (resolveInvoiceCurrency() -- validates currencyId against
+      erpCurrencies, requires+validates exchangeRate, converts to base
+      currency for GL posting with debitInCurrency/creditInCurrency audit
+      fields) to erp-selling-service.ts (quotations, sales orders) and
+      erp-buying-service.ts (purchase orders), which currently have ZERO
+      currencyId references -- confirmed via grep, every quotation/sales-
+      order/purchase-order is silently assumed base-currency today.
+      Confirmed via schema.ts read: erp_quotations/erp_sales_orders/
+      erp_purchase_orders have NO currencyId/exchangeRate columns (unlike
+      erp_sales_invoices/erp_purchase_invoices, which have had them since
+      Wave 66) -- a real migration is needed, not just wiring unused
+      columns. None of these 3 document types post to the GL directly (per
+      erp-selling-service.ts's own header comment: "No GL posting on
+      either document -- a quotation/sales order is a pre-billing
+      commercial document"; erp-buying-service.ts's submitPurchaseOrder
+      likewise only flips status, no journal entry) -- so this wave is
+      currency capture/validation only, no GL-conversion logic needed on
+      these 3 documents themselves (unlike invoicing). Scope: compliance-
+      tracker src/lib/services/erp-selling-service.ts,
+      erp-buying-service.ts, src/lib/db/schema.ts (additive nullable/
+      defaulted currencyId+exchangeRate columns on erp_quotations,
+      erp_sales_orders, erp_purchase_orders -- migration renumbered
+      drizzle/0203 -> 0204 after rebasing onto PR #339's own 0203, applied
+      live via Supabase MCP), new src/app/api/v1/projexa/purchase-orders/**
+      + src/app/api/v1/projexa/currencies/** alias routes (neither existed
+      before -- PROJEXA had no way to create a PO or list an org's
+      currencies at all). PROJEXA side: currency selector on Quotations/
+      Sales Orders create dialogs (forms already exist) + a new minimal
+      Purchase Orders page/client (none existed in PROJEXA before this
+      wave -- VendorsClient.tsx is vendor-master CRUD only, no PO creation
+      UI, confirmed by full-repo search) with currency selector built in
+      from the start. NOT touching src/lib/supabase/auth-guard.ts or
+      organisations/memberships/users/user_role schema (PLATFORM-01/PR
+      #339 territory, explicitly excluded per this task's own brief).
+      NOT building multi-country tax/compliance logic -- currency only.
+      DISAMBIGUATION vs. PLATFORM-01 Wave 2 (below, not yet started as of
+      this claim): that claim's own text lists "currency" as one of its
+      Wave-2 workstreams (3-6: offices/currency/language/per-country
+      compliance) -- that is ORG-LEVEL currency *provisioning/setup*
+      (an org choosing/configuring which currencies it supports, hanging
+      off the new platform_applications/provisioning data PLATFORM-01
+      Wave 1 just shipped). This claim is a DIFFERENT, narrower thing:
+      wiring the *document-level* currencyId/exchangeRate fields on
+      individual sales/purchase transactions to the erp_currencies table
+      that has ALREADY EXISTED since Wave 49/66 (erp-accounting-service.ts's
+      listCurrencies/createCurrency, already live, already used by
+      erp_sales_invoices/erp_purchase_invoices) -- no new org-setup UI, no
+      new currency-provisioning schema, purely consuming what already
+      exists. If PLATFORM-01 Wave 2 starts before this merges, the two
+      should not collide (different files: PLATFORM-01 Wave 2 would touch
+      org-provisioning/org-settings surfaces, this claim touches
+      erp-selling-service.ts/erp-buying-service.ts transaction-creation
+      functions) but flag it if a real overlap turns up. Known-concurrent
+      per this registry: Priority 15 Sales & CRM claim (already MERGED,
+      PR #332) already added quotation + sales order CRUD to
+      erp-selling-service.ts (same file) -- building on top of that
+      merged CRUD, not duplicating it. Also observed 2 other Priority 17
+      worktrees already on disk in both repos
+      (priority17-companies-projexa, priority17-inventory-procurement) --
+      disjoint scope (companies/inventory vs. selling/buying currency),
+      no file overlap expected. Branch:
+      priority17-multicurrency-selling-buying (both repos).
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |
