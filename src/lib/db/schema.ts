@@ -73,6 +73,13 @@ export const organisations = complianceSchemaDB.table('organisations', {
   sessionLimitEnforcementEnabled: boolean('session_limit_enforcement_enabled').notNull().default(false),
   maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(2),
   internalUseExempt: boolean('internal_use_exempt').notNull().default(false),
+  // PLATFORM-01 Wave 1 (Workstream 1, platform-level tenant provisioning):
+  // records which sibling product this org primarily belongs to. Nullable --
+  // every pre-existing org (created via autoProvisionUser()'s human-signup
+  // path, which predates this concept) is unaffected. Set by the new POST
+  // /api/v1/platform/provision-org flow, resolved from the calling
+  // platform_applications row's applicationKey.
+  primaryProductBranchId: text('primary_product_branch_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -540,6 +547,15 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   // request with 429 once api_key_request_log shows this many requests for
   // the key in the trailing 60 seconds.
   rateLimitPerMinute: integer('rate_limit_per_minute'),
+  // PLATFORM-01 Wave 1 (Workstream 1): nullable FK -> platform_applications.
+  // null = human-generated via the existing self-serve POST
+  // /api/settings/api-keys (every pre-existing key's exact current state,
+  // zero migration risk). Set only by the new POST
+  // /api/v1/platform/provision-org flow, tagging which sibling product's
+  // backend minted the key on behalf of one of its own customers. Closes
+  // the gap PLATFORM_STRATEGY.md section 6.12 names: apiKeys previously had
+  // no concept of which external application/product issued a key.
+  issuedForApplicationId: text('issued_for_application_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -560,6 +576,30 @@ export const apiKeyRequestLog = complianceSchemaDB.table('api_key_request_log', 
   method: text('method').notNull(),
   wasRateLimited: boolean('was_rate_limited').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── Platform Applications (PLATFORM-01 Wave 1, Workstream 1) ───────────
+// One row per sibling product (PROJEXA, The Firm, FM & CS, Office AI OS,
+// Forge, future ones) allowed to provision customer orgs server-to-server
+// via POST /api/v1/platform/provision-org. A PLATFORM-level service
+// credential, categorically different from a customer's own vk_... row in
+// apiKeys above -- this is what a sibling product's own BACKEND uses to
+// provision orgs on behalf of ITS customers, never exposed to that
+// product's own end users. keyHash/keyPrefix follow the exact same
+// hashSHA256()/generateApiKey() pattern as apiKeys, but prefixed pk_
+// (platform key) instead of vk_ to stay visually distinct. Global catalog
+// table, same RLS posture as productBranches (service_role full access,
+// app_runtime read-only -- there is no orgId to scope this by, it
+// predates any customer org's existence).
+export const platformApplications = complianceSchemaDB.table('platform_applications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  applicationKey: text('application_key').notNull().unique(), // 'projexa' today; 'the-firm' | 'fm-cs' | 'office-ai-os' | 'forge' in future
+  displayName: text('display_name').notNull(),
+  keyHash: text('key_hash').notNull().unique(),
+  keyPrefix: text('key_prefix').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── Org Invite Links (area 15/18, U-D27.B1.S1: Secure Invite Link) ─────
@@ -1811,7 +1851,8 @@ export const dataSeparationAudit = complianceSchemaDB.table('data_separation_aud
 })
 
 // ─── Relations ───────────────────────────────────────────────────────────
-export const organisationsRelations = relations(organisations, ({ many }) => ({
+export const organisationsRelations = relations(organisations, ({ many, one }) => ({
+  primaryProductBranch: one(productBranches, { fields: [organisations.primaryProductBranchId], references: [productBranches.id] }),
   users: many(users),
   departments: many(departments),
   complianceItems: many(complianceItems),
@@ -1955,6 +1996,11 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
   org: one(organisations, { fields: [apiKeys.orgId], references: [organisations.id] }),
   requestLog: many(apiKeyRequestLog),
+  issuedForApplication: one(platformApplications, { fields: [apiKeys.issuedForApplicationId], references: [platformApplications.id] }),
+}))
+
+export const platformApplicationsRelations = relations(platformApplications, ({ many }) => ({
+  issuedApiKeys: many(apiKeys),
 }))
 
 export const apiKeyRequestLogRelations = relations(apiKeyRequestLog, ({ one }) => ({
