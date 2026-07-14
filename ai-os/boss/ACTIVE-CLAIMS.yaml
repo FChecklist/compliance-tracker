@@ -42,25 +42,15 @@
 # ============================================================================
 
 active:
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    claimed_at: "2026-07-14T06:35:00Z"
-    claim: |
-      Full PageAgent removal (Owner directive: "remove PageAgent it doesn
-      fit VERIDIAN"). Scope: delete src/components/PageAgentInitializer.tsx,
-      src/components/PersonalAiConfigSection.tsx, src/app/api/page-agent/**
-      (config + proxy routes), src/app/api/settings/page-agent-config/route.ts,
-      src/lib/personal-model-resolver.ts; edit src/components/AppShell.tsx,
-      src/lib/db/schema.ts (drop personalModelConfig table +
-      organisations.pageAgentEnabled column), src/app/api/me/route.ts,
-      src/lib/queries/use-me.ts, src/app/(app)/settings/page.tsx,
-      package.json; new Drizzle migration to drop the table/column;
-      update VERIDIAN_AI_CONSTITUTION.md's Policy Enforcement Engine
-      "3 wired call sites" list and ai-os/CONSTITUTION.yaml's page_agent
-      entry. Branch: worktree-remove-pageagent.
+# (empty)
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-14T06:57:24Z"
+    claim: "Full PageAgent removal (Owner directive: \"remove PageAgent it doesn fit VERIDIAN\") -- PR #317 merged. Deleted the component, both API routes, the settings-config route, and personal-model-resolver.ts; dropped personal_model_config table + organisations.pageAgentEnabled column (drizzle/0196, applied live); updated VERIDIAN_AI_CONSTITUTION.md/docs/master/ARCHITECTURE.md/VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md's '3 wired call sites' claims to 2; updated check-guardrail-presence.mjs's manifest per Operating Rule 9. See ai-os/MASTER-TRACKER.yaml closed_priorities #21 for full detail. This session has no further active claims."
+
   - session_label: "claude-code (sub-agent) -- Sales Engine channel-coverage audit + Dependabot PR triage"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
