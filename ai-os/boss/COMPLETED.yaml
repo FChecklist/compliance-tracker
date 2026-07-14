@@ -1480,3 +1480,478 @@ entries:
         generated code in a local lint run (gitignored so it never reached
         CI as filed, but the config gap was real) -- fixed, plus 2 stale
         comment references to a renamed file.
+
+  - id: WAVE-173
+    title: "Reports & Analysis foundation -- catalog/Chain Selector pills, schedulable cadences + accept/todo/delegate action flow, PPT/Word/HTML export + upload-to-AI report builder (Owner directive 2026-07-13)"
+    doer:
+      agent: "3 parallel claude worktree-isolated sub-agents, dispatched by claude-code (Super Boss)"
+      date: "2026-07-13"
+      pr: "266, 267, 268"
+      summary: >
+        Owner directive: unify Reports & Analysis across the platform. A
+        pre-work X-Files/gap-analysis check (not a fresh ground-up
+        analysis) found 5 of 13 requirements already done (live-data
+        reports, org-scoped saved-report templates, main-screen 5-section
+        shell with recharts) and 6 genuine gaps, closed as 3 parallel PRs:
+        PR #266 -- report-catalog-service.ts (26 verified entries across
+        5 domains, data-only, every route grep-verified before listing)
+        wired into capability-tree-service.ts as a new "Reports & Analysis"
+        Chain Selector branch, plus a ReportCatalogList UI section on
+        /reports. PR #267 -- report_schedules + report_item_actions
+        tables (user/org-definable daily/weekly/monthly cadences,
+        delivered via the existing Wave-38 notifications mechanism since
+        the 3 existing report-cadence crons have no delivery layer of
+        their own; real accept/send-to-todo/delegate row actions calling
+        the pre-existing createTask()/createDelegation() services, first
+        real UI caller of /api/delegations found in this codebase). PR
+        #268 -- PPT/Word/HTML export (pptxgenjs/docx, reusing
+        buildExportRows() with no forked data path) and a "Need a Report?"
+        upload-to-AI flow (ai-report-builder-service.ts, grounded strictly
+        in the uploaded file's own extracted content, image/Excel/Word via
+        vision/xlsx/mammoth, saved via the existing createSavedReport()
+        under a new ai_generated sourceEntity kept outside the live-query
+        security whitelist). Requirement 13 (separate repo) was raised to
+        the Owner and explicitly declined in favor of an in-repo module,
+        matching how PROJEXA was integrated.
+    auditor:
+      agent: claude-code (Super Boss, same session, all 3 PRs audited personally per the 2026-07-13->07-20 Claude-only-review window)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Read all 3 full diffs before merge (not just PR descriptions).
+        PR #266: spot-checked 10/26 catalog entries against real source
+        files, confirmed reports/page.tsx diff was genuinely additive
+        (1 import + 1 JSX block). PR #267: confirmed both new tables have
+        RLS matching metric_alert_rules' precedent, confirmed Delegate/
+        Send-to-To-Do call real pre-existing services (not stubs),
+        confirmed sendToTodo() honors the existing Wave-146 high-impact
+        confirmation gate rather than bypassing it, confirmed Accept never
+        touches domain-entity status fields. PR #268: confirmed the AI
+        report proposal's only inputs are the uploaded file's own
+        extracted bytes/text (no other interpolated data), confirmed
+        ai_generated is excluded from GROUP_BY_FIELDS (the live-query
+        security boundary). Found and fixed for real (not just flagged):
+        both PR #267 and #268 independently created a migration named
+        drizzle/0177_*.sql -- renumbered #268's to 0178, merged latest
+        main into its branch by hand, resolved one real conflict in
+        CustomReportsSection.tsx (both PRs added different per-report-card
+        UI), re-ran tsc/lint clean before re-pushing. All 3 PRs' required
+        checks (Lint/Type Check/Build/Unit Tests) passed; audit-check
+        posted as the structured 8-field format (audit-protocol.ts) per
+        the agent-communication standard, not free-text "AUDIT: PASS".
+        Applied both live migrations (0177, 0178) via Supabase MCP after
+        merge -- both additive/idempotent (CREATE TABLE IF NOT EXISTS /
+        ADD COLUMN IF NOT EXISTS), get_advisors() run before and after
+        showed zero new findings attributable to either migration.
+        Vercel preview deploy fails on all 3 PRs (and pre-existed on
+        unrelated PRs before this wave) -- its status link resolves to
+        Vercel's own cron-jobs/usage-and-pricing docs, indicating an
+        account-level cron-count/usage condition, not a code defect;
+        flagged to the Owner, not silently ignored, since Vercel is not
+        one of this repo's 4 required status checks. Honest open gap
+        left for the Owner: requirement 9 (templates shared cross-system
+        with org/user-scoped data) is still org-scoped-only, not
+        cross-org/cross-product -- no cross-tenant sharing mechanism
+        exists anywhere else in this codebase to reuse, so building one
+        speculatively was out of scope for this wave.
+
+  - id: WAVE-174
+    title: "RLS gap fix -- enabled Row Level Security on 7 tables Supabase's advisor flagged as fully exposed to anon/authenticated PostgREST access (Owner directive 2026-07-13)"
+    doer:
+      agent: claude-code (Super Boss)
+      date: "2026-07-13"
+      pr: 270
+      summary: >
+        Found incidentally by Supabase's get_advisors() while auditing the
+        Reports & Analysis wave (WAVE-173) -- 7 compliance-schema tables
+        had RLS disabled: email_intelligence_items,
+        email_intelligence_action_items, drafted_communications,
+        instruction_packages, task_capabilities,
+        capability_improvement_proposals, asset_registration_config. Owner
+        asked for it fixed as a follow-up. Grepped every real call site for
+        all 7 tables across src/ before writing the fix, not assumed:
+        3 tables (email_intelligence_items/action_items,
+        drafted_communications) are 100% accessed via withTenantContext()
+        (app_runtime role, RLS-enforced) with every query already
+        org-filtered -- got the standard app_runtime_org_scoped policy
+        (JOIN predicate for the child table with no own org_id). The other
+        4 (instruction_packages, task_capabilities,
+        capability_improvement_proposals, asset_registration_config) are
+        100% accessed via the raw `db` client, never withTenantContext --
+        confirmed src/lib/db/tenant-scoped.ts's own header states that
+        client connects via DATABASE_URL using the `postgres` role (table
+        owner), which Postgres RLS never restricts regardless of policy
+        (no FORCE ROW LEVEL SECURITY anywhere in this repo). Because of
+        that, these 4 got RLS enabled with NO app_runtime policy at all --
+        provably safe for current app behavior, not just asserted --
+        while fully closing the anon/authenticated PostgREST exposure
+        (RLS defaults to deny). All 7 get a service_role_bypass policy.
+        drizzle/0179_rls_gap_fix_7_tables.sql, idempotent
+        (DO $$ ... EXCEPTION WHEN duplicate_object, matching this repo's
+        convention).
+    auditor:
+      agent: claude-code (Super Boss, same session)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Independently re-ran the same grep sweep the fix was based on
+        (did not just trust the PR description), confirmed zero
+        withTenantContext call sites for the 4 no-app_runtime-policy
+        tables and full withTenantContext coverage for the other 3.
+        Verified the 4 cited precedent migrations
+        (0150_priority3_umr_platform_assets.sql,
+        0164_wave173_scoped_delegations.sql,
+        0024_wave32_34_veri_chat_todo_mom.sql,
+        0176_audit_protocol_findings.sql) actually contain the exact
+        policy syntax reused, by reading each file directly. CI: Lint/
+        Type Check/Build/Unit Tests (all 4 required checks) passed --
+        pure SQL change, no TS/TSX touched. Applied live via Supabase MCP
+        after merge, then ran get_advisors(security) again: the
+        rls_disabled finding is completely gone from the results --
+        confirmed the fix closed the gap, not just assumed. No new
+        advisory findings introduced by this migration. Remaining
+        advisories after this fix are pre-existing and unrelated (public-
+        schema SECURITY DEFINER views/functions for an unrelated
+        marketing-page feature, hstore extension placement, auth leaked-
+        password-protection setting) -- none touched by or in scope of
+        this fix.
+
+  - id: WAVE-175
+    title: "Priority 11 -- Reports & Analysis ENGINE: 3-axis taxonomy, generic dispatcher (aggregation/formula/AI-recipe/external-service), 200 seeded report/analysis definitions across Project+Construction, Interior Design, and Sales domains (Owner directive 2026-07-13)"
+    doer:
+      agent: "claude-code (Super Boss) for taxonomy/dispatcher/engine foundation, then 3 parallel claude worktree-isolated sub-agents for the 3 domain catalogs, reconciled and merged by claude-code (Super Boss)"
+      date: "2026-07-13"
+      pr: "272, 273, 275, 277, 278"
+      summary: >
+        Owner directive: treat Reports & Analysis as a genuine "Software
+        and/or Software+AI Generated Decision System" -- 7 categories,
+        an open-ended classification list, 15 periodicity types (hourly
+        through custom_range/on_demand), and a flexible ENGINE that can
+        generate/merge/create reports "without reworking and without
+        duplicacy," not one hand-written function per report. PR #272 --
+        report-taxonomy.ts (category/classifications/periodicity types +
+        validators), drizzle/0180 creating compliance.report_definitions
+        (org_id nullable = platform-wide, RLS + UMR-registered), extended
+        report-schedule-service.ts's isScheduleDue() for all 15
+        periodicity types including a real custom_range date-truncation
+        bug found and fixed by this wave's own test suite. PR #273 --
+        the dispatcher gap found before dispatching sub-agents: Wave A
+        had no deterministic_aggregation handler, which would have
+        forced a bespoke wrapper per report (violating the Owner's
+        no-duplication requirement) -- added TABLE_REGISTRY (whitelist-
+        only, same discipline as the pre-existing custom-report-service.ts)
+        + resolveAggregationTarget()/runAggregationFromConfig(), wired
+        into executeReportDefinition() as the one real dispatcher for all
+        4 execution types (deterministic_aggregation, deterministic_formula,
+        ai_recipe, external_service). Also fixed a real production-build-
+        breaking bug: DB-touching catalog functions had been added to
+        report-catalog-service.ts, which ReportCatalogList.tsx ("use
+        client") imports -- pulled the postgres Node driver into the
+        client bundle (tsc and bun test both stayed green; only
+        `bun run build` caught it). Moved them into the server-only
+        report-engine-service.ts instead. Promoted "Reports & Analysis"
+        to its own top-level AppSidebar section (2nd position). 3 parallel
+        sub-agents then built the domain catalogs: PR #278 (Project +
+        Construction, 74 rows: 30 Project Reports minus 6 dupes, 30
+        Analysis Dashboards, 20 Executive KPIs), PR #275 (Interior
+        Design, 20 rows: 8 built, 12 data_gap), PR #277 (Sales, 110 rows:
+        50 built, 53 data_gap, 7 planned, covering the Lead->Opportunity->
+        Proposal->Negotiation->Order->Project->Customer lifecycle). All 3
+        sub-agent worktrees were branched before PR #273 merged (a
+        worktree-creation timing lag, not a dispatch-order mistake), so
+        each independently rebuilt its own copy of TABLE_REGISTRY/
+        AggregationConfig/the dispatcher -- reconciled by hand against
+        origin/main for all 3 (6 conflict regions for #278, 13 for #277),
+        including a recurring "shared closing brace" git auto-merge
+        artifact (both branches' last formula function shared an
+        identical trailing `})\n}` that git silently factored out as
+        unconflicted context, leaving both sides' real last function
+        unclosed) diagnosed precisely per conflict and fixed. Every
+        'built' row is genuinely executable through the one dispatcher --
+        not a catalog placeholder -- verified via bun test/tsc/lint/build
+        clean after every merge.
+    auditor:
+      agent: claude-code (Super Boss, same session, all 5 PRs audited personally)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Read all 5 full diffs before merge. Verified engine mechanics
+        directly, not just PR descriptions: confirmed TABLE_REGISTRY stays
+        whitelist-only (same 8 base entities as custom-report-service.ts,
+        grown to 26 across the 3 domain waves), confirmed the AI-recipe
+        path (AI_RECIPE_SYSTEM_PROMPT) forbids invented figures and every
+        ai_analysis-category 'built' row grounds in a real formula or
+        query, confirmed the dispatcher's final branch is a hard
+        ServiceError (never a silent no-op) for any executionType/config
+        mismatch. For PR #277 specifically: standardized a competing
+        filterColumn/filterValue migration-SQL shape onto the
+        already-established filterEquals nested shape used by the other
+        94 rows (via a verified perl rewrite, JSONB-parse-checked
+        afterward, 0 malformed across all 139 execution_config blobs in
+        that file), removed a dead duplicate dispatcher branch left by
+        git's auto-merge, re-ran the reconciled branch through
+        tsc/lint/build/bun test (1039 pass / 0 fail / 1984 expect() calls,
+        zero regressions) before pushing. All 5 PRs' required checks
+        (Lint/Type Check/Build/Unit Tests) passed; audit-check required 2
+        format-correction iterations on PR #277's comment (learned:
+        validate-audit-verdict.ts requires each of the 8 fields as a bare
+        "Label: value" line with no markdown bold, and severityClassified/
+        verdict must be exactly one of the enum words -- not a sentence)
+        before passing structurally. Applied all 3 domain migrations
+        (0181, 0182, 0183) live via Supabase MCP, split into
+        section-sized apply_migration calls given their size. Verified
+        row counts at every stage: 74+20=94 after #278/#275, then 204
+        expected after #183's 110 rows but 200 landed -- traced precisely
+        (not just accepted) to 4 platform-wide name collisions from
+        compliance.report_definitions' own ux_report_definitions_platform_name
+        unique index, all 4 confirmed benign: 2 Sales data_gap placeholders
+        (Material Selection Report, Mood Board Approval Report) lost to
+        already-built Interior Design rows of the same name, 1 Sales
+        planned placeholder (Profitability Analysis) lost to an
+        already-built Construction row, and 1 case (Customer Satisfaction
+        Analysis) where Sales and Construction had independently flagged
+        the identical real data_gap under the same name -- zero functional
+        loss in any case, confirmed by direct row-content comparison, not
+        assumption. get_advisors(security) run after all 3 migrations:
+        zero new findings attributable to report_definitions or this
+        wave. Final honest tally: 200 report/analysis definitions live
+        (109 built and genuinely executable through the dispatcher, 85
+        data_gap with a specific named schema gap in data_gap_note, 6
+        planned where real data exists but the join/bucketing/listing
+        shape isn't wired yet) -- not reported as 100% complete, since
+        the data_gap/planned rows are real, honestly-documented future
+        work, not filler.
+  - id: WAVE-176
+    title: "Priority 12 OPEN-07 point (8) closed -- real ERP/Sales module-enablement enforcement (Owner directive 2026-07-13)"
+    doer:
+      agent: claude-code (Super Boss, orchestrating one background sub-agent for the mechanical ERP sweep)
+      date: "2026-07-14"
+      pr: 282
+      summary: >
+        ERP (Accounting/Finance/Payroll/Buying/Selling/Stock) and Sales/CRM
+        APIs had zero module-enablement enforcement -- orgProductBranch-
+        Enablements/requireBranchEnabled() existed and was enforced for
+        pms/facilities_management/the_firm/veri_reward/veri_chat_v2, but
+        never wired up for 'erp' or 'sales', despite both branch rows
+        already existing in product_branches. Any org could hit any ERP or
+        CRM endpoint regardless of purchased package -- the Owner's own
+        example scenario, confirmed live before the fix.
+
+        Added erp-enablement-service.ts/crm-enablement-service.ts (same
+        thin-wrapper shape as firm-enablement-service.ts). Queried real
+        usage first per the Owner's decision (c) rather than guessing a
+        backfill list: only demo_org has real ERP transactional usage
+        (already had an enabled row from the 2026-07-06 demo seed, so no
+        ERP backfill was needed); 11 orgs (demo_org + 10 demo_co_*) had
+        real crm_leads/crm_opportunities rows with zero enablement row
+        despite active usage -- backfilled via drizzle/0185, applied live
+        via Supabase MCP, re-queried to confirm all 11 now enabled.
+        requireErpEnabled()/requireSalesEnabled() wired as the first
+        statement of every exported function across the 20 erp-*-
+        service.ts files (202 functions, via a background sub-agent using
+        the TypeScript compiler API to find every ctx.orgId-bearing
+        function, not regex) and crm-service.ts (11 functions, done
+        directly). Denial returns the Owner's exact polite wording naming
+        the actual module, not a generic "Forbidden".
+
+        One residual gap intentionally left open, not closed by this PR:
+        erp-procurement-workflow-service.ts's two supplier-portal endpoints
+        (getActiveAuctionsForSupplierPortal, submitAuctionBid) are
+        authenticated by an external portal token with no ctx.orgId at the
+        call boundary, so they aren't gated -- narrow (only matters if an
+        org enabled ERP long enough to create an RFQ/auction, then disabled
+        it while a supplier still holds a live portal token), flagged as a
+        named follow-up rather than rushed into this PR.
+
+        Only point (8) of OPEN-07's 12 points was in scope here -- the
+        Owner explicitly carved this one out as safe to start immediately
+        (asked directly, via AskUserQuestion, whether to start Priority 12
+        now or wait for Priority 11's OPEN-06; Owner chose to wait for
+        OPEN-06 before starting the rest of Priority 12, but this specific
+        piece shares no file surface with Priority 11's remaining Reports &
+        Analysis Engine work, so it proceeded). The rest of Priority 12
+        stays deferred.
+    auditor:
+      agent: claude-code (Super Boss, same session)
+      date: "2026-07-14"
+      verdict: PASS
+      summary: >
+        Independently re-ran tsc --noEmit and bun run lint after the
+        sub-agent's sweep (did not just trust its self-report) -- both
+        clean, matching the sub-agent's claim exactly (4 pre-existing
+        unrelated missing-module errors, 3 pre-existing unrelated lint
+        warnings, none touching erp-/crm- files). Spot-checked the actual
+        diff on erp-returns-service.ts, erp-payroll-service.ts,
+        erp-financial-report-service.ts, and crm-service.ts -- confirmed
+        pure additive one-line insertions at the correct position (before
+        withTenantContext, before existing validation), no unrelated
+        reformatting, no stray files left behind. Ran bun test directly:
+        1039 pass / 0 fail. Re-queried the live DB after the backfill
+        migration to confirm all 11 target orgs actually have an
+        is_enabled=true row for 'sales' (did not just trust the migration
+        applying without error). Ran get_advisors(security) before and
+        after the backfill -- identical finding set, no new advisories
+        introduced. Hit and resolved a real migration-number collision
+        (0184 was independently claimed by a concurrent session's
+        p11/umr-batch-onboarding-3 PR mid-flight) by renumbering to 0185
+        and re-verifying live no config-row collision existed. Posted the
+        mandatory structured AUDIT: PASS verdict comment on PR #282 per
+        Rule 7c/10 (first attempt was rejected by validate-audit-verdict.ts
+        for a vague "etc." in the Scope Confirmed field -- corrected and
+        reposted). CI green on all required gates (Lint/Type Check/Build/
+        Unit Tests) plus E2E Tests and audit-check; only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed, consistent
+        with every other recent wave on this repo.
+  - id: WAVE-177
+    title: "Priority 12 (OPEN-07, Universal Builder) fully closed -- Owner-directed sole ownership, 11 of 12 numbered points shipped, 1 confirmed a pre-existing gap in the original numbering"
+    doer:
+      agent: "claude-code (Super Boss) directly for the foundation pass (PR #296/#297) and all cross-PR audit fixes; 3 parallel worktree-isolated sub-agents for PR #298/#299/#300, dispatched and reconciled by the same session"
+      date: "2026-07-14"
+      pr: "296, 297, 298, 299, 300 (point 8 itself closed earlier the same day via PR #282)"
+      summary: >
+        Owner instructed this session directly, in chat, to take Priority 12
+        through to full closure -- superseding the prior "wait for Priority
+        11's OPEN-06" soft-gate deferral -- and to resolve any conflicts
+        found along the way. PR #296: chief_audit_officer moved to DeepSeek
+        V4 Pro per the Owner's own 3-rung-ladder decision (b), capability-
+        audit's escalation dispatch switched from the dead GITHUB_DISPATCH_PAT
+        repository_dispatch path to a new advisory-dispatch-service.ts
+        (decision a), and a real cron trigger (/api/internal/capability-audit/run)
+        wired for runCapabilityAudit(), which previously had zero callers
+        anywhere in the deployed app. PR #297: task_capabilities surfaced as
+        a real, DB-driven "Learned Capabilities" branch in the Chain
+        Selector (points 3+7), grown the same "no hand-authored taxonomy"
+        way every other branch in capability-tree-service.ts already works.
+        PR #298 (sub-agent, audited/fixed by this session): task_capabilities.status
+        now derived live from the rolling FULL_SOFTWARE/PACKAGE_AVAILABLE/
+        NOVEL counters inside the same transaction that updates them (point
+        6), plus docs/ESCALATION_MATRIX.md honestly cross-referencing the 5
+        real escalation mechanisms and stating explicitly where they do NOT
+        talk to each other (point 10). PR #299 (sub-agent): the identical
+        "zero branch-check" gap independently confirmed in the Reports &
+        Analysis Engine -- gated ERP/construction-domain report execution
+        and catalog listing the same way ERP/Sales got gated in PR #282,
+        including a real usage-based backfill for the previously-unenforced
+        'construction' branch. PR #300 (sub-agent): a narrow, non-duplicating
+        cross-reference between VERI FDE (capability-registry-service.ts)
+        and Dynamic-Chain/Chat (capability-learning-service.ts) -- two
+        catalogs that answer the same "has the platform seen this before?"
+        question but never talked to each other (point 1) -- plus the first
+        real UI/API surface for capability_improvement_proposals, since
+        closeImprovementLoop() had been manual/human-only (point 5).
+    auditor:
+      agent: "claude-code (Super Boss, same session) -- self-certified for the 2 PRs it authored directly (#296/#297), disclosed per this repo's established transparency precedent; genuinely independent for the 3 sub-agent PRs (#298/#299/#300), per Rule 7c (doer != auditor)"
+      date: "2026-07-14"
+      verdict: PASS
+      summary: >
+        Found and fixed 3 real cross-PR migration-number collisions before
+        merging, none of which the individual PRs could have caught alone:
+        PR #298, #299, and #300 each independently claimed migration 0190
+        (task_capabilities.status backfill, construction-branch backfill,
+        and capability_improvement_proposals.rejection_reason respectively)
+        -- renumbered to 0190/0191/0192 in merge order, same "whichever
+        lands later renumbers" precedent already established for the
+        WAVE-175/176 doc-id collision earlier the same day. Also found a
+        genuine correctness bug in PR #298's backfill migration: its SQL
+        used a naive integer cross-multiplication that its own comment
+        claimed matched deriveCapabilityStatus() exactly but didn't --
+        that function compares Math.round()'d percentages, satisfied by
+        raw values as low as 79.5%/59.5%, not just the literal 80%/60% the
+        naive SQL checked. Brute-force verified every (full, package,
+        novel) combination up to total=500 both before and after the fix
+        -- zero mismatches after rescaling to one-decimal precision.
+        Applied all migrations live via Supabase MCP (verdian-ai project,
+        pcrjmlpuqsbocqfwoxod) and re-queried to confirm; get_advisors(security)
+        showed zero new findings across every change. Re-ran tsc --noEmit
+        and the relevant test suites personally after every rebase/fix
+        before pushing, not just trusting each sub-agent's own report. All
+        6 PRs' required CI gates (Lint/Type Check/Build/Unit Tests/E2E
+        Tests/audit-check) green; only the pre-existing, unrelated Vercel
+        preview-deployment check failed on each, consistent with every
+        other recent wave on this repo. Honest, not oversold: point 9 of
+        the Owner's original 12-point numbering was never separately
+        itemized anywhere in this tracker's own OPEN-07 detail (the list
+        jumps 8 -> 10) -- flagged as a gap in the original gap-analysis
+        itself, not invented as a retroactive point to claim a clean
+        12-for-12. Full production end-to-end verification (a real
+        OpenRouter call reaching the new cron/advisory-dispatch path) was
+        not possible from this local dev environment -- no
+        OPENROUTER_API_KEY/DATABASE_URL available outside the Supabase
+        MCP/CI -- flagged in PR #296's own audit comment as a recommended
+        live spot-check for whichever session next has deploy access.
+
+  - id: WAVE-178
+    title: "Worker Agent Phase-1 auto-dispatch threshold correction (0.9 -> 0.95) + llm-response-cache wired into /api/ai/orchestrate -- both items found MOSTLY already done, narrow real gaps closed"
+    doer:
+      agent: "claude-code (sub-agent, worktree feat/worker-agent-dispatch-classify-audit), dispatched by Super Boss supervisor"
+      date: "2026-07-14"
+      pr: "TBD -- see PR opened from feat/worker-agent-dispatch-classify-audit"
+      summary: >
+        Item A (Worker Agent Library Phase 1 auto-dispatch): investigation
+        found this was NOT a gap at all -- PR #51 ("AI Workforce: Phase 1
+        of Worker Agent Dispatch (READ-ONLY actions only)") already wired
+        real auto-dispatch into fde-service.ts's high-confidence-match
+        branch (src/lib/services/fde-service.ts:127-146): when the top
+        semantic match is a worker_agent, it reuses task-execution-engine.ts's
+        exported dispatchTool() to actually run the matched capability and
+        append real JSON output to the response, gated through the
+        pre-existing purpose-bound-ai.ts DOMAIN_ALLOWED_TOOLS allowlist
+        (isToolAllowedForDomain, src/lib/purpose-bound-ai.ts:84-88) which
+        deliberately excludes every write action (update_compliance_status,
+        create_compliance_item, confirm_gst_batch, generate_gst_return,
+        generate_gst_ai_review are all explicitly commented as excluded on
+        purpose) -- so "read-only actions only" was already a real,
+        server-enforced guarantee, not a documentation promise. The one
+        genuine gap: HIGH_CONFIDENCE_THRESHOLD (fde-service.ts:41) was still
+        0.9, the originally-proposed value the Owner explicitly corrected to
+        0.95 on 2026-07-10 when signing off on Phase 1. Fixed: bumped the
+        single shared constant to 0.95 (it gates both the no-LLM
+        "already covered" short-circuit and the worker-agent auto-dispatch
+        branch together -- the Owner's sign-off was never asked to split
+        them into two separate thresholds).
+
+        Item B (llm-response-cache wiring): grepped all importers of
+        src/lib/llm-response-cache.ts across the repo -- only
+        fde-service.ts and src/app/api/internal/loops/run/route.ts used it
+        before this change; chat-service.ts, task-execution-engine.ts, and
+        /api/ai/orchestrate/route.ts all independently called callLLM/
+        callLLMJson directly, confirming the gap was real. Read the cache
+        module's own header carefully before wiring anything -- it states
+        explicitly it is "deliberately OPT-IN, not automatic at every
+        existing call site," safe only where "the caller has already
+        judged the exact same (org, provider, model, systemPrompt,
+        userMessage) tuple is likely to repeat." Applying that test
+        honestly to each of the 3 named call sites: (1) /api/ai/orchestrate/route.ts
+        is a genuine fit -- its userMessage embeds Math.floor()-granularity
+        fields (daysOverdue/daysUntilDeadline) that only change once per
+        calendar day, so a duplicate webhook delivery or repeat UI open of
+        the same item's AI panel the same day produces a byte-identical
+        tuple; wired callLLMJsonCached in, matching fde-service.ts's exact
+        usage pattern (org-scoped, `cached` flag threaded into
+        recordOrchestraExecution's output). (2) chat-service.ts's sendMessage
+        was deliberately NOT wired -- its callLLM call passes a `history`
+        array that grows every turn, but the cache key (orgId|provider|model|
+        systemPrompt|userMessage) does not include history at all, so caching
+        here would risk serving a reply from one conversation's context into
+        an unrelated later conversation that happens to send the same literal
+        message (e.g. "yes"). (3) task-execution-engine.ts's planning call
+        (callLLMJson at line ~2259) was deliberately NOT wired -- its
+        userMessage is a specific task's title+description, essentially
+        never a verbatim repeat, and more importantly the existing
+        SyntaxError-retry logic (lines ~2276-2284) deliberately re-issues the
+        identical call hoping for a non-truncated response; callLLMJsonCached
+        writes its raw content to the cache BEFORE attempting JSON.parse, so
+        wiring this specific site would have cached the truncated/malformed
+        first response and made the "retry once, usually succeeds" self-heal
+        permanently fail instead. Both non-wirings are architecture-fit
+        decisions grounded in the cache module's own documented safety bar,
+        not scope-cutting.
+
+        No new table, service, embedding pipeline, or worker-agent runner
+        was created -- both fixes reuse existing infrastructure exactly as
+        instructed (dispatchTool/isToolAllowedForDomain for Item A,
+        callLLMJsonCached for Item B). Total diff: 2 files touched
+        (src/lib/services/fde-service.ts, src/app/api/ai/orchestrate/route.ts),
+        34 lines changed. bunx tsc --noEmit clean, `bun run lint` 0 errors
+        (3 pre-existing unrelated warnings), `bun test` 1098 pass / 0 fail
+        across 83 files.

@@ -15,11 +15,13 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { ServiceError } from "./compliance-service"
+import { requireSalesEnabled } from "./crm-enablement-service"
 export { ServiceError }
 
 export type CrmContext = { orgId: string; userId: string }
 
 export async function listLeads(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
   )
@@ -29,6 +31,7 @@ export async function createLead(
   ctx: CrmContext,
   input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string }
 ) {
+  await requireSalesEnabled(ctx.orgId)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
 
@@ -42,6 +45,7 @@ export async function createLead(
 }
 
 export async function updateLead(ctx: CrmContext, leadId: string, patch: Partial<{ status: string; ownerId: string | null; source: string | null }>) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Lead not found", 404)
@@ -53,6 +57,7 @@ export async function updateLead(ctx: CrmContext, leadId: string, patch: Partial
 // Closes the loop into the existing Wave-1 clients table rather than
 // creating a second, disconnected "client" concept.
 export async function convertLeadToClient(ctx: CrmContext, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!lead) throw new ServiceError("Lead not found", 404)
@@ -67,6 +72,7 @@ export async function convertLeadToClient(ctx: CrmContext, leadId: string) {
 }
 
 export async function listOpportunities(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
   )
@@ -76,6 +82,7 @@ export async function createOpportunity(
   ctx: CrmContext,
   input: { name: string; leadId?: string; clientId?: string; stage?: string; estimatedValue?: number; expectedCloseDate?: string; ownerId?: string }
 ) {
+  await requireSalesEnabled(ctx.orgId)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
   if (!input.leadId && !input.clientId) throw new ServiceError("An opportunity needs a leadId or a clientId", 400)
@@ -95,6 +102,7 @@ export async function updateOpportunity(
   opportunityId: string,
   patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null }>
 ) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Opportunity not found", 404)
@@ -117,6 +125,7 @@ function daysSince(date: Date): number {
 }
 
 export async function scoreLead(ctx: CrmContext, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!lead) throw new ServiceError("Lead not found", 404)
@@ -160,6 +169,7 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
 }
 
 export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string) {
+  await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!opp) throw new ServiceError("Opportunity not found", 404)
@@ -217,6 +227,7 @@ async function createChainedTask(ctx: CrmContext, title: string, description: st
 }
 
 export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
   const lead = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
   )
@@ -226,6 +237,7 @@ export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string
 }
 
 export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string) {
+  await requireSalesEnabled(ctx.orgId)
   const opp = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
   )

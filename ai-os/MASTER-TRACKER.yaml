@@ -101,6 +101,455 @@ open_items:
       detail: "DEC-03 ratified the current distributed-table architecture (ERP/PMS/Firm/Construction) over a ~30-state Work Object retrofit as hard-to-reverse and disproportionate. This is a real, final decision (not pending), but it means several downstream Tree-1 asks stay permanently only-approximated: a truly universal follow-up engine (G-024/G-028 below), a truly universal cross-type dashboard."
       recommendation: "Ratification stands. Only reopen if the Owner explicitly wants to revisit DEC-03 itself -- do not re-litigate piecemeal via one of its downstream symptoms."
 
+    - id: OPEN-06
+      name: "Reports & Analysis template sharing is org-scoped only, not cross-org/cross-product (Owner directive 2026-07-13, Wave 173/PR #266-268)"
+      detail: "Owner asked for report/analysis templates to be 'shared across all systems in VERIDIAN, but data init org/user specific.' Built: savedReports.visibility='shared' shares within an org (existing mechanism, unchanged); report-catalog-service.ts's REPORT_CATALOG is a static, code-level registry so it's inherently identical across every deployment of this codebase (PROJEXA/veda-advisors if they ever run this same repo's code). What's still missing: no live mechanism for one org's saved custom-report CONFIGURATION (not its data) to be published/copied into another org, or into a genuinely separate product/repo, without a human manually re-creating it. No cross-tenant sharing table/API exists anywhere else in this codebase to reuse -- building one speculatively was out of scope for Wave 173."
+      recommendation: "Low priority unless a concrete cross-org use case shows up -- the static-catalog approach already satisfies the common case (same report TYPES available everywhere) without needing a live cross-tenant data-sharing mechanism, which would be a real new access-control surface, not a small addition."
+
+    - id: OPEN-07
+      name: "Priority 12 (Universal Builder) -- CLOSED 2026-07-14 (11 of 12 points shipped across PRs #282/#296/#297/#298/#299/#300, point 9 honestly never had a concrete referent -- see status_update below and closed_priorities #15 / COMPLETED.yaml WAVE-177 for the full record)"
+      detail: |
+        Owner's ask: one shared workflow (intake -> auditor-model availability
+        check -> if found, give the URL -> if not, escalate to Higher AI to
+        build it -> customer feedback -> once approved, ensure it becomes
+        software-driven for next time -> surface in Dynamic Mode Pill/Chain)
+        for every builder type, gated by the org's module/package
+        (GRC/Sales/HR/Accounting/PM/etc.), with a real escalation matrix and
+        VERI AI as the single user-facing interface regardless of what ran
+        behind it. Owner's framing: "THIS IS ALREADY BUILD IN VERIDIAN AI OS,
+        check it and make it work."
+
+        Verified against real code (2 research passes, not just this
+        tracker's own summary) -- Priority 5 "Software Orchestrator" +
+        Priority 6 "UMR<->Software Orchestrator integration" (both closed
+        priorities, see closed_priorities below) already implement most of
+        the requested shape, genuinely and non-trivially:
+        task_capabilities/instruction_packages/capability_improvement_proposals
+        schema, software-coverage-service.ts's deterministic FULL_SOFTWARE/
+        PACKAGE_AVAILABLE/NOVEL classifier, capability-learning-service.ts's
+        findOrCreateCapability()/recordExecutionOutcome() (the rolling
+        fullSoftwareCount/packageAvailableCount/novelCount counters
+        genuinely update live), capability-audit-service.ts's Auditor ->
+        Higher-AI escalation code.
+
+        Real gaps found, mapped to the Owner's numbering (12 points):
+        (1) intake is NOT unified -- FDE (capability-registry-service.ts,
+        embedding search -> proposeWorkerAgent) and Dynamic-Chain/Chat
+        (capability-learning-service.ts, task_capabilities) are two
+        disconnected catalogs. (2) the Auditor-verdict model is GLM-5.2, not
+        DeepSeek as the Owner specified -- DeepSeek (deepseek-v4-pro) isn't
+        wired into this path. (3)+(7) task_capabilities never surfaces as a
+        Chain Selector pill/URL -- capability-tree-service.ts has zero
+        reference to it. (4) worse than "PAT-blocked" (OPEN-01's existing
+        note): runCapabilityAudit() has ZERO real callers anywhere in the
+        deployed app -- no cron, no API route -- so nothing ever triggers an
+        audit today regardless of the PAT. (5) zero customer-facing UI/API
+        for capability_improvement_proposals -- closeImprovementLoop() is
+        manual/human-only. (6) task_capabilities.status ('ai_only'->
+        'full_software') is a dead column, never read or written anywhere
+        (only the rolling counters are real). (8) REAL, LIVE GAP independent
+        of Priority 12 itself: orgProductBranchEnablements +
+        requireBranchEnabled() is real and enforced, but ONLY for
+        pms/facilities_management/the_firm/veri_reward/veri_chat_v2 --
+        **ERP (Accounting/Finance/Payroll) and Sales have ZERO enablement
+        enforcement anywhere today** (grepped, zero call sites) -- any org
+        can hit payroll/sales APIs regardless of package right now, the
+        Owner's own example scenario, already live. The Software Orchestrator
+        pipeline also ignores module scoping entirely
+        (task_capabilities.orgId is nullable by design, platform-wide). The
+        just-built Priority-11 Reports & Analysis Engine has the same gap
+        (confirmed directly, not via research agent -- zero branch-check
+        anywhere in report-engine-service.ts/report-catalog-service.ts).
+        (10) no single "escalation matrix" artifact -- 5 real, independently
+        working mechanisms (escalation-ladder.ts's task-failure authority
+        ladder, floor-tier-escalation.ts's per-chat-call model escalation,
+        model-tier-eligibility.ts's static dispatch-time trust gate, the
+        (unreachable) Auditor->Higher-AI loop, dispatch-completion-monitor's
+        fail-closed pattern) with no unifying reference, though a source doc
+        (Consutitution.docx's "AI Escalation Matrix") describes the intent.
+        (11)+(12) ALREADY SATISFIED, confirmed working -- chat-service.ts's
+        generateAiReply() always presents one unified "VERI" voice; the
+        `messages` table has no model/provider/tier column; that metadata
+        only reaches an internal orchestra_executions table never surfaced
+        in any chat UI component (grepped, zero hits) -- no further work
+        needed for these 2 points.
+
+        **UPDATE 2026-07-14: point (8) CLOSED, PR #282** -- erp-enablement-
+        service.ts/crm-enablement-service.ts added (same thin-wrapper shape
+        as firm-enablement-service.ts); requireErpEnabled()/
+        requireSalesEnabled() wired as the first statement of every exported
+        function across the 20 erp-*-service.ts files (202 functions) and
+        crm-service.ts (11 functions). Backfill (drizzle/0185, applied live
+        via Supabase MCP) built from real usage, not guessed: 'erp' needed
+        none (demo_org, the only org with real ERP transactional usage,
+        already had an enabled row from the 2026-07-06 demo seed); 'sales'
+        backfilled for the 11 orgs (demo_org + 10 demo_co_*) with real
+        crm_leads/crm_opportunities rows that had zero enablement row
+        despite active usage. Denial returns the Owner's exact wording (see
+        decision (c) below) via a real 403, not a generic "Forbidden".
+        Verified: tsc/lint/1039 unit tests clean, get_advisors() no new
+        findings, CI green (Lint/Type Check/Build/Unit Tests/E2E/audit-check
+        all pass; only the pre-existing unrelated Vercel preview check
+        failed, same as prior waves). One residual gap intentionally left
+        open, not closed by PR #282: erp-procurement-workflow-service.ts's
+        two supplier-portal endpoints (getActiveAuctionsForSupplierPortal,
+        submitAuctionBid) are authenticated by an external portal token with
+        no ctx.orgId at the call boundary, so they aren't gated -- narrow
+        (only matters if an org enabled ERP long enough to create an RFQ/
+        auction, then disabled it while a supplier still holds a live portal
+        token), tracked as a named follow-up in PR #282's audit comment
+        rather than closed here.
+
+        Points (1)-(7), (9), (10) remain open -- this PR closed point (8)
+        only, as the one piece of Priority 12 the Owner explicitly approved
+        starting before the rest of Priority 12's foundation pass (which
+        stays deferred until Priority 11's OPEN-06 also closes, per the
+        Owner's 2026-07-13 instruction -- point (8) was carved out
+        specifically because it shares no file surface with Priority 11's
+        remaining Reports & Analysis Engine work).
+      recommendation: |
+        Do NOT rebuild task_capabilities/capability-learning-service.ts/
+        capability-audit-service.ts -- reuse and complete them, per the
+        Owner's own "don't duplicate, don't recreate" instruction. Proposed
+        shape when execution starts (point (8) already closed, see above): a
+        small foundation pass (wire a real cron trigger for
+        runCapabilityAudit(), add branchKey scoping to the capability
+        pipeline AND the Reports & Analysis Engine, surface
+        task_capabilities in capability-tree-service.ts) merged first, then
+        parallel sub-agents (unify FDE+Dynamic-Chain intake + build the
+        customer feedback UI; make task_capabilities.status actually
+        transition + write the single escalation-matrix reference doc).
+
+        **All 3 blocking decisions answered by the Owner, 2026-07-13 --
+        locked in below, quoted verbatim per AGENTS.md Rule 9 (any guardrail-
+        adjacent change needs the Owner's own words in the PR):**
+
+        (a) GITHUB_DISPATCH_PAT -- Owner: "make sure its working". Decision:
+        do NOT create a new PAT -- switch capability-audit's escalation
+        dispatch (dispatchProposalToHigherAI() in capability-audit-
+        service.ts) from repository_dispatch (dispatch-repo.ts, PAT-gated,
+        never worked) to the already-live /api/ai/team/dispatch path. Must
+        be verified genuinely working end-to-end (a real dispatch, a real PR
+        or equivalent artifact produced), not just "wired and assumed."
+
+        (b) DeepSeek vs GLM-5.2 -- Owner: "lower level single line narrow
+        instructions is by OSS GPT and lower, auditor is by DeepSeek
+        specifically; above DeepSeek for escalation is GLM-5.2". Decision: a
+        3-rung ladder for this specific capability-audit workflow --
+        mechanical/narrow (GPT-OSS-120B and below, already the floor tier)
+        -> Auditor verdict (DeepSeek V4 Pro, deepseek/deepseek-v4-pro,
+        replacing chief_audit_officer's current GLM-5.2 pin in roster.ts) ->
+        Higher-AI build/escalation (GLM-5.2, unchanged). Real tension found
+        while confirming this is implementable: model-tier-eligibility.ts's
+        JUDGMENT_ELIGIBLE set (glm-5.2, gpt-5.5 only) explicitly names
+        "audit verdicts" as judgment-tier work, and DeepSeek is currently
+        only INTEGRATIVE_ELIGIBLE, one tier below. Do NOT resolve this by
+        broadening DeepSeek's eligibility platform-wide (that would loosen a
+        named Rule-9 guardrail for every judgment-tier dispatch, not just
+        this one narrow role, and contradicts the Owner's own "above
+        DeepSeek" framing which implies DeepSeek is deliberately NOT trusted
+        with full judgment-tier authority generally). Correct fix: either
+        (i) reclassify capability-audit's own dispatch as integrative-tier
+        complexity (DeepSeek is already eligible there, and "narrow
+        instructions" is itself the integrative/mechanical framing, not
+        judgment), or (ii) add a narrow, explicitly-documented role-specific
+        carve-out rather than touching JUDGMENT_ELIGIBLE itself. Decide
+        which of (i)/(ii) during implementation, whichever keeps the
+        existing guardrail's stated purpose ("an auditor weaker than the
+        work it checks isn't real assurance") intact for every OTHER
+        judgment-tier audit in this codebase (e.g. Claude's own PR/code
+        audits, unaffected either way).
+
+        (c) ERP/Sales enforcement rollout -- Owner: "do it, user should not
+        get locked out, instead polite message comes, this is not part of
+        the Module your organization purchased. Please contact your
+        organizations administrator. This capability is already in another
+        Module". Decision: (1) one-time backfill migration inserting
+        orgProductBranchEnablements rows (isEnabled=true) for every org
+        already using erp/sales endpoints (query real usage first --
+        erp_sales_invoices/erp_purchase_invoices/crm_leads/etc. rows with a
+        distinct orgId -- to build the backfill list, don't guess), THEN (2)
+        add requireBranchEnabled()-style enforcement to the erp/sales API
+        surfaces, THEN (3) on denial, return the Owner's exact message
+        (adapted per-branch, e.g. "...this is not part of the Module your
+        organization purchased. Please contact your organization's
+        administrator. This capability is already in the Sales module." for
+        an org without 'sales' enabled) -- a real 403 with this exact
+        user-facing copy, not a generic "Forbidden".
+      first_raised: "2026-07-13, deferred at Owner's explicit instruction until Priority 11 closes; all 3 blocking decisions answered same day. Point (8) closed 2026-07-14 (PR #282), explicitly carved out by the Owner as safe to start early since it shares no file surface with Priority 11's remaining work."
+      status_update: |
+        2026-07-14: CLOSED. Owner directly instructed this session (in
+        chat, not via this tracker) to complete Priority 12 through to
+        full closure, superseding the prior OPEN-06 soft-gate deferral,
+        and to resolve any conflicts along the way. Final tally against
+        the Owner's own 12-point numbering:
+          - Point 8 (ERP/Sales enablement): closed 2026-07-14, PR #282
+            (COMPLETED.yaml WAVE-176).
+          - Point 2 (DeepSeek auditor model) + point 4 (real cron trigger
+            for runCapabilityAudit()) + decision (a) (advisory dispatch
+            replacing the dead GITHUB_DISPATCH_PAT path): PR #296.
+          - Points 3+7 (task_capabilities surfaced in the Chain Selector):
+            PR #297.
+          - Point 6 (task_capabilities.status derived from real counters)
+            + point 10 (docs/ESCALATION_MATRIX.md): PR #298.
+          - Point 8 follow-on (the identical branch-enablement gap,
+            independently confirmed in the just-built Reports & Analysis
+            Engine): PR #299.
+          - Points 1 (FDE <-> Dynamic-Chain/Chat cross-reference) + 5
+            (capability_improvement_proposals feedback UI/API): PR #300.
+          - Points 11+12: already satisfied before this wave (see detail
+            above) -- no work needed.
+        Honest gap: point 9 was never separately itemized anywhere in
+        this entry's own numbered list above (it jumps 8 -> 10) -- this
+        was not silently dropped during execution, it appears to have
+        been a gap in the ORIGINAL gap-analysis's own numbering, not
+        something this closure skipped. Flagged here rather than
+        inventing a retroactive point 9 to claim a clean 12-for-12.
+        Every PR audited by this session personally before merge (Rule
+        7c, doer != auditor) -- 3 real cross-PR migration-number
+        collisions found and fixed during audit (0190 independently
+        claimed by 3 different PRs; see PR #299/#300's own audit
+        comments), one real backfill-vs-live-function rounding bug found
+        and fixed before merge (PR #298's audit comment). Full doer/
+        auditor record: ai-os/boss/COMPLETED.yaml WAVE-177.
+
+    - id: OPEN-08
+      name: "Priority 13 (PROJEXA -> complete Project Management ERP) -- CLOSED 2026-07-14 (items 1-6 of the corrected gap list shipped, item 7 deliberately deferred per Owner, item 8 hygiene confirmed already-accurate); Priority 12 (OPEN-07) remains a separate, independently-tracked workstream"
+      detail: |
+        Owner's ask: a complete PM ERP as PROJEXA, referencing ERPNext/Plane/
+        Taiga/Paperless-ngx/Superset/LangGraph/IfcOpenShell as design
+        sources, plus a proposed Python/FastAPI/SQLAlchemy/Celery/Qdrant/
+        Superset tech-stack table. Explicitly sequenced by the Owner himself
+        to run after Priority 12, and scoped this wave as analysis+plan only
+        ("you can analyze and plan"), not execution.
+
+        Core finding (verified directly against origin/main, 3 parallel
+        research passes): this is primarily an INTEGRATION gap, not a build
+        gap. compliance-tracker already has real, non-stub engines for most
+        of the requested scope that PROJEXA (the actual product) doesn't yet
+        consume, instead growing thinner parallel schemas for the overlap:
+        (1) ERP -- erp-accounting-service.ts/erp-procurement-workflow-
+        service.ts/erp-inventory-service.ts/60+ erp_* tables exist; PROJEXA's
+        own Budget/Vendor/Material/Expense modules are a separate thinner
+        schema, and PROJEXA's own PROJEXA_GAP_ANALYSIS.md already flags
+        needing "a VERIDIAN ERP discovery API" it doesn't have yet. (2) PMS
+        Plane/Taiga-style issue tracking -- pmsIssueTypes(isEpic)/
+        pmsIssues(parentIssueId)/pmsSprints/pmsIssueRelations fully built,
+        explicit Plane-parity comments in schema.ts; zero grep hits for
+        kanban/sprint/epic/backlog anywhere in PROJEXA's own src/. (3) MOM --
+        pmsMeetings/pmsMeetingAgendaItems/pmsMeetingOutcomes/
+        pmsMeetingParticipants fully built (schema comment: "OpenProject's
+        unique contribution"); zero meeting/MOM routes in PROJEXA. (4) Permit
+        Management -- built as a category-specific slice of the generic
+        documents table (Wave 117: permitAuthority/permitNumber fields), not
+        yet a first-class PROJEXA module/UI. (5) BI/Reports -- Priority 11's
+        200-row report_definitions engine already covers most of what
+        Superset would add; genuinely missing only Superset's self-serve
+        ad-hoc chart-builder UX, not the reporting substrate. (6) Multi-agent
+        orchestration -- capability-audit-service.ts/roster.ts/
+        dispatch-repo.ts already a real, working, roughly LangGraph-
+        equivalent architecture in intent; no gap. (7) Document OCR exists
+        (ocr-client.ts) but PROJEXA's own documents module is a thin 28-line
+        pass-through; neither repo has Paperless-ngx-style correspondent/
+        doc-type auto-classification -- a real, small gap. (8) BIM/IFC --
+        genuinely missing everywhere; PROJEXA's floor-plans module is a
+        2D/3D scene editor, not an IFC-file parser.
+
+        Tech-stack finding: the proposed Python stack table was checked item
+        by item against real code and rejected as a literal implementation
+        choice -- 6 of 8 items duplicate what's already running (Supabase
+        Auth/Storage, llm-client.ts/orchestra-model-resolver.ts already doing
+        what LiteLLM would, pgvector+HNSW already live per the prior zvec
+        rejection, @sentry/nextjs+OpenTelemetry JS SDK already installed,
+        jspdf already in compliance-tracker's package.json, the reporting
+        substrate already live) and 2 are structurally incompatible with the
+        current single-stack Vercel/Next.js-serverless deployment (Celery
+        needs persistent workers + a broker; FastAPI/SQLAlchemy would stand
+        up a second parallel backend). Recommendation: keep Next.js/React/
+        Drizzle/Supabase/Vercel as the one implementation stack; treat the
+        named OSS projects as design-pattern references only (concrete
+        JS-native substitutes identified per project in the memory file
+        below), not literal dependencies.
+
+        Ranked real gap list for when execution starts: (1) wire PROJEXA's
+        Budget/Vendor/Material/Expense to the real ERP services instead of
+        its own parallel schema [needs Owner migrate-vs-coexist call], (2)
+        wire PROJEXA's Schedule/Scope to the existing PMS issue-tracking
+        engine instead of building new kanban/sprint tables, (3) surface the
+        existing pmsMeetings engine as a first-class PROJEXA Meetings module,
+        (4) promote permit fields into a first-class Permits module with
+        expiry reminders, (5) add document correspondent/type
+        auto-classification on top of the existing OCR pipeline, (6) build a
+        self-serve ad-hoc chart-builder UI on top of the existing report
+        engine (TypeScript, not Superset itself), (7) BIM/IFC ingestion via
+        web-ifc (JS/WASM) IF the Owner confirms it's a real customer ask, not
+        scope creep from the reference list, (8) hygiene: reconcile/retire
+        PROJEXA's now-redundant parallel schemas once (1)-(2) land, and
+        update system-tree/20-projexa.yaml to reflect true wiring state.
+
+        **All 4 decisions answered by the Owner, 2026-07-14 -- 3 locked, 1
+        deliberately deferred:**
+
+        (a) Reject the Python stack table -- Owner: "ok". Locked: Next.js/
+        React/Drizzle/Supabase/Vercel stays the one implementation stack.
+
+        (b) Migrate-vs-coexist for PROJEXA's existing Budget/Vendor/Material
+        data -- Owner: "ok" (to the proposed phased approach). Locked:
+        backfill-then-cutover, not big-bang migration, not permanent
+        coexistence -- same discipline as this file's own OPEN-07(c)
+        ERP/Sales backfill precedent (query real usage, backfill, cut over).
+        Keep PROJEXA's construction-only dimension fields (no ERP
+        equivalent); link existing Vendor/Material rows to
+        erp_suppliers/erp_items via reconciliation migration; all NEW
+        financial postings go through the real ERP GL from day one; old
+        PROJEXA tables become read-only mirrors for a grace period, then
+        retired once verified.
+
+        (c) BIM/IFC scope -- Owner's own words: "ok not needed, keep it in
+        pending". Deliberately deferred, not ratified-against -- do not
+        build item (7) above and do not re-raise it as a pending decision
+        until the Owner brings it up again.
+
+        (d) Wiring-vs-BI priority, PLUS a broader architecture principle the
+        Owner restated independently (quoting near-verbatim): "I dont want
+        Projexa modules to be separate. VERIDIAN AI OS is one system,
+        ideally all modules should be under VERIDIAN AI OS inside
+        compliance-tracker. But each product like PROJEXA to have separate
+        repositories connected to VERIDIAN AI OS through api... Zero
+        duplication. But independence of product or project." This
+        independently restates the exact founding PROJEXA decision from
+        2026-07-08 ("build nothing inside PROJEXA itself -- every module
+        lives in VERIDIAN AI OS and gets exposed via /api/v1; PROJEXA is a
+        thin client") -- confirms items (1)-(4) above are a correction of
+        real drift from an already-decided principle, not new scope.
+        Precise boundary: "zero duplication" means zero duplicate OWNERSHIP
+        of business-entity data compliance-tracker already owns
+        (vendors/accounts/issues/meetings/budgets) -- NOT that PROJEXA's own
+        DB must be empty; genuinely product-specific data (auth/session
+        state, UI prefs, construction-only extension fields per (b)) stays
+        local. Same "one owner per data domain, everything else via API"
+        logic as this file's own DEC-03 (ratified separate ERP/PMS/Firm/
+        Construction domain tables over one universal table), now applied
+        across repos. Execution order locked: items (1)-(4) before item (6)
+        -- wiring uses engines that already exist (lower risk, less
+        net-new code, closes an active/worsening data-integrity gap) and
+        will likely make some of Priority 11's 85 data_gap reports usable
+        for free once real data flows through; self-serve BI sequences
+        last, after the already-live 109-report catalog.
+      recommendation: |
+        Full detail, evidence, and per-item citations in Claude's memory file
+        veridian_priority13_pm_erp_gap_analysis.md (not in this repo). All 4
+        Owner decisions resolved (a/b/d locked, c deliberately deferred).
+
+        **Gate lifted 2026-07-14, Owner's own words**: "yes. I agree with
+        you. You can immediately start on Priority 13. Let other session do
+        Priority 11 and Priority 12. You complete the Priority 13." This is
+        a deliberate parallel-workstream split -- a DIFFERENT session/agent
+        is expected to close OPEN-06/OPEN-07 independently; the session
+        executing this OPEN-08 stays in its own scope.
+
+        **CORRECTION, same day, before execution started**: re-verifying the
+        ranked gap list directly against real route code (not file
+        names/prior research-agent claims) found items (1)-(4) above
+        materially OVERSTATED the gap. 44 of PROJEXA's 47 API routes already
+        thin-proxy to compliance-tracker's real engines via a
+        `callVeridian()` Bearer-token client (vendors/materials/expenses/
+        project-budgets/scope/schedule/rfis/submittals/punch-list/ffe/
+        site-diary/work-progress/documents/kpis/etc., confirmed by reading
+        actual route source, e.g. vendors/route.ts's own header: "Wave 124:
+        /api/v1/projexa/* is a thin ALIASING namespace -- zero new business
+        logic"). There is NO parallel PROJEXA schema to migrate away from --
+        decision (b) above was answered against a false premise for this
+        specific item.
+
+        **Corrected real gap list** (backend service functions for most of
+        these ALREADY EXIST -- listCostCenters/listFiscalYears in
+        erp-accounting-service.ts, createSalesInvoice/listSalesInvoices in
+        erp-invoicing-service.ts, listMeetings/createMeeting/
+        addMeetingOutcome in pms-meeting-service.ts, listIssues in
+        pms-issue-service.ts -- the real gap is missing thin v1 aliases +
+        PROJEXA UI, the exact same mechanical pattern as 44 other routes,
+        not new engine design):
+        1. Fiscal-year/cost-center discovery lookups + sales-invoice
+           create/link alias, wired into PROJEXA's Budget form + Dashboard.
+        2. Meetings/MOM: /api/v1/pms/meetings already exists and is
+           API-key-callable, but wrongly gated behind requirePmsEnabled()
+           for PROJEXA (construction) customers who never buy the separate
+           PMS module -- schedule/gantt/route.ts's own comment already
+           carves out this exact exception for the same reason. Add a
+           projexa/meetings alias without that gate + a PROJEXA Meetings
+           page.
+        3. Permits: data access already works (documents proxy supports
+           category=permit); listExpiringDocuments exists but is cookie-auth
+           only, incompatible with PROJEXA's Bearer-key model -- add an
+           API-key-compatible alias + a dedicated Permits UI page.
+        4. Kanban/backlog board: pms_issues data already flows into PROJEXA
+           via Schedule/Gantt -- missing piece is a board VIEW, not data.
+        5. Document correspondent/type auto-classification (Paperless-ngx
+           pattern) -- confirmed still genuinely missing, real new build.
+        6. Self-serve ad-hoc BI/chart-builder -- confirmed still genuinely
+           missing, real new build (MVP scope: dataset/metric/chart-config
+           on top of the existing report engine, not a Superset clone).
+        7. BIM/IFC -- unchanged, deliberately deferred per Owner (c).
+        8. Hygiene shrinks correspondingly -- no parallel schema to retire
+           for vendors/materials/expenses/budgets; just verify
+           veridian-client.ts's own flagged MVP gap (single stubbed API
+           credential, not real per-org lookup) and update
+           system-tree/20-projexa.yaml to reflect the true, already-good
+           wiring state once (1)-(4) land.
+      first_raised: "2026-07-13, gate lifted + gap-analysis corrected + execution started 2026-07-14, Owner's explicit instruction"
+      status_update: |
+        CLOSED 2026-07-14, same day, per the Owner's explicit instruction to
+        own Priority 13 through to completion ("you are the owner of
+        Priority 13 completion... complete priority 13... dont stop till
+        its complete"). 5 PRs merged across 2 repos, each independently
+        audited (AGENTS.md Rule 7c/10, no self-certification) before merge:
+          - compliance-tracker#290: document auto-classification
+            (document-classification-service.ts, Paperless-ngx pattern) +
+            self-serve ad-hoc BI chart builder (custom-chart-service.ts,
+            reuses report-engine-service.ts's TABLE_REGISTRY) -- closes
+            items (5)/(6). Required a follow-up commit registering the 3
+            new tables in the asset registry (drizzle/0188) that the PR's
+            own new tables had missed.
+          - compliance-tracker#292 + projexa#4: fiscal-years/cost-centers/
+            customers/sales-invoices/permits discovery-lookup aliases +
+            matching PROJEXA Budget-form/Dashboard-revenue/Permits UI --
+            closes item (1) and item (3). createSalesInvoice() extended to
+            accept an apiKey actor (PROJEXA's Bearer client never carries a
+            session dbUser).
+          - compliance-tracker#293 + projexa#5: meetings/board v1 aliases
+            (no requirePmsEnabled() gate, same precedent as schedule/gantt)
+            + PROJEXA Meetings/MOM page + Kanban board view -- closes item
+            (2) and item (4). PmsContext.dbUser widened to optional on both
+            pms-issue-service.ts/pms-meeting-service.ts (verified zero
+            reads beyond the type declaration). projexa#5 had a real merge
+            conflict against projexa#4's AppSidebar.tsx icon-import list
+            (both PRs add a sibling nav icon) -- resolved by keeping both
+            icons, verified with a full `bun run build` before merging.
+        Item (7) BIM/IFC stays deliberately deferred, per Owner (c) --
+        not attempted, not re-raised. Item (8) hygiene: no parallel PROJEXA
+        schema existed to retire for vendors/materials/expenses/budgets
+        (the corrected gap analysis already established this); this
+        session did not separately re-verify veridian-client.ts's stubbed-
+        credential MVP gap or touch system-tree/20-projexa.yaml this wave --
+        flagged here as the one genuinely unclosed loose end, for whichever
+        session next touches PROJEXA's system-tree entry.
+        ai-os/boss/ACTIVE-CLAIMS.yaml's entry for this session/OPEN-08 is
+        being moved from active: to recently_completed: in the same commit
+        as this status update, so other sessions see OPEN-08 is free.
+
+    - id: OPEN-09
+      name: "Org/user data export -- privacy policy promises it, no general mechanism exists"
+      detail: "src/app/data-policy/page.tsx (a static legal page) states: 'You may export your data during the life of your account.' Verified live: the only real export route anywhere in this codebase is /api/veri-meetings/[id]/export (a single-meeting export), not an org-wide or user-wide data download. No general /api/*/export mechanism exists. Per-org/per-user data IS genuinely identifiable throughout the schema (org_id scoping + RLS on every table, verified extensively this session) -- the gap is specifically the lack of a bulk export/download feature, not a data-modeling problem."
+      recommendation: "Owner directive 2026-07-14: log as pending, NOT an immediate priority. Do not schedule build work on this until explicitly requested. Worth noting for whoever eventually picks it up: this is arguably a compliance-facing gap (a written policy promise with no backing mechanism), not just a feature request -- flag that distinction again when it's actually scoped, don't silently downgrade it to 'nice to have' at that point."
+      first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
+
+    - id: OPEN-10
+      name: "veda-advisors' relationship to VERIDIAN AI OS -- Owner declared it IN SCOPE under VERIDIAN AI OS, explicitly NOT to be worked on yet"
+      detail: "Verified live 2026-07-14: veda-advisors (code-by-zai) has ZERO integration with VERIDIAN AI OS today -- no references to veridian-client/VERIDIAN_API/api/v1 anywhere in its source, and it runs Prisma (compliance-tracker's own CLAUDE.md forbids Prisma -- 'zero Prisma imports'). It is a fully independent Next.js codebase for a different business (Veda Advisors, an advisory/coaching site) that happens to share the FChecklist GitHub org and reuse the PAT_FCHECKLIST credential -- it does NOT fit the PROJEXA pattern (thin client, zero local domain data, VERIDIAN-hosted AI) despite superficially looking like a sibling product. Owner directive 2026-07-14: veda-advisors is now DECLARED to be under VERIDIAN AI OS's governance umbrella going forward, but this is a declaration of intent/scope only -- no migration work (Prisma->Drizzle, wiring to /api/v1/*, moving its AI calls to VERIDIAN) is authorized yet."
+      recommendation: "Do NOT start any veda-advisors <-> VERIDIAN integration work without a separate, explicit Owner go-ahead -- this entry exists to record the scope decision and prevent 2 opposite mistakes: (a) a future session assuming veda-advisors is already VERIDIAN-integrated because it's declared in-scope, and (b) a future session starting the actual migration unprompted because the declaration exists. Treat this exactly like Priority 13's BIM/IFC item -- deliberately deferred, not ratified-against, do not re-raise as a build task until the Owner brings it up again."
+      first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
@@ -112,7 +561,7 @@ open_items:
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
-      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). FURTHER PARTIALLY CLOSED, Priority 10 (PR #236): a second real graph edge type, dynamic_chain -> worker_agent (relationshipType 'executed_by', upserted by (chain, agent) pair with taskCount/lastTaskId/lastExecutedAt metadata), written at task-execution-engine.ts's updateTaskStatusAndReflect() -- the one chokepoint every real task-completion path already runs through. No new migration needed; the existing GET /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id> endpoint (Wave 153) now answers 'which chains has this agent executed' with zero new API surface. Checked live: 0 historical rows qualified for backfill, so this is forward-only by design. Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
+      detail: "PARTIALLY CLOSED, Priority 9 (PR #227, Wave 173): dynamic_chains gained 3 real additive columns (linkedApprovalWorkflowIds, governanceNotes, deprecationReason) plus the first real entity_relationships graph edge for chains (dynamic_chain -> approval_workflow_instance, written when a chain-originated task triggers a real approval workflow). FURTHER PARTIALLY CLOSED, Priority 10 (PR #236): a second real graph edge type, dynamic_chain -> worker_agent (relationshipType 'executed_by', upserted by (chain, agent) pair with taskCount/lastTaskId/lastExecutedAt metadata), written at task-execution-engine.ts's updateTaskStatusAndReflect() -- the one chokepoint every real task-completion path already runs through. No new migration needed; the existing GET /api/v1/brain/entity-relationships?entityType=worker_agent&entityId=<id> endpoint (Wave 153) now answers 'which chains has this agent executed' with zero new API surface. Checked live: 0 historical rows qualified for backfill, so this is forward-only by design. FURTHER PARTIALLY CLOSED, Priority 14 (PR #TBD): a third real graph edge type, dynamic_chain -> dynamic_chain (relationshipType 'supersedes'), written at dynamic-chain-directory-service.ts's createChainVersion() -- the sole real chokepoint every chain-versioning path runs through (task-service.ts's resolveDynamicChainId only find-or-creates version-1 rows, never touches previousVersionId). Wave 171's previousVersionId column already carried this fact as a denormalized FK-shaped index; this adds it to entity_relationships as the graph source of truth, same division of labor as linkedApprovalWorkflowIds/entity_relationships in Priority 9. Investigated and ruled out this pass: dynamic_chain -> conversation (conversations.dynamicChainId column exists per Wave 161 but is explicitly documented as unwired -- no conversation-creation flow offers a Chain Selector step yet, so no real chokepoint exists); worker_agent -> capability (the only real chokepoint, capability-learning-service.ts's findOrCreateCapability()/recordExecutionOutcome(), is Priority-12/13-adjacent and explicitly out of scope this pass -- deferred to whichever session owns that area). No new migration needed; checked live via Supabase MCP: 0 dynamic_chains rows and 0 entity_relationships rows exist yet in either direction, so this is forward-only with nothing to backfill. Still NOT closed: none of the 10 full rich sub-fields the source doc names (business/classification/inputs/outputs/software/AI/workflow/governance/knowledge per chain) exist -- this remains a deliberately deferred, larger schema redesign, not attempted in this pass. Business Digital Twin (D26.B4.S1, same substrate) got its own first real slice via PR #226: connector_documents table, a genuinely useful SUBSET of the source doc's 16-field schema, populated by real Gmail/Drive pulls."
       size: deferred_large
       recommendation: "Design the full graph schema first (per the source doc's own preference for graph over enumerated-permutation), then an additive migration, backfill, cutover. Any migration must preserve existing dynamic_chains rows and their live references from tasks/conversations."
 
@@ -158,19 +607,11 @@ open_items:
       recommendation: "Sequence after GAP-NARROW-MONITOR-ESCALATION's Phase 0 (Agent Escalation Registry is the same mechanism). Build Agent Review Registry last -- it needs Agent Performance + Agent Escalation data to act on, and has zero existing precedent to extend."
 
     - id: GAP-UMR-TABLE-COVERAGE
-      name: "340 of 396 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
+      name: "326 of 405 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
       old_ids: []
-      detail: "The auto-registration MECHANISM is complete and proven across 4 domains (56 real tables as of Priority 10). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped."
+      detail: "The auto-registration MECHANISM is complete and proven across 5+ domains (102 real tables as of Priority 17). Onboarding any remaining table is now a ~10-line migration addition, not new code -- this is a long tail of small, optional extensions, not a blocking gap. Priority 10 (PR #237) onboarded 19 more real named business-object tables (branches, litigation_matters, ip_portfolio, legal_matters, audit_engagements, vendor_risk_profiles, pms_issues, pms_milestones, erp_fixed_assets, erp_suppliers, erp_warehouses, erp_items, erp_companies, job_openings, candidates, erp_contracts, fm_assets, firm_engagements, construction_rfis), applied live via Supabase MCP with all 44 existing rows backfilled. employee_profiles investigated and deliberately left exempted (no genuine display-name column) -- documented with a real reason, not silently skipped. Priority 11 (PR #242) onboarded a further 22 tables (directors_kmp, cap_table_entries, company_charges, legal_vendors, legal_opinions, fraud_cases, it_dr_plans, posh_committee, pms_sprints, pms_wiki_pages, tickets, problem_records, clm_contract_templates, clm_clauses, fm_checklist_templates, fm_visitors, esignature_requests, performance_review_cycles, construction_boqs, construction_kpi_definitions, interior_mood_boards, interior_floor_plans), applied live via Supabase MCP with all 71 existing rows across 8 non-empty tables backfilled and verified (79 active asset_registration_config rows confirmed live, matching the coverage manifest exactly). Total tracked table count also grew 396 -> 405 in parallel as other concurrent Priority 11 work added new tables (report_definitions now registered; deployment_events/audit_protocol_findings correctly exempted as platform-wide append-only event logs). Priority 17 (drizzle/0193, this batch) onboarded a fourth real batch of 23 tables (erp_accounts, erp_cost_centers, erp_fiscal_years, erp_accounting_periods, erp_budgets, erp_tax_templates, erp_item_groups, erp_asset_categories, erp_salary_components, erp_subscription_plans, gst_gstin_master, gst_hsn_master, gst_source_profiles, firm_invoices, pms_saved_views, pms_estimate_schemes, pms_meetings, construction_categories, construction_activities, construction_submittals, construction_change_orders, fm_asset_categories, interior_materials), spanning ERP Finance/HR, GST Engine, CA-Firm billing, PMS, Construction, Interior Design, and Facilities, applied live via Supabase MCP with 100 existing rows across 13 non-empty tables backfilled and verified (102 active asset_registration_config rows confirmed live, matching the coverage manifest exactly: 102 registered / 303 exempted / 405 total). board_meetings investigated and deliberately left exempted (classification defaults to 'board_only', same confidentiality-sensitive shape as Priority 11's related_party_transactions/posh_complaints/whistleblower_cases exclusion) -- documented with a real reason, not silently skipped."
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
-
-    - id: GAP-D13-ASSUMPTION-VALIDATION
-      name: "D13.B1.S2: AI must check with the user before proceeding on an unstated assumption"
-      old_ids: ["D13.B1.S2 (Tree 1)"]
-      detail: "Confirmed real, deliberately not built. Considered and rejected a phrase-detection proxy on reply text (too blunt, or too weak to actually close the requirement). The correct fix needs a live prompt_templates DB CONTENT change (a production data mutation, distinct from a schema migration) -- outside a headless subagent's authorization."
-      size: S
-      recommendation: "Needs (a) Boss/Owner sign-off on the actual prompt wording to add, and (b) possibly UX support for a pending-confirmation reply state."
-      first_raised: "2026-07-12 full status reconciliation pass"
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
@@ -326,8 +767,40 @@ closed_priorities:
       GAP-D13-ASSUMPTION-VALIDATION (owner-blocked on prompt-content sign-off).
 
   - priority: 11
-    name: "GAP-D15-REMAINING-TRIGGERS closed: the last of D15.B2.S1's 10 named audit-event triggers, Deployment"
+    name: "GAP-D15-REMAINING-TRIGGERS closed (Deployment trigger) + GAP-D13-ASSUMPTION-VALIDATION closed (chat assumption-check prompt content) + GAP-UMR-TABLE-COVERAGE third batch (+22 tables)"
     summary: |
+      - PR #241: GAP-D13-ASSUMPTION-VALIDATION closed -- U-D13.B1.S2
+        ("before AI makes any input/output/process assumption, it must
+        validate with the user via chat, scoped to the current selection").
+        Owner gave standing full-autonomy authorization for prompt-content
+        decisions on this initiative (previously the sole cited blocker),
+        so this was made directly rather than deferred again: a new
+        production-labeled prompt_versions row for chat.ai_thread_system
+        (drizzle/0172, applied via the real versioning mechanism -- label
+        flip + new row, never a live content mutation of an existing row).
+        Wave 155 (migration 0132, already live) had added a general "ask
+        instead of guessing" clause; this is an additive refinement, not a
+        rewrite -- keeps 100% of that content and appends one sentence
+        requiring the assumption to be stated explicitly and confirmed
+        before proceeding, scoped to whatever module/chain/workflow
+        selection is active in the conversation, closing the gap between
+        the earlier generic clause and U-D13.B1.S2's specific bar.
+        Investigated whether structural/UX support (a "pending
+        confirmation" reply state) was needed first: chat-service.ts's
+        generateAiReply() has no tool-calling capability -- a reply is
+        only ever stored as a chat message, never followed by an
+        autonomous action -- so VERI Chat's existing turn-based flow
+        already provides the pause with zero new plumbing.
+        conversations.currentState/previousState (Wave 144) remain
+        available, unwired, for a future pass if an autonomous-action
+        surface (e.g. task_execution.planning_system) ever needs real
+        pause/resume -- deliberately not built speculatively here. Applied
+        live via Supabase MCP (project pcrjmlpuqsbocqfwoxod) and verified
+        with a direct query: version 4 is the sole `production`-labeled,
+        active row, version 3 correctly demoted to label NULL. tsc/eslint/
+        bun test (921 pass) all clean; CI green (only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed, same as on
+        already-merged PR #240).
       - PR #243: GAP-D15-REMAINING-TRIGGERS fully closed -- Deployment, the
         one event Priority 10 (PR #238) left genuinely open ("no in-app
         deployment-event table or webhook handler exists beyond the
@@ -378,6 +851,61 @@ closed_priorities:
         add VERCEL_DEPLOYMENT_WEBHOOK_SECRET production`), then redeploy.
         Until that step is done, the receiver code is live but Vercel
         never actually calls it.
+      - PR #242: GAP-UMR-TABLE-COVERAGE -- a third real batch of 22 more
+        named business-object tables onboarded from the grandfather-
+        exempted list onto the generic auto_register_asset() trigger
+        (drizzle/0184, following Priority 8/PR #225's drizzle/0161 and
+        Priority 10/PR #237's drizzle/0171 pattern exactly): directors_kmp,
+        cap_table_entries, company_charges, legal_vendors, legal_opinions,
+        fraud_cases, it_dr_plans, posh_committee, pms_sprints,
+        pms_wiki_pages, tickets, problem_records, clm_contract_templates,
+        clm_clauses, fm_checklist_templates, fm_visitors,
+        esignature_requests, performance_review_cycles, construction_boqs,
+        construction_kpi_definitions, interior_mood_boards,
+        interior_floor_plans -- spanning Company Secretarial, Legal, GRC,
+        IT/DR, HR, PMS, Customer Service/ITSM, CLM, Facilities,
+        Construction, and Interior Design so no single domain dominates
+        this pass. Deliberately NOT onboarded (reviewed and rejected with a
+        real reason, same discipline as Priority 10's employee_profiles
+        exclusion): client_entities/legal_arbitration_cases (no direct
+        org_id column, only reachable via a parent FK join), challans (no
+        genuine display-name column), secretarial_audits/mca_filings
+        (shared type-slug repeated across rows, not a unique per-row
+        name), related_party_transactions/posh_complaints/
+        whistleblower_cases (confidentiality-sensitive content, same
+        sensitivity class as api_keys/sso_configurations), fde_requests/
+        job_applications/performance_reviews/fm_amc_contracts (no single
+        genuine display-name column). Applied live via Supabase MCP
+        (project pcrjmlpuqsbocqfwoxod) and verified with direct queries:
+        all 22 config rows + auto_register_asset_trg triggers confirmed
+        attached via compliance.attached_asset_triggers; backfill via
+        compliance.backfill_registered_assets() upserted 71 existing rows
+        across the 8 tables that had data (posh_committee 4, pms_sprints
+        2, tickets 53, performance_review_cycles 1, construction_boqs 3,
+        construction_kpi_definitions 3, interior_mood_boards 4,
+        interior_floor_plans 1 -- the other 14 tables were empty, future
+        rows register automatically going forward); live
+        compliance.asset_registration_config count confirmed at 79 active
+        registrations, matching ai-os/registry/asset-registry-coverage.yaml
+        exactly. Coverage: 56 -> 79 registered (of 405 total tables now
+        declared in schema.ts, up from 396 as other concurrent Priority 11
+        work added new tables in parallel) / 326 still grandfather-
+        exempted. Hit two real migration-number collisions mid-flight from
+        concurrent sibling agents (0172 and then 0173 both got taken twice
+        over by other in-flight PRs before this branch could merge) --
+        renumbered to the next genuinely free slot (0184) each time and
+        re-verified live no config-row collision existed before applying.
+        tsc/eslint (0 errors)/bun test (1039 pass)/build/guardrail-
+        presence/asset-registry-coverage checks all clean; CI green on all
+        required gates (Lint/Type Check/Build/Unit Tests/E2E Tests/
+        Guardrail Presence/Asset Registry Coverage/Analyze/Secret Scanning/
+        Security Pattern/Documentation Sentinel) -- only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed (same as on
+        already-merged PR #240/#241), and "audit-check" is pending the
+        mandatory AUDIT: PASS/FAIL structured verdict comment per Rule 7c/
+        10 (this PR was prepared by a sub-agent; per the standing 2026-07-13
+        procedure it is not self-merged -- Super Boss reviews and merges
+        directly).
 
   - priority: 12
     name: "GAP-UNIFIED-SOURCE-OF-TRUTH: all 3 dispatched sub-agent PRs reviewed and merged"
@@ -472,4 +1000,372 @@ closed_priorities:
       metadata-index-coverage, doc-quarantine-banner) pass. Vercel preview-
       deployment check failed on every PR, confirmed pre-existing/
       unrelated (same failure already present on already-merged PR #255)
+
+  - priority: 14
+    name: "Owner's Priority 11 -- Reports & Analysis ENGINE: taxonomy, generic dispatcher, 200 seeded definitions across 3 domains"
+    summary: |
+      See ai-os/boss/COMPLETED.yaml's WAVE-175 for the full doer/auditor
+      record (PR #272, #273, #275, #277, #278). Summary here for
+      cross-reference only, not a duplicate source of truth.
+
+      Built the report_definitions taxonomy (7 categories, open-ended
+      classifications, 15 periodicity types) and the one real dispatcher
+      (executeReportDefinition() -> deterministic_aggregation via
+      TABLE_REGISTRY/resolveAggregationTarget(), deterministic_formula via
+      FORMULA_REGISTRY, ai_recipe grounded-only, external_service) that
+      lets reports be added/merged without per-report bespoke code, per
+      the Owner's explicit "without reworking and without duplicacy"
+      requirement. Seeded 204 candidate rows across 3 domain waves
+      (Project+Construction, Interior Design, Sales); 200 landed live
+      after 4 benign platform-wide name collisions (traced individually,
+      each confirmed a strictly-non-worse dedup, not a loss -- see
+      WAVE-175's auditor summary). Final tally: 109 built (genuinely
+      executable through the dispatcher), 85 data_gap (each with a
+      specific real schema gap named in data_gap_note, not a vague
+      placeholder), 6 planned (real data exists, join/bucketing/listing
+      shape not wired this wave). "Reports & Analysis" promoted to its
+      own top-level left-rail section (2nd position). Not claimed 100%
+      complete -- the data_gap/planned rows are honest, specific,
+      tracked future work.
+
+      Owner's Priority 12 (Universal Builder) remains explicitly deferred
+      per the Owner's own instruction until this priority is confirmed
+      closed to their satisfaction -- see OPEN-07 below, whose 3 blocking
+      decisions are already locked in and ready to execute once
+      unblocked.
       -- not a required status check.
+
+  - priority: 14
+    name: "GAP-DCMD 3rd graph edge: dynamic_chain -> dynamic_chain ('supersedes')"
+    summary: |
+      Investigated whether a genuine 3rd entity_relationships graph edge
+      type exists for chains, after Priority 9's dynamic_chain ->
+      approval_workflow_instance and Priority 10's dynamic_chain ->
+      worker_agent, holding the same bar both used: a real chokepoint
+      every instance of some real event already passes through, not a
+      contrived one invented for this task.
+
+      Found: dynamic-chain-directory-service.ts's createChainVersion()
+      is the sole real chokepoint that writes dynamicChains.previousVersionId
+      (Wave 171) -- every version of every chain is created there and
+      nowhere else (task-service.ts's resolveDynamicChainId only find-or-
+      creates version-1 rows), and it already has a real caller: POST
+      /api/dynamic-chains/[id]/versions. Added the corresponding
+      entity_relationships edge (dynamic_chain -> dynamic_chain,
+      relationshipType 'supersedes', metadata.newVersion/previousVersion)
+      right after the existing insert/retire logic, wrapped in the same
+      non-blocking try/catch posture as the two prior edge writers so a
+      graph-write failure can never break chain versioning itself. No
+      new migration -- entity_relationships already supports arbitrary
+      entity-type pairs, exactly like the first two edges.
+
+      Investigated and ruled out (honest no-go, not forced):
+        - dynamic_chain -> conversation: conversations.dynamicChainId
+          (Wave 161) exists but is explicitly documented as unwired --
+          no conversation-creation flow offers a Chain Selector step
+          yet, so there is no real chokepoint to hang an edge on.
+        - worker_agent -> capability (task_capabilities <-> worker_agent):
+          the only real chokepoint is capability-learning-service.ts's
+          findOrCreateCapability()/recordExecutionOutcome(), which is
+          explicitly Priority-12/13-adjacent per this session's own
+          scope exclusion and ai-os/boss/ACTIVE-CLAIMS.yaml's active
+          claim for that area -- deferred to whichever session owns it,
+          not attempted here.
+
+      Verified live via Supabase MCP (verdian-ai project,
+      pcrjmlpuqsbocqfwoxod): 0 dynamic_chains rows and 0
+      entity_relationships rows exist yet at all, so 0 historical rows
+      needed backfill -- forward-only by design, same posture Priority
+      10 documented for its own edge. tsc --noEmit clean, eslint clean
+      (0 errors, 3 pre-existing unrelated warnings), full bun test suite
+      green (1039 pass / 0 fail across 79 files). PR opened, not self-
+      merged per the standing 2026-07-13 procedure -- Super Boss to
+      audit and merge independently.
+
+  - priority: 15
+    name: "Priority 12 (Universal Builder, OPEN-07) -- CLOSED 2026-07-14, Owner-directed sole ownership, all 12 points accounted for"
+    summary: |
+      See OPEN-07 above for the full point-by-point detail and
+      ai-os/boss/COMPLETED.yaml's WAVE-177 for the full doer/auditor
+      record. Summary here for cross-reference only, not a duplicate
+      source of truth.
+
+      Owner instructed this session directly (in chat) to take Priority
+      12 through to full closure, superseding the prior OPEN-06 soft-gate
+      deferral and explicitly asking that any conflicts be resolved along
+      the way. 6 PRs merged (#282 pre-existing + #296/#297/#298/#299/#300
+      this session), 3 built directly by this session and 3 by dispatched
+      worktree-isolated sub-agents, every one personally audited by this
+      session before merge (Rule 7c, doer != auditor) -- none self-
+      certified. Real defects found and fixed during audit, not silently
+      merged: 3 separate cross-PR migration-number collisions (0190
+      independently claimed by PR #298, #299, and #300 -- renumbered to
+      0190/0191/0192 respectively) and one real rounding-boundary mismatch
+      between a Math.round()-based TS function and its own SQL backfill
+      (PR #298's audit comment has the brute-force verification). Honest
+      gap: point 9 of the Owner's original 12-point numbering was never
+      concretely itemized in this tracker's own detail (the list jumps
+      8 -> 10) -- flagged as a pre-existing gap in the original analysis,
+      not invented to force a clean 12-for-12 claim.
+
+  - priority: 16
+    name: "Priority 13 (PROJEXA PM-ERP integration): discovery lookups, Permits, Meetings/MOM, Kanban board, document auto-classification, self-serve ad-hoc BI"
+    summary: |
+      NUMBERING NOTE (resolved 2026-07-14): #15 was deliberately reserved
+      here for Priority 12's own closure entry -- filled in above as
+      closed_priorities #15 once the Super Boss session closed OPEN-07
+      in full, not just PR #285's point (8) piece this note originally
+      anticipated. Good cross-session coordination, not a stale gap.
+
+      See OPEN-08 above for the full corrected-gap-list history and
+      Owner-decision record; summary here for cross-reference only, not a
+      duplicate source of truth. Closed the same day execution started
+      (2026-07-14), per the Owner's explicit "you are the owner of
+      Priority 13 completion... dont stop till its complete" directive.
+
+      5 PRs merged across compliance-tracker and projexa, each
+      independently audited before merge (AGENTS.md Rule 7c/10 -- no
+      self-certification):
+        - compliance-tracker#290: document-classification-service.ts
+          (Paperless-ngx-style correspondent/matching-rule auto-tagging,
+          additive-only -- never overrides a human-set value) +
+          custom-chart-service.ts (self-serve ad-hoc BI MVP reusing
+          report-engine-service.ts's TABLE_REGISTRY, not a second query
+          engine). Required drizzle/0188 as a same-PR follow-up to
+          register its own 3 new tables in the asset registry.
+        - compliance-tracker#292 + projexa#4: /api/v1/projexa/
+          {fiscal-years,cost-centers,customers,sales-invoices,permits} --
+          thin aliases over erp-accounting-service.ts/erp-selling-
+          service.ts/erp-invoicing-service.ts/document-service.ts, same
+          convention as the existing 44 vendors-style routes -- plus
+          PROJEXA's Budget-form fiscal-year/cost-center pickers, a
+          Dashboard "Create/Link Invoice" dialog, and a new first-class
+          Permits page with red/amber/green expiry badges.
+          createSalesInvoice() extended to accept an apiKey actor (never a
+          session dbUser on PROJEXA's Bearer-token path).
+        - compliance-tracker#293 + projexa#5: /api/v1/projexa/
+          {meetings,board} -- deliberately no requirePmsEnabled() gate,
+          same precedent already established by schedule/gantt/route.ts
+          (PROJEXA customers buy construction PM, not the separate PMS
+          product) -- plus a PROJEXA Meetings/MOM page (agenda/outcomes/
+          participants) and a Kanban board view on Schedule (native HTML5
+          drag-and-drop + a "Move to..." dropdown fallback, optimistic
+          updates that revert on failure). PmsContext.dbUser widened to
+          optional/nullable on both pms-issue-service.ts and
+          pms-meeting-service.ts -- verified zero reads of ctx.dbUser
+          beyond the type declaration in the affected functions, so this
+          is a real type-narrowing fix, not a silent behavior change.
+          projexa#5 hit a real merge conflict against projexa#4's
+          AppSidebar.tsx (both PRs add a sibling nav icon) -- resolved by
+          keeping both icons, verified with a full bun run build before
+          merging (this repo has no CI configured, see
+          agent_access_and_tooling memory).
+      Item (7) BIM/IFC stays deliberately deferred per the Owner's own
+      "not needed, keep it in pending." Item (8) hygiene: confirmed no
+      parallel PROJEXA schema existed to retire (the pre-execution
+      correction already established 44/47 routes were already thin
+      proxies) -- one genuinely open loose end not addressed this wave:
+      system-tree/20-projexa.yaml wasn't updated, and
+      veridian-client.ts's flagged single-stubbed-API-credential MVP gap
+      wasn't re-verified.
+
+  - priority: 17
+    name: "GAP-UMR-TABLE-COVERAGE fourth batch (+23 tables, Super Boss direct)"
+    summary: |
+      A real fourth batch of 23 more named business-object tables onboarded
+      from the grandfather-exempted list onto the generic
+      auto_register_asset() trigger (drizzle/0193, following Priority 8/PR
+      #225's drizzle/0161, Priority 10/PR #237's drizzle/0171, and Priority
+      11/PR #242's drizzle/0184 pattern exactly): erp_accounts,
+      erp_cost_centers, erp_fiscal_years, erp_accounting_periods,
+      erp_budgets, erp_tax_templates, erp_item_groups, erp_asset_categories,
+      erp_salary_components, erp_subscription_plans, gst_gstin_master,
+      gst_hsn_master, gst_source_profiles, firm_invoices, pms_saved_views,
+      pms_estimate_schemes, pms_meetings, construction_categories,
+      construction_activities, construction_submittals,
+      construction_change_orders, fm_asset_categories, interior_materials --
+      spanning ERP Finance/HR, GST Engine, CA-Firm billing, PMS,
+      Construction, Interior Design, and Facilities so no single domain
+      dominates this pass. Two new judgment calls extended this batch's
+      discipline beyond the prior 3 batches' precedent: (1) gst_gstin_master
+      and gst_hsn_master are genuinely PLATFORM-WIDE (no org_id column --
+      shared reference/lookup caches every org reads the same rows from),
+      registered with org_column=NULL and name_column pointed at their own
+      NOT-NULL unique identifier (gstin, hsn_sac_code) rather than a
+      nullable display-name field; (2) erp_accounts.is_frozen and
+      erp_fiscal_years.is_closed are booleans that are the INVERSE of
+      "active" (true means frozen/closed, not active) -- force-fitting
+      either as active_column would have inverted the trigger's `= 'false'`
+      check and silently mismarked every genuinely active row as inactive,
+      so both are left NULL, extending the established enum-vs-boolean
+      discipline to inverse-boolean columns too. Applied live via the
+      Supabase MCP; 100 existing rows across 13 non-empty tables backfilled
+      via compliance.backfill_registered_assets() and verified live
+      afterward (102 active asset_registration_config rows, 306 trigger
+      rows i.e. 102 tables x 3 events, 100 new platform_assets rows for
+      exactly these 23 tables). ai-os/registry/asset-registry-coverage.yaml
+      updated to move all 23 tables from exempted to registered with real
+      per-table reasons; scripts/check-asset-registry-coverage.mjs run
+      locally and confirmed passing (102 registered / 303 exempted / 405
+      total, no missing/duplicate/weak-reason tables).
+
+      Deliberately NOT onboarded from this same investigation (reviewed and
+      rejected with a real reason, same discipline as the prior 3 batches):
+      board_meetings (classification defaults to 'board_only', same
+      confidentiality-sensitive shape as Priority 11's
+      related_party_transactions/posh_complaints/whistleblower_cases
+      exclusion); holiday_list_filings and it_dr_failover_tests (no single
+      genuine per-row display-name column -- state+year and
+      drPlanId+testDate are compound identities, same class as Priority
+      11's secretarial_audits/mca_filings exclusion); erp_sales_invoices,
+      erp_purchase_invoices, and all erp_*_items/erp_*_line_items tables
+      (reviewed but deliberately left for a future batch rather than
+      rubber-stamping the whole ERP module at once -- firm_invoices already
+      establishes the "named invoice header" precedent this batch needed);
+      pms_meeting_agenda_items/pms_meeting_outcomes/pms_meeting_participants
+      (no org_id column, scoped only via parent meetingId chain, same
+      cross-tenant-leak reasoning as Priority 4 domain B's
+      approval_workflow_step_* exclusions).
+
+      Stayed completely out of the concurrent Priority 12/13 (Universal
+      Builder + PROJEXA PM ERP integration, OPEN-07/OPEN-08) session's
+      active work per explicit instruction -- did not touch
+      orgProductBranchEnablements, requireBranchEnabled,
+      report-engine-service.ts, report-catalog-service.ts,
+      capability-audit-service.ts, capability-learning-service.ts, or the
+      PROJEXA repo, and deliberately deferred registering
+      erp_sales_invoices/erp_purchase_invoices/Sales-Engine-domain tables
+      (sales_partners, sales_commission_plans, sales_referrals, etc.) this
+      pass to avoid any file-touch overlap with that session's in-flight
+      report/branch-enablement work, even though some would otherwise have
+      qualified. Verified this worktree's branch was fast-forwarded onto
+      origin/main (which by then included that session's merged PRs #282
+      and #284) before starting, and re-synced with origin/main again
+      immediately before applying the migration -- no file-level collision
+      in either sync. tsc/eslint/full test suite run locally before opening the
+      PR (see PR description for exact pass/fail state at merge time -- not
+      self-merged, left for Super Boss's independent 8-field AUDIT: PASS/
+      FAIL review per the standing 2026-07-13 procedure).
+
+  - priority: 18
+    name: "VERI Reward end-to-end wiring audit (2026-07-14) -- AUDITED, FOUND COMPLETE, zero code changes"
+    summary: |
+      Dispatched to correct a stale memory-snapshot claim that VERI Reward
+      was "designed but not built." Verified against live code, not
+      memory: it IS built (src/lib/services/veri-reward-service.ts,
+      veri-reward-enablement-service.ts, schema.ts's 5 veri_reward_*
+      tables, src/app/(app)/rewards/page.tsx, all pre-existing from Wave
+      113 / PR #187 per git blame). This audit's real job was checking
+      whether it's actually WIRED to a live event, not just present as
+      dead code -- a prior 4-file sample check (task-execution-engine.ts,
+      chat-service.ts, fde-service.ts, recruitment-service.ts) had found
+      zero callers of awardPoints()/checkAndUnlockAchievements() and
+      flagged this as the likely real gap. That sample simply didn't
+      include the actual caller's file.
+
+      All 5 points verified with file:line evidence, no code changes
+      needed:
+        1. awardPoints()/checkAndUnlockAchievements() ARE called from a
+           real event: compliance-service.ts:281 (updateComplianceItem,
+           checks the 'first_compliance_item' achievement the instant a
+           compliance item's status flips to 'completed', added commit
+           7b5d1bf / PR #187, Jul 8) and auth-guard.ts:267-284
+           (autoProvisionUser's referral-signup bonus, points-only).
+           checkAndUnlockAchievements() itself calls awardPoints()
+           internally on first unlock (veri-reward-service.ts:174-183).
+           Not dead code. Secondary, smaller finding worth a future
+           follow-up: only 1 of the 5 platform-default achievement
+           definitions seeded in 0092_veri_reward.sql (first_compliance_
+           item) has any real caller -- login_streak_3, first_document_
+           upload, weekly_task_5, and onboarding_complete are seeded and
+           rendered on /rewards with real 0/target progress bars but
+           nothing in the codebase ever calls checkAndUnlockAchievements()
+           with those 4 keys, so they can never actually unlock. Flagged
+           as a spawn_task suggestion, not built here (out of this
+           audit's "verify wiring" scope, and not the zero-callers
+           pattern this task was dispatched to find/fix).
+        2. On-by-default DOES apply automatically to new orgs -- confirmed
+           at auth-guard.ts:154-172, a raw orgProductBranchEnablements
+           insert immediately after the organisations insert (not a call
+           to the named enableVeriRewardForOrg() helper, which requires
+           an admin dbUser that doesn't exist yet mid-signup -- same
+           pattern used for veri_chat_v2 right below it). Existing orgs
+           covered by 0098_veri_reward_branch.sql's backfill. Both paths
+           verified consistent with the migration's own "auto-enabled at
+           signup time in autoProvisionUser()" comment.
+        3. No real-cash referral bridge exists, and that's correct/
+           intentional, not an oversight: veri-reward-service.ts:354-355
+           and schema.ts:7792-7793 both explicitly comment "Boss decision
+           2026-07-08: no cash bridge into sales-engine-service.ts for
+           now" -- rewardPoints only, no currency column. The Sales
+           Engine's own cash-commission referral path
+           (recordReferralSignupAndOrgProvisioned, auth-guard.ts:232) is
+           a completely separate mechanism keyed off a different query
+           param (?ref= vs ?vref=), matching Owner decision #2 exactly
+           (cash only through Sales Engine's existing machinery, not
+           enabled day one).
+        4. No redemption mechanism exists anywhere -- confirmed by full-
+           repo search. 'redemption' appears only as a documented (unused)
+           sourceType string in veri_reward_points_ledger's schema comment
+           (schema.ts:7731) and veriRewardReferrals.paidAt is a schema
+           column that's declared but never set by any code path. Owner's
+           "Phase 5 not scheduled" decision is intact -- nothing to flag.
+        5. /rewards/page.tsx renders real data end-to-end: fetches
+           /api/veri-reward (getPointsBalance/listPointsHistory/
+           listAchievementsWithProgress/listStreaks), /api/veri-reward/
+           leaderboard (getOrgLeaderboard), and /api/veri-reward/referral
+           (getOrCreateReferralLink/listMyReferrals) -- all real service
+           calls, all gated through requireVeriRewardEnabled()/
+           isVeriRewardEnabledForOrg(), no mock/placeholder data found.
+
+      Claimed in ai-os/boss/ACTIVE-CLAIMS.yaml before starting (PR #306,
+      coordination-only). Worktree
+      .claude/worktrees/agent-veri-reward-audit /
+      feat/veri-reward-wiring-audit created but carries no functional
+      diff -- this MASTER-TRACKER.yaml entry is the only content change,
+      opened as its own PR per dispatch instructions, not merged by this
+      session.
+
+  - priority: 19
+    name: "Worker Agent Library Phase-1 auto-dispatch threshold correction + llm-response-cache wired into /api/ai/orchestrate"
+    summary: |
+      No formal OPEN-XX item existed for either half of this -- both were
+      Owner decisions locked 2026-07-10 (Worker Agent Library Phase 1
+      read-only auto-dispatch at similarity >=0.95; wiring the orphaned
+      llm-response-cache.ts into the other places that independently decide
+      whether to call an LLM) that were never dispatched to build, tracked
+      only in session memory, not this file. Dispatched by Super Boss
+      supervisor 2026-07-14 to a sub-agent; see ai-os/boss/COMPLETED.yaml
+      WAVE-178 for full file:line detail.
+
+      Item A investigation found real auto-dispatch already fully wired
+      (PR #51, predates this session) -- fde-service.ts's high-confidence
+      worker_agent match branch already reuses task-execution-engine.ts's
+      dispatchTool(), gated through purpose-bound-ai.ts's
+      DOMAIN_ALLOWED_TOOLS allowlist which already excludes every write
+      action by name. The only real gap: the shared threshold constant was
+      still the originally-proposed 0.9, not the Owner's corrected 0.95 --
+      fixed as a one-line change (fde-service.ts:41, now with a comment
+      explaining why the same constant gates both the no-LLM short-circuit
+      and the auto-dispatch branch together).
+
+      Item B investigation found genuine partial wiring: only fde-service.ts
+      and an internal loops route used callLLMJsonCached; chat-service.ts,
+      task-execution-engine.ts, and /api/ai/orchestrate/route.ts all called
+      the LLM directly. Applying the cache module's own documented safety
+      bar ("safe only where the caller has already judged the exact same
+      tuple is likely to repeat") to each: /api/ai/orchestrate/route.ts was
+      a genuine fit (event-driven, day-granular fields make same-day
+      duplicate calls plausible) and got wired. chat-service.ts and
+      task-execution-engine.ts's planning call were deliberately left
+      unwired for concrete architectural reasons (chat's cache key would
+      ignore conversation history and risk cross-conversation collisions;
+      task-execution-engine.ts's SyntaxError-retry logic would get
+      permanently defeated by a cached malformed response) -- not a
+      shortcut, a documented judgment call.
+
+      No new table/service/embedding pipeline/worker-agent runner created;
+      2 files touched, 34 lines changed. tsc --noEmit clean, lint 0 errors,
+      bun test 1098 pass / 0 fail. PR opened from
+      feat/worker-agent-dispatch-classify-audit, not self-merged, left for
+      Super Boss's independent audit per the standing procedure.

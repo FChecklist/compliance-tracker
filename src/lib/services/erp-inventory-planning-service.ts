@@ -14,6 +14,7 @@ import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { getItemValuation, recordStockReceipt, recordStockIssue } from "./erp-inventory-service"
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -27,6 +28,7 @@ export async function setReorderLevel(
   warehouseId: string | undefined,
   input: { reorderPoint: number; reorderQty: number; safetyStock?: number; minLevel?: number; maxLevel?: number }
 ) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const item = await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, itemId), eq(erpItems.orgId, ctx.orgId)) })
     if (!item) throw new ServiceError("Item not found", 404)
@@ -53,6 +55,7 @@ export async function setReorderLevel(
 }
 
 export async function listReorderLevels(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpReorderLevels.findMany({ where: eq(erpReorderLevels.orgId, ctx.orgId), with: { item: true, warehouse: true } })
   )
@@ -65,6 +68,7 @@ export type ReorderSuggestion = {
 
 /** Read-time comparison against the real FIFO stock balance -- never a fabricated forecast. Only items at or below their reorder point are returned. */
 export async function getReorderSuggestions(ctx: { orgId: string }): Promise<ReorderSuggestion[]> {
+  await requireErpEnabled(ctx.orgId)
   const levels = await listReorderLevels(ctx)
   const suggestions: ReorderSuggestion[] = []
   for (const level of levels) {
@@ -86,6 +90,7 @@ export async function getReorderSuggestions(ctx: { orgId: string }): Promise<Reo
 // ============================================================
 
 export async function computeAbcClassification(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     // Consumption value = sum of |qty| * valuation_rate for every issue
     // (negative quantity_change) this item has ever had -- the item's real
@@ -123,6 +128,7 @@ export async function computeAbcClassification(ctx: { orgId: string }) {
 }
 
 export async function listAbcClassifications(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpAbcClassifications.findMany({
       where: eq(erpAbcClassifications.orgId, ctx.orgId),
@@ -137,6 +143,7 @@ export async function listAbcClassifications(ctx: { orgId: string }) {
 // ============================================================
 
 export async function createCycleCountPlan(ctx: ErpContext, input: { warehouseId: string; name: string; scheduledDate?: string; itemIds: string[] }) {
+  await requireErpEnabled(ctx.orgId)
   if (!input.itemIds?.length) throw new ServiceError("At least one item is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
@@ -156,6 +163,7 @@ export async function createCycleCountPlan(ctx: ErpContext, input: { warehouseId
 }
 
 export async function listCycleCountPlans(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpCycleCountPlans.findMany({
       where: eq(erpCycleCountPlans.orgId, ctx.orgId),
@@ -166,6 +174,7 @@ export async function listCycleCountPlans(ctx: { orgId: string }) {
 }
 
 export async function getCycleCountPlan(ctx: { orgId: string }, planId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const plan = await db.query.erpCycleCountPlans.findFirst({
       where: and(eq(erpCycleCountPlans.id, planId), eq(erpCycleCountPlans.orgId, ctx.orgId)),
@@ -177,6 +186,7 @@ export async function getCycleCountPlan(ctx: { orgId: string }, planId: string) 
 }
 
 export async function recordCycleCount(ctx: { orgId: string; userId: string }, lineId: string, countedQty: number) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const line = await db.query.erpCycleCountLines.findFirst({ where: eq(erpCycleCountLines.id, lineId) })
     if (!line) throw new ServiceError("Cycle count line not found", 404)
@@ -189,6 +199,7 @@ export async function recordCycleCount(ctx: { orgId: string; userId: string }, l
 
 /** Posts the counted-vs-system variance through the same FIFO engine every other inventory movement uses -- never a bespoke adjustment table. */
 export async function postCycleCountAdjustment(ctx: ErpContext, lineId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const line = await db.query.erpCycleCountLines.findFirst({ where: eq(erpCycleCountLines.id, lineId) })
     if (!line) throw new ServiceError("Cycle count line not found", 404)

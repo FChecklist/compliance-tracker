@@ -15,6 +15,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMVision } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { autoClassifyDocument } from "@/lib/services/document-classification-service"
 
 const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 
@@ -94,6 +95,18 @@ export async function extractDocumentContent(
 
     await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
       db.update(documents).set({ extractedData: extracted }).where(eq(documents.id, ctx.documentId))
+    )
+
+    // Priority 13 (Document Correspondent/Type Auto-Classification): now
+    // that extracted text actually exists, run the content-based matching
+    // pass -- strictly additive (see applyClassificationWithDb), never
+    // overrides the filename-only pass that already ran at upload time
+    // (src/app/api/documents/route.ts) if that one already set something.
+    // Failure here must never turn a successful extraction into a failed
+    // orchestra_executions row -- caught and logged, not rethrown.
+    const extractedText = [extracted.summary, extracted.documentType, ...(extracted.parties ?? [])].filter(Boolean).join(" ")
+    await autoClassifyDocument({ orgId: ctx.orgId }, ctx.documentId, { extractedText }).catch((err) =>
+      console.error("Document auto-classification (content pass) failed:", err)
     )
 
     recordOrchestraExecution({

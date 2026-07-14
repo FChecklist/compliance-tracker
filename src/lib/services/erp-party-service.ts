@@ -8,6 +8,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+import { requireErpEnabled } from "./erp-enablement-service"
 
 export type PartyEntityType = "erp_customer" | "erp_supplier"
 
@@ -22,6 +23,7 @@ function assertEntityType(entityType: string): asserts entityType is PartyEntity
 // ============================================================
 
 export async function listAddresses(ctx: { orgId: string }, entityType: string, entityId: string) {
+  await requireErpEnabled(ctx.orgId)
   assertEntityType(entityType)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpAddresses.findMany({
@@ -37,6 +39,7 @@ export async function addAddress(
   entityId: string,
   input: { addressType?: string; line1: string; line2?: string; city?: string; state?: string; postalCode?: string; country?: string; isPrimary?: boolean }
 ) {
+  await requireErpEnabled(ctx.orgId)
   assertEntityType(entityType)
   if (!input.line1?.trim()) throw new ServiceError("line1 is required", 400)
 
@@ -56,6 +59,7 @@ export async function addAddress(
 }
 
 export async function deleteAddress(ctx: { orgId: string }, addressId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const address = await db.query.erpAddresses.findFirst({ where: and(eq(erpAddresses.id, addressId), eq(erpAddresses.orgId, ctx.orgId)) })
     if (!address) throw new ServiceError("Address not found", 404)
@@ -68,6 +72,7 @@ export async function deleteAddress(ctx: { orgId: string }, addressId: string) {
 // ============================================================
 
 export async function listContacts(ctx: { orgId: string }, entityType: string, entityId: string) {
+  await requireErpEnabled(ctx.orgId)
   assertEntityType(entityType)
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.erpContacts.findMany({
@@ -83,6 +88,7 @@ export async function addContact(
   entityId: string,
   input: { contactName: string; designation?: string; email?: string; phone?: string; isPrimary?: boolean }
 ) {
+  await requireErpEnabled(ctx.orgId)
   assertEntityType(entityType)
   if (!input.contactName?.trim()) throw new ServiceError("contactName is required", 400)
 
@@ -101,6 +107,7 @@ export async function addContact(
 }
 
 export async function deleteContact(ctx: { orgId: string }, contactId: string) {
+  await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const contact = await db.query.erpContacts.findFirst({ where: and(eq(erpContacts.id, contactId), eq(erpContacts.orgId, ctx.orgId)) })
     if (!contact) throw new ServiceError("Contact not found", 404)

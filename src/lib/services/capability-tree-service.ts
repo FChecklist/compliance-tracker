@@ -18,13 +18,14 @@
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
   workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
-  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments, savedReports,
+  gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments, savedReports, taskCapabilities,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { getUserChainUsageScores, applyUsageRanking } from "./chain-usage-ranking"
-import { and, eq, inArray, ne, asc, desc } from "drizzle-orm"
+import { and, eq, inArray, ne, asc, desc, or, isNull } from "drizzle-orm"
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./compliance-service"
-import { listReportCatalogByDomain, type ReportDomain } from "./report-catalog-service"
+import type { ReportDomain } from "./report-catalog-service"
+import { getFullReportCatalogByDomain } from "./report-engine-service"
 
 // The 6 real compliance_status enum values -- shown as clickable targets,
 // not a free-text field, so "update status" dispatch needs zero typing.
@@ -905,14 +906,20 @@ function genericProjectActions(projectId: string): CapabilityNode[] {
 // values (no fixed set to map routes onto), so branch nodes are always kept
 // regardless of scope -- narrowing those would need a real DB-backed
 // route<->branch link, not a static map, and is out of scope here.
+// Priority 12 (OPEN-07 points 3+7): "learned_capabilities" is added to
+// every scoped list below, not just some -- it's a cross-cutting
+// Dynamic-Chain/Chat catalog (what the platform has already learned to
+// classify), not tied to any one module's data the way compliance_item/
+// calculators/customer/vendor/reports are, so it stays visible regardless
+// of which page/module scope narrowed the rest of the tree.
 const MODULE_SCOPE_TOP_LEVEL_KEYS: Record<string, string[]> = {
-  compliance: ["compliance_item", "calculators"],
-  checklists: ["compliance_item", "calculators"],
-  "gst-reconciliation": ["gst_reconciliation", "calculators"],
-  "tds-returns": ["calculators"],
-  crm: ["customer", "vendor"],
-  erp: ["customer", "vendor", "product"],
-  reports: ["reports", "reports_analysis_catalog"],
+  compliance: ["compliance_item", "calculators", "learned_capabilities"],
+  checklists: ["compliance_item", "calculators", "learned_capabilities"],
+  "gst-reconciliation": ["gst_reconciliation", "calculators", "learned_capabilities"],
+  "tds-returns": ["calculators", "learned_capabilities"],
+  crm: ["customer", "vendor", "learned_capabilities"],
+  erp: ["customer", "vendor", "product", "learned_capabilities"],
+  reports: ["reports", "reports_analysis_catalog", "learned_capabilities"],
 }
 
 // Wave 173 (chain-integration for reports, "a new capability-tree leaf kind
@@ -973,8 +980,15 @@ const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
 // have no reportUrl/codeReference/engineKey set -- the same "falls through
 // to the AI-planning path" behavior every other non-deterministic leaf in
 // this file already has (e.g. buildBranchNodes' modsInDomain fallback).
-function buildReportCatalogNodes(): CapabilityNode[] {
-  const byDomain = listReportCatalogByDomain()
+// Priority 11 (2026-07-13): now async, backed by getFullReportCatalogByDomain()
+// -- merges the static REPORT_CATALOG (unchanged) with report_definitions
+// rows (the Reports & Analysis Engine's declarative substrate), so a new
+// report/analysis added as DATA (a report_definitions row) surfaces as a
+// Chain Selector pill automatically, with zero code change here -- the
+// literal "grows automatically as more gets registered" philosophy this
+// file already had for every other branch, now also true for the catalog.
+async function buildReportCatalogNodes(ctx: { orgId: string }): Promise<CapabilityNode[]> {
+  const byDomain = await getFullReportCatalogByDomain(ctx)
   const domainNodes: CapabilityNode[] = (Object.keys(byDomain) as ReportDomain[])
     .filter((domain) => byDomain[domain].length > 0)
     .map((domain) => ({
@@ -993,6 +1007,64 @@ function buildReportCatalogNodes(): CapabilityNode[] {
   return [{ key: "reports_analysis_catalog", label: "Reports & Analysis", leaf: false, children: domainNodes }]
 }
 
+// Priority 12 (OPEN-07 points 3+7, Owner directive 2026-07-14): before this,
+// task_capabilities (the Dynamic-Chain/Chat learning catalog -- see
+// capability-learning-service.ts's findOrCreateCapability()) had ZERO
+// reference anywhere in this file -- confirmed by grep before writing this.
+// Every capability the platform has already learned about was invisible to
+// the Chain Selector, so a user had no way to quickly re-select a
+// previously-seen request pattern; they'd re-type it and re-trigger full
+// classification every time. This surfaces them the same "grows
+// automatically as more gets registered, no hand-authored taxonomy" way
+// every other branch in this file already works.
+//
+// Deliberately NOT wired with a codeReference/engineKey/fixedInputs
+// shortcut that skips re-classification -- unlike report_definitions
+// (buildReportCatalogNodes) or a computation engine (buildCalculatorNodes),
+// a task_capabilities row has no single fixed dispatch target of its own
+// (it's a pattern-classification record, not a runnable action) -- see
+// findOrCreateCapability()'s own header for why capabilityKey is a
+// normalized prompt signature, not an executable reference. These leaves
+// therefore fall through to the same AI-planning path every other
+// non-deterministic leaf in this file already uses (e.g. buildBranchNodes'
+// modsInDomain fallback) -- selecting one pre-fills/breadcrumbs the known
+// pattern rather than bypassing classification. A real dispatch-shortcut
+// (recognize an exact-match capabilityKey and skip classifyTask()) is a
+// legitimate follow-up, out of scope here -- this closes the literal gap
+// stated in the tracker ("capability-tree-service.ts has zero reference to
+// task_capabilities"), not a deeper pipeline change.
+//
+// Scope: platform-wide rows (orgId IS NULL, the common case -- see
+// taskCapabilities' own schema comment) plus this org's own rows, ordered
+// by occurrenceCount desc (most-requested first, same "surface what's
+// actually used most" spirit as chain-usage-ranking.ts elsewhere in this
+// file) and capped at 50 to keep the tree bounded as the catalog grows.
+// Grouped by modePill (falling back to "General" for the null case) since
+// that's the one existing real grouping dimension on the row today.
+async function buildLearnedCapabilityNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
+  const rows = await db.query.taskCapabilities.findMany({
+    where: or(isNull(taskCapabilities.orgId), eq(taskCapabilities.orgId, orgId)),
+    columns: { id: true, capabilityKey: true, modePill: true, status: true, occurrenceCount: true },
+    orderBy: (t, { desc: descOrder }) => descOrder(t.occurrenceCount),
+    limit: 50,
+  })
+  if (rows.length === 0) return []
+
+  const byModePill = new Map<string, CapabilityNode[]>()
+  for (const row of rows) {
+    const groupKey = row.modePill ?? "General"
+    const leaves = byModePill.get(groupKey) ?? []
+    leaves.push({ key: `learned_capability::${row.id}`, label: row.capabilityKey, leaf: true })
+    byModePill.set(groupKey, leaves)
+  }
+
+  const groupNodes: CapabilityNode[] = Array.from(byModePill.entries()).map(([groupKey, leaves]) => ({
+    key: `learned_capability_group::${groupKey}`, label: groupKey, leaf: false, children: leaves,
+  }))
+
+  return [{ key: "learned_capabilities", label: "Learned Capabilities", leaf: false, children: groupNodes }]
+}
+
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
   const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
@@ -1003,8 +1075,9 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const gstReconciliationNodes = await buildGstReconciliationNodes(db, ctx.orgId)
     const constructionNodes = await buildConstructionNodes(db, ctx.orgId)
     const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
-    const reportCatalogNodes = buildReportCatalogNodes()
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes]
+    const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId })
+    const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes

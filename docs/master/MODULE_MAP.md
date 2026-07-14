@@ -229,20 +229,26 @@ Built incrementally, Waves 49-71 (see `orchestra_changes.md`). Grounded in ERPNe
 | **Services** | `knowledge-base-service.ts`, `automation-rule-service.ts`, `custom-report-service.ts`, `metric-alert-service.ts` |
 | **Pages** | `/knowledge-base`, `/automation`, `/reports` (Custom Reports section) — see "Reports & Analysis" below for the full cross-domain report catalog |
 
-## Reports & Analysis (unified catalog across all report-producing services)
+## Reports & Analysis Engine (Priority 11, Owner directive 2026-07-13)
 
-Report logic lives in 4 separate services with no single index of what actually
-exists — `report-catalog-service.ts` is that index: a data-only registry
-(`REPORT_CATALOG`), one entry per real report/analysis type, each with its
-domain, source function, real output formats, and the actual route it runs at
-today (honestly noting when that route is API-only or cron-gated, not a page).
+Report logic used to live in 4 separate hand-written services with no single
+index. Wave 173 added `report-catalog-service.ts` as a data-only index over
+those 4 services. Priority 11 goes further: a genuine ENGINE so new reports/
+analyses are added as DATA (a `report_definitions` row), not as new
+TypeScript per report — "without reworking and without duplicacy" per the
+Owner's own framing.
 
 | | |
 |---|---|
-| **Catalog** | `src/lib/services/report-catalog-service.ts` — `REPORT_CATALOG` (26 entries across 5 domains: compliance/ERP/construction/AI-ops/custom) |
-| **Source services** | `custom-report-service.ts` (1 generic entry — user-authored saved queries), `erp-financial-report-service.ts` (Trial Balance/P&L/Balance Sheet/Cash Flow — 4 entries), `construction-reports-service.ts` (17 PROJEXA reports), `ai-performance-report-service.ts` + `report-cadence-service.ts` (AI Performance/Escalations/Recommendations/Risk-Trends — 4 entries, cron-only) |
-| **Pages** | `/reports` (Report & Analysis Catalog section, `ReportCatalogList.tsx`, links out to each entry's real route), `/erp/reports` (Trial Balance/P&L/Balance Sheet/Cash Flow tabs), `/reports#custom-reports` (Custom Reports) |
-| **Chain integration** | `capability-tree-service.ts`'s `buildReportCatalogNodes()` surfaces a "Reports & Analysis" branch (grouped by domain) in the Dynamic Chain Options Selector (`ChainSelector.tsx`) — only entries with a directly-navigable, no-required-params route get wired as a clickable leaf; the rest (construction API-only reports, cron-only AI-ops reports) still appear as leaves but fall through to the normal AI-planning path |
+| **Taxonomy** | `src/lib/services/report-taxonomy.ts` — 3 independent axes every definition tags itself with: **category** (7 values: software report/analysis, software+AI partial, AI analysis, AI-promoted report/analysis, external/ingested), **classifications** (open list — executive/financial/hr/sales/predictive/...), **periodicity** (15 base values, hourly through custom-range/year-to-date, each pairing with a `PeriodicityConfig` for specific clock times/day-of-week/day-of-month/date-range rather than exploding into one enum value per cadence) |
+| **Declarative substrate** | `compliance.report_definitions` table (`drizzle/0180_report_engine_taxonomy.sql`) — one row per report/analysis, `orgId` nullable (null = platform-wide, real value = org-specific), 4 `executionType`s: `deterministic_aggregation` (generic group-by via `runAggregation()`), `deterministic_formula` (named pure function in `FORMULA_REGISTRY` — SPI/CPI/Project Health Index seeded, all honestly documenting their simplifying assumptions), `ai_recipe` (grounded LLM call, re-run fresh every time — never a frozen snapshot), `external_service` (a passthrough marker for reports still served by their existing hand-written implementation) |
+| **Engine** | `src/lib/services/report-engine-service.ts` — `executeReportDefinition()` is the ONE dispatcher every definition runs through; `promoteAiAnalysisToDefinition()` is the literal "AI made it, put in system with software, next time software will make it" mechanism (Category 5/6) |
+| **Catalog (merged)** | `src/lib/services/report-catalog-service.ts` — `REPORT_CATALOG` (26 static, code-level entries, now tagged with the same taxonomy) plus `getFullReportCatalog()`/`getFullReportCatalogByDomain()`, which merge in every live `report_definitions` row so both sources appear as one list to every caller |
+| **Source services** | `custom-report-service.ts`, `erp-financial-report-service.ts`, `construction-reports-service.ts` (17 PROJEXA reports), `ai-performance-report-service.ts` + `report-cadence-service.ts` — unchanged, still real, still cataloged as `external_service`-equivalent entries |
+| **Pages** | `/reports` (top-level left-rail "REPORTS & ANALYSIS" section, promoted from the TOOLS section per the Owner's "top 5 items" instruction — `ReportCatalogList.tsx`), `/erp/reports`, `/reports#custom-reports` |
+| **API** | `GET/POST /api/reports/definitions`, `PATCH/DELETE /api/reports/definitions/[id]`, `POST /api/reports/definitions/[id]/run` (executes via the engine dispatcher) |
+| **Scheduling** | `report_schedules` (Wave 173) extended with `timesOfDay`/`startDate`/`endDate` so the same table expresses the full periodicity list, not just daily/weekly/monthly; its cron (`vercel.json`) is now hourly (was once-daily) so multi-times-a-day/specific-clock-time schedules are actually deliverable |
+| **Chain integration** | `capability-tree-service.ts`'s `buildReportCatalogNodes()` is now async, backed by `getFullReportCatalog()` — a new `report_definitions` row surfaces as a Chain Selector pill automatically, zero code change, matching this file's existing "grows automatically" philosophy for every other branch |
 
 ## Facility Management (`facilities_management` product branch)
 

@@ -308,6 +308,78 @@ export const documents = complianceSchemaDB.table('documents', {
   // same reasoning already applied to `category` itself being free text
   // instead of an enum. Follows the extractedData precedent directly above.
   metadata: jsonb('metadata'),
+  // Priority 13 (Document Correspondent/Type Auto-Classification,
+  // Paperless-ngx pattern): `category` above already covers Paperless-ngx's
+  // "DocumentType" concept (nullable free text, advisory) -- this wave does
+  // NOT fork that into a parallel entity table. `correspondentId` is the
+  // genuinely missing half: WHO sent/issued the document (a vendor, a
+  // government department, a bank), which nothing in this schema modeled
+  // before. Nullable FK to document_correspondents (below), ON DELETE SET
+  // NULL in the migration -- deleting a correspondent must never delete or
+  // orphan-break the documents it was linked to.
+  correspondentId: text('correspondent_id'),
+  // string[] -- unlike category (single value), a document can carry
+  // multiple tags. Auto-classification (document-classification-service.ts)
+  // only ever UNIONS into this array, never removes a tag a human added.
+  tags: jsonb('tags').notNull().default([]),
+  // True only when document-classification-service.ts's rule engine set
+  // category/correspondentId on this row (never when a human explicitly
+  // set them at upload/edit time) -- the honesty signal a UI needs to show
+  // "auto-tagged, please confirm" instead of silently presenting a rule's
+  // guess as if a person had typed it.
+  autoClassified: boolean('auto_classified').notNull().default(false),
+})
+
+// Priority 13 (Document Correspondent/Type Auto-Classification): a real,
+// user-managed correspondent register -- "Acme Bank", "GST Department",
+// "XYZ Vendor Pvt Ltd" -- that document_matching_rules (below) can target,
+// and documents.correspondentId (above) can point at. Deliberately NOT
+// forking documents.category into a parallel "document type" entity table
+// (see that column's own comment) -- correspondent is the one Paperless-ngx
+// concept this codebase genuinely had no equivalent for.
+export const documentCorrespondents = complianceSchemaDB.table('document_correspondents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// 'any_word'/'all_words'/'exact' are plain (case-insensitive) substring
+// matches against a whitespace-split pattern; 'regex' runs the pattern as a
+// real (case-insensitive) JS RegExp -- the exact 4-algorithm vocabulary
+// Paperless-ngx's own matching rules use, kept deliberately small and
+// deterministic (no AI call) for this MVP.
+export const documentMatchingRuleTypeEnum = complianceSchemaDB.enum('document_matching_rule_type', ['any_word', 'all_words', 'exact', 'regex'])
+// 'both' (the default) checks the filename first, then the extracted text if
+// the filename alone didn't match -- see document-classification-service.ts's
+// evaluateRule(). 'content' rules only ever match after Document AI vision
+// extraction has actually populated extractedData (image uploads only, see
+// document-extraction-service.ts) -- until then they simply never match,
+// which is a real, disclosed limitation, not a silent failure.
+export const documentMatchingRuleFieldEnum = complianceSchemaDB.enum('document_matching_rule_field', ['filename', 'content', 'both'])
+
+// Org-scoped matching rules, evaluated in `priority` order (lowest first,
+// first match wins -- same "first matching rule wins" semantics as
+// Paperless-ngx, not "merge every match", so a user's rule list stays
+// predictable and explainable). Each rule sets at least one of
+// targetCorrespondentId/targetCategory/targetTags -- enforced by
+// validateMatchingRuleInput() in document-classification-service.ts, not a
+// DB constraint (matches this codebase's existing validate-then-throw
+// convention elsewhere, e.g. report-taxonomy.ts).
+export const documentMatchingRules = complianceSchemaDB.table('document_matching_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  matchField: documentMatchingRuleFieldEnum('match_field').notNull().default('both'),
+  ruleType: documentMatchingRuleTypeEnum('rule_type').notNull(),
+  pattern: text('pattern').notNull(),
+  priority: integer('priority').notNull().default(100),
+  targetCorrespondentId: text('target_correspondent_id'),
+  targetCategory: text('target_category'),
+  targetTags: jsonb('target_tags'), // nullable string[] -- null/empty means this rule doesn't add any tags
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── Compliance Costs (Wave 7) ───────────────────────────────────────────
@@ -3876,13 +3948,75 @@ export const savedReports = complianceSchemaDB.table('saved_reports', {
 export const reportSchedules = complianceSchemaDB.table('report_schedules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
-  reportId: text('report_id').notNull(), // e.g. a savedReports.id, or one of report-cadence-service.ts's 3 known keys: 'escalations' | 'recommendations' | 'risk_trends'
-  cadence: text('cadence').notNull(), // 'daily' | 'weekly' | 'monthly'
-  dayOfWeek: integer('day_of_week'), // 0 (Sunday) - 6 (Saturday); only meaningful/required when cadence = 'weekly'
-  dayOfMonth: integer('day_of_month'), // 1-31; only meaningful/required when cadence = 'monthly' (clamped to the real last day of shorter months at run time)
+  reportId: text('report_id').notNull(), // e.g. a savedReports.id, a reportDefinitions.id, or one of report-cadence-service.ts's 3 known keys: 'escalations' | 'recommendations' | 'risk_trends'
+  cadence: text('cadence').notNull(), // report-taxonomy.ts PERIODICITY_BASE_VALUES (was a closed 3-value 'daily'|'weekly'|'monthly' set pre-Priority-11; kept as free text, not a DB enum, so the vocabulary can grow without a migration)
+  dayOfWeek: integer('day_of_week'), // 0 (Sunday) - 6 (Saturday); required for weekly/biweekly/fortnightly
+  dayOfMonth: integer('day_of_month'), // 1-31; required for monthly/bimonthly/quarterly/half_yearly/yearly/biyearly (clamped to the real last day of shorter months at run time)
+  // Priority 11 (2026-07-13): 3 additive columns so the same 3-cadence
+  // scheduler can express the Owner's full periodicity list (hourly through
+  // custom-range) -- see report-taxonomy.ts's PeriodicityConfig. All
+  // nullable; every pre-existing row leaves them null and behaves exactly
+  // as before.
+  timesOfDay: jsonb('times_of_day'), // string[] of "HH:MM" 24h UTC -- only meaningful for hourly/daily; empty/null = fires once at the cron's own default time
+  startDate: date('start_date', { mode: 'string' }), // required for periodicity 'custom_range'
+  endDate: date('end_date', { mode: 'string' }), // required for periodicity 'custom_range'
   recipientUserIds: jsonb('recipient_user_ids').notNull().default([]), // string[]
   createdBy: text('created_by').notNull(),
   isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Report & Analysis Engine Definitions (Priority 11, Owner directive
+// 2026-07-13, drizzle/0180_report_engine_taxonomy.sql) ────────────────────
+// The declarative substrate the "Report & Analysis Engine" is built on --
+// see report-engine-service.ts's header for the full design rationale.
+// orgId nullable, same convention as platformAssets/taskCapabilities: null
+// = a platform-wide definition (available to every org, the DB-backed
+// equivalent of report-catalog-service.ts's static REPORT_CATALOG entries);
+// a real orgId = an org-specific definition (e.g. one an org's AI report
+// builder promoted into a reusable row).
+export const reportDefinitions = complianceSchemaDB.table('report_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // nullable = platform-wide
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  category: text('category').notNull(), // report-taxonomy.ts ReportCategory (7 values)
+  classifications: jsonb('classifications').notNull().default([]), // string[], report-taxonomy.ts KNOWN_CLASSIFICATIONS (open list)
+  periodicity: text('periodicity'), // null = on_demand/ad-hoc; report-taxonomy.ts PeriodicityBase
+  periodicityConfig: jsonb('periodicity_config'), // report-taxonomy.ts PeriodicityConfig
+  executionType: text('execution_type').notNull(), // 'deterministic_aggregation' | 'deterministic_formula' | 'ai_recipe' | 'external_service'
+  executionConfig: jsonb('execution_config').notNull(), // shape depends on executionType, see report-engine-service.ts
+  outputFormats: jsonb('output_formats').notNull().default(["table"]),
+  status: text('status').notNull().default('built'), // 'built' | 'data_gap' | 'planned'
+  dataGapNote: text('data_gap_note'), // required explanation when status != 'built'
+  createdBy: text('created_by').notNull().default('system'), // 'system' | 'ai' | a real users.id
+  promotedFromContext: text('promoted_from_context'), // free-text traceability pointer when createdBy='ai', not a FK
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Custom Charts (Priority 13, self-serve ad-hoc BI/chart-builder MVP) ──
+// Deliberately NOT a new row shape in report_definitions above -- that table
+// is the curated, platform-or-org catalog of named reports/analyses
+// (report-taxonomy.ts's 7-category system); an ad-hoc chart a business user
+// throws together in 30 seconds is a different lifecycle (private, quickly
+// created/discarded, never appears in the report catalog) and mixing the two
+// would force every ad-hoc chart through report-taxonomy.ts's
+// category/classification/periodicity vocabulary for no real benefit. This
+// table is intentionally thin: aggregationConfig reuses report-engine-
+// service.ts's own AggregationConfig shape verbatim (tableKey/groupByColumn/
+// aggregation/aggregationColumnKey/filterEquals) and is executed through
+// that same file's runAggregationFromConfig() -- no second query engine, no
+// second table whitelist (TABLE_REGISTRY is reused as-is).
+export const customCharts = complianceSchemaDB.table('custom_charts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  chartType: text('chart_type').notNull().default('bar'), // 'bar' | 'line' | 'pie' | 'table'
+  aggregationConfig: jsonb('aggregation_config').notNull(), // report-engine-service.ts AggregationConfig shape (kind:'aggregation', tableKey, groupByColumn?, aggregation, aggregationColumnKey?, filterEquals?)
+  createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -8753,7 +8887,23 @@ export const capabilityImprovementProposals = complianceSchemaDB.table('capabili
   status: text('status').notNull().default('open'), // 'open' | 'dispatched' | 'resolved' | 'rejected'
   dispatchedToRole: text('dispatched_to_role'),
   dispatchedAt: timestamp('dispatched_at'),
+  // Priority 12 (OPEN-07 decision a, drizzle/0189): the advisory-only
+  // runRole() dispatch path (advisory-dispatch-service.ts) this now goes
+  // through never opens a PR by itself -- its real output is the model's
+  // advisory text, persisted here so a human has a real, queryable artifact
+  // to review instead of a bare 'dispatched' status flag with the response
+  // thrown away.
+  dispatchOutput: text('dispatch_output'),
   prUrl: text('pr_url'),
+  // Priority 12 (OPEN-07 point 5, migration 0190): the 'rejected' status
+  // value was already in the CHECK constraint (migration 0156) but had no
+  // real write path anywhere -- closeImprovementLoop() only ever wrote
+  // 'resolved'. rejectionReason is the human-facing counterpart to prUrl
+  // above: prUrl records WHY a 'resolved' row is closed (the merged fix);
+  // this records WHY a 'rejected' row is closed (the Auditor's finding was
+  // looked at and deliberately not acted on), so the closed-loop record
+  // stays meaningful either way instead of a bare status flip.
+  rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

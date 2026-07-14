@@ -82,6 +82,7 @@ See the new rows for both, plus `ai-os/BRAIN.md`, in the table below.
 
 | Doc | Tag | What it is |
 |---|---|---|
+| [`docs/ESCALATION_MATRIX.md`](../ESCALATION_MATRIX.md) | 🆕 | Priority 12 (OPEN-07 point 10) reference doc — names all 5 real, independently-built escalation mechanisms (`escalation-ladder.ts`, `floor-tier-escalation.ts`, `model-tier-eligibility.ts`, the Auditor→Higher-AI loop, `dispatch-completion-monitor.ts`'s fail-closed pattern), what triggers each and what it does, and is explicit about where they do NOT connect. Cross-reference only, not a redesign. |
 | [`docs/AI_WORKFORCE.md`](../AI_WORKFORCE.md) | 🟢 | How a task becomes a reviewed PR via the AI Router → 10-role roster → `repository_dispatch` → sandboxed execution (max 20 turns, no shell) → human-reviewed PR. |
 | [`docs/research/VERI_MAIL_CALENDAR_PLAN.md`](../research/VERI_MAIL_CALENDAR_PLAN.md) | 🟠 | Composio Gmail/Calendar OAuth plan. **Recommended, not built** — verify current status before citing as done. |
 | [`docs/research/VERI_REWARD_EVALUATION.md`](../research/VERI_REWARD_EVALUATION.md) | 🔴 | Gamification architecture recommendation. **Superseded** — VERI Reward is now actually built (`veri-reward-service.ts`, live). |

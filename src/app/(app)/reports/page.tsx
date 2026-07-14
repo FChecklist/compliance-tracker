@@ -41,6 +41,7 @@ import { ComplianceChart, type DeptData } from "@/components/ui/compliance-chart
 import { DataTable } from "@/components/ui/data-table";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import CustomReportsSection from "@/components/CustomReportsSection";
+import CustomChartBuilder from "@/components/CustomChartBuilder";
 import ReportCatalogList from "@/components/ReportCatalogList";
 
 type ComplianceItem = {
@@ -607,6 +608,14 @@ export default function ReportsPage() {
       <Suspense fallback={<div className="text-sm text-ct-muted">Loading reports...</div>}>
         <CustomReportsSection />
       </Suspense>
+
+      {/* Priority 13 (Self-Serve Ad-Hoc BI / Chart-Builder, MVP scope):
+          distinct from CustomReportsSection above -- reuses the newer,
+          larger TABLE_REGISTRY (28+ tables, report-engine-service.ts) with
+          count/sum/avg aggregation instead of CustomReportsSection's
+          count-only GROUP_BY_FIELDS (5 tables). See custom-chart-
+          service.ts / CustomChartBuilder.tsx. */}
+      <CustomChartBuilder />
 
       {/* Unified Reports & Analysis catalog -- report-catalog-service.ts.
           New, additive section: lists every report type across the 4
