@@ -1955,3 +1955,99 @@ entries:
         34 lines changed. bunx tsc --noEmit clean, `bun run lint` 0 errors
         (3 pre-existing unrelated warnings), `bun test` 1098 pass / 0 fail
         across 83 files.
+
+  - id: WAVE-179
+    title: "VERI Reward remaining-achievements wiring -- 4/4 of the achievement keys PR #307's audit flagged as never-callable now have real call sites"
+    doer:
+      agent: "claude-code (sub-agent, worktree feat/veri-reward-remaining-achievements), dispatched by Super Boss supervisor"
+      date: "2026-07-14"
+      pr: "TBD -- see PR opened from feat/veri-reward-remaining-achievements"
+      summary: >
+        Follow-up to PR #307's audit (MASTER-TRACKER.yaml priority 18),
+        which confirmed VERI Reward's core wiring was already complete but
+        flagged, as a secondary finding, that only 1 of the 5 seeded
+        platform-default achievement definitions (first_compliance_item)
+        had any real caller -- login_streak_3, first_document_upload,
+        weekly_task_5, and onboarding_complete were seeded and rendered on
+        /rewards with real 0/target progress bars that could never reach
+        100%. This wave wired all 4, each at a real, individually-confirmed
+        chokepoint -- none of the task brief's suggested file paths were
+        assumed correct without checking the actual code first.
+
+        1. login_streak_3 (src/lib/services/veri-reward-service.ts,
+           recordStreakCheckIn()): confirmed the real trigger chain first --
+           src/app/(app)/rewards/page.tsx fires a fire-and-forget POST to
+           /api/veri-reward/streak with streakKey='daily_login' on every
+           page visit, which calls recordStreakCheckIn() via
+           streak/route.ts. Added a check right after the streak's
+           currentCount is computed: when streakKey === 'daily_login' and
+           currentCount === 3 (the exact threshold crossing, not every day
+           after), calls checkAndUnlockAchievements(). Wrapped in try/catch,
+           logged on failure, never blocks the actual streak check-in.
+
+        2. first_document_upload (src/app/api/documents/route.ts, POST):
+           confirmed this is the one real upload chokepoint by reading
+           document-service.ts in full -- no parallel insert path into the
+           documents table exists. No existing per-user document count was
+           found to reuse (document-service.ts's queries are all org-scoped
+           listings, not per-uploader counts), so a narrowly-scoped
+           count(*) against (org_id, uploaded_by_id) was added inline
+           inside the same withTenantContext block as the insert; fires the
+           achievement check when the count is exactly 1. Wrapped in
+           try/catch, never blocks the actual upload.
+
+        3. weekly_task_5 (src/lib/services/compliance-service.ts,
+           updateComplianceItem()): reused the same status==='completed'
+           chokepoint the pre-existing first_compliance_item check already
+           uses, but as a clearly separate block placed AFTER the
+           db.update() call (not merged into the first_compliance_item
+           block, and not before the write like that block is -- the
+           weekly count needs this item's own completion to already be
+           persisted to count correctly). compliance_items has no
+           completedById column, so "this user's completions" is
+           approximated via assignedToId -- documented in-code as a real
+           design tradeoff, not silently assumed. Added
+           drizzle/0194_weekly_task_completion_index.sql (composite index
+           on org_id, assigned_to_id, status, completed_at) so the weekly
+           count is an indexed range scan, not a full table scan -- not yet
+           applied to the live DB by this session (file-only, matching
+           this repo's existing convention of migration files being
+           applied separately; see PR body for the explicit flag). Fires
+           checkAndUnlockAchievements() with incrementBy=5 exactly when the
+           real weekly count reaches 5, immediately satisfying the
+           definition's targetValue=5 in one atomic call rather than
+           silently drifting into a lifetime-count semantic the
+           "this week" framing doesn't intend.
+
+        4. onboarding_complete (src/lib/supabase/auth-guard.ts sets
+           onboardingCompleted: false at signup; src/app/api/me/
+           onboarding-stage/route.ts and src/components/
+           OnboardingChecklist.tsx): this one was a genuine gap, not just
+           an unwired achievement -- confirmed by a full-repo search that
+           users.onboardingCompleted was NEVER flipped to true anywhere in
+           production code before this change (only a test fixture set it
+           true). A separate onboarding_steps DB table exists in schema.ts
+           but is completely dead code (zero reads or writes anywhere in
+           the app) -- deliberately not reused, per the instruction not to
+           invent/adopt a parallel tracking mechanism. Instead wired at the
+           one real, already-existing sync point: OnboardingChecklist.tsx
+           already PATCHes /api/me/onboarding-stage on every step toggle
+           and already computes, client-side, whether all 4 steps are now
+           done (STEPS.length comparison). That same boolean is now also
+           sent as `allComplete`; the route persists
+           onboardingCompleted=true only when true, then fires
+           checkAndUnlockAchievements() inside a fresh withTenantContext
+           (the route previously used raw, non-tenant-scoped db). Wrapped
+           in try/catch, never blocks the actual onboarding-stage sync.
+
+        None of the 5 veri_reward_* tables or checkAndUnlockAchievements()
+        itself were touched or rebuilt, per the task's explicit
+        constraint -- this wave is 4 new call sites plus one supporting
+        index, nothing else. No redemption/cash-payout mechanism was built
+        (still explicitly out of scope per the Owner's 2026-07-10
+        decision, unaffected by this wave). bunx tsc --noEmit clean,
+        `bun run lint` 0 errors (3 pre-existing unrelated warnings),
+        `bun run build` succeeded, `bun test` 1098 pass / 0 fail across 83
+        files (no test file needed new/changed assertions -- none of the 4
+        call sites had prior test coverage of the achievement-check branch
+        itself, same as the pre-existing first_compliance_item wiring).

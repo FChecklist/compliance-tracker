@@ -47,6 +47,29 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Wire 4 remaining VERI Reward achievement checks"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Follow-up to PR #307's audit (MASTER-TRACKER.yaml priority 18). Wired
+      all 4 of the achievement keys that audit flagged as seeded but never
+      callable: login_streak_3 (veri-reward-service.ts's
+      recordStreakCheckIn(), fires at the real daily-login streak's
+      currentCount===3), first_document_upload (documents/route.ts's POST,
+      a narrowly-scoped count(*) since no reusable per-user count existed),
+      weekly_task_5 (compliance-service.ts's updateComplianceItem(), a new
+      block separate from the pre-existing first_compliance_item check,
+      backed by a new drizzle/0194 composite index), and onboarding_complete
+      (a genuine gap, not just unwired -- confirmed by full-repo search
+      that users.onboardingCompleted was never flipped true anywhere in
+      production code before this change; wired at the one real existing
+      sync point, /api/me/onboarding-stage + OnboardingChecklist.tsx's
+      already-computed "all steps done" boolean). 4/4 wired, none skipped.
+      bunx tsc --noEmit clean, lint 0 errors, build succeeded, bun test
+      1098 pass / 0 fail. See ai-os/boss/COMPLETED.yaml WAVE-179 and
+      MASTER-TRACKER.yaml priority 18 status_update for full detail. PR
+      opened from feat/veri-reward-remaining-achievements, not merged by
+      this session per standing dispatch instructions.
+
   - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
