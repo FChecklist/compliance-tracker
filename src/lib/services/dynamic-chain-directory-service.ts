@@ -122,7 +122,7 @@ export async function createChainVersion(
   orgId: string,
   userId: string,
   existingChainId: string,
-  updates: Partial<{ description: string; moduleRef: string; linkedModuleRefs: unknown[]; businessRules: unknown; permissions: unknown; workflowRef: string; aiBehaviorRef: string; reportsKpisSlas: unknown }>
+  updates: Partial<{ description: string; moduleRef: string; linkedModuleRefs: unknown[]; businessRules: unknown; permissions: unknown; workflowRef: string; aiBehaviorRef: string; reportsKpisSlas: unknown; linkedApprovalWorkflowIds: unknown[]; governanceNotes: string; deprecationReason: string; monitoringRules: unknown }>
 ): Promise<CreateChainVersionResult> {
   return withTenantContext({ orgId, userId }, async (db) => {
     const existing = await db.query.dynamicChains.findFirst({ where: and(eq(dynamicChains.id, existingChainId), eq(dynamicChains.orgId, orgId)) })
@@ -144,6 +144,15 @@ export async function createChainVersion(
       workflowRef: updates.workflowRef ?? existing.workflowRef,
       aiBehaviorRef: updates.aiBehaviorRef ?? existing.aiBehaviorRef,
       reportsKpisSlas: updates.reportsKpisSlas ?? existing.reportsKpisSlas,
+      // Fix (follow-up to Priority 14's GAP-DCMD rich-schema slice, which
+      // noticed but deliberately deferred this): these 4 pre-existing
+      // dynamic_chains fields were missing from the copy-forward set above,
+      // so every new chain version silently reset them to null/default
+      // instead of carrying forward from the version being superseded.
+      linkedApprovalWorkflowIds: updates.linkedApprovalWorkflowIds ?? existing.linkedApprovalWorkflowIds,
+      governanceNotes: updates.governanceNotes ?? existing.governanceNotes,
+      deprecationReason: updates.deprecationReason ?? existing.deprecationReason,
+      monitoringRules: updates.monitoringRules ?? existing.monitoringRules,
       version: nextVersion,
       previousVersionId: existing.id,
     }).returning()
