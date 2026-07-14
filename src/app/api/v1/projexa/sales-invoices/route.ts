@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { listSalesInvoicesPaged, createSalesInvoice, ServiceError, type SalesInvoiceItemInput } from "@/lib/services/erp-invoicing-service"
 
-function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: string; customer?: { customerName: string } | null; postingDate: string; dueDate: string | null; grandTotal: string; outstandingAmount: string; status: string; items?: { id: string; description: string; quantity: string; rate: string; amount: string }[] }) {
+function toInvoiceShape(inv: { id: string; invoiceNumber: number; customerId: string; customer?: { customerName: string } | null; salesOrderId: string | null; postingDate: string; dueDate: string | null; grandTotal: string; outstandingAmount: string; status: string; items?: { id: string; description: string; quantity: string; rate: string; amount: string }[] }) {
   return {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber,
