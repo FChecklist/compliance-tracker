@@ -1314,6 +1314,54 @@ closed_priorities:
       opened as its own PR per dispatch instructions, not merged by this
       session.
 
+    status_update: |
+      2026-07-14: CLOSED, 4/4. Follow-up dispatch wired all 4 of the
+      remaining achievement keys this audit flagged as never-callable
+      (point 1's secondary finding above) -- login_streak_3,
+      first_document_upload, weekly_task_5, onboarding_complete. All 4
+      now have real chokepoints, confirmed by direct investigation, not
+      assumed from this audit's guesses:
+        - login_streak_3: veri-reward-service.ts's recordStreakCheckIn(),
+          fires when streakKey='daily_login' and currentCount reaches 3.
+          Real call chain confirmed: rewards/page.tsx fires POST
+          /api/veri-reward/streak on every page visit (fire-and-forget,
+          streakKey='daily_login') -> streak/route.ts ->
+          recordStreakCheckIn().
+        - first_document_upload: src/app/api/documents/route.ts's POST
+          handler (the real upload chokepoint -- confirmed via
+          document-service.ts, which has no parallel/bypassing insert
+          path). No existing per-user document count to reuse, so a
+          narrowly-scoped count(*) against (org_id, uploaded_by_id) was
+          added inline, fired when it equals 1.
+        - weekly_task_5: compliance-service.ts's updateComplianceItem(),
+          right after the existing status='completed' write (a separate
+          block from the pre-existing first_compliance_item check, not
+          merged into it). No completedById column exists on
+          compliance_items, so "this user's tasks" is approximated via
+          assignedToId -- the closest real signal without inventing a
+          parallel tracking mechanism. Backed by a new index
+          (drizzle/0194_weekly_task_completion_index.sql on org_id,
+          assigned_to_id, status, completed_at) so the weekly count stays
+          an indexed range scan.
+        - onboarding_complete: genuine gap found here -- users.
+          onboardingCompleted is set false at signup (auth-guard.ts) but,
+          confirmed by full-repo search, was NEVER flipped to true
+          anywhere in production code before this PR (only a test
+          fixture set it true). The separate onboarding_steps DB table is
+          unrelated dead code (defined in schema.ts, zero reads/writes
+          anywhere) -- not reused. Instead, wired at the one real existing
+          sync point: OnboardingChecklist.tsx already PATCHes
+          /api/me/onboarding-stage on every step toggle; that route now
+          also accepts the client's already-computed "all 4 steps done"
+          boolean and, only then, persists onboardingCompleted=true and
+          fires the achievement check.
+
+      PR (not yet merged by this session, per standing dispatch
+      instructions): see ai-os/boss/COMPLETED.yaml for the WAVE entry and
+      ACTIVE-CLAIMS.yaml recently_completed for the claim closure.
+      Priority 18 is now fully closed -- no further VERI Reward wiring
+      gaps known.
+
   - priority: 19
     name: "Worker Agent Library Phase-1 auto-dispatch threshold correction + llm-response-cache wired into /api/ai/orchestrate"
     summary: |
