@@ -538,6 +538,18 @@ open_items:
         being moved from active: to recently_completed: in the same commit
         as this status update, so other sessions see OPEN-08 is free.
 
+    - id: OPEN-09
+      name: "Org/user data export -- privacy policy promises it, no general mechanism exists"
+      detail: "src/app/data-policy/page.tsx (a static legal page) states: 'You may export your data during the life of your account.' Verified live: the only real export route anywhere in this codebase is /api/veri-meetings/[id]/export (a single-meeting export), not an org-wide or user-wide data download. No general /api/*/export mechanism exists. Per-org/per-user data IS genuinely identifiable throughout the schema (org_id scoping + RLS on every table, verified extensively this session) -- the gap is specifically the lack of a bulk export/download feature, not a data-modeling problem."
+      recommendation: "Owner directive 2026-07-14: log as pending, NOT an immediate priority. Do not schedule build work on this until explicitly requested. Worth noting for whoever eventually picks it up: this is arguably a compliance-facing gap (a written policy promise with no backing mechanism), not just a feature request -- flag that distinction again when it's actually scoped, don't silently downgrade it to 'nice to have' at that point."
+      first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
+
+    - id: OPEN-10
+      name: "veda-advisors' relationship to VERIDIAN AI OS -- Owner declared it IN SCOPE under VERIDIAN AI OS, explicitly NOT to be worked on yet"
+      detail: "Verified live 2026-07-14: veda-advisors (code-by-zai) has ZERO integration with VERIDIAN AI OS today -- no references to veridian-client/VERIDIAN_API/api/v1 anywhere in its source, and it runs Prisma (compliance-tracker's own CLAUDE.md forbids Prisma -- 'zero Prisma imports'). It is a fully independent Next.js codebase for a different business (Veda Advisors, an advisory/coaching site) that happens to share the FChecklist GitHub org and reuse the PAT_FCHECKLIST credential -- it does NOT fit the PROJEXA pattern (thin client, zero local domain data, VERIDIAN-hosted AI) despite superficially looking like a sibling product. Owner directive 2026-07-14: veda-advisors is now DECLARED to be under VERIDIAN AI OS's governance umbrella going forward, but this is a declaration of intent/scope only -- no migration work (Prisma->Drizzle, wiring to /api/v1/*, moving its AI calls to VERIDIAN) is authorized yet."
+      recommendation: "Do NOT start any veda-advisors <-> VERIDIAN integration work without a separate, explicit Owner go-ahead -- this entry exists to record the scope decision and prevent 2 opposite mistakes: (a) a future session assuming veda-advisors is already VERIDIAN-integrated because it's declared in-scope, and (b) a future session starting the actual migration unprompted because the declaration exists. Treat this exactly like Priority 13's BIM/IFC item -- deliberately deferred, not ratified-against, do not re-raise as a build task until the Owner brings it up again."
+      first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
