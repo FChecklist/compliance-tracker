@@ -1234,3 +1234,47 @@ closed_priorities:
       PR (see PR description for exact pass/fail state at merge time -- not
       self-merged, left for Super Boss's independent 8-field AUDIT: PASS/
       FAIL review per the standing 2026-07-13 procedure).
+
+  - priority: 18
+    name: "Worker Agent Library Phase-1 auto-dispatch threshold correction + llm-response-cache wired into /api/ai/orchestrate"
+    summary: |
+      No formal OPEN-XX item existed for either half of this -- both were
+      Owner decisions locked 2026-07-10 (Worker Agent Library Phase 1
+      read-only auto-dispatch at similarity >=0.95; wiring the orphaned
+      llm-response-cache.ts into the other places that independently decide
+      whether to call an LLM) that were never dispatched to build, tracked
+      only in session memory, not this file. Dispatched by Super Boss
+      supervisor 2026-07-14 to a sub-agent; see ai-os/boss/COMPLETED.yaml
+      WAVE-178 for full file:line detail.
+
+      Item A investigation found real auto-dispatch already fully wired
+      (PR #51, predates this session) -- fde-service.ts's high-confidence
+      worker_agent match branch already reuses task-execution-engine.ts's
+      dispatchTool(), gated through purpose-bound-ai.ts's
+      DOMAIN_ALLOWED_TOOLS allowlist which already excludes every write
+      action by name. The only real gap: the shared threshold constant was
+      still the originally-proposed 0.9, not the Owner's corrected 0.95 --
+      fixed as a one-line change (fde-service.ts:41, now with a comment
+      explaining why the same constant gates both the no-LLM short-circuit
+      and the auto-dispatch branch together).
+
+      Item B investigation found genuine partial wiring: only fde-service.ts
+      and an internal loops route used callLLMJsonCached; chat-service.ts,
+      task-execution-engine.ts, and /api/ai/orchestrate/route.ts all called
+      the LLM directly. Applying the cache module's own documented safety
+      bar ("safe only where the caller has already judged the exact same
+      tuple is likely to repeat") to each: /api/ai/orchestrate/route.ts was
+      a genuine fit (event-driven, day-granular fields make same-day
+      duplicate calls plausible) and got wired. chat-service.ts and
+      task-execution-engine.ts's planning call were deliberately left
+      unwired for concrete architectural reasons (chat's cache key would
+      ignore conversation history and risk cross-conversation collisions;
+      task-execution-engine.ts's SyntaxError-retry logic would get
+      permanently defeated by a cached malformed response) -- not a
+      shortcut, a documented judgment call.
+
+      No new table/service/embedding pipeline/worker-agent runner created;
+      2 files touched, 34 lines changed. tsc --noEmit clean, lint 0 errors,
+      bun test 1098 pass / 0 fail. PR opened from
+      feat/worker-agent-dispatch-classify-audit, not self-merged, left for
+      Super Boss's independent audit per the standing procedure.
