@@ -42,7 +42,22 @@
 # ============================================================================
 
 active:
-# (empty)
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    claimed_at: "2026-07-14T07:10:00Z"
+    claim: |
+      Owner directive: consolidate EVERY existing constitutional/governance
+      document into ONE single machine-readable constitution for VERIDIAN AI
+      OS (ai-os/CONSTITUTION.yaml becomes the sole authority), removing all
+      conflicts/duplication/confusion, full-file-read audit of every source
+      doc (no grep-snippet assumptions), 100% complete. Scope: read+
+      reconcile VERIDIAN_AI_CONSTITUTION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md,
+      VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, VERI_CHAT_GOVERNANCE.md,
+      VAIOS_ARCHITECTURE_STRATEGY.md, ai-os/BRAIN.md, ai-os/OS.yaml, AGENTS.md,
+      CLAUDE.md, VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md, and any other
+      constitution/governance-labeled doc found during inventory, against
+      live code. Large task, own worktree/branch: worktree-unify-constitution.
+      Will update this entry with the final file list once inventory
+      completes.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
