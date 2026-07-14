@@ -264,7 +264,7 @@ recently_completed:
       entry / PR description for the full path -- kept out of this line
       to avoid backslash-escaping issues in this registry's own tooling).
       Workstream 1: new platform_applications table
-      (drizzle/0202_platform_applications_provisioning.sql, applied live
+      (drizzle/0203_platform_applications_provisioning.sql, applied live
       to pcrjmlpuqsbocqfwoxod in 4 statements after a combined-batch lock
       timeout), seeded one live 'projexa' row (pk_... key, hash-only in
       DB/migration, raw key reported to the Owner once);
