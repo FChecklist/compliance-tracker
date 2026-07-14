@@ -102,7 +102,7 @@ index:
 
   brain_pointer:
     - path: ai-os/CONSTITUTION.yaml
-      covers: "Added 2026-07-14 (Owner directive: recheck the VERIDIAN constitution, align it, remove duplicacy/contradictions, write it 'in machine language for agents to understand'). The single machine-readable {ask/ref/status/note} entry point reconciling the Owner's stated operating objectives against the 6 prose constitution documents AND live code -- read this FIRST for 'what is VERIDIAN AI OS,' before BRAIN.md's narrative version or the 6 prose docs' full detail. Does not replace them; references their sections instead of restating prose. Flags one real terminology collision (Orchestra Layer vs. AI Orchestra Tier) and several genuine not-yet-built gaps (5-part UI layout, word-level chat-instruction learning cache, 90%-automation metric) rather than silently assuming they're covered."
+      covers: "v2.0, 2026-07-14 (Owner directive: 'only 1 constitution... machine language... no assumption, audit everything'). THE SOLE CONSTITUTION for VERIDIAN AI OS -- every rule/guardrail from 9 previously-separate 'constitutional' documents (VERIDIAN_AI_CONSTITUTION.md, VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, VERIDIAN_AUDIT_ORGANIZATION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md, VERI_CHAT_GOVERNANCE.md, MASTER_AI_OS_ARCHITECTURE.md, SENTINEL.md, ai-os/sentinel/SENTINEL.yaml, VAIOS_ARCHITECTURE_STRATEGY.md) now lives here with a stable ID, machine-first, no narrative prose. Read this FIRST, before BRAIN.md or any prose doc. Those 9 docs keep their full narrative/evidence content and each now carries an AUTHORITY NOTE pointing back here -- read them for WHY, this file for the RULE."
     - path: ai-os/BRAIN.md
       covers: "PLATFORM_STRATEGY.md Sec31.4 Phase A item (2): the single plain-language 'what VERIDIAN AI OS is and how it works end-to-end' document that did not exist before 2026-07-13 -- traces a real request flow (VeriComposer -> POST /api/tasks -> resolveModelConfig -> callLLM) and an AI Dev Team dispatch flow, then names the 5 real separate systems (roster.ts, orchestra-model-resolver.ts+model-tier-eligibility.ts, embeddings.ts, activity_log, escalation-ladder.ts+monitor-protocol.ts) that compose into something brain-like without being one. Every claim cites a real file it was read from; start here before system-tree/ or OS.yaml itself."
     - path: ai-os/system-tree/40-veridian-brain.yaml
@@ -118,6 +118,6 @@ index:
     # them as an oversight. Add a real reason when adding an entry, same
     # discipline as asset-registry-coverage.yaml's own exempted list.
     - path: docs/
-      reason: "Product technical-spec documents (ComplianceTrack_TechSpec_*.docx etc), not AI-OS governance."
+      reason: "Product technical-spec documents (ComplianceTrack_TechSpec_*.docx etc), not AI-OS governance. Corrected 2026-07-14 (DEBT-06, ai-os/CONSTITUTION.yaml): this exemption does NOT extend to docs/master/ specifically -- scripts/check-doc-cross-references.mjs already treats docs/master/INDEX.md as 1 of its 6 real governance entry points, so it was never actually exempt in practice; this note now says so explicitly instead of silently contradicting that script's own behavior."
     - path: ai-os/OS.yaml
       reason: "This file is the index itself -- it does not need to index itself."

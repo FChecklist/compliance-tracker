@@ -5,11 +5,10 @@
 Before doing anything nontrivial in this repo, read these in order — they are the real source-of-truth governance docs and are not optional context:
 
 1. `ai-os/boss/ACTIVE-CLAIMS.yaml` — **read this FIRST, before picking any gap/task**: a real-time registry of what other parallel sessions are actively working on right now, so you don't duplicate or collide with in-flight work. Added 2026-07-14 after the Owner confirmed 4 parallel Claude sessions were running across this codebase simultaneously with no way to see each other's current work. Register your own claim here before starting, per that file's own protocol.
-2. `ai-os/CONSTITUTION.yaml` — **read this SECOND**, before `BRAIN.md` or the 6 prose constitution docs: the single machine-readable `{ask/ref/status/note}` entry point for "what IS VERIDIAN AI OS and how does it work," reconciled against both the Owner's stated operating objectives and live code. References the prose docs by section instead of restating them; flags real gaps and one real terminology collision (Orchestra Layer vs. AI Orchestra Tier) explicitly rather than assuming coverage.
+2. `ai-os/CONSTITUTION.yaml` — **read this SECOND, and treat it as THE authority**: as of v2.0 (2026-07-14) this is the single, sole, machine-readable constitution for VERIDIAN AI OS -- every rule, guardrail, and status a prior version of this doc scattered across 9 separate "constitutional" documents now lives here with a stable ID. Those 9 documents (`VERIDIAN_AI_CONSTITUTION.md`, `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`, `VERIDIAN_AUDIT_ORGANIZATION.md`, `VERIDIAN_DMP_DCF_CONSTITUTION.md`, `VERI_CHAT_GOVERNANCE.md`, `MASTER_AI_OS_ARCHITECTURE.md`, `SENTINEL.md`, `ai-os/sentinel/SENTINEL.yaml`, `VAIOS_ARCHITECTURE_STRATEGY.md`) still exist with full narrative reasoning and file:line evidence, each carrying an AUTHORITY NOTE pointing back here -- read them for WHY, read this file for the RULE.
 3. `ai-os/OS.yaml` — governance-file index: the one place that lists every other tracking/governance document and what it's actually for.
 4. `ai-os/BRAIN.md` — plain-language explainer of what VERIDIAN AI OS is and how it works, grounded in cited files.
-5. `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md` — the standing constitution for task lifecycle, multi-agent orchestration, and mandatory guardrails; supersedes conflicting informal instructions.
-6. `ai-os/MASTER-TRACKER.yaml` — the live gap-analysis / open-work tracker (see corrected "AI-OS Rules" note below).
+5. `ai-os/MASTER-TRACKER.yaml` — the live gap-analysis / open-work tracker (see corrected "AI-OS Rules" note below).
 
 # Veridian AI — Agent Context
 
@@ -22,10 +21,10 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `src/app/(app)/` — authenticated pages (dashboard, compliance, checklists, tasks, reports, penalties, departments, users, audit, settings, team)
 - `src/app/api/` — Drizzle-backed API routes (all require auth via `requireAuth()`)
 - `src/components/` — UI components (AppSidebar, AppTopbar, DashboardCard, ComplianceChart, DataTable, StatusBadge, SearchCommand)
-- `src/lib/db/` — Drizzle schema (9 tables, 6 enums) + db client
+- `src/lib/db/` — Drizzle schema (hundreds of tables as of 2026-07-14; growing every wave -- do not cite a specific count, check schema.ts directly) + db client
 - `src/lib/supabase/` — Supabase client helpers (client.ts, server.ts, auth-guard.ts)
 - `public/` — Logo SVGs (logo.svg, logo-dark.svg, logo-mark.svg, logo-compact.svg)
-- `ai-os/` — AI-OS governance (SENTINEL.yaml, BOARD.yaml, VEDABOSS)
+- `ai-os/` — AI-OS governance: `CONSTITUTION.yaml` (the constitution), `MASTER-TRACKER.yaml` (open work), `boss/` (ACTIVE-CLAIMS/COMPLETED/BOARD-stale), `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` -- see `ai-os/OS.yaml` for what each covers, do not assume this is a small directory
 - `drizzle/` — Migration files
 
 ## Design Tokens
@@ -48,9 +47,9 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 
 ## AI-OS Rules
 - Open tasks/gaps tracked in `ai-os/MASTER-TRACKER.yaml`; closed work logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
-- SENTINEL.yaml is supreme — never bypass
+- `ai-os/CONSTITUTION.yaml` is supreme — never bypass a rule in it without the owner's explicit written instruction (see its own `amendment_rule`)
 - Dispatch tasks via `repository_dispatch` with event_type: `zai-task` or `claude-task`
-- DO NOT touch: `.claude/`, `CLAUDE.md`, `AGENTS.md`, `SENTINEL.md`, `ai-os/`
+- **Corrected 2026-07-14** (this blanket rule was contradicted by this codebase's own established, sanctioned practice — `ai-os/` is edited and merged in nearly every wave, including the PR that shipped this correction): DO NOT edit `.claude/` (session/tooling config, not project content). Edit `CLAUDE.md`/`AGENTS.md`/`SENTINEL.md`/`ai-os/` freely when the task genuinely calls for it (as most gap-closure and governance work does) — the real protections that matter are `AGENTS.md` Operating Rule 9 (no guardrail weakened without explicit owner sign-off + a manifest update) and Rule 6 (no direct push to `main`, PR/CI gate applies to every file in this repo, no exceptions for these paths).
 - DO NOT commit `.env` files
 - All API routes MUST use Drizzle — zero Prisma imports
 - All API routes MUST call `requireAuth()` from `@/lib/supabase/auth-guard`

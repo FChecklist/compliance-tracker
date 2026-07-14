@@ -119,7 +119,9 @@ loosely-specified objective before any model is called) → classify it to
 one of the roster's roles (`classifyTask()`, `team-service.ts`) → check
 `checkTierEligibility()` (`src/lib/model-tier-eligibility.ts`) — a model
 that hasn't earned "judgment" tier trust (today: everything except
-`z-ai/glm-5.2` and `openai/gpt-5.5`) is mechanically blocked from
+`z-ai/glm-5.2` — `openai/gpt-5.5` was removed from the judgment tier
+2026-07-14 per Owner directive, see `ai-os/CONSTITUTION.yaml`'s
+`ai_orchestra_tiers.levels[TIER-3]`) is mechanically blocked from
 judgment-tier work, not just discouraged — → run `GUARDRAIL_PLATFORM`
 guardrail checks (`guardrail-engine.ts`) → `runRole()`
 (`team-service.ts`), which resolves that role's prompt template

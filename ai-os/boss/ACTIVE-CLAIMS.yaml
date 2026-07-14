@@ -48,6 +48,38 @@ active:
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
   - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Owner directive: consolidate EVERY existing constitutional/governance
+      document into ONE single machine-readable constitution -- CLOSED same
+      day. Read (in full, not grepped) 18 documents (~3,500 lines) before
+      writing anything: SENTINEL.md, AGENTS.md, CLAUDE.md, VERI_CHAT_GOVERNANCE.md,
+      ai-os/sentinel/SENTINEL.yaml, UNIVERSAL_TASK_WRAPPER_DESIGN.md,
+      MASTER_AI_OS_ARCHITECTURE.md, VERIDIAN_AUDIT_ORGANIZATION.md,
+      docs/master/ARCHITECTURE.md, VAIOS_ARCHITECTURE_STRATEGY.md,
+      VERIDIAN_DMP_DCF_CONSTITUTION.md, VERIDIAN_AI_CONSTITUTION.md,
+      VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md,
+      VERIDIAN_HUMAN_INPUT_OUTPUT_TAXONOMY.md, MCP_PROTOCOL.md, ai-os/BRAIN.md,
+      ai-os/OS.yaml, docs/master/INDEX.md, plus the prior CONSTITUTION.yaml
+      itself. Cross-checked highest-risk claims against live code by direct
+      grep. Found 6+ docs each claiming to be "a constitutional document,"
+      3 separate stale gpt-5.5 references, CLAUDE.md's ai-os/ do-not-touch
+      rule contradicted by sanctioned practice, SENTINEL.md's Prisma/SQLite
+      claim confirmed wrong, MCP_PROTOCOL.md's "Groq orchestrator" confirmed
+      to not exist anywhere in code, docs/master/INDEX.md missing 4
+      constitutional docs. Rewrote ai-os/CONSTITUTION.yaml as v2.0, THE sole
+      authority, absorbing every rule from 9 prose docs with a stable ID
+      each, machine-first schema, zero narrative prose. None of the 9 source
+      docs deleted -- each carries an AUTHORITY NOTE banner pointing back.
+      Fixed every stale fact found in the same pass. tsc/lint/guardrail-
+      presence/doc-cross-reference/metadata-index-coverage/doc-quarantine-
+      banner all clean; bun test 1099 pass/0 fail. See
+      ai-os/MASTER-TRACKER.yaml closed_priorities #22 for full detail. One
+      item explicitly logged not fixed: MCP_PROTOCOL.md's own content
+      (DEBT-02, a different-axis doc, not this pass's scope). This session
+      has no further active claims.
+
+  - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T (same day, small scoped fix)"
     claim: "Fixed 3 Vercel crons (audit-cadence, dispatch-completion-monitor, report-schedules) exceeding the Hobby plan's once-per-day limit, which was silently failing every deployment. All 3 now run once daily at non-colliding times -- none had a real sub-daily latency requirement (report-schedules' own code comment already claimed 'once daily' but vercel.json had it hourly, a real pre-existing bug now fixed to match). Scope: vercel.json + 2 route.ts comment updates only, no cron logic changed."
 

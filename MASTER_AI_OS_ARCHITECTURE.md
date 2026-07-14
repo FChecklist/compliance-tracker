@@ -1,5 +1,7 @@
 # VERIDIAN Master AI OS — Architecture, Rules & Guardrails
 
+> **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict (see its `architecture_rules` section, IDs ARCH-01 through ARCH-09). This document remains as detailed narrative evidence and reasoning -- read it for full context and worked examples, not to determine current status.
+
 **Version 1.0 -- 2026-07-06. Governs every current and future product branch under VERIDIAN AI OS.**
 
 This document is not aspirational. Where a rule is marked **[ENFORCED]**, a real, running mechanism verifies it, cited by file:line. Where a rule is marked **[POLICY ONLY]**, it is a governance decision not yet backed by code -- named honestly as a gap, not glossed over, consistent with `VERIDIAN_AI_CONSTITUTION.md` and `AI_OS_CERTIFICATION.md`'s own discipline.
@@ -47,7 +49,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.<table> TO service_role;
 
 **[POLICY, lint-enforced via `assertValidLayerKey()`, `src/lib/services/product-branch-service.ts`]** -- `orchestraLayers.layerKey` is free text with no schema-level uniqueness or format constraint (`src/lib/orchestra-model-resolver.ts` does an exact-string match; nothing joins on a branch relationship). A real FK column was considered and rejected for this wave -- it would require migrating every existing seed row and deciding what platform-global layers like `orchestrate`/`page_agent_oa` belong to, for zero behavioral gain, since the resolver never needs to join on it.
 
-Instead: every **new** orchestra layer introduced by a vertical is named `{branchKey}_{agent}_oa` (e.g. `ecommerce_catalog_oa`, `manufacturing_bom_oa`), continuing the existing `_oa` suffix convention. Pre-existing flat-string layers (`orchestrate`, `page_agent_oa`) are grandfathered, never renamed. `assertValidLayerKey(branchKey, layerKey)` is the one central helper any future seed script/service should call to check this before inserting a new layer row.
+Instead: every **new** orchestra layer introduced by a vertical is named `{branchKey}_{agent}_oa` (e.g. `ecommerce_catalog_oa`, `manufacturing_bom_oa`), continuing the existing `_oa` suffix convention. Pre-existing flat-string layers (`orchestrate`) are grandfathered, never renamed. **Correction 2026-07-14**: `page_agent_oa` was a 2nd grandfathered flat-string layer until PageAgent's removal from VERIDIAN that day (see `ai-os/CONSTITUTION.yaml`'s `browser_client_architecture.BROWSER-01`) -- the layer-key naming convention itself is unaffected by that removal. `assertValidLayerKey(branchKey, layerKey)` is the one central helper any future seed script/service should call to check this before inserting a new layer row.
 
 ## 6. Purpose-Bound-AI Domain-Per-Vertical Rule
 
