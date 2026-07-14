@@ -42,6 +42,12 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Wire 4 remaining VERI Reward achievement checks"
+    claimed_at: "2026-07-14T04:00:00Z"
+    claim: "Wire 4 remaining VERI Reward achievement checks (login_streak_3/first_document_upload/weekly_task_5/onboarding_complete), scope: veri-reward-service.ts / compliance-service.ts / document upload path / auth-guard.ts onboarding-completion path, dispatched by Super Boss supervisor 2026-07-14, follow-up to PR #307"
+    worktree: ".claude/worktrees/agent-veri-reward-achievements"
+    branch: "feat/veri-reward-remaining-achievements"
+
   - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
     claimed_at: "2026-07-14T00:00:00Z"
     claim: "VERI Reward end-to-end wiring audit, scope: src/lib/services/veri-reward-service.ts / src/lib/services/veri-reward-enablement-service.ts / src/app/(app)/rewards/**, dispatched by Super Boss supervisor 2026-07-14"
