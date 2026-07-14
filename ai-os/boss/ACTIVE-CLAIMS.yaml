@@ -83,6 +83,49 @@ active:
       claim time -- only overlap risk is AppSidebar.tsx-style incidental
       merge conflicts on shared PROJEXA layout files, none touched here.
 
+  - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Recruitment 'Create Job Opening' reproducible failure"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-approved Priority 16 Part 2 item: root-cause + fix the E2E-test-
+      confirmed "Create Job Opening" failure (priority16_e2e_testing_plan.md's
+      Recruitment gap entry -- 400 "No organization" on attempt 1, 502
+      "Failed to create job opening" on attempts 2/3, zero rows landed).
+      Root-caused as 2 distinct, independently-reproducible bugs (not 1):
+      (A) PROJEXA's own requireAuth() (projexa/src/lib/supabase/auth-guard.ts)
+      silently discards the Supabase `memberships` query's `error`, so a
+      transient query failure gets misreported as a genuine "no organization"
+      400 on a user who has a real membership row. (B) compliance-tracker's
+      job_openings.posted_by_id column (src/lib/db/schema.ts:6537,
+      FK job_openings_posted_by_id_fkey added in drizzle/0055) has a hard
+      FOREIGN KEY to compliance.users(id), but the v1/projexa alias route
+      (src/app/api/v1/projexa/recruitment/job-openings/route.ts:29) legitimately
+      passes the API key's own id (ctx.apiKey.id, e.g. "projexa_demo_key") as
+      the actor whenever PROJEXA calls server-to-server with no real user
+      session (PROJEXA-IDENTITY-BRIDGE-01's class of gap) -- that id is never
+      a row in compliance.users, so every API-key-driven create hits a
+      foreign-key violation, caught by the route's generic catch and masked
+      as a 500 -> PROJEXA's own hardcoded 502. Fix scope: compliance-tracker
+      -- drop the job_openings_posted_by_id_fkey FK constraint (migration),
+      matching the existing no-FK precedent already used for the identical
+      actor-attribution situation on erp_sales_invoices.created_by_id and
+      construction_punch_list_items.created_by_id elsewhere in this codebase.
+      projexa (separate PR) -- fix requireAuth()'s silent error-swallow (add
+      a retry + honest 503 instead of a misleading "No organization" 400,
+      mirroring the existing getClaimsWithRetry() pattern in the same file),
+      and fix the 502-masking in src/app/api/recruitment/job-openings/route.ts
+      specifically (surface VeridianApiError.status instead of a hardcoded
+      502) -- NOT touching the other ~10 recruitment/sales/etc. routes with
+      the identical 502-masking pattern, that is a separate sibling agent's
+      broader task per this task's own brief. Branch:
+      priority16-job-openings-fix in both repos. No overlap found with any
+      other active claim below (Priority 15 Wave 2/GRC-Fin/Sales-CRM claims
+      touch different files; none touch job_openings/recruitment or
+      requireAuth()). UPDATE (post-rebase): found a genuine migration-number
+      collision with the sibling PLATFORM-01/Priority-16-Fix-1 session, both
+      independently using drizzle/0201_*.sql -- renumbered mine to 0202
+      (drizzle/0202_job_openings_posted_by_no_fk.sql) to resolve, no file
+      content conflict (different filenames, different files).
+
   - session_label: "claude-code (sub-agent) -- Priority 15 Wave 2, HR & Payroll follow-up"
     claimed_at: "2026-07-14T (this session)"
     claim: |
