@@ -17,9 +17,16 @@ import type { ComplexityTier } from "./task-tightening"
 // real assurance (VERIDIAN_AUDIT_ORGANIZATION.md's own rule) -- kept to
 // exactly the models already trusted for judgment-critical Guardrail Team
 // roles in roster.ts.
+//
+// "openai/gpt-5.5" was here too (escalation_second_opinion/
+// security_threat_analyst's cross-vendor second opinion). Removed, founder
+// directive 2026-07-14: real cost concern (gpt-5.5 is expensive) plus a
+// real safety concern (an unbounded escalate-to-a-second-model pattern is
+// not something to leave standing by default). GLM-5.2 is now the sole
+// judgment-eligible model -- see roster.ts's GPT_55 constant comment for
+// the full reasoning trail.
 const JUDGMENT_ELIGIBLE = new Set<string>([
   "z-ai/glm-5.2",
-  "openai/gpt-5.5",
 ])
 
 // Integrative tier: multiple files, requires understanding an existing
@@ -71,7 +78,7 @@ export function checkTierEligibility(model: string, tier: ComplexityTier): TierE
     eligible: false,
     reason: `Model "${model}" is not eligible for "${tier}" tier tasks.`,
     guidance: tier === "judgment"
-      ? "Judgment-tier work (architecture/security/audit) requires z-ai/glm-5.2 or openai/gpt-5.5 -- route this to a judgment-eligible role instead."
+      ? "Judgment-tier work (architecture/security/audit) requires z-ai/glm-5.2 -- route this to a judgment-eligible role instead."
       : "Integrative-tier work (multi-file, requires understanding existing code) excludes GPT-OSS-120B specifically -- confirmed twice this session it fails this task shape. Route to a role on z-ai/glm-5.2, deepseek/deepseek-v4-pro, or another integrative-eligible model, or re-scope this task down to 'mechanical' if it's genuinely single-file.",
   }
 }
