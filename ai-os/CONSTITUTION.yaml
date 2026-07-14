@@ -206,7 +206,7 @@ ai_orchestra_tiers:
       role: "everything"
       ref: "src/lib/model-tier-eligibility.ts::JUDGMENT_ELIGIBLE"
       status: ENFORCED
-      open_question_for_owner: "JUDGMENT_ELIGIBLE also includes openai/gpt-5.5, not named in this 3-tier list. Confirm: intentional 2nd top-tier model, or should it be removed to match the stated ladder exactly?"
+      resolved_2026-07-14: "openai/gpt-5.5 was previously also JUDGMENT_ELIGIBLE (escalation_second_opinion, security_threat_analyst -- a deliberate cross-vendor independent-review pattern). Owner decision: removed -- real cost concern (gpt-5.5 is expensive) plus a real safety concern (an unbounded GLM-5.2-escalates-to-gpt-5.5-for-cross-reference pattern is not something to leave standing by default). Both roles now run on GLM-5.2 like every other judgment-tier role. GLM-5.2 is the sole higher-tier model, matching this ladder exactly, no exception. See roster.ts's GPT_55 constant comment and model-tier-eligibility.ts's JUDGMENT_ELIGIBLE comment for the full reasoning trail."
     - level: 4
       name: super_boss
       model: "Claude Desktop (Sonnet 5.0) -- the Owner's own interactive session"

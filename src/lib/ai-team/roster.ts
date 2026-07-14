@@ -119,7 +119,16 @@ const GLM_52 = "z-ai/glm-5.2" // primary lifting: coding, reasoning, most depart
 const GLM_5V_TURBO = "z-ai/glm-5v-turbo" // vision-capable: reads designs/screenshots
 const GLM_5_TURBO = "z-ai/glm-5-turbo" // high-volume/low-stakes: fast, cheap, bulk work
 const GEMINI_25_PRO = "google/gemini-2.5-pro" // deep research/analysis, kept from the original roster
-const GPT_55 = "openai/gpt-5.5" // genuinely independent second opinion (different vendor than the primary reviewer)
+// GPT_55 ("openai/gpt-5.5") was assigned here for escalation_second_opinion/
+// security_threat_analyst as a genuinely independent cross-vendor check.
+// Founder directive, 2026-07-14: removed -- real cost concern (gpt-5.5 is
+// expensive) plus a real safety concern (GLM-5.2 escalating to it for
+// cross-reference on every judgment-tier call would be an unbounded-cost
+// pattern, not a bounded one). Both roles now run on GLM-5.2 like every
+// other judgment-tier role; see model-tier-eligibility.ts's JUDGMENT_ELIGIBLE
+// for the corresponding removal. If independent cross-vendor review is
+// wanted again later, scope it as an explicit, rate-limited escalation
+// path, not a standing model assignment.
 // DEEPSEEK_V4_PRO (added 2026-07-10, founder decision): available model option, not yet
 // assigned to a role. Founder discarded the plan to fund a direct ANTHROPIC_API_KEY for a
 // headless "Claude" dispatch agent (AGENTS.md's claude-task path, which never had a working
@@ -175,7 +184,7 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   { roleKey: "qa_engineer", team: "ENGINEERING", title: "QA Engineer", model: GLM_52, promptKey: "ai_team.qa_engineer" },
   { roleKey: "research_analyst", team: "ENGINEERING", title: "Research Analyst", model: GEMINI_25_PRO, promptKey: "ai_team.research_analyst" },
   { roleKey: "documentation_specialist", team: "ENGINEERING", title: "Documentation Specialist", model: GLM_52, promptKey: "ai_team.documentation_specialist" },
-  { roleKey: "escalation_second_opinion", team: "ENGINEERING", title: "Escalation / Second Opinion", model: GPT_55, promptKey: "ai_team.escalation_second_opinion" },
+  { roleKey: "escalation_second_opinion", team: "ENGINEERING", title: "Escalation / Second Opinion", model: GLM_52, promptKey: "ai_team.escalation_second_opinion" },
   // Added 2026-07-10 for the 6-tool infra integration wave (PaddleOCR,
   // Docling, Meilisearch, Whisper.cpp, LibreOffice Headless, Temporal) --
   // see docs/infra/TOOL_INTEGRATION_PLAN.md. Reused across many small,
@@ -322,7 +331,7 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
 
   // ─── Guardrail Team — Platform Level (reports to chief_audit_officer) ─
   { roleKey: "chief_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Chief Governance Officer", model: GLM_52, promptKey: "ai_team.chief_governance_officer" },
-  { roleKey: "security_threat_analyst", team: "GUARDRAIL_PLATFORM", title: "Security & Threat Analyst", model: GPT_55, promptKey: "ai_team.security_threat_analyst" },
+  { roleKey: "security_threat_analyst", team: "GUARDRAIL_PLATFORM", title: "Security & Threat Analyst", model: GLM_52, promptKey: "ai_team.security_threat_analyst" },
   { roleKey: "ai_safety_auditor", team: "GUARDRAIL_PLATFORM", title: "AI Safety Auditor", model: GLM_52, promptKey: "ai_team.ai_safety_auditor" },
   { roleKey: "cost_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Cost Governance Officer", model: GLM_52, promptKey: "ai_team.cost_governance_officer" },
 
