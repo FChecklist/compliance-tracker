@@ -42,6 +42,31 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 15 GRC/Accounting/Invoicing modules"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed Priority 15 slice: bring PROJEXA to Odoo/ERPNext-
+      equivalent coverage for GRC, Accounting, and Invoicing, reusing
+      VERIDIAN's existing mature services -- zero new PROJEXA-side schema,
+      thin aliasing routes only, per the locked "Zero duplication" principle
+      from Priority 13. Scope: new src/app/api/v1/projexa/* routes for a
+      compliance/risk register + access-review view (compliance-service.ts /
+      access-review-service.ts), chart of accounts + journal entries +
+      trial balance / P&L / balance sheet (erp-accounting-service.ts /
+      erp-financial-report-service.ts), and sales credit notes extending
+      the existing sales-invoices route (erp-credit-note-service.ts).
+      Touches erp-accounting-service.ts's createJournalEntry and
+      erp-credit-note-service.ts's createSalesCreditNote to accept the
+      same dbUser-or-apiKey actor union already precedented by Priority
+      13's createSalesInvoice change, so a Bearer-key PROJEXA caller can
+      create them (existing session-based callers unaffected). Branch:
+      priority15-grc-fin. Known-concurrent per this same registry:
+      priority15-hr-payroll-backend and priority15-sales-crm-backend
+      worktrees (Sales/CRM, HR/Payroll) -- disjoint file scope (no shared
+      service files identified), but AppSidebar.tsx on the PROJEXA side
+      will very likely collide with both; expected and resolved by keeping
+      all nav sections on merge, per this project's own precedent.
+
   - session_label: "claude-code (sub-agent) -- Priority 14, GAP-LITERT-EDGE-INFERENCE"
     claimed_at: "2026-07-14T16:30:00Z"
     claim: |
@@ -66,6 +91,27 @@ active:
       0193, PR #302). Scope: ai-os/registry/asset-registry-coverage.yaml,
       a new drizzle/0XXX migration, src/lib/db/schema.ts (read-only, no
       schema changes). Branch: gap-umr-table-coverage-batch5.
+
+  - session_label: "claude-code (sub-agent) -- Priority 15 Sales & CRM module"
+    claimed_at: "2026-07-14T16:00:00Z"
+    claim: |
+      Owner-directed Priority 15: real Sales & CRM module for PROJEXA,
+      Odoo/ERPNext-equivalent lead->opportunity->quotation->sales-order
+      pipeline. Scope: compliance-tracker/src/lib/services/erp-selling-
+      service.ts (adding quotation + sales order CRUD -- confirmed genuine
+      gap: erp_quotations/erp_sales_orders tables existed in schema.ts since
+      Wave 60 with zero service-layer consumer besides report-engine-
+      service.ts's read-only aggregation) and new thin alias routes under
+      compliance-tracker/src/app/api/v1/projexa/{leads,opportunities,
+      quotations,sales-orders}/. crm-service.ts's lead/opportunity pipeline
+      already existed (Wave 41/75/78) and is aliased as-is, not rebuilt.
+      PROJEXA side: projexa/src/app/(app)/{sales,quotations,sales-orders}/
+      pages + a new SALES nav section in AppSidebar.tsx. Branch:
+      priority15-sales-crm-backend (compliance-tracker) /
+      priority15-sales-crm-projexa (projexa). Expect a possible
+      AppSidebar.tsx merge conflict with concurrent HR/Payroll and
+      GRC/Accounting sibling sessions also adding nav sections -- resolving
+      by keeping all sections, per this file's own documented precedent.
 
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"

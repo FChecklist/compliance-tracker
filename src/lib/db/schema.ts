@@ -4135,6 +4135,11 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
   ownerId: text('owner_id'),
   convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
+  // Priority 15 (Sales & CRM depth wave): next scheduled follow-up for this
+  // lead, surfaced on the pipeline dashboard/list views so a rep's queue is
+  // sortable by what's actually due next, not just creation date.
+  nextActionDate: date('next_action_date', { mode: 'string' }),
+  nextActionNote: text('next_action_note'),
   // Wave 75 (CRM Intelligence, AI_OS_CERTIFICATION.md §3.3 NOT_BUILT):
   // additive AI enrichment over this lead's own structured fields (source/
   // status/contact completeness/age) -- all nullable, a lead never scored
@@ -4163,9 +4168,46 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]), // string[]
   aiRecommendedAction: text('ai_recommended_action'),
   aiAnalyzedAt: timestamp('ai_analyzed_at'),
+  // Priority 15 (Sales & CRM depth wave): next scheduled follow-up, same
+  // rationale as crmLeads.nextActionDate above.
+  nextActionDate: date('next_action_date', { mode: 'string' }),
+  nextActionNote: text('next_action_note'),
+  // Nullable link into the ERP selling identity space (erp_customers) --
+  // separate from `clientId` above (VERIDIAN's own compliance-client
+  // concept, Wave 41). crm_leads/crm_opportunities were built around
+  // `clients` for a CA/legal-firm CRM; erp_quotations/erp_sales_orders
+  // (Wave 60) were built around `erp_customers` for the ERP Selling app --
+  // the two identity spaces never had a bridge. Setting this when an
+  // opportunity is created against a real ERP customer (PROJEXA's actual
+  // path, since a construction firm's "customer" IS an erp_customers row,
+  // not a VERIDIAN compliance client) is what makes getCustomerOverview()'s
+  // "customer 360" possible end-to-end. Deliberately additive/nullable --
+  // every opportunity created before this wave, and every compliance-CRM
+  // opportunity that only ever used clientId, is unaffected.
+  erpCustomerId: text('erp_customer_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Priority 15 (Sales & CRM depth wave): a real stage-change ledger for both
+// leads (status) and opportunities (stage) -- previously a status/stage
+// change silently overwrote the prior value with no record of when/who/why
+// it moved. entityType is free text ('lead' | 'opportunity') rather than two
+// separate tables, since the shape (from -> to, who, when, optional note) is
+// identical and a combined funnel view (lead status -> opportunity stage)
+// needs to query both kinds in one place, same "free-text discriminator,
+// not a hard FK union" convention as sales-engine-service.ts's productKey.
+export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // 'lead' | 'opportunity'
+  entityId: text('entity_id').notNull(),
+  fromStage: text('from_stage'),
+  toStage: text('to_stage').notNull(),
+  note: text('note'),
+  changedById: text('changed_by_id'),
+  changedAt: timestamp('changed_at').notNull().defaultNow(),
 })
 
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
@@ -5173,8 +5215,28 @@ export const erpQuotations = complianceSchemaDB.table('erp_quotations', {
   quotationNumber: integer('quotation_number').notNull(),
   quotationDate: date('quotation_date', { mode: 'string' }).notNull(),
   validTill: date('valid_till', { mode: 'string' }),
-  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'ordered'|'lost'|'expired'
+  // Priority 15 (Sales & CRM depth wave): a real lifecycle with an approval
+  // gate before a quote can be sent -- 'draft'|'pending_approval'|'approved'
+  // |'sent'|'ordered'|'lost'|'expired'. Enforced as an explicit transition
+  // table in erp-selling-service.ts's updateQuotationStatus, not a free-for-
+  // all setter -- e.g. draft can only reach 'sent' via pending_approval ->
+  // approved first. Table is brand new this wave (zero live rows before
+  // this PR), so widening the value set needs no data migration.
+  status: text('status').notNull().default('draft'),
   grandTotal: numeric('grand_total').notNull().default('0'),
+  // Priority 15: revision/versioning -- createQuotationRevision() clones an
+  // existing quotation into a new row rather than mutating it in place, so
+  // a customer-facing quote number's history is never silently rewritten
+  // (matches ERPNext's own "amend" convention for submitted documents).
+  // revisionOf points at the ORIGINAL (version 1) quotation's id for every
+  // revision, so "all versions of this quote" is a single equality filter
+  // rather than a recursive walk.
+  version: integer('version').notNull().default(1),
+  revisionOf: text('revision_of'),
+  // Nullable link to VERIDIAN's existing `projects` table -- same
+  // convention as erp_sales_invoices.projectId (Wave 120) -- lets a
+  // construction PM see which quotes belong to which project.
+  projectId: text('project_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -5198,8 +5260,16 @@ export const erpSalesOrders = complianceSchemaDB.table('erp_sales_orders', {
   soNumber: integer('so_number').notNull(),
   orderDate: date('order_date', { mode: 'string' }).notNull(),
   deliveryDate: date('delivery_date', { mode: 'string' }),
-  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_delivered'|'completed'|'cancelled'
+  // Priority 15 (Sales & CRM depth wave): 'draft'|'confirmed'|
+  // 'partially_fulfilled'|'fulfilled'|'cancelled' -- table is brand new
+  // this wave (zero live rows before this PR, same reasoning as
+  // erp_quotations.status above), so the wording can match the Owner's own
+  // vocabulary directly rather than needing a value-remap migration.
+  status: text('status').notNull().default('draft'),
   grandTotal: numeric('grand_total').notNull().default('0'),
+  // Nullable link to VERIDIAN's existing `projects` table -- same
+  // convention as erp_quotations.projectId above.
+  projectId: text('project_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

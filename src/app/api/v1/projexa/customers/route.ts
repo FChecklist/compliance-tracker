@@ -4,11 +4,16 @@
 // /api/v1/projexa/sales-invoices needs a real customerId; without this,
 // PROJEXA would have the exact same "guess an opaque ID" problem that
 // fiscal-years/cost-centers solve for budgets.
+//
+// Priority 15 (Sales & CRM depth wave): adds opt-in search/pagination via
+// listCustomersPaged -- only engaged when the caller passes `search`/
+// `page`/`pageSize`, so every existing picker/dropdown call site (no query
+// params) keeps getting the full flat array, unchanged.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listCustomers, createCustomer, ServiceError, type CustomerInput } from "@/lib/services/erp-selling-service"
+import { listCustomers, listCustomersPaged, createCustomer, ServiceError, type CustomerInput } from "@/lib/services/erp-selling-service"
 
-function toCustomerShape(c: Awaited<ReturnType<typeof listCustomers>>[number]) {
+function toCustomerShape(c: { id: string; customerName: string; gstin: string | null; panNumber: string | null; defaultPaymentTermsDays: number | null; creditLimit: string | null; isActive: boolean }) {
   return { id: c.id, customerName: c.customerName, gstin: c.gstin, pan: c.panNumber, defaultPaymentTermsDays: c.defaultPaymentTermsDays, creditLimit: c.creditLimit, isActive: c.isActive }
 }
 
@@ -17,7 +22,18 @@ export async function GET(request: NextRequest) {
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ customers: [] })
 
+  const params = request.nextUrl.searchParams
+  const wantsPaging = params.has("search") || params.has("page") || params.has("pageSize")
+
   try {
+    if (wantsPaging) {
+      const result = await listCustomersPaged({ orgId: ctx.orgId }, {
+        search: params.get("search") ?? undefined,
+        page: params.get("page") ? Number(params.get("page")) : undefined,
+        pageSize: params.get("pageSize") ? Number(params.get("pageSize")) : undefined,
+      })
+      return NextResponse.json({ customers: result.items.map(toCustomerShape), total: result.total, page: result.page, pageSize: result.pageSize })
+    }
     const customers = await listCustomers({ orgId: ctx.orgId })
     return NextResponse.json({ customers: customers.map(toCustomerShape) })
   } catch (error) {

@@ -392,6 +392,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: cost_payments
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: crm_stage_history
+    reason: "Priority 15 Sales & CRM depth wave (2026-07-14): an append-only stage-change ledger for crm_leads/crm_opportunities (fromStage/toStage/note/changedById), same class as the already-exempted access_review_certifications -- no genuine display-name column (toStage is a status value, not this row's own name), a decision/audit-trail record, not a discoverable platform asset."
   - table: customer_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: data_separation_audit
