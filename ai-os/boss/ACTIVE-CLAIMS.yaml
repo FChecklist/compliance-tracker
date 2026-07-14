@@ -47,6 +47,45 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Sales Engine channel-coverage audit + Dependabot PR triage"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Task 1 (Sales Engine audit): verified a prior memory snapshot's
+      "designed but not built" claim was WRONG -- Wave 109's
+      sales-engine-service.ts / sales-hq / partner-token pages are real
+      and live. Compared the Owner's 7 named channels against
+      sales_partner_type's 5 existing enum values: 5 mapped cleanly with
+      zero schema change, 2 (own employees, call-centre agents) were a
+      genuine gap -- added internal_employee + call_centre_agent via
+      drizzle/0195 (renumbered from 0194 after a real cross-PR collision
+      with another session's 0194_weekly_task_completion_index.sql,
+      caught by re-syncing before requesting merge). Full mapping in
+      MASTER-TRACKER.yaml priority 20. tsc/eslint/bun test all clean
+      (1098 pass/0 fail). PR #308 opened from
+      feat/sales-engine-channel-audit, NOT self-merged per this task's
+      own instruction (touches schema) -- left for supervisor audit.
+
+      Task 2 (Dependabot triage, independent): PR #149 (recharts
+      2.15.4->3.9.2) -- found and fixed 2 real v3 breaking changes in
+      the shared shadcn chart.tsx wrapper (TooltipProps->
+      TooltipContentProps, LegendProps dropping `payload`) plus a stale
+      bun.lock Dependabot never updated; merged after CI green. PR #152
+      (react-resizable-panels 3.0.6->4.12.2) -- found and fixed a major
+      v4 rewrite (PanelGroup/PanelResizeHandle->Group/Separator,
+      direction->orientation, autoSaveId removed in favor of
+      useDefaultLayout) affecting real usage in AppShell.tsx/home page,
+      plus a genuine SSR bug in the library's own useDefaultLayout
+      default (bare `storage = localStorage` reference crashes
+      Next.js's static prerendering) worked around with an explicit
+      SSR-safe storage adapter; merged after CI green. PR #151
+      (typescript 6.0.3->7.0.2) -- NOT merged: real, unresolvable-by-
+      this-PR blocker found (@typescript-eslint/typescript-estree
+      8.53.0's own peerDependencies declare `typescript: >=4.8.4
+      <6.0.0`, entirely excluding TS 6/7; Lint crashes outright and
+      Next.js's own build-time type-checking also crashes). Left a
+      detailed comment on the PR explaining the exact root cause and did
+      not force it through.
+
   - session_label: "claude-code (sub-agent) -- Wire 4 remaining VERI Reward achievement checks"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
