@@ -42,27 +42,6 @@
 # ============================================================================
 
 active:
-  - session_label: "claude-code (sub-agent) -- GAP-NARROW-MONITOR-ESCALATION Phase 0"
-    claimed_at: "2026-07-14T18:00:00Z"
-    claim: |
-      Priority 14 slice, per PLATFORM_STRATEGY.md section 29.3 Phase 0 ONLY
-      (not Phase 1/2). Building: MonitorReportFields contract +
-      validateMonitorReportFields() (mirrors audit-protocol.ts's
-      deterministic-validation pattern); a monitor registry table (new
-      Drizzle table/migration, columns OWNER/REPORT_TO/ESCALATE_TO/
-      ESCALATION_LEVEL/MAX_RETRY/MAX_EXECUTION_TIME/TIMEOUT/FAILURE_ACTION/
-      SUCCESS_ACTION/NEXT_AGENT/tier); extending escalation-ladder.ts with a
-      single-owner lock (reusing recordPeerReview()'s self-review-not-
-      allowed pattern) + a real retry/timeout counter; proving the whole
-      chain end-to-end on APPROVAL_GRANTED/APPROVAL_REJECTED only (Tier 1
-      rule-engine, zero LLM calls). NOT touching Phase 1 (other ~28 event
-      types) or Phase 2 (Tier 2/3 LLM executors), and NOT building the
-      AI Workforce Governance registries (section 30, separate task).
-      Branch: gap-narrow-monitor-escalation-phase0. Scope: new migration
-      file, src/lib/escalation-ladder.ts, new
-      src/lib/monitor-report-protocol.ts (or similar), a narrow wiring
-      point in the existing approval_requests/recordAuditTrigger path.
-
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"
     claim: |
@@ -85,6 +64,25 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- GAP-NARROW-MONITOR-ESCALATION Phase 0"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Assigned to build PLATFORM_STRATEGY.md 29.3 Phase 0 (MonitorReportFields
+      contract, monitor registry, escalation-ladder single-owner lock +
+      retry/timeout, proof on APPROVAL_GRANTED/APPROVAL_REJECTED). Found the
+      entire slice already built and merged the day before this task's own
+      background section was written: WAVE-170/PR #251 (2026-07-13, audited
+      PASS same day, see MASTER-TRACKER.yaml priority 24 and
+      ai-os/boss/COMPLETED.yaml for full detail). Wrote zero duplicate code;
+      independently re-verified the existing implementation (tsc/lint/full
+      test suite 1113/1113 all clean) and corrected two stale documents that
+      still claimed this was unbuilt (PLATFORM_STRATEGY.md 29.4,
+      MASTER-TRACKER.yaml's GAP-NARROW-MONITOR-ESCALATION open_items entry,
+      narrowed to the genuinely open Phase 1/Phase 2 remainder). Flagged but
+      did not touch a second, adjacent stale claim (section 30.4 vs.
+      WAVE-171/PR #252) -- out of this task's scope. This session has no
+      further active claims.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
