@@ -124,13 +124,17 @@ export async function createChainVersion(
   existingChainId: string,
   updates: Partial<{
     description: string; moduleRef: string; linkedModuleRefs: unknown[]; businessRules: unknown; permissions: unknown; workflowRef: string; aiBehaviorRef: string; reportsKpisSlas: unknown
+    // Fix (PR #329, follow-up to Priority 14's GAP-DCMD rich-schema slice,
+    // which noticed but deliberately deferred this): these 4 pre-existing
+    // dynamic_chains fields were missing from the copy-forward set above,
+    // so every new chain version silently reset them to null/default
+    // instead of carrying forward from the version being superseded.
+    linkedApprovalWorkflowIds: unknown[]; governanceNotes: string; deprecationReason: string; monitoringRules: unknown
     // Priority 14 (GAP-DCMD rich schema slice): the 7 new dynamic_chains
     // columns added this pass are threaded through the same partial-update/
     // copy-forward shape as the pre-existing rich-metadata fields above, so
     // they survive a version bump instead of silently reverting to null
-    // (see ai-os/DCMD-SCHEMA-DESIGN.md's "known pre-existing gap" note for
-    // the 4 fields that predate this pass and do NOT yet get this same
-    // treatment -- flagged, not fixed, out of scope here).
+    // (see ai-os/DCMD-SCHEMA-DESIGN.md for the full per-field reasoning).
     classification: unknown; ownerDepartmentId: string; inputContract: unknown; outputContract: unknown; aiConfig: unknown; workflowStepsConfig: unknown; linkedKnowledgeBasePageIds: unknown[]
   }>
 ): Promise<CreateChainVersionResult> {
@@ -154,6 +158,15 @@ export async function createChainVersion(
       workflowRef: updates.workflowRef ?? existing.workflowRef,
       aiBehaviorRef: updates.aiBehaviorRef ?? existing.aiBehaviorRef,
       reportsKpisSlas: updates.reportsKpisSlas ?? existing.reportsKpisSlas,
+      // Fix (PR #329, follow-up to Priority 14's GAP-DCMD rich-schema slice,
+      // which noticed but deliberately deferred this): these 4 pre-existing
+      // dynamic_chains fields were missing from the copy-forward set above,
+      // so every new chain version silently reset them to null/default
+      // instead of carrying forward from the version being superseded.
+      linkedApprovalWorkflowIds: updates.linkedApprovalWorkflowIds ?? existing.linkedApprovalWorkflowIds,
+      governanceNotes: updates.governanceNotes ?? existing.governanceNotes,
+      deprecationReason: updates.deprecationReason ?? existing.deprecationReason,
+      monitoringRules: updates.monitoringRules ?? existing.monitoringRules,
       // Priority 14 (GAP-DCMD rich schema slice) -- copy-forward for the 7
       // new columns, same ?? existing.<field> pattern as every field above.
       classification: updates.classification ?? existing.classification,
