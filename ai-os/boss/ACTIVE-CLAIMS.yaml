@@ -42,6 +42,17 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
+    claimed_at: "2026-07-14T00:00:00Z"
+    claim: |
+      Onboarding the next real batch (~15-25 tables) of the 303 still
+      grandfather-exempted asset_registration_config rows onto the UMR
+      auto-registration mechanism -- 5th batch after Priority 10 (+19,
+      PR #237), Priority 11 (+22, PR #242), Priority 17 (+23, migration
+      0193, PR #302). Scope: ai-os/registry/asset-registry-coverage.yaml,
+      a new drizzle/0XXX migration, src/lib/db/schema.ts (read-only, no
+      schema changes). Branch: gap-umr-table-coverage-batch5.
+
   - session_label: "Super Boss (Claude Desktop) -- this session"
     claimed_at: "2026-07-14T15:00:00Z"
     claim: |
@@ -64,6 +75,36 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- GAP-UMR-TABLE-COVERAGE 5th batch"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      GAP-UMR-TABLE-COVERAGE 5th batch -- 24 more tables onboarded from the
+      grandfather-exempted list onto the UMR auto-registration mechanism
+      (drizzle/0198), after Priority 10 (+19, PR #237), Priority 11 (+22,
+      PR #242), Priority 17 (+23, migration 0193, PR #302). Spans
+      Compliance core (including the platform's own flagship
+      compliance_items table), HR/Sector-regulator compliance trackers,
+      Sales Engine, VERI Reward, ESG, Company Secretarial, Worker-Agent
+      Governance, e-Signature, and ERP Sales/Purchase transactional
+      documents (including erp_sales_invoices/erp_purchase_invoices, both
+      explicitly deferred by Priority 17's own migration). Applied live via
+      Supabase MCP with 207 existing rows across 8 non-empty tables
+      backfilled via compliance.backfill_registered_assets() and verified
+      (129 active asset_registration_config rows confirmed live, matching
+      the coverage manifest exactly: 129 registered / 280 exempted / 409
+      total). 31 additional investigated-but-left-exempted tables got their
+      generic placeholder reason upgraded to a specific one (not
+      re-registered) -- most were either indirect-org-scope-only (join
+      chain to a parent table's org_id, same cross-tenant-leak class as
+      Priority 4 domain B's approval_workflow_step_* exclusions) or carried
+      sensitive per-individual evaluation content (same confidentiality
+      class as board_meetings/posh_complaints/whistleblower_cases). tsc
+      clean, lint 0 errors, bun test 1113 pass/0 fail, no new Supabase
+      security advisories introduced. PR opened from
+      gap-umr-table-coverage-batch5, NOT merged by this session per this
+      task's own instruction (a supervisor session audits and merges). This
+      session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- GAP-NARROW-MONITOR-ESCALATION Phase 0"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |
