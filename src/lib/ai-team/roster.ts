@@ -297,7 +297,28 @@ export const AI_TEAM_ROSTER: RoleDefinition[] = [
   // audit role) -- see VERIDIAN_AUDIT_ORGANIZATION.md's own top section
   // for why: an assurance function auditing higher-stakes work on a
   // weaker model than the work itself isn't real independent assurance.
-  { roleKey: "chief_audit_officer", team: "AUDIT_EXECUTIVE", title: "Chief Audit Officer", model: GLM_52, promptKey: "ai_team.chief_audit_officer" },
+  //
+  // UPDATE (Priority 12/OPEN-07, Owner directive 2026-07-14, quoted
+  // verbatim in ai-os/MASTER-TRACKER.yaml's OPEN-07 decision (b)): "lower
+  // level single line narrow instructions is by OSS GPT and lower,
+  // auditor is by DeepSeek specifically; above DeepSeek for escalation is
+  // GLM-5.2." This is the ONE role this applies to -- capability-audit-
+  // service.ts's runCapabilityAudit()/chief_audit_officer verdict call
+  // specifically, not a change to the Guardrail Team's other audit roles
+  // below, which stay GLM-5.2 per the original Wave 160 decision. Does
+  // NOT loosen model-tier-eligibility.ts's JUDGMENT_ELIGIBLE guardrail:
+  // this role's audit call is a direct runRole() LLM call, not a
+  // TightTask dispatch, so checkTierEligibility() never gates it (only
+  // dispatch-repo.ts/api/ai/team/dispatch's route do, for the SEPARATE
+  // Higher-AI TightTask this same audit flow dispatches afterward, which
+  // was already integrative-tier and unaffected). DeepSeek V4 Pro is
+  // already INTEGRATIVE_ELIGIBLE; the Owner's own ladder makes it the
+  // dedicated auditor rung here, with GLM-5.2 reserved one rung higher
+  // for escalation/Higher-AI-build -- not a downgrade of the "auditor
+  // must be at least as strong as the work it audits" principle above,
+  // since GLM-5.2 remains available (and used) for the harder work this
+  // auditor escalates to.
+  { roleKey: "chief_audit_officer", team: "AUDIT_EXECUTIVE", title: "Chief Audit Officer (DeepSeek V4 Pro)", model: DEEPSEEK_V4_PRO, promptKey: "ai_team.chief_audit_officer" },
 
   // ─── Guardrail Team — Platform Level (reports to chief_audit_officer) ─
   { roleKey: "chief_governance_officer", team: "GUARDRAIL_PLATFORM", title: "Chief Governance Officer", model: GLM_52, promptKey: "ai_team.chief_governance_officer" },

@@ -1,10 +1,10 @@
 /// <reference types="bun-types" />
-// Tests the pure validation function only -- createReportDefinition()/
-// executeReportDefinition()/runAggregation() all touch the DB and are
-// deliberately left untested here, matching this repo's established
-// pattern (see delegation-service.test.ts's own note).
+// Tests the pure validation/domain-derivation functions only --
+// createReportDefinition()/executeReportDefinition()/runAggregation() all
+// touch the DB and are deliberately left untested here, matching this
+// repo's established pattern (see delegation-service.test.ts's own note).
 import { describe, expect, test } from "bun:test"
-import { validateReportDefinitionInput, type CreateReportDefinitionInput } from "./report-engine-service"
+import { validateReportDefinitionInput, deriveReportDomainFromClassifications, type CreateReportDefinitionInput } from "./report-engine-service"
 
 const BASE: CreateReportDefinitionInput = {
   name: "Test Report",
@@ -50,5 +50,30 @@ describe("validateReportDefinitionInput", () => {
   test("validates periodicity shape when periodicity is set", () => {
     expect(validateReportDefinitionInput({ ...BASE, periodicity: "weekly" }).valid).toBe(false) // missing dayOfWeek
     expect(validateReportDefinitionInput({ ...BASE, periodicity: "weekly", periodicityConfig: { dayOfWeek: 1 } }).valid).toBe(true)
+  })
+})
+
+// Priority 12 (OPEN-07 point 8 follow-on): report_definitions rows have no
+// literal `domain` column -- executeReportDefinition()'s branch-enablement
+// gate and getFullReportCatalog()'s merge both resolve domain through this
+// one function, so its branching is worth locking down directly.
+describe("deriveReportDomainFromClassifications", () => {
+  test("compliance takes priority when present", () => {
+    expect(deriveReportDomainFromClassifications(["compliance", "financial"])).toBe("compliance")
+  })
+
+  test("financial or revenue (without compliance) maps to ERP", () => {
+    expect(deriveReportDomainFromClassifications(["financial"])).toBe("ERP")
+    expect(deriveReportDomainFromClassifications(["revenue"])).toBe("ERP")
+  })
+
+  test("construction or project (without compliance/financial/revenue) maps to construction", () => {
+    expect(deriveReportDomainFromClassifications(["construction"])).toBe("construction")
+    expect(deriveReportDomainFromClassifications(["project"])).toBe("construction")
+  })
+
+  test("anything else falls through to custom", () => {
+    expect(deriveReportDomainFromClassifications(["sales"])).toBe("custom")
+    expect(deriveReportDomainFromClassifications([])).toBe("custom")
   })
 })

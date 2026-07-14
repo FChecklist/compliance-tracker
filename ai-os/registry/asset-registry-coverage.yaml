@@ -184,51 +184,57 @@ registered:
   # list, spanning ERP Finance/HR, GST Engine, CA-Firm billing, PMS,
   # Construction, Interior Design, and Facilities.
   - table: erp_accounts
-    reason: "Priority 12 (drizzle/0186): org-scoped Chart-of-Accounts entry -- auto_register_asset_trg attached, name_column=account_name, active_column=NULL (is_frozen is the INVERSE of active -- true means frozen/inactive -- force-fitting it would invert the trigger's check), no owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped Chart-of-Accounts entry -- auto_register_asset_trg attached, name_column=account_name, active_column=NULL (is_frozen is the INVERSE of active -- true means frozen/inactive -- force-fitting it would invert the trigger's check), no owner column exists"
   - table: erp_cost_centers
-    reason: "Priority 12 (drizzle/0186): org-scoped cost-center master -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped cost-center master -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
   - table: erp_fiscal_years
-    reason: "Priority 12 (drizzle/0186): org-scoped fiscal year master -- auto_register_asset_trg attached, name_column=year_name, active_column=NULL (is_closed is the INVERSE of active, same trap as erp_accounts.is_frozen), no owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped fiscal year master -- auto_register_asset_trg attached, name_column=year_name, active_column=NULL (is_closed is the INVERSE of active, same trap as erp_accounts.is_frozen), no owner column exists"
   - table: erp_accounting_periods
-    reason: "Priority 12 (drizzle/0186): org-scoped accounting period master -- auto_register_asset_trg attached, name_column=period_name, active_column=NULL (status is a real Postgres enum, not boolean), owner_column=NULL (closed_by_id is a completion-time actor, not a genuine owner, and no created_by_id exists)"
+    reason: "Priority 17 (drizzle/0193): org-scoped accounting period master -- auto_register_asset_trg attached, name_column=period_name, active_column=NULL (status is a real Postgres enum, not boolean), owner_column=NULL (closed_by_id is a completion-time actor, not a genuine owner, and no created_by_id exists)"
   - table: erp_budgets
-    reason: "Priority 12 (drizzle/0186): org-scoped budget master -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id (nullable, only option), active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 17 (drizzle/0193): org-scoped budget master -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id (nullable, only option), active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: erp_tax_templates
-    reason: "Priority 12 (drizzle/0186): org-scoped tax template master -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped tax template master -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
   - table: erp_item_groups
-    reason: "Priority 12 (drizzle/0186): org-scoped item category master -- auto_register_asset_trg attached, name_column=group_name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped item category master -- auto_register_asset_trg attached, name_column=group_name, no status or owner column exists"
   - table: erp_asset_categories
-    reason: "Priority 12 (drizzle/0186): org-scoped fixed-asset category master -- auto_register_asset_trg attached, name_column=category_name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped fixed-asset category master -- auto_register_asset_trg attached, name_column=category_name, no status or owner column exists"
   - table: erp_salary_components
-    reason: "Priority 12 (drizzle/0186): org-scoped payroll salary component master -- auto_register_asset_trg attached, name_column=name, active_column=NULL (is_statutory is a PF/ESI/PT classification flag, not TRUE-means-active), no owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped payroll salary component master -- auto_register_asset_trg attached, name_column=name, active_column=NULL (is_statutory is a PF/ESI/PT classification flag, not TRUE-means-active), no owner column exists"
   - table: erp_subscription_plans
-    reason: "Priority 12 (drizzle/0186): org-scoped ERP subscription plan master -- auto_register_asset_trg attached, name_column=name, active_column=is_active (genuine TRUE-means-active flag), no owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped ERP subscription plan master -- auto_register_asset_trg attached, name_column=name, active_column=is_active (genuine TRUE-means-active flag), no owner column exists"
   - table: gst_gstin_master
-    reason: "Priority 12 (drizzle/0186): PLATFORM-WIDE by design (no org_id column -- a shared cache of public GSTIN lookups keyed by the GSTIN itself, reused across every org) -- org_column=NULL is correct here, same reasoning as module_registry/product_branches -- auto_register_asset_trg attached, name_column=gstin (NOT NULL, unique -- legal_name/trade_name are both nullable so not used), active_column=NULL (lookup_status is 3-value free text, not boolean)"
+    reason: "Priority 17 (drizzle/0193): PLATFORM-WIDE by design (no org_id column -- a shared cache of public GSTIN lookups keyed by the GSTIN itself, reused across every org) -- org_column=NULL is correct here, same reasoning as module_registry/product_branches -- auto_register_asset_trg attached, name_column=gstin (NOT NULL, unique -- legal_name/trade_name are both nullable so not used), active_column=NULL (lookup_status is 3-value free text, not boolean)"
   - table: gst_hsn_master
-    reason: "Priority 12 (drizzle/0186): PLATFORM-WIDE by design (no org_id column -- shared HSN/SAC -> GST-rate reference every org reads the same rows from) -- org_column=NULL is correct here -- auto_register_asset_trg attached, name_column=hsn_sac_code (NOT NULL, unique), active_column=NULL (is_service is a goods-vs-service classification flag, not TRUE-means-active)"
+    reason: "Priority 17 (drizzle/0193): PLATFORM-WIDE by design (no org_id column -- shared HSN/SAC -> GST-rate reference every org reads the same rows from) -- org_column=NULL is correct here -- auto_register_asset_trg attached, name_column=hsn_sac_code (NOT NULL, unique), active_column=NULL (is_service is a goods-vs-service classification flag, not TRUE-means-active)"
   - table: gst_source_profiles
-    reason: "Priority 12 (drizzle/0186): org-scoped GST import-source column-mapping profile -- auto_register_asset_trg attached, name_column=name (has a real default 'Default' but is user-renamable), no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped GST import-source column-mapping profile -- auto_register_asset_trg attached, name_column=name (has a real default 'Default' but is user-renamable), no status or owner column exists"
   - table: firm_invoices
-    reason: "Priority 12 (drizzle/0186): org-scoped CA-firm client invoice header -- auto_register_asset_trg attached, name_column=invoice_number (real business document number, always present, not a nullable reference field), owner_column=created_by_id (nullable, only option), active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 17 (drizzle/0193): org-scoped CA-firm client invoice header -- auto_register_asset_trg attached, name_column=invoice_number (real business document number, always present, not a nullable reference field), owner_column=created_by_id (nullable, only option), active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: pms_saved_views
-    reason: "Priority 12 (drizzle/0186): org-scoped PMS saved view/filter -- same shape/precedent as the already-registered saved_reports -- auto_register_asset_trg attached, name_column=name, owner_column=owned_by_id (genuine, NOT NULL owner), active_column=NULL (access is a visibility scope, not TRUE-means-active)"
+    reason: "Priority 17 (drizzle/0193): org-scoped PMS saved view/filter -- same shape/precedent as the already-registered saved_reports -- auto_register_asset_trg attached, name_column=name, owner_column=owned_by_id (genuine, NOT NULL owner), active_column=NULL (access is a visibility scope, not TRUE-means-active)"
   - table: pms_estimate_schemes
-    reason: "Priority 12 (drizzle/0186): org-scoped PMS estimation scheme (e.g. XS/S/M/L/XL) -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped PMS estimation scheme (e.g. XS/S/M/L/XL) -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
   - table: pms_meetings
-    reason: "Priority 12 (drizzle/0186): org-scoped internal project meeting -- same shape/precedent as the already-registered veri_meetings, minus the confidentiality concern that ruled out board_meetings -- auto_register_asset_trg attached, name_column=title, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped internal project meeting -- same shape/precedent as the already-registered veri_meetings, minus the confidentiality concern that ruled out board_meetings -- auto_register_asset_trg attached, name_column=title, no status or owner column exists"
   - table: construction_categories
-    reason: "Priority 12 (drizzle/0186): org-scoped WBS/BOQ category master, self-referencing parent for sub-categories -- same shape as the already-registered erp_item_groups/erp_asset_categories -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped WBS/BOQ category master, self-referencing parent for sub-categories -- same shape as the already-registered erp_item_groups/erp_asset_categories -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
   - table: construction_activities
-    reason: "Priority 12 (drizzle/0186): org-scoped WBS activity master, distinct from its daily-log child construction_work_progress_entries -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped WBS activity master, distinct from its daily-log child construction_work_progress_entries -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
   - table: construction_submittals
-    reason: "Priority 12 (drizzle/0186): registered as asset_type task -- a shop-drawing/spec submittal needing review resolution, same reasoning as tickets/leave_requests -- auto_register_asset_trg attached, name_column=title, purpose_column=spec_section, owner_column=submitted_by_id (genuine, NOT NULL), active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 17 (drizzle/0193): registered as asset_type task -- a shop-drawing/spec submittal needing review resolution, same reasoning as tickets/leave_requests -- auto_register_asset_trg attached, name_column=title, purpose_column=spec_section, owner_column=submitted_by_id (genuine, NOT NULL), active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: construction_change_orders
-    reason: "Priority 12 (drizzle/0186): registered as asset_type task -- a change order needing approval resolution, same reasoning as construction_submittals -- auto_register_asset_trg attached, name_column=title, purpose_column=reason, owner_column=requested_by_id (genuine, NOT NULL), active_column=NULL (status is a real Postgres enum, not boolean)"
+    reason: "Priority 17 (drizzle/0193): registered as asset_type task -- a change order needing approval resolution, same reasoning as construction_submittals -- auto_register_asset_trg attached, name_column=title, purpose_column=reason, owner_column=requested_by_id (genuine, NOT NULL), active_column=NULL (status is a real Postgres enum, not boolean)"
   - table: fm_asset_categories
-    reason: "Priority 12 (drizzle/0186): PLATFORM-WIDE by design (no org_id column -- category_key is globally unique, a shared FM asset-category catalog every org's fm_assets rows point into) -- org_column=NULL is correct here, same reasoning as fm_checklist_templates's platform-seeded rows -- auto_register_asset_trg attached, name_column=display_name, active_column=is_active (genuine TRUE-means-active flag)"
+    reason: "Priority 17 (drizzle/0193): PLATFORM-WIDE by design (no org_id column -- category_key is globally unique, a shared FM asset-category catalog every org's fm_assets rows point into) -- org_column=NULL is correct here, same reasoning as fm_checklist_templates's platform-seeded rows -- auto_register_asset_trg attached, name_column=display_name, active_column=is_active (genuine TRUE-means-active flag)"
   - table: interior_materials
-    reason: "Priority 12 (drizzle/0186): org-scoped material/finish swatch master, distinct from the floor-plan/mood-board tables already registered in Priority 11 -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+    reason: "Priority 17 (drizzle/0193): org-scoped material/finish swatch master, distinct from the floor-plan/mood-board tables already registered in Priority 11 -- auto_register_asset_trg attached, name_column=name, no status or owner column exists"
+  - table: document_correspondents
+    reason: "Priority 13 (drizzle/0188): org-scoped user-managed correspondent register, same shape as departments/committees -- auto_register_asset_trg attached, asset_type=other, name_column=name, no purpose/owner/active column exists"
+  - table: document_matching_rules
+    reason: "Priority 13 (drizzle/0188): org-scoped named document auto-classification rule -- auto_register_asset_trg attached, asset_type=rule, name_column=name, active_column=is_active (genuine boolean), no purpose/owner column exists"
+  - table: custom_charts
+    reason: "Priority 13 (drizzle/0188): org-scoped self-serve ad-hoc BI chart definition, same asset_type as the already-registered saved_reports (drizzle/0153) -- auto_register_asset_trg attached, asset_type=report, name_column=name, owner_column=created_by_id, no purpose/module/active column exists"
 
 exempted:
   - table: access_review_certifications

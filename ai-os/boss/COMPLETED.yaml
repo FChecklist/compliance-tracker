@@ -1615,3 +1615,267 @@ entries:
         marketing-page feature, hstore extension placement, auth leaked-
         password-protection setting) -- none touched by or in scope of
         this fix.
+
+  - id: WAVE-175
+    title: "Priority 11 -- Reports & Analysis ENGINE: 3-axis taxonomy, generic dispatcher (aggregation/formula/AI-recipe/external-service), 200 seeded report/analysis definitions across Project+Construction, Interior Design, and Sales domains (Owner directive 2026-07-13)"
+    doer:
+      agent: "claude-code (Super Boss) for taxonomy/dispatcher/engine foundation, then 3 parallel claude worktree-isolated sub-agents for the 3 domain catalogs, reconciled and merged by claude-code (Super Boss)"
+      date: "2026-07-13"
+      pr: "272, 273, 275, 277, 278"
+      summary: >
+        Owner directive: treat Reports & Analysis as a genuine "Software
+        and/or Software+AI Generated Decision System" -- 7 categories,
+        an open-ended classification list, 15 periodicity types (hourly
+        through custom_range/on_demand), and a flexible ENGINE that can
+        generate/merge/create reports "without reworking and without
+        duplicacy," not one hand-written function per report. PR #272 --
+        report-taxonomy.ts (category/classifications/periodicity types +
+        validators), drizzle/0180 creating compliance.report_definitions
+        (org_id nullable = platform-wide, RLS + UMR-registered), extended
+        report-schedule-service.ts's isScheduleDue() for all 15
+        periodicity types including a real custom_range date-truncation
+        bug found and fixed by this wave's own test suite. PR #273 --
+        the dispatcher gap found before dispatching sub-agents: Wave A
+        had no deterministic_aggregation handler, which would have
+        forced a bespoke wrapper per report (violating the Owner's
+        no-duplication requirement) -- added TABLE_REGISTRY (whitelist-
+        only, same discipline as the pre-existing custom-report-service.ts)
+        + resolveAggregationTarget()/runAggregationFromConfig(), wired
+        into executeReportDefinition() as the one real dispatcher for all
+        4 execution types (deterministic_aggregation, deterministic_formula,
+        ai_recipe, external_service). Also fixed a real production-build-
+        breaking bug: DB-touching catalog functions had been added to
+        report-catalog-service.ts, which ReportCatalogList.tsx ("use
+        client") imports -- pulled the postgres Node driver into the
+        client bundle (tsc and bun test both stayed green; only
+        `bun run build` caught it). Moved them into the server-only
+        report-engine-service.ts instead. Promoted "Reports & Analysis"
+        to its own top-level AppSidebar section (2nd position). 3 parallel
+        sub-agents then built the domain catalogs: PR #278 (Project +
+        Construction, 74 rows: 30 Project Reports minus 6 dupes, 30
+        Analysis Dashboards, 20 Executive KPIs), PR #275 (Interior
+        Design, 20 rows: 8 built, 12 data_gap), PR #277 (Sales, 110 rows:
+        50 built, 53 data_gap, 7 planned, covering the Lead->Opportunity->
+        Proposal->Negotiation->Order->Project->Customer lifecycle). All 3
+        sub-agent worktrees were branched before PR #273 merged (a
+        worktree-creation timing lag, not a dispatch-order mistake), so
+        each independently rebuilt its own copy of TABLE_REGISTRY/
+        AggregationConfig/the dispatcher -- reconciled by hand against
+        origin/main for all 3 (6 conflict regions for #278, 13 for #277),
+        including a recurring "shared closing brace" git auto-merge
+        artifact (both branches' last formula function shared an
+        identical trailing `})\n}` that git silently factored out as
+        unconflicted context, leaving both sides' real last function
+        unclosed) diagnosed precisely per conflict and fixed. Every
+        'built' row is genuinely executable through the one dispatcher --
+        not a catalog placeholder -- verified via bun test/tsc/lint/build
+        clean after every merge.
+    auditor:
+      agent: claude-code (Super Boss, same session, all 5 PRs audited personally)
+      date: "2026-07-13"
+      verdict: PASS
+      summary: >
+        Read all 5 full diffs before merge. Verified engine mechanics
+        directly, not just PR descriptions: confirmed TABLE_REGISTRY stays
+        whitelist-only (same 8 base entities as custom-report-service.ts,
+        grown to 26 across the 3 domain waves), confirmed the AI-recipe
+        path (AI_RECIPE_SYSTEM_PROMPT) forbids invented figures and every
+        ai_analysis-category 'built' row grounds in a real formula or
+        query, confirmed the dispatcher's final branch is a hard
+        ServiceError (never a silent no-op) for any executionType/config
+        mismatch. For PR #277 specifically: standardized a competing
+        filterColumn/filterValue migration-SQL shape onto the
+        already-established filterEquals nested shape used by the other
+        94 rows (via a verified perl rewrite, JSONB-parse-checked
+        afterward, 0 malformed across all 139 execution_config blobs in
+        that file), removed a dead duplicate dispatcher branch left by
+        git's auto-merge, re-ran the reconciled branch through
+        tsc/lint/build/bun test (1039 pass / 0 fail / 1984 expect() calls,
+        zero regressions) before pushing. All 5 PRs' required checks
+        (Lint/Type Check/Build/Unit Tests) passed; audit-check required 2
+        format-correction iterations on PR #277's comment (learned:
+        validate-audit-verdict.ts requires each of the 8 fields as a bare
+        "Label: value" line with no markdown bold, and severityClassified/
+        verdict must be exactly one of the enum words -- not a sentence)
+        before passing structurally. Applied all 3 domain migrations
+        (0181, 0182, 0183) live via Supabase MCP, split into
+        section-sized apply_migration calls given their size. Verified
+        row counts at every stage: 74+20=94 after #278/#275, then 204
+        expected after #183's 110 rows but 200 landed -- traced precisely
+        (not just accepted) to 4 platform-wide name collisions from
+        compliance.report_definitions' own ux_report_definitions_platform_name
+        unique index, all 4 confirmed benign: 2 Sales data_gap placeholders
+        (Material Selection Report, Mood Board Approval Report) lost to
+        already-built Interior Design rows of the same name, 1 Sales
+        planned placeholder (Profitability Analysis) lost to an
+        already-built Construction row, and 1 case (Customer Satisfaction
+        Analysis) where Sales and Construction had independently flagged
+        the identical real data_gap under the same name -- zero functional
+        loss in any case, confirmed by direct row-content comparison, not
+        assumption. get_advisors(security) run after all 3 migrations:
+        zero new findings attributable to report_definitions or this
+        wave. Final honest tally: 200 report/analysis definitions live
+        (109 built and genuinely executable through the dispatcher, 85
+        data_gap with a specific named schema gap in data_gap_note, 6
+        planned where real data exists but the join/bucketing/listing
+        shape isn't wired yet) -- not reported as 100% complete, since
+        the data_gap/planned rows are real, honestly-documented future
+        work, not filler.
+  - id: WAVE-176
+    title: "Priority 12 OPEN-07 point (8) closed -- real ERP/Sales module-enablement enforcement (Owner directive 2026-07-13)"
+    doer:
+      agent: claude-code (Super Boss, orchestrating one background sub-agent for the mechanical ERP sweep)
+      date: "2026-07-14"
+      pr: 282
+      summary: >
+        ERP (Accounting/Finance/Payroll/Buying/Selling/Stock) and Sales/CRM
+        APIs had zero module-enablement enforcement -- orgProductBranch-
+        Enablements/requireBranchEnabled() existed and was enforced for
+        pms/facilities_management/the_firm/veri_reward/veri_chat_v2, but
+        never wired up for 'erp' or 'sales', despite both branch rows
+        already existing in product_branches. Any org could hit any ERP or
+        CRM endpoint regardless of purchased package -- the Owner's own
+        example scenario, confirmed live before the fix.
+
+        Added erp-enablement-service.ts/crm-enablement-service.ts (same
+        thin-wrapper shape as firm-enablement-service.ts). Queried real
+        usage first per the Owner's decision (c) rather than guessing a
+        backfill list: only demo_org has real ERP transactional usage
+        (already had an enabled row from the 2026-07-06 demo seed, so no
+        ERP backfill was needed); 11 orgs (demo_org + 10 demo_co_*) had
+        real crm_leads/crm_opportunities rows with zero enablement row
+        despite active usage -- backfilled via drizzle/0185, applied live
+        via Supabase MCP, re-queried to confirm all 11 now enabled.
+        requireErpEnabled()/requireSalesEnabled() wired as the first
+        statement of every exported function across the 20 erp-*-
+        service.ts files (202 functions, via a background sub-agent using
+        the TypeScript compiler API to find every ctx.orgId-bearing
+        function, not regex) and crm-service.ts (11 functions, done
+        directly). Denial returns the Owner's exact polite wording naming
+        the actual module, not a generic "Forbidden".
+
+        One residual gap intentionally left open, not closed by this PR:
+        erp-procurement-workflow-service.ts's two supplier-portal endpoints
+        (getActiveAuctionsForSupplierPortal, submitAuctionBid) are
+        authenticated by an external portal token with no ctx.orgId at the
+        call boundary, so they aren't gated -- narrow (only matters if an
+        org enabled ERP long enough to create an RFQ/auction, then disabled
+        it while a supplier still holds a live portal token), flagged as a
+        named follow-up rather than rushed into this PR.
+
+        Only point (8) of OPEN-07's 12 points was in scope here -- the
+        Owner explicitly carved this one out as safe to start immediately
+        (asked directly, via AskUserQuestion, whether to start Priority 12
+        now or wait for Priority 11's OPEN-06; Owner chose to wait for
+        OPEN-06 before starting the rest of Priority 12, but this specific
+        piece shares no file surface with Priority 11's remaining Reports &
+        Analysis Engine work, so it proceeded). The rest of Priority 12
+        stays deferred.
+    auditor:
+      agent: claude-code (Super Boss, same session)
+      date: "2026-07-14"
+      verdict: PASS
+      summary: >
+        Independently re-ran tsc --noEmit and bun run lint after the
+        sub-agent's sweep (did not just trust its self-report) -- both
+        clean, matching the sub-agent's claim exactly (4 pre-existing
+        unrelated missing-module errors, 3 pre-existing unrelated lint
+        warnings, none touching erp-/crm- files). Spot-checked the actual
+        diff on erp-returns-service.ts, erp-payroll-service.ts,
+        erp-financial-report-service.ts, and crm-service.ts -- confirmed
+        pure additive one-line insertions at the correct position (before
+        withTenantContext, before existing validation), no unrelated
+        reformatting, no stray files left behind. Ran bun test directly:
+        1039 pass / 0 fail. Re-queried the live DB after the backfill
+        migration to confirm all 11 target orgs actually have an
+        is_enabled=true row for 'sales' (did not just trust the migration
+        applying without error). Ran get_advisors(security) before and
+        after the backfill -- identical finding set, no new advisories
+        introduced. Hit and resolved a real migration-number collision
+        (0184 was independently claimed by a concurrent session's
+        p11/umr-batch-onboarding-3 PR mid-flight) by renumbering to 0185
+        and re-verifying live no config-row collision existed. Posted the
+        mandatory structured AUDIT: PASS verdict comment on PR #282 per
+        Rule 7c/10 (first attempt was rejected by validate-audit-verdict.ts
+        for a vague "etc." in the Scope Confirmed field -- corrected and
+        reposted). CI green on all required gates (Lint/Type Check/Build/
+        Unit Tests) plus E2E Tests and audit-check; only the pre-existing,
+        unrelated "Vercel" preview-deployment check failed, consistent
+        with every other recent wave on this repo.
+  - id: WAVE-177
+    title: "Priority 12 (OPEN-07, Universal Builder) fully closed -- Owner-directed sole ownership, 11 of 12 numbered points shipped, 1 confirmed a pre-existing gap in the original numbering"
+    doer:
+      agent: "claude-code (Super Boss) directly for the foundation pass (PR #296/#297) and all cross-PR audit fixes; 3 parallel worktree-isolated sub-agents for PR #298/#299/#300, dispatched and reconciled by the same session"
+      date: "2026-07-14"
+      pr: "296, 297, 298, 299, 300 (point 8 itself closed earlier the same day via PR #282)"
+      summary: >
+        Owner instructed this session directly, in chat, to take Priority 12
+        through to full closure -- superseding the prior "wait for Priority
+        11's OPEN-06" soft-gate deferral -- and to resolve any conflicts
+        found along the way. PR #296: chief_audit_officer moved to DeepSeek
+        V4 Pro per the Owner's own 3-rung-ladder decision (b), capability-
+        audit's escalation dispatch switched from the dead GITHUB_DISPATCH_PAT
+        repository_dispatch path to a new advisory-dispatch-service.ts
+        (decision a), and a real cron trigger (/api/internal/capability-audit/run)
+        wired for runCapabilityAudit(), which previously had zero callers
+        anywhere in the deployed app. PR #297: task_capabilities surfaced as
+        a real, DB-driven "Learned Capabilities" branch in the Chain
+        Selector (points 3+7), grown the same "no hand-authored taxonomy"
+        way every other branch in capability-tree-service.ts already works.
+        PR #298 (sub-agent, audited/fixed by this session): task_capabilities.status
+        now derived live from the rolling FULL_SOFTWARE/PACKAGE_AVAILABLE/
+        NOVEL counters inside the same transaction that updates them (point
+        6), plus docs/ESCALATION_MATRIX.md honestly cross-referencing the 5
+        real escalation mechanisms and stating explicitly where they do NOT
+        talk to each other (point 10). PR #299 (sub-agent): the identical
+        "zero branch-check" gap independently confirmed in the Reports &
+        Analysis Engine -- gated ERP/construction-domain report execution
+        and catalog listing the same way ERP/Sales got gated in PR #282,
+        including a real usage-based backfill for the previously-unenforced
+        'construction' branch. PR #300 (sub-agent): a narrow, non-duplicating
+        cross-reference between VERI FDE (capability-registry-service.ts)
+        and Dynamic-Chain/Chat (capability-learning-service.ts) -- two
+        catalogs that answer the same "has the platform seen this before?"
+        question but never talked to each other (point 1) -- plus the first
+        real UI/API surface for capability_improvement_proposals, since
+        closeImprovementLoop() had been manual/human-only (point 5).
+    auditor:
+      agent: "claude-code (Super Boss, same session) -- self-certified for the 2 PRs it authored directly (#296/#297), disclosed per this repo's established transparency precedent; genuinely independent for the 3 sub-agent PRs (#298/#299/#300), per Rule 7c (doer != auditor)"
+      date: "2026-07-14"
+      verdict: PASS
+      summary: >
+        Found and fixed 3 real cross-PR migration-number collisions before
+        merging, none of which the individual PRs could have caught alone:
+        PR #298, #299, and #300 each independently claimed migration 0190
+        (task_capabilities.status backfill, construction-branch backfill,
+        and capability_improvement_proposals.rejection_reason respectively)
+        -- renumbered to 0190/0191/0192 in merge order, same "whichever
+        lands later renumbers" precedent already established for the
+        WAVE-175/176 doc-id collision earlier the same day. Also found a
+        genuine correctness bug in PR #298's backfill migration: its SQL
+        used a naive integer cross-multiplication that its own comment
+        claimed matched deriveCapabilityStatus() exactly but didn't --
+        that function compares Math.round()'d percentages, satisfied by
+        raw values as low as 79.5%/59.5%, not just the literal 80%/60% the
+        naive SQL checked. Brute-force verified every (full, package,
+        novel) combination up to total=500 both before and after the fix
+        -- zero mismatches after rescaling to one-decimal precision.
+        Applied all migrations live via Supabase MCP (verdian-ai project,
+        pcrjmlpuqsbocqfwoxod) and re-queried to confirm; get_advisors(security)
+        showed zero new findings across every change. Re-ran tsc --noEmit
+        and the relevant test suites personally after every rebase/fix
+        before pushing, not just trusting each sub-agent's own report. All
+        6 PRs' required CI gates (Lint/Type Check/Build/Unit Tests/E2E
+        Tests/audit-check) green; only the pre-existing, unrelated Vercel
+        preview-deployment check failed on each, consistent with every
+        other recent wave on this repo. Honest, not oversold: point 9 of
+        the Owner's original 12-point numbering was never separately
+        itemized anywhere in this tracker's own OPEN-07 detail (the list
+        jumps 8 -> 10) -- flagged as a gap in the original gap-analysis
+        itself, not invented as a retroactive point to claim a clean
+        12-for-12. Full production end-to-end verification (a real
+        OpenRouter call reaching the new cron/advisory-dispatch path) was
+        not possible from this local dev environment -- no
+        OPENROUTER_API_KEY/DATABASE_URL available outside the Supabase
+        MCP/CI -- flagged in PR #296's own audit comment as a recommended
+        live spot-check for whichever session next has deploy access.
