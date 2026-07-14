@@ -241,6 +241,56 @@ end_user_experience:
     status: NOT_YET_TRACKED
     note: "GAP-D1-METRICS-TARGET (MASTER-TRACKER.yaml) tracks '99.9% GPT-OSS-120B usage' -- a MODEL-TIER-DISTRIBUTION metric, NOT a software-vs-AI automation-ratio metric. Do not conflate these two numbers. If the Owner wants the 90%-automated-by-software target tracked, it needs its own new metric definition and MASTER-TRACKER.yaml entry."
 
+# ----------------------------------------------------------------------------
+# Added 2026-07-14 (Owner directive, second reconciliation pass). All items
+# below verified by direct grep against live code before being written --
+# none assumed from the Owner's phrasing alone.
+# ----------------------------------------------------------------------------
+browser_client_architecture:
+  page_agent:
+    ask: "PageAgent not to be used in VERIDIAN AI OS"
+    ref: "src/components/AppShell.tsx (global mount), src/components/PageAgentInitializer.tsx, src/app/api/page-agent/{config,proxy}/route.ts, src/app/api/settings/page-agent-config/route.ts, src/components/PersonalAiConfigSection.tsx, src/lib/db/schema.ts, src/lib/orchestra-model-resolver.ts, src/lib/personal-model-resolver.ts"
+    status: REAL_CONFLICT_UNRESOLVED
+    current_reality: "PageAgent is NOT a stub -- it is currently ENFORCED, globally mounted (loads on every page via AppShell.tsx), and is one of only 3 surfaces gated by the Policy Enforcement Engine per VERIDIAN_AI_CONSTITUTION.md (the other two are VERI Chat and VERI FDE). It lets an AI model send DOM-control instructions to the live page. ~10 files reference it, including schema.ts and 2 model-resolver files."
+    open_question_for_owner: "Removing this is a real removal of an embedded, currently-enforced system, not a docs change. Need explicit scope before touching code: (a) full removal now (own scoped pass, its own verification -- ~10 files, including a schema migration to retire the table(s) it uses), or (b) freeze-in-place (no new work builds on/extends PageAgent going forward; existing wiring stays until a separate, explicit removal pass is authorized)? Not executed either way as of this entry -- awaiting Owner's answer."
+
+  litert_js:
+    ask: "LiteJS [confirmed by Owner-provided URLs: LiteRT.js] to be used"
+    ref: "GAP-LITERT-EDGE-INFERENCE (MASTER-TRACKER.yaml) -- full re-evaluation there, referenced not duplicated here. Also see developers.googleblog.com/en/litertjs-googles-high-performance-web-ai-inference/ and github.com/google-ai-edge/litert (Owner-provided, fetched 2026-07-14)."
+    status: OWNER_DIRECTIVE_RECEIVED_NOT_YET_BUILT
+    note: "Confirmed production-grade (Apache-2.0, Google-maintained, active). Real current strength: object detection/depth estimation/image upscaling/embeddings-vector-search, hardware-accelerated in-browser (WASM/WebGPU/WebNN). Still NOT suitable for in-browser LLM chat -- that's a separate product, LiteRT-LM.js, not evaluated. Most promising real lead found: its embeddings/vector-search capability as a candidate mechanism for the chat-instruction-learning gap (see learning_and_umr.chat_instruction_word_level_learning_for_reuse below) -- a real pairing, not yet scoped or built."
+    explicitly_not_the_same_as: "VERIDIAN's VCEL calculators (src/lib/engines/*.ts -- EMI/GST/depreciation/etc.) are plain deterministic math, not ML models. They need zero LiteRT.js dependency to move client-side -- just a port of existing TS logic. Do not force LiteRT.js into the 'most-used calculator loads in browser' ask below; it solves a different problem (ML model inference, not arbitrary business math)."
+
+  more_information_in_browser:
+    ask: "the user-side browser to have more information for faster work"
+    ref: "NONE -- general architectural direction, not yet a scoped mechanism"
+    status: POLICY_ONLY
+    note: "Directionally consistent with the other items in this section (caching, client-side calculators, DMP in-browser) -- treat as the umbrella principle these more specific asks implement, not a separate mechanism to build on its own."
+
+  most_used_calculator_in_browser:
+    ask: "most-used calculator by user to load in browser"
+    ref: "src/lib/engines/*.ts -- ~25 VCEL calculator engines, ALL server-only today (confirmed: zero client-side execution of any engine)"
+    status: NOT_YET_BUILT
+    note: "See litert_js.explicitly_not_the_same_as above -- this is a port-existing-deterministic-logic-to-client task, not an ML/LiteRT.js task. Needs: (1) usage-frequency tracking per user per calculator (doesn't exist -- dynamic_chains/capability-tree has no usage-count mechanism today), (2) confirming which engines are safe to run client-side (pure math, no DB/RLS/org-data dependency) vs. must stay server-side (anything touching live org data), (3) an actual client-side bundle/loading mechanism."
+
+  dmp_dcf_in_browser:
+    ask: "Dynamic Mode Pill + Dynamic Option Selection to be in browser for the user"
+    ref: "src/components/veri-chat/VeriComposer.tsx, capability-tree-service.ts::buildCapabilityTree()"
+    status: PARTIALLY_ENFORCED
+    note: "The RENDERING already happens in-browser (VeriComposer.tsx is a real client component). What's NOT yet true: the tree is recomputed server-side and fetched fresh on every page load -- no client-side cache, no SWR/react-query or equivalent (confirmed: zero hits for either in veri-chat-context.tsx). If the ask is 'keep the resolved tree cached client-side between loads,' that's the same gap as browser_cache_for_speed below, not a separate one."
+
+  browser_cache_for_speed:
+    ask: "most work to be loaded in the browser cache for fast work"
+    ref: "NONE -- confirmed by direct grep: zero localStorage/indexedDB/serviceWorker usage anywhere in src/"
+    status: NOT_YET_BUILT
+    note: "No client-side caching layer exists in this codebase today, of any kind. This is a real, currently-nonexistent architecture direction, not a small addition."
+
+  cross_session_cache_persistence:
+    ask: "if user opens a new browser [tab/window], the cache to automatically work for that session on the same machine"
+    ref: "NONE"
+    status: NOT_YET_BUILT
+    note: "The specific requirement (persists across separate browser tabs/windows on the same device, not just within one tab's memory) rules out plain in-memory JS state and sessionStorage (both scoped to a single tab). IndexedDB is the right primitive for this -- NOT localStorage, which is size-limited and string-only and a poor fit for caching structured tree/calculator data. Not yet decided or built; recommend deciding this alongside browser_cache_for_speed as one coherent design, not two separate ones."
+
 monitoring_and_escalation_priority:
   ask: "monitoring by software is important, then escalation to AI. Monitoring by low-tier AI is important, then escalation to higher AI."
   order: ["software monitor (deterministic, zero LLM calls)", "narrow low-tier AI monitor", "escalate to higher-tier AI"]
