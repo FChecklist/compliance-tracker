@@ -91,13 +91,15 @@ export default function OnboardingChecklist() {
   const showCongrats = allDone && !dismissed && !autoDismissed;
 
   const toggleStep = useCallback((id: string) => {
+    let isNowAllDone = false;
+    let alreadyDoneThisStep = false;
     setCompletedArr((prev) => {
-      const alreadyDone = prev.includes(id);
-      const next = alreadyDone ? prev.filter((s) => s !== id) : [...prev, id];
-      const isNowAllDone = next.length === STEPS.length;
+      alreadyDoneThisStep = prev.includes(id);
+      const next = alreadyDoneThisStep ? prev.filter((s) => s !== id) : [...prev, id];
+      isNowAllDone = next.length === STEPS.length;
       writeStorage(next, false);
       // If all steps just completed, schedule congrats auto-dismiss
-      if (isNowAllDone && !alreadyDone) {
+      if (isNowAllDone && !alreadyDoneThisStep) {
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
           setAutoDismissed(true);
@@ -107,11 +109,15 @@ export default function OnboardingChecklist() {
       }
       return next;
     });
-    // Sync server-side alongside the existing localStorage write
+    // Sync server-side alongside the existing localStorage write. allComplete
+    // reuses the same "next.length === STEPS.length" check already computed
+    // above -- the server persists users.onboardingCompleted and checks the
+    // 'onboarding_complete' VERI Reward achievement only when this is true,
+    // so unchecking a step afterward doesn't un-complete onboarding server-side.
     fetch('/api/me/onboarding-stage', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: id }),
+      body: JSON.stringify({ stage: id, allComplete: isNowAllDone && !alreadyDoneThisStep }),
     });
   }, []);
 
@@ -122,16 +128,18 @@ export default function OnboardingChecklist() {
   // back to complete on its own either -- only a real GET /api/connectors
   // result does that).
   const markStepComplete = useCallback((id: string) => {
+    let isNowAllDone = false;
     setCompletedArr((prev) => {
       if (prev.includes(id)) return prev;
       const next = [...prev, id];
+      isNowAllDone = next.length === STEPS.length;
       writeStorage(next, false);
       return next;
     });
     fetch('/api/me/onboarding-stage', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stage: id }),
+      body: JSON.stringify({ stage: id, allComplete: isNowAllDone }),
     });
   }, []);
 

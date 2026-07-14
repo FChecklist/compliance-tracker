@@ -9,6 +9,8 @@ import { isVisionExtractable, extractDocumentContent } from "@/lib/services/docu
 import { listDocuments, markSupersededVersion, ServiceError } from "@/lib/services/document-service"
 import { classifyBusinessObjectType } from "@/lib/business-object-classifier"
 import { applyClassificationWithDb } from "@/lib/services/document-classification-service"
+import { checkAndUnlockAchievements } from "@/lib/services/veri-reward-service"
+import { and, eq, sql } from "drizzle-orm"
 
 const BUCKET = "compliance-documents"
 const MAX_SIZE_BYTES = 25 * 1024 * 1024 // matches the bucket's file_size_limit
@@ -144,6 +146,26 @@ export async function POST(request: NextRequest) {
       await applyClassificationWithDb(db, orgId, doc.id, {}).catch((err) =>
         console.error("Document auto-classification (filename pass) failed:", err)
       )
+
+      // VERI Reward: nudge the 'first_document_upload' achievement the
+      // moment this user's upload count hits 1. No existing per-user
+      // document count to reuse (document-service.ts only exposes
+      // org-scoped listing), so this is a narrowly-scoped count(*) against
+      // the row just inserted, not a full table scan. Wrapped so a
+      // points-engine failure can never break the actual upload (logged,
+      // not thrown) -- same discipline as compliance-service.ts's
+      // first_compliance_item wiring.
+      try {
+        const [{ count }] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(documents)
+          .where(and(eq(documents.orgId, orgId), eq(documents.uploadedById, dbUser.id)))
+        if (count === 1) {
+          await checkAndUnlockAchievements(db, { orgId, userId: dbUser.id, achievementKey: "first_document_upload" })
+        }
+      } catch (err) {
+        console.error("[veri-reward] failed to check first_document_upload achievement", err)
+      }
 
       return doc
     })
