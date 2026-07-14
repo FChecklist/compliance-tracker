@@ -16,7 +16,6 @@ export type MeResponse = {
   pmsEnabled: boolean;
   veriChatV2Enabled: boolean;
   firmEnabled: boolean;
-  pageAgentEnabled: boolean;
   orgPlan: string;
   trialEndsAt: string | null;
 };

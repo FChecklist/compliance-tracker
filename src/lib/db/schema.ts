@@ -46,12 +46,6 @@ export const organisations = complianceSchemaDB.table('organisations', {
   trialEndsAt: timestamp('trial_ends_at'),     // M-17
   isReadOnly: boolean('is_read_only').notNull().default(false), // M-17: after trial
   subscriptionPlanId: text('subscription_plan_id'), // Wave 1
-  // Wave 24 (PageAgent integration): org-level on/off switch for the
-  // client-side GUI agent -- default true, deployed as default per the
-  // user's explicit instruction. Distinct from whether a model is actually
-  // configured for it (page_agent_oa layer) -- an org can have both a
-  // model configured AND this off, or vice versa.
-  pageAgentEnabled: boolean('page_agent_enabled').notNull().default(false),
   // Wave 172 (area 16, Account/Organization lifecycle -- U-D27.B1.S1):
   // licensedSeats null = unlimited/unenforced (every pre-existing org's
   // real state -- opt-in, not retroactively imposed). seatEnforcementEnabled
@@ -1681,32 +1675,6 @@ export const promptEvalRuns = complianceSchemaDB.table('prompt_eval_runs', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-// ─── Personal Model Config (Wave 24, PageAgent integration) ──────────────
-// The per-user counterpart to customer_model_config's per-org BYO --
-// resolved BEFORE the org-level config in resolvePageAgentModelConfig()'s
-// most-specific-scope-wins chain (personal -> org -> platform default),
-// same philosophy as every other resolver in this codebase. `provider` is
-// deliberately free text, NOT the ai_provider enum (groq/openai/anthropic/
-// google) -- that enum doesn't cover 'ollama'/'custom' endpoints, which
-// PageAgent's BYO story explicitly needs (local models, self-hosted
-// OpenAI-compatible endpoints), and altering a shared enum used by
-// customer_model_config/ai_configurations is riskier than a new free-text
-// column here, matching module_rule_configs.scope_type's own precedent.
-// One row per user (UNIQUE(user_id)) -- simpler than the per-orchestra-
-// layer shape customer_model_config uses, since page-agent is the only
-// consumer of this table today.
-export const personalModelConfig = complianceSchemaDB.table('personal_model_config', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  userId: text('user_id').notNull().unique(),
-  provider: text('provider').notNull(), // free text: 'groq' | 'openai' | 'ollama' | 'custom' | ...
-  baseUrl: text('base_url'), // required for 'ollama'/'custom'; null for known hosted providers
-  modelName: text('model_name').notNull(),
-  encryptedApiKey: text('encrypted_api_key'), // nullable -- a local Ollama endpoint needs no key
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
-
 // ─── Self-Improvement Loops + Knowledge Flow (Wave 5) ────────────────────
 // Platform-operational tables, NOT tenant data -- loop_executions and
 // friends have no app_runtime RLS policy at all (service_role bypass only),
@@ -2138,10 +2106,6 @@ export const promptEvalCasesRelations = relations(promptEvalCases, ({ one, many 
 export const promptEvalRunsRelations = relations(promptEvalRuns, ({ one }) => ({
   evalCase: one(promptEvalCases, { fields: [promptEvalRuns.evalCaseId], references: [promptEvalCases.id] }),
   promptVersion: one(promptVersions, { fields: [promptEvalRuns.promptVersionId], references: [promptVersions.id] }),
-}))
-
-export const personalModelConfigRelations = relations(personalModelConfig, ({ one }) => ({
-  user: one(users, { fields: [personalModelConfig.userId], references: [users.id] }),
 }))
 
 export const loopDefinitionsRelations = relations(loopDefinitions, ({ many }) => ({
@@ -3340,8 +3304,9 @@ export const pmsBudgetLineKindEnum = complianceSchemaDB.enum('pms_budget_line_ki
 // dimension at all; this is the missing "org adoption" table, resolved
 // during this wave's design pass rather than bending moduleRuleConfigs
 // (Wave 21, shaped for one resolved JSON value per rule) or copying
-// organisations.pageAgentEnabled (Wave 24, a bespoke boolean that doesn't
-// generalize to a 3rd/4th future branch) into service for something it
+// the old organisations.pageAgentEnabled precedent (Wave 24, a bespoke
+// boolean that didn't generalize to a 3rd/4th future branch and was
+// removed along with PageAgent itself) into service for something it
 // wasn't built for. Explicit row-per-org-branch-pair (not "row absence =
 // disabled") so the audit trail survives a disable-then-reenable cycle.
 export const orgProductBranchEnablements = complianceSchemaDB.table('org_product_branch_enablements', {
