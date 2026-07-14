@@ -41,29 +41,36 @@
 #      session with zero other context can act on them correctly.
 # ============================================================================
 
-active:
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    claimed_at: "2026-07-14T15:00:00Z"
-    claim: |
-      Owner-directed: (1) Prompt & Cache Framework Phase 1 -- deterministic
-      static-prefix compilation + fingerprint, Anthropic cache_control
-      wiring in src/lib/llm-client.ts (system prompt as a cached content
-      block, usage.cache_read_input_tokens/cache_creation_input_tokens
-      surfaced), a new prompt_cache_metrics table, wired into
-      chat-service.ts's generateAiReply() (VERI Chat's 1:1 AI thread) as
-      the single highest-traffic real call site. NOT touching other
-      providers' request shape (OpenAI's caching is automatic, no code
-      needed; Groq/OpenRouter/Cerebras/Google get no special handling this
-      slice). (2) OCR pre-processing pre-check -- classical (non-ML)
-      blur/sharpness detection via Laplacian variance, wired client-side
-      ahead of ocr-client.ts's dispatch. NOT using the existing
-      src/app/litert-spike/ model (unlicensed third-party model, confirmed
-      via that spike's own header comment -- real blocker, not proceeding
-      with it). Branch: worktree-prompt-cache-phase1.
+active: []
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- this session"
+    completed_at: "2026-07-14T (same day as claim)"
+    claim: |
+      Owner-directed, both tasks merged. (1) Prompt & Cache Framework Phase
+      1 (PR #321) -- deterministic static-prefix compilation + fingerprint,
+      Anthropic cache_control wiring in src/lib/llm-client.ts, a new
+      prompt_cache_metrics table, wired into chat-service.ts's
+      generateAiReply() as the single highest-traffic real call site.
+      (2) FM register photo digitization minimal wiring (PR #322) --
+      classical (non-ML) Laplacian-variance blur pre-check
+      (src/lib/fm-photo-blur-check.ts), plus new API routes and an upload
+      page wired to the existing (previously zero-caller)
+      parseAndExtractFromPhoto()/listDigitizationRows() in
+      fm-register-digitization-service.ts. Deviation from the original
+      claim worth noting honestly per this file's own Rule 4: the claim
+      said "ahead of ocr-client.ts's dispatch" -- ocr-client.ts's runOcr()
+      turned out to have its own zero-caller/no-route gap and was not the
+      right integration point; the FM-specific
+      parseAndExtractFromPhoto()/listDigitizationRows() pair was the
+      correct, already-designed-for-this pipeline instead. NOT using the
+      existing src/app/litert-spike/ model (unlicensed third-party model,
+      confirmed via that spike's own header comment). Both PRs' details in
+      ai-os/CONSTITUTION.yaml (prompt_cache_framework,
+      fm_photo_digitization_wiring sections) and
+      ai-os/MASTER-TRACKER.yaml (closed_priorities #23, #24).
   - session_label: "Super Boss (Claude Desktop) -- this session"
     completed_at: "2026-07-14T (same day as claim)"
     claim: |

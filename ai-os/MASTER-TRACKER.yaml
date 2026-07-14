@@ -1661,3 +1661,36 @@ closed_priorities:
       dispatch) -- phased per the requirements artifact's own §3.2, not a
       one-shot retrofit.
 
+  - priority: 24
+    name: "FM register photo digitization: minimal end-to-end wiring (Task 2)"
+    summary: |
+      Owner-directed (control/CONTROLLER.yaml LITERT-01) -- Wave 107's
+      parseAndExtractFromPhoto()/listDigitizationRows() had zero real
+      callers anywhere in the codebase (confirmed by grep before this
+      wave), only marketing copy on the public veri-fm-cs page. New:
+      src/lib/fm-photo-blur-check.ts (classical variance-of-Laplacian blur
+      detection, client-side, no ML dependency), POST
+      /api/fm/register-digitization/photo and GET
+      /api/fm/register-digitization/[batchId]/rows (both requireAuth()-
+      gated, delegating to the service layer's own requireFmEnabled() 403
+      check), and a minimal upload page at
+      src/app/(app)/fm-register-digitization/page.tsx -- deliberately not
+      linked from the main sidebar/nav yet, since FM & CS's broader nav
+      rollout is a separate, not-yet-made product decision; reachable only
+      by direct URL, with the existing 403 gate as the real access control
+      regardless of nav visibility. Evaluated and rejected the pre-existing
+      litert-spike/ MobileNet blur/sharp classifier for this specific use
+      case: its bundled model has no LICENSE file (real IP blocker), and a
+      trained classifier is the wrong tool for "is this specific photo
+      sharp enough" anyway. tsc/lint/tests clean (19 pass across 4 files,
+      4 new for the blur-check utility), generate-protected-routes.mjs
+      regenerated (1 new prefix), check-asset-registry-coverage.mjs
+      unaffected (no new table). Logged in ai-os/CONSTITUTION.yaml's new
+      fm_photo_digitization_wiring section (OCR-01 through OCR-03). Merged
+      PR #322.
+      Deliberately NOT built this wave: reviewDigitizationRow()/
+      commitDigitizationBatch() (human review + commit-to-fmAssets) have
+      no route yet -- this slice only wires extraction + read-only display,
+      matching the confirmed minimal scope; nav/sidebar entry -- a separate
+      product decision, not an engineering gap.
+

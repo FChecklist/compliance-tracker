@@ -134,6 +134,7 @@ meta:
   amendment_log:
     - { date: "2026-07-14", change: "v2.0 -- full rewrite as sole authority, absorbing all 9 prose docs' rules, fixing DEBT-01 through DEBT-07 above.", by: "Super Boss (Claude Desktop)" }
     - { date: "2026-07-14", change: "Added prompt_cache_framework section (CACHE-01 through CACHE-04), Phase 1 of the Prompt & Cache Management Framework (control/CONTROLLER.yaml CACHE-01) -- wired into chat-service.ts's generateAiReply only.", by: "Super Boss (Claude Desktop)" }
+    - { date: "2026-07-14", change: "Added fm_photo_digitization_wiring section (OCR-01 through OCR-03), minimal end-to-end wiring of the previously-orphaned FM register photo digitization service (control/CONTROLLER.yaml LITERT-01).", by: "Super Boss (Claude Desktop)" }
 
 # ============================================================================
 # 1. IDENTITY AND PURPOSE
@@ -785,6 +786,25 @@ prompt_cache_framework:
       rule: "This table is metrics only -- it is not a cache store. The actual cached content lives on the provider's own infrastructure (Anthropic's 5-minute-TTL server-side cache); VERIDIAN's own code never stores or serves cached prompt content itself."
       status: ENFORCED
       note: "A prior draft of this framework proposed a 'cache_registry' as if it were a data store -- corrected before implementation: there is nothing for VERIDIAN to store, since the provider already stores it. Recorded here so a future session doesn't rebuild a redundant local cache."
+
+fm_photo_digitization_wiring:
+  rule: "The FM & CS AI OS register-photo digitization service (fm-register-digitization-service.ts, Wave 107) is reachable through a real, gated HTTP surface -- not just a service-layer export nobody calls."
+  rules:
+    - id: OCR-01
+      rule: "A client-side, classical (non-ML) blur pre-check runs before a register photo is uploaded, so an unreadable photo never reaches the vision-model extraction call."
+      status: ENFORCED
+      mechanism: "src/lib/fm-photo-blur-check.ts::checkPhotoBlur() (variance-of-Laplacian), called from the upload page before /api/documents"
+      note: "A pre-existing litert-spike/ MobileNet blur/sharp classifier was evaluated and rejected for this: its bundled model has no LICENSE file (real IP blocker), and a trained classifier is the wrong tool for this specific, narrower question anyway."
+    - id: OCR-02
+      rule: "parseAndExtractFromPhoto() and listDigitizationRows() are wrapped by real, auth-gated API routes rather than left as zero-consumer service exports."
+      status: ENFORCED
+      mechanism: "POST /api/fm/register-digitization/photo, GET /api/fm/register-digitization/[batchId]/rows -- both requireAuth()-gated, delegating to the service layer's own requireFmEnabled() 403 check"
+      gap: "reviewDigitizationRow()/commitDigitizationBatch() (human review + commit-to-fmAssets) still have no route -- this slice only wires extraction + read-only display, matching the confirmed minimal scope."
+    - id: OCR-03
+      rule: "The new upload page is not linked from the main app nav/sidebar -- FM & CS's broader nav rollout is a separate, not-yet-made product decision, so this page is reachable only by direct URL."
+      status: ENFORCED
+      mechanism: "src/app/(app)/fm-register-digitization/page.tsx, absent from AppSidebar.tsx's nav sections"
+      note: "requireFmEnabled()'s 403 gate (inherited from the API routes it calls) is the real access control regardless of nav visibility -- an org without FM enabled gets a 403, not a blank/broken page."
 
 # ============================================================================
 # HOW TO KEEP THIS FILE HONEST
