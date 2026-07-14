@@ -631,11 +631,11 @@ open_items:
       recommendation: "Owner directive received to adopt LiteRT.js (2026-07-14) -- the original Phase 0 single-model-spike plan (PLATFORM_STRATEGY.md §28) is now authorized to proceed. Scope Phase 0 to the embeddings/vector-search use case first (highest-leverage, most novel finding this pass), not image pre-checks (the original, more conservative starting point) -- confirm this sequencing choice with the Owner before starting, since it changes the original plan's own stated first step."
 
     - id: GAP-NARROW-MONITOR-ESCALATION
-      name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md §29)"
+      name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md §29) -- Phase 0 CLOSED, Phase 1/2 remain"
       old_ids: []
-      detail: "Evaluated 2026-07-13. escalation-ladder.ts's fixed 3-rung ladder is real but has no MAX_RETRY/TIMEOUT/ownership fields; audit-event-triggers.ts covers only 8 narrow audit events, not a general event bus; workerAgents.tier can trivially add a 'monitor' value but dispatchTool() is pull-based -- no event-subscription mechanism exists. Ran the proposed ~30 monitored event types through the three-tier design: ~28 of 30 need zero AI (pure rule engine, DB-state changes only), a narrow remainder needs Llama 3.1 8B (Cerebras, already wired end-to-end) for genuine single-line language understanding, and none of the 30 need GPT-OSS-120B (that tier is for a different category -- hallucination/cross-agent-consistency/architectural review). Corrected one proposal detail: protocol/handover structural validation (offered as a Tier-2 example) is already Tier-1-deterministic and already shipped (PR #248). Full phased plan (Phase 0: prove the mechanism on APPROVAL_GRANTED/REJECTED only, zero LLM calls) in PLATFORM_STRATEGY.md §29."
-      size: deferred_large
-      recommendation: "This is the same underlying mechanism as GAP-AI-WORKFORCE-GOVERNANCE's Agent Escalation Registry -- sequence together, don't build twice."
+      detail: "CORRECTED 2026-07-14 (this entry was stale -- Phase 0 shipped 2026-07-13, the day after the 'evaluated 2026-07-13' text below was written, and this open_items list was never updated to reflect it). Phase 0 is DONE: WAVE-170/PR #251 (merged + audited PASS 2026-07-13, see ai-os/boss/COMPLETED.yaml) built MonitorReportFields/validateMonitorReportFields() (src/lib/monitor-protocol.ts), the monitor_agents/monitor_task_state registry (drizzle/0173, applied live), escalation-ladder.ts's single-owner lock + persisted retry/timeout counter (evaluateEscalationClaim()/claimEscalation()), and the Tier-1 rule-engine monitor wired end-to-end on APPROVAL_GRANTED/APPROVAL_REJECTED (src/lib/monitors/approval-decision-monitor.ts). Independently re-verified 2026-07-14 by a Priority 14 sub-agent assigned this same gap (found already built before writing any code): tsc clean, lint 0 errors, full suite 1113/1113 passing. Original 2026-07-13 evaluation, still accurate for what remains: escalation-ladder.ts's ladder itself is real but (before Phase 0) had no MAX_RETRY/TIMEOUT/ownership fields (now added); audit-event-triggers.ts still covers only 8 narrow audit events, not a general event bus; workerAgents.tier still has no event-subscription mechanism. Of the proposed ~30 monitored event types, only 2 (APPROVAL_GRANTED/REJECTED) are wired today -- the other ~28 pure-DB-state events (TASK_*, TODO_*, MEETING_*, MOM_*, DOCUMENT_*, FILE_*, WORKFLOW_*, etc.) are Phase 1, genuinely still open, each a registry row + one instrumentation call per 29.3's plan, no new architecture needed. Phase 2 (Tier 2/3 executors for the narrow remainder needing real language understanding) is also still open for THIS event list specifically -- note a Tier-3 GPT-OSS-120B executor already exists for a related but different purpose (dispatch-completion monitoring, PR #257/section 31.4, src/lib/monitors/dispatch-completion-monitor.ts) and is a usable pattern/precedent for Phase 2, not a substitute for it."
+      size: deferred_medium
+      recommendation: "Phase 0 done -- GAP-AI-WORKFORCE-GOVERNANCE's Agent Escalation Registry dependency on Phase 0 is now satisfied, that gap can proceed. Remaining Phase 1 (event coverage expansion) is mechanical/incremental per-event work, not a new mechanism; Phase 2 (general Tier 2/3 executors) has a working precedent to copy in dispatch-completion-monitor.ts."
 
     - id: GAP-AI-WORKFORCE-GOVERNANCE
       name: "AI Workforce Governance framework: 6 agent registries (see PLATFORM_STRATEGY.md §30)"
@@ -1661,3 +1661,45 @@ closed_priorities:
       dispatch) -- phased per the requirements artifact's own §3.2, not a
       one-shot retrofit.
 
+
+  - priority: 24
+    name: "GAP-NARROW-MONITOR-ESCALATION Phase 0: found already built, stale tracker/strategy-doc claims corrected"
+    summary: |
+      Priority 14 slice (control/CONTROLLER.yaml), dispatched to build
+      PLATFORM_STRATEGY.md 29.3 Phase 0 (MonitorReportFields contract,
+      monitor registry, escalation-ladder extension, proof on
+      APPROVAL_GRANTED/APPROVAL_REJECTED). Before writing any code, checked
+      ai-os/boss/ACTIVE-CLAIMS.yaml (registered a claim first, per Rule 11)
+      and read the real source files this task named -- found the entire
+      Phase 0 slice already built, merged, and audited PASS the day before
+      this task's own background section was written: WAVE-170/PR #251
+      (2026-07-13, see ai-os/boss/COMPLETED.yaml) built
+      src/lib/monitor-protocol.ts (MonitorReportFields +
+      validateMonitorReportFields()), the monitor_agents/monitor_task_state
+      registry (drizzle/0173, applied live per Priority 12's own audit
+      note), escalation-ladder.ts's single-owner lock + persisted
+      retry/timeout counter (evaluateEscalationClaim()/claimEscalation()),
+      and src/lib/monitors/approval-decision-monitor.ts wiring the one
+      Tier-1 rule-engine monitor end-to-end on APPROVAL_GRANTED/
+      APPROVAL_REJECTED (src/app/api/approvals/[id]/route.ts). Both this
+      task's own background section (PLATFORM_STRATEGY.md 29.4, "No code
+      written yet for section 29") and the open_items list below
+      (GAP-NARROW-MONITOR-ESCALATION, still tagged deferred_large/
+      not-yet-built) were stale -- neither had been updated after Phase 0
+      shipped. Independently re-verified the existing implementation rather
+      than trusting the prior PASS verdict: tsc --noEmit clean, eslint . 0
+      errors, full test suite 1113/1113 passing (including
+      escalation-ladder.test.ts's dedicated single-owner-lock/retry/timeout
+      suite and monitor-protocol.test.ts's field-validation suite). No new
+      Phase 0 code written -- would have duplicated real, tested,
+      already-merged work. Corrected PLATFORM_STRATEGY.md 29.4 and the
+      GAP-NARROW-MONITOR-ESCALATION open_items entry (narrowed to the
+      genuinely still-open Phase 1/Phase 2 scope) so no future session
+      re-dispatches this same rebuild. Did not touch section 30 (AI
+      Workforce Governance) or its GAP-AI-WORKFORCE-GOVERNANCE entry --
+      out of this task's scope, flagged separately for the Owner: that
+      section's own 30.4 ("no registry code written yet") also appears
+      stale against WAVE-171/PR #252 (Agent Hierarchy Registry,
+      worker_agent_domain_groups, already merged 2026-07-13 per
+      COMPLETED.yaml), but correcting it belongs to whichever session
+      is actually assigned that gap, not this one.
