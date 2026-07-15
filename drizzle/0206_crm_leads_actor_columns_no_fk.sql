@@ -1,0 +1,84 @@
+-- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix
+-- pass): fixes the same bug class PR #349
+-- (drizzle/0204_pms_issues_created_by_no_fk.sql) already fixed on
+-- compliance.pms_issues.created_by_id, now confirmed on BOTH
+-- compliance.crm_leads.created_by_id AND compliance.crm_leads.owner_id
+-- (control/priority19_dubai_e2e_testing_plan.md's "Broader systemic sweep"
+-- entry and "Part 2 implementation plan" Draft 1, listing this table's 2
+-- columns as newly-confirmed-affected alongside erp_sales_invoices.
+-- created_by_id).
+--
+-- Root cause -- created_by_id (directly, repeatedly reproduced): confirmed
+-- live via pg_constraint (crm_leads_created_by_id_fkey, contype='f',
+-- confrelid -> compliance.users). src/app/api/v1/projexa/leads/route.ts's
+-- POST handler sets `const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id`,
+-- then calls `createLead({ orgId: ctx.orgId, userId: actorId }, ...)`.
+-- crm-service.ts's createLead() inserts that ctx.userId directly as
+-- createdById on EVERY SINGLE insert, unconditionally (confirmed by direct
+-- source read, crm-service.ts:70: `createdById: ctx.userId`) -- there is no
+-- code path on this route that avoids setting it. Every PROJEXA-originated
+-- "New Lead" create is the API-key branch (PROJEXA's callVeridian() proxy
+-- never carries a session cookie -- PROJEXA-IDENTITY-BRIDGE-01), so
+-- created_by_id is always the API-key id ("projexa_demo_key"), never a row
+-- in compliance.users -- hits the FK on every single create. Directly
+-- reproduced during Priority 19's E2E pass ("New Lead" create hitting the
+-- same bare-500 failure class as Invoices, zero rows landing).
+--
+-- Root cause -- owner_id (confirmed live FK + confirmed untrusted write
+-- path, same structural class, not independently UI-reproduced this pass):
+-- confirmed live via pg_constraint (crm_leads_owner_id_fkey, contype='f',
+-- confrelid -> compliance.users). Three PROJEXA-reachable write paths set
+-- this column from caller-supplied input with zero validation that the
+-- value is a real compliance.users row: (1) leads/route.ts's POST passes
+-- `input.ownerId` straight from the request body into createLead()'s
+-- `ownerId: input.ownerId || null` (PROJEXA's own "New Lead" dialog
+-- currently never sends this field, so create-time exposure is latent, not
+-- exercised, today); (2) leads/[id]/route.ts's PATCH passes `body.ownerId`
+-- straight through to updateLead() with no server-side check at all; (3)
+-- leads/bulk-reassign/route.ts's POST passes `body.ownerId` straight
+-- through to bulkReassignLeads() -- PROJEXA's own LeadsClient.tsx sources
+-- this from a free-text input a caller types into directly. Any of these
+-- three, called by an API-key-authenticated caller (the only path PROJEXA
+-- itself ever uses) with a non-compliance.users value -- including,
+-- concretely, the API-key's own id, the same failure mode already proven
+-- on created_by_id -- hits this FK identically. Fixed in the same
+-- migration as created_by_id (not a separate one) because it is the same
+-- table, the same actor-identity-bridge root cause
+-- (PROJEXA-IDENTITY-BRIDGE-01), and the same "any PROJEXA-key write may
+-- carry a non-user actor id" exposure class, just reached via a different
+-- one of the 3 routes above rather than every route.
+--
+-- Fix: drop both FKs. Matches the now-twice-precedented fix already
+-- applied in this exact codebase for the identical "actor may be a real
+-- user OR a bare API-key id" situation:
+--   - job_openings.posted_by_id: FK dropped, drizzle/0202 (Priority 16
+--     Part 2)
+--   - pms_issues.created_by_id: FK dropped, drizzle/0204_pms_issues_
+--     created_by_no_fk.sql (PR #349, this Priority's own Part 1)
+--   - erp_sales_invoices.created_by_id: FK dropped, drizzle/0205 (this
+--     same PR, companion migration)
+-- Not a security/guardrail change -- neither column is in
+-- scripts/check-guardrail-presence.mjs's manifest, and compliance.crm_leads'
+-- RLS already scopes every row by org_id regardless of either FK.
+--
+-- Both columns stay nullable/text-typed -- no schema.ts change needed,
+-- same as every precedent above: neither FK was ever declared with
+-- .references() in schema.ts, both existed only as raw constraints.
+--
+-- Scoped narrowly to crm_leads.created_by_id and crm_leads.owner_id only.
+-- crm_opportunities has the structurally identical createdById/ownerId
+-- shape (confirmed by direct source read of crm-service.ts's
+-- createOpportunity(), same file) but was NOT independently confirmed by
+-- a real PROJEXA write-path exercise this pass and is NOT touched by this
+-- migration -- see the companion audit in this same PR's description /
+-- the updated control/priority19_dubai_e2e_testing_plan.md Workstream A
+-- section for the full reasoning on crm_opportunities and every other
+-- column considered and left alone, matching PR #349's own
+-- migration-comment discipline of scoping FK-drop fixes narrowly rather
+-- than sweeping every column that merely shares the shape.
+
+ALTER TABLE compliance.crm_leads
+  DROP CONSTRAINT IF EXISTS crm_leads_created_by_id_fkey;
+
+ALTER TABLE compliance.crm_leads
+  DROP CONSTRAINT IF EXISTS crm_leads_owner_id_fkey;
