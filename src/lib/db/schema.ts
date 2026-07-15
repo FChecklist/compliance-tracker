@@ -187,6 +187,20 @@ export const users = complianceSchemaDB.table('users', {
   // Plain text, not the enum, matching this codebase's own established
   // convention for status columns still likely to grow (tasks.status).
   accountStage: text('account_stage'),
+  // Priority 14 Wave 2 (GAP-AUTH-REBUILD): additive 4-digit return-login
+  // passcode, opt-in from Settings, ALONGSIDE magic-link/Google-OAuth/
+  // password/SSO -- never a replacement, never usable for signup or
+  // account recovery (see passcode-login-service.ts's own header for the
+  // full security writeup). Deliberately NOT reusing the legacy
+  // `passwordHash` column above: every row's passwordHash is the literal
+  // placeholder string "supabase-auth-managed" (real auth has been
+  // Supabase-managed since before that column had any live reader/writer
+  // besides autoProvisionUser's own insert) -- overloading it would mean a
+  // real per-user secret and a hardcoded constant sharing one column with
+  // no way to tell them apart. bcrypt hash only, raw passcode never
+  // persisted; null = passcode login not enabled for this user.
+  passcodeHash: text('passcode_hash'),
+  passcodeSetAt: timestamp('passcode_set_at'), // null when passcodeHash is null; surfaced in Settings as "set on <date>"
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -741,6 +755,27 @@ export const orgJoinCodeAttempts = complianceSchemaDB.table('org_join_code_attem
   id: text('id').primaryKey().$defaultFn(() => createId()),
   ipAddress: text('ip_address').notNull(),
   orgId: text('org_id'),
+  wasSuccessful: boolean('was_successful').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Priority 14 Wave 2 (GAP-AUTH-REBUILD): rate-limit log for POST
+// /api/auth/passcode-login, mirrors org_join_code_attempts' shape with one
+// real difference -- keyed by BOTH email and ipAddress, not ipAddress
+// alone. A 4-digit passcode's keyspace (10,000 values) is many orders of
+// magnitude smaller than the 12-char join code's (~5.3x10^17), so an
+// IP-only limit isn't enough on its own -- an attacker rotating source IPs
+// would still be free to hammer one target account. email here is the
+// attempted login email exactly as submitted (not normalized/looked-up),
+// so a failed attempt against a non-existent email still counts against
+// that email string for rate-limiting purposes -- see
+// passcode-login-service.ts's checkPasscodeRateLimit for the two windowed
+// counts (per-email, stricter; per-IP, looser, catches credential-stuffing
+// across many target emails from one source).
+export const passcodeLoginAttempts = complianceSchemaDB.table('passcode_login_attempts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull(),
+  ipAddress: text('ip_address').notNull(),
   wasSuccessful: boolean('was_successful').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

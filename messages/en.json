@@ -235,7 +235,12 @@
     "noAccount": "Don't have an account?",
     "createOne": "Create one",
     "magicLinkEmailRequired": "Please enter your email address",
-    "magicLinkSent": "Magic link sent! Check your email."
+    "magicLinkSent": "Magic link sent! Check your email.",
+    "passcodeLabel": "4-Digit Passcode",
+    "passcodePlaceholder": "0000",
+    "signInWithPasscode": "Sign in with passcode",
+    "passcodeInvalidFormat": "Enter your 4-digit passcode",
+    "passcodeLoginFailed": "Could not sign in with passcode. Please try again or use a magic link."
   },
   "Signup": {
     "checkEmailTitle": "Check your email",
