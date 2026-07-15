@@ -42,6 +42,29 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (this session, CLI) -- Priority 19, Dubai 50-user E2E test + fix pass"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed: a second, deeper E2E test+fix pass on top of Priority
+      16/17, this time a full 50-real-user Dubai/UAE construction+interior-
+      design demo company (AED currency), heavy real data entries across
+      every compliance-tracker+projexa module, a dedicated Reports &
+      Analysis depth check, findings cross-checked against
+      ai-os/CONSTITUTION.yaml, then a corrected implementation plan,
+      implemented for real. Full detail: CONTROLLER.yaml PRIORITY-19,
+      control/priority19_dubai_e2e_testing_plan.md.
+      Scope boundary (does NOT touch): src/lib/supabase/auth-guard.ts, any
+      auth/membership shape change in schema.ts -- PLATFORM-01 territory.
+      Does NOT rebuild PROJEXA-IDENTITY-BRIDGE-01 /
+      PROJEXA-NO-TENANT-ISOLATION-01 directly (still PLATFORM-01's) --
+      this pass's Dubai org creation via the real signup flow is used only
+      as an independent re-verification of whether PLATFORM-01 Wave 1's
+      provisioning actually closed tenant isolation end-to-end, not as a
+      fix attempt. Re-checking this file before Part 2 starts any code
+      edit, since PLATFORM-01 Wave 2 (offices/currency/language) and
+      PRIORITY-17 Wave 1 (also touching currency/office) may be active by
+      then -- will avoid file-level collisions with both.
+
   - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 2"
     claimed_at: "2026-07-15T (this session)"
     claim: |
