@@ -1428,6 +1428,105 @@ export const aiAgentDirectory = complianceSchemaDB.table('ai_agent_directory', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// GAP-AI-WORKFORCE-GOVERNANCE, Agent Review Registry (ARR) -- PLATFORM_STRATEGY.md
+// §30.2: "Does not exist. workerAgents.lifecycleStatus (draft->published->
+// retired) is a real but manually-triggered publish workflow -- no periodic,
+// performance-driven promote/retrain/deprecate/retire cycle exists anywhere.
+// Genuinely new territory." §30.4's own sequencing recommendation: build ARR
+// last, since "it needs Agent Performance [model-scorecard-service.ts] +
+// Agent Escalation [escalation-ladder.ts / audit_trigger.ai_escalation] data
+// to act on."
+//
+// Deliberately NOT a duplicate of model-scorecard-service.ts (GAP-MODEL-
+// SCORECARD, already closed PR #230): that service is a live, ephemeral
+// aggregation merged to (model, complexityTier) granularity and discarded on
+// every call -- it answers "how is this MODEL doing right now." This table
+// is the opposite shape on purpose: one APPEND-ONLY row per (roleKey, review
+// cycle), at roster.ts role_key granularity (not merged to model), so a
+// specific role's track record is visible over time even when it shares a
+// model with other roles. This is also NOT the AI Team Closure Review gate
+// (activity_log.review_decision / POST /api/ai/team/review) -- that gate
+// answers "was THIS ONE dispatch audited, pass or fail." This table answers
+// "looking at a role's real dispatch history, should its standing change" --
+// a periodic role-level verdict, computed FROM activity_log.review_decision
+// rows (among other signals), never a second way of recording the same
+// per-dispatch fact.
+//
+// escalationCount is sourced from audit_logs rows with
+// action = 'audit_trigger.ai_escalation' (audit-event-triggers.ts's
+// recordAuditTrigger(), the one real call site being
+// src/app/api/ai/team/review/route.ts) whose entity_id joins back to this
+// role's activity_log rows -- audit_logs is a real append-only event log,
+// unlike monitor_task_state (escalation-ladder.ts's claimEscalation()),
+// which is deliberately CURRENT-STATE-ONLY (upserted per task, overwritten
+// on every re-claim) and therefore cannot answer "how many times has this
+// role's work been escalated, historically" -- confirmed by direct read of
+// both tables before choosing which one to source from.
+//
+// Deliberately does NOT write to aiAgentDirectory.loopEngineeringStatus
+// above, even though that field is a real, permanently-unset dead column
+// that looks like an obvious target: its own comment reserves it for "a
+// human or a future JUDGMENT-TIER review" -- this table's verdict is
+// computed by a pure, deterministic threshold function (computeReviewVerdict
+// in agent-review-service.ts), the same "no LLM call" posture as audit-
+// protocol.ts/monitor-protocol.ts, not a judgment-tier assessment. Silently
+// repurposing that column's documented contract to mean something narrower
+// would be exactly the kind of silent redefinition this codebase's
+// discipline warns against elsewhere.
+//
+// Platform-level (raw `db`, not withTenantContext) -- same posture as
+// aiAgentDirectory/model-scorecard-service.ts: one role_key's dispatches
+// routinely span multiple orgs, so a review cycle is a single cross-org
+// computation, not tenant data.
+export const agentReviewRecords = complianceSchemaDB.table('agent_review_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(),
+  title: text('title'), // roster.ts RoleDefinition.title, denormalized at review time so history reads correctly even if roster.ts's title changes later
+  team: text('team'), // roster.ts RoleDefinition.team, denormalized for the same reason
+  model: text('model'), // roster.ts RoleDefinition.model AT REVIEW TIME -- a role's model assignment can change; this is a snapshot, not a live join
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  dispatchCount: integer('dispatch_count').notNull().default(0),
+  terminalCount: integer('terminal_count').notNull().default(0),
+  successCount: integer('success_count').notNull().default(0),
+  failureCount: integer('failure_count').notNull().default(0),
+  successRate: numeric('success_rate'), // successCount / terminalCount, null (not 0) when terminalCount = 0 -- no signal yet, matches model-scorecard-service.ts's own null-vs-zero discipline
+  reviewedCount: integer('reviewed_count').notNull().default(0), // activity_log.review_decision is not null, this role's dispatches only
+  auditFindingCount: integer('audit_finding_count').notNull().default(0), // review_decision = 'rejected'
+  auditFindingRate: numeric('audit_finding_rate'), // auditFindingCount / reviewedCount, null when reviewedCount = 0
+  escalationCount: integer('escalation_count').notNull().default(0), // audit_logs rows, action='audit_trigger.ai_escalation', entity_id joining this role's activity_log rows in the period
+  escalationRate: numeric('escalation_rate'), // escalationCount / dispatchCount, null when dispatchCount = 0
+  // Snapshot of model-tier-eligibility.ts's real, already-enforced gate for
+  // this role's model AT REVIEW TIME -- the same real facts
+  // agent-directory-service.ts's validationRules already resolves, denormalized
+  // here so a later trust-tier change doesn't rewrite review history.
+  complexityTierTrust: jsonb('complexity_tier_trust'), // { mechanicalEligible, integrativeEligible, judgmentEligible, mandatoryAudit }
+  // 'promote' | 'maintain' | 'retrain' | 'deprecate' -- the periodic
+  // performance-driven verdict PLATFORM_STRATEGY.md §30.2 confirms doesn't
+  // exist anywhere else in this codebase. Computed deterministically by
+  // computeReviewVerdict() (agent-review-service.ts) from the columns above
+  // -- never an LLM judgment call, matching audit-protocol.ts/monitor-
+  // protocol.ts's own no-LLM posture for structured governance records.
+  verdict: text('verdict').notNull(),
+  // Cites the actual numbers the verdict was computed from -- auditable, not
+  // a black box, matching computeTargetGap/computeExecutionOutcome's own
+  // "show your work" convention in d1-metrics-tracker-service.ts.
+  verdictReason: text('verdict_reason').notNull(),
+  // AGENTS.md Rule 10: "a model that hasn't earned judgment-tier trust...
+  // may only receive mechanical- or integrative-tier work." Flags when a
+  // role's REAL, persisted outcomes disagree with its CURRENT trust tier --
+  // 'consider_promoting_to_judgment_tier' (strong track record on a
+  // non-judgment-eligible model) or 'consider_revoking_judgment_tier_trust'
+  // (poor track record on an already judgment-eligible model). Null when
+  // neither condition is met. This is a FLAG for a human/Super-Boss
+  // decision, same posture as loop_improvements' isDeployed default-false
+  // discipline -- this table never changes model-tier-eligibility.ts's
+  // JUDGMENT_ELIGIBLE set itself.
+  trustTierFlag: text('trust_tier_flag'),
+  reviewedAt: timestamp('reviewed_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the Primary
 // System Object -- Phase 1"): the persisted backing store for a resolved
 // Chain Selector path -- the CapabilityNode tree itself stays computed

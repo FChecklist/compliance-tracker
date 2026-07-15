@@ -58,6 +58,56 @@ active:
       ai-os/CONSTITUTION.yaml (DEBT-02 status). No schema/API/auth changes.
       Branch: priority21-mcp-doc-fix, worktree
       .claude/worktrees/priority21-mcp-doc-fix.
+  - session_label: "claude-code (background sub-agent) -- Priority 14 Wave 2, GAP-AI-WORKFORCE-GOVERNANCE Agent Review Registry"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15 ("complete all 100% except priority 19"):
+      the one remaining half of GAP-AI-WORKFORCE-GOVERNANCE -- the Agent
+      Hierarchy half was already found built the prior day (WAVE-171/PR
+      #252); only the Agent Review Registry (ARR) itself was net-new, zero
+      precedent. Investigated PLATFORM_STRATEGY.md section 30 in full before
+      writing anything: ARR is specifically "no periodic, performance-driven
+      promote/retrain/deprecate/retire cycle" for roster.ts's dispatchable AI
+      Dev Team roles -- confirmed NOT a duplicate of model-scorecard-
+      service.ts (GAP-MODEL-SCORECARD, already closed PR #230, a live/
+      ephemeral model-level aggregation) or the AI Team Closure Review gate
+      (activity_log.review_decision / POST /api/ai/team/review, a per-
+      dispatch pass/fail gate) -- both investigated directly before
+      concluding this. Built: new append-only agent_review_records table
+      (drizzle/0211, applied live to pcrjmlpuqsbocqfwoxod), src/lib/services/
+      agent-review-service.ts (pure computeReviewVerdict() deterministic
+      promote/maintain/retrain/deprecate threshold function + DB-touching
+      runAgentReviewCycle()/getAgentReviewHistory()/getLatestAgentReviews()/
+      getRolesNeedingTrustTierReconsideration(), sourcing performance data
+      from activity_log and escalation data from audit_logs's
+      audit_trigger.ai_escalation rows -- NOT monitor_task_state, which is
+      confirmed current-state-only and cannot answer a historical "how many
+      times" question), new veridian_admin-gated GET+POST /api/ai/team/
+      review-registry route, 18 unit tests on the pure verdict core (bun
+      test: 1144 pass/0 fail, up from 1113), asset-registry-coverage.yaml
+      exemption entry for the new table. Deliberately did NOT review
+      workerAgents (the separate customer-facing capability catalog) --
+      confirmed by grep that workerAgents.accuracyScore has zero write path
+      anywhere, so a review cycle against it would fabricate a signal;
+      flagged as workerAgents' own still-open gap, not solved here.
+      Deliberately did NOT write to aiAgentDirectory.loopEngineeringStatus
+      (a real dead column) -- its own comment reserves it for a future
+      JUDGMENT-TIER (LLM) review, and this table's verdict is a deterministic
+      threshold function, not a judgment call; repurposing that column's
+      contract would be a silent redefinition. Deliberately did NOT add a new
+      cron trigger for periodic automatic review cycles -- honestly deferred
+      (POST is manually/veridian_admin-triggered today), noting this repo
+      already hit the Vercel Hobby plan's once-per-day cron limit once this
+      session. bunx tsc --noEmit clean (0 new errors -- confirmed the 21
+      pre-existing errors are the same documented react-resizable-panels/
+      recharts/litert/mammoth/pptxgenjs/docx package mismatches, none touch
+      any file this claim changed), bunx eslint clean on all new files,
+      asset-registry-coverage/guardrail-presence/metadata-index-coverage/
+      doc-cross-reference/doc-quarantine-banner CI-equivalent scripts all
+      pass. Branch: feat/agent-review-registry, worktree
+      compliance-tracker/.claude/worktrees/agent-review-registry. PR opened,
+      NOT merged by this session per standing dispatch instructions --
+      left for the supervising session's audit.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
