@@ -183,6 +183,17 @@ active:
       projexa-wt-p17-office. No overlap found with the sibling currency-
       formatting-cleanup claim (that one touches ~10 UI components'
       hardcoded INR formatting only, not schema.ts or CompanySelector).
+
+      UPDATE (same session): both PRs opened, tsc/lint/tests clean, NOT
+      merged by this session. compliance-tracker#365 (schema + services +
+      report engine) and projexa#26 (selector rollout to Leads/Employees-
+      Leave/Budgets). Migration 0211 NOT applied live -- left for the
+      supervising session. Sales/CRM beyond Leads (Opportunities/
+      Quotations/Sales Orders) and Reports & Analysis (no existing UI page
+      consumes the report_definitions catalog in either repo -- engine-
+      level capability added, no selector to roll out onto a page that
+      doesn't exist) deliberately left unwired, documented in both PR
+      descriptions. This session has no further active claims.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
