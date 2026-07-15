@@ -42,6 +42,22 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code -- Priority 21, MCP DEBT-02 doc-drift fix"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed (control/CONTROLLER.yaml PRIORITY-21 addendum): closing
+      the DEBT-02 documentation gap surfaced during Priority 21's LiteRT/
+      Bonsai/memvid research -- MCP_PROTOCOL.md and docs/master/ARCHITECTURE.md
+      §5 still described "MCP Server 2" (Groq-orchestrator dev-dispatch) as
+      live; re-confirmed by grep that zero matching code exists anywhere in
+      src/. Also found docs/master/INDEX.md was ALREADY corrected on a prior
+      pass but DEBT-02's own status field in ai-os/CONSTITUTION.yaml was
+      never flipped to match. Scope: doc/comment corrections only --
+      MCP_PROTOCOL.md (banner), docs/master/ARCHITECTURE.md §5 (rewrite),
+      src/app/api/mcp/route.ts (header comment only, no logic change),
+      ai-os/CONSTITUTION.yaml (DEBT-02 status). No schema/API/auth changes.
+      Branch: priority21-mcp-doc-fix, worktree
+      .claude/worktrees/priority21-mcp-doc-fix.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |

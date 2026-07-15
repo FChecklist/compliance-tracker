@@ -12,15 +12,22 @@
  * hashing helper (hashSHA256, from src/lib/api-keys.ts) uses only Web Crypto
  * so it works unmodified on the Edge runtime.
  *
- * Tools exposed:
- *   list_compliance_items, get_compliance_stats, get_overdue_items,
- *   create_compliance_item, update_compliance_status,
- *   list_departments, get_penalty_estimate
+ * Tools exposed (9, corrected 2026-07-15 -- this comment previously omitted
+ * list_notices and get_task_status; see handleTool() below for the real,
+ * current list):
+ *   list_notices, get_task_status, list_compliance_items,
+ *   get_compliance_stats, get_overdue_items, create_compliance_item,
+ *   update_compliance_status, list_departments, get_penalty_estimate
  *
  * Coordination: this server is an MCP CLIENT TARGET.
- *   Customer AI  → POST /api/mcp  (reads + writes their org data)
- *   Groq orchestrator → POST /api/mcp  (same tools, internal usage)
- * See MCP_PROTOCOL.md for full flow specification.
+ *   Customer AI → POST /api/mcp  (reads + writes their org data)
+ * Corrected 2026-07-15 (ai-os/CONSTITUTION.yaml DEBT-02): the "Groq
+ * orchestrator" internal caller named below and in MCP_PROTOCOL.md does not
+ * exist in this codebase -- no dispatcher code calls this route internally
+ * today. Confirmed by direct grep of src/, not assumed. Left here as a
+ * corrected historical note rather than silently deleted, so a future
+ * session doesn't rediscover the same gap from zero.
+ * See MCP_PROTOCOL.md for the full (partly aspirational) flow specification.
  */
 
 export const runtime = 'edge'
