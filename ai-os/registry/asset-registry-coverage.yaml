@@ -296,6 +296,8 @@ exempted:
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (reviewedRole is a point-in-time role snapshot, not this row's own name) -- a per-user-per-cycle decision record, same class as this codebase's other append-only join/log tables, not a named asset"
   - table: activity_log
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: agent_review_records
+    reason: "GAP-AI-WORKFORCE-GOVERNANCE, Agent Review Registry (drizzle/0211, 2026-07-15): PLATFORM-WIDE by design (no org_id column -- one role_key's dispatches routinely span multiple orgs, same posture as ai_agent_directory/monitor_task_state just below). No genuine display-name column either -- role_key identifies WHICH role a review row is about, not this specific append-only history row's own name, same class as monitor_task_state's per-(org,task) escalation state. Same reasoning as ai_agent_directory directly below: a service-managed governance history table (agent-review-service.ts's runAgentReviewCycle), not runtime app CRUD the generic auto_register_asset trigger's ON CONFLICT UPDATE model fits."
   - table: ai_agent_directory
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch review (2026-07-14): a denormalized read-cache directory synced from roster.ts (title is nullable, a fast-read mirror, not this row's own source-of-truth name) -- same reasoning as worker_agents/computation_engines (app-managed via a service, not this trigger's ON CONFLICT UPDATE model)."
   - table: ai_assistants
