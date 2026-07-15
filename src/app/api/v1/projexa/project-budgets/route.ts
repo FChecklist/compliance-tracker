@@ -8,7 +8,7 @@ import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-gua
 import { listBudgets, createBudget, ServiceError } from "@/lib/services/erp-budget-service"
 
 function toProjectBudgetShape(b: Awaited<ReturnType<typeof listBudgets>>[number]) {
-  return { id: b.id, name: b.name, fiscalYearId: b.fiscalYearId, costCenterId: b.costCenterId, status: b.status, actionIfExceeded: b.actionIfExceeded }
+  return { id: b.id, name: b.name, fiscalYearId: b.fiscalYearId, companyId: b.companyId, costCenterId: b.costCenterId, status: b.status, actionIfExceeded: b.actionIfExceeded }
 }
 
 export async function GET(request: NextRequest) {
@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ projectBudgets: [] })
 
   try {
-    const budgets = await listBudgets({ orgId: ctx.orgId })
+    const companyId = request.nextUrl.searchParams.get("companyId") ?? undefined
+    const budgets = await listBudgets({ orgId: ctx.orgId }, { companyId })
     return NextResponse.json({ projectBudgets: budgets.map(toProjectBudgetShape) })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

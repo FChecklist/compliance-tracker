@@ -2,6 +2,8 @@
 
 **Version:** 1.0.0 | **Date:** 2026-06-29 | **Protocol:** MCP 2024-11-05 (JSON-RPC 2.0)
 
+> **CORRECTION (2026-07-15, `ai-os/CONSTITUTION.yaml` DEBT-02):** Only **MCP Server 1** (`/api/mcp`) exists in code today — confirmed live, 9 tools (see `src/app/api/mcp/route.ts`). **MCP Server 2** (the Supabase Edge Function `mcp-dev`, Groq-orchestrator-driven dev dispatch) described throughout this document has ZERO matching code anywhere in this repo — no `mcp-dev` function, no `MCP_DEV_SECRET`, no Groq orchestrator dispatcher. It was never built, or built-then-removed with no record. The sections below describing MCP Server 2 are a design spec for a system that does not exist, not a description of current behavior — treat them as such until/unless it's actually built.
+
 ---
 
 ## Overview

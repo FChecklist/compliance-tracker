@@ -13,10 +13,19 @@ import { requireErpEnabled } from "./erp-enablement-service"
 type BudgetLineItemInput = { accountId: string; annualAmount: number }
 type BudgetAction = "ignore" | "warn" | "stop"
 
-export async function listBudgets(ctx: { orgId: string }) {
+// Priority 17 remaining gap: companyId is an optional equality filter --
+// erp_budgets.companyId has existed since Wave 70 (createBudget already
+// accepted it), this was the one real gap: listBudgets never let a caller
+// filter by it, so PROJEXA's Budgets page had no way to scope the list even
+// though the data already supported it. Omitted means "no filter", same
+// unchanged-by-default convention as every other companyId filter added
+// this wave.
+export async function listBudgets(ctx: { orgId: string }, filters?: { companyId?: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    return db.query.erpBudgets.findMany({ where: eq(erpBudgets.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.createdAt) })
+    const conditions = [eq(erpBudgets.orgId, ctx.orgId)]
+    if (filters?.companyId) conditions.push(eq(erpBudgets.companyId, filters.companyId))
+    return db.query.erpBudgets.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.createdAt) })
   })
 }
 
