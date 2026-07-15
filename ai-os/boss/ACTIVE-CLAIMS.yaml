@@ -1,5 +1,4 @@
-# ============================================================================
-# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -39,9 +38,54 @@
 #   5. Sessions cannot literally message each other -- this file IS the
 #      message. Keep entries short, factual, and file/directory-scoped so a
 #      session with zero other context can act on them correctly.
-# ============================================================================
-
+# =====================================================================
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15 ("complete all 100% except priority 19"),
+      Priority 14 Wave 2's GAP-AUTH-REBUILD item. Owner already decided the
+      approach 2026-07-14 (AskUserQuestion): an ADDITIVE 4-digit passcode
+      login option alongside the existing magic-link/Google-OAuth/password/
+      SSO methods in src/app/login/login-form.tsx, never replacing them. A
+      user opts in from Settings (new PasscodeSection.tsx, "security" tab
+      next to the existing MfaSection) only once they already have a real
+      account (magic-link/OAuth/etc. still required for first-time
+      signup) -- passcode is a faster RETURN-login method only.
+      Scope: new nullable users.passcodeHash/passcodeSetAt columns
+      (drizzle/0211_passcode_login.sql, additive migration -- does NOT
+      touch users.passwordHash, which stays the pre-existing legacy
+      "supabase-auth-managed" placeholder, confirmed not reusable for a
+      real per-user secret since every row shares that literal string); new
+      passcode_login_attempts table (mirrors org_join_code_attempts'
+      IP-keyed rate-limit-log shape, but ALSO keyed by email, since a
+      4-digit code's ~10,000-value keyspace needs a per-account limit that
+      survives IP rotation, unlike the 12-char join code's IP-only
+      precedent); new src/lib/passcode-login-service.ts (bcryptjs hashing,
+      already a repo dependency); new public POST
+      /api/auth/passcode-login route that verifies the passcode then
+      establishes a real Supabase session via
+      supabaseAdmin.auth.admin.generateLink({type:"magiclink"}) + the
+      existing /auth/callback PKCE exchange -- the exact same
+      session-establishment mechanism src/app/api/auth/sso/[orgSlug]/acs/
+      route.ts already uses, no new session mechanism invented; new
+      settings GET/POST/DELETE /api/settings/passcode route (requireAuth-
+      gated, set/change/remove only). Does NOT add a new autoProvisionUser()
+      branch (verified current src/lib/supabase/auth-guard.ts after pulling
+      latest main, which now has PR #358's real stage0Token branch --
+      passcode login never creates a compliance.users row itself, only
+      authenticates an EXISTING one, so it composes with, and runs
+      entirely before, autoProvisionUser()'s existing
+      stage0Token/inviteToken/orgJoinCode/default branches without touching
+      any of them). Passcode is never a recovery/reset mechanism -- Settings
+      routes that set/change/remove it are requireAuth()-gated, so
+      magic-link/OAuth/password remain the only way to prove identity when
+      a passcode is forgotten. Branch: feat/passcode-login-gap-auth-rebuild,
+      worktree .claude/worktrees/agent-passcode-login.
+      PR #363 open (tsc/lint/bun test all clean, 1138 pass/0 fail full
+      suite; migration applied live via Supabase MCP and verified) --
+      NOT self-merged, left for the supervising session's audit per the
+      standing 2026-07-13 Claude-only-review procedure.
   - session_label: "claude-code (this session, CLI) -- Priority 21, Layer 2 Workspace Memory (memvid capsule)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
@@ -98,6 +142,104 @@ active:
       ai-os/CONSTITUTION.yaml (DEBT-02 status). No schema/API/auth changes.
       Branch: priority21-mcp-doc-fix, worktree
       .claude/worktrees/priority21-mcp-doc-fix.
+  - session_label: "claude-code (background sub-agent) -- Priority 14 Wave 2, GAP-AI-WORKFORCE-GOVERNANCE Agent Review Registry"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15 ("complete all 100% except priority 19"):
+      the one remaining half of GAP-AI-WORKFORCE-GOVERNANCE -- the Agent
+      Hierarchy half was already found built the prior day (WAVE-171/PR
+      #252); only the Agent Review Registry (ARR) itself was net-new, zero
+      precedent. Investigated PLATFORM_STRATEGY.md section 30 in full before
+      writing anything: ARR is specifically "no periodic, performance-driven
+      promote/retrain/deprecate/retire cycle" for roster.ts's dispatchable AI
+      Dev Team roles -- confirmed NOT a duplicate of model-scorecard-
+      service.ts (GAP-MODEL-SCORECARD, already closed PR #230, a live/
+      ephemeral model-level aggregation) or the AI Team Closure Review gate
+      (activity_log.review_decision / POST /api/ai/team/review, a per-
+      dispatch pass/fail gate) -- both investigated directly before
+      concluding this. Built: new append-only agent_review_records table
+      (drizzle/0211, applied live to pcrjmlpuqsbocqfwoxod), src/lib/services/
+      agent-review-service.ts (pure computeReviewVerdict() deterministic
+      promote/maintain/retrain/deprecate threshold function + DB-touching
+      runAgentReviewCycle()/getAgentReviewHistory()/getLatestAgentReviews()/
+      getRolesNeedingTrustTierReconsideration(), sourcing performance data
+      from activity_log and escalation data from audit_logs's
+      audit_trigger.ai_escalation rows -- NOT monitor_task_state, which is
+      confirmed current-state-only and cannot answer a historical "how many
+      times" question), new veridian_admin-gated GET+POST /api/ai/team/
+      review-registry route, 18 unit tests on the pure verdict core (bun
+      test: 1144 pass/0 fail, up from 1113), asset-registry-coverage.yaml
+      exemption entry for the new table. Deliberately did NOT review
+      workerAgents (the separate customer-facing capability catalog) --
+      confirmed by grep that workerAgents.accuracyScore has zero write path
+      anywhere, so a review cycle against it would fabricate a signal;
+      flagged as workerAgents' own still-open gap, not solved here.
+      Deliberately did NOT write to aiAgentDirectory.loopEngineeringStatus
+      (a real dead column) -- its own comment reserves it for a future
+      JUDGMENT-TIER (LLM) review, and this table's verdict is a deterministic
+      threshold function, not a judgment call; repurposing that column's
+      contract would be a silent redefinition. Deliberately did NOT add a new
+      cron trigger for periodic automatic review cycles -- honestly deferred
+      (POST is manually/veridian_admin-triggered today), noting this repo
+      already hit the Vercel Hobby plan's once-per-day cron limit once this
+      session. bunx tsc --noEmit clean (0 new errors -- confirmed the 21
+      pre-existing errors are the same documented react-resizable-panels/
+      recharts/litert/mammoth/pptxgenjs/docx package mismatches, none touch
+      any file this claim changed), bunx eslint clean on all new files,
+      asset-registry-coverage/guardrail-presence/metadata-index-coverage/
+      doc-cross-reference/doc-quarantine-banner CI-equivalent scripts all
+      pass. Branch: feat/agent-review-registry, worktree
+      compliance-tracker/.claude/worktrees/agent-review-registry. PR opened,
+      NOT merged by this session per standing dispatch instructions --
+      left for the supervising session's audit.
+  - session_label: "claude-code (sub-agent) -- Priority 17 remaining gap: office/company schema + selector rollout"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15: "complete all 100% except priority 19."
+      Dispatched per CONTROLLER.yaml PRIORITY-17
+      remaining_gaps_dispatch_2026_07_15 (item 2, combined into one claim
+      deliberately to avoid 2 agents racing the same schema.ts region/UI):
+      (1) add a nullable companyId column (text, no DB-level FK -- matching
+      the existing erp_journal_entries.companyId / erp_budgets.companyId
+      precedent, which is also just a bare text column with no
+      drizzle .references(), app-level convention only) to crmLeads,
+      employeeProfiles, and leaveRequests -- confirmed via schema.ts these 3
+      tables carry orgId but no company/office attribution at all, so even a
+      UI selector couldn't work for them today. Additive migration only,
+      IF NOT EXISTS, safe single-company-per-org backfill logic computed at
+      migration-apply-time (not assumed now) -- orgs with exactly 1
+      erp_companies row backfill existing rows to it, orgs with 0 or >1 stay
+      null. (2) wire companyId into the relevant create paths in
+      crm-service.ts / hr-service.ts so NEW rows can be attributed going
+      forward. (3) roll out PROJEXA's EXISTING CompanySelector pattern
+      (currently only in AccountingClient.tsx, built for Priority 17 Wave 1
+      compliance-tracker#342/projexa#18 -- reusing it, not building a second
+      one) to Reports & Analysis, Budgets, Sales/CRM, and HR pages wherever
+      the underlying data/service layer can now genuinely support company
+      scoping -- explicitly scoping down rather than half-wiring a selector
+      that silently filters nothing; any report category/page whose
+      underlying data model doesn't cleanly support company-scoping yet will
+      be left unwired and reported, not faked.
+      Scope boundary: does NOT touch src/lib/supabase/auth-guard.ts. Does
+      NOT apply the migration to the live Supabase database (leaves that for
+      the supervising session, same convention as every other schema-touching
+      PR this session has produced). Branch: priority17-office-selector-rollout
+      (compliance-tracker) / priority17-office-selector-rollout-projexa
+      (projexa), worktrees compliance-tracker-wt-p17-office /
+      projexa-wt-p17-office. No overlap found with the sibling currency-
+      formatting-cleanup claim (that one touches ~10 UI components'
+      hardcoded INR formatting only, not schema.ts or CompanySelector).
+
+      UPDATE (same session): both PRs opened, tsc/lint/tests clean, NOT
+      merged by this session. compliance-tracker#365 (schema + services +
+      report engine) and projexa#26 (selector rollout to Leads/Employees-
+      Leave/Budgets). Migration 0211 NOT applied live -- left for the
+      supervising session. Sales/CRM beyond Leads (Opportunities/
+      Quotations/Sales Orders) and Reports & Analysis (no existing UI page
+      consumes the report_definitions catalog in either repo -- engine-
+      level capability added, no selector to roll out onto a page that
+      doesn't exist) deliberately left unwired, documented in both PR
+      descriptions. This session has no further active claims.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
