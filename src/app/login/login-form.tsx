@@ -27,6 +27,19 @@ export function LoginForm() {
   const [showSso, setShowSso] = useState(false);
   const [ssoOrgSlug, setSsoOrgSlug] = useState("");
 
+  // Priority 14 Wave 2 (GAP-AUTH-REBUILD): additive 4-digit return-login
+  // passcode, built ADDITIVE alongside every existing method above, never
+  // replacing them -- a returning user who already opted in from Settings
+  // (PasscodeSection.tsx) can sign in with email+passcode instead of
+  // waiting for a magic link. First-time signup still requires magic-link/
+  // Google/password/SSO; there is no passcode-based signup or recovery
+  // path (see src/lib/passcode-login-service.ts's header for the full
+  // security writeup). showPasscode gates a separate 4-digit input rather
+  // than repurposing the password field above, so this never gets
+  // confused with the real password flow in handleLogin.
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [passcode, setPasscode] = useState("");
+
   // Wave 59: SAML SSO entry point. Multi-tenant SSO needs to know which
   // org's IdP to redirect to before any credentials exist -- asking for
   // the org's slug here (matching this app's own existing use of `slug`
@@ -113,6 +126,48 @@ export function LoginForm() {
 
     toast.success(t("magicLinkSent"));
     setLoading(false);
+  };
+
+  // Priority 14 Wave 2 (GAP-AUTH-REBUILD): POST /api/auth/passcode-login
+  // verifies email+passcode server-side (rate-limited, bcrypt-compared --
+  // see passcode-login-service.ts) and, on success, returns a Supabase
+  // admin-minted magic-link `actionLink` -- the exact same
+  // session-establishment mechanism the existing SSO button
+  // (handleSsoLogin below) and a real clicked magic-link email both
+  // resolve through (/auth/callback's PKCE exchange). Navigating the
+  // browser there (not just fetching it) is what actually lets Supabase's
+  // Set-Cookie response land on this origin.
+  const handlePasscodeLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      toast.error(t("magicLinkEmailRequired"));
+      return;
+    }
+    if (!/^\d{4}$/.test(passcode)) {
+      toast.error(t("passcodeInvalidFormat"));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/passcode-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), passcode, redirectTo }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.actionLink) {
+        toast.error(data.error ?? t("passcodeLoginFailed"));
+        setLoading(false);
+        return;
+      }
+
+      window.location.href = data.actionLink;
+    } catch {
+      toast.error(t("passcodeLoginFailed"));
+      setLoading(false);
+    }
   };
 
   return (
@@ -242,6 +297,40 @@ export function LoginForm() {
                   <span className="bg-white px-2 text-ct-muted">{t("or")}</span>
                 </div>
               </div>
+
+              {/* Priority 14 Wave 2 (GAP-AUTH-REBUILD): passcode entry
+                  point -- same reveal-on-click pattern as the SSO block
+                  right below, additive alongside it, never replacing the
+                  password/magic-link/Google/SSO options above. */}
+              {showPasscode ? (
+                <form onSubmit={handlePasscodeLogin} className="space-y-2">
+                  <Label htmlFor="passcode" className="text-xs font-semibold text-ct-muted uppercase">
+                    {t("passcodeLabel")}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="passcode"
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder={t("passcodePlaceholder")}
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      className="h-10 text-center tracking-widest"
+                    />
+                    <Button type="submit" variant="outline" className="h-10 shrink-0" disabled={loading}>
+                      {loading ? <Loader2 className="size-4 animate-spin" /> : t("continue")}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full text-center text-sm text-ct-muted hover:text-ct-navy hover:underline"
+                  onClick={() => setShowPasscode(true)}
+                >
+                  {t("signInWithPasscode")}
+                </button>
+              )}
 
               {/* SSO entry point */}
               {showSso ? (
