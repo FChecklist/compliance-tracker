@@ -1,0 +1,159 @@
+/* VERIDIAN AI Office Add-in task pane styles.
+   Design tokens match CLAUDE.md's documented palette:
+   Navy #1C2B3A | Saffron #F5820A | Teal #0E7C6E | Cream #FFFDF9 */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  color: #1C2B3A;
+  background: #FFFDF9;
+  font-size: 13px;
+}
+
+.veri-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1C2B3A;
+  color: #FFFDF9;
+  padding: 10px 14px;
+}
+
+.veri-title {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+#app { padding: 14px; }
+
+.panel.hidden, .tab-panel.hidden, .hint.hidden, .error.hidden { display: none; }
+
+.panel h2 { font-size: 14px; margin: 0 0 6px; }
+
+.hint { color: #5a6b7a; font-size: 12px; line-height: 1.4; margin: 6px 0 10px; }
+
+.error {
+  background: #fdeceb;
+  color: #a12a1f;
+  border: 1px solid #f2c4bf;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="date"],
+select,
+textarea {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #d6dde2;
+  border-radius: 4px;
+  font-size: 13px;
+  margin-bottom: 10px;
+  font-family: inherit;
+  background: #fff;
+  color: #1C2B3A;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #1C2B3A;
+}
+
+.btn {
+  border: none;
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary { background: #F5820A; color: #fff; }
+.btn-primary:hover { background: #d96f06; }
+
+.btn-secondary { background: #eef1f3; color: #1C2B3A; }
+.btn-secondary:hover { background: #e0e5e8; }
+
+.btn-link {
+  background: none;
+  color: #0E7C6E;
+  padding: 4px;
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+.full-width { width: 100%; margin-bottom: 10px; }
+
+.status { font-size: 12px; margin-top: 8px; min-height: 16px; }
+.status.ok { color: #0E7C6E; }
+.status.error { color: #a12a1f; }
+
+.connected-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e6e9eb;
+  margin-bottom: 10px;
+}
+
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+
+.tab-btn {
+  flex: 1;
+  background: #eef1f3;
+  border: none;
+  padding: 7px 0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #5a6b7a;
+}
+
+.tab-btn.active { background: #1C2B3A; color: #fff; }
+
+.search-row { display: flex; gap: 6px; }
+.search-row input { flex: 1; }
+.search-row button { margin-bottom: 10px; white-space: nowrap; }
+
+.items-list { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; }
+
+.item-card {
+  border: 1px solid #e6e9eb;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.item-card .item-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.item-card .item-meta { font-size: 11px; color: #5a6b7a; margin-bottom: 6px; }
+
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.badge-pending { background: #fff3e0; color: #b46a00; }
+.badge-overdue { background: #fdeceb; color: #a12a1f; }
+.badge-completed { background: #e5f5f2; color: #0E7C6E; }
+.badge-in_progress { background: #e8f0fb; color: #1a56b0; }
+.badge-not_applicable, .badge-draft { background: #eef1f3; color: #5a6b7a; }
+
+.item-card .btn { margin-top: 2px; }
