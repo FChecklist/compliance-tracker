@@ -93,144 +93,6 @@ active:
       files). Does NOT touch auth-guard.ts, apiKeys, or platform_applications
       (Wave 1's territory, already closed).
 
-  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, ERP multi-company/office UI exposure"
-    claimed_at: "2026-07-15T (this session)"
-    claim: |
-      Owner-directed Priority 17 Wave 1: expose the already-real, already-
-      working multi-company/office backend (erp-company-service.ts's
-      listCompanies/createCompany/updateCompany/getCompanyDescendantIds,
-      and erp-financial-report-service.ts's resolveCompanyScope threaded
-      through trialBalance/profitAndLoss/balanceSheet/cashFlowStatement)
-      through PROJEXA's UI, which never surfaced it at all. Confirmed by
-      direct code read: trial-balance/profit-and-loss/balance-sheet routes
-      under src/app/api/v1/projexa/* ALREADY accept companyId/consolidate
-      query params and thread them to resolveCompanyScope (built in a prior
-      Priority 15 wave) -- the one genuine gap in that family is
-      profit-and-loss-by-project (profitAndLossByCostCenter), which has no
-      company-scope support at all. Scope: (1) new
-      src/app/api/v1/projexa/companies/route.ts (GET list + POST create,
-      thin alias over erp-company-service.ts) -- createCompany's ctx type
-      extended to the same dbUser-or-apiKey actor union already precedented
-      by createJournalEntry/createSalesInvoice/createSalesCreditNote, so a
-      Bearer-key PROJEXA caller can create a company/office. (2)
-      erp-financial-report-service.ts's profitAndLossByCostCenter gains an
-      optional CompanyScope param (same resolveCompanyScope mechanism, new
-      companyId/consolidate query params on its route). (3) projexa side:
-      a company/office selector on AccountingClient.tsx's Trial
-      Balance/P&L/Balance Sheet/P&L-by-Project tabs (defaults to "All
-      companies / consolidated"), a new Companies tab on the same page
-      (list + create) since erp_companies is ERP-scoped data, not a
-      generic org setting, plus a new src/app/api/companies proxy route.
-      NOT building inter-company elimination accounting (bigger feature,
-      explicitly out of scope) and NOT touching auth-guard.ts/schema.ts's
-      auth tables (PLATFORM-01's Wave 1, PR #339, already merged into main
-      by the time this claim rebased -- confirmed disjoint file scope by
-      diff, no overlap). Branch: priority17-companies-office-selector
-      (both repos).
-
-  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, PMS-adjacent PROJEXA exposure (Sprints/Wiki/Time/Knowledge Base)"
-    claimed_at: "2026-07-15T (this session)"
-    claim: |
-      Owner-directed Priority 17 Wave 1: expose 3 real, already-built-but-
-      unexposed VERIDIAN AI PMS services (pms-sprint-service.ts,
-      pms-wiki-service.ts, pms-time-service.ts) plus the separate org-wide
-      knowledge-base-service.ts through PROJEXA, matching the existing
-      /api/v1/projexa/* thin-alias pattern (zero new business logic, zero
-      new PROJEXA-side schema). Prioritization per brief: Sprints, then
-      Time Tracking, then Wiki, then Knowledge Base. requirePmsEnabled()
-      gate decision: checked, not assumed -- pms-sprint/wiki/time-service.ts
-      all carry the same "Callers must have already passed
-      requirePmsEnabled()" header as pms-meeting-service.ts, but the
-      existing /v1/projexa/meetings/route.ts alias (Wave 141) already
-      established the precedent of deliberately NOT gating pms_* substrate
-      tables reached through /v1/projexa/* (PROJEXA customers buy
-      construction PM, not the separately-purchased PMS branch) -- new
-      sprints/wiki/timesheets routes follow that same precedent, with the
-      same reasoning restated in each new route's own header comment.
-      knowledge-base-service.ts has no enablement toggle at all (org-wide
-      core module per its own header), so its alias is likewise ungated.
-      Scope: new compliance-tracker
-      src/app/api/v1/projexa/schedule/sprints/**,
-      src/app/api/v1/projexa/timesheets/**,
-      src/app/api/v1/projexa/wiki/**,
-      src/app/api/v1/projexa/knowledge-base/** (routes only, zero service-
-      layer or schema changes -- every table/function already existed).
-      PROJEXA side: new Sprints tab in ScheduleGanttClient/
-      ScheduleBoardClient's parent SchedulePage, a "Log time" action on
-      Schedule board task cards + a small timesheet view, a new per-project
-      Wiki page, and a new top-level (org-wide) Knowledge Base page + its
-      own AppSidebar.tsx nav entry. Does NOT touch
-      src/lib/supabase/auth-guard.ts or any auth/membership schema
-      (PLATFORM-01's active claim below covers that file) and does NOT
-      build a standalone Approvals inbox (Priority 18's scope). Expect the
-      same AppSidebar.tsx merge-conflict pattern already documented by
-      sibling Priority 15/16 claims -- resolved by keeping all nav
-      sections, per this file's own precedent. Branch:
-      priority17-pms-adjacent (compliance-tracker) /
-      priority17-pms-adjacent-projexa (projexa).
-
-  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
-    claimed_at: "2026-07-15T (this session)"
-    claim: |
-      Owner-directed Priority 17 Wave 1: 2 real, confirmed PROJEXA module
-      gaps benchmarked against Odoo/ERPNext. (1) Inventory/Stock: erp-
-      inventory-service.ts/erp-stock-service.ts/erp-inventory-planning-
-      service.ts/erp-uom-batch-service.ts all had real functionality
-      (warehouses, FIFO stock ledger, batch/serial, reorder planning) but
-      ZERO PROJEXA exposure -- confirmed via grep, no /api/v1/projexa/
-      {inventory,stock} alias existed. Built new
-      src/app/api/v1/projexa/inventory/{warehouses,items,stock-balance,
-      stock-entries}/ routes + a new listStockBalances() read-time
-      aggregation in erp-inventory-service.ts (never a duplicated balance
-      table) + PROJEXA InventoryClient.tsx page (warehouse/item pickers,
-      stock-balance table, receipt/issue movement dialog). (2) Procurement
-      workflow depth: erp-procurement-workflow-service.ts/erp-goods-
-      receipt-service.ts have a real requisition -> RFQ -> quotation ->
-      negotiation -> PO -> goods-receipt workflow, but PROJEXA's existing
-      "Vendors" page only ever exposed erp-buying-service.ts's supplier
-      master data. Built new src/app/api/v1/projexa/procurement/
-      {requisitions,rfqs,quotations,purchase-orders,goods-receipts}/
-      routes (list/create + stage-transition actions: requisition submit,
-      RFQ send, RFQ->quotation comparison, PO submit, goods-receipt
-      submit) + PROJEXA ProcurementClient.tsx page (5-tab staged workflow
-      view, not a flat form). Both gaps built and considered complete for
-      this wave's bounded scope (e.g. cycle-count/ABC/reorder-suggestions
-      and landed-cost/three-way-match/putaway read from existing services
-      but were NOT separately routed this wave, out of the "see stock,
-      where, record a movement" bound the brief set -- see this session's
-      own final report for the full scope boundary).
-      Touches (all 5 files widened to the same dbUser-or-apiKey actor
-      union already precedented by erp-invoicing-service.ts's
-      createSalesInvoice / erp-accounting-service.ts's createJournalEntry
-      -- PROJEXA's callVeridian() proxy never carries a session cookie):
-      erp-inventory-service.ts (recordStockReceipt/recordStockIssue),
-      erp-stock-service.ts (createItem/createWarehouse), erp-
-      procurement-workflow-service.ts (createPurchaseRequisition/
-      createRfq/sendRfq/createSupplierQuotation --
-      submitPurchaseRequisition deliberately kept dbUser-only, it drives
-      startApprovalWorkflow's WorkflowContext), erp-buying-service.ts
-      (createPurchaseOrder/submitPurchaseOrder), erp-goods-receipt-
-      service.ts (createPurchaseReceipt/submitPurchaseReceipt). No schema
-      changes, no new tables -- every table this wave reads/writes
-      already existed. Did NOT touch src/lib/supabase/auth-guard.ts or
-      any auth/membership table shape (PLATFORM-01's claim, PR #339,
-      merged) -- read auth-guard.ts only, for the existing
-      CombinedAuthContext shape; rebased cleanly onto PR #339 with zero
-      conflicts. No requirePmsEnabled()/requireErpEnabled() gate added at
-      the route level -- every touched service function already calls
-      requireErpEnabled() internally (confirmed by reading all 7 files
-      before writing any route), matching the existing vendors/route.ts
-      precedent of zero route-level gating. Branch:
-      priority17-inventory-procurement (both repos, worktree-isolated).
-      No overlap found with any other active claim below (none touch
-      erp-inventory-service.ts, erp-stock-service.ts, erp-inventory-
-      planning-service.ts, erp-uom-batch-service.ts, erp-procurement-
-      workflow-service.ts, erp-goods-receipt-service.ts, or erp-buying-
-      service.ts) -- only incidental-merge-conflict risk is PROJEXA's
-      AppSidebar.tsx (added "Inventory"/"Procurement" nav items to the
-      existing RESOURCES section), resolved by keeping all sections per
-      this file's own documented precedent.
-
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |
@@ -443,6 +305,56 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
+    completed_at: "2026-07-15T (this session)"
+    merged_as: "compliance-tracker#346 + projexa#17"
+    claim: |
+      Owner-directed Priority 17 Wave 1: 2 real, confirmed PROJEXA module
+      gaps benchmarked against Odoo/ERPNext. (1) Inventory/Stock: new
+      src/app/api/v1/projexa/inventory/{warehouses,items,stock-balance,
+      stock-entries}/ routes + a new listStockBalances() read-time
+      aggregation in erp-inventory-service.ts + PROJEXA InventoryClient.tsx
+      page. (2) Procurement workflow depth: new src/app/api/v1/projexa/
+      procurement/{requisitions,rfqs,quotations,purchase-orders,
+      goods-receipts}/ routes (list/create + stage-transition actions) +
+      PROJEXA ProcurementClient.tsx page (5-tab staged workflow view). No
+      schema changes, no new tables. Independently audited before merge
+      (full diff review, fresh tsc --noEmit, structured 8-field AUDIT: PASS
+      posted on both PRs).
+
+  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, PMS-adjacent PROJEXA exposure (Sprints/Wiki/Time/Knowledge Base)"
+    completed_at: "2026-07-15T (this session)"
+    merged_as: "compliance-tracker#340 + projexa#19"
+    claim: |
+      Owner-directed Priority 17 Wave 1: expose 4 real, already-built-but-
+      unexposed VERIDIAN AI PMS services (sprints, wiki, time tracking)
+      plus the separate org-wide knowledge base through PROJEXA's
+      /api/v1/projexa/* thin-alias surface. Zero new schema, zero new
+      business logic. PR had gone stale-draft with a real merged
+      implementation sitting behind it -- corrected to ready-for-review
+      as part of this audit. projexa-side AppSidebar.tsx conflict against
+      PLATFORM-01 Wave 2's i18n labelKey rename resolved by converting the
+      new Wiki/Knowledge-Base nav items to the labelKey pattern + adding
+      en.json/hi.json translation keys, not reverting the rename.
+      Independently audited before merge; also surfaced a real, unrelated
+      CodeQL ReDoS finding in pre-existing slugify() code, flagged as a
+      separate follow-up task rather than fixed inline.
+
+  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, ERP multi-company/office UI exposure"
+    completed_at: "2026-07-15T (this session)"
+    merged_as: "compliance-tracker#342 + projexa#18"
+    claim: |
+      Owner-directed Priority 17 Wave 1: expose the already-real, already-
+      working multi-company/office backend (erp-company-service.ts,
+      erp-financial-report-service.ts's resolveCompanyScope) through
+      PROJEXA's UI. New src/app/api/v1/projexa/companies/route.ts (thin
+      alias), profitAndLossByCostCenter gained an optional CompanyScope
+      param (the one genuine gap in an otherwise-already-wired report
+      family), a company/office selector + Companies tab on
+      AccountingClient.tsx. Confirmed disjoint from PLATFORM-01's Wave 1
+      (PR #339). Independently audited before merge (full diff review,
+      live-DB-uninvolved since additive-only, CI green).
+
   - session_label: "claude-code (sub-agent) -- Priority 18a, VERI Chat second-screen panel unification"
     completed_at: "2026-07-15T (this session)"
     claim: |
@@ -796,119 +708,3 @@ recently_completed:
       detailed comment on the PR explaining the exact root cause and did
       not force it through.
 
-  - session_label: "claude-code (sub-agent) -- Wire 4 remaining VERI Reward achievement checks"
-    completed_at: "2026-07-14T (same day as claim)"
-    claim: |
-      Follow-up to PR #307's audit (MASTER-TRACKER.yaml priority 18). Wired
-      all 4 of the achievement keys that audit flagged as seeded but never
-      callable: login_streak_3 (veri-reward-service.ts's
-      recordStreakCheckIn(), fires at the real daily-login streak's
-      currentCount===3), first_document_upload (documents/route.ts's POST,
-      a narrowly-scoped count(*) since no reusable per-user count existed),
-      weekly_task_5 (compliance-service.ts's updateComplianceItem(), a new
-      block separate from the pre-existing first_compliance_item check,
-      backed by a new drizzle/0194 composite index), and onboarding_complete
-      (a genuine gap, not just unwired -- confirmed by full-repo search
-      that users.onboardingCompleted was never flipped true anywhere in
-      production code before this change; wired at the one real existing
-      sync point, /api/me/onboarding-stage + OnboardingChecklist.tsx's
-      already-computed "all steps done" boolean). 4/4 wired, none skipped.
-      bunx tsc --noEmit clean, lint 0 errors, build succeeded, bun test
-      1098 pass / 0 fail. See ai-os/boss/COMPLETED.yaml WAVE-179 and
-      MASTER-TRACKER.yaml priority 18 status_update for full detail. PR
-      opened from feat/veri-reward-remaining-achievements, not merged by
-      this session per standing dispatch instructions.
-
-  - session_label: "claude-code (sub-agent) -- Worker Agent Phase-1 auto-dispatch + llm-response-cache wiring audit"
-    completed_at: "2026-07-14T (same day as claim)"
-    claim: |
-      Investigated both items dispatched by Super Boss supervisor. Item A
-      (Worker Agent Phase-1 read-only auto-dispatch) turned out already
-      fully wired (PR #51, predates this session) -- fde-service.ts's
-      high-confidence worker_agent match reuses task-execution-engine.ts's
-      dispatchTool(), gated through purpose-bound-ai.ts's
-      DOMAIN_ALLOWED_TOOLS allowlist which already excludes every write
-      action. The one real gap: the shared threshold constant was still
-      the originally-proposed 0.9, not the Owner's 2026-07-10 correction to
-      0.95 -- fixed as a one-line change. Item B (llm-response-cache
-      wiring): chat-service.ts, task-execution-engine.ts, and
-      /api/ai/orchestrate/route.ts all called the LLM directly. Wired
-      /api/ai/orchestrate/route.ts (a genuine fit per the cache module's
-      own documented safety bar). Deliberately left chat-service.ts and
-      task-execution-engine.ts's planning call unwired for concrete
-      architectural reasons (history not in the cache key; a cached
-      malformed response would defeat the existing SyntaxError-retry
-      self-heal) -- see ai-os/boss/COMPLETED.yaml WAVE-178 for full detail.
-      PR #309, audited and merged by Super Boss supervisor 2026-07-14.
-
-  - session_label: "claude-code (sub-agent) -- VERI Reward end-to-end wiring audit"
-    completed_at: "2026-07-14T00:00:00Z"
-    claim: "Audited veri-reward-service.ts / veri-reward-enablement-service.ts / src/app/(app)/rewards/** end-to-end -- found CORRECTLY WIRED already (awardPoints/checkAndUnlockAchievements have real callers in compliance-service.ts + auth-guard.ts; on-by-default enablement confirmed for new orgs via auth-guard.ts's raw insert; no cash-referral bridge and no redemption mechanism exist, both intentional per Owner decisions; /rewards renders real data end-to-end). ZERO code changes made. See MASTER-TRACKER.yaml priority 18 for full evidence. One secondary finding flagged, not built here: 4 of 5 seeded achievement definitions have no caller and can never unlock -- separately dispatched as its own task (see recently_completed entry for that task once it reports). PR #307, audited and merged by Super Boss supervisor 2026-07-14."
-
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    completed_at: "2026-07-14T03:37:44Z"
-    claim: "GAP-UMR-TABLE-COVERAGE 4th batch (23 tables, migration 0193 after 2 real renumbering collisions) -- PR #302 merged. GAP-DCMD 3rd graph edge (dynamic_chain->dynamic_chain 'supersedes', createChainVersion() chokepoint) -- PR #288 merged. This session has no further active claims."
-
-
-  - session_label: "claude-code (this session, CLI) -- Priority 12 (OPEN-07, Universal Builder), OWNER-DIRECTED SOLE OWNER"
-    completed_at: "2026-07-14T (same day as claim; see MASTER-TRACKER.yaml OPEN-07 status_update / closed_priorities #15 and COMPLETED.yaml WAVE-177 for full detail)"
-    claim: |
-      Owner-directed sole ownership through to completion -- CLOSED same
-      day. 6 PRs total: #282 (point 8, pre-existing before this claim) +
-      #296 (DeepSeek auditor model, advisory dispatch replacing the dead
-      GITHUB_DISPATCH_PAT path, real cron trigger for runCapabilityAudit --
-      points 2/4/decision-a, built directly by this session) + #297
-      (task_capabilities surfaced in the Chain Selector, points 3+7, built
-      directly) + #298 (task_capabilities.status derivation + escalation-
-      matrix doc, points 6/10, dispatched sub-agent) + #299 (identical
-      branch-enablement gap independently confirmed in the Reports &
-      Analysis Engine, a point-8 follow-on, dispatched sub-agent) + #300
-      (FDE<->Dynamic-Chain/Chat cross-reference + capability-improvement
-      feedback UI, points 1/5, dispatched sub-agent). Every sub-agent PR
-      personally audited before merge (Rule 7c) -- caught and fixed 3 real
-      cross-PR migration-number collisions (0190 independently claimed by
-      #298/#299/#300) and one real Math.round()-vs-raw-SQL rounding bug in
-      #298's backfill before merging, not after.
-
-      Correcting an ambiguity PR #299's own sub-agent flagged: this
-      claim's original item (A) listed "branchKey scoping into... the
-      capability pipeline + Reports & Analysis Engine" as something this
-      session would do directly -- in practice the Reports & Analysis
-      Engine piece was delegated to a dedicated sub-agent (PR #299) once
-      its scope turned out comparable in size to point 8's own original
-      PR, and the capability-learning pipeline itself was deliberately
-      left UNgated by branch on purpose (task_capabilities.orgId is
-      platform-wide by design -- gating platform-wide learning by
-      purchased branch would defeat its own purpose of learning across
-      every org's activity, not an oversight).
-
-      Honest gap: point 9 of the Owner's original 12-point numbering was
-      never separately itemized anywhere in this tracker's own OPEN-07
-      detail (the list jumps 8 -> 10) -- a gap in the original
-      gap-analysis itself, not something this closure skipped. This
-      session has no further active OPEN-07 claims -- the area is free.
-
-  - session_label: "claude-code (this session, CLI) -- Priority 13 (PROJEXA PM-ERP), OPEN-08"
-    completed_at: "2026-07-14T (same day as claim; see veridian_priority13_pm_erp_gap_analysis.md memory + MASTER-TRACKER.yaml OPEN-08 status_update / closed_priorities #16 for full detail)"
-    claim: |
-      Owner-directed sole ownership through to completion ("you are the
-      owner of Priority 13 completion... complete priority 13... dont
-      stop till its complete") -- CLOSED same day. 5 PRs merged:
-      compliance-tracker#290 (doc auto-classification + self-serve ad-hoc
-      BI), compliance-tracker#292 + projexa#4 (ERP discovery lookups +
-      Permits), compliance-tracker#293 + projexa#5 (Meetings/MOM + Kanban
-      board -- required resolving a real AppSidebar.tsx merge conflict
-      against #4). Item (7) BIM/IFC deliberately deferred per Owner. This
-      session has no further active OPEN-08 claims -- the area is free
-      for any session that wants item (8)'s remaining loose end
-      (system-tree/20-projexa.yaml update + re-verifying
-      veridian-client.ts's stubbed-credential MVP gap) or a genuinely new
-      Priority 13 follow-on.
-
-  - session_label: "Super Boss (Claude Desktop) -- this session"
-    completed_at: "2026-07-13T23:38:00+05:30"
-    claim: "GAP-D15-REMAINING-TRIGGERS (Deployment webhook), GAP-D13-ASSUMPTION-VALIDATION (chat prompt scoping), GAP-UMR-TABLE-COVERAGE 3rd batch (22 tables) -- PRs #241/#242/#243/#244/#280 all merged."
-
-  - session_label: "claude-code (this session, CLI)"
-    completed_at: "2026-07-13T19:28:28Z"
-    claim: "Priority 11 Reports & Analysis ENGINE fully closed -- PR #279 merged (ai-os/boss/COMPLETED.yaml WAVE-175, MASTER-TRACKER.yaml closed_priorities #14). report-engine-service.ts/report-taxonomy.ts confirmed safe for other sessions to build on (replied to Priority 13/PROJEXA session's cross-session question above). ID COLLISION RESOLVED IN OUR FAVOR: PR #279 merged first, so WAVE-175/closed_priorities-#14 belong to Priority 11 on main now -- PR #285 (Priority 12 OPEN-07 point 8 closure) still needs to renumber its own new entries to WAVE-176/closed_priorities-#15 before it can merge cleanly (its branch will show this as a semantic duplicate on next sync, not a git conflict -- that session should re-check ai-os/boss/COMPLETED.yaml against latest main before pushing). This session has no further active claims."
