@@ -858,3 +858,5 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: worker_agents
     reason: "richer status semantics (5-value lifecycleStatus) than the generic trigger's boolean active_column model supports -- managed via Priority 3's registerAsset()/updateAsset() app-level hooks instead, which the trigger's ON CONFLICT UPDATE would otherwise clobber on every unrelated column update"
+  - table: workspace_memory_capsule_events
+    reason: "Priority 21, Layer 2 Workspace Memory (ai-os/priority21_workspace_memory_design.md): same class as prompt_cache_metrics/scoped_delegations above -- one row per export/import action against a user's own memvid capsule, no display-name column (direction is 'export'|'import', storageObjectPath is an opaque bucket path, not a human-readable name), and no user/admin ever browses this table by name the way they would a report/screen/dashboard/ai_agent. Internal per-user event log, not a discoverable platform asset."

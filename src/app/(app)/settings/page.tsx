@@ -26,6 +26,7 @@ import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import ApiKeySection from "@/components/ApiKeySection";
+import WorkspaceMemorySection from "@/components/WorkspaceMemorySection";
 import MfaSection from "@/components/MfaSection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
@@ -55,6 +56,7 @@ const SETTINGS_NAV = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "ai-assistants", label: "AI Assistants", icon: Bot },
+  { id: "workspace-memory", label: "Workspace Memory", icon: Brain },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "pms", label: "Project Management", icon: Rocket },
   { id: "security", label: "Security (MFA)", icon: ShieldCheck },
@@ -335,6 +337,20 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <AiAssistantsSection />
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "workspace-memory" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Brain className="size-4" />
+                  Workspace Memory
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WorkspaceMemorySection />
               </CardContent>
             </Card>
           )}

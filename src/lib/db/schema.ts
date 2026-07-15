@@ -9403,3 +9403,32 @@ export const monitorExecutionLog = complianceSchemaDB.table('monitor_execution_l
   invalidReports: integer('invalid_reports').notNull(),
   summaryText: text('summary_text'),
 })
+
+// ─── Priority 21, Layer 2 Workspace Memory (ai-os/priority21_workspace_memory_design.md) ──
+// One row per export/import action against a user's own memvid (.mv2)
+// capsule -- doubles as this feature's own domain-specific event log
+// alongside the generic auditLogs row every export/import also writes via
+// logActivity(). userId is the exporting/importing user; org-level RLS below
+// is necessary but not sufficient (a capsule is per-USER, not just per-org --
+// same "RLS is the floor" posture savedReports.ownedById already relies on),
+// so every route/service reading this table additionally filters
+// `userId = dbUser.id` at the application layer. storageObjectPath points
+// into the EXISTING 'compliance-documents' Supabase Storage bucket under a
+// 'workspace-memory/' prefix -- deliberately NOT a new bucket (see the
+// design doc's §5 self-correction: a new bucket needs a manual, non-PR-
+// reviewable Storage-console/MCP provisioning step this feature shouldn't
+// depend on to land).
+export const workspaceMemoryCapsuleEvents = complianceSchemaDB.table('workspace_memory_capsule_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  direction: text('direction').notNull(), // 'export' | 'import'
+  storageObjectPath: text('storage_object_path').notNull(),
+  fileSizeBytes: integer('file_size_bytes').notNull(),
+  // { savedReports: N, conversations: N, messages: N } -- counts only, never
+  // the capsule's actual content (that lives solely in the .mv2 file itself).
+  itemCounts: jsonb('item_counts').notNull().default({}),
+  status: text('status').notNull().default('completed'), // 'completed' | 'failed'
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

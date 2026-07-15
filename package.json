@@ -25,6 +25,7 @@
     "@hookform/resolvers": "^5.1.1",
     "@litertjs/core": "^2.5.2",
     "@mdxeditor/editor": "^3.39.1",
+    "@memvid/sdk": "^2.0.160",
     "@node-saml/node-saml": "^5.1.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "@radix-ui/react-accordion": "^1.2.11",
