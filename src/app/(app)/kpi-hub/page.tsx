@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 // compliance/risk/ERP/ticket/AI-ops data -- no new schema, no fabricated
 // metrics. AI-ops section reuses Wave 95's orchestra-analytics-service.
 import { useEffect, useState } from "react";
-import { LayoutDashboard, ShieldCheck, AlertTriangle, IndianRupee, Ticket, Activity } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, AlertTriangle, Banknote, Ticket, Activity } from "lucide-react";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Card, CardContent } from "@/components/ui/card";
 
 type KpiSummary = {
@@ -18,9 +19,7 @@ type KpiSummary = {
   aiOps: { totalExecutions: number; totalCostUsd: number; failureRate: number; denialRate: number };
 };
 
-function fmtCurrency(n: number) {
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-}
+
 
 function KpiCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
@@ -43,6 +42,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export default function KpiHubPage() {
+  const currencies = useCurrencies();
+  // Priority 17 re-sweep fix: was a module-level fmtCurrency() hardcoding
+  // "₹" -- now a closure over `currencies` so both existing call sites
+  // below resolve the org's real base currency instead.
+  const fmtCurrency = (n: number) => `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   const [data, setData] = useState<KpiSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -75,7 +79,7 @@ export default function KpiHubPage() {
             <Stat label="High Severity" value={data.risk.highSeverityOpen.toLocaleString()} />
           </KpiCard>
 
-          <KpiCard icon={<IndianRupee className="w-4 h-4" />} title="Revenue">
+          <KpiCard icon={<Banknote className="w-4 h-4" />} title="Revenue">
             <Stat label="Invoiced (YTD)" value={fmtCurrency(data.revenue.totalInvoicedYtd)} />
             <Stat label="Outstanding AR" value={fmtCurrency(data.revenue.totalOutstandingAr)} />
             <Stat label="Overdue AR" value={fmtCurrency(data.revenue.overdueAr)} />

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 
 type Client = { id: string; name: string };
 type StaffUser = { id: string; name: string };
@@ -35,6 +36,7 @@ const INVOICE_STATUS_COLORS: Record<string, string> = { draft: "bg-ct-cloud text
 const SERVICE_LINES = ["ca_services", "cs_services", "legal_services", "grc_services", "audit_services"];
 
 export default function TheFirmPracticePage() {
+  const currencies = useCurrencies();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [enabling, setEnabling] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -297,7 +299,7 @@ export default function TheFirmPracticePage() {
                                 <SelectContent><SelectItem value="fixed">Fixed</SelectItem><SelectItem value="hourly">Hourly</SelectItem><SelectItem value="retainer">Retainer</SelectItem></SelectContent>
                               </Select>
                             </div>
-                            <div className="flex-1"><Label>Fee Amount (₹)</Label><Input type="number" value={engFeeAmount} onChange={e => setEngFeeAmount(e.target.value)} /></div>
+                            <div className="flex-1"><Label>Fee Amount ({currencyLabel(undefined, currencies).trim()})</Label><Input type="number" value={engFeeAmount} onChange={e => setEngFeeAmount(e.target.value)} /></div>
                           </div>
                           <div><Label>Start Date</Label><Input type="date" value={engStartDate} onChange={e => setEngStartDate(e.target.value)} /></div>
                           <div className="flex gap-3">
@@ -335,7 +337,7 @@ export default function TheFirmPracticePage() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2"><span className="text-ct-muted text-xs">{e.feeType}{e.feeAmount ? ` · ₹${Number(e.feeAmount).toLocaleString("en-IN")}` : ""}</span><Badge className="bg-ct-cloud text-ct-muted">{e.status}</Badge></div>
+                          <div className="flex items-center gap-2"><span className="text-ct-muted text-xs">{e.feeType}{e.feeAmount ? ` · ${currencyLabel(undefined, currencies)}${Number(e.feeAmount).toLocaleString("en-IN")}` : ""}</span><Badge className="bg-ct-cloud text-ct-muted">{e.status}</Badge></div>
                         </div>
                       ))}
                     </div>
@@ -501,7 +503,7 @@ export default function TheFirmPracticePage() {
                         <div key={inv.id} className="flex items-center justify-between text-sm border-b border-ct-border pb-1.5">
                           <div><span className="text-ct-navy font-medium">{inv.invoiceNumber}</span><span className="text-ct-muted text-xs ml-2">{inv.issueDate}</span></div>
                           <div className="flex items-center gap-2">
-                            <span className="text-ct-navy">₹{Number(inv.totalAmount).toLocaleString("en-IN")}</span>
+                            <span className="text-ct-navy">{currencyLabel(undefined, currencies)}{Number(inv.totalAmount).toLocaleString("en-IN")}</span>
                             <Badge className={INVOICE_STATUS_COLORS[inv.status] ?? ""}>{inv.status}</Badge>
                             {inv.status === "draft" && <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => transitionInvoice(inv.id, "send")}>Send</Button>}
                             {inv.status === "sent" && <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => transitionInvoice(inv.id, "paid")}><CheckCircle2 className="w-3 h-3 mr-1" />Paid</Button>}

@@ -5,7 +5,7 @@
 // via the raw `db` export (bypasses RLS, since there's no org/session
 // context a public route could run withTenantContext against).
 import {
-  db, firmClientPortalLinks, clients, firmEngagements, firmEngagementDeliverables, firmInvoices, documents,
+  db, firmClientPortalLinks, clients, firmEngagements, firmEngagementDeliverables, firmInvoices, documents, erpCurrencies,
 } from "@/lib/db"
 import { and, eq, ne } from "drizzle-orm"
 import { requireFirmEnabled, withFirmTenantContext, type FirmServiceContext } from "./firm-enablement-service"
@@ -69,17 +69,27 @@ export async function getClientPortalData(token: string) {
   })
   const engagementIds = engagements.map((e) => e.id)
 
-  const [deliverables, invoices, clientDocuments] = await Promise.all([
+  const [deliverables, invoices, clientDocuments, baseCurrency] = await Promise.all([
     engagementIds.length > 0
       ? db.query.firmEngagementDeliverables.findMany({ where: eq(firmEngagementDeliverables.clientVisible, true) })
       : [],
     db.query.firmInvoices.findMany({ where: eq(firmInvoices.clientId, client.id), with: { lineItems: true }, orderBy: (t, { desc }) => desc(t.issueDate) }),
     db.query.documents.findMany({ where: eq(documents.clientId, client.id), orderBy: (t, { desc }) => desc(t.createdAt), limit: 50 }),
+    // Priority 17 re-sweep fix: firmInvoices has no per-document currencyId
+    // (org-scoped only, like erp_sales_invoices' null-currencyId case) --
+    // this token page has no session, so it can't call the normal
+    // session-authenticated /api/erp/currencies route; queried directly
+    // here (raw `db`, same posture as the rest of this file) instead of via
+    // erp-accounting-service.ts's listCurrencies(), which hard-gates on
+    // requireErpEnabled() and would 403 for a firm-only org with no ERP
+    // branch enabled.
+    db.query.erpCurrencies.findFirst({ where: and(eq(erpCurrencies.orgId, client.orgId), eq(erpCurrencies.isBaseCurrency, true)) }),
   ])
   const deliverablesForClient = deliverables.filter((d) => engagementIds.includes(d.engagementId))
 
   return {
     clientName: client.name,
+    baseCurrencyCode: baseCurrency?.code ?? null,
     engagements: engagements.map((e) => ({ id: e.id, title: e.title, serviceLine: e.serviceLine, status: e.status, startDate: e.startDate, endDate: e.endDate })),
     deliverables: deliverablesForClient.map((d) => ({ id: d.id, engagementId: d.engagementId, title: d.title, dueDate: d.dueDate, status: d.status, submittedAt: d.submittedAt?.toISOString() ?? null })),
     invoices: invoices.map((i) => ({
