@@ -42,6 +42,50 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15 (supersedes the earlier admin-invite-based
+      18b design's provisioning mechanism -- see CONTROLLER.yaml PRIORITY-18
+      stage0_supersedes_note for the reconciliation): anyone holding a shared
+      VERI Chat link can self-register as an unpaid "stage 0" user, zero
+      admin approval, identity proven via passwordless email/Gmail
+      magic-link. A stage-0 user's inbox is scoped strictly to items
+      explicitly addressed to them (direct messages, assigned to-dos/
+      instructions -- NOT general org channels/groups even if nominally a
+      participant), and every sender-to-stage0-recipient message is
+      trackable. Objective: a viral, self-serve growth loop ("free
+      advertisement" as usage grows).
+      THIS PASS: design doc only, ai-os/priority18b_stage0_design.md --
+      provisioning flow off the existing conversationGuestAccess/
+      conversationShareLinks token (veri-chat-service.ts), a new
+      autoProvisionUser() branch in auth-guard.ts (new stage0Token metadata
+      check, mirrors the existing inviteToken/orgJoinCode branches exactly),
+      3 new schema pieces (userRoleEnum +'stage_0', users.accountStage
+      nullable text column as the nav-visibility axis separate from role
+      rank, new stage0Sources table doubling as both the provisioning record
+      and the growth-loop tracking event), a scoped-inbox query predicate
+      (listStage0Inbox: direct-only conversations + tasks.userId +
+      instructionCommitments.assigneeId, all withTenantContext-scoped), and
+      a growth-loop recommendation modeled directly on
+      sales-engine-service.ts's resolveReferralLinkAndRecordClick/
+      recordReferralSignupAndOrgProvisioned pattern. One open question
+      explicitly flagged, not decided: whether one person can hold stage-0
+      seats in multiple orgs simultaneously -- blocked on this codebase's
+      own users.email-unique/single-orgId schema shape, needs an explicit
+      Option A (v1, single-org, zero blast radius) vs. Option B (real
+      multi-org stage0Sources membership table) call before implementation.
+      NOT implemented this pass -- design + PR only, per the dispatch's own
+      "supervisor sign-off before migration" gate. Re-verified live before
+      starting: PLATFORM-01's active claim (Wave 2) is scoped to i18n +
+      per-country compliance registry only and explicitly does not touch
+      auth-guard.ts/schema.ts's auth shape; Wave 2 is also already closed
+      (CONTROLLER.yaml PLATFORM-01 wave_2_close_out) -- clear to propose
+      auth-guard.ts/schema.ts changes once this design is signed off. Does
+      NOT touch PLATFORM-01's own multi-tenant provisioning logic beyond
+      that one new proposed signup entry point. Branch:
+      priority18b-stage0-design, worktree
+      .claude/worktrees/agent-priority18b-stage0.
   - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream B (ERP foundational setup) + Workstream C (UAE tax-field leak)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
