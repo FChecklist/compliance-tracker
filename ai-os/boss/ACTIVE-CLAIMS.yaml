@@ -84,6 +84,10 @@ active:
       magic-link/OAuth/password remain the only way to prove identity when
       a passcode is forgotten. Branch: feat/passcode-login-gap-auth-rebuild,
       worktree .claude/worktrees/agent-passcode-login.
+      PR #363 open (tsc/lint/bun test all clean, 1138 pass/0 fail full
+      suite; migration applied live via Supabase MCP and verified) --
+      NOT self-merged, left for the supervising session's audit per the
+      standing 2026-07-13 Claude-only-review procedure.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
