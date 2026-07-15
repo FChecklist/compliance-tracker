@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { createClient } from "./server"
-import { db, users, organisations, departments, aiAssistants, productBranches, orgProductBranchEnablements, accessReviewCertifications } from "@/lib/db"
+import { db, users, organisations, aiAssistants, accessReviewCertifications } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
@@ -9,6 +9,7 @@ import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
 import { recordSessionAndCheckLimit } from "@/lib/services/session-limit-service"
+import { provisionOrganisation } from "@/lib/services/org-provisioning-service"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -51,15 +52,6 @@ export function requireRole(dbUser: typeof users.$inferSelect | null, minimumRol
     )
   }
   return null
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "org"
 }
 
 /**
@@ -135,73 +127,24 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   }
 
   try {
-    const baseSlug = slugify(orgName)
-    let slug = baseSlug
-    let attempt = 0
-    // Find a free slug (organisations.slug is unique).
-    while (await db.query.organisations.findFirst({ where: eq(organisations.slug, slug) })) {
-      attempt += 1
-      slug = `${baseSlug}-${attempt}`
-      if (attempt > 20) break // pathological collision case, give up gracefully
-    }
-
-    const [org] = await db.insert(organisations).values({
-      name: orgName,
-      slug,
-      plan: "free",
-    }).returning()
-
-    // Wave 113 (VERI Treasure): free/on-by-default for every org, unlike
-    // opt-in branches like PMS -- 0098_veri_reward_branch.sql backfills
-    // orgs that already existed before this wave; every org created from
-    // here on gets it via this insert instead. Uses the same raw db this
-    // whole function already deliberately uses (org doesn't exist in any
-    // tenant context until this point). Never blocks signup on failure.
-    try {
-      const veriRewardBranch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_reward") })
-      if (veriRewardBranch) {
-        await db.insert(orgProductBranchEnablements).values({
-          orgId: org.id,
-          productBranchId: veriRewardBranch.id,
-          isEnabled: true,
-          enabledAt: new Date(),
-        })
-      }
-    } catch (err) {
-      console.warn("VERI Treasure auto-enablement failed (non-fatal):", err)
-    }
-
-    // Wave 131: VERI Chat (persistent composer) rolled out platform-wide
-    // 2026-07-09 -- same free/on-by-default shape as VERI Treasure above,
-    // not an opt-in vertical. 0112_veri_chat_v2_rollout.sql backfills orgs
-    // that already existed before this wave; every org created from here on
-    // gets it via this insert instead. Never blocks signup on failure.
-    try {
-      const veriChatV2Branch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_chat_v2") })
-      if (veriChatV2Branch) {
-        await db.insert(orgProductBranchEnablements).values({
-          orgId: org.id,
-          productBranchId: veriChatV2Branch.id,
-          isEnabled: true,
-          enabledAt: new Date(),
-        })
-      }
-    } catch (err) {
-      console.warn("VERI Chat v2 auto-enablement failed (non-fatal):", err)
-    }
-
-    const [dept] = await db.insert(departments).values({
-      name: "General",
-      orgId: org.id,
-    }).returning()
+    // PLATFORM-01 Wave 1: org/branch-enablement/department creation is now
+    // shared with the service-to-service provisioning path
+    // (POST /api/v1/platform/provision-org) via provisionOrganisation() --
+    // same slug-collision loop, same VERI Reward/VERI Chat v2 auto-enable,
+    // same default "General" department, same order of operations as
+    // before this refactor. This path passes no primaryProductBranchId
+    // (undefined -> null), matching every pre-existing human-signup org's
+    // real state -- it predates the concept of "primarily belongs to one
+    // product branch."
+    const { organisationId, defaultDepartmentId } = await provisionOrganisation({ name: orgName })
 
     const [newUser] = await db.insert(users).values({
       name: fullName,
       email,
       passwordHash: "supabase-auth-managed", // legacy NOT NULL column, real auth is via Supabase
       role: "admin",
-      orgId: org.id,
-      departmentId: dept.id,
+      orgId: organisationId,
+      departmentId: defaultDepartmentId,
       authUserId: authUser.id,
       onboardingCompleted: false,
     }).returning()
@@ -235,7 +178,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         await recordReferralSignupAndOrgProvisioned({
           refToken: ref,
           authUserId: authUser.id,
-          orgId: org.id,
+          orgId: organisationId,
           ipAddress: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null,
           userAgent: h.get("user-agent") ?? null,
         })
@@ -250,7 +193,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
     if (vid) {
       try {
         const { recordVisitorConversion } = await import("@/lib/services/visitor-intelligence-service")
-        await recordVisitorConversion(vid, org.id)
+        await recordVisitorConversion(vid, organisationId)
       } catch (err) {
         console.warn("Visitor conversion linking failed (non-fatal):", err)
       }
@@ -269,7 +212,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         const referral = await recordReferralSignupCompleted({
           refToken: vref,
           referredUserId: newUser.id,
-          referredOrgId: org.id,
+          referredOrgId: organisationId,
         })
         if (referral?.rewardPoints) {
           await withTenantContext({ orgId: referral.orgId, userId: referral.referrerUserId }, (tdb) =>

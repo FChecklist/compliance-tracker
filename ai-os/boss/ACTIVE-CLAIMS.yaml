@@ -304,6 +304,95 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Priority 18a, VERI Chat second-screen panel unification"
+    completed_at: "2026-07-15T (this session)"
+    claim: |
+      Extended VeriChatPanel.tsx's tab bar (Overview/Tasks/Chats/To Do) with
+      Meetings and Approvals tabs, plus folded email-intelligence-service.ts's
+      flagged items into the existing Overview merged feed. Meetings tab:
+      upcoming/pending-publish meetings + action items assigned to the
+      current user (new listMyMeetingActionItems in veri-meeting-service.ts,
+      thin GET /api/veri-chat/meetings/action-items), thread-style detail
+      (agenda/minutes/AI summary/action items, inline add/done), link-out to
+      /veri-meetings for deep editing, Share reusing createMeetingShareLink
+      as-is. Approvals tab: one queue via a new thin read-only aggregator
+      (GET /api/veri-chat/approvals) over 5 previously-unlisted "waiting on a
+      decision" mechanisms -- approvalRequests, approval-workflow-service.ts
+      steps, drafted-communications, and (a real gap found this session)
+      erp_quotations/construction_change_orders status transitions, which had
+      no org-wide listing at all -- added listChangeOrdersAwaitingApproval to
+      close that; every decision still goes through each mechanism's own
+      existing route, no approval logic duplicated. Discussions/group-chat
+      finding: chat-service.ts's createConversation() already fully supports
+      multi-participant, named (type: 'group') conversations end-to-end --
+      zero backend gap; VeriChatPanel's convoName() already preferred title
+      over concatenated names too. The one real gap was chat/page.tsx's "New
+      conversation" picker only ever offering a single-person Select --
+      replaced with a multi-select + optional title. Share consistency: found
+      meeting share links were only half-built (backend existed, no public
+      viewer page) -- added /shared/meeting/[token], mirroring
+      /shared/conversation/[token] exactly, and updated the share-links route
+      to derive shareUrl/whatsappHref/telegramHref at the route layer like
+      the conversations route already does. bunx tsc --noEmit and bun run
+      lint both clean (only pre-existing unrelated errors/warnings, confirmed
+      identical before/after rebasing onto origin/main post-PR#339, and
+      confirmed via grep that none of the broken-package references
+      (@litertjs/core/pptxgenjs/docx/mammoth/react-resizable-panels/recharts)
+      appear anywhere in this diff). `bun run build` (next build) fails in
+      this sandbox with no visible error beyond "Creating an optimized
+      production build..." -- this sandbox has no DATABASE_URL/Supabase env
+      vars configured at all (no .env* file anywhere, nothing in the shell
+      env), and a prior session's own entry above (Priority 15 HR & Payroll
+      wave) independently documented next build already failing on
+      origin/main itself for the same pre-existing missing-dependency/API-
+      mismatch reasons before that session's changes -- did not reinstall
+      node_modules on a bare origin/main worktree to re-prove this from
+      scratch (large install, low marginal value given the existing
+      precedent + clean tsc/lint + zero broken-package references in this
+      diff). PR #341, NOT merged by this session per standing dispatch
+      instructions. This session has no further active claims.
+
+  - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
+    completed_at: "2026-07-15T (same day as claim)"
+    claim: |
+      Owner-directed platform-wide tenant-isolation fix -- Workstream 1
+      (platform-level tenant provisioning) + Workstream 2 (RLS-bypass
+      audit), CLOSED this wave. Full plan: the floating-launching-lagoon
+      plan file this wave implements Workstream 1+2 of (see prior active
+      entry / PR description for the full path -- kept out of this line
+      to avoid backslash-escaping issues in this registry's own tooling).
+      Workstream 1: new platform_applications table
+      (drizzle/0203_platform_applications_provisioning.sql, applied live
+      to pcrjmlpuqsbocqfwoxod in 4 statements after a combined-batch lock
+      timeout), seeded one live 'projexa' row (pk_... key, hash-only in
+      DB/migration, raw key reported to the Owner once);
+      apiKeys.issuedForApplicationId + organisations.primaryProductBranchId
+      (both nullable FKs, additive); autoProvisionUser()'s org-creation
+      body factored into provisionOrganisation()
+      (src/lib/services/org-provisioning-service.ts), external behavior
+      verified unchanged for the existing human-signup path; new POST
+      /api/v1/platform/provision-org authenticated exclusively by a
+      platform_applications bearer token (validatePlatformApplicationKey,
+      src/lib/supabase/platform-application-auth.ts) -- structurally
+      rejects both a human session and a customer vk_... key. Workstream
+      2: static-import audit (not a full manual per-file read) across all
+      128 src/app/api/v1/projexa/** routes + the 31 service files they
+      reach + 103 native money/PII-named routes + a 638-route repo-wide
+      sweep -- 0 raw `db` (RLS-bypassing) bypasses found anywhere in the
+      audited surface, 0 fixes needed. Full methodology and honest
+      coverage caveats in the PR description. bunx tsc --noEmit clean on
+      every changed file (pre-existing react-resizable-panels/recharts/
+      litert/mammoth/pptxgenjs failures confirmed already on origin/main,
+      untouched by this branch); bun run lint 0 errors; bun test 1113
+      pass/0 fail; guardrail-presence 88/88. PR #339
+      (feat/platform-tenant-isolation), NOT merged by this session per
+      Rule 7(c) -- left for supervisor audit. Companion PROJEXA-side work
+      (signup flow calling provision-org, veridian-client.ts rewire) and
+      Wave 2 (Workstreams 3-6: offices/currency/language/per-country
+      compliance) are explicitly NOT started -- both wait on this PR
+      merging first (real dependency: they hang data off what this wave
+      creates). This session has no further active claims.
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, PROJEXA-MODULE-ENTITLEMENT-01 (Fix 1: erp/sales/hr entitlement) + 502-status-masking (Fix 2, projexa repo)"
     completed_at: "2026-07-14T (this session)"
     claim: |
