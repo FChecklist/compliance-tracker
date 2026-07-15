@@ -33,7 +33,11 @@ export async function listLeads(ctx: { orgId: string }) {
 // behavior). This is the variant PROJEXA's alias route calls: a 100-person
 // firm running 500 projects can have thousands of leads, so "fetch
 // everything, paginate client-side" was never going to hold up.
-export type ListLeadsOptions = { search?: string; status?: string; ownerId?: string; source?: string; page?: number; pageSize?: number }
+// Priority 17 remaining gap: companyId is an optional equality filter, same
+// shape/precedent as erp-financial-report-service.ts's CompanyScope --
+// companyId omitted/undefined means "no filter" (unchanged behavior for
+// every caller before this wave), never a silent "match nothing".
+export type ListLeadsOptions = { search?: string; status?: string; ownerId?: string; source?: string; companyId?: string; page?: number; pageSize?: number }
 export type PagedResult<T> = { items: T[]; total: number; page: number; pageSize: number }
 
 export async function listLeadsPaged(ctx: { orgId: string }, opts: ListLeadsOptions = {}): Promise<PagedResult<typeof crmLeads.$inferSelect>> {
@@ -45,6 +49,7 @@ export async function listLeadsPaged(ctx: { orgId: string }, opts: ListLeadsOpti
     if (opts.status) conditions.push(eq(crmLeads.status, opts.status))
     if (opts.ownerId) conditions.push(eq(crmLeads.ownerId, opts.ownerId))
     if (opts.source) conditions.push(eq(crmLeads.source, opts.source))
+    if (opts.companyId) conditions.push(eq(crmLeads.companyId, opts.companyId))
     if (opts.search?.trim()) conditions.push(ilike(crmLeads.name, `%${opts.search.trim()}%`))
     const where = and(...conditions)
 
@@ -58,7 +63,7 @@ export async function listLeadsPaged(ctx: { orgId: string }, opts: ListLeadsOpti
 
 export async function createLead(
   ctx: CrmContext,
-  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; nextActionDate?: string; nextActionNote?: string }
+  input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; companyId?: string; nextActionDate?: string; nextActionNote?: string }
 ) {
   await requireSalesEnabled(ctx.orgId)
   const name = input.name?.trim()
@@ -67,7 +72,7 @@ export async function createLead(
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [lead] = await db.insert(crmLeads).values({
       orgId: ctx.orgId, name, contactEmail: input.contactEmail || null, contactPhone: input.contactPhone || null,
-      source: input.source || null, ownerId: input.ownerId || null, createdById: ctx.userId,
+      source: input.source || null, ownerId: input.ownerId || null, companyId: input.companyId || null, createdById: ctx.userId,
       nextActionDate: input.nextActionDate || null, nextActionNote: input.nextActionNote || null,
     }).returning()
     // Opening entry in the stage ledger -- every lead's funnel history now

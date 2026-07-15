@@ -1,5 +1,4 @@
-# ============================================================================
-# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -39,8 +38,7 @@
 #   5. Sessions cannot literally message each other -- this file IS the
 #      message. Keep entries short, factual, and file/directory-scoped so a
 #      session with zero other context can act on them correctly.
-# ============================================================================
-
+# =====================================================================
 active:
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
@@ -194,6 +192,54 @@ active:
       compliance-tracker/.claude/worktrees/agent-review-registry. PR opened,
       NOT merged by this session per standing dispatch instructions --
       left for the supervising session's audit.
+  - session_label: "claude-code (sub-agent) -- Priority 17 remaining gap: office/company schema + selector rollout"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15: "complete all 100% except priority 19."
+      Dispatched per CONTROLLER.yaml PRIORITY-17
+      remaining_gaps_dispatch_2026_07_15 (item 2, combined into one claim
+      deliberately to avoid 2 agents racing the same schema.ts region/UI):
+      (1) add a nullable companyId column (text, no DB-level FK -- matching
+      the existing erp_journal_entries.companyId / erp_budgets.companyId
+      precedent, which is also just a bare text column with no
+      drizzle .references(), app-level convention only) to crmLeads,
+      employeeProfiles, and leaveRequests -- confirmed via schema.ts these 3
+      tables carry orgId but no company/office attribution at all, so even a
+      UI selector couldn't work for them today. Additive migration only,
+      IF NOT EXISTS, safe single-company-per-org backfill logic computed at
+      migration-apply-time (not assumed now) -- orgs with exactly 1
+      erp_companies row backfill existing rows to it, orgs with 0 or >1 stay
+      null. (2) wire companyId into the relevant create paths in
+      crm-service.ts / hr-service.ts so NEW rows can be attributed going
+      forward. (3) roll out PROJEXA's EXISTING CompanySelector pattern
+      (currently only in AccountingClient.tsx, built for Priority 17 Wave 1
+      compliance-tracker#342/projexa#18 -- reusing it, not building a second
+      one) to Reports & Analysis, Budgets, Sales/CRM, and HR pages wherever
+      the underlying data/service layer can now genuinely support company
+      scoping -- explicitly scoping down rather than half-wiring a selector
+      that silently filters nothing; any report category/page whose
+      underlying data model doesn't cleanly support company-scoping yet will
+      be left unwired and reported, not faked.
+      Scope boundary: does NOT touch src/lib/supabase/auth-guard.ts. Does
+      NOT apply the migration to the live Supabase database (leaves that for
+      the supervising session, same convention as every other schema-touching
+      PR this session has produced). Branch: priority17-office-selector-rollout
+      (compliance-tracker) / priority17-office-selector-rollout-projexa
+      (projexa), worktrees compliance-tracker-wt-p17-office /
+      projexa-wt-p17-office. No overlap found with the sibling currency-
+      formatting-cleanup claim (that one touches ~10 UI components'
+      hardcoded INR formatting only, not schema.ts or CompanySelector).
+
+      UPDATE (same session): both PRs opened, tsc/lint/tests clean, NOT
+      merged by this session. compliance-tracker#365 (schema + services +
+      report engine) and projexa#26 (selector rollout to Leads/Employees-
+      Leave/Budgets). Migration 0211 NOT applied live -- left for the
+      supervising session. Sales/CRM beyond Leads (Opportunities/
+      Quotations/Sales Orders) and Reports & Analysis (no existing UI page
+      consumes the report_definitions catalog in either repo -- engine-
+      level capability added, no selector to roll out onto a page that
+      doesn't exist) deliberately left unwired, documented in both PR
+      descriptions. This session has no further active claims.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
