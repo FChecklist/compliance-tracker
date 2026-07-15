@@ -5,6 +5,17 @@ import createNextIntlPlugin from "next-intl/plugin";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
+  // Priority 21, Layer 2 Workspace Memory
+  // (ai-os/priority21_workspace_memory_design.md §2.3/§3.6): @memvid/sdk is
+  // a native N-API binding with unconditional top-level requires of its own
+  // adapter files (langchain/llamaindex/etc side-effect registrations),
+  // even though v1's actual usage (kind: "basic") never executes those
+  // adapters' own heavy imports at runtime. Marking it external keeps
+  // Next.js's output file tracing/bundler from trying to statically
+  // analyze/inline its dynamic requires -- this repo's first use of this
+  // option, matching Next.js's own standard guidance for native-binding
+  // packages (e.g. sharp).
+  serverExternalPackages: ["@memvid/sdk"],
 };
 
 // PLATFORM-01 Wave 2 (Workstream 5): wires the already-installed-but-

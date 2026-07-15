@@ -579,6 +579,7 @@ open_items:
       old_ids: ["G-045"]
       detail: "PARTIALLY CLOSED, Priority 8 (PR #225): Google sign-in button added ADDITIVELY as the first/most prominent option on the login page, alongside (never replacing) the existing password/magic-link/SSO options -- a full auth-method rebuild on a live product with real user sessions was explicitly ratified against as too hard-to-reverse for a single pass. Honest limitation: functionally unusable until a Google OAuth client is configured in Supabase's Auth settings (Owner/dashboard action, same class of gap as OPEN-01). The 4-digit email passcode replacement was NOT attempted -- still deferred_large."
       size: deferred_large
+      status_update: "Priority 14 Wave 2 (PR #363, open -- not yet merged, per the standing Claude-only-review procedure): the 4-digit passcode half built, as an ADDITIVE faster-return-login method (not a password replacement, per Owner's 2026-07-14 AskUserQuestion decision -- the source doc's literal 'instead of password' framing was ratified against for the same hard-to-reverse-on-a-live-product reason PR #225 already cited for Google sign-in). New nullable users.passcodeHash/passcodeSetAt (drizzle/0211, applied live via Supabase MCP) + passcode_login_attempts (dual email+IP rate-limit log, 5 failures/15min per email since a 4-digit code's ~10,000-value keyspace needs a per-account limit that survives IP rotation). New src/lib/passcode-login-service.ts (bcrypt cost 10), POST /api/auth/passcode-login (session established via the existing SSO ACS route's admin-generateLink+/auth/callback mechanism -- no new session mechanism), GET/POST/DELETE /api/settings/passcode (requireAuth-gated set/change/remove, PasscodeSection.tsx in Settings > Security). Never a recovery mechanism -- magic-link/OAuth/password/SSO remain the only way to prove identity for first-time signup or a forgotten passcode. tsc/lint/bun test (1138 pass/0 fail, full suite) all clean. Does not touch auth-guard.ts's autoProvisionUser() -- passcode login only authenticates an existing user, never provisions one."
 
     - id: GAP-MOM-VOICE-TICKETS
       name: "Voice/transcription (2nd of 2 remaining Intelligent Work Detection source types)"
@@ -703,12 +704,19 @@ open_items:
       size: deferred_medium
       recommendation: "Phase 0 done -- GAP-AI-WORKFORCE-GOVERNANCE's Agent Escalation Registry dependency on Phase 0 is now satisfied, that gap can proceed. Remaining Phase 1 (event coverage expansion) is mechanical/incremental per-event work, not a new mechanism; Phase 2 (general Tier 2/3 executors) has a working precedent to copy in dispatch-completion-monitor.ts."
 
-    - id: GAP-AI-WORKFORCE-GOVERNANCE
-      name: "AI Workforce Governance framework: 6 agent registries (see PLATFORM_STRATEGY.md §30)"
+    # GAP-AI-WORKFORCE-GOVERNANCE MOVED to closed_priorities 2026-07-15 --
+    # see that section for the closure detail. The 2 genuinely-new pieces
+    # this gap named (Agent Hierarchy, Agent Review) are both now built;
+    # Agent Capability Registry's smaller "bridge roster.ts and
+    # workerAgents" sub-item was evaluated as real-but-not-built and is
+    # honestly NOT part of this closure -- flagged separately below, not
+    # silently swept in.
+    - id: GAP-AGENT-CAPABILITY-BRIDGE
+      name: "Agent Capability Registry: a real bridge between roster.ts (internal AI Dev Team roles) and workerAgents (customer-facing capability catalog)"
       old_ids: []
-      detail: "Evaluated 2026-07-13, including a scale-reality correction: 'millions of agents' cannot mean millions of distinct registered identities (roster.ts has 198 role definitions, workerAgents has 27 rows, both deliberately small/curated) -- it maps to millions of task executions/dispatches (activityLog, already an unbounded growing log) routed through a small, bounded, governable set of role definitions. Registry-by-registry status verified against real code: Knowledge Registry already real (embeddings.ts pgvector search); Agent Performance real but narrow (model-scorecard-service.ts, no hallucination score/cost field yet); Continuous Learning real but scoped to guardrail violations only; Agent Hierarchy and Agent Review are the two genuinely new pieces (workerAgents.supervisorWorkerAgentId confirmed dead, 0 of 27 rows set; no periodic promote/retrain/deprecate cycle exists anywhere). Agent Capability Registry needs to bridge roster.ts and workerAgents, not merge them -- they're deliberately different concepts. Full registry table and sequencing recommendation in PLATFORM_STRATEGY.md §30."
-      size: deferred_large
-      recommendation: "Sequence after GAP-NARROW-MONITOR-ESCALATION's Phase 0 (Agent Escalation Registry is the same mechanism). Build Agent Review Registry last -- it needs Agent Performance + Agent Escalation data to act on, and has zero existing precedent to extend."
+      detail: "PLATFORM_STRATEGY.md §30.2's own finding, carried forward unbuilt from the 2026-07-13 evaluation: both systems are real but deliberately separate concepts (roster.ts's own header) -- a governance layer should bridge them, not merge them. Not attempted during the Agent Review Registry build (2026-07-15): a bridge is a materially different, smaller-scoped piece of work (a cross-reference/lookup layer, not a review cycle), and neither roster.ts nor workerAgents needed a bridge to make Agent Review Registry work (ARR reviews roster.ts roles only -- see agent-review-service.ts's own header for why workerAgents was explicitly out of scope there, honestly, not silently)."
+      size: deferred_medium
+      recommendation: "Low urgency -- both registries function independently today; this closes a conceptual/discoverability gap, not a data-integrity one."
 
     - id: GAP-UMR-TABLE-COVERAGE
       name: "280 of 409 pre-existing tables remain grandfather-exempted in the UMR (never individually reviewed for registry-worthiness)"
@@ -1769,3 +1777,102 @@ closed_priorities:
       worker_agent_domain_groups, already merged 2026-07-13 per
       COMPLETED.yaml), but correcting it belongs to whichever session
       is actually assigned that gap, not this one.
+
+  - priority: 25
+    name: "GAP-AI-WORKFORCE-GOVERNANCE closed: Agent Review Registry (ARR) built, the last of the 2 genuinely-new pieces PLATFORM_STRATEGY.md §30 named"
+    summary: |
+      Priority 14 Wave 2 slice (control/CONTROLLER.yaml, Owner directive
+      2026-07-15: "complete all 100% except priority 19"). Section 30.2's
+      own registry-by-registry table named exactly 2 "genuinely new" pieces
+      inside GAP-AI-WORKFORCE-GOVERNANCE: Agent Hierarchy (closed the prior
+      day, WAVE-171/PR #252, worker_agent_domain_groups -- this priority's
+      own predecessor, Priority 24 above, flagged that correction as
+      out-of-scope for itself and left it for whoever picked up this gap)
+      and Agent Review (ARR), which "does not exist... no periodic,
+      performance-driven promote/retrain/deprecate/retire cycle exists
+      anywhere. Genuinely new territory."
+
+      Investigated before writing anything, per this session's own
+      standing instruction not to duplicate real, already-shipped work:
+      model-scorecard-service.ts (GAP-MODEL-SCORECARD, closed PR #230) is a
+      live, ephemeral aggregation merged to (model, complexityTier)
+      granularity and discarded on every call -- it answers "how is this
+      MODEL doing right now," not "should this ROLE's standing change,
+      based on its real history." The AI Team Closure Review gate
+      (activity_log.review_decision / POST /api/ai/team/review, AGENTS.md
+      Rule 7c) answers "was THIS ONE dispatch audited, pass or fail," a
+      per-dispatch fact, not a periodic role-level verdict. Neither is ARR;
+      confirmed by direct code read of both before designing anything.
+
+      Built: agent_review_records (drizzle/0211_agent_review_records.sql,
+      applied live to pcrjmlpuqsbocqfwoxod) -- an APPEND-ONLY history table,
+      one row per (role_key, review cycle), deliberately at roster.ts
+      role_key granularity (not merged to model like the scorecard) so a
+      specific role's track record stays visible even when it shares a
+      model with other roles. src/lib/services/agent-review-service.ts:
+      computeReviewVerdict() is a pure, deterministic threshold function
+      (promote/maintain/retrain/deprecate, no LLM call, matching audit-
+      protocol.ts/monitor-protocol.ts's own posture for structured
+      governance records) with a minimum-sample-size floor (insufficient
+      data always maintains, never fabricates a verdict) and a stricter
+      volume bar for "promote" specifically. Sources performance data from
+      activity_log (same table model-scorecard-service.ts reads) and
+      escalation data from audit_logs's audit_trigger.ai_escalation rows
+      (audit-event-triggers.ts's real, already-wired call site) joined back
+      to activity_log.role_key -- deliberately NOT monitor_task_state
+      (escalation-ladder.ts's claimEscalation()), confirmed by direct read
+      to be current-owner-only/overwritten-on-reclaim and therefore unable
+      to answer a historical "how many times has this role been escalated"
+      question; audit_logs is the real append-only event log this needed.
+      Also computes an AGENTS.md Rule 10 trustTierFlag
+      ("consider_promoting_to_judgment_tier" /
+      "consider_revoking_judgment_tier_trust") when a role's real,
+      persisted outcomes disagree with its current model-tier-eligibility
+      standing -- a flag for a human/Super-Boss decision, never a
+      self-executing change to model-tier-eligibility.ts's own
+      JUDGMENT_ELIGIBLE set. New veridian_admin-gated GET+POST
+      /api/ai/team/review-registry route (GET: one role's full history, or
+      every role's latest verdict, or just roles flagged for trust-tier
+      reconsideration; POST: run a new review cycle) -- matches the
+      existing API-only convention already established by the sibling
+      /scorecard, /governance-health, /d1-metrics, /token-usage routes
+      (none of which have a dedicated page either).
+
+      Deliberately NOT built, honestly flagged rather than silently
+      skipped: (1) workerAgents (the separate customer-facing capability
+      catalog) is not reviewed by this table -- confirmed by grep that
+      workerAgents.accuracyScore has zero write path anywhere in this
+      codebase (like supervisorWorkerAgentId, a column with no real writer),
+      so a review cycle against it would either fabricate a correctness
+      signal or review a field that is always null; workerAgents' own
+      periodic-review gap stays open, a separate piece of future work, not
+      solved here. (2) aiAgentDirectory.loopEngineeringStatus (a real,
+      permanently-unset dead column that looks like an obvious write
+      target) is deliberately left untouched -- its own schema comment
+      reserves it for "a human or a future JUDGMENT-TIER review," and this
+      table's verdict is a deterministic threshold function, not a
+      judgment call; writing to it would silently redefine that column's
+      documented contract. (3) No automated cron trigger for periodic
+      review cycles -- POST is veridian_admin/manually triggered today;
+      this repo already hit the Vercel Hobby plan's once-per-day cron limit
+      once this session (see Priority 14 Wave 1's own vercel.json fix), so
+      a new cron was not added without that being a deliberate, separate
+      decision. (4) GAP-AGENT-CAPABILITY-BRIDGE (a real bridge between
+      roster.ts and workerAgents, PLATFORM_STRATEGY.md §30.2's Agent
+      Capability row) is a materially different, smaller piece of work,
+      tracked separately in open_items above rather than silently folded
+      into this closure.
+
+      tsc --noEmit clean (0 new errors -- the 21 errors present both before
+      and after this change are the same documented pre-existing
+      react-resizable-panels/recharts/litert/mammoth/pptxgenjs/docx package
+      mismatches, confirmed by grep that none touch any file this change
+      added or modified). eslint . clean on every new/changed file. bun
+      test: 1144 pass/0 fail across 88 files (18 new tests on the pure
+      verdict core, up from the prior 1113/1113 baseline).
+      check-asset-registry-coverage.mjs/check-guardrail-presence.mjs/
+      check-metadata-index-coverage.mjs/check-doc-cross-references.mjs/
+      check-doc-quarantine-banner.mjs all pass. Branch:
+      feat/agent-review-registry. PR opened, NOT merged by this session per
+      standing dispatch instructions -- left for the supervising session's
+      audit.

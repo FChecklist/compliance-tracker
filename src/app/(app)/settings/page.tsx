@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Users2,
   TrendingUp,
+  KeyRound,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
@@ -26,7 +27,9 @@ import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import ApiKeySection from "@/components/ApiKeySection";
+import WorkspaceMemorySection from "@/components/WorkspaceMemorySection";
 import MfaSection from "@/components/MfaSection";
+import PasscodeSection from "@/components/PasscodeSection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
 import SsoSection from "@/components/SsoSection";
@@ -55,6 +58,7 @@ const SETTINGS_NAV = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "ai-assistants", label: "AI Assistants", icon: Bot },
+  { id: "workspace-memory", label: "Workspace Memory", icon: Brain },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "pms", label: "Project Management", icon: Rocket },
   { id: "security", label: "Security (MFA)", icon: ShieldCheck },
@@ -339,6 +343,20 @@ export default function SettingsPage() {
             </Card>
           )}
 
+          {activeSection === "workspace-memory" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Brain className="size-4" />
+                  Workspace Memory
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WorkspaceMemorySection />
+              </CardContent>
+            </Card>
+          )}
+
           {activeSection === "preferences" && (
             <Card className="rounded-xl shadow-card bg-white">
               <CardHeader>
@@ -413,17 +431,35 @@ export default function SettingsPage() {
           )}
 
           {activeSection === "security" && (
-            <Card className="rounded-xl shadow-card bg-white">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-                  <ShieldCheck className="size-4" />
-                  Two-Factor Authentication
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MfaSection />
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                    <ShieldCheck className="size-4" />
+                    Two-Factor Authentication
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MfaSection />
+                </CardContent>
+              </Card>
+
+              {/* Priority 14 Wave 2 (GAP-AUTH-REBUILD): additive 4-digit
+                  return-login passcode -- separate card from 2FA above,
+                  since it's the opposite kind of control (a faster
+                  optional login method, not an extra factor). */}
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                    <KeyRound className="size-4" />
+                    Passcode Sign-In
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PasscodeSection />
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === "api-access" && (

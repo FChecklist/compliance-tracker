@@ -2051,3 +2051,77 @@ entries:
         files (no test file needed new/changed assertions -- none of the 4
         call sites had prior test coverage of the achievement-check branch
         itself, same as the pre-existing first_compliance_item wiring).
+
+  - id: WAVE-180
+    title: "GAP-AI-WORKFORCE-GOVERNANCE closed: Agent Review Registry (ARR) -- the last of PLATFORM_STRATEGY.md section 30's 2 genuinely-new registries"
+    doer:
+      agent: "claude-code (background sub-agent, worktree feat/agent-review-registry)"
+      date: "2026-07-15"
+      pr: "TBD -- see PR opened from feat/agent-review-registry"
+      summary: >
+        Priority 14 Wave 2 (control/CONTROLLER.yaml, Owner directive
+        "complete all 100% except priority 19"). Investigated
+        PLATFORM_STRATEGY.md section 30 in full before writing anything --
+        confirmed ARR's real definition ("no periodic, performance-driven
+        promote/retrain/deprecate/retire cycle exists anywhere. Genuinely
+        new territory") and confirmed by direct code read that it is
+        neither a duplicate of model-scorecard-service.ts (GAP-MODEL-
+        SCORECARD, PR #230, a live/ephemeral model-level aggregation) nor
+        the AI Team Closure Review gate (activity_log.review_decision /
+        POST /api/ai/team/review, a per-dispatch pass/fail fact) before
+        designing anything.
+
+        Built: agent_review_records (drizzle/0211_agent_review_records.sql,
+        applied live to pcrjmlpuqsbocqfwoxod) -- append-only, one row per
+        (role_key, review cycle), at roster.ts role_key granularity so a
+        specific role's track record stays visible even when it shares a
+        model with others. src/lib/services/agent-review-service.ts:
+        computeReviewVerdict() is a pure, deterministic threshold function
+        (promote/maintain/retrain/deprecate, no LLM call, matching audit-
+        protocol.ts/monitor-protocol.ts's own posture) with a minimum-
+        sample-size floor and a stricter volume bar for "promote."
+        Escalation data is sourced from audit_logs's real, append-only
+        audit_trigger.ai_escalation rows (audit-event-triggers.ts) joined
+        to activity_log.role_key -- deliberately NOT monitor_task_state
+        (escalation-ladder.ts's claimEscalation()), confirmed by direct
+        read to be current-owner-only/overwritten-on-reclaim and unable to
+        answer a historical "how many times" question. Also computes an
+        AGENTS.md Rule 10 trustTierFlag when a role's real outcomes
+        disagree with its current model-tier-eligibility standing -- a
+        flag for a human/Super-Boss decision, never a self-executing
+        change to JUDGMENT_ELIGIBLE. New veridian_admin-gated GET+POST
+        /api/ai/team/review-registry route, matching the existing
+        API-only convention of the sibling /scorecard, /governance-health,
+        /d1-metrics, /token-usage routes.
+
+        Deliberately NOT built, honestly flagged: (1) workerAgents is not
+        reviewed -- confirmed by grep that workerAgents.accuracyScore has
+        zero write path anywhere, so reviewing it would fabricate a
+        signal; tracked as GAP-AGENT-CAPABILITY-BRIDGE's own separate open
+        item in MASTER-TRACKER.yaml. (2)
+        aiAgentDirectory.loopEngineeringStatus deliberately left untouched
+        -- its own comment reserves it for a future JUDGMENT-TIER review,
+        and this table's verdict is a deterministic function, not a
+        judgment call. (3) No automated cron trigger for periodic review
+        cycles -- POST is manually/veridian_admin-triggered today; this
+        repo already hit the Vercel Hobby plan's once-per-day cron limit
+        once this session, so a new cron was not added without that being
+        a deliberate, separate decision.
+
+        bunx tsc --noEmit clean (0 new errors -- the 21 present both
+        before and after are the same documented pre-existing
+        react-resizable-panels/recharts/litert/mammoth/pptxgenjs/docx
+        package mismatches, confirmed none touch any file this change
+        added/modified). eslint clean on every new/changed file. bun test:
+        1144 pass / 0 fail across 88 files (18 new tests on the pure
+        verdict core, up from the prior 1113/1113 baseline).
+        check-asset-registry-coverage.mjs / check-guardrail-presence.mjs /
+        check-metadata-index-coverage.mjs / check-doc-cross-references.mjs
+        / check-doc-quarantine-banner.mjs all pass. Also updated
+        ai-os/MASTER-TRACKER.yaml (moved GAP-AI-WORKFORCE-GOVERNANCE to
+        closed_priorities #25, added the narrower GAP-AGENT-CAPABILITY-
+        BRIDGE open item), ai-os/boss/ACTIVE-CLAIMS.yaml (registered this
+        claim), and PLATFORM_STRATEGY.md section 30.2/30.4 (Agent Review
+        row and "explicitly not started" note corrected to reflect this
+        closure). NOT merged by this session per standing dispatch
+        instructions -- left for the supervising session's audit.

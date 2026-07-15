@@ -187,6 +187,20 @@ export const users = complianceSchemaDB.table('users', {
   // Plain text, not the enum, matching this codebase's own established
   // convention for status columns still likely to grow (tasks.status).
   accountStage: text('account_stage'),
+  // Priority 14 Wave 2 (GAP-AUTH-REBUILD): additive 4-digit return-login
+  // passcode, opt-in from Settings, ALONGSIDE magic-link/Google-OAuth/
+  // password/SSO -- never a replacement, never usable for signup or
+  // account recovery (see passcode-login-service.ts's own header for the
+  // full security writeup). Deliberately NOT reusing the legacy
+  // `passwordHash` column above: every row's passwordHash is the literal
+  // placeholder string "supabase-auth-managed" (real auth has been
+  // Supabase-managed since before that column had any live reader/writer
+  // besides autoProvisionUser's own insert) -- overloading it would mean a
+  // real per-user secret and a hardcoded constant sharing one column with
+  // no way to tell them apart. bcrypt hash only, raw passcode never
+  // persisted; null = passcode login not enabled for this user.
+  passcodeHash: text('passcode_hash'),
+  passcodeSetAt: timestamp('passcode_set_at'), // null when passcodeHash is null; surfaced in Settings as "set on <date>"
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -741,6 +755,27 @@ export const orgJoinCodeAttempts = complianceSchemaDB.table('org_join_code_attem
   id: text('id').primaryKey().$defaultFn(() => createId()),
   ipAddress: text('ip_address').notNull(),
   orgId: text('org_id'),
+  wasSuccessful: boolean('was_successful').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Priority 14 Wave 2 (GAP-AUTH-REBUILD): rate-limit log for POST
+// /api/auth/passcode-login, mirrors org_join_code_attempts' shape with one
+// real difference -- keyed by BOTH email and ipAddress, not ipAddress
+// alone. A 4-digit passcode's keyspace (10,000 values) is many orders of
+// magnitude smaller than the 12-char join code's (~5.3x10^17), so an
+// IP-only limit isn't enough on its own -- an attacker rotating source IPs
+// would still be free to hammer one target account. email here is the
+// attempted login email exactly as submitted (not normalized/looked-up),
+// so a failed attempt against a non-existent email still counts against
+// that email string for rate-limiting purposes -- see
+// passcode-login-service.ts's checkPasscodeRateLimit for the two windowed
+// counts (per-email, stricter; per-IP, looser, catches credential-stuffing
+// across many target emails from one source).
+export const passcodeLoginAttempts = complianceSchemaDB.table('passcode_login_attempts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull(),
+  ipAddress: text('ip_address').notNull(),
   wasSuccessful: boolean('was_successful').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -1426,6 +1461,105 @@ export const aiAgentDirectory = complianceSchemaDB.table('ai_agent_directory', {
   lastComputedAt: timestamp('last_computed_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// GAP-AI-WORKFORCE-GOVERNANCE, Agent Review Registry (ARR) -- PLATFORM_STRATEGY.md
+// §30.2: "Does not exist. workerAgents.lifecycleStatus (draft->published->
+// retired) is a real but manually-triggered publish workflow -- no periodic,
+// performance-driven promote/retrain/deprecate/retire cycle exists anywhere.
+// Genuinely new territory." §30.4's own sequencing recommendation: build ARR
+// last, since "it needs Agent Performance [model-scorecard-service.ts] +
+// Agent Escalation [escalation-ladder.ts / audit_trigger.ai_escalation] data
+// to act on."
+//
+// Deliberately NOT a duplicate of model-scorecard-service.ts (GAP-MODEL-
+// SCORECARD, already closed PR #230): that service is a live, ephemeral
+// aggregation merged to (model, complexityTier) granularity and discarded on
+// every call -- it answers "how is this MODEL doing right now." This table
+// is the opposite shape on purpose: one APPEND-ONLY row per (roleKey, review
+// cycle), at roster.ts role_key granularity (not merged to model), so a
+// specific role's track record is visible over time even when it shares a
+// model with other roles. This is also NOT the AI Team Closure Review gate
+// (activity_log.review_decision / POST /api/ai/team/review) -- that gate
+// answers "was THIS ONE dispatch audited, pass or fail." This table answers
+// "looking at a role's real dispatch history, should its standing change" --
+// a periodic role-level verdict, computed FROM activity_log.review_decision
+// rows (among other signals), never a second way of recording the same
+// per-dispatch fact.
+//
+// escalationCount is sourced from audit_logs rows with
+// action = 'audit_trigger.ai_escalation' (audit-event-triggers.ts's
+// recordAuditTrigger(), the one real call site being
+// src/app/api/ai/team/review/route.ts) whose entity_id joins back to this
+// role's activity_log rows -- audit_logs is a real append-only event log,
+// unlike monitor_task_state (escalation-ladder.ts's claimEscalation()),
+// which is deliberately CURRENT-STATE-ONLY (upserted per task, overwritten
+// on every re-claim) and therefore cannot answer "how many times has this
+// role's work been escalated, historically" -- confirmed by direct read of
+// both tables before choosing which one to source from.
+//
+// Deliberately does NOT write to aiAgentDirectory.loopEngineeringStatus
+// above, even though that field is a real, permanently-unset dead column
+// that looks like an obvious target: its own comment reserves it for "a
+// human or a future JUDGMENT-TIER review" -- this table's verdict is
+// computed by a pure, deterministic threshold function (computeReviewVerdict
+// in agent-review-service.ts), the same "no LLM call" posture as audit-
+// protocol.ts/monitor-protocol.ts, not a judgment-tier assessment. Silently
+// repurposing that column's documented contract to mean something narrower
+// would be exactly the kind of silent redefinition this codebase's
+// discipline warns against elsewhere.
+//
+// Platform-level (raw `db`, not withTenantContext) -- same posture as
+// aiAgentDirectory/model-scorecard-service.ts: one role_key's dispatches
+// routinely span multiple orgs, so a review cycle is a single cross-org
+// computation, not tenant data.
+export const agentReviewRecords = complianceSchemaDB.table('agent_review_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(),
+  title: text('title'), // roster.ts RoleDefinition.title, denormalized at review time so history reads correctly even if roster.ts's title changes later
+  team: text('team'), // roster.ts RoleDefinition.team, denormalized for the same reason
+  model: text('model'), // roster.ts RoleDefinition.model AT REVIEW TIME -- a role's model assignment can change; this is a snapshot, not a live join
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  dispatchCount: integer('dispatch_count').notNull().default(0),
+  terminalCount: integer('terminal_count').notNull().default(0),
+  successCount: integer('success_count').notNull().default(0),
+  failureCount: integer('failure_count').notNull().default(0),
+  successRate: numeric('success_rate'), // successCount / terminalCount, null (not 0) when terminalCount = 0 -- no signal yet, matches model-scorecard-service.ts's own null-vs-zero discipline
+  reviewedCount: integer('reviewed_count').notNull().default(0), // activity_log.review_decision is not null, this role's dispatches only
+  auditFindingCount: integer('audit_finding_count').notNull().default(0), // review_decision = 'rejected'
+  auditFindingRate: numeric('audit_finding_rate'), // auditFindingCount / reviewedCount, null when reviewedCount = 0
+  escalationCount: integer('escalation_count').notNull().default(0), // audit_logs rows, action='audit_trigger.ai_escalation', entity_id joining this role's activity_log rows in the period
+  escalationRate: numeric('escalation_rate'), // escalationCount / dispatchCount, null when dispatchCount = 0
+  // Snapshot of model-tier-eligibility.ts's real, already-enforced gate for
+  // this role's model AT REVIEW TIME -- the same real facts
+  // agent-directory-service.ts's validationRules already resolves, denormalized
+  // here so a later trust-tier change doesn't rewrite review history.
+  complexityTierTrust: jsonb('complexity_tier_trust'), // { mechanicalEligible, integrativeEligible, judgmentEligible, mandatoryAudit }
+  // 'promote' | 'maintain' | 'retrain' | 'deprecate' -- the periodic
+  // performance-driven verdict PLATFORM_STRATEGY.md §30.2 confirms doesn't
+  // exist anywhere else in this codebase. Computed deterministically by
+  // computeReviewVerdict() (agent-review-service.ts) from the columns above
+  // -- never an LLM judgment call, matching audit-protocol.ts/monitor-
+  // protocol.ts's own no-LLM posture for structured governance records.
+  verdict: text('verdict').notNull(),
+  // Cites the actual numbers the verdict was computed from -- auditable, not
+  // a black box, matching computeTargetGap/computeExecutionOutcome's own
+  // "show your work" convention in d1-metrics-tracker-service.ts.
+  verdictReason: text('verdict_reason').notNull(),
+  // AGENTS.md Rule 10: "a model that hasn't earned judgment-tier trust...
+  // may only receive mechanical- or integrative-tier work." Flags when a
+  // role's REAL, persisted outcomes disagree with its CURRENT trust tier --
+  // 'consider_promoting_to_judgment_tier' (strong track record on a
+  // non-judgment-eligible model) or 'consider_revoking_judgment_tier_trust'
+  // (poor track record on an already judgment-eligible model). Null when
+  // neither condition is met. This is a FLAG for a human/Super-Boss
+  // decision, same posture as loop_improvements' isDeployed default-false
+  // discipline -- this table never changes model-tier-eligibility.ts's
+  // JUDGMENT_ELIGIBLE set itself.
+  trustTierFlag: text('trust_tier_flag'),
+  reviewedAt: timestamp('reviewed_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the Primary
@@ -4238,6 +4372,13 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   source: text('source'), // free text, e.g. 'referral' | 'website' | 'cold_outreach'
   status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
   ownerId: text('owner_id'),
+  // Priority 17 remaining gap (2026-07-15): which erp_companies entity/office
+  // this lead belongs to -- nullable, null = org-wide/unattributed (same
+  // convention as erp_budgets.companyId and erp_journal_entries.companyId).
+  // No DB-level FK -- matches this codebase's existing companyId columns,
+  // which are all bare text with app-level validation only, never a drizzle
+  // .references() to erp_companies.
+  companyId: text('company_id'),
   convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
   // Priority 15 (Sales & CRM depth wave): next scheduled follow-up for this
   // lead, surfaced on the pipeline dashboard/list views so a rep's queue is
@@ -4341,6 +4482,11 @@ export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().unique(),
   orgId: text('org_id').notNull(),
+  // Priority 17 remaining gap (2026-07-15): which erp_companies entity/office
+  // this employee is attributed to -- nullable, null = org-wide/unattributed,
+  // same convention as crmLeads.companyId above and erp_budgets.companyId.
+  // No DB-level FK, matching this codebase's existing companyId columns.
+  companyId: text('company_id'),
   employeeCode: text('employee_code'),
   jobTitle: text('job_title'),
   employmentType: text('employment_type').notNull().default('full_time'), // 'full_time' | 'part_time' | 'contract' | 'intern'
@@ -4366,6 +4512,14 @@ export const leaveRequests = complianceSchemaDB.table('leave_requests', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
+  // Priority 17 remaining gap (2026-07-15): which erp_companies entity/office
+  // this leave request belongs to -- nullable, null = org-wide/unattributed,
+  // same convention as employeeProfiles.companyId above. Snapshotted at
+  // request time from the requester's own employeeProfiles.companyId rather
+  // than re-derived later, matching this codebase's snapshot-at-transaction-
+  // time discipline (see erp_purchase_invoices.withholdingTaxAmount's
+  // identical rationale). No DB-level FK.
+  companyId: text('company_id'),
   leaveType: text('leave_type').notNull(), // free text, matches leave_policy_entries.leave_type
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),
@@ -9402,4 +9556,33 @@ export const monitorExecutionLog = complianceSchemaDB.table('monitor_execution_l
   escalated: integer('escalated').notNull(),
   invalidReports: integer('invalid_reports').notNull(),
   summaryText: text('summary_text'),
+})
+
+// ─── Priority 21, Layer 2 Workspace Memory (ai-os/priority21_workspace_memory_design.md) ──
+// One row per export/import action against a user's own memvid (.mv2)
+// capsule -- doubles as this feature's own domain-specific event log
+// alongside the generic auditLogs row every export/import also writes via
+// logActivity(). userId is the exporting/importing user; org-level RLS below
+// is necessary but not sufficient (a capsule is per-USER, not just per-org --
+// same "RLS is the floor" posture savedReports.ownedById already relies on),
+// so every route/service reading this table additionally filters
+// `userId = dbUser.id` at the application layer. storageObjectPath points
+// into the EXISTING 'compliance-documents' Supabase Storage bucket under a
+// 'workspace-memory/' prefix -- deliberately NOT a new bucket (see the
+// design doc's §5 self-correction: a new bucket needs a manual, non-PR-
+// reviewable Storage-console/MCP provisioning step this feature shouldn't
+// depend on to land).
+export const workspaceMemoryCapsuleEvents = complianceSchemaDB.table('workspace_memory_capsule_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  direction: text('direction').notNull(), // 'export' | 'import'
+  storageObjectPath: text('storage_object_path').notNull(),
+  fileSizeBytes: integer('file_size_bytes').notNull(),
+  // { savedReports: N, conversations: N, messages: N } -- counts only, never
+  // the capsule's actual content (that lives solely in the .mv2 file itself).
+  itemCounts: jsonb('item_counts').notNull().default({}),
+  status: text('status').notNull().default('completed'), // 'completed' | 'failed'
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
