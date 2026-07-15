@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const userId = request.nextUrl.searchParams.get("userId") || undefined
-    const requests = await listLeaveRequests({ orgId: ctx.orgId }, { userId })
+    const companyId = request.nextUrl.searchParams.get("companyId") || undefined
+    const requests = await listLeaveRequests({ orgId: ctx.orgId }, { userId, companyId })
     return NextResponse.json({ requests })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

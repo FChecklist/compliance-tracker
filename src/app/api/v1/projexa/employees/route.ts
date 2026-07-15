@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
   if (!ctx.orgId) return NextResponse.json({ employees: [] })
 
   try {
-    const employees = await listEmployees({ orgId: ctx.orgId })
+    const companyId = request.nextUrl.searchParams.get("companyId") ?? undefined
+    const employees = await listEmployees({ orgId: ctx.orgId }, { companyId })
     return NextResponse.json({ employees })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
       employeeCode: body.employeeCode, jobTitle: body.jobTitle, employmentType: body.employmentType,
       dateOfJoining: body.dateOfJoining, dateOfBirth: body.dateOfBirth,
       employmentStatus: body.employmentStatus, emergencyContactName: body.emergencyContactName, emergencyContactPhone: body.emergencyContactPhone,
+      companyId: body.companyId,
     })
     return NextResponse.json(profile, { status: 201 })
   } catch (error) {

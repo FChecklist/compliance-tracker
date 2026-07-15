@@ -4337,6 +4337,13 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   source: text('source'), // free text, e.g. 'referral' | 'website' | 'cold_outreach'
   status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
   ownerId: text('owner_id'),
+  // Priority 17 remaining gap (2026-07-15): which erp_companies entity/office
+  // this lead belongs to -- nullable, null = org-wide/unattributed (same
+  // convention as erp_budgets.companyId and erp_journal_entries.companyId).
+  // No DB-level FK -- matches this codebase's existing companyId columns,
+  // which are all bare text with app-level validation only, never a drizzle
+  // .references() to erp_companies.
+  companyId: text('company_id'),
   convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
   // Priority 15 (Sales & CRM depth wave): next scheduled follow-up for this
   // lead, surfaced on the pipeline dashboard/list views so a rep's queue is
@@ -4440,6 +4447,11 @@ export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().unique(),
   orgId: text('org_id').notNull(),
+  // Priority 17 remaining gap (2026-07-15): which erp_companies entity/office
+  // this employee is attributed to -- nullable, null = org-wide/unattributed,
+  // same convention as crmLeads.companyId above and erp_budgets.companyId.
+  // No DB-level FK, matching this codebase's existing companyId columns.
+  companyId: text('company_id'),
   employeeCode: text('employee_code'),
   jobTitle: text('job_title'),
   employmentType: text('employment_type').notNull().default('full_time'), // 'full_time' | 'part_time' | 'contract' | 'intern'
@@ -4465,6 +4477,14 @@ export const leaveRequests = complianceSchemaDB.table('leave_requests', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
+  // Priority 17 remaining gap (2026-07-15): which erp_companies entity/office
+  // this leave request belongs to -- nullable, null = org-wide/unattributed,
+  // same convention as employeeProfiles.companyId above. Snapshotted at
+  // request time from the requester's own employeeProfiles.companyId rather
+  // than re-derived later, matching this codebase's snapshot-at-transaction-
+  // time discipline (see erp_purchase_invoices.withholdingTaxAmount's
+  // identical rationale). No DB-level FK.
+  companyId: text('company_id'),
   leaveType: text('leave_type').notNull(), // free text, matches leave_policy_entries.leave_type
   startDate: date('start_date').notNull(),
   endDate: date('end_date').notNull(),

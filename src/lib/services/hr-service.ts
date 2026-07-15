@@ -16,7 +16,14 @@ export type HrContext = { orgId: string; userId: string }
 // of truth for valid values (schema.ts), not a re-typed literal union here.
 export type EmploymentStatus = (typeof employmentStatusEnum.enumValues)[number]
 
-export async function listEmployees(ctx: { orgId: string }) {
+// Priority 17 remaining gap: companyId is an optional post-join filter (the
+// company dimension lives on employeeProfiles, not users) -- omitted means
+// "no filter", same unchanged-by-default convention as crm-service.ts's
+// listLeadsPaged companyId option. An employee whose profile has no
+// companyId set (the common case until an org starts using the Companies
+// tab) is excluded when a specific companyId is requested, included when
+// no filter is applied at all.
+export async function listEmployees(ctx: { orgId: string }, filters?: { companyId?: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const orgUsers = await db.query.users.findMany({
       where: eq(users.orgId, ctx.orgId),
@@ -24,7 +31,9 @@ export async function listEmployees(ctx: { orgId: string }) {
     })
     const profiles = await db.query.employeeProfiles.findMany({ where: eq(employeeProfiles.orgId, ctx.orgId) })
     const profileByUserId = new Map(profiles.map((p) => [p.userId, p]))
-    return orgUsers.map((u) => ({ ...u, profile: profileByUserId.get(u.id) ?? null }))
+    const merged = orgUsers.map((u) => ({ ...u, profile: profileByUserId.get(u.id) ?? null }))
+    if (!filters?.companyId) return merged
+    return merged.filter((e) => e.profile?.companyId === filters.companyId)
   })
 }
 
@@ -48,7 +57,7 @@ export async function upsertEmployeeProfile(
   targetUserId: string,
   input: {
     employeeCode?: string; jobTitle?: string; employmentType?: string; dateOfJoining?: string; dateOfBirth?: string
-    employmentStatus?: EmploymentStatus; emergencyContactName?: string; emergencyContactPhone?: string
+    employmentStatus?: EmploymentStatus; emergencyContactName?: string; emergencyContactPhone?: string; companyId?: string
   }
 ) {
   if (input.employmentStatus && !employmentStatusEnum.enumValues.includes(input.employmentStatus)) {
@@ -70,6 +79,7 @@ export async function upsertEmployeeProfile(
           employmentStatus: input.employmentStatus ?? existing.employmentStatus,
           emergencyContactName: input.emergencyContactName ?? existing.emergencyContactName,
           emergencyContactPhone: input.emergencyContactPhone ?? existing.emergencyContactPhone,
+          companyId: input.companyId ?? existing.companyId,
           updatedAt: new Date(),
         })
         .where(eq(employeeProfiles.id, existing.id)).returning()
@@ -83,21 +93,25 @@ export async function upsertEmployeeProfile(
       employmentStatus: input.employmentStatus || "active",
       emergencyContactName: input.emergencyContactName || null,
       emergencyContactPhone: input.emergencyContactPhone || null,
+      companyId: input.companyId || null,
     }).returning()
     return created
   })
 }
 
 // ─── Leave requests + balances ───────────────────────────────────────────
-export async function listLeaveRequests(ctx: { orgId: string }, filters?: { userId?: string }) {
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.leaveRequests.findMany({
-      where: filters?.userId
-        ? and(eq(leaveRequests.orgId, ctx.orgId), eq(leaveRequests.userId, filters.userId))
-        : eq(leaveRequests.orgId, ctx.orgId),
+// Priority 17 remaining gap: companyId is an optional equality filter,
+// omitted means "no filter" (unchanged default behavior).
+export async function listLeaveRequests(ctx: { orgId: string }, filters?: { userId?: string; companyId?: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) => {
+    const conditions = [eq(leaveRequests.orgId, ctx.orgId)]
+    if (filters?.userId) conditions.push(eq(leaveRequests.userId, filters.userId))
+    if (filters?.companyId) conditions.push(eq(leaveRequests.companyId, filters.companyId))
+    return db.query.leaveRequests.findMany({
+      where: and(...conditions),
       orderBy: (t, { desc }) => desc(t.createdAt),
     })
-  )
+  })
 }
 
 function daysBetween(start: string, end: string): number {
@@ -114,10 +128,17 @@ export async function requestLeave(
   const numDays = daysBetween(input.startDate, input.endDate)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    // Priority 17 remaining gap: snapshotted from the requester's own
+    // employeeProfiles.companyId at request time (not re-derived later) --
+    // matches this codebase's existing snapshot-at-transaction-time
+    // discipline. A requester with no profile, or a profile with no
+    // companyId set yet, gets a null companyId here, same as before this
+    // wave -- never a guessed value.
+    const requesterProfile = await db.query.employeeProfiles.findFirst({ where: eq(employeeProfiles.userId, ctx.userId) })
     const [request] = await db.insert(leaveRequests).values({
       orgId: ctx.orgId, userId: ctx.userId, leaveType: input.leaveType,
       startDate: input.startDate, endDate: input.endDate, numDays: String(numDays),
-      reason: input.reason || null,
+      reason: input.reason || null, companyId: requesterProfile?.companyId ?? null,
     }).returning()
     return request
   })

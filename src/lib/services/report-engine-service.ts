@@ -223,7 +223,13 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   erp_suppliers: { table: erpSuppliers, orgIdColumn: erpSuppliers.orgId, columns: { qualificationStatus: erpSuppliers.qualificationStatus, sanctionScreeningStatus: erpSuppliers.sanctionScreeningStatus, trade: erpSuppliers.trade } },
   erp_stock_ledger_entries: { table: erpStockLedgerEntries, orgIdColumn: erpStockLedgerEntries.orgId, columns: { itemId: erpStockLedgerEntries.itemId, quantityChange: erpStockLedgerEntries.quantityChange } },
   // -- new for the Owner's 30 Sales Reports / 30 Sales Analysis / AI Sales Cockpit catalog (2026-07-13) --
-  crm_leads: { table: crmLeads, orgIdColumn: crmLeads.orgId, columns: { status: crmLeads.status, source: crmLeads.source, ownerId: crmLeads.ownerId, aiScore: crmLeads.aiScore } },
+  // Priority 17 remaining gap: companyId whitelisted here now that crm_leads
+  // carries the column -- this is one of only 2 TABLE_REGISTRY entries whose
+  // real table has a companyId column today (the other is erp_sales_invoices
+  // below); every other entry's underlying table genuinely has no
+  // company/office dimension, so companyId is deliberately NOT added to
+  // their columns maps rather than faked.
+  crm_leads: { table: crmLeads, orgIdColumn: crmLeads.orgId, columns: { status: crmLeads.status, source: crmLeads.source, ownerId: crmLeads.ownerId, aiScore: crmLeads.aiScore, companyId: crmLeads.companyId } },
   crm_opportunities: {
     table: crmOpportunities, orgIdColumn: crmOpportunities.orgId,
     columns: {
@@ -234,7 +240,7 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   },
   erp_quotations: { table: erpQuotations, orgIdColumn: erpQuotations.orgId, columns: { status: erpQuotations.status, customerId: erpQuotations.customerId, grandTotal: erpQuotations.grandTotal, quotationDate: erpQuotations.quotationDate } },
   erp_sales_orders: { table: erpSalesOrders, orgIdColumn: erpSalesOrders.orgId, columns: { status: erpSalesOrders.status, customerId: erpSalesOrders.customerId, grandTotal: erpSalesOrders.grandTotal, orderDate: erpSalesOrders.orderDate } },
-  erp_sales_invoices: { table: erpSalesInvoices, orgIdColumn: erpSalesInvoices.orgId, columns: { status: erpSalesInvoices.status, customerId: erpSalesInvoices.customerId, grandTotal: erpSalesInvoices.grandTotal, outstandingAmount: erpSalesInvoices.outstandingAmount, postingDate: erpSalesInvoices.postingDate } },
+  erp_sales_invoices: { table: erpSalesInvoices, orgIdColumn: erpSalesInvoices.orgId, columns: { status: erpSalesInvoices.status, customerId: erpSalesInvoices.customerId, grandTotal: erpSalesInvoices.grandTotal, outstandingAmount: erpSalesInvoices.outstandingAmount, postingDate: erpSalesInvoices.postingDate, companyId: erpSalesInvoices.companyId } },
   erp_customers: { table: erpCustomers, orgIdColumn: erpCustomers.orgId, columns: { isActive: erpCustomers.isActive, defaultPaymentTermsDays: erpCustomers.defaultPaymentTermsDays, creditLimit: erpCustomers.creditLimit } },
   sales_referrals: { table: salesReferrals, orgIdColumn: salesReferrals.orgId, columns: { status: salesReferrals.status, salesPartnerId: salesReferrals.salesPartnerId, productKey: salesReferrals.productKey } },
   // meetingType='client' is a real but imperfect proxy for a "customer
@@ -274,10 +280,25 @@ export function getTableRegistryMetadata(): Record<string, { columns: string[] }
   )
 }
 
-/** The real execution path for a deterministic_aggregation report_definitions row -- resolves its config against TABLE_REGISTRY and runs it through runAggregation(). Priority 13: also the direct executor custom-chart-service.ts reuses for ad-hoc charts (exported, not duplicated). */
-export async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig): Promise<ReportDefinitionResult> {
+/**
+ * The real execution path for a deterministic_aggregation report_definitions
+ * row -- resolves its config against TABLE_REGISTRY and runs it through
+ * runAggregation(). Priority 13: also the direct executor custom-chart-
+ * service.ts reuses for ad-hoc charts (exported, not duplicated).
+ *
+ * Priority 17 remaining gap: `runtimeScope.companyId` is a CALLER-supplied
+ * filter (e.g. a UI company/office selector), distinct from the
+ * definition's own stored `config.filterEquals` -- silently a no-op (never
+ * a 500) when the resolved table has no companyId column whitelisted in
+ * TABLE_REGISTRY, since most tables genuinely have no company dimension and
+ * a caller passing companyId "just in case" shouldn't break the report.
+ */
+export async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig, runtimeScope?: { companyId?: string }): Promise<ReportDefinitionResult> {
   const { entry, groupByColumn, aggregationColumn, filterColumn } = resolveAggregationTarget(config)
-  const extraWhere = filterColumn && config.filterEquals ? eq(filterColumn, config.filterEquals.value) : undefined
+  const whereClauses: SQL[] = []
+  if (filterColumn && config.filterEquals) whereClauses.push(eq(filterColumn, config.filterEquals.value))
+  if (runtimeScope?.companyId && entry.columns.companyId) whereClauses.push(eq(entry.columns.companyId, runtimeScope.companyId))
+  const extraWhere = whereClauses.length > 0 ? and(...whereClauses) : undefined
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const rows = await runAggregation(db, {
       table: entry.table, orgIdColumn: entry.orgIdColumn, orgId: ctx.orgId,
@@ -1368,7 +1389,12 @@ export async function executeReportDefinition(ctx: { orgId: string; userId?: str
     // whitelist-only, no arbitrary-query surface). A row whose config has
     // no tableKey (e.g. hand-authored before this wave) throws a clear
     // "cannot resolve" ServiceError rather than silently doing nothing.
-    return runAggregationFromConfig(ctx, config)
+    // Priority 17 remaining gap: params.companyId (caller-supplied, e.g. a
+    // UI selector) is threaded through as a runtime scope -- see
+    // runAggregationFromConfig's own header for why this is safe to pass
+    // even for tables that don't support it (silent no-op, never a 500).
+    const companyId = typeof params.companyId === "string" ? params.companyId : undefined
+    return runAggregationFromConfig(ctx, config, { companyId })
   }
 
   if (definition.executionType === "deterministic_formula" && config.kind === "formula") {
@@ -1457,10 +1483,26 @@ export async function promoteAiAnalysisToDefinition(
 // code (capability-tree-service.ts, API routes) -- the safe place for
 // anything that touches the DB.
 
-export type FullCatalogEntry = ReportCatalogEntry & { source: "static" | "definition"; definitionId?: string; status?: "built" | "data_gap" | "planned" }
+// Priority 17 remaining gap: `supportsCompanyScope` tells a caller (a future
+// UI, or an API consumer today) whether POSTing `params: { companyId }` to
+// this definition's /run endpoint will actually filter anything -- true
+// only for a 'deterministic_aggregation' definition whose tableKey resolves
+// to a TABLE_REGISTRY entry with a whitelisted companyId column (currently:
+// crm_leads, erp_sales_invoices). Always false for static/formula/ai_recipe/
+// external_service entries -- honest rather than defaulting everything to
+// "maybe supported."
+export type FullCatalogEntry = ReportCatalogEntry & { source: "static" | "definition"; definitionId?: string; status?: "built" | "data_gap" | "planned"; supportsCompanyScope?: boolean }
+
+function definitionSupportsCompanyScope(executionType: string, executionConfig: unknown): boolean {
+  if (executionType !== "deterministic_aggregation") return false
+  const config = executionConfig as AggregationConfig | undefined
+  if (!config?.tableKey) return false
+  const entry = TABLE_REGISTRY[config.tableKey]
+  return Boolean(entry?.columns.companyId)
+}
 
 export async function getFullReportCatalog(ctx: { orgId: string }): Promise<FullCatalogEntry[]> {
-  const staticEntries: FullCatalogEntry[] = REPORT_CATALOG.map((e) => ({ ...e, source: "static" }))
+  const staticEntries: FullCatalogEntry[] = REPORT_CATALOG.map((e) => ({ ...e, source: "static", supportsCompanyScope: false }))
 
   const definitions = await withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.reportDefinitions.findMany({
@@ -1488,6 +1530,7 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
       source: "definition",
       definitionId: d.id,
       status: d.status as "built" | "data_gap" | "planned",
+      supportsCompanyScope: definitionSupportsCompanyScope(d.executionType, d.executionConfig),
     }
   })
 
