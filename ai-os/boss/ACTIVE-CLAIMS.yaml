@@ -88,6 +88,62 @@ active:
       suite; migration applied live via Supabase MCP and verified) --
       NOT self-merged, left for the supervising session's audit per the
       standing 2026-07-13 Claude-only-review procedure.
+  - session_label: "claude-code (this session, CLI) -- Priority 21, Layer 2 Workspace Memory (memvid capsule)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-approved build (control/CONTROLLER.yaml PRIORITY-21 addendum,
+      "second reviewer" framing adopted 2026-07-15,
+      memory/veridian_priority21_litert_bonsai_memvid.md): building Layer 2
+      of the 3-tier memory model -- Layer 1 Browser Memory already merged
+      (PR #324, src/lib/browser-intent-cache.ts); Layer 3 Enterprise Memory
+      already exists (pgvector + RLS). This claim: a portable, per-user/team
+      memory capsule using @memvid/sdk (github.com/memvid/memvid,
+      Apache-2.0) to answer the cross-device "no software" sync gap named
+      in memory/veridian_cache_objectives_evaluation.md. Sequence: (1) real
+      feasibility check -- `bun add @memvid/sdk` + `bun run build` in this
+      worktree, checking native-binary compatibility with Vercel's Node.js
+      serverless runtime and whether its langchain/llamaindex/OCR
+      dependencies are lazy-loaded or always bundled -- STOP and report
+      honestly if this doesn't work, no silent fallback to a different
+      memvid interface (CLI/Rust crate) without flagging the deviation
+      first; (2) design doc at
+      ai-os/priority21_workspace_memory_design.md (capsule v1 scope, RLS-
+      safe schema/migration plan, export/import flows, cross-device SYNC
+      TRANSPORT explicitly flagged as an open Owner decision, not picked
+      silently), self-corrected once against ARCH-06/ARCH-08/SEC-04/ARCH-03
+      and the feasibility findings; (3) THEN implement v1 only if feasible:
+      new org/user-scoped table(s) + RLS in the same migration
+      (ARCH-03 template), export API route (user-initiated, own-org-scoped
+      only, audit-logged -- per ARCH-08's no-cross-tenant-transformation
+      posture), import API route (explicit user action, conflict-safe, per
+      SEC-04's no-silent-overwrite posture), minimal UI entry point matching
+      an existing Settings/VeriChatPanel user-action pattern. Explicitly NOT
+      building the cross-device sync transport itself (download/upload vs.
+      a cloud-storage connector) -- stops at producing/consuming a real
+      .mv2 file, transport is the flagged open question. Does NOT touch
+      src/lib/supabase/auth-guard.ts or any auth/membership shape in
+      schema.ts -- re-verified against every active claim above/below
+      before starting; none touch memvid/workspace-memory/capsule export-
+      import, and none of the schema.ts touches overlap this new table.
+      Branch: priority21-workspace-memory, worktree
+      .claude/worktrees/agent-aafc45119fe789609. Does not self-merge the
+      implementation PR (Rule 10) -- a different session audits + merges.
+  - session_label: "claude-code -- Priority 21, MCP DEBT-02 doc-drift fix"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed (control/CONTROLLER.yaml PRIORITY-21 addendum): closing
+      the DEBT-02 documentation gap surfaced during Priority 21's LiteRT/
+      Bonsai/memvid research -- MCP_PROTOCOL.md and docs/master/ARCHITECTURE.md
+      §5 still described "MCP Server 2" (Groq-orchestrator dev-dispatch) as
+      live; re-confirmed by grep that zero matching code exists anywhere in
+      src/. Also found docs/master/INDEX.md was ALREADY corrected on a prior
+      pass but DEBT-02's own status field in ai-os/CONSTITUTION.yaml was
+      never flipped to match. Scope: doc/comment corrections only --
+      MCP_PROTOCOL.md (banner), docs/master/ARCHITECTURE.md §5 (rewrite),
+      src/app/api/mcp/route.ts (header comment only, no logic change),
+      ai-os/CONSTITUTION.yaml (DEBT-02 status). No schema/API/auth changes.
+      Branch: priority21-mcp-doc-fix, worktree
+      .claude/worktrees/priority21-mcp-doc-fix.
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
