@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
@@ -77,6 +77,10 @@ active:
       worktree compliance-tracker-wt-office-addin. No overlap found with
       any other active claim below -- none touch src/app/api/v1/connectors/**
       (new directory) or public/office-addin/** (new directory).
+      PR #360 opened 2026-07-15, tsc/eslint/full-test-suite (1126/1126)
+      clean locally -- left open, not self-merged, for the supervising
+      session's audit per the standing 2026-07-13 Claude-only-review
+      procedure. Move to recently_completed once merged.
 
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
