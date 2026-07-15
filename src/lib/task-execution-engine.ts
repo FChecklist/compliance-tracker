@@ -383,7 +383,7 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     });
     const totalTaxableValue = invoices.reduce((sum, i) => sum + Number(i.taxableValue), 0);
     const totalTaxPaid = invoices.reduce((sum, i) => sum + Number(i.cgstAmount) + Number(i.sgstAmount) + Number(i.igstAmount), 0);
-    const { validateGstReturn } = await import("@/lib/engines/gst-engine");
+    const { validateGstReturn } = await import("@/lib/engines/in/gst-engine");
     return validateGstReturn({
       gstin: period.gstin, period: period.period,
       totalTaxableValue, totalTaxPaid,
@@ -539,57 +539,57 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     case "cgst_engine":
     case "sgst_engine":
     case "igst_engine": {
-      const { splitGst } = await import("@/lib/engines/gst-engine");
+      const { splitGst } = await import("@/lib/engines/in/gst-engine");
       return splitGst(gstSplitInput());
     }
     case "utgst_engine": {
-      const { splitGstWithUtgst } = await import("@/lib/engines/gst-engine");
+      const { splitGstWithUtgst } = await import("@/lib/engines/in/gst-engine");
       return splitGstWithUtgst(gstSplitInput());
     }
     case "gst_calculation_engine": {
-      const { calculateGst } = await import("@/lib/engines/gst-engine");
+      const { calculateGst } = await import("@/lib/engines/in/gst-engine");
       return calculateGst(gstSplitInput());
     }
     case "reverse_charge_engine": {
-      const { computeReverseChargeLiability } = await import("@/lib/engines/gst-engine");
+      const { computeReverseChargeLiability } = await import("@/lib/engines/in/gst-engine");
       return computeReverseChargeLiability({ ...gstSplitInput(), isReverseCharge: truthy(inputs.isReverseCharge) });
     }
     case "hsn_validation_engine": {
-      const { isValidHsnFormat } = await import("@/lib/engines/gst-engine");
+      const { isValidHsnFormat } = await import("@/lib/engines/in/gst-engine");
       return { valid: isValidHsnFormat(String(inputs.hsn ?? "")) };
     }
     case "sac_validation_engine": {
-      const { isValidSacFormat } = await import("@/lib/engines/gst-engine");
+      const { isValidSacFormat } = await import("@/lib/engines/in/gst-engine");
       return { valid: isValidSacFormat(String(inputs.sac ?? "")) };
     }
     case "eway_bill_validation_engine": {
-      const { isValidEwayBillNumberFormat } = await import("@/lib/engines/gst-engine");
+      const { isValidEwayBillNumberFormat } = await import("@/lib/engines/in/gst-engine");
       return { valid: isValidEwayBillNumberFormat(String(inputs.ebn ?? "")) };
     }
     case "gst_exclusive_engine": {
-      const { gstExclusiveToInclusive } = await import("@/lib/engines/gst-engine");
+      const { gstExclusiveToInclusive } = await import("@/lib/engines/in/gst-engine");
       return gstExclusiveToInclusive(Number(inputs.taxableAmount), Number(inputs.gstRatePercent));
     }
     case "gst_inclusive_engine": {
-      const { gstInclusiveToTaxable } = await import("@/lib/engines/gst-engine");
+      const { gstInclusiveToTaxable } = await import("@/lib/engines/in/gst-engine");
       return gstInclusiveToTaxable(Number(inputs.inclusiveAmount), Number(inputs.gstRatePercent));
     }
     case "gst_interest_engine": {
-      const { calculateGstInterest } = await import("@/lib/engines/gst-engine");
+      const { calculateGstInterest } = await import("@/lib/engines/in/gst-engine");
       return { interest: calculateGstInterest({
         taxAmount: Number(inputs.taxAmount), daysLate: Number(inputs.daysLate),
         isExcessItcClaim: inputs.isExcessItcClaim ? truthy(inputs.isExcessItcClaim) : undefined,
       }) };
     }
     case "gst_late_fee_engine": {
-      const { calculateGstLateFee } = await import("@/lib/engines/gst-engine");
+      const { calculateGstLateFee } = await import("@/lib/engines/in/gst-engine");
       return calculateGstLateFee({
         daysLate: Number(inputs.daysLate),
         isNilReturn: inputs.isNilReturn ? truthy(inputs.isNilReturn) : undefined,
       });
     }
     case "itc_calculation_engine": {
-      const { calculateEligibleItc } = await import("@/lib/engines/gst-engine");
+      const { calculateEligibleItc } = await import("@/lib/engines/in/gst-engine");
       return calculateEligibleItc({
         totalItcAvailable: Number(inputs.totalItcAvailable), blockedCreditAmount: Number(inputs.blockedCreditAmount),
         exemptSupplyRatio: inputs.exemptSupplyRatio ? Number(inputs.exemptSupplyRatio) : undefined,
@@ -603,31 +603,31 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // in income-tax-engine.ts itself, not duplicated here.
   switch (engineKey) {
     case "income_tax_calculator": {
-      const { calculateIncomeTax } = await import("@/lib/engines/income-tax-engine");
+      const { calculateIncomeTax } = await import("@/lib/engines/in/income-tax-engine");
       return calculateIncomeTax(Number(inputs.taxableIncome));
     }
     case "advance_tax_calculator": {
-      const { calculateAdvanceTaxInstallment } = await import("@/lib/engines/income-tax-engine");
+      const { calculateAdvanceTaxInstallment } = await import("@/lib/engines/in/income-tax-engine");
       const quarter = String(inputs.quarter ?? "");
       if (!["q1", "q2", "q3", "q4"].includes(quarter)) throw new Error("quarter must be one of q1, q2, q3, q4");
       return { installmentDue: calculateAdvanceTaxInstallment(Number(inputs.estimatedAnnualTax), quarter as "q1" | "q2" | "q3" | "q4", Number(inputs.alreadyPaid)) };
     }
     case "self_assessment_tax_calculator": {
-      const { calculateSelfAssessmentTax } = await import("@/lib/engines/income-tax-engine");
+      const { calculateSelfAssessmentTax } = await import("@/lib/engines/in/income-tax-engine");
       return { balanceDue: calculateSelfAssessmentTax(Number(inputs.totalTaxLiability), Number(inputs.tdsDeducted), Number(inputs.advanceTaxPaid), inputs.interestDue ? Number(inputs.interestDue) : undefined) };
     }
     case "income_tax_interest_calculator": {
-      const { calculateIncomeTaxInterest } = await import("@/lib/engines/income-tax-engine");
+      const { calculateIncomeTaxInterest } = await import("@/lib/engines/in/income-tax-engine");
       const section = inputs.section ? String(inputs.section) : "234B";
       if (!["234A", "234B", "234C"].includes(section)) throw new Error("section must be one of 234A, 234B, 234C");
       return { interest: calculateIncomeTaxInterest(Number(inputs.unpaidAmount), Number(inputs.monthsDelayed), section as "234A" | "234B" | "234C") };
     }
     case "income_tax_penalty_calculator": {
-      const { calculateLateFilingPenalty } = await import("@/lib/engines/income-tax-engine");
+      const { calculateLateFilingPenalty } = await import("@/lib/engines/in/income-tax-engine");
       return { penalty: calculateLateFilingPenalty(Number(inputs.totalIncome), truthy(inputs.filedAfterDueDate)) };
     }
     case "capital_gains_calculator": {
-      const { calculateCapitalGains } = await import("@/lib/engines/income-tax-engine");
+      const { calculateCapitalGains } = await import("@/lib/engines/in/income-tax-engine");
       const assetType = inputs.assetType ? String(inputs.assetType) : undefined;
       if (assetType && !["equity", "other"].includes(assetType)) throw new Error("assetType must be equity or other");
       return calculateCapitalGains({
@@ -638,15 +638,15 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
       });
     }
     case "indexation_calculator": {
-      const { calculateIndexedCost } = await import("@/lib/engines/income-tax-engine");
+      const { calculateIndexedCost } = await import("@/lib/engines/in/income-tax-engine");
       return { indexedCost: calculateIndexedCost(Number(inputs.originalCost), Number(inputs.costInflationIndexAtPurchase), Number(inputs.costInflationIndexAtSale)) };
     }
     case "mat_calculator": {
-      const { calculateMat } = await import("@/lib/engines/income-tax-engine");
+      const { calculateMat } = await import("@/lib/engines/in/income-tax-engine");
       return calculateMat(Number(inputs.bookProfit), Number(inputs.normalTaxLiability));
     }
     case "amt_calculator": {
-      const { calculateAmt } = await import("@/lib/engines/income-tax-engine");
+      const { calculateAmt } = await import("@/lib/engines/in/income-tax-engine");
       return calculateAmt(Number(inputs.adjustedTotalIncome), Number(inputs.normalTaxLiability));
     }
   }
@@ -657,25 +657,25 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // rates isolated in tds-engine.ts itself, not duplicated here.
   switch (engineKey) {
     case "tcs_calculator": {
-      const { calculateTcs } = await import("@/lib/engines/tds-engine");
+      const { calculateTcs } = await import("@/lib/engines/in/tds-engine");
       return calculateTcs(Number(inputs.saleValue), Number(inputs.ratePercent), inputs.thresholdAmount ? Number(inputs.thresholdAmount) : undefined);
     }
     case "tds_threshold_checker": {
-      const { isTdsApplicable } = await import("@/lib/engines/tds-engine");
+      const { isTdsApplicable } = await import("@/lib/engines/in/tds-engine");
       return { applicable: isTdsApplicable(String(inputs.section ?? ""), Number(inputs.cumulativePaymentAmount)) };
     }
     case "tds_section_validation_engine": {
-      const { computeTdsForSection } = await import("@/lib/engines/tds-engine");
+      const { computeTdsForSection } = await import("@/lib/engines/in/tds-engine");
       return computeTdsForSection(String(inputs.section ?? ""), Number(inputs.paymentAmount), Number(inputs.cumulativePaymentAmount), inputs.hasPan === undefined ? true : truthy(inputs.hasPan));
     }
     case "tds_interest_engine": {
-      const { calculateTdsInterest } = await import("@/lib/engines/tds-engine");
+      const { calculateTdsInterest } = await import("@/lib/engines/in/tds-engine");
       const delayType = String(inputs.delayType ?? "");
       if (!["late_deduction", "late_deposit"].includes(delayType)) throw new Error("delayType must be late_deduction or late_deposit");
       return { interest: calculateTdsInterest(Number(inputs.tdsAmount), Number(inputs.monthsDelayed), delayType as "late_deduction" | "late_deposit") };
     }
     case "challan_matching_engine": {
-      const { matchTdsChallans } = await import("@/lib/engines/tds-engine");
+      const { matchTdsChallans } = await import("@/lib/engines/in/tds-engine");
       const deductions = inputs.deductions as { id: string; period: string; amount: number }[];
       const challans = inputs.challans as { id: string; period: string; amount: number }[];
       if (!Array.isArray(deductions) || !Array.isArray(challans)) throw new Error("deductions and challans must both be arrays");

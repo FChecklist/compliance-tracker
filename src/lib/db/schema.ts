@@ -80,6 +80,15 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // /api/v1/platform/provision-org flow, resolved from the calling
   // platform_applications row's applicationKey.
   primaryProductBranchId: text('primary_product_branch_id'),
+  // PLATFORM-01 Wave 2 (Workstream 6, per-country compliance engine
+  // registry): ISO 3166-1 alpha-2 country code for this org, driving which
+  // src/lib/engines/compliance-engine-registry.ts engine set applies.
+  // Nullable + defaulted 'IN' (not backfilled/enforced) -- every pre-existing
+  // org implicitly ran India-only statute logic already (the only country
+  // ever implemented), so this is documentation of that existing reality,
+  // not a behavior change. getComplianceEngine() itself still validates the
+  // value at call time rather than trusting this column blindly.
+  country: text('country').default('IN'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

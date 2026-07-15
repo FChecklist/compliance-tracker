@@ -1,0 +1,268 @@
+{
+  "Nav": {
+    "top": {
+      "home": "होम",
+      "dashboard": "डैशबोर्ड",
+      "chat": "VERI चैट",
+      "connectors": "कनेक्टर्स",
+      "agents": "अपने एजेंट बनाएं"
+    },
+    "poweredBy": "VERIDIAN AI द्वारा संचालित",
+    "sections": {
+      "overview": {
+        "title": "अवलोकन",
+        "items": {
+          "pendencyView": "लंबित सूची",
+          "veriCustomersAi": "VERI ग्राहक AI"
+        }
+      },
+      "reportsAnalysis": {
+        "title": "रिपोर्ट और विश्लेषण",
+        "items": {
+          "reportsAnalysis": "रिपोर्ट और विश्लेषण"
+        }
+      },
+      "rewards": {
+        "title": "रिवॉर्ड्स",
+        "items": {
+          "veriTreasure": "VERI ट्रेजर"
+        }
+      },
+      "salesCrm": {
+        "title": "बिक्री और CRM",
+        "items": {
+          "veriCrmAi": "VERI CRM AI"
+        }
+      },
+      "projects": {
+        "title": "परियोजनाएं",
+        "items": {
+          "veriProjectsAi": "VERI प्रोजेक्ट्स AI"
+        }
+      },
+      "theFirm": {
+        "title": "द फर्म",
+        "items": {
+          "practiceCockpit": "प्रैक्टिस कॉकपिट"
+        }
+      },
+      "finance": {
+        "title": "वित्त",
+        "items": {
+          "journalEntries": "जर्नल एंट्रीज़",
+          "budgeting": "बजटिंग",
+          "financialReports": "वित्तीय रिपोर्ट",
+          "cashManagement": "नकदी प्रबंधन",
+          "creditNotes": "क्रेडिट नोट्स",
+          "inventory": "इन्वेंटरी",
+          "bankReconciliation": "बैंक समाधान",
+          "gstReconciliation": "GST समाधान",
+          "tdsReturns": "TDS रिटर्न",
+          "procurementWorkflow": "खरीद वर्कफ़्लो",
+          "goodsReceipt": "माल प्राप्ति",
+          "inventoryPlanning": "इन्वेंटरी योजना",
+          "statutoryPayroll": "सांविधिक पेरोल",
+          "invoicing": "इनवॉइसिंग",
+          "returnsRma": "रिटर्न (RMA)",
+          "contracts": "अनुबंध",
+          "clauseLibrary": "क्लॉज़ लाइब्रेरी और टेम्पलेट्स",
+          "customers": "ग्राहक",
+          "suppliers": "आपूर्तिकर्ता",
+          "masterDataQuality": "मास्टर डेटा गुणवत्ता"
+        }
+      },
+      "compliance": {
+        "title": "अनुपालन",
+        "items": {
+          "register": "रजिस्टर",
+          "notices": "नोटिस",
+          "auditPoints": "ऑडिट बिंदु",
+          "documents": "दस्तावेज़",
+          "bulkImport": "बल्क इम्पोर्ट"
+        }
+      },
+      "governance": {
+        "title": "शासन",
+        "items": {
+          "boardGovernance": "बोर्ड और गवर्नेंस",
+          "committees": "समितियां",
+          "relatedPartyTransactions": "संबंधित पक्ष लेनदेन",
+          "delegationOfAuthority": "अधिकार प्रत्यायोजन",
+          "directorKmpRegister": "निदेशक और KMP रजिस्टर",
+          "boardDirectorEvaluation": "बोर्ड और निदेशक मूल्यांकन",
+          "policyManagement": "नीति प्रबंधन"
+        }
+      },
+      "companySecretarial": {
+        "title": "कंपनी सचिवीय",
+        "items": {
+          "statutoryRegisters": "सांविधिक रजिस्टर",
+          "shareCapitalCapTable": "शेयर पूंजी और कैप टेबल",
+          "chargesRoc": "प्रभार (ROC)",
+          "secretarialAudit": "सचिवीय ऑडिट",
+          "mcaEFiling": "MCA ई-फाइलिंग"
+        }
+      },
+      "legal": {
+        "title": "कानूनी",
+        "items": {
+          "legalMatters": "कानूनी मामले",
+          "externalCounselVendors": "बाहरी परामर्शदाता और विक्रेता",
+          "litigationDisputes": "मुकदमेबाजी और विवाद",
+          "ipPortfolio": "IP पोर्टफोलियो",
+          "legalOpinions": "कानूनी राय"
+        }
+      },
+      "peopleHr": {
+        "title": "लोग और HR",
+        "items": {
+          "payrollHrCompliance": "पेरोल और HR सांविधिक अनुपालन",
+          "leaveHolidayCompliance": "अवकाश और छुट्टी अनुपालन",
+          "poshCompliance": "POSH अनुपालन",
+          "veriHrAi": "VERI HR AI",
+          "recruitment": "भर्ती",
+          "performanceReviews": "प्रदर्शन समीक्षा"
+        }
+      },
+      "risk": {
+        "title": "जोखिम",
+        "items": {
+          "riskRegister": "जोखिम रजिस्टर"
+        }
+      },
+      "sectorRegulators": {
+        "title": "क्षेत्रीय नियामक",
+        "items": {
+          "sebi": "SEBI (सूचीबद्ध कंपनी)",
+          "rbi": "RBI (बैंक / NBFC)",
+          "irdai": "IRDAI (बीमाकर्ता)"
+        }
+      },
+      "audit": {
+        "title": "ऑडिट",
+        "items": {
+          "controlsFrameworkLibrary": "नियंत्रण और ढांचा लाइब्रेरी",
+          "auditManagement": "ऑडिट प्रबंधन",
+          "auditTrail": "ऑडिट ट्रेल"
+        }
+      },
+      "thirdPartyEsg": {
+        "title": "तृतीय-पक्ष और ESG",
+        "items": {
+          "vendorThirdPartyRisk": "विक्रेता और तृतीय-पक्ष जोखिम",
+          "esgSustainability": "ESG और स्थिरता (BRSR)"
+        }
+      },
+      "integrity": {
+        "title": "सत्यनिष्ठा",
+        "items": {
+          "whistleblowerEthics": "व्हिसलब्लोअर और नैतिकता",
+          "businessContinuity": "व्यवसाय निरंतरता",
+          "itDisasterRecovery": "IT आपदा पुनर्प्राप्ति",
+          "fraudCaseManagement": "धोखाधड़ी मामला प्रबंधन",
+          "contractCompliance": "अनुबंध अनुपालन"
+        }
+      },
+      "incidentsEvents": {
+        "title": "घटनाएं और आयोजन",
+        "items": {
+          "incidentManagement": "घटना प्रबंधन"
+        }
+      },
+      "accessApprovals": {
+        "title": "पहुंच और अनुमोदन",
+        "items": {
+          "approvalQueue": "अनुमोदन कतार"
+        }
+      },
+      "admin": {
+        "title": "व्यवस्थापक",
+        "items": {
+          "users": "उपयोगकर्ता",
+          "departments": "विभाग",
+          "accessReview": "पहुंच समीक्षा",
+          "settings": "सेटिंग्स",
+          "auditLog": "ऑडिट लॉग"
+        }
+      },
+      "tools": {
+        "title": "उपकरण",
+        "items": {
+          "veriOperationsAi": "VERI ऑपरेशंस AI",
+          "promptEvalLab": "प्रॉम्प्ट इवैल लैब",
+          "salesHq": "सेल्स HQ",
+          "capabilityImprovements": "क्षमता सुधार",
+          "checklists": "चेकलिस्ट",
+          "tasks": "कार्य",
+          "documents": "दस्तावेज़",
+          "enterpriseKpiHub": "एंटरप्राइज़ KPI हब",
+          "knowledgeBase": "नॉलेज बेस",
+          "automation": "ऑटोमेशन",
+          "metricAlerts": "मीट्रिक अलर्ट",
+          "ticketing": "टिकटिंग",
+          "capabilityRegistry": "क्षमता रजिस्ट्री",
+          "veriTodoAi": "VERI टू डू AI",
+          "veriMomAi": "VERI MOM AI",
+          "penaltyTracker": "पेनल्टी ट्रैकर",
+          "helpCentre": "सहायता केंद्र",
+          "team": "टीम"
+        }
+      }
+    }
+  },
+  "Auth": {
+    "tagline": "एक पोर्टल। एक सत्य।",
+    "footer": "भारतीय अनुपालन प्रबंधन के लिए निर्मित",
+    "or": "या"
+  },
+  "Login": {
+    "welcomeBack": "वापसी पर स्वागत है",
+    "subtitle": "अपने अनुपालन डैशबोर्ड में साइन इन करें",
+    "authFailed": "प्रमाणीकरण विफल रहा। कृपया पुनः प्रयास करें।",
+    "signInWithGoogle": "Google से साइन इन करें",
+    "or": "या",
+    "emailLabel": "ईमेल",
+    "emailPlaceholder": "you@company.com",
+    "passwordLabel": "पासवर्ड",
+    "passwordPlaceholder": "अपना पासवर्ड दर्ज करें",
+    "sendMagicLink": "इसके बजाय मैजिक लिंक भेजें",
+    "signIn": "साइन इन करें",
+    "signingIn": "साइन इन हो रहा है...",
+    "companyIdLabel": "कंपनी ID",
+    "companyIdPlaceholder": "your-company",
+    "continue": "जारी रखें",
+    "signInWithSso": "कंपनी SSO से साइन इन करें",
+    "noAccount": "खाता नहीं है?",
+    "createOne": "एक बनाएं",
+    "magicLinkEmailRequired": "कृपया अपना ईमेल पता दर्ज करें",
+    "magicLinkSent": "मैजिक लिंक भेजा गया! अपना ईमेल जांचें।"
+  },
+  "Signup": {
+    "checkEmailTitle": "अपना ईमेल जांचें",
+    "checkEmailBody": "हमने <bold>{email}</bold> पर एक पुष्टिकरण लिंक भेजा है। अपना खाता सत्यापित करने और शुरू करने के लिए लिंक पर क्लिक करें।",
+    "backToSignIn": "साइन इन पर वापस जाएं",
+    "createAccount": "अपना खाता बनाएं",
+    "subtitle": "मिनटों में अनुपालन प्रबंधन शुरू करें",
+    "fullNameLabel": "पूरा नाम",
+    "fullNamePlaceholder": "राजेश शर्मा",
+    "joiningOrgAs": "आप <org>{orgName}</org> में <role>{roleName}</role> के रूप में शामिल हो रहे हैं।",
+    "notYourOrg": "आपकी संस्था नहीं है? कोड साफ़ करें",
+    "organisationLabel": "संस्था",
+    "organisationPlaceholder": "Acme Financial Services Pvt. Ltd.",
+    "inviteInvalid": "यह आमंत्रण लिंक अब मान्य नहीं है ({reason}) — इसके बजाय एक नई संस्था बनाई जा रही है।",
+    "haveJoinCode": "क्या आपके पास संस्था जॉइन कोड है?",
+    "joinCodeLabel": "संस्था जॉइन कोड",
+    "joinCodePlaceholder": "ABCD-EFGH-JKMN",
+    "joinCodeRateLimited": "बहुत अधिक प्रयास — कृपया कुछ मिनट प्रतीक्षा करें और पुनः प्रयास करें।",
+    "joinCodeInvalid": "वह कोड मान्य नहीं है ({reason})।",
+    "workEmailLabel": "कार्य ईमेल",
+    "workEmailPlaceholder": "you@company.com",
+    "passwordLabel": "पासवर्ड",
+    "passwordPlaceholder": "न्यूनतम 6 अक्षर",
+    "createAccountCta": "खाता बनाएं",
+    "creatingAccount": "खाता बनाया जा रहा है...",
+    "alreadyHaveAccount": "पहले से ही खाता है?",
+    "signIn": "साइन इन करें",
+    "passwordTooShort": "पासवर्ड कम से कम 6 अक्षर का होना चाहिए"
+  }
+}

@@ -4,7 +4,7 @@
 // engine.ts, gst-engine.ts) rather than re-implementing GSTIN checksum or
 // CGST/SGST/IGST split math.
 import { isValidGstinChecksum, isValidGstinFormat } from "@/lib/engines/data-quality-engine"
-import { splitGst, stateCodeFromGstin, isValidHsnFormat, isValidSacFormat } from "@/lib/engines/gst-engine"
+import { splitGst, stateCodeFromGstin, isValidHsnFormat, isValidSacFormat } from "@/lib/engines/in/gst-engine"
 import Decimal from "decimal.js"
 
 export type ValidationInvoiceItem = {
