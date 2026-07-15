@@ -37,6 +37,21 @@ export async function listChangeOrders(ctx: { orgId: string }, projectId: string
   })
 }
 
+// Priority 18a (VERI Chat second-screen unification): the panel's Approvals
+// tab needs one org-wide "what's waiting on a decision" query -- listChangeOrders
+// above requires a projectId because every existing caller (PROJEXA's
+// per-project Change Orders page) is already scoped to one project. This is
+// the same table/tenant-scope, just without that filter, so a cross-project
+// attention feed doesn't need to loop every project the org has.
+export async function listChangeOrdersAwaitingApproval(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.constructionChangeOrders.findMany({
+      where: and(eq(constructionChangeOrders.orgId, ctx.orgId), eq(constructionChangeOrders.status, "pending_approval")),
+      orderBy: (t, { desc }) => desc(t.number),
+    })
+  )
+}
+
 export async function getChangeOrder(ctx: { orgId: string }, changeOrderId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const row = await db.query.constructionChangeOrders.findFirst({ where: and(eq(constructionChangeOrders.id, changeOrderId), eq(constructionChangeOrders.orgId, ctx.orgId)) })

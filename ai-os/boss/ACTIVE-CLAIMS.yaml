@@ -42,6 +42,33 @@
 # ============================================================================
 
 active:
+  - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
+    claimed_at: "2026-07-14T (this session)"
+    claim: |
+      Owner-directed, cross-repo, platform-wide (NOT PROJEXA-specific):
+      VERIDIAN becomes a real multi-tenant foundation so every product branch
+      (PROJEXA, The Firm, FM & CS, Office AI OS, Forge) can be sold to many
+      independent mid-size customers, each with real data isolation, multiple
+      offices, multiple currencies, and eventually multiple countries/
+      languages. Full plan: C:\Users\Dell\.claude\plans\floating-launching-lagoon.md
+      (6 workstreams). WAVE 1 (this claim) = Workstream 1 (platform-level
+      tenant provisioning: new platform_applications table, apiKeys.
+      issuedForApplicationId, POST /api/v1/platform/provision-org,
+      organisations.primaryProductBranchId, factoring autoProvisionUser()'s
+      org-creation body into a shared provisionOrganisation() helper) +
+      Workstream 2 (RLS-bypass audit/fix pass on /api/v1/projexa/* and other
+      money/PII routes -- confirm withTenantContext() coverage, no schema
+      change). Scope: compliance-tracker src/lib/db/schema.ts (2 new/changed
+      tables+columns), src/lib/supabase/auth-guard.ts (refactor only, same
+      external behavior), new src/app/api/v1/platform/provision-org/route.ts,
+      audit pass across src/app/api/v1/projexa/**. Companion PROJEXA-side
+      claim (signup flow + veridian-client.ts rewire) dispatched in parallel,
+      see projexa repo's own tracking (no ai-os/ layer there yet -- tracked
+      in CONTROLLER.yaml PLATFORM-01 instead). Workstreams 3-6 (offices,
+      currency, language, per-country compliance) are Wave 2, dispatched only
+      after this wave merges (real dependency, not just sequencing
+      preference -- they hang data off what this wave creates).
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |
@@ -254,6 +281,54 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- Priority 18a, VERI Chat second-screen panel unification"
+    completed_at: "2026-07-15T (this session)"
+    claim: |
+      Extended VeriChatPanel.tsx's tab bar (Overview/Tasks/Chats/To Do) with
+      Meetings and Approvals tabs, plus folded email-intelligence-service.ts's
+      flagged items into the existing Overview merged feed. Meetings tab:
+      upcoming/pending-publish meetings + action items assigned to the
+      current user (new listMyMeetingActionItems in veri-meeting-service.ts,
+      thin GET /api/veri-chat/meetings/action-items), thread-style detail
+      (agenda/minutes/AI summary/action items, inline add/done), link-out to
+      /veri-meetings for deep editing, Share reusing createMeetingShareLink
+      as-is. Approvals tab: one queue via a new thin read-only aggregator
+      (GET /api/veri-chat/approvals) over 5 previously-unlisted "waiting on a
+      decision" mechanisms -- approvalRequests, approval-workflow-service.ts
+      steps, drafted-communications, and (a real gap found this session)
+      erp_quotations/construction_change_orders status transitions, which had
+      no org-wide listing at all -- added listChangeOrdersAwaitingApproval to
+      close that; every decision still goes through each mechanism's own
+      existing route, no approval logic duplicated. Discussions/group-chat
+      finding: chat-service.ts's createConversation() already fully supports
+      multi-participant, named (type: 'group') conversations end-to-end --
+      zero backend gap; VeriChatPanel's convoName() already preferred title
+      over concatenated names too. The one real gap was chat/page.tsx's "New
+      conversation" picker only ever offering a single-person Select --
+      replaced with a multi-select + optional title. Share consistency: found
+      meeting share links were only half-built (backend existed, no public
+      viewer page) -- added /shared/meeting/[token], mirroring
+      /shared/conversation/[token] exactly, and updated the share-links route
+      to derive shareUrl/whatsappHref/telegramHref at the route layer like
+      the conversations route already does. bunx tsc --noEmit and bun run
+      lint both clean (only pre-existing unrelated errors/warnings, confirmed
+      identical before/after rebasing onto origin/main post-PR#339, and
+      confirmed via grep that none of the broken-package references
+      (@litertjs/core/pptxgenjs/docx/mammoth/react-resizable-panels/recharts)
+      appear anywhere in this diff). `bun run build` (next build) fails in
+      this sandbox with no visible error beyond "Creating an optimized
+      production build..." -- this sandbox has no DATABASE_URL/Supabase env
+      vars configured at all (no .env* file anywhere, nothing in the shell
+      env), and a prior session's own entry above (Priority 15 HR & Payroll
+      wave) independently documented next build already failing on
+      origin/main itself for the same pre-existing missing-dependency/API-
+      mismatch reasons before that session's changes -- did not reinstall
+      node_modules on a bare origin/main worktree to re-prove this from
+      scratch (large install, low marginal value given the existing
+      precedent + clean tsc/lint + zero broken-package references in this
+      diff). PR #341, NOT merged by this session per standing dispatch
+      instructions. This session has no further active claims.
+
   - session_label: "Super Boss (Claude Desktop) -- this session, PLATFORM-01 Wave 1"
     completed_at: "2026-07-15T (same day as claim)"
     claim: |
