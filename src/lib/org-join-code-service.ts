@@ -445,6 +445,19 @@ export async function redeemJoinCodeAndProvisionUser(
   db.update(orgJoinCodes).set({ redeemCount: sql`${orgJoinCodes.redeemCount} + 1`, updatedAt: new Date() })
     .where(eq(orgJoinCodes.id, row.id)).then(() => {})
 
+  // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+  // Trigger A) -- same reasoning as invite-link-service.ts's identical
+  // addition: this redeemer's email may already belong to a stage-0-only
+  // person. Upgrade that row in place rather than hitting the
+  // users.email UNIQUE constraint on a duplicate insert; reject clearly if
+  // they already have a different real home org.
+  const { tryUpgradeStage0UserInPlace } = await import("./services/stage0-service")
+  const upgrade = await tryUpgradeStage0UserInPlace(authUser.email, { orgId: row.orgId, role: row.role, authUserId: authUser.id })
+  if (upgrade.ok) return { ok: true, user: upgrade.user }
+  if (upgrade.reason === "different_org") {
+    return { ok: false, reason: "This email already belongs to a different organisation and cannot be moved via a join code." }
+  }
+
   const [newUser] = await db.insert(users).values({
     name: authUser.fullName,
     email: authUser.email,

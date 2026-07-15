@@ -376,6 +376,13 @@ Recommend the Owner/supervisor pick Option A vs. B explicitly before
 implementation — this is exactly the kind of decision the dispatch brief
 asked not be made silently.
 
+> **DECIDED 2026-07-15 — see the "Addendum: Owner's Option B Decision"
+> section at the end of this document.** The Owner picked Option B, plus 2
+> additional real requirements (auto-upgrade, default signup rights). This
+> section's own analysis above is left unedited as the reasoning trail; the
+> addendum documents the decision and the concrete auto-upgrade mechanics
+> built on top of it.
+
 ## 3. Multi-tenant safety
 
 - **No org can see another org's stage-0 data.** `listStage0Inbox` and
@@ -442,3 +449,161 @@ design's one touch point on `auth-guard.ts` (a new branch in
 `autoProvisionUser()`, §2.1) and `schema.ts` (one enum value, one nullable
 column, one new table, §2.2) is clear to propose implementing once this
 doc is signed off.
+
+## Addendum: Owner's Option B Decision (2026-07-15) + Implementation Notes
+
+`CONTROLLER.yaml` PRIORITY-18 `owner_decision_2026_07_15` (verbatim):
+
+> Owner picked Option B (real multi-org stage-0 membership, not the
+> single-org v1), with 2 additional real requirements: (1) auto-upgrade --
+> when a stage-0 user, or the org they hold a stage-0 relationship with,
+> "subscribes to the product/module", that specific relationship converts
+> to a real full membership automatically, no separate re-invite step; (2)
+> all users have stage-0 signup rights by default (i.e. sharing a link that
+> grants stage-0 self-registration is not admin-gated) -- independently
+> re-verified live against auth-guard.ts/veri-chat-service.ts before this
+> note was written: createGuestAccess()/createShareLink() already call only
+> requireAuth(), no requireRole() check exists on either route today, so
+> this is already the codebase's real behavior, not a new permission to
+> add.
+
+### A.1 Option B, as actually built
+
+Section 2.6 above already designed `stage0Sources` with `(userId, orgId)`
+as its natural key "even though Option A is the v1 recommendation" -- that
+design held up unchanged under Option B. What changed is only the
+FRAMING: `stage0Sources` is not a bookkeeping-only table alongside a
+single-org `users` row, it is the genuine multi-org membership table.
+`users.orgId`/`role` stays the single "real, paid, full-access home org"
+anchor (nullable -- a pure stage-0-only person has none); `stage0Sources` is
+the separate, narrower, org-scoped read-axis, one row per `(userId, orgId)`
+(partial-unique on active rows, so a revoked-then-rejoined relationship
+doesn't collide -- see the migration). RLS on `stage0Sources` is
+`org_id = compliance.current_org_id()`, identical to `org_invite_links`'
+own policy -- a stage-0 relationship in org A structurally cannot leak into
+a query scoped to org B, enforced at the database layer.
+
+`listStage0Inbox(userId, orgId)` was already designed (2.3) to take an
+explicit `orgId` rather than assume `dbUser.orgId` "precisely so it can be
+called once per membership and the results merged in the UI" -- this is
+exactly what the real implementation does: `GET /api/stage0/inbox` (new)
+calls `listStage0OrgsForUser(userId)` to enumerate every org the caller has
+an active `stage0Sources` row for, then calls `listStage0Inbox` once per
+org and merges. This is the concrete realization of "the one place in the
+app that is deliberately not single-org-scoped."
+
+A real gap the original design didn't anticipate: `requireAuth()`'s
+`orgId` is ALWAYS null for a pure stage-0 user (no real home org), so the
+existing single-org `/api/conversations/[id]/messages` route (the one 2.3's
+"Posting" note claimed "no new write path needed" for) is not actually
+usable by a stage-0 user as written. Fixed with a dedicated
+`/api/stage0/conversations/[id]/messages` route that resolves the
+conversation's real `orgId` directly, checks the new
+`assertActiveStage0Membership(userId, orgId)` guard, then delegates to
+`chat-service.ts`'s existing `getMessages`/`sendMessage` unchanged -- no
+message-handling logic was duplicated, only the org-resolution step differs
+from the single-org route.
+
+### A.2 Auto-upgrade Trigger A (person-level)
+
+New shared helper `tryUpgradeStage0UserInPlace(email, { orgId, role,
+authUserId? })` in `stage0-service.ts`, called from all 3 real "add an
+already-existing email as a real member" paths, which previously all
+assumed the email was brand new and would hit `users.email`'s UNIQUE
+constraint on a stage-0 person's email:
+
+- `invite-link-service.ts`'s `consumeInviteLinkAndProvisionUser`
+- `org-join-code-service.ts`'s `redeemJoinCodeAndProvisionUser`
+- `POST /api/users` (direct-add) -- additionally skips the
+  `supabaseAdmin.auth.admin.inviteUserByEmail` step entirely for this case,
+  since a stage-0 person already has a real Supabase Auth identity from
+  their original magic-link signup; calling `inviteUserByEmail` again
+  against an email Supabase Auth already knows would fail/duplicate.
+
+The actual decision (`decideStage0UpgradeAction`, pure, unit-tested) is:
+`users` row doesn't exist -> `not_found` (caller's original insert path,
+unchanged); row exists with `orgId` already set -> `different_org`
+(reject with a clear error, surfaced to the inviting admin -- never
+silently reassign someone's real home org); row exists with `orgId IS
+NULL` -> `upgrade` (same row, same id, in place -- `orgId`/`role` set,
+`accountStage` cleared to `null`, 5 AI Assistants provisioned if this is
+their first time as a real member).
+
+### A.3 Auto-upgrade Trigger B (org-level)
+
+Hooked into `product-branch-service.ts`'s `enableProductBranchForOrg` --
+confirmed via grep to be the single real chokepoint every `enable*ForOrg`
+wrapper in this codebase routes through
+(erp/pms/construction/crm/firm/fm/veri_chat_v2/veri_reward-enablement-
+service.ts), so it fires no matter which vertical's paid branch gets
+enabled, present or future, without editing 9 separate files. The other 3
+real `orgProductBranchEnablements` insert call sites
+(`org-provisioning-service.ts`'s VERI Reward/VERI Chat v2 auto-enable,
+`POST /api/v1/platform/provision-org`'s required-branches insert) all fire
+at brand-new-org-creation time -- structurally impossible to have
+pre-existing `stage0Sources` rows for an org that didn't exist yet, so
+correctly left un-hooked.
+
+`autoUpgradeStage0UsersOnBranchEnable(orgId)` (new, `stage0-service.ts`):
+finds every active `stage0Sources` row for this org, partitions the
+candidate users (`partitionEligibleForAutoUpgrade`, pure, unit-tested) into
+`orgId IS NULL` (eligible -> `role: 'member'`, the safe default) vs `orgId
+NOT NULL` (blocked -> left completely untouched, their stage-0 access into
+this org keeps working exactly as before). Never blocks the branch-enable
+call on failure (try/catch, matches `org-provisioning-service.ts`'s own
+"never blocks" posture for its VERI Reward/VERI Chat v2 auto-enable).
+
+Admin-facing surface (judgment call, not fully specified by the brief):
+`enableProductBranchForOrg`'s return value gained one additive field,
+`stage0AutoUpgrade: { upgraded, blocked }`. The 2 real, live enable-branch
+UI call sites in this codebase (`PmsEnablementSection.tsx`,
+`the-firm-practice/page.tsx`) already `NextResponse.json(result)` the whole
+result through with zero route change needed -- both gained 2 toasts
+reading that field: "N stage-0 users auto-upgraded to full membership" and
+"M stage-0 users could not auto-upgrade -- already belong to another
+organization" (only shown when each count is > 0). The 6 other
+`enable*ForOrg` wrappers (erp/construction/crm/fm/veri_chat_v2/veri_reward)
+have zero route callers today (confirmed by grep, same finding the Sales
+Engine channel audit independently made 2026-07-14) -- those org-branch
+enablements are applied as one-off DB writes via Supabase MCP, not through
+the app's own UI, so there is no live UI surface to wire a toast into for
+them; the `stage0AutoUpgrade` field is still returned by the shared
+function itself and will surface automatically the moment any of those
+verticals gets a real enable route.
+
+### A.4 Default signup rights (requirement 2) -- confirmed, not built
+
+Re-verified directly against `veri-chat-service.ts` before writing any
+code: `createGuestAccess()` (line 156) and `createShareLink()` (line 58)
+both call only `assertParticipant()` -- no `requireRole()`/`hasRole()`
+check exists on either function, nor on the 2 routes that call them
+(`/api/veri-chat/conversations/[id]/guest-access`,
+`/api/veri-chat/conversations/[id]/share-links`, both `requireAuth()`-only).
+This was already true before this implementation pass and remains true
+after it -- no code change was needed or made for this requirement; it is
+confirmed here as the honesty check the Owner's own note asked for
+("independently re-verified live... so this is already the codebase's real
+behavior, not a new permission to add").
+
+### A.5 Growth-loop counter (design doc 2.5) -- built as designed
+
+`conversationGuestAccess.stage0SignupCount` /
+`conversationShareLinks.stage0SignupCount` (both new, `integer default 0`)
+increment inside `consumeStage0TokenAndProvisionUser` only when a
+genuinely new (or reactivated-after-revoke) `stage0Sources` relationship is
+formed -- a re-visit by an already-joined user doesn't double-count.
+Surfaced for free via `listShareLinks()`/`listGuestAccess()` (Drizzle's
+`findMany` already returns every column) -- no route change needed, exactly
+as 2.5 anticipated.
+
+### A.6 Migration -- not applied live
+
+`drizzle/0209_user_role_stage_0.sql` (the `'stage_0'` enum value alone, its
+own transaction per this repo's established `ALTER TYPE ... ADD VALUE`
+precedent) and `drizzle/0210_priority18b_stage0_optionb.sql` (`users.
+account_stage`, `stage0_sources` table + RLS + indexes,
+`stage0_signup_count` on both existing token tables) were written following
+this repo's additive-migration conventions (nullable/defaulted columns, `IF
+NOT EXISTS` throughout) but NOT applied to the live Supabase database --
+left for the supervising session's schema-change-review + live-migration
+step, per this repo's own standing convention for schema-touching PRs.

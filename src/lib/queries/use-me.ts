@@ -7,6 +7,8 @@ export type MeResponse = {
   name: string | null;
   email: string | null;
   role: string | null;
+  // Priority 18b (Owner directive 2026-07-15): 'stage_0' | null.
+  accountStage: string | null;
   orgId: string | null;
   orgName: string | null;
   orgSlug: string | null;
