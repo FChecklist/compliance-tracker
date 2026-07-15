@@ -4,13 +4,17 @@
 // employee master data, and leavePolicyEntries is policy text, not a
 // request/balance ledger. Payroll deliberately out of scope -- VERIDIAN
 // tracks payroll *compliance*, never runs payroll itself.
-import { users, employeeProfiles, leaveRequests, leaveBalances } from "@/lib/db"
+import { users, employeeProfiles, leaveRequests, leaveBalances, employmentStatusEnum } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
 export type HrContext = { orgId: string; userId: string }
+
+// Priority 15 Wave 2: employmentStatusEnum.enumValues is the single source
+// of truth for valid values (schema.ts), not a re-typed literal union here.
+export type EmploymentStatus = (typeof employmentStatusEnum.enumValues)[number]
 
 export async function listEmployees(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -42,8 +46,14 @@ export async function getOrgChart(ctx: { orgId: string }) {
 export async function upsertEmployeeProfile(
   ctx: HrContext,
   targetUserId: string,
-  input: { employeeCode?: string; jobTitle?: string; employmentType?: string; dateOfJoining?: string; dateOfBirth?: string }
+  input: {
+    employeeCode?: string; jobTitle?: string; employmentType?: string; dateOfJoining?: string; dateOfBirth?: string
+    employmentStatus?: EmploymentStatus; emergencyContactName?: string; emergencyContactPhone?: string
+  }
 ) {
+  if (input.employmentStatus && !employmentStatusEnum.enumValues.includes(input.employmentStatus)) {
+    throw new ServiceError(`employmentStatus must be one of: ${employmentStatusEnum.enumValues.join(", ")}`, 400)
+  }
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const targetUser = await db.query.users.findFirst({ where: and(eq(users.id, targetUserId), eq(users.orgId, ctx.orgId)) })
     if (!targetUser) throw new ServiceError("Employee not found", 404)
@@ -57,6 +67,9 @@ export async function upsertEmployeeProfile(
           employmentType: input.employmentType ?? existing.employmentType,
           dateOfJoining: input.dateOfJoining ?? existing.dateOfJoining,
           dateOfBirth: input.dateOfBirth ?? existing.dateOfBirth,
+          employmentStatus: input.employmentStatus ?? existing.employmentStatus,
+          emergencyContactName: input.emergencyContactName ?? existing.emergencyContactName,
+          emergencyContactPhone: input.emergencyContactPhone ?? existing.emergencyContactPhone,
           updatedAt: new Date(),
         })
         .where(eq(employeeProfiles.id, existing.id)).returning()
@@ -67,6 +80,9 @@ export async function upsertEmployeeProfile(
       employeeCode: input.employeeCode || null, jobTitle: input.jobTitle || null,
       employmentType: input.employmentType || "full_time",
       dateOfJoining: input.dateOfJoining || null, dateOfBirth: input.dateOfBirth || null,
+      employmentStatus: input.employmentStatus || "active",
+      emergencyContactName: input.emergencyContactName || null,
+      emergencyContactPhone: input.emergencyContactPhone || null,
     }).returning()
     return created
   })

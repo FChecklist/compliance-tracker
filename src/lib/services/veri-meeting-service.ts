@@ -285,6 +285,24 @@ export async function addMeetingActionItem(
   return { ...created.actionItem, task: finalTask ?? created.task }
 }
 
+// Priority 18a (VERI Chat second-screen unification): the panel's Meetings
+// tab needs "action items assigned to me" across every meeting, not just one
+// meeting's own detail (getVeriMeeting already does that). Reuses the same
+// veriMeetingActionItems->task relation, filtered to tasks assigned to this
+// user and not yet completed, with the parent meeting's title carried along
+// so the panel can render "Follow up with vendor -- from Q3 Planning" without
+// a second round-trip per item.
+export async function listMyMeetingActionItems(ctx: { orgId: string; userId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.query.veriMeetingActionItems.findMany({
+      with: { meeting: true, task: true },
+    })
+    return rows
+      .filter((r) => r.meeting?.orgId === ctx.orgId && r.task?.userId === ctx.userId && r.task?.status !== "completed" && r.task?.status !== "cancelled")
+      .map((r) => ({ id: r.id, meetingId: r.meetingId, meetingTitle: r.meeting!.title, task: r.task! }))
+  })
+}
+
 // Field-level change history -- reuses the platform's real audit_logs table
 // (13+ other modules already write to it) rather than a parallel
 // meeting_history table like meettrack-v2 built.

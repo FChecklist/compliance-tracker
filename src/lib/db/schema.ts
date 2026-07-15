@@ -73,6 +73,22 @@ export const organisations = complianceSchemaDB.table('organisations', {
   sessionLimitEnforcementEnabled: boolean('session_limit_enforcement_enabled').notNull().default(false),
   maxConcurrentSessions: integer('max_concurrent_sessions').notNull().default(2),
   internalUseExempt: boolean('internal_use_exempt').notNull().default(false),
+  // PLATFORM-01 Wave 1 (Workstream 1, platform-level tenant provisioning):
+  // records which sibling product this org primarily belongs to. Nullable --
+  // every pre-existing org (created via autoProvisionUser()'s human-signup
+  // path, which predates this concept) is unaffected. Set by the new POST
+  // /api/v1/platform/provision-org flow, resolved from the calling
+  // platform_applications row's applicationKey.
+  primaryProductBranchId: text('primary_product_branch_id'),
+  // PLATFORM-01 Wave 2 (Workstream 6, per-country compliance engine
+  // registry): ISO 3166-1 alpha-2 country code for this org, driving which
+  // src/lib/engines/compliance-engine-registry.ts engine set applies.
+  // Nullable + defaulted 'IN' (not backfilled/enforced) -- every pre-existing
+  // org implicitly ran India-only statute logic already (the only country
+  // ever implemented), so this is documentation of that existing reality,
+  // not a behavior change. getComplianceEngine() itself still validates the
+  // value at call time rather than trusting this column blindly.
+  country: text('country').default('IN'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -540,6 +556,15 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   // request with 429 once api_key_request_log shows this many requests for
   // the key in the trailing 60 seconds.
   rateLimitPerMinute: integer('rate_limit_per_minute'),
+  // PLATFORM-01 Wave 1 (Workstream 1): nullable FK -> platform_applications.
+  // null = human-generated via the existing self-serve POST
+  // /api/settings/api-keys (every pre-existing key's exact current state,
+  // zero migration risk). Set only by the new POST
+  // /api/v1/platform/provision-org flow, tagging which sibling product's
+  // backend minted the key on behalf of one of its own customers. Closes
+  // the gap PLATFORM_STRATEGY.md section 6.12 names: apiKeys previously had
+  // no concept of which external application/product issued a key.
+  issuedForApplicationId: text('issued_for_application_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -560,6 +585,30 @@ export const apiKeyRequestLog = complianceSchemaDB.table('api_key_request_log', 
   method: text('method').notNull(),
   wasRateLimited: boolean('was_rate_limited').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── Platform Applications (PLATFORM-01 Wave 1, Workstream 1) ───────────
+// One row per sibling product (PROJEXA, The Firm, FM & CS, Office AI OS,
+// Forge, future ones) allowed to provision customer orgs server-to-server
+// via POST /api/v1/platform/provision-org. A PLATFORM-level service
+// credential, categorically different from a customer's own vk_... row in
+// apiKeys above -- this is what a sibling product's own BACKEND uses to
+// provision orgs on behalf of ITS customers, never exposed to that
+// product's own end users. keyHash/keyPrefix follow the exact same
+// hashSHA256()/generateApiKey() pattern as apiKeys, but prefixed pk_
+// (platform key) instead of vk_ to stay visually distinct. Global catalog
+// table, same RLS posture as productBranches (service_role full access,
+// app_runtime read-only -- there is no orgId to scope this by, it
+// predates any customer org's existence).
+export const platformApplications = complianceSchemaDB.table('platform_applications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  applicationKey: text('application_key').notNull().unique(), // 'projexa' today; 'the-firm' | 'fm-cs' | 'office-ai-os' | 'forge' in future
+  displayName: text('display_name').notNull(),
+  keyHash: text('key_hash').notNull().unique(),
+  keyPrefix: text('key_prefix').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── Org Invite Links (area 15/18, U-D27.B1.S1: Secure Invite Link) ─────
@@ -1396,6 +1445,25 @@ export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
   linkedApprovalWorkflowIds: jsonb('linked_approval_workflow_ids').notNull().default([]), // string[] of approval_workflow_definitions.id this chain has triggered
   governanceNotes: text('governance_notes'), // free-form governance/compliance annotation an admin can attach to a chain
   deprecationReason: text('deprecation_reason'), // why a 'retired' chain was retired -- null for every non-retired chain and every pre-Wave-173 retired row
+  // Priority 14 (GAP-DCMD rich schema slice, ai-os/DCMD-SCHEMA-DESIGN.md):
+  // 7 of the remaining 8 named DCMD sub-fields (business/classification/
+  // inputs/outputs/AI/workflow/knowledge -- software is deliberately NOT a
+  // new column, see the design doc for why linkedModuleRefs above already
+  // covers it). All schema-only except classification.domain, which is
+  // populated at chain-creation time by task-service.ts's
+  // resolveDynamicChainId() reusing a value it already computes for
+  // capability-embedding indexing -- see that function for the one real
+  // chokepoint this migration wires. The rest are honestly unwired: no
+  // real call site in this codebase derives them automatically yet,
+  // settable only via the existing POST /api/dynamic-chains/[id]/versions
+  // body, same status as businessRules/workflowRef/aiBehaviorRef above.
+  classification: jsonb('classification'), // { domain?, chainType?, riskTier?, dataSensitivity?, complianceDomain? }
+  ownerDepartmentId: text('owner_department_id'), // FK-shaped ref to departments.id, unenforced (same convention as moduleRef) -- business sub-field
+  inputContract: jsonb('input_contract'), // { requiredFields?: string[]; sourceHint?: string } -- inputs sub-field
+  outputContract: jsonb('output_contract'), // deliberately distinct from reportsKpisSlas (cadence/KPI targets, not output shape) -- outputs sub-field
+  aiConfig: jsonb('ai_config'), // { modelTier?; requiresHumanApproval?: boolean; confidenceThreshold?: number } -- generalizes aiBehaviorRef, AI sub-field
+  workflowStepsConfig: jsonb('workflow_steps_config'), // step/SLA/escalation shape -- generalizes workflowRef, workflow sub-field
+  linkedKnowledgeBasePageIds: jsonb('linked_knowledge_base_page_ids').notNull().default([]), // string[] of knowledge_base_pages.id -- knowledge sub-field, same denormalized-index shape as linkedApprovalWorkflowIds
 })
 
 // Priority 10 (GAP-DCMD, second real slice): task-execution-engine.ts's
@@ -1792,7 +1860,8 @@ export const dataSeparationAudit = complianceSchemaDB.table('data_separation_aud
 })
 
 // ─── Relations ───────────────────────────────────────────────────────────
-export const organisationsRelations = relations(organisations, ({ many }) => ({
+export const organisationsRelations = relations(organisations, ({ many, one }) => ({
+  primaryProductBranch: one(productBranches, { fields: [organisations.primaryProductBranchId], references: [productBranches.id] }),
   users: many(users),
   departments: many(departments),
   complianceItems: many(complianceItems),
@@ -1936,6 +2005,11 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
   org: one(organisations, { fields: [apiKeys.orgId], references: [organisations.id] }),
   requestLog: many(apiKeyRequestLog),
+  issuedForApplication: one(platformApplications, { fields: [apiKeys.issuedForApplicationId], references: [platformApplications.id] }),
+}))
+
+export const platformApplicationsRelations = relations(platformApplications, ({ many }) => ({
+  issuedApiKeys: many(apiKeys),
 }))
 
 export const apiKeyRequestLogRelations = relations(apiKeyRequestLog, ({ one }) => ({
@@ -4116,6 +4190,11 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   status: text('status').notNull().default('new'), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
   ownerId: text('owner_id'),
   convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
+  // Priority 15 (Sales & CRM depth wave): next scheduled follow-up for this
+  // lead, surfaced on the pipeline dashboard/list views so a rep's queue is
+  // sortable by what's actually due next, not just creation date.
+  nextActionDate: date('next_action_date', { mode: 'string' }),
+  nextActionNote: text('next_action_note'),
   // Wave 75 (CRM Intelligence, AI_OS_CERTIFICATION.md §3.3 NOT_BUILT):
   // additive AI enrichment over this lead's own structured fields (source/
   // status/contact completeness/age) -- all nullable, a lead never scored
@@ -4144,9 +4223,46 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]), // string[]
   aiRecommendedAction: text('ai_recommended_action'),
   aiAnalyzedAt: timestamp('ai_analyzed_at'),
+  // Priority 15 (Sales & CRM depth wave): next scheduled follow-up, same
+  // rationale as crmLeads.nextActionDate above.
+  nextActionDate: date('next_action_date', { mode: 'string' }),
+  nextActionNote: text('next_action_note'),
+  // Nullable link into the ERP selling identity space (erp_customers) --
+  // separate from `clientId` above (VERIDIAN's own compliance-client
+  // concept, Wave 41). crm_leads/crm_opportunities were built around
+  // `clients` for a CA/legal-firm CRM; erp_quotations/erp_sales_orders
+  // (Wave 60) were built around `erp_customers` for the ERP Selling app --
+  // the two identity spaces never had a bridge. Setting this when an
+  // opportunity is created against a real ERP customer (PROJEXA's actual
+  // path, since a construction firm's "customer" IS an erp_customers row,
+  // not a VERIDIAN compliance client) is what makes getCustomerOverview()'s
+  // "customer 360" possible end-to-end. Deliberately additive/nullable --
+  // every opportunity created before this wave, and every compliance-CRM
+  // opportunity that only ever used clientId, is unaffected.
+  erpCustomerId: text('erp_customer_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Priority 15 (Sales & CRM depth wave): a real stage-change ledger for both
+// leads (status) and opportunities (stage) -- previously a status/stage
+// change silently overwrote the prior value with no record of when/who/why
+// it moved. entityType is free text ('lead' | 'opportunity') rather than two
+// separate tables, since the shape (from -> to, who, when, optional note) is
+// identical and a combined funnel view (lead status -> opportunity stage)
+// needs to query both kinds in one place, same "free-text discriminator,
+// not a hard FK union" convention as sales-engine-service.ts's productKey.
+export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // 'lead' | 'opportunity'
+  entityId: text('entity_id').notNull(),
+  fromStage: text('from_stage'),
+  toStage: text('to_stage').notNull(),
+  note: text('note'),
+  changedById: text('changed_by_id'),
+  changedAt: timestamp('changed_at').notNull().defaultNow(),
 })
 
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
@@ -4160,6 +4276,18 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
 // of scope (VERIDIAN tracks payroll *compliance*, `hrComplianceItems`,
 // never runs payroll itself); org chart needs zero new schema at all --
 // it's a read-only tree over the already-existing reportingToId.
+//
+// Priority 15 Wave 2: employmentStatus + emergency contact were deferred
+// from Wave 1 (PR #330). employmentStatusEnum follows this schema's own
+// `complianceSchemaDB.enum(...)` convention for status-like fields (see
+// e.g. salesPartnerStatusEnum, erpPayrollRunStatusEnum) rather than the
+// free-text `text('status')` convention used for a handful of older
+// tables -- new status fields in this codebase have used a real pg enum
+// for a while now. Emergency contact is 2 plain text columns (name +
+// phone) on the same row, not a separate table -- one contact per
+// employee is the real requirement here, no need for a 1:many join.
+export const employmentStatusEnum = complianceSchemaDB.enum('employment_status', ['active', 'on_leave', 'terminated', 'resigned'])
+
 export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().unique(),
@@ -4173,6 +4301,14 @@ export const employeeProfiles = complianceSchemaDB.table('employee_profiles', {
   // employee has opted into for annual TDS projection. No slab assigned
   // means payroll keeps Wave 56's original manual-TDS-entry-only behavior.
   incomeTaxSlabId: text('income_tax_slab_id'),
+  // Priority 15 Wave 2: defaults to 'active' with a NOT NULL constraint --
+  // safe for existing rows (every employee profile that already exists is,
+  // by definition, currently active; nothing in this codebase soft-deletes
+  // employeeProfiles rows). Emergency contact fields are nullable free text
+  // -- not every org will have collected this yet.
+  employmentStatus: employmentStatusEnum('employment_status').notNull().default('active'),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactPhone: text('emergency_contact_phone'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -5012,6 +5148,15 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   orderDate: date('order_date', { mode: 'string' }).notNull(),
   expectedDeliveryDate: date('expected_delivery_date', { mode: 'string' }),
   status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_received'|'completed'|'cancelled'
+  // Priority 17 Wave 1: same nullable/optional-pair shape as
+  // erp_purchase_invoices.currencyId/exchangeRate (Wave 66) -- lets a PO
+  // be raised in a foreign supplier's own currency. A purchase order never
+  // posts to the GL itself (only the purchase invoice it eventually
+  // becomes does, via createPurchaseInvoice's existing
+  // resolveInvoiceCurrency() -- unaffected by this change), so this is
+  // capture + validation only here.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -5154,8 +5299,42 @@ export const erpQuotations = complianceSchemaDB.table('erp_quotations', {
   quotationNumber: integer('quotation_number').notNull(),
   quotationDate: date('quotation_date', { mode: 'string' }).notNull(),
   validTill: date('valid_till', { mode: 'string' }),
-  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'ordered'|'lost'|'expired'
+  // Priority 15 (Sales & CRM depth wave): a real lifecycle with an approval
+  // gate before a quote can be sent -- 'draft'|'pending_approval'|'approved'
+  // |'sent'|'ordered'|'lost'|'expired'. Enforced as an explicit transition
+  // table in erp-selling-service.ts's updateQuotationStatus, not a free-for-
+  // all setter -- e.g. draft can only reach 'sent' via pending_approval ->
+  // approved first. Table is brand new this wave (zero live rows before
+  // this PR), so widening the value set needs no data migration.
+  status: text('status').notNull().default('draft'),
+  // Priority 17 Wave 1 (multi-currency selling & buying): same nullable/
+  // optional-pair shape as erp_sales_invoices.currencyId/exchangeRate
+  // (Wave 66) -- currencyId null means "org base currency" (unchanged
+  // meaning for every quotation created before this wave, exchangeRate
+  // stored as the default '1'). See erp-selling-service.ts's
+  // resolveDocumentCurrency() for the same "require explicit input, never
+  // guess an FX rate" validation erp-invoicing-service.ts's
+  // resolveInvoiceCurrency() already established. No GL posting happens
+  // off a quotation (see this table's own service-layer header comment),
+  // so there is no base-currency conversion to do here -- this is capture
+  // + validation only, carried forward onto the sales order this
+  // quotation converts to.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
+  // Priority 15: revision/versioning -- createQuotationRevision() clones an
+  // existing quotation into a new row rather than mutating it in place, so
+  // a customer-facing quote number's history is never silently rewritten
+  // (matches ERPNext's own "amend" convention for submitted documents).
+  // revisionOf points at the ORIGINAL (version 1) quotation's id for every
+  // revision, so "all versions of this quote" is a single equality filter
+  // rather than a recursive walk.
+  version: integer('version').notNull().default(1),
+  revisionOf: text('revision_of'),
+  // Nullable link to VERIDIAN's existing `projects` table -- same
+  // convention as erp_sales_invoices.projectId (Wave 120) -- lets a
+  // construction PM see which quotes belong to which project.
+  projectId: text('project_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
@@ -5179,8 +5358,23 @@ export const erpSalesOrders = complianceSchemaDB.table('erp_sales_orders', {
   soNumber: integer('so_number').notNull(),
   orderDate: date('order_date', { mode: 'string' }).notNull(),
   deliveryDate: date('delivery_date', { mode: 'string' }),
-  status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_delivered'|'completed'|'cancelled'
+  // Priority 15 (Sales & CRM depth wave): 'draft'|'confirmed'|
+  // 'partially_fulfilled'|'fulfilled'|'cancelled' -- table is brand new
+  // this wave (zero live rows before this PR, same reasoning as
+  // erp_quotations.status above), so the wording can match the Owner's own
+  // vocabulary directly rather than needing a value-remap migration.
+  status: text('status').notNull().default('draft'),
+  // Priority 17 Wave 1: see erp_quotations.currencyId's identical comment
+  // just above -- carried forward from the source quotation by
+  // convertQuotationToSalesOrder(), or set directly on a standalone sales
+  // order. Also no GL posting off a sales order (see this table's own
+  // service-layer header comment), so capture + validation only.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
+  // Nullable link to VERIDIAN's existing `projects` table -- same
+  // convention as erp_quotations.projectId above.
+  projectId: text('project_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

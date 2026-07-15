@@ -1,0 +1,268 @@
+{
+  "Nav": {
+    "top": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "chat": "VERI Chat",
+      "connectors": "Connectors",
+      "agents": "Make Your Own Agents"
+    },
+    "poweredBy": "Powered by VERIDIAN AI",
+    "sections": {
+      "overview": {
+        "title": "Overview",
+        "items": {
+          "pendencyView": "Pendency View",
+          "veriCustomersAi": "VERI Customers AI"
+        }
+      },
+      "reportsAnalysis": {
+        "title": "Reports & Analysis",
+        "items": {
+          "reportsAnalysis": "Reports & Analysis"
+        }
+      },
+      "rewards": {
+        "title": "Rewards",
+        "items": {
+          "veriTreasure": "VERI Treasure"
+        }
+      },
+      "salesCrm": {
+        "title": "Sales & CRM",
+        "items": {
+          "veriCrmAi": "VERI CRM AI"
+        }
+      },
+      "projects": {
+        "title": "Projects",
+        "items": {
+          "veriProjectsAi": "VERI Projects AI"
+        }
+      },
+      "theFirm": {
+        "title": "The Firm",
+        "items": {
+          "practiceCockpit": "Practice Cockpit"
+        }
+      },
+      "finance": {
+        "title": "Finance",
+        "items": {
+          "journalEntries": "Journal Entries",
+          "budgeting": "Budgeting",
+          "financialReports": "Financial Reports",
+          "cashManagement": "Cash Management",
+          "creditNotes": "Credit Notes",
+          "inventory": "Inventory",
+          "bankReconciliation": "Bank Reconciliation",
+          "gstReconciliation": "GST Reconciliation",
+          "tdsReturns": "TDS Returns",
+          "procurementWorkflow": "Procurement Workflow",
+          "goodsReceipt": "Goods Receipt",
+          "inventoryPlanning": "Inventory Planning",
+          "statutoryPayroll": "Statutory Payroll",
+          "invoicing": "Invoicing",
+          "returnsRma": "Returns (RMA)",
+          "contracts": "Contracts",
+          "clauseLibrary": "Clause Library & Templates",
+          "customers": "Customers",
+          "suppliers": "Suppliers",
+          "masterDataQuality": "Master Data Quality"
+        }
+      },
+      "compliance": {
+        "title": "Compliance",
+        "items": {
+          "register": "Register",
+          "notices": "Notices",
+          "auditPoints": "Audit Points",
+          "documents": "Documents",
+          "bulkImport": "Bulk Import"
+        }
+      },
+      "governance": {
+        "title": "Governance",
+        "items": {
+          "boardGovernance": "Board & Governance",
+          "committees": "Committees",
+          "relatedPartyTransactions": "Related Party Transactions",
+          "delegationOfAuthority": "Delegation of Authority",
+          "directorKmpRegister": "Director & KMP Register",
+          "boardDirectorEvaluation": "Board & Director Evaluation",
+          "policyManagement": "Policy Management"
+        }
+      },
+      "companySecretarial": {
+        "title": "Company Secretarial",
+        "items": {
+          "statutoryRegisters": "Statutory Registers",
+          "shareCapitalCapTable": "Share Capital & Cap Table",
+          "chargesRoc": "Charges (ROC)",
+          "secretarialAudit": "Secretarial Audit",
+          "mcaEFiling": "MCA e-Filing"
+        }
+      },
+      "legal": {
+        "title": "Legal",
+        "items": {
+          "legalMatters": "Legal Matters",
+          "externalCounselVendors": "External Counsel & Vendors",
+          "litigationDisputes": "Litigation & Disputes",
+          "ipPortfolio": "IP Portfolio",
+          "legalOpinions": "Legal Opinions"
+        }
+      },
+      "peopleHr": {
+        "title": "People & HR",
+        "items": {
+          "payrollHrCompliance": "Payroll & HR Statutory Compliance",
+          "leaveHolidayCompliance": "Leave & Holiday Compliance",
+          "poshCompliance": "POSH Compliance",
+          "veriHrAi": "VERI HR AI",
+          "recruitment": "Recruitment",
+          "performanceReviews": "Performance Reviews"
+        }
+      },
+      "risk": {
+        "title": "Risk",
+        "items": {
+          "riskRegister": "Risk Register"
+        }
+      },
+      "sectorRegulators": {
+        "title": "Sector Regulators",
+        "items": {
+          "sebi": "SEBI (Listed Company)",
+          "rbi": "RBI (Bank / NBFC)",
+          "irdai": "IRDAI (Insurer)"
+        }
+      },
+      "audit": {
+        "title": "Audit",
+        "items": {
+          "controlsFrameworkLibrary": "Controls & Framework Library",
+          "auditManagement": "Audit Management",
+          "auditTrail": "Audit Trail"
+        }
+      },
+      "thirdPartyEsg": {
+        "title": "Third-Party & ESG",
+        "items": {
+          "vendorThirdPartyRisk": "Vendor & Third-Party Risk",
+          "esgSustainability": "ESG & Sustainability (BRSR)"
+        }
+      },
+      "integrity": {
+        "title": "Integrity",
+        "items": {
+          "whistleblowerEthics": "Whistleblower & Ethics",
+          "businessContinuity": "Business Continuity",
+          "itDisasterRecovery": "IT Disaster Recovery",
+          "fraudCaseManagement": "Fraud Case Management",
+          "contractCompliance": "Contract Compliance"
+        }
+      },
+      "incidentsEvents": {
+        "title": "Incidents & Events",
+        "items": {
+          "incidentManagement": "Incident Management"
+        }
+      },
+      "accessApprovals": {
+        "title": "Access & Approvals",
+        "items": {
+          "approvalQueue": "Approval Queue"
+        }
+      },
+      "admin": {
+        "title": "Admin",
+        "items": {
+          "users": "Users",
+          "departments": "Departments",
+          "accessReview": "Access Review",
+          "settings": "Settings",
+          "auditLog": "Audit Log"
+        }
+      },
+      "tools": {
+        "title": "Tools",
+        "items": {
+          "veriOperationsAi": "VERI Operations AI",
+          "promptEvalLab": "Prompt Eval Lab",
+          "salesHq": "Sales HQ",
+          "capabilityImprovements": "Capability Improvements",
+          "checklists": "Checklists",
+          "tasks": "Tasks",
+          "documents": "Documents",
+          "enterpriseKpiHub": "Enterprise KPI Hub",
+          "knowledgeBase": "Knowledge Base",
+          "automation": "Automation",
+          "metricAlerts": "Metric Alerts",
+          "ticketing": "Ticketing",
+          "capabilityRegistry": "Capability Registry",
+          "veriTodoAi": "VERI To Do AI",
+          "veriMomAi": "VERI MOM AI",
+          "penaltyTracker": "Penalty Tracker",
+          "helpCentre": "Help Centre",
+          "team": "Team"
+        }
+      }
+    }
+  },
+  "Auth": {
+    "tagline": "One Portal. One Truth.",
+    "footer": "Built for Indian compliance management",
+    "or": "or"
+  },
+  "Login": {
+    "welcomeBack": "Welcome back",
+    "subtitle": "Sign in to your compliance dashboard",
+    "authFailed": "Authentication failed. Please try again.",
+    "signInWithGoogle": "Sign in with Google",
+    "or": "or",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@company.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "sendMagicLink": "Send magic link instead",
+    "signIn": "Sign In",
+    "signingIn": "Signing in...",
+    "companyIdLabel": "Company ID",
+    "companyIdPlaceholder": "your-company",
+    "continue": "Continue",
+    "signInWithSso": "Sign in with company SSO",
+    "noAccount": "Don't have an account?",
+    "createOne": "Create one",
+    "magicLinkEmailRequired": "Please enter your email address",
+    "magicLinkSent": "Magic link sent! Check your email."
+  },
+  "Signup": {
+    "checkEmailTitle": "Check your email",
+    "checkEmailBody": "We've sent a confirmation link to <bold>{email}</bold>. Click the link to verify your account and get started.",
+    "backToSignIn": "Back to Sign In",
+    "createAccount": "Create your account",
+    "subtitle": "Start managing compliance in minutes",
+    "fullNameLabel": "Full Name",
+    "fullNamePlaceholder": "Rajesh Sharma",
+    "joiningOrgAs": "You're joining <org>{orgName}</org> as <role>{roleName}</role>.",
+    "notYourOrg": "Not your organisation? Clear code",
+    "organisationLabel": "Organisation",
+    "organisationPlaceholder": "Acme Financial Services Pvt. Ltd.",
+    "inviteInvalid": "This invite link is no longer valid ({reason}) — creating a new organisation instead.",
+    "haveJoinCode": "Have an organisation join code?",
+    "joinCodeLabel": "Organisation Join Code",
+    "joinCodePlaceholder": "ABCD-EFGH-JKMN",
+    "joinCodeRateLimited": "Too many attempts — please wait a few minutes and try again.",
+    "joinCodeInvalid": "That code isn't valid ({reason}).",
+    "workEmailLabel": "Work Email",
+    "workEmailPlaceholder": "you@company.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Min. 6 characters",
+    "createAccountCta": "Create Account",
+    "creatingAccount": "Creating account...",
+    "alreadyHaveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "passwordTooShort": "Password must be at least 6 characters"
+  }
+}

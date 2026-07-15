@@ -31,7 +31,16 @@ export type CompanyInput = {
   dateOfIncorporation?: string
 }
 
-export async function createCompany(ctx: ErpContext, input: CompanyInput) {
+// Priority 17 (PROJEXA company/office selector): same dbUser-or-apiKey actor
+// union createJournalEntry/createSalesInvoice/createSalesCreditNote already
+// adopted -- PROJEXA's callVeridian() Bearer-token path never carries a
+// session cookie, so requireAuthOrApiKey's ctx.dbUser is always null on that
+// route. updateCompany below keeps requiring a real dbUser unchanged (no
+// PROJEXA write path needs it yet).
+export async function createCompany(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  input: CompanyInput
+) {
   await requireErpEnabled(ctx.orgId)
   if (!input.companyName?.trim()) throw new ServiceError("companyName is required", 400)
 
@@ -45,7 +54,11 @@ export async function createCompany(ctx: ErpContext, input: CompanyInput) {
       isGroup: input.isGroup ?? false, defaultCurrencyId: input.defaultCurrencyId, country: input.country,
       dateOfIncorporation: input.dateOfIncorporation,
     }).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_company.created", entityType: "erp_company", entityId: company.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_company.created", entityType: "erp_company", entityId: company.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_company.created", entityType: "erp_company", entityId: company.id }
+    )
     return company
   })
 }

@@ -13,7 +13,7 @@ import {
   erpSalaryComponents, erpSalaryStructures, erpSalaryStructureComponents,
   erpStatutoryRules, erpPayrollRuns, erpPayslips, erpPayslipLines,
   erpIncomeTaxSlabs, erpIncomeTaxSlabRates, erpEmployeeTaxExemptions,
-  employeeProfiles, users,
+  employeeProfiles, users, organisations,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, lte, or, isNull, gte, sql } from "drizzle-orm"
@@ -367,6 +367,40 @@ export async function finalizePayslip(ctx: ErpContext, payslipId: string) {
     const [updated] = await db.update(erpPayslips).set({ status: "finalized" }).where(eq(erpPayslips.id, payslipId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_payslip.finalized", entityType: "erp_payslip", entityId: payslipId })
     return updated
+  })
+}
+
+/**
+ * Priority 15 Wave 2: single-payslip detail assembled specifically for the
+ * PDF export route -- pulls together the payslip + its lines, the payroll
+ * run's month/year, the employee's name/code/designation, and the org's
+ * own identity (name/address/GSTIN) for the document header. Deliberately
+ * separate from listPayslips (which is run-scoped and returns bare
+ * employeeName only) rather than overloading that function's shape.
+ */
+export async function getPayslipDetail(ctx: { orgId: string }, payslipId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const payslip = await db.query.erpPayslips.findFirst({
+      where: and(eq(erpPayslips.id, payslipId), eq(erpPayslips.orgId, ctx.orgId)),
+      with: { lines: true },
+    })
+    if (!payslip) throw new ServiceError("Payslip not found", 404)
+
+    const run = await db.query.erpPayrollRuns.findFirst({ where: eq(erpPayrollRuns.id, payslip.payrollRunId) })
+    const profile = await db.query.employeeProfiles.findFirst({ where: eq(employeeProfiles.id, payslip.employeeId) })
+    const employee = profile ? await db.query.users.findFirst({ where: eq(users.id, profile.userId), columns: { name: true, email: true } }) : null
+    const org = await db.query.organisations.findFirst({ where: eq(organisations.id, ctx.orgId), columns: { name: true, address: true, gstin: true } })
+
+    return {
+      payslip,
+      run,
+      employeeName: employee?.name ?? "Unknown",
+      employeeEmail: employee?.email ?? null,
+      employeeCode: profile?.employeeCode ?? null,
+      jobTitle: profile?.jobTitle ?? null,
+      org: org ?? { name: "VERIDIAN AI", address: null, gstin: null },
+    }
   })
 }
 

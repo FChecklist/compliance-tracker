@@ -1,0 +1,66 @@
+-- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix
+-- pass): fixes the same bug class PR #349
+-- (drizzle/0204_pms_issues_created_by_no_fk.sql) already fixed on
+-- compliance.pms_issues.created_by_id, now confirmed on
+-- compliance.erp_sales_invoices.created_by_id too
+-- (control/priority19_dubai_e2e_testing_plan.md, "NEW GAP -- Invoices:
+-- 'Create Invoice' fails with a bare 500" entry, and the later "Part 2
+-- implementation plan" section's "Draft 1" listing this as one of only 2
+-- newly-confirmed-affected columns).
+--
+-- Root cause, confirmed live and by direct source read: compliance.
+-- erp_sales_invoices.created_by_id carries a hard
+-- FOREIGN KEY REFERENCES compliance.users(id) (confirmed live via
+-- pg_constraint: constraint name erp_sales_invoices_created_by_id_fkey,
+-- contype='f', confrelid -> compliance.users). But
+-- src/app/api/v1/projexa/sales-invoices/route.ts's POST handler
+-- legitimately builds its actor context as:
+--   const actorCtx = ctx.dbUser
+--     ? { orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }
+--     : { orgId: ctx.orgId, userId: ctx.apiKey!.id, apiKey: ctx.apiKey! }
+-- and every PROJEXA-originated call to this route is the API-key branch
+-- (PROJEXA's callVeridian() proxy never carries a session cookie --
+-- PROJEXA-IDENTITY-BRIDGE-01, the org-wide API key bridge has no per-user
+-- identity). erp-invoicing-service.ts's createSalesInvoice() then inserts
+-- that actorCtx.userId directly as createdById (confirmed by direct source
+-- read, erp-invoicing-service.ts:333: `createdById: ctx.userId`). The
+-- caller's API-key id (confirmed live: "projexa_demo_key",
+-- compliance.api_keys.id for "PROJEXA Frontend Service Key") is never a row
+-- in compliance.users, so every PROJEXA-originated "Create Invoice" hits
+-- this FK constraint on INSERT -- reproduced twice, independently, during
+-- Priority 19's E2E pass (`POST /api/sales-invoices` returning a bare 500
+-- `{"error":"Failed to create sales invoice"}`, zero rows landing either
+-- time, confirmed via SQL). This is the exact same failure signature and
+-- exact same root-cause shape PR #349 already fixed on pms_issues.
+--
+-- Fix: drop the FK. This matches the now-twice-precedented fix already
+-- applied in this exact codebase for the identical "actor may be a real
+-- user OR a bare API-key id" situation:
+--   - job_openings.posted_by_id: FK dropped, drizzle/0202 (Priority 16
+--     Part 2)
+--   - pms_issues.created_by_id: FK dropped, drizzle/0204_pms_issues_
+--     created_by_no_fk.sql (PR #349, this Priority's own Part 1)
+-- erp_sales_invoices.created_by_id is the same outlier pattern; this
+-- migration brings it in line with the codebase's own established
+-- convention. Not a security/guardrail change -- created_by_id is not in
+-- scripts/check-guardrail-presence.mjs's manifest, and
+-- compliance.erp_sales_invoices' RLS already scopes every row by org_id
+-- regardless of this FK.
+--
+-- created_by_id stays nullable/text-typed -- no schema.ts change needed,
+-- same as the two precedents above: the FK existed only as a raw
+-- constraint, never declared with .references() in schema.ts.
+--
+-- Scoped narrowly to erp_sales_invoices.created_by_id only -- this is the
+-- one actor column on this table this pass's own E2E repro actually hit
+-- (createSalesInvoice() has no other compliance.users-referencing actor
+-- column on this table). Not a blanket sweep of every erp_* table's
+-- created_by_id -- see the companion audit in this same PR's description /
+-- the updated control/priority19_dubai_e2e_testing_plan.md Workstream A
+-- section for which other columns were checked and deliberately left
+-- untouched, and why (matches PR #349's own migration-comment discipline
+-- of scoping FK-drop fixes to columns with a confirmed, traceable PROJEXA
+-- write path, not every column that merely shares the shape).
+
+ALTER TABLE compliance.erp_sales_invoices
+  DROP CONSTRAINT IF EXISTS erp_sales_invoices_created_by_id_fkey;
