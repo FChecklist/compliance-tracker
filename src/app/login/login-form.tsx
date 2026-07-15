@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
 export function LoginForm() {
+  const t = useTranslations("Login");
+  const tAuth = useTranslations("Auth");
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/home";
@@ -88,7 +92,7 @@ export function LoginForm() {
 
   const handleMagicLink = async () => {
     if (!email.trim()) {
-      toast.error("Please enter your email address");
+      toast.error(t("magicLinkEmailRequired"));
       return;
     }
 
@@ -107,7 +111,7 @@ export function LoginForm() {
       return;
     }
 
-    toast.success("Magic link sent! Check your email.");
+    toast.success(t("magicLinkSent"));
     setLoading(false);
   };
 
@@ -131,7 +135,7 @@ export function LoginForm() {
               </span>
             </div>
             <p className="text-white/60 text-sm">
-              One Portal. One Truth.
+              {tAuth("tagline")}
             </p>
           </div>
 
@@ -139,16 +143,16 @@ export function LoginForm() {
           <Card className="rounded-2xl shadow-xl border-0">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-ct-navy text-center">
-                Welcome back
+                {t("welcomeBack")}
               </CardTitle>
               <p className="text-sm text-ct-muted text-center">
-                Sign in to your compliance dashboard
+                {t("subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-5">
               {errorParam && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 text-center">
-                  Authentication failed. Please try again.
+                  {t("authFailed")}
                 </div>
               )}
 
@@ -165,7 +169,7 @@ export function LoginForm() {
                   <path fill="#FBBC05" d="M5.27 14.27a7.2 7.2 0 0 1 0-4.54v-3.1H1.26a12 12 0 0 0 0 10.73l4.01-3.09Z" />
                   <path fill="#EA4335" d="M12 4.77c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.26 6.63l4.01 3.1C6.22 6.88 8.87 4.77 12 4.77Z" />
                 </svg>
-                Sign in with Google
+                {t("signInWithGoogle")}
               </Button>
 
               <div className="relative">
@@ -173,19 +177,19 @@ export function LoginForm() {
                   <span className="w-full border-t border-ct-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-ct-muted">or</span>
+                  <span className="bg-white px-2 text-ct-muted">{t("or")}</span>
                 </div>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-xs font-semibold text-ct-muted uppercase">
-                    Email
+                    {t("emailLabel")}
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="you@company.com"
+                    placeholder={t("emailPlaceholder")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -196,20 +200,20 @@ export function LoginForm() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password" className="text-xs font-semibold text-ct-muted uppercase">
-                      Password
+                      {t("passwordLabel")}
                     </Label>
                     <button
                       type="button"
                       className="text-xs text-ct-saffron hover:underline"
                       onClick={handleMagicLink}
                     >
-                      Send magic link instead
+                      {t("sendMagicLink")}
                     </button>
                   </div>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
+                    placeholder={t("passwordPlaceholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -225,7 +229,7 @@ export function LoginForm() {
                   {loading ? (
                     <Loader2 className="size-4 animate-spin mr-2" />
                   ) : null}
-                  {loading ? "Signing in..." : "Sign In"}
+                  {loading ? t("signingIn") : t("signIn")}
                 </Button>
               </form>
 
@@ -235,7 +239,7 @@ export function LoginForm() {
                   <span className="w-full border-t border-ct-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-ct-muted">or</span>
+                  <span className="bg-white px-2 text-ct-muted">{t("or")}</span>
                 </div>
               </div>
 
@@ -243,17 +247,17 @@ export function LoginForm() {
               {showSso ? (
                 <form onSubmit={handleSsoLogin} className="space-y-2">
                   <Label htmlFor="ssoOrgSlug" className="text-xs font-semibold text-ct-muted uppercase">
-                    Company ID
+                    {t("companyIdLabel")}
                   </Label>
                   <div className="flex gap-2">
                     <Input
                       id="ssoOrgSlug"
-                      placeholder="your-company"
+                      placeholder={t("companyIdPlaceholder")}
                       value={ssoOrgSlug}
                       onChange={(e) => setSsoOrgSlug(e.target.value)}
                       className="h-10"
                     />
-                    <Button type="submit" variant="outline" className="h-10 shrink-0">Continue</Button>
+                    <Button type="submit" variant="outline" className="h-10 shrink-0">{t("continue")}</Button>
                   </div>
                 </form>
               ) : (
@@ -262,18 +266,18 @@ export function LoginForm() {
                   className="w-full text-center text-sm text-ct-muted hover:text-ct-navy hover:underline"
                   onClick={() => setShowSso(true)}
                 >
-                  Sign in with company SSO
+                  {t("signInWithSso")}
                 </button>
               )}
 
               {/* Signup CTA */}
               <p className="text-center text-sm text-ct-muted">
-                Don&apos;t have an account?{" "}
+                {t("noAccount")}{" "}
                 <Link
                   href="/signup"
                   className="text-ct-saffron font-medium hover:underline"
                 >
-                  Create one
+                  {t("createOne")}
                 </Link>
               </p>
             </CardContent>
@@ -281,8 +285,11 @@ export function LoginForm() {
 
           {/* Footer */}
           <p className="text-center text-xs text-white/40 mt-6">
-            Built for Indian compliance management
+            {tAuth("footer")}
           </p>
+          <div className="mt-3 flex justify-center">
+            <LanguageSwitcher className="text-[11px] bg-white/10 border border-white/20 rounded-md px-1.5 py-0.5 text-white/70" />
+          </div>
         </div>
       </div>
     </div>

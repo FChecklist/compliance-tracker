@@ -10,7 +10,7 @@
 import { XMLParser } from "fast-xml-parser"
 import { parseAmount, parseDateToIso } from "@/lib/gst/column-mapper"
 import type { CanonicalInvoiceDraft, StagedRow } from "@/lib/gst/canonical-types"
-import { stateCodeFromGstin } from "@/lib/engines/gst-engine"
+import { stateCodeFromGstin } from "@/lib/engines/in/gst-engine"
 
 type TallyLedgerEntry = { LEDGERNAME?: string; AMOUNT?: string | number; ISPARTYLEDGER?: string }
 type TallyInventoryEntry = { STOCKITEMNAME?: string; HSNCODE?: string; ACTUALQTY?: string; RATE?: string; AMOUNT?: string | number }
