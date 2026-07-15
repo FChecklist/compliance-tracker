@@ -23,6 +23,8 @@ function toQuotationShape(q: Awaited<ReturnType<typeof listQuotations>>["items"]
     status: q.status,
     version: q.version,
     revisionOf: q.revisionOf,
+    currencyId: q.currencyId,
+    exchangeRate: q.exchangeRate,
     grandTotal: q.grandTotal,
     items: q.items?.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, rate: i.rate, amount: i.amount })) ?? [],
   }
@@ -69,7 +71,8 @@ export async function POST(request: NextRequest) {
       : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
     const quotation = await createQuotation(actorCtx, {
       customerId: body.customerId, leadId: body.leadId, projectId: body.projectId,
-      quotationDate: body.quotationDate, validTill: body.validTill, items,
+      quotationDate: body.quotationDate, validTill: body.validTill,
+      currencyId: body.currencyId, exchangeRate: body.exchangeRate, items,
     })
     return NextResponse.json(quotation, { status: 201 })
   } catch (error) {
