@@ -133,6 +133,10 @@ active:
       priority18b-stage0-optionb-impl, worktree
       .claude/worktrees/agent-priority18b-optionb. Does not self-merge;
       left for supervising session's audit + the live migration step.
+      PR #358 opened 2026-07-15 -- tsc/lint clean, bun test 1126 pass/0
+      fail (1113 pre-existing + 13 new). Migration (drizzle/0209 + 0210)
+      written but NOT applied live. This session has no further active
+      claims on this priority.
   - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream B (ERP foundational setup) + Workstream C (UAE tax-field leak)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
