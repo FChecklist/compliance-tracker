@@ -99,6 +99,14 @@ export default function TheFirmPracticePage() {
     setEnabling(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to enable"); return; }
     toast.success("THE FIRM AI OS enabled");
+    // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+    // Trigger B) -- same surface as PmsEnablementSection.tsx's identical
+    // addition: surface both counts, never silently drop the "already
+    // belongs elsewhere" information.
+    const data: { stage0AutoUpgrade?: { upgraded: number; blocked: number } } = await res.json().catch(() => ({}));
+    const su = data.stage0AutoUpgrade;
+    if (su && su.upgraded > 0) toast.success(`${su.upgraded} stage-0 user${su.upgraded === 1 ? "" : "s"} auto-upgraded to full membership`);
+    if (su && su.blocked > 0) toast.info(`${su.blocked} stage-0 user${su.blocked === 1 ? "" : "s"} could not auto-upgrade -- already belong to another organization`);
     setEnabled(true);
   };
 

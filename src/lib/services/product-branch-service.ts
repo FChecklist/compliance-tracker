@@ -91,7 +91,23 @@ export async function enableProductBranchForOrg(ctx: BranchEnablementContext, br
 
     if (seedFn) await seedFn(db, ctx.orgId)
 
-    return { isEnabled: true, enabledAt: now.toISOString() }
+    // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+    // Trigger B): this is the single real chokepoint every enable*ForOrg
+    // wrapper in this codebase routes through (erp/pms/construction/crm/
+    // firm/fm/veri_chat_v2/veri_reward-enablement-service.ts), so hooking
+    // in here correctly fires no matter which vertical's paid branch gets
+    // enabled, present or future. Never blocks the branch-enable call on
+    // failure -- same "never blocks" posture org-provisioning-service.ts's
+    // own VERI Reward/VERI Chat v2 auto-enable already uses.
+    let stage0AutoUpgrade: { upgraded: number; blocked: number } | undefined
+    try {
+      const { autoUpgradeStage0UsersOnBranchEnable } = await import("./stage0-service")
+      stage0AutoUpgrade = await autoUpgradeStage0UsersOnBranchEnable(ctx.orgId)
+    } catch (err) {
+      console.warn("Stage-0 auto-upgrade on branch enable failed (non-fatal):", err)
+    }
+
+    return { isEnabled: true, enabledAt: now.toISOString(), stage0AutoUpgrade }
   })
 }
 

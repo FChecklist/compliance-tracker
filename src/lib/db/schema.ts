@@ -8,6 +8,7 @@ export const complianceSchemaDB = pgSchema('compliance')
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
   'admin', 'manager', 'member', 'viewer', // original 4
   'veridian_admin', 'branch_manager', 'senior_professional', 'team_member', 'client_viewer', 'external_auditor', // Wave 1 additions
+  'stage_0', // Priority 18b (Owner directive 2026-07-15, Option B): self-serve, zero-admin-approval VERI Chat signup off a shared guest-access/share-link token. Ranks 1 in ROLE_RANK (auth-guard.ts) -- same tier as viewer/client_viewer/external_auditor, deliberately a distinct value (not reused) so "unpaid self-serve chat guest" is never ambiguous with those two roles' own existing meaning. See stage0Sources below for the real (multi-org) membership shape.
 ])
 export const complianceStatusEnum = complianceSchemaDB.enum('compliance_status', ['pending', 'in_progress', 'completed', 'overdue', 'not_applicable', 'draft'])
 export const priorityEnum = complianceSchemaDB.enum('priority', ['low', 'medium', 'high', 'critical'])
@@ -175,8 +176,50 @@ export const users = complianceSchemaDB.table('users', {
   onboardingStage: text('onboarding_stage').notNull().default('profile'), // OnboardingChecklist.tsx step ids: profile|compliance|upload|invite|ai-config
   authUserId: text('auth_user_id'), // links to auth.users.id (Supabase Auth) -- Wave 1
   reportingToId: text('reporting_to_id'), // direct manager, self-FK -- Wave 1
+  // Priority 18b (Owner directive 2026-07-15, Option B): nav-visibility axis
+  // ONLY -- deliberately separate from `role`/ROLE_RANK, UX not enforcement
+  // (see stage0-service.ts's header comment for the real security boundary).
+  // 'stage_0' | null. A stage-0-only person (never invited/added as a real
+  // member anywhere) has orgId IS NULL and accountStage='stage_0'. The
+  // moment either auto-upgrade trigger fires (an admin explicitly adds them
+  // as a real member, or their org enables a new paid branch), this is set
+  // back to null and orgId/role become real -- see stage0-service.ts.
+  // Plain text, not the enum, matching this codebase's own established
+  // convention for status columns still likely to grow (tasks.status).
+  accountStage: text('account_stage'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Stage-0 sources (Priority 18b, Owner directive 2026-07-15, Option B) ─
+// Real multi-org stage-0 membership table -- the ONE place in this schema
+// where a single auth identity (one `users` row) can have more than one
+// organisational relationship. `users.orgId`/`role` stays the single "real,
+// paid, full-access home org" anchor (nullable -- a pure stage-0-only
+// person has none); this table is the separate, narrower, read-scoped
+// "which orgs' VERI Chat can this person see into" axis. One row per
+// (userId, orgId) -- see the migration for the partial unique index
+// (excludes revoked rows, so a revoked-then-rejoined relationship doesn't
+// collide). Doubles as both the provisioning record (who joined, via what
+// token, when) and the growth-loop tracking event (design doc section 2.5)
+// -- deliberately not two parallel mechanisms. Declared here (right after
+// `users`, well before usersRelations below references it) rather than
+// alongside conversationGuestAccess/conversationShareLinks further down --
+// JS `const` bindings aren't usable before their own declaration executes,
+// and usersRelations.stage0Sources: many(stage0Sources) needs this to
+// already exist by the time that block runs.
+export const stage0Sources = complianceSchemaDB.table('stage0_sources', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull(),
+  orgId: text('org_id').notNull(),
+  sourceType: text('source_type').notNull(), // 'guest_access' | 'share_link'
+  sourceTokenId: text('source_token_id').notNull(), // FK conversationGuestAccess.id or conversationShareLinks.id, per sourceType
+  sourceConversationId: text('source_conversation_id').notNull(),
+  joinedAt: timestamp('joined_at').notNull().defaultNow(),
+  // Set if an admin/the platform revokes this org's stage-0 relationship
+  // specifically (e.g. abuse) without touching the person's `users` row or
+  // any OTHER org's stage0Sources relationship they may separately hold.
+  revokedAt: timestamp('revoked_at'),
 })
 
 // ─── Compliance Items (M-07/09/10/11/14/G-21 fields added) ──────────────
@@ -1927,6 +1970,12 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   uploadedDocuments: many(documents),
   onboardingSteps: many(onboardingSteps),
   createdInviteLinks: many(orgInviteLinks),
+  stage0Sources: many(stage0Sources), // Priority 18b Option B -- every org this person holds a stage-0 (non-home) relationship with
+}))
+
+export const stage0SourcesRelations = relations(stage0Sources, ({ one }) => ({
+  user: one(users, { fields: [stage0Sources.userId], references: [users.id] }),
+  org: one(organisations, { fields: [stage0Sources.orgId], references: [organisations.id] }),
 }))
 
 export const complianceItemsRelations = relations(complianceItems, ({ one, many }) => ({
@@ -4518,6 +4567,12 @@ export const conversationShareLinks = complianceSchemaDB.table('conversation_sha
   createdById: text('created_by_id').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
+  // Priority 18b (Owner directive 2026-07-15, design doc section 2.5,
+  // growth-loop counter): incremented by stage0-service.ts's
+  // consumeStage0TokenAndProvisionUser, mirroring salesReferralLinks'
+  // clickCount shape. Surfaced for free in listShareLinks() -- no route
+  // change needed, Drizzle's findMany already returns every column.
+  stage0SignupCount: integer('stage0_signup_count').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -4540,6 +4595,10 @@ export const conversationGuestAccess = complianceSchemaDB.table('conversation_gu
   invitedById: text('invited_by_id').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
+  // Priority 18b (Owner directive 2026-07-15, design doc section 2.5,
+  // growth-loop counter): same shape/rationale as
+  // conversationShareLinks.stage0SignupCount above.
+  stage0SignupCount: integer('stage0_signup_count').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

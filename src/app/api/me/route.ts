@@ -23,6 +23,11 @@ export async function GET() {
     name: dbUser?.name ?? null,
     email: dbUser?.email ?? null,
     role: dbUser?.role ?? null,
+    // Priority 18b (Owner directive 2026-07-15): read regardless of orgId
+    // -- a pure stage-0 user has dbUser but orgId is null (no real home
+    // org), and accountStage is exactly the signal AppShell needs to know
+    // to render the restricted Chat-only nav.
+    accountStage: dbUser?.accountStage ?? null,
     orgId: orgId ?? null,
     orgName: org?.name ?? null,
     orgSlug: org?.slug ?? null,

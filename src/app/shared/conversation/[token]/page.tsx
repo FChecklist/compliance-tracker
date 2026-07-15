@@ -7,6 +7,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import Stage0SignupForm from "@/components/Stage0SignupForm";
 
 type SharedMessage = { senderId: string | null; content: string; createdAt: string };
 type SharedConversation = { title: string | null; messages: SharedMessage[] };
@@ -53,13 +54,19 @@ export default function SharedConversationPage() {
           ) : error ? (
             <p className="text-sm text-ct-error">{error}</p>
           ) : (
-            data?.messages.map((m, i) => (
+            <>
+              {/* Priority 18b (Owner directive 2026-07-15): identical CTA to
+                  guest-chat/[token] -- both are "someone shared this with
+                  you" entry points, per the design doc's symmetry note. */}
+              <Stage0SignupForm token={params.token} />
+              {data?.messages.map((m, i) => (
               <div key={i} className={m.senderId === null ? "text-left" : "text-right"}>
                 <div className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.senderId === null ? "bg-ct-cloud text-ct-navy" : "bg-ct-teal text-white"}`}>
                   {m.content}
                 </div>
               </div>
-            ))
+              ))}
+            </>
           )}
         </div>
       </div>

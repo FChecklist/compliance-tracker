@@ -86,6 +86,57 @@ active:
       that one new proposed signup entry point. Branch:
       priority18b-stage0-design, worktree
       .claude/worktrees/agent-priority18b-stage0.
+      MERGED 2026-07-15 (PR #357, design doc only, see
+      ai-os/priority18b_stage0_design.md) -- superseded by the real
+      implementation claim below, which owns this priority going forward.
+  - session_label: "claude-code (sub-agent) -- Priority 18b, Owner's Option B implementation (multi-org stage-0 + auto-upgrade)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner decision 2026-07-15 (CONTROLLER.yaml PRIORITY-18
+      owner_decision_2026_07_15) on top of the merged design doc
+      (ai-os/priority18b_stage0_design.md, PR #357, entry above): picked
+      Option B from the design doc's section 2.6 -- stage0Sources becomes a
+      real multi-org stage-0 membership table (not the single-org v1),
+      users.orgId/role stays the single "real home org" anchor. Plus 2 real
+      requirements the design doc had only flagged, not built: (1)
+      auto-upgrade -- a stage-0 relationship converts to real full
+      membership automatically the moment either the person is explicitly
+      invited/added as a real member by an org admin (person-level trigger,
+      via consumeInviteLinkAndProvisionUser / join-code / direct-add POST
+      /api/users, extended to UPDATE an existing orgId-IS-NULL users row
+      instead of failing on duplicate email), or the org they hold a
+      stage-0 relationship with enables a new paid product branch
+      (org-level trigger, every org_product_branch_enablements insert call
+      site, auto-promotes that org's orgId-IS-NULL stage-0 users to
+      role:'member' of it); (2) confirm (not build -- already independently
+      re-verified true by the Owner's own note) that createGuestAccess()/
+      createShareLink() in veri-chat-service.ts remain requireAuth()-only
+      with no requireRole() gate, i.e. every user already has default
+      stage-0-signup-link-sharing rights. Scope: userRoleEnum +'stage_0',
+      users.accountStage, stage0Sources (multi-org shape), new
+      src/lib/services/stage0-service.ts (provisioning +
+      listStage0Inbox/listStage0OutreachForOrg + both auto-upgrade
+      triggers), auth-guard.ts (new autoProvisionUser() branch only, same
+      touch point already flagged clear in the design doc), invite-link-
+      service.ts / join-code path / POST /api/users (existing-email UPDATE
+      path, reject-if-different-home-org safety), every real
+      org_product_branch_enablements insert call site (erp-enablement-
+      service.ts's pattern + others, enumerated during implementation), a
+      new drizzle/0XXX migration (NOT applied live -- left for supervisor
+      per this repo's schema-change-review convention, same as every other
+      claim in this file that touches schema.ts), stage0SignupCount growth
+      counter (design doc section 2.5), and tests matching this repo's
+      existing convention near veri-chat-service.ts. Re-verified live
+      immediately before starting: both PLATFORM-01 PRs (#339 Wave 1, #347
+      Wave 2) are MERGED -- PLATFORM-01 is not currently active on
+      auth-guard.ts or schema.ts's auth/membership shape. Branch:
+      priority18b-stage0-optionb-impl, worktree
+      .claude/worktrees/agent-priority18b-optionb. Does not self-merge;
+      left for supervising session's audit + the live migration step.
+      PR #358 opened 2026-07-15 -- tsc/lint clean, bun test 1126 pass/0
+      fail (1113 pre-existing + 13 new). Migration (drizzle/0209 + 0210)
+      written but NOT applied live. This session has no further active
+      claims on this priority.
   - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream B (ERP foundational setup) + Workstream C (UAE tax-field leak)"
     claimed_at: "2026-07-15T (this session)"
     claim: |

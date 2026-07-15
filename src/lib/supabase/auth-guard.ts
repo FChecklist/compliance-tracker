@@ -73,9 +73,30 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string; orgJoinCode?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string; orgJoinCode?: string; stage0Token?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
+
+  // Priority 18b (Owner directive 2026-07-15, Option B): checked FIRST,
+  // before inviteToken/orgJoinCode -- a stage-0 signup is even more "not a
+  // full org member" than either of those. Mirrors their exact
+  // early-return-either-way posture: a bad/expired/revoked stage0Token must
+  // never silently fall through to "create me a brand-new org." See
+  // stage0-service.ts for the real provisioning logic (self-serve, zero
+  // admin approval, off an existing guest-access/share-link token).
+  const stage0Token = meta?.stage0Token?.trim()
+  if (stage0Token) {
+    try {
+      const { consumeStage0TokenAndProvisionUser } = await import("@/lib/services/stage0-service")
+      const result = await consumeStage0TokenAndProvisionUser(stage0Token, { id: authUser.id, email, fullName })
+      if (result.ok) return result.user
+      console.warn(`Stage-0 token redemption failed for ${email}: ${result.reason}`)
+      return null
+    } catch (err) {
+      console.error("Stage-0 token redemption threw unexpectedly:", err)
+      return null
+    }
+  }
 
   // Area 15/18 (Secure Invite Link): a signup that carried ?invite=<token>
   // (threaded into signUp()'s options.data by /signup, see
