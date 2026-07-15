@@ -4702,6 +4702,72 @@ export const veriMeetingActionItemsRelations = relations(veriMeetingActionItems,
   task: one(tasks, { fields: [veriMeetingActionItems.taskId], references: [tasks.id] }),
 }))
 
+// ─── VERI Voice Tickets (Priority 14 Wave 2, GAP-MOM-VOICE-TICKETS) ───────
+// A user records/uploads a short voice memo (a quick note, or captured
+// during/after a meeting); it is transcribed via OpenAI Whisper
+// (src/lib/whisper-client.ts) and turned into real `tasks` rows, the exact
+// same reuse discipline veriMeetings already established for text minutes
+// (Action items become real `tasks` rows -- not a parallel tracking
+// mechanism). Two paths:
+//   (1) meetingId set -- the transcript is appended into that meeting's own
+//       `minutes` field and the EXISTING generateMeetingIntelligence()
+//       pipeline is re-run as-is (veri-meeting-service.ts) -- zero
+//       duplicate extraction logic for the meeting-attached case.
+//   (2) meetingId null (a standalone "quick voice memo") -- there is no
+//       parent meeting row to reuse, so this table carries its own
+//       aiSummary/aiSuggestedActionItems columns, structurally identical to
+//       veriMeetings' own AI columns, extracted via a new
+//       'voice_ticket.extract' prompt template through the same
+//       resolveModelConfig -> resolvePromptTemplate -> enforcePolicy ->
+//       callLLMJson chain generateMeetingIntelligence() uses.
+// audioStoragePath is a private Supabase Storage object path (never a
+// public URL), matching documents.fileUrl's own precedent
+// (src/app/api/documents/route.ts) -- resolved to a signed URL only when
+// actually read.
+export const voiceMemos = complianceSchemaDB.table('voice_memos', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // who recorded/uploaded it
+  meetingId: text('meeting_id'), // nullable -- set only when captured against a veri_meetings row
+  audioStoragePath: text('audio_storage_path').notNull(), // path in the 'voice-memos' private bucket
+  audioMimeType: text('audio_mime_type'),
+  durationSeconds: integer('duration_seconds'),
+  status: text('status').notNull().default('uploaded'), // 'uploaded' | 'transcribing' | 'transcribed' | 'extracting' | 'completed' | 'failed'
+  errorMessage: text('error_message'), // set when status = 'failed' -- e.g. "OPENAI_API_KEY is not configured"
+  transcript: text('transcript'),
+  // Only populated for the standalone (meetingId = null) path -- see header
+  // comment. When meetingId is set, the AI output lives on veri_meetings
+  // (aiSummary/aiSuggestedActionItems there) instead, via the reused
+  // generateMeetingIntelligence() pipeline.
+  aiSummary: text('ai_summary'),
+  aiSuggestedActionItems: jsonb('ai_suggested_action_items').notNull().default([]), // { title, assignee: string | null, dueDateHint: string | null }[] -- suggestions only, never auto-created as real tasks
+  aiGeneratedAt: timestamp('ai_generated_at'),
+  transcribedAt: timestamp('transcribed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Pure join -- mirrors veriMeetingActionItems exactly. Only used for the
+// standalone (meetingId = null) voice-memo path; a meeting-attached memo's
+// action items are added via addMeetingActionItem() -> veriMeetingActionItems
+// as usual, since the transcript became that meeting's own minutes.
+export const voiceMemoActionItems = complianceSchemaDB.table('voice_memo_action_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  voiceMemoId: text('voice_memo_id').notNull(),
+  taskId: text('task_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const voiceMemosRelations = relations(voiceMemos, ({ one, many }) => ({
+  meeting: one(veriMeetings, { fields: [voiceMemos.meetingId], references: [veriMeetings.id] }),
+  actionItems: many(voiceMemoActionItems),
+}))
+
+export const voiceMemoActionItemsRelations = relations(voiceMemoActionItems, ({ one }) => ({
+  voiceMemo: one(voiceMemos, { fields: [voiceMemoActionItems.voiceMemoId], references: [voiceMemos.id] }),
+  task: one(tasks, { fields: [voiceMemoActionItems.taskId], references: [tasks.id] }),
+}))
+
 // ─── VERI ERP (Wave 49) ────────────────────────────────────────────────────
 // New 'erp' product branch (see product_branches seed row) -- VERIDIAN's
 // third opt-in branch after 'grc' and 'pms', reusing the existing

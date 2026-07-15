@@ -77,8 +77,8 @@ type VeriChatState = {
   // "approvals" added alongside the original 4 -- both are read-mostly
   // attention feeds like Tasks/Chats/To Do, not a new composerMode axis, so
   // they slot into this same union rather than needing their own state.
-  rightPanelView: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals";
-  setRightPanelView: (v: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals") => void;
+  rightPanelView: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice";
+  setRightPanelView: (v: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice") => void;
   aiThreadId: string | null;
   refreshCounter: number;
   bumpRefresh: () => void;
@@ -125,7 +125,7 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
   const [composerMode, setComposerModeState] = useState("tasks");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [rightPanelView, setRightPanelView] = useState<"overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals">("overview");
+  const [rightPanelView, setRightPanelView] = useState<"overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice">("overview");
   const [aiThreadId, setAiThreadId] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);

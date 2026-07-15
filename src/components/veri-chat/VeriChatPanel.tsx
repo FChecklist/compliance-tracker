@@ -43,6 +43,7 @@ type ApprovalItem = {
 };
 
 type SuggestedWorkItem = { title: string; category: string; assignee: string | null; dueDateHint: string | null };
+type VoiceMemoSummary = { id: string; status: string; transcript: string | null; createdAt: string };
 type EmailItem = { id: string; subject: string; senderEmail: string | null; status: string; aiSummary: string | null; aiSuggestedWorkItems: SuggestedWorkItem[]; createdAt: string };
 
 const STATUS_LABEL: Record<string, string> = { pending: "Pending", in_progress: "In progress", completed: "Done", failed: "Failed", cancelled: "Cancelled" };
@@ -70,6 +71,7 @@ export default function VeriChatPanel() {
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [meetingActionItems, setMeetingActionItems] = useState<MeetingActionItemSummary[]>([]);
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+  const [voiceMemos, setVoiceMemos] = useState<VoiceMemoSummary[]>([]);
   const [emails, setEmails] = useState<EmailItem[]>([]);
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
   const [convoMessages, setConvoMessages] = useState<{ id: string; senderId: string | null; content: string; createdAt: string }[]>([]);
@@ -92,6 +94,7 @@ export default function VeriChatPanel() {
       fetch("/api/veri-meetings").then((r) => r.json()).then((d) => setMeetings(d.meetings ?? [])).catch(() => {}),
       fetch("/api/veri-chat/meetings/action-items").then((r) => r.json()).then((d) => setMeetingActionItems(d.items ?? [])).catch(() => {}),
       fetch("/api/veri-chat/approvals").then((r) => r.json()).then((d) => setApprovals(d.items ?? [])).catch(() => {}),
+      fetch("/api/veri-chat/voice-tickets").then((r) => r.json()).then((d) => setVoiceMemos(d.voiceMemos ?? [])).catch(() => {}),
       fetch("/api/email-intelligence").then((r) => r.json()).then((d) => setEmails((d.items ?? []).filter((e: EmailItem) => e.status === "proposed"))).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [refreshCounter]);
@@ -205,6 +208,7 @@ export default function VeriChatPanel() {
             { key: "chats", label: "Chats", count: unreadChatCount },
             { key: "meetings", label: "Meetings", count: meetingsAttentionCount },
             { key: "approvals", label: "Approvals", count: approvals.length },
+            { key: "voice", label: "Voice", count: 0 },
             { key: "todo", label: "To Do", count: todoCount },
           ] as const).map((v) => (
             <button
@@ -241,6 +245,8 @@ export default function VeriChatPanel() {
           <MeetingsList meetings={meetings} actionItems={meetingActionItems} onOpen={openMeetingHere} />
         ) : rightPanelView === "approvals" ? (
           <ApprovalsList approvals={approvals} onDecide={decideApproval} />
+        ) : rightPanelView === "voice" ? (
+          <VoiceList voiceMemos={voiceMemos} />
         ) : rightPanelView === "todo" ? (
           <TodoList todos={todos} />
         ) : (
@@ -314,6 +320,39 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
           <p className="text-[11px] text-ct-muted mt-0.5">{d.source === "task" ? "Task" : d.source === "instruction" ? "Assigned to you" : "Project issue"}{d.dueDate ? ` · due ${new Date(d.dueDate).toLocaleDateString()}` : ""}</p>
         </a>
       ))}
+    </div>
+  );
+}
+
+function VoiceList({ voiceMemos }: { voiceMemos: VoiceMemoSummary[] }) {
+  if (voiceMemos.length === 0) {
+    return (
+      <div className="p-4 space-y-3">
+        <EmptyState text="No voice memos yet." />
+        <a href="/voice-tickets" className="block text-center text-xs font-medium text-ct-saffron hover:underline">
+          Record or upload a voice memo &rarr;
+        </a>
+      </div>
+    );
+  }
+  return (
+    <div className="p-2 space-y-1">
+      {voiceMemos.slice(0, 8).map((m) => (
+        <a
+          key={m.id}
+          href="/voice-tickets"
+          className="block px-3 py-2.5 rounded-lg hover:bg-ct-cloud transition-colors"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-ct-navy truncate">{m.transcript ? m.transcript.slice(0, 60) : "Voice memo"}</span>
+            <span className="text-[10px] text-ct-muted shrink-0">{m.status}</span>
+          </div>
+          <span className="text-xs text-ct-muted">{new Date(m.createdAt).toLocaleString()}</span>
+        </a>
+      ))}
+      <a href="/voice-tickets" className="block text-center text-xs font-medium text-ct-saffron hover:underline py-2">
+        Open Voice Tickets &rarr;
+      </a>
     </div>
   );
 }
