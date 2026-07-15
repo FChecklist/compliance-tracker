@@ -169,6 +169,68 @@ active:
       priority17-pms-adjacent (compliance-tracker) /
       priority17-pms-adjacent-projexa (projexa).
 
+  - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed Priority 17 Wave 1: 2 real, confirmed PROJEXA module
+      gaps benchmarked against Odoo/ERPNext. (1) Inventory/Stock: erp-
+      inventory-service.ts/erp-stock-service.ts/erp-inventory-planning-
+      service.ts/erp-uom-batch-service.ts all had real functionality
+      (warehouses, FIFO stock ledger, batch/serial, reorder planning) but
+      ZERO PROJEXA exposure -- confirmed via grep, no /api/v1/projexa/
+      {inventory,stock} alias existed. Built new
+      src/app/api/v1/projexa/inventory/{warehouses,items,stock-balance,
+      stock-entries}/ routes + a new listStockBalances() read-time
+      aggregation in erp-inventory-service.ts (never a duplicated balance
+      table) + PROJEXA InventoryClient.tsx page (warehouse/item pickers,
+      stock-balance table, receipt/issue movement dialog). (2) Procurement
+      workflow depth: erp-procurement-workflow-service.ts/erp-goods-
+      receipt-service.ts have a real requisition -> RFQ -> quotation ->
+      negotiation -> PO -> goods-receipt workflow, but PROJEXA's existing
+      "Vendors" page only ever exposed erp-buying-service.ts's supplier
+      master data. Built new src/app/api/v1/projexa/procurement/
+      {requisitions,rfqs,quotations,purchase-orders,goods-receipts}/
+      routes (list/create + stage-transition actions: requisition submit,
+      RFQ send, RFQ->quotation comparison, PO submit, goods-receipt
+      submit) + PROJEXA ProcurementClient.tsx page (5-tab staged workflow
+      view, not a flat form). Both gaps built and considered complete for
+      this wave's bounded scope (e.g. cycle-count/ABC/reorder-suggestions
+      and landed-cost/three-way-match/putaway read from existing services
+      but were NOT separately routed this wave, out of the "see stock,
+      where, record a movement" bound the brief set -- see this session's
+      own final report for the full scope boundary).
+      Touches (all 5 files widened to the same dbUser-or-apiKey actor
+      union already precedented by erp-invoicing-service.ts's
+      createSalesInvoice / erp-accounting-service.ts's createJournalEntry
+      -- PROJEXA's callVeridian() proxy never carries a session cookie):
+      erp-inventory-service.ts (recordStockReceipt/recordStockIssue),
+      erp-stock-service.ts (createItem/createWarehouse), erp-
+      procurement-workflow-service.ts (createPurchaseRequisition/
+      createRfq/sendRfq/createSupplierQuotation --
+      submitPurchaseRequisition deliberately kept dbUser-only, it drives
+      startApprovalWorkflow's WorkflowContext), erp-buying-service.ts
+      (createPurchaseOrder/submitPurchaseOrder), erp-goods-receipt-
+      service.ts (createPurchaseReceipt/submitPurchaseReceipt). No schema
+      changes, no new tables -- every table this wave reads/writes
+      already existed. Did NOT touch src/lib/supabase/auth-guard.ts or
+      any auth/membership table shape (PLATFORM-01's claim, PR #339,
+      merged) -- read auth-guard.ts only, for the existing
+      CombinedAuthContext shape; rebased cleanly onto PR #339 with zero
+      conflicts. No requirePmsEnabled()/requireErpEnabled() gate added at
+      the route level -- every touched service function already calls
+      requireErpEnabled() internally (confirmed by reading all 7 files
+      before writing any route), matching the existing vendors/route.ts
+      precedent of zero route-level gating. Branch:
+      priority17-inventory-procurement (both repos, worktree-isolated).
+      No overlap found with any other active claim below (none touch
+      erp-inventory-service.ts, erp-stock-service.ts, erp-inventory-
+      planning-service.ts, erp-uom-batch-service.ts, erp-procurement-
+      workflow-service.ts, erp-goods-receipt-service.ts, or erp-buying-
+      service.ts) -- only incidental-merge-conflict risk is PROJEXA's
+      AppSidebar.tsx (added "Inventory"/"Procurement" nav items to the
+      existing RESOURCES section), resolved by keeping all sections per
+      this file's own documented precedent.
+
   - session_label: "claude-code (sub-agent) -- Priority 16 Part 2, Schedule create-task + Work Progress activity picker"
     claimed_at: "2026-07-14T (this session)"
     claim: |

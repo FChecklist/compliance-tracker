@@ -11,6 +11,16 @@ import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
+// Priority 17 Wave 1 (PROJEXA Procurement workflow exposure): widened to the
+// same dbUser-or-apiKey actor union already precedented by erp-invoicing-
+// service.ts's createSalesInvoice -- PROJEXA's callVeridian() proxy always
+// calls server-to-server with a shared Bearer API key, never a session
+// cookie.
+export type ActorCtx = { orgId: string; userId: string } & (
+  | { dbUser: typeof users.$inferSelect; apiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string } }
+)
+
 export async function listSuppliers(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -92,7 +102,7 @@ export async function getPurchaseOrder(ctx: { orgId: string }, purchaseOrderId: 
 }
 
 export async function createPurchaseOrder(
-  ctx: ErpContext,
+  ctx: ActorCtx,
   input: { supplierId: string; orderDate: string; expectedDeliveryDate?: string; items: PurchaseOrderItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -121,19 +131,19 @@ export async function createPurchaseOrder(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id })
     return po
   })
 }
 
-export async function submitPurchaseOrder(ctx: ErpContext, purchaseOrderId: string) {
+export async function submitPurchaseOrder(ctx: ActorCtx, purchaseOrderId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const po = await db.query.erpPurchaseOrders.findFirst({ where: and(eq(erpPurchaseOrders.id, purchaseOrderId), eq(erpPurchaseOrders.orgId, ctx.orgId)) })
     if (!po) throw new ServiceError("Purchase order not found", 404)
     if (po.status !== "draft") throw new ServiceError("Only draft purchase orders can be submitted", 409)
     const [updated] = await db.update(erpPurchaseOrders).set({ status: "submitted", updatedAt: new Date() }).where(eq(erpPurchaseOrders.id, purchaseOrderId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_order.submitted", entityType: "erp_purchase_order", entityId: purchaseOrderId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_order.submitted", entityType: "erp_purchase_order", entityId: purchaseOrderId })
     return updated
   })
 }

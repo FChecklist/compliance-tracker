@@ -23,6 +23,22 @@ import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
+// Priority 17 Wave 1 (PROJEXA Procurement workflow exposure): widened to the
+// same dbUser-or-apiKey actor union already precedented by erp-invoicing-
+// service.ts's createSalesInvoice / erp-accounting-service.ts's
+// createJournalEntry -- PROJEXA's callVeridian() proxy always calls
+// server-to-server with a shared Bearer API key, never a session cookie.
+// submitPurchaseRequisition deliberately keeps requiring a real dbUser
+// (unchanged, not exported here) since it drives startApprovalWorkflow's
+// WorkflowContext, which itself requires a real user -- same "requires a
+// real session, not an API key" precedent already used for quotation
+// approval elsewhere in this codebase; the route layer surfaces that as an
+// honest 400 rather than silently working around it.
+export type ActorCtx = { orgId: string; userId: string } & (
+  | { dbUser: typeof users.$inferSelect; apiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string } }
+)
+
 type RequisitionItemInput = { itemId?: string; description: string; quantity?: number; estimatedRate?: number }
 
 // ============================================================
@@ -53,7 +69,7 @@ export async function getPurchaseRequisition(ctx: { orgId: string }, requisition
 }
 
 export async function createPurchaseRequisition(
-  ctx: ErpContext,
+  ctx: ActorCtx,
   input: { departmentId?: string; purpose?: string; postingDate: string; items: RequisitionItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -75,7 +91,7 @@ export async function createPurchaseRequisition(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_requisition.created", entityType: "erp_purchase_requisition", entityId: req.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_requisition.created", entityType: "erp_purchase_requisition", entityId: req.id })
     return req
   })
 }
@@ -140,7 +156,7 @@ export async function listRfqs(ctx: { orgId: string }) {
 }
 
 export async function createRfq(
-  ctx: ErpContext,
+  ctx: ActorCtx,
   input: { requisitionId?: string; postingDate: string; items: { itemId?: string; description: string; quantity?: number }[]; supplierIds: string[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -166,19 +182,19 @@ export async function createRfq(
     )
     await db.insert(erpRfqSuppliers).values(input.supplierIds.map((supplierId) => ({ rfqId: rfq.id, supplierId })))
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_rfq.created", entityType: "erp_rfq", entityId: rfq.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_rfq.created", entityType: "erp_rfq", entityId: rfq.id })
     return rfq
   })
 }
 
-export async function sendRfq(ctx: ErpContext, rfqId: string) {
+export async function sendRfq(ctx: ActorCtx, rfqId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const rfq = await db.query.erpRfqs.findFirst({ where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)) })
     if (!rfq) throw new ServiceError("RFQ not found", 404)
     if (rfq.status !== "draft") throw new ServiceError("Only draft RFQs can be sent", 409)
     const [updated] = await db.update(erpRfqs).set({ status: "sent" }).where(eq(erpRfqs.id, rfqId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_rfq.sent", entityType: "erp_rfq", entityId: rfqId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_rfq.sent", entityType: "erp_rfq", entityId: rfqId })
     return updated
   })
 }
@@ -201,7 +217,7 @@ export async function listSupplierQuotations(ctx: { orgId: string }, rfqId?: str
 }
 
 export async function createSupplierQuotation(
-  ctx: ErpContext,
+  ctx: ActorCtx,
   input: { rfqId?: string; supplierId: string; postingDate: string; validTill?: string; items: { itemId?: string; description: string; quantity?: number; rate?: number }[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -225,7 +241,7 @@ export async function createSupplierQuotation(
       input.items.map((i) => ({ quotationId: quotation.id, itemId: i.itemId, description: i.description, quantity: (i.quantity ?? 1).toString(), rate: (i.rate ?? 0).toString() }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_supplier_quotation.created", entityType: "erp_supplier_quotation", entityId: quotation.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_supplier_quotation.created", entityType: "erp_supplier_quotation", entityId: quotation.id })
     return quotation
   })
 }
