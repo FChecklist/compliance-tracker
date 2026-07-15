@@ -31,3 +31,4 @@ ALTER TABLE compliance.erp_sales_orders
 ALTER TABLE compliance.erp_purchase_orders
   ADD COLUMN IF NOT EXISTS currency_id text,
   ADD COLUMN IF NOT EXISTS exchange_rate numeric NOT NULL DEFAULT '1';
+
