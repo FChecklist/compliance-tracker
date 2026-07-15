@@ -42,6 +42,38 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream B (ERP foundational setup) + Workstream C (UAE tax-field leak)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed implementation of 2 of the 3 Part 2 workstreams from
+      control/priority19_dubai_e2e_testing_plan.md's "Part 2 implementation
+      plan" section (Workstream A -- the FK-drop fixes for
+      erp_sales_invoices.created_by_id / crm_leads.owner_id/created_by_id --
+      is a SEPARATE, already-active claim above, branch
+      priority19-workstream-a-fk-fix, worktree compliance-tracker-wt-p19-a;
+      NOT this claim's scope, no file overlap expected).
+      Workstream B: root-cause + fix "every real PROJEXA org has zero
+      fiscal-year/cost-center/chart-of-accounts rows," blocking Budgets and
+      Accounting journal-entry creation. Likely touches
+      erp-accounting-service.ts / erp-financial-report-service.ts (or
+      wherever fiscal years/COA/cost centers are actually defined -- not yet
+      confirmed at claim time) plus whatever branch-enablement path exists
+      for the `erp` product branch, and possibly a minimal projexa-side
+      settings view if none exists.
+      Workstream C: gate Customers' GSTIN field, Vendors' GST field, and
+      Payroll's "India Income Tax Slabs" tab on `organizations.country ===
+      'IN'` (hide for non-IN orgs), using the `organizations.country` column
+      + `getComplianceEngine(country)` registry PLATFORM-01 Wave 2 already
+      shipped (compliance-tracker PR #347 / projexa PR #20, merged
+      2026-07-15). Likely touches PROJEXA's CustomersClient.tsx,
+      VendorsClient.tsx, PayrollClient.tsx and whatever API response carries
+      org/company data to those pages (adding `country` to the response
+      shape if not already present).
+      Scope boundary: does NOT touch src/lib/supabase/auth-guard.ts or any
+      auth/membership shape in schema.ts. Branch:
+      priority19-workstream-bc (both repos), worktrees
+      compliance-tracker-wt-p19-bc / projexa-wt-p19-bc.
+
   - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
