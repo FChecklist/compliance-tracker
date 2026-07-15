@@ -1170,15 +1170,15 @@ Boss proposed a governance framework across 6 registries (Agent Capability, Agen
 | Agent Performance (APR) | Real but narrow. `model-scorecard-service.ts` genuinely aggregates real dispatch data into per-(model,tier) success rates, but by its own documented admission cannot compute iteration count and has no hallucination-score or cost field yet (cost lives separately in `token-usage-service.ts`). |
 | Continuous Learning (CLR) | Real but scoped narrowly. `loop-improvement-proposer.ts` is real and wired, but fires only on guardrail *rule* violations, not "every completed task/failure/correction" -- always human-gated (`isDeployed: false`) before anything is applied, a discipline worth keeping, not loosening. |
 | Knowledge Registry (KR) | **Already real.** `embeddings.ts` has genuine pgvector semantic search (see §27.3), org-scoped and global, with a caching layer -- essentially done. |
-| Agent Review (ARR) | **Does not exist.** `workerAgents.lifecycleStatus` (draft->published->retired) is a real but manually-triggered publish workflow -- no periodic, performance-driven promote/retrain/deprecate/retire cycle exists anywhere. Genuinely new territory. |
+| Agent Review (ARR) | **Built 2026-07-15** (Priority 14 Wave 2, MASTER-TRACKER.yaml closed_priorities #25): `agent_review_records` (drizzle/0211) + `agent-review-service.ts`'s `computeReviewVerdict()` -- a real, deterministic, periodic promote/maintain/retrain/deprecate cycle per roster.ts role, sourced from `activity_log` (performance) and `audit_logs`'s `audit_trigger.ai_escalation` rows (escalation), plus an AGENTS.md Rule 10 trust-tier reconsideration flag. `workerAgents.lifecycleStatus` itself (draft->published->retired) remains a separate, still-manually-triggered publish workflow, not reviewed by ARR -- see GAP-AGENT-CAPABILITY-BRIDGE in MASTER-TRACKER.yaml for the still-open workerAgents/roster.ts bridge. |
 
 ### 30.3 This is the parent framework, not a fifth separate initiative
 
 §28 (LiteRT.js edge models), §29 (Narrow Monitor Agents + escalation), and the three-tier model routing are specific instances of this framework's ACR/AER/APR, not parallel systems. Designing them independently would fragment exactly the precise, non-duplicated architecture this document exists to prevent.
 
-### 30.4 Explicitly not started
+### 30.4 Status (updated 2026-07-15)
 
-No registry code written yet. Recommended sequencing once resumed: extend §29's Phase 0 escalation work to cover ACR/AER generally (not just monitor agents) before building ARR (the one registry with zero existing precedent), since a periodic review cycle is meaningless without the performance data (APR) and escalation state (AER) it needs to act on.
+Agent Hierarchy (AHR) closed 2026-07-13 (WAVE-171/PR #252, `worker_agent_domain_groups`). Agent Review (ARR) closed 2026-07-15 (MASTER-TRACKER.yaml closed_priorities #25, `agent_review_records` + `agent-review-service.ts`) -- both of the 2 registries this section's own 30.2 table named as "genuinely new" are now built, sequenced exactly as originally recommended (ARR built last, on top of the already-real APR/AER data). Agent Capability Registry's own smaller "bridge roster.ts and workerAgents" sub-item (30.2's ACR row) is honestly NOT part of either closure -- tracked separately as GAP-AGENT-CAPABILITY-BRIDGE in MASTER-TRACKER.yaml, not silently swept in.
 
 ## 31. Unified source of truth for drift/duplication/hallucination + GPT-OSS-120B as cross-agent monitor -- evaluated against the 8 named pain points, phased plan
 
