@@ -82,6 +82,19 @@ active:
       Branch: priority21-workspace-memory, worktree
       .claude/worktrees/agent-aafc45119fe789609. Does not self-merge the
       implementation PR (Rule 10) -- a different session audits + merges.
+      UPDATE (same session): feasibility check done for real (bun add +
+      bun run build) -- GO for v1's narrow kind:"basic" scope, with 2
+      required mitigations (serverExternalPackages, MEMVID_TELEMETRY=0),
+      both applied. Design doc written + self-corrected once (3 real
+      changes: reused the existing compliance-documents bucket instead of a
+      new one, added the telemetry finding, made conversation import
+      read-only/non-reinjected). PR #367 opened -- npx tsc --noEmit and
+      eslint both clean; asset-registry-coverage/metadata-index-coverage/
+      doc-cross-references/doc-quarantine-banner/guardrail-presence checks
+      all pass locally. Migration drizzle/0211 written but NOT applied
+      live -- left for the supervising session, same convention as every
+      other schema-touching claim in this file. This session has no
+      further active claims on this priority.
   - session_label: "claude-code -- Priority 21, MCP DEBT-02 doc-drift fix"
     claimed_at: "2026-07-15T (this session)"
     claim: |
