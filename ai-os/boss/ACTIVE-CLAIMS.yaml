@@ -389,6 +389,29 @@ active:
       territory, confirmed via this file's own active entries before
       starting.
 
+      UPDATE (same session): PR #350's stuck check-suite was a real,
+      branch-specific delivery problem, not a repo-wide outage or a code
+      issue -- confirmed by opening this very claim-registration PR (#355)
+      moments earlier and watching its own CI trigger immediately. Recreated
+      the diff on a genuinely fresh branch off current origin/main
+      (priority17-multicurrency-selling-buying-v4, PR #356) rather than
+      reusing #350/#348/#344's branch history. One real semantic conflict
+      surfaced during rebase (not just textual): the already-merged
+      Inventory/Procurement PR #346 had added its own ActorCtx dbUser-or-
+      apiKey union type to erp-buying-service.ts; the stale branch
+      duplicated this as a second type (BuyingActorCtx) instead of reusing
+      it -- resolved by reusing main's ActorCtx and dropping the duplicate.
+      Migration renumbered drizzle/0204 -> 0208 (main gained 4 migrations,
+      0204-0207, from other merged work since this branch was first cut).
+      PR #356 result: all 4 required branch-protection checks green (Lint/
+      Type Check/Build/Unit Tests), plus CodeQL/Sentinel/Guardrail-Presence/
+      Doc-checks all green -- only the Mandatory Audit Check is red, which
+      is the expected/correct state (this session is the implementer, not
+      the auditor -- AGENTS.md Rule 7c requires the non-implementing agent
+      to post the AUDIT: PASS/FAIL verdict, not self-certification). PR #350
+      closed as superseded (comment posted pointing to #356). Left #356
+      open, unmerged, for the supervising session's audit + merge.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
