@@ -42,6 +42,38 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-MOM-VOICE-TICKETS"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed Priority 14 Wave 2 item (CONTROLLER.yaml PRIORITY-14
+      wave_2_dispatch_2026_07_15): voice-memo -> Whisper transcription ->
+      real ticket/task extraction, reusing veri-meeting-service.ts's
+      existing generateMeetingIntelligence()/addMeetingActionItem() pattern
+      rather than a parallel pipeline. Owner already decided the vendor
+      2026-07-14 (OpenAI Whisper API) -- this is a build task, not a vendor
+      decision. New src/lib/whisper-client.ts (OpenAI Whisper HTTP client,
+      fail-loud OPENAI_API_KEY check), new voiceMemos/voiceMemoActionItems
+      tables (mirrors veriMeetings/veriMeetingActionItems schema shape) in
+      src/lib/db/schema.ts, new src/lib/services/voice-ticket-service.ts
+      (transcribe + extract -- meeting-attached path reuses
+      generateMeetingIntelligence() directly by appending the transcript
+      into that meeting's minutes; standalone-memo path mirrors the same
+      LLM-extraction shape against a new voice_ticket.extract prompt
+      template since there's no parent meeting row to reuse), new
+      src/app/api/voice-tickets/** routes + src/app/(app)/voice-tickets/
+      page (record/upload UI) + a small VeriChatPanel.tsx Voice tab.
+      Known real external dependency, cannot be closed by this session:
+      OPENAI_API_KEY is not set anywhere in this codebase's secrets (GROQ/
+      OpenRouter-based today) -- building the full pipeline with tests
+      against a mocked Whisper response, but the live end-to-end call
+      cannot be verified without the Owner provisioning the real key.
+      Scope: does NOT touch src/lib/supabase/auth-guard.ts or any
+      auth/membership shape in schema.ts. Branch: priority14-voice-tickets,
+      worktree .claude/worktrees/agent-priority14-voice-tickets. No overlap
+      found with any other active claim below (none touch veri-meeting-
+      service.ts, schema.ts's meeting-related tables, or VeriChatPanel.tsx's
+      tab array -- Priority 18a's Meetings/Approvals tab work is already
+      merged/recently_completed, not active).
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
