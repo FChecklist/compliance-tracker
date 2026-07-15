@@ -5139,6 +5139,15 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   orderDate: date('order_date', { mode: 'string' }).notNull(),
   expectedDeliveryDate: date('expected_delivery_date', { mode: 'string' }),
   status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_received'|'completed'|'cancelled'
+  // Priority 17 Wave 1: same nullable/optional-pair shape as
+  // erp_purchase_invoices.currencyId/exchangeRate (Wave 66) -- lets a PO
+  // be raised in a foreign supplier's own currency. A purchase order never
+  // posts to the GL itself (only the purchase invoice it eventually
+  // becomes does, via createPurchaseInvoice's existing
+  // resolveInvoiceCurrency() -- unaffected by this change), so this is
+  // capture + validation only here.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -5289,6 +5298,20 @@ export const erpQuotations = complianceSchemaDB.table('erp_quotations', {
   // approved first. Table is brand new this wave (zero live rows before
   // this PR), so widening the value set needs no data migration.
   status: text('status').notNull().default('draft'),
+  // Priority 17 Wave 1 (multi-currency selling & buying): same nullable/
+  // optional-pair shape as erp_sales_invoices.currencyId/exchangeRate
+  // (Wave 66) -- currencyId null means "org base currency" (unchanged
+  // meaning for every quotation created before this wave, exchangeRate
+  // stored as the default '1'). See erp-selling-service.ts's
+  // resolveDocumentCurrency() for the same "require explicit input, never
+  // guess an FX rate" validation erp-invoicing-service.ts's
+  // resolveInvoiceCurrency() already established. No GL posting happens
+  // off a quotation (see this table's own service-layer header comment),
+  // so there is no base-currency conversion to do here -- this is capture
+  // + validation only, carried forward onto the sales order this
+  // quotation converts to.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
   // Priority 15: revision/versioning -- createQuotationRevision() clones an
   // existing quotation into a new row rather than mutating it in place, so
@@ -5332,6 +5355,13 @@ export const erpSalesOrders = complianceSchemaDB.table('erp_sales_orders', {
   // erp_quotations.status above), so the wording can match the Owner's own
   // vocabulary directly rather than needing a value-remap migration.
   status: text('status').notNull().default('draft'),
+  // Priority 17 Wave 1: see erp_quotations.currencyId's identical comment
+  // just above -- carried forward from the source quotation by
+  // convertQuotationToSalesOrder(), or set directly on a standalone sales
+  // order. Also no GL posting off a sales order (see this table's own
+  // service-layer header comment), so capture + validation only.
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
   // Nullable link to VERIDIAN's existing `projects` table -- same
   // convention as erp_quotations.projectId above.

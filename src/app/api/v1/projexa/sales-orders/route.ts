@@ -21,6 +21,8 @@ function toSalesOrderShape(so: Awaited<ReturnType<typeof listSalesOrders>>["item
     orderDate: so.orderDate,
     deliveryDate: so.deliveryDate,
     status: so.status,
+    currencyId: so.currencyId,
+    exchangeRate: so.exchangeRate,
     grandTotal: so.grandTotal,
     items: so.items?.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, rate: i.rate, amount: i.amount, deliveredQuantity: i.deliveredQuantity })) ?? [],
   }
@@ -67,7 +69,8 @@ export async function POST(request: NextRequest) {
       : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
     const salesOrder = await createSalesOrder(actorCtx, {
       customerId: body.customerId, opportunityId: body.opportunityId, quotationId: body.quotationId, projectId: body.projectId,
-      orderDate: body.orderDate, deliveryDate: body.deliveryDate, items,
+      orderDate: body.orderDate, deliveryDate: body.deliveryDate,
+      currencyId: body.currencyId, exchangeRate: body.exchangeRate, items,
     })
     return NextResponse.json(salesOrder, { status: 201 })
   } catch (error) {

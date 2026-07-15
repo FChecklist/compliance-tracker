@@ -1,8 +1,8 @@
 // Minimal list-only service backing the Wave 52 Credit Notes UI's supplier
 // picker -- erpSuppliers has existed since Wave 49 but had no service layer
 // consumer until now.
-import { erpSuppliers, erpPurchaseOrders, erpPurchaseOrderItems, erpPurchaseReceipts, erpPurchaseReturns, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { erpSuppliers, erpPurchaseOrders, erpPurchaseOrderItems, erpPurchaseReceipts, erpPurchaseReturns, erpCurrencies, users } from "@/lib/db"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, ne, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -10,6 +10,19 @@ import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+
+// Priority 17 Wave 1 (multi-currency Selling & Buying): identical
+// validation to erp-invoicing-service.ts's resolveInvoiceCurrency() (Wave
+// 66) / erp-selling-service.ts's resolveDocumentCurrency() -- currencyId/
+// exchangeRate optional together, an explicit positive rate required
+// whenever a currency is set, never guessed.
+async function resolvePoCurrency(db: TenantDb, orgId: string, currencyId: string | undefined, exchangeRate: number | undefined): Promise<{ currencyId: string | null; exchangeRate: number }> {
+  if (!currencyId) return { currencyId: null, exchangeRate: 1 }
+  if (!exchangeRate || exchangeRate <= 0) throw new ServiceError("exchangeRate is required (and must be positive) when currencyId is set", 400)
+  const currency = await db.query.erpCurrencies.findFirst({ where: and(eq(erpCurrencies.id, currencyId), eq(erpCurrencies.orgId, orgId)) })
+  if (!currency) throw new ServiceError("Currency not found", 404)
+  return { currencyId, exchangeRate }
+}
 
 export async function listSuppliers(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)
@@ -91,9 +104,22 @@ export async function getPurchaseOrder(ctx: { orgId: string }, purchaseOrderId: 
   })
 }
 
+// Priority 17 Wave 1: same discriminated actor shape as erp-selling-
+// service.ts's SellingActorCtx / erp-invoicing-service.ts's
+// createSalesInvoice -- a Bearer-API-key caller (PROJEXA's callVeridian(),
+// which never carries a session cookie) never has a dbUser, and the new
+// /api/v1/projexa/purchase-orders alias route (this wave) is the first
+// caller of createPurchaseOrder that needs the apiKey branch. Every other
+// ErpContext-typed function in this file keeps requiring a real dbUser
+// unchanged.
+export type BuyingActorCtx = { orgId: string; userId: string } & (
+  | { dbUser: typeof users.$inferSelect; apiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string } }
+)
+
 export async function createPurchaseOrder(
-  ctx: ErpContext,
-  input: { supplierId: string; orderDate: string; expectedDeliveryDate?: string; items: PurchaseOrderItemInput[] }
+  ctx: BuyingActorCtx,
+  input: { supplierId: string; orderDate: string; expectedDeliveryDate?: string; currencyId?: string; exchangeRate?: number; items: PurchaseOrderItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
@@ -102,6 +128,7 @@ export async function createPurchaseOrder(
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, input.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
     if (!supplier) throw new ServiceError("Supplier not found", 404)
+    const { currencyId, exchangeRate } = await resolvePoCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
 
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpPurchaseOrders.poNumber}), 0)` })
       .from(erpPurchaseOrders).where(eq(erpPurchaseOrders.orgId, ctx.orgId))
@@ -110,7 +137,8 @@ export async function createPurchaseOrder(
 
     const [po] = await db.insert(erpPurchaseOrders).values({
       orgId: ctx.orgId, supplierId: input.supplierId, poNumber: Number(maxNumber) + 1,
-      orderDate: input.orderDate, expectedDeliveryDate: input.expectedDeliveryDate, grandTotal: grandTotal.toString(),
+      orderDate: input.orderDate, expectedDeliveryDate: input.expectedDeliveryDate,
+      currencyId, exchangeRate: exchangeRate.toString(), grandTotal: grandTotal.toString(),
       createdById: ctx.userId,
     }).returning()
 
@@ -121,7 +149,11 @@ export async function createPurchaseOrder(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_purchase_order.created", entityType: "erp_purchase_order", entityId: po.id }
+    )
     return po
   })
 }

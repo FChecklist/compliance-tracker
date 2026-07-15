@@ -30,7 +30,7 @@
 // bulk sales-order status updates, and getCustomerOverview() ("customer
 // 360": opportunities + quotations + sales orders + sales invoices +
 // linked projects for one erp_customers row in a single call).
-import { erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices, crmLeads, crmOpportunities, projects, users, organisations } from "@/lib/db"
+import { erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices, erpCurrencies, crmLeads, crmOpportunities, projects, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, ilike, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -38,6 +38,23 @@ export { ServiceError }
 import { requireErpEnabled } from "./erp-enablement-service"
 import { logActivity } from "@/lib/audit"
 import type { PagedResult } from "./crm-service"
+
+// Priority 17 Wave 1 (multi-currency Selling & Buying): identical
+// validation shape to erp-invoicing-service.ts's resolveInvoiceCurrency()
+// (Wave 66) -- currencyId/exchangeRate are optional together (omitting
+// both means "org base currency"), and supplying currencyId without an
+// exchangeRate is refused rather than guessed, since an FX rate can't be
+// safely inferred. Not imported from erp-invoicing-service.ts to avoid a
+// cross-service-file import cycle risk (erp-invoicing-service.ts already
+// imports erpSalesOrders from this file's sibling table); the validation
+// logic itself is intentionally identical, not reinvented.
+export async function resolveDocumentCurrency(db: TenantDb, orgId: string, currencyId: string | undefined, exchangeRate: number | undefined): Promise<{ currencyId: string | null; exchangeRate: number }> {
+  if (!currencyId) return { currencyId: null, exchangeRate: 1 }
+  if (!exchangeRate || exchangeRate <= 0) throw new ServiceError("exchangeRate is required (and must be positive) when currencyId is set", 400)
+  const currency = await db.query.erpCurrencies.findFirst({ where: and(eq(erpCurrencies.id, currencyId), eq(erpCurrencies.orgId, orgId)) })
+  if (!currency) throw new ServiceError("Currency not found", 404)
+  return { currencyId, exchangeRate }
+}
 
 // Same discriminated actor shape as erp-invoicing-service.ts's
 // createSalesInvoice -- a Bearer-API-key caller (PROJEXA's callVeridian(),
@@ -188,7 +205,7 @@ async function fetchQuotationPage(db: TenantDb, orgId: string, opts: ListQuotati
 
 export async function createQuotation(
   ctx: SellingActorCtx,
-  input: { customerId?: string; leadId?: string; projectId?: string; quotationDate: string; validTill?: string; items: QuotationItemInput[] }
+  input: { customerId?: string; leadId?: string; projectId?: string; quotationDate: string; validTill?: string; currencyId?: string; exchangeRate?: number; items: QuotationItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId && !input.leadId) throw new ServiceError("A quotation needs a customerId or a leadId", 400)
@@ -207,10 +224,12 @@ export async function createQuotation(
       const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
       if (!project) throw new ServiceError("Project not found", 404)
     }
+    const { currencyId, exchangeRate } = await resolveDocumentCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
 
     const quotation = await insertQuotationRow(db, ctx, {
       customerId: input.customerId ?? null, leadId: input.leadId ?? null, projectId: input.projectId ?? null,
       quotationDate: input.quotationDate, validTill: input.validTill ?? null, version: 1, revisionOf: null,
+      currencyId, exchangeRate,
     }, input.items)
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...actorLogFields(ctx), action: "erp_quotation.created", entityType: "erp_quotation", entityId: quotation.id })
@@ -245,7 +264,7 @@ export async function getQuotationForPdf(ctx: { orgId: string }, quotationId: st
 async function insertQuotationRow(
   db: TenantDb,
   ctx: { orgId: string; userId: string },
-  header: { customerId: string | null; leadId: string | null; projectId: string | null; quotationDate: string; validTill: string | null; version: number; revisionOf: string | null },
+  header: { customerId: string | null; leadId: string | null; projectId: string | null; quotationDate: string; validTill: string | null; version: number; revisionOf: string | null; currencyId?: string | null; exchangeRate?: number },
   itemsInput: QuotationItemInput[]
 ) {
   const items = itemsInput.map((i) => ({ ...i, quantity: i.quantity ?? 1 }))
@@ -256,6 +275,7 @@ async function insertQuotationRow(
     orgId: ctx.orgId, customerId: header.customerId, leadId: header.leadId, projectId: header.projectId,
     quotationNumber: Number(maxNumber) + 1, quotationDate: header.quotationDate, validTill: header.validTill,
     version: header.version, revisionOf: header.revisionOf,
+    currencyId: header.currencyId ?? null, exchangeRate: (header.exchangeRate ?? 1).toString(),
     grandTotal: grandTotal.toString(), createdById: ctx.userId,
   }).returning()
 
@@ -291,6 +311,10 @@ export async function createQuotationRevision(ctx: SellingActorCtx, quotationId:
     const revision = await insertQuotationRow(db, ctx, {
       customerId: existing.customerId, leadId: existing.leadId, projectId: existing.projectId,
       quotationDate: new Date().toISOString().slice(0, 10), validTill: existing.validTill, version: nextVersion, revisionOf: rootId,
+      // Priority 17 Wave 1: a revision carries forward the same currency/rate
+      // as the quotation it revises -- a customer negotiation doesn't
+      // silently change what currency they're being quoted in.
+      currencyId: existing.currencyId, exchangeRate: Number(existing.exchangeRate),
     }, items)
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...actorLogFields(ctx), action: "erp_quotation.revised", entityType: "erp_quotation", entityId: revision.id, details: `Revision of ${existing.id} (v${existing.version} -> v${nextVersion})` })
@@ -349,6 +373,10 @@ export async function convertQuotationToSalesOrder(ctx: SellingActorCtx, quotati
     const salesOrder = await insertSalesOrderRow(db, ctx, {
       customerId: quotation.customerId, opportunityId: null, quotationId: quotation.id, projectId: quotation.projectId,
       orderDate: input.orderDate, deliveryDate: input.deliveryDate ?? null,
+      // Priority 17 Wave 1: the sales order a customer accepted carries the
+      // exact currency/rate they were quoted at -- never silently
+      // re-denominated at conversion time.
+      currencyId: quotation.currencyId, exchangeRate: Number(quotation.exchangeRate),
     }, items)
 
     await db.update(erpQuotations).set({ status: "ordered" }).where(eq(erpQuotations.id, quotationId))
@@ -389,7 +417,7 @@ async function fetchSalesOrderPage(db: TenantDb, orgId: string, opts: ListSalesO
 async function insertSalesOrderRow(
   db: TenantDb,
   ctx: { orgId: string; userId: string },
-  header: { customerId: string; opportunityId: string | null; quotationId: string | null; projectId: string | null; orderDate: string; deliveryDate: string | null },
+  header: { customerId: string; opportunityId: string | null; quotationId: string | null; projectId: string | null; orderDate: string; deliveryDate: string | null; currencyId?: string | null; exchangeRate?: number },
   itemsInput: SalesOrderItemInput[]
 ) {
   const items = itemsInput.map((i) => ({ ...i, quantity: i.quantity ?? 1 }))
@@ -399,6 +427,7 @@ async function insertSalesOrderRow(
   const [salesOrder] = await db.insert(erpSalesOrders).values({
     orgId: ctx.orgId, customerId: header.customerId, opportunityId: header.opportunityId, quotationId: header.quotationId, projectId: header.projectId,
     soNumber: Number(maxNumber) + 1, orderDate: header.orderDate, deliveryDate: header.deliveryDate,
+    currencyId: header.currencyId ?? null, exchangeRate: (header.exchangeRate ?? 1).toString(),
     grandTotal: grandTotal.toString(), createdById: ctx.userId,
   }).returning()
 
@@ -413,7 +442,7 @@ async function insertSalesOrderRow(
 
 export async function createSalesOrder(
   ctx: SellingActorCtx,
-  input: { customerId: string; opportunityId?: string; quotationId?: string; projectId?: string; orderDate: string; deliveryDate?: string; items: SalesOrderItemInput[] }
+  input: { customerId: string; opportunityId?: string; quotationId?: string; projectId?: string; orderDate: string; deliveryDate?: string; currencyId?: string; exchangeRate?: number; items: SalesOrderItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
@@ -434,10 +463,11 @@ export async function createSalesOrder(
       const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
       if (!project) throw new ServiceError("Project not found", 404)
     }
+    const { currencyId, exchangeRate } = await resolveDocumentCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
 
     const salesOrder = await insertSalesOrderRow(db, ctx, {
       customerId: input.customerId, opportunityId: input.opportunityId ?? null, quotationId: input.quotationId ?? null, projectId: input.projectId ?? null,
-      orderDate: input.orderDate, deliveryDate: input.deliveryDate ?? null,
+      orderDate: input.orderDate, deliveryDate: input.deliveryDate ?? null, currencyId, exchangeRate,
     }, input.items)
 
     await logActivity({ tx: db, orgId: ctx.orgId, ...actorLogFields(ctx), action: "erp_sales_order.created", entityType: "erp_sales_order", entityId: salesOrder.id })
