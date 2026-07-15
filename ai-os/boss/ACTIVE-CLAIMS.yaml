@@ -42,6 +42,33 @@
 # ============================================================================
 
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix pass)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner-directed Priority 19 Part 2, Workstream A only (see
+      control/priority19_dubai_e2e_testing_plan.md's "Part 2 implementation
+      plan" section for full analysis -- not restated here). Fixes the
+      confirmed FK-vs-API-key-actor bug class (PR #349 precedent:
+      pms_issues.created_by_id) on the 2 newly-confirmed-affected columns
+      (erp_sales_invoices.created_by_id; crm_leads.owner_id +
+      crm_leads.created_by_id), then audits the remaining ~47
+      compliance.users-referencing actor columns by tracing every
+      src/app/api/v1/projexa/** route to its service function and checking
+      for the ctx.dbUser?.id ?? ctx.apiKey!.id (or equivalent) pattern --
+      only drops a FK where a real, traceable PROJEXA write path is
+      confirmed, explicitly not a blanket sweep (matches PR #349's own
+      migration-comment discipline). Scope: new drizzle/02XX migration(s)
+      dropping specific FK constraints only, applied live via Supabase MCP
+      (project pcrjmlpuqsbocqfwoxod) with pg_constraint verification before
+      and after. Does NOT touch src/lib/supabase/auth-guard.ts or any
+      auth/membership shape in schema.ts. Does NOT attempt Workstream B (ERP
+      foundational setup / fiscal years) or Workstream C (UAE tax-field
+      leak) -- separate scope, left for other sessions. Branch:
+      priority19-workstream-a-fk-fix, worktree
+      compliance-tracker-wt-p19-a. No overlap found with any other active
+      claim below -- none touch erp_sales_invoices, crm_leads, or the
+      broader actor-column FK list.
+
   - session_label: "claude-code (this session, CLI) -- Priority 19, Dubai 50-user E2E test + fix pass"
     claimed_at: "2026-07-15T (this session)"
     claim: |
