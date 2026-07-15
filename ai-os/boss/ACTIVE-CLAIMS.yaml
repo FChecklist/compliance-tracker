@@ -361,6 +361,34 @@ active:
       via that spike's own header comment -- real blocker, not proceeding
       with it). Branch: worktree-prompt-cache-phase1.
 
+  - session_label: "claude-code (this session, CLI) -- Priority 17 completion (PR #350 unblock + full-scope re-sweep)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15: "complete priority 17." 3 of 4 Wave 1
+      workstreams already merged (multi-office #342/projexa#18, PMS depth
+      #340/projexa#19, Inventory/Procurement #346/projexa#17). This session:
+      (1) investigating why compliance-tracker PR #350 (multi-currency
+      Selling & Buying, branch priority17-multicurrency-selling-buying-v3)
+      cannot get a GitHub Actions check-suite to trigger -- confirmed via
+      `gh api .../actions/runs` that Actions is firing normally on other
+      branches/PRs in the same window (not a repo-wide outage), and zero
+      runs have ever been recorded for that exact branch name; PR #350 is
+      also now `mergeable_state: dirty` against current main. Attempting one
+      genuinely fresh branch off current origin/main carrying the same diff
+      (not reusing #350/#348/#344's branch history) before concluding this
+      needs real time to clear. (2) once landed, re-sweeping the full
+      PRIORITY-17 scope statement (every module, real production depth,
+      multi-tenant/currency/country/office) for anything past the 4 named
+      Wave-1 workstreams still genuinely incomplete -- reporting a punch-list
+      with file:line evidence, not assuming Wave 1 == all of Priority 17.
+      Full detail: CONTROLLER.yaml PRIORITY-17 dispatch_2026_07_15b. Scope:
+      compliance-tracker only (src/lib/db/schema.ts currency-related fields,
+      erp-selling-service.ts, erp-buying-service.ts, and whatever the
+      re-sweep finds). Does NOT touch src/lib/supabase/auth-guard.ts or any
+      auth/membership-shape change in schema.ts -- that's PLATFORM-01's
+      territory, confirmed via this file's own active entries before
+      starting.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
