@@ -194,6 +194,42 @@ active:
       compliance-tracker/.claude/worktrees/agent-review-registry. PR opened,
       NOT merged by this session per standing dispatch instructions --
       left for the supervising session's audit.
+  - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-CONNECTOR-LAYERS (Office Add-in connector build)"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15 ("complete all 100% except priority 19")
+      dispatches Priority 14 Wave 2's GAP-CONNECTOR-LAYERS item. Owner
+      already decided (2026-07-14, AskUserQuestion) to build the Microsoft
+      Office Add-in connector first, ahead of Browser Extension/Desktop
+      Companion (ai-os/MASTER-TRACKER.yaml's GAP-CONNECTOR-LAYERS entry,
+      DEC-09) -- no further scoping decision needed, this is a build task.
+      Investigated existing precedent before designing anything new:
+      platformApplications/apiKeys (schema.ts) + requireAuthOrApiKey()
+      (auth-guard.ts) + validateApiKey() (api-key-auth.ts) already provide
+      a full self-serve Bearer `vk_...` API-key issuance flow (POST
+      /api/settings/api-keys) already powering /api/v1/compliance and
+      other v1 routes -- reusing this as-is, zero changes to
+      auth-guard.ts/schema.ts's auth shape. New surface only: a
+      src/app/api/v1/connectors/office-addin/** thin-alias namespace
+      (matching the existing v1/projexa/* aliasing precedent) wrapping
+      compliance-service.ts's listComplianceItems/createComplianceItem
+      plus a whoami/departments lookup for the add-in's own UI, and a
+      static task-pane web app served from public/office-addin/ (same-origin
+      as the API, so no CORS surface needed) plus the add-in's manifest.xml
+      (Word + Excel task pane) for local sideload testing. Explicitly does
+      NOT touch chat-service.ts/conversations (VERI Chat's senderId is a
+      hard FK to a real dbUser, no existing apiKey-actor union like
+      compliance-service has -- adding one would be a second, separate,
+      larger gap, out of scope for this pass). Real external-dependency
+      boundary flagged honestly per the brief: Microsoft AppSource
+      distribution (Partner Center account, signing, submission review)
+      needs the Owner, not buildable by an agent -- everything up to that
+      boundary (manifest, task-pane code, backend routes, local-sideload
+      docs) is being built for real. Branch: feat/office-addin-connector,
+      worktree compliance-tracker-wt-office-addin. No overlap found with
+      any other active claim below -- none touch src/app/api/v1/connectors/**
+      (new directory) or public/office-addin/** (new directory).
+
   - session_label: "claude-code (sub-agent) -- Priority 18b, stage-0 self-serve VERI Chat registration (design pass)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
