@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 # VERIDIAN AI OS -- MASTER TRACKER
 # ============================================================================
 # THE single file for gap analysis, pending work, and work-in-progress across
@@ -570,9 +570,39 @@ open_items:
     - id: GAP-CONNECTOR-LAYERS
       name: "Connector Layers 2-4: Office Add-in, Browser Extension, Desktop Companion"
       old_ids: ["GAP-08 (B1.S2/S3/S4)"]
-      detail: "Only Layer 1 (Cloud API/OAuth) exists. DEC-09 explicitly ratified these as NOT dispatched -- real, hard-to-reverse distribution/signing/packaging decisions needed before scoping, not a routine build call."
+      detail: |
+        PARTIALLY CLOSED 2026-07-15 (Priority 14 Wave 2, Owner directive
+        "complete all 100% except priority 19", Owner decided 2026-07-14 via
+        AskUserQuestion to build Layer 2 -- Office Add-in -- first): a real
+        Word + Excel task-pane Office Add-in was built end to end --
+        office-addin/manifest.xml (XML add-in manifest), a static task-pane
+        app at public/office-addin/{taskpane.html,taskpane.js,taskpane.css}
+        served same-origin by this app (no CORS layer needed), and 2 new
+        backend routes (src/app/api/v1/connectors/office-addin/{whoami,
+        departments}/route.ts) alongside the already-existing GET/POST
+        /api/v1/compliance for the real working feature: browse/search
+        compliance items and insert one into the current Word document or
+        Excel worksheet, or create a new compliance item (optionally seeded
+        from the current document/cell selection). Auth reuses the existing
+        self-serve vk_ API-key mechanism (POST /api/settings/api-keys,
+        requireAuthOrApiKey()/validateApiKey()) as-is -- zero changes to
+        auth-guard.ts/schema.ts's auth shape, per DEC-09's own spirit of not
+        inventing new hard-to-reverse mechanisms without cause. VERI Chat was
+        deliberately left out of this pass (chat-service.ts's senderId is a
+        hard FK to a real dbUser with no existing apiKey-actor union like
+        compliance-service.ts has -- a separate, larger gap). tsc --noEmit
+        clean, eslint clean on the new files, full test suite 1126/1126
+        passing (0 fail). Genuinely NOT done, and cannot be done by an agent:
+        Microsoft AppSource / org-wide "Deploy to Users" distribution needs a
+        Microsoft Partner Center account (Owner-only credential), app
+        signing, and Microsoft's own manual submission review -- see
+        office-addin/README.md for the full honest breakdown and the local
+        sideload testing steps that DO work today without any of that.
+        Layer 3 (Browser Extension) and Layer 4 (Desktop Companion) remain
+        fully unbuilt -- DEC-09's original "not dispatched, needs Owner
+        prioritization" status still applies to those two specifically.
       size: deferred_large
-      recommendation: "Owner should prioritize independently if/when wanted -- Layer 2 (Office Add-ins) likely has the clearest ROI given the existing Excel/Word-using customer base."
+      recommendation: "Layer 2 (Office Add-in) done as of 2026-07-15 (PR pending review -- see ai-os/boss/ACTIVE-CLAIMS.yaml recently_completed once merged). Owner should prioritize Layer 3 (Browser Extension) and Layer 4 (Desktop Companion) independently if/when wanted -- same DEC-09 caveat about real distribution/signing/packaging decisions applies to those two."
 
     - id: GAP-AUTH-REBUILD
       name: "Auth flow rebuild: Google sign-in first, 4-digit email passcode instead of password"
@@ -589,7 +619,7 @@ open_items:
       recommendation: "Owner picks a speech-to-text provider (e.g. Whisper API, Deepgram, AssemblyAI) and provisions credentials before this can be scoped further."
 
     - id: GAP-LITERT-EDGE-INFERENCE
-      name: "LiteRT.js dynamic edge-inference layer (see PLATFORM_STRATEGY.md §28) -- Owner directive 2026-07-14, re-evaluated with current sources"
+      name: "LiteRT.js dynamic edge-inference layer (see PLATFORM_STRATEGY.md Â§28) -- Owner directive 2026-07-14, re-evaluated with current sources"
       old_ids: []
       detail: |
         Originally evaluated 2026-07-13, 4 days after LiteRT.js shipped --
@@ -645,7 +675,7 @@ open_items:
           Do not force LiteRT.js into that ask; it solves a different
           problem (ML MODEL inference, not arbitrary business-logic math).
       size: deferred_large
-      recommendation: "Owner directive received to adopt LiteRT.js (2026-07-14) -- the original Phase 0 single-model-spike plan (PLATFORM_STRATEGY.md §28) is now authorized to proceed. Scope Phase 0 to the embeddings/vector-search use case first (highest-leverage, most novel finding this pass), not image pre-checks (the original, more conservative starting point) -- confirm this sequencing choice with the Owner before starting, since it changes the original plan's own stated first step."
+      recommendation: "Owner directive received to adopt LiteRT.js (2026-07-14) -- the original Phase 0 single-model-spike plan (PLATFORM_STRATEGY.md Â§28) is now authorized to proceed. Scope Phase 0 to the embeddings/vector-search use case first (highest-leverage, most novel finding this pass), not image pre-checks (the original, more conservative starting point) -- confirm this sequencing choice with the Owner before starting, since it changes the original plan's own stated first step."
       status_update: |
         Phase 0b (embeddings/vector-search variant) CLOSED 2026-07-14, same
         day. New isolated route src/app/litert-spike-embeddings/ (page.tsx,
@@ -682,7 +712,7 @@ open_items:
 
         RECOMMENDATION ON PHASE 1: do NOT proceed to the dynamic
         edge_inference_models manifest infrastructure (PLATFORM_STRATEGY.md
-        §28.3) yet. This spike's own honest purpose was to produce real
+        Â§28.3) yet. This spike's own honest purpose was to produce real
         numbers before an architecture commitment, and the real number here
         is that the two most obvious public embeddings-model conversions
         both failed to actually run inference via @litertjs/core v2.5.2's
@@ -698,7 +728,7 @@ open_items:
         code, and real numbers: PR (branch feat/litert-embeddings-spike).
 
     - id: GAP-NARROW-MONITOR-ESCALATION
-      name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md §29) -- Phase 0 CLOSED, Phase 1/2 remain"
+      name: "Narrow Monitor Agents + mandatory escalation hierarchy + three-tier model routing (see PLATFORM_STRATEGY.md Â§29) -- Phase 0 CLOSED, Phase 1/2 remain"
       old_ids: []
       detail: "CORRECTED 2026-07-14 (this entry was stale -- Phase 0 shipped 2026-07-13, the day after the 'evaluated 2026-07-13' text below was written, and this open_items list was never updated to reflect it). Phase 0 is DONE: WAVE-170/PR #251 (merged + audited PASS 2026-07-13, see ai-os/boss/COMPLETED.yaml) built MonitorReportFields/validateMonitorReportFields() (src/lib/monitor-protocol.ts), the monitor_agents/monitor_task_state registry (drizzle/0173, applied live), escalation-ladder.ts's single-owner lock + persisted retry/timeout counter (evaluateEscalationClaim()/claimEscalation()), and the Tier-1 rule-engine monitor wired end-to-end on APPROVAL_GRANTED/APPROVAL_REJECTED (src/lib/monitors/approval-decision-monitor.ts). Independently re-verified 2026-07-14 by a Priority 14 sub-agent assigned this same gap (found already built before writing any code): tsc clean, lint 0 errors, full suite 1113/1113 passing. Original 2026-07-13 evaluation, still accurate for what remains: escalation-ladder.ts's ladder itself is real but (before Phase 0) had no MAX_RETRY/TIMEOUT/ownership fields (now added); audit-event-triggers.ts still covers only 8 narrow audit events, not a general event bus; workerAgents.tier still has no event-subscription mechanism. Of the proposed ~30 monitored event types, only 2 (APPROVAL_GRANTED/REJECTED) are wired today -- the other ~28 pure-DB-state events (TASK_*, TODO_*, MEETING_*, MOM_*, DOCUMENT_*, FILE_*, WORKFLOW_*, etc.) are Phase 1, genuinely still open, each a registry row + one instrumentation call per 29.3's plan, no new architecture needed. Phase 2 (Tier 2/3 executors for the narrow remainder needing real language understanding) is also still open for THIS event list specifically -- note a Tier-3 GPT-OSS-120B executor already exists for a related but different purpose (dispatch-completion monitoring, PR #257/section 31.4, src/lib/monitors/dispatch-completion-monitor.ts) and is a usable pattern/precedent for Phase 2, not a substitute for it."
       size: deferred_medium
@@ -1022,7 +1052,7 @@ closed_priorities:
   - priority: 12
     name: "GAP-UNIFIED-SOURCE-OF-TRUTH: all 3 dispatched sub-agent PRs reviewed and merged"
     summary: |
-      PLATFORM_STRATEGY.md §31's 8-pain-point evaluation dispatched 3
+      PLATFORM_STRATEGY.md Â§31's 8-pain-point evaluation dispatched 3
       parallel worktree-isolated sub-agents 2026-07-13; all 3 audited
       independently (Super Boss/Claude Desktop, per AGENTS.md Rule 7c --
       the dispatching agent did not implement any of the 3) and merged:
@@ -1695,7 +1725,7 @@ closed_priorities:
       description), SENTINEL.md (stack, task-tracking pointer),
       MASTER_AI_OS_ARCHITECTURE.md (page_agent_oa grandfather note),
       docs/master/INDEX.md (4 missing rows added, MCP_PROTOCOL.md downgraded
-      🟢->🟡 with the Groq-orchestrator finding), ai-os/OS.yaml (brain_pointer
+      ðŸŸ¢->ðŸŸ¡ with the Groq-orchestrator finding), ai-os/OS.yaml (brain_pointer
       rewritten, docs/ exemption note corrected).
 
       Explicitly NOT fixed this pass, logged not lost: MCP_PROTOCOL.md's own
@@ -1732,7 +1762,7 @@ closed_priorities:
       (corrected before implementation -- the provider already stores the
       cached content, VERIDIAN's own code only needs metrics, not a second
       store); wiring into any other call site (VERI FDE, AI Dev Team
-      dispatch) -- phased per the requirements artifact's own §3.2, not a
+      dispatch) -- phased per the requirements artifact's own Â§3.2, not a
       one-shot retrofit.
 
 
