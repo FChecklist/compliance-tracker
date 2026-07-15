@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Users2,
   TrendingUp,
+  KeyRound,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
@@ -27,6 +28,7 @@ import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSectio
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import MfaSection from "@/components/MfaSection";
+import PasscodeSection from "@/components/PasscodeSection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
 import SsoSection from "@/components/SsoSection";
@@ -413,17 +415,35 @@ export default function SettingsPage() {
           )}
 
           {activeSection === "security" && (
-            <Card className="rounded-xl shadow-card bg-white">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-                  <ShieldCheck className="size-4" />
-                  Two-Factor Authentication
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MfaSection />
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                    <ShieldCheck className="size-4" />
+                    Two-Factor Authentication
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MfaSection />
+                </CardContent>
+              </Card>
+
+              {/* Priority 14 Wave 2 (GAP-AUTH-REBUILD): additive 4-digit
+                  return-login passcode -- separate card from 2FA above,
+                  since it's the opposite kind of control (a faster
+                  optional login method, not an extra factor). */}
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                    <KeyRound className="size-4" />
+                    Passcode Sign-In
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PasscodeSection />
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === "api-access" && (

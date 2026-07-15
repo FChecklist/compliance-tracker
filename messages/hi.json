@@ -235,7 +235,12 @@
     "noAccount": "खाता नहीं है?",
     "createOne": "एक बनाएं",
     "magicLinkEmailRequired": "कृपया अपना ईमेल पता दर्ज करें",
-    "magicLinkSent": "मैजिक लिंक भेजा गया! अपना ईमेल जांचें।"
+    "magicLinkSent": "मैजिक लिंक भेजा गया! अपना ईमेल जांचें।",
+    "passcodeLabel": "4-अंकीय पासकोड",
+    "passcodePlaceholder": "0000",
+    "signInWithPasscode": "पासकोड से साइन इन करें",
+    "passcodeInvalidFormat": "अपना 4-अंकीय पासकोड दर्ज करें",
+    "passcodeLoginFailed": "पासकोड से साइन इन नहीं हो सका। कृपया पुनः प्रयास करें या मैजिक लिंक का उपयोग करें।"
   },
   "Signup": {
     "checkEmailTitle": "अपना ईमेल जांचें",
