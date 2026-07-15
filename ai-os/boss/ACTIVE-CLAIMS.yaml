@@ -73,6 +73,10 @@ active:
       auth/membership shape in schema.ts. Branch:
       priority19-workstream-bc (both repos), worktrees
       compliance-tracker-wt-p19-bc / projexa-wt-p19-bc.
+      MERGED 2026-07-15 (PR #353 + projexa#23) -- see CONTROLLER.yaml
+      PRIORITY-19 part_2_wave_2bc_close_out. Left here (not moved to
+      recently_completed) by the merging session; noted merged so no other
+      session re-claims it.
 
   - session_label: "claude-code (sub-agent) -- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix pass)"
     claimed_at: "2026-07-15T (this session)"
@@ -100,10 +104,61 @@ active:
       compliance-tracker-wt-p19-a. No overlap found with any other active
       claim below -- none touch erp_sales_invoices, crm_leads, or the
       broader actor-column FK list.
+      MERGED 2026-07-15 (PR #352) -- see CONTROLLER.yaml PRIORITY-19
+      part_2_wave_2a_close_out. Left here (not moved to recently_completed)
+      by the merging session; noted merged so no other session re-claims it.
 
-  - session_label: "claude-code (this session, CLI) -- Priority 19, Dubai 50-user E2E test + fix pass"
+  - session_label: "claude-code (this session, CLI) -- Priority 17 completion (PR #350 unblock + full-scope re-sweep)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
+      Owner directive 2026-07-15: "complete priority 17." 3 of 4 Wave 1
+      workstreams already merged (multi-office #342/projexa#18, PMS depth
+      #340/projexa#19, Inventory/Procurement #346/projexa#17). Dispatching a
+      worktree-isolated background agent to (1) get compliance-tracker
+      PR #350 (multi-currency Selling & Buying) past its stuck-CI-check-suite
+      problem -- confirmed not a code issue, code already CI-verified once
+      on an earlier commit -- via a fresh branch recreation and/or GitHub
+      Actions delivery investigation, not self-merging once green, (2) then
+      re-sweep the full PRIORITY-17 scope (every module, real production
+      depth) for anything past the 4 named workstreams still incomplete.
+      Full detail: CONTROLLER.yaml PRIORITY-17 dispatch_2026_07_15b. Scope:
+      compliance-tracker (PR #350's branch + whatever the re-sweep finds).
+      Does not touch auth-guard.ts/schema.ts auth-shape (PLATFORM-01
+      territory).
+
+  - session_label: "claude-code (this session, CLI) -- Priority 18b, stage-0 self-serve VERI Chat registration"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      Owner directive 2026-07-15 (supersedes the earlier admin-invite-based
+      18b design's provisioning mechanism -- see CONTROLLER.yaml
+      PRIORITY-18 stage0_supersedes_note for the full reconciliation):
+      anyone holding a shared VERI Chat link can self-register as an unpaid
+      "stage 0" user, zero admin approval, identity proven via passwordless
+      email/Gmail magic-link. A stage-0 user's inbox is scoped strictly to
+      items explicitly addressed to them (not general org channels), and
+      every sender-to-stage0-recipient message is tracked. Objective: a
+      viral, self-serve growth loop ("free advertisement" as usage grows).
+      Dispatching a worktree-isolated background agent: design doc first
+      (provisioning flow off the existing guest-link token, scoped-inbox
+      query predicate, sender/recipient tracking schema, and a comparison
+      against the existing Sales Engine referral-link mechanism for the
+      growth-loop framing) -- supervisor sign-off on the design before any
+      migration, since this touches the auth/user model. Full detail:
+      CONTROLLER.yaml PRIORITY-18 stage0_dispatch_2026_07_15. Scope: new
+      signup entry point only -- does not touch PLATFORM-01's own
+      multi-tenant provisioning logic in auth-guard.ts beyond that one new
+      entry point; re-verify PLATFORM-01's real current shape before
+      starting.
+
+  - session_label: "claude-code (this session, CLI) -- Priority 19, Dubai 50-user E2E test + fix pass -- PAUSED 2026-07-15"
+    claimed_at: "2026-07-15T (this session)"
+    claim: |
+      PAUSED 2026-07-15 per Owner directive: "complete Priority 19 after
+      priority 17 and 18 are completed." No further Part 1/Part 2 work on
+      this priority (remaining items: Weekly Project report, full
+      50-persona sweep, company/office-selector re-check, SEC-04 check)
+      until PRIORITY-17 and PRIORITY-18 both reach status: done in
+      CONTROLLER.yaml. Original claim retained below for context.
       Owner-directed: a second, deeper E2E test+fix pass on top of Priority
       16/17, this time a full 50-real-user Dubai/UAE construction+interior-
       design demo company (AED currency), heavy real data entries across
