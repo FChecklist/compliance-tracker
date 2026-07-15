@@ -16,7 +16,7 @@ import VeriComposer from "@/components/veri-chat/VeriComposer";
 import VeriChatPanel from "@/components/veri-chat/VeriChatPanel";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle, ssrSafeLocalStorage } from "@/components/ui/resizable";
 import { useDefaultLayout } from "react-resizable-panels";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useResilientPoll } from "@/lib/use-resilient-poll";
@@ -25,6 +25,7 @@ import { useComplianceStats } from "@/lib/queries/use-compliance-stats";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const dockHidden = isDockHiddenForPath(pathname);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [unreadAiCount, setUnreadAiCount] = useState(0);
@@ -44,6 +45,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // dedupe across every consumer instead.
   const { data: me } = useMe();
   const { data: stats } = useComplianceStats();
+  // Priority 18b (Owner directive 2026-07-15, design doc section 2.2 point
+  // 2): a stage-0 user's ENTIRE authenticated surface is the dedicated,
+  // standalone /stage0-chat page (outside this org-scoped AppShell, same
+  // pattern as /guest-chat and /shared/conversation) -- not a conditional
+  // branch inside AppShell/AppSidebar's existing chrome. AppShell's own
+  // widgets (HealthRibbon, TrialBanner, OnboardingChecklist, GlobalChatDock,
+  // VeriComposer, pmsEnabled/veriChatV2Enabled/firmEnabled, overdue/notice
+  // counts) all assume a real orgId and would break or need extensive
+  // per-component null-org guards for what the design doc frames as a
+  // cosmetic "only show Chat" nav requirement -- this redirect achieves the
+  // same real outcome (a stage-0 user never sees org-wide chrome) more
+  // robustly. Real security is still server-side: role:'stage_0' rank 1
+  // already rejects every requireRole(..., 'member')-or-higher route
+  // regardless of what page renders.
+  useEffect(() => {
+    if (me?.accountStage === "stage_0") router.replace("/stage0-chat");
+  }, [me?.accountStage, router]);
   const overdueCount = stats?.overdue ?? 0;
   const noticeCount = stats?.noticeCount ?? 0;
   const accountType = me?.orgAccountType ?? "company";

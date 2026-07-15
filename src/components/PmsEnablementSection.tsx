@@ -55,6 +55,17 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
       const res = await fetch("/api/pms/enablement", { method: enable ? "POST" : "DELETE" });
       if (!res.ok) throw new Error();
       toast.success(enable ? "VERIDIAN AI PMS enabled" : "VERIDIAN AI PMS disabled");
+      // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+      // Trigger B): enabling a branch may have just auto-upgraded some of
+      // this org's stage-0 users to real membership -- surface both counts
+      // here so an admin isn't left guessing. `blocked` (already belongs to
+      // a different org) is surfaced, not silently dropped.
+      if (enable) {
+        const data: { stage0AutoUpgrade?: { upgraded: number; blocked: number } } = await res.json().catch(() => ({}));
+        const su = data.stage0AutoUpgrade;
+        if (su && su.upgraded > 0) toast.success(`${su.upgraded} stage-0 user${su.upgraded === 1 ? "" : "s"} auto-upgraded to full membership`);
+        if (su && su.blocked > 0) toast.info(`${su.blocked} stage-0 user${su.blocked === 1 ? "" : "s"} could not auto-upgrade -- already belong to another organization`);
+      }
       await load();
     } catch {
       toast.error(`Failed to ${enable ? "enable" : "disable"} VERIDIAN AI PMS`);
