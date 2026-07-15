@@ -834,6 +834,10 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: veri_meeting_action_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: voice_memos
+    reason: "Priority 14/GAP-MOM-VOICE-TICKETS (2026-07-15): no genuine display-name column -- transcript and ai_summary are both nullable content fields populated only after transcription/extraction complete, not a per-row name. Same reasoning as erp_supplier_portal_links/conversation_share_links's no-display-name exclusion, unlike the sibling veri_meetings table which has a real title column and is registered."
+  - table: voice_memo_action_items
+    reason: "Priority 14/GAP-MOM-VOICE-TICKETS (2026-07-15): pure join table (voice_memo_id, task_id) with no org_id column and no display-name column -- same class as conversation_participants/stage0_sources."
   - table: veri_meeting_share_links
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: veri_reward_achievement_unlocks

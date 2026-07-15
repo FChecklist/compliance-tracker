@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import {
   LayoutDashboard,
+  Mic,
   AlertTriangle,
   ClipboardList,
   FileCheck,
@@ -425,6 +426,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           label: t("sections.tools.items.veriMomAi"),
           href: "/veri-meetings",
           icon: ClipboardList,
+        },
+        {
+          label: t("sections.tools.items.voiceTickets"),
+          href: "/voice-tickets",
+          icon: Mic,
         },
         {
           label: t("sections.tools.items.penaltyTracker"),
