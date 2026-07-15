@@ -6,9 +6,7 @@ import { toast } from "sonner";
 import { Plus, Share2, Copy, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -32,7 +30,15 @@ function ChatPageInner() {
   const { data: me } = useMe();
   const currentUserId = me?.id ?? null;
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
-  const [pickerUserId, setPickerUserId] = useState<string>("");
+  // Priority 18a: was a single pickerUserId (one Select, always sent as a
+  // 1-element array) -- chat-service.ts's createConversation() already
+  // accepts participantUserIds: string[] and auto-derives type: 'group' the
+  // instant more than 2 people end up in it (see that function's own
+  // comment), so the only real gap was this picker never offering more than
+  // one person. Now a genuine multi-select; picking exactly one still
+  // behaves exactly as before (direct, no title prompt).
+  const [pickerUserIds, setPickerUserIds] = useState<string[]>([]);
+  const [pickerTitle, setPickerTitle] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -82,25 +88,36 @@ function ChatPageInner() {
   }, []);
 
   async function startConversation() {
-    if (!pickerUserId) return;
+    if (pickerUserIds.length === 0) return;
     const res = await fetch("/api/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ participantUserIds: [pickerUserId] }),
+      body: JSON.stringify({
+        participantUserIds: pickerUserIds,
+        title: pickerUserIds.length > 1 && pickerTitle.trim() ? pickerTitle.trim() : undefined,
+      }),
     });
     if (res.ok) {
       const created = await res.json();
       setShowPicker(false);
-      setPickerUserId("");
+      setPickerUserIds([]);
+      setPickerTitle("");
       loadConversations();
       setSelectedId(created.id);
     }
   }
 
+  function togglePickerUser(userId: string) {
+    setPickerUserIds((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
+  }
+
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
-  const otherOrgUsers = orgUsers.filter(
-    (u) => u.id !== currentUserId && !conversations.some((c) => c.otherParticipants.some((p) => p.id === u.id))
-  );
+  // Every org user other than yourself is a valid group participant, even
+  // one you already have a 1:1 with -- a group is a genuinely different
+  // conversation, so the "don't re-offer an existing direct chat" filter
+  // (still correct for the single-person case below) doesn't apply once
+  // more than one person can be picked.
+  const selectableUsers = orgUsers.filter((u) => u.id !== currentUserId);
 
   async function shareConversation() {
     if (!selectedId) return;
@@ -243,18 +260,25 @@ function ChatPageInner() {
       </Dialog>
 
       {showPicker && (
-        <div className="flex items-center gap-2 mb-3 p-3 rounded-lg border border-ct-border bg-white">
-          <Select value={pickerUserId} onValueChange={setPickerUserId}>
-            <SelectTrigger className="w-[220px] h-9">
-              <SelectValue placeholder="Choose a person" />
-            </SelectTrigger>
-            <SelectContent>
-              {otherOrgUsers.map((u) => (
-                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={startConversation} disabled={!pickerUserId}>Start</Button>
+        <div className="mb-3 p-3 rounded-lg border border-ct-border bg-white space-y-2">
+          <p className="text-xs text-ct-muted">
+            {pickerUserIds.length <= 1 ? "Pick one person for a 1:1, or more for a group discussion." : `${pickerUserIds.length} people selected -- this will be a group.`}
+          </p>
+          <div className="max-h-40 overflow-y-auto rounded-md border border-ct-border divide-y divide-ct-border">
+            {selectableUsers.map((u) => (
+              <label key={u.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-ct-cloud/60">
+                <Checkbox checked={pickerUserIds.includes(u.id)} onCheckedChange={() => togglePickerUser(u.id)} />
+                {u.name}
+              </label>
+            ))}
+          </div>
+          {pickerUserIds.length > 1 && (
+            <Input placeholder="Name this discussion (optional)" value={pickerTitle} onChange={(e) => setPickerTitle(e.target.value)} className="h-9" />
+          )}
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={startConversation} disabled={pickerUserIds.length === 0}>Start</Button>
+            <Button size="sm" variant="outline" onClick={() => { setShowPicker(false); setPickerUserIds([]); setPickerTitle(""); }}>Cancel</Button>
+          </div>
         </div>
       )}
 

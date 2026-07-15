@@ -73,8 +73,12 @@ type VeriChatState = {
   openTask: (id: string) => void;
   openConversation: (id: string) => void;
   closeThread: () => void;
-  rightPanelView: "overview" | "tasks" | "chats" | "todo";
-  setRightPanelView: (v: "overview" | "tasks" | "chats" | "todo") => void;
+  // Priority 18a (VERI Chat second-screen unification): "meetings" and
+  // "approvals" added alongside the original 4 -- both are read-mostly
+  // attention feeds like Tasks/Chats/To Do, not a new composerMode axis, so
+  // they slot into this same union rather than needing their own state.
+  rightPanelView: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals";
+  setRightPanelView: (v: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals") => void;
   aiThreadId: string | null;
   refreshCounter: number;
   bumpRefresh: () => void;
@@ -121,7 +125,7 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
   const [composerMode, setComposerModeState] = useState("tasks");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [rightPanelView, setRightPanelView] = useState<"overview" | "tasks" | "chats" | "todo">("overview");
+  const [rightPanelView, setRightPanelView] = useState<"overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals">("overview");
   const [aiThreadId, setAiThreadId] = useState<string | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
