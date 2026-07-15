@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks } from "lucide-react";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ const OPP_STAGE_COLORS: Record<string, string> = {
 };
 
 export default function CrmPage() {
+  const currencies = useCurrencies();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -351,7 +353,7 @@ export default function CrmPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ct-navy">{opp.name}</p>
                       <p className="text-xs text-ct-muted">
-                        {opp.estimatedValue ? `₹${Number(opp.estimatedValue).toLocaleString()}` : "No value set"}
+                        {opp.estimatedValue ? `${currencyLabel(undefined, currencies)}${Number(opp.estimatedValue).toLocaleString()}` : "No value set"}
                         {opp.expectedCloseDate ? ` · closes ${new Date(opp.expectedCloseDate).toLocaleDateString()}` : ""}
                       </p>
                     </div>

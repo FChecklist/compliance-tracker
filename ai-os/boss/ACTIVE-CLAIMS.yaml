@@ -814,6 +814,51 @@ active:
       closed as superseded (comment posted pointing to #356). Left #356
       open, unmerged, for the supervising session's audit + merge.
 
+      UPDATE (new dispatch, same claim -- currency-hardcoding re-sweep
+      close_out_2026_07_15 follow-through): the re-sweep item "(1) ~10
+      components still hardcode INR/en-IN/rupee-symbol formatting outside
+      the 3 files fixed by projexa#24" is now fixed for real. Grepped both
+      repos' src/ trees for literal "rupee sign", "INR", and
+      .toLocaleString("en-IN") -- found 12 real bugs in projexa (beyond the
+      3 already-fixed) and 9 in compliance-tracker's own (app)/ UI, of which
+      2 (partner/[token] and /sales-hq commission dashboards) were
+      reclassified and left UNTOUCHED after finding they render VERIDIAN's
+      own platform commission ledger (salesCommissionPlans.currency,
+      defaults "INR" but is itself per-plan-overridable and not tied to any
+      customer org's ERP base currency) -- flagged as a deeper
+      cross-currency-aggregation question, not a simple symbol-formatting
+      bug, out of this task's scope. Also left ChallanSection.tsx's
+      GST-challan amount untouched (legitimately INR-only, paid to the
+      Indian government regardless of org currency) and roughly 17 other
+      compliance-tracker files with genuinely India-statutory amounts (GST
+      notices, penalties, Companies Act registers) untouched for the same
+      reason -- full split documented in each repo's PR. Consolidated:
+      created projexa/src/lib/currency.ts (currencyLabel() + useCurrencies()
+      hook) and compliance-tracker/src/lib/currency-format.ts (same shape,
+      backed by the existing session-authenticated /api/erp/currencies
+      route) -- every one of the 12+9 fixed files, plus the 3 already-fixed
+      projexa files (previously 3 separate local copies), now imports from
+      one shared module per repo instead of repeating the copy-paste
+      pattern. One file (compliance-tracker's public, session-less
+      client-portal/[token]/page.tsx) couldn't use the shared hook (no
+      session to call /api/erp/currencies) -- threaded the org's
+      base-currency code through its own existing token-scoped response
+      instead (getClientPortalData() in firm-client-portal-service.ts), raw
+      `db` query against erpCurrencies directly rather than
+      erp-accounting-service.ts's listCurrencies() (which hard-gates on
+      requireErpEnabled() and would 403 a firm-only org with no ERP branch
+      enabled). projexa's server-rendered src/app/(app)/dashboard/page.tsx
+      also couldn't import the "use client" shared lib (Server Component
+      boundary) -- kept a small local server-safe duplicate there instead,
+      flagged rather than forced into the shared module. bunx tsc --noEmit
+      clean in both repos; bun run lint 0 errors in projexa (1 pre-existing
+      unrelated warning in data-table.tsx, untouched by this diff).
+      Branch: priority17-currency-hardcoding-sweep (both repos), worktrees
+      compliance-tracker/.claude/worktrees/priority17-currency-sweep and
+      projexa/.claude/worktrees/priority17-currency-sweep. NOT merged by
+      this session -- left for the supervising session's audit per standing
+      dispatch instructions.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:

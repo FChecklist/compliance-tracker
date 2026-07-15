@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Input } from "@/components/ui/input";
 
 type Enablement = { isEnabled: boolean; enabledAt: string | null; disabledAt: string | null };
@@ -15,6 +16,7 @@ type PmsModule = { moduleKey: string; displayName: string; description: string |
 type BillableRate = { id: string; userId: string | null; hourlyRate: string; validFrom: string };
 
 export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) {
+  const currencies = useCurrencies();
   const [enablement, setEnablement] = useState<Enablement | null>(null);
   const [modules, setModules] = useState<PmsModule[]>([]);
   const [rates, setRates] = useState<BillableRate[]>([]);
@@ -149,7 +151,7 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
                 <p className="text-xs text-ct-muted">Org default hourly rate, used when time-entry budget actuals have no per-user rate set.</p>
                 {rates.filter((r) => r.userId === null).map((r) => (
                   <div key={r.id} className="flex items-center justify-between text-sm text-ct-navy">
-                    <span>₹{Number(r.hourlyRate).toFixed(2)}/hr</span>
+                    <span>{currencyLabel(undefined, currencies)}{Number(r.hourlyRate).toFixed(2)}/hr</span>
                     <span className="text-xs text-ct-muted">since {r.validFrom}</span>
                   </div>
                 ))}
