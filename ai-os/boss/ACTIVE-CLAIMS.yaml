@@ -149,6 +149,39 @@ active:
       no further active claims.
 
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
+  - session_label: "claude-code (sub-agent) -- Priority 21, Layer 2 Workspace Memory: 3 sync transport options"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner directive: "have all 3 options for the user" -- extends the
+      already-merged PR #367 (workspace-memory-service.ts, memvid .mv2
+      capsule export/import, Option 1 manual download/upload) with the 2
+      transport options ai-os/priority21_workspace_memory_design.md section
+      4 explicitly deferred as an open question: Option 2 (Google Drive
+      auto-sync, via the existing per-user Composio connection in
+      src/lib/composio-connectors.ts -- no new OAuth flow) and Option 3
+      (first-party "pull latest capsule" endpoint against the existing
+      workspace_memory_capsule_events rows + compliance-documents storage
+      bucket, no manual file handling). SEC-04: both new import paths reuse
+      the EXACT SAME importWorkspaceMemory() additive-only function PR #367
+      already built -- no second import code path. Scope: extends
+      src/lib/services/workspace-memory-service.ts, adds new
+      src/app/api/workspace-memory/{drive-export,drive-import,latest}
+      routes (or equivalent, matching this codebase's route-naming
+      convention), updates src/components/WorkspaceMemorySection.tsx to
+      present all 3 as named, distinct choices. Does NOT touch
+      src/lib/supabase/auth-guard.ts or any auth/membership shape in
+      schema.ts. Reuses connector-data-service.ts's existing
+      missing-connection error-handling pattern, does not invent a new one.
+      Re-verified live before starting: GAP-CONNECTOR-LAYERS (Priority 14
+      Wave 2, active claim below) only touches
+      src/app/api/v1/connectors/office-addin/** -- a disjoint namespace
+      from src/app/api/connectors/drive/** and src/app/api/workspace-memory/**
+      this claim touches. No other active claim references workspace-memory,
+      memvid, capsule, Google Drive, or composio-connectors.ts. Branch:
+      feat/workspace-memory-sync-options, worktree
+      compliance-tracker/.claude/worktrees/agent-workspace-memory-sync. Will
+      not self-merge the implementation PR (Rule 10) -- left for the
+      supervising session's audit, same convention as PR #367/#368.
     claimed_at: "2026-07-15T (this session)"
     claim: |
       Owner directive 2026-07-15 ("complete all 100% except priority 19"),
