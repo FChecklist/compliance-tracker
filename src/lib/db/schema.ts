@@ -5355,11 +5355,22 @@ export const erpAssetDisposals = complianceSchemaDB.table('erp_asset_disposals',
   id: text('id').primaryKey().$defaultFn(() => createId()),
   assetId: text('asset_id').notNull(),
   disposalDate: date('disposal_date', { mode: 'string' }).notNull(),
-  disposalType: text('disposal_type').notNull(), // 'sale' | 'scrap'
+  disposalType: text('disposal_type').notNull(), // 'sale' | 'scrap' | 'write_off'
   saleValue: numeric('sale_value'),
   journalEntryId: text('journal_entry_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Wave B (VERIDIAN Review Framework remediation, Fixed Assets wiring,
+  // drizzle/0215): this table had NO status column at all -- schema-only
+  // since Wave 49/drizzle/0042, so there was no way to represent "disposal
+  // awaiting approval" vs "finalized" vs "rejected" once a real
+  // approval-gated disposal workflow (erp-fixed-assets-service.ts's
+  // initiateAssetDisposal, following submitJournalEntry/
+  // submitPurchaseRequisition's own startApprovalWorkflow precedent) was
+  // wired up. Plain text (not a new pg enum), matching this same table's
+  // own disposalType column precedent -- 3 known values ('pending' |
+  // 'completed' | 'rejected'), app-level validation only.
+  status: text('status').notNull().default('pending'),
 })
 
 // --- Buying ---
@@ -5888,10 +5899,29 @@ export const erpJournalEntryLinesRelations = relations(erpJournalEntryLines, ({ 
 export const erpFixedAssetsRelations = relations(erpFixedAssets, ({ one, many }) => ({
   category: one(erpAssetCategories, { fields: [erpFixedAssets.assetCategoryId], references: [erpAssetCategories.id] }),
   depreciationSchedules: many(erpDepreciationSchedules),
+  movements: many(erpAssetMovements),
+  disposals: many(erpAssetDisposals),
 }))
 
 export const erpDepreciationSchedulesRelations = relations(erpDepreciationSchedules, ({ one }) => ({
   asset: one(erpFixedAssets, { fields: [erpDepreciationSchedules.assetId], references: [erpFixedAssets.id] }),
+}))
+
+// Wave B (Fixed Assets wiring): query-side relations only -- no migration
+// needed, drizzle relations() are TS/query-builder metadata, not a physical
+// FK. Added alongside the first real service-layer consumer of these 3
+// tables (erp-fixed-assets-service.ts), matching erpFixedAssetsRelations/
+// erpDepreciationSchedulesRelations's own precedent above.
+export const erpAssetCategoriesRelations = relations(erpAssetCategories, ({ many }) => ({
+  assets: many(erpFixedAssets),
+}))
+
+export const erpAssetMovementsRelations = relations(erpAssetMovements, ({ one }) => ({
+  asset: one(erpFixedAssets, { fields: [erpAssetMovements.assetId], references: [erpFixedAssets.id] }),
+}))
+
+export const erpAssetDisposalsRelations = relations(erpAssetDisposals, ({ one }) => ({
+  asset: one(erpFixedAssets, { fields: [erpAssetDisposals.assetId], references: [erpFixedAssets.id] }),
 }))
 
 export const erpSalesInvoicesRelations = relations(erpSalesInvoices, ({ one, many }) => ({
