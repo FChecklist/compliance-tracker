@@ -41,6 +41,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "Super Boss (Claude Desktop) -- Priority 22, Ling-2.6-1T model trial (roster.ts)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner-directed CONTROLLER.yaml PRIORITY-22 workstream 1 only (Ling-2.6-1T
+      trial): confirm Ling-2.6-1T's real OpenRouter slug + provider count via
+      GET /api/v1/models, run real API-call comparisons (latency, real
+      usage/cost, qualitative correctness, failure behavior) against
+      deepseek/deepseek-v4-pro on 2-3 representative backend-engineering
+      coding prompts, write findings to
+      ai-os/priority22_ling_trial_findings.md, and ONLY if quality clearly
+      favors Ling-2.6-1T (90-day quality mandate, AGENTS.md Rule 8 --
+      cost/promotional pricing is not a decision input), add it to roster.ts
+      for the relevant role(s) and register it in model-tier-eligibility.ts
+      as INTEGRATIVE_ELIGIBLE at most (never JUDGMENT_ELIGIBLE, per Rule 10 --
+      only z-ai/glm-5.2 holds that tier today). Correction found before
+      starting: CONTROLLER.yaml's own tightened_prompt states deepseek-v4-pro
+      is used by "Senior Backend Engineer/DevOps/Architecture Compliance
+      Reviewer" and deepseek-r1-0528 by "QA Engineer/AI Response Validator" --
+      neither is accurate against current roster.ts, read in full this
+      session: senior_backend_engineer/devops_engineer/
+      architecture_compliance_reviewer all run z-ai/glm-5.2, and
+      deepseek/deepseek-r1-0528 does not appear anywhere in roster.ts. The
+      only 3 roles actually on deepseek/deepseek-v4-pro are
+      governance_backend_engineer, chief_audit_officer, and
+      chief_operating_officer -- comparison scoped against those real
+      dispatch sites instead. Does NOT touch
+      src/lib/supabase/auth-guard.ts or schema.ts. Does not touch
+      workstream 2 (OfficeCLI) or 3 (Prompt Library) of PRIORITY-22 -- out of
+      this session's scope. Branch: priority22-ling-trial, worktree
+      .claude/worktrees/agent-a0a1b6e034e3a6a48. Does not self-merge; PR left
+      for a supervising session's audit per Rule 6/7c/10.
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
