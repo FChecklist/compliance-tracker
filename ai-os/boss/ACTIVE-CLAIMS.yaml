@@ -894,9 +894,37 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- Priority 22, Ling-2.6-1T model trial (roster.ts)"
+    completed_at: "2026-07-16T (this session)"
+    merged_as: "compliance-tracker#373 (merged)"
+    claim: |
+      CONTROLLER.yaml PRIORITY-22 workstream 1 only (Ling-2.6-1T trial).
+      Confirmed real OpenRouter slug (inclusionai/ling-2.6-1t) and provider
+      count live via GET /api/v1/models + /endpoints -- exactly 1 provider
+      (Novita) vs. deepseek/deepseek-v4-pro's 16, a structurally worse
+      single-provider risk than the 2026-07-10 GLM-5.2/DeepInfra incident,
+      with zero fallback available. Ran real OpenRouter API calls (3
+      backend-engineering prompts, both models, live .env.local key) plus 2
+      deliberate failure-mode tests. Corrected the dispatch brief's inaccurate
+      premise before starting (re-read roster.ts in full): the 3 real roles on
+      deepseek/deepseek-v4-pro are governance_backend_engineer,
+      chief_audit_officer, chief_operating_officer -- not Senior Backend
+      Engineer/DevOps/Architecture Compliance Reviewer/QA Engineer/AI Response
+      Validator as the brief claimed, and deepseek/deepseek-r1-0528 doesn't
+      exist in roster.ts at all. Result: Ling-2.6-1T is ~4.9x faster/~4.2x
+      cheaper but 2 of 3 test prompts surfaced real correctness gaps (an
+      ignored input field on a business-rule task; a permanently-stuck
+      failure state on an idempotent-webhook task) DeepSeek V4 Pro did not
+      have. Per AGENTS.md Rule 8 (90-day quality mandate) and the task's own
+      instruction: recommendation is do-not-adopt, no change made to
+      roster.ts or model-tier-eligibility.ts -- findings memo alone
+      (ai-os/priority22_ling_trial_findings.md) is the complete outcome.
+      Independently audited (AUDIT: PASS posted by the supervising session)
+      and merged as PR #373.
+
   - session_label: "Super Boss (Claude Desktop) -- Priority 22, OfficeCLI feasibility check"
     completed_at: "2026-07-16T (this session)"
-    merged_as: "compliance-tracker PR pending (branch priority22-officecli-feasibility) -- see PR link in CONTROLLER.yaml PRIORITY-22 once opened"
+    merged_as: "compliance-tracker#374 (merged)"
     claim: |
       Owner-directed (CONTROLLER.yaml PRIORITY-22 workstream 2) feasibility check only (not a
       rebuild) of whether iOfficeAI/OfficeCLI (github.com/iOfficeAI/OfficeCLI, Apache-2.0) can
@@ -945,9 +973,11 @@ recently_completed:
       (separate, just-merged Microsoft Office Add-in connector work, unrelated feature). Branch:
       priority22-officecli-feasibility, worktree .claude/worktrees/agent-a663b6d310ca58b9d. Not
       self-merged -- left for the supervising session's audit per Rule 6/7(c)/10. Flags for the
-      reviewer: PR #372's OfficeCLI `active:` entry should be considered superseded/closed by
-      this entry once both PRs are reconciled (whichever merges first should remove the other's
-      now-duplicate OfficeCLI claim text to keep this file's `active:` section accurate).
+      reviewer: PR #372 (branch priority22-active-claims-registration) is now superseded by this
+      entry and Ling-2.6-1T's own entry above -- both workstreams registered and completed their
+      own claim lifecycle inline, so PR #372's original `active:` entries were closed without
+      merging rather than merged and immediately made stale. See PR #372's closing comment.
+
   - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
     completed_at: "2026-07-15T (this session)"
     merged_as: "compliance-tracker#346 + projexa#17"
