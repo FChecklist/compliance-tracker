@@ -69,6 +69,10 @@ registered:
     reason: "Priority 8 (drizzle/0161): org-scoped CRM lead -- auto_register_asset_trg attached, name_column=name, purpose_column=ai_score_reasoning, owner_column=owner_id"
   - table: crm_opportunities
     reason: "Priority 8 (drizzle/0161): org-scoped CRM opportunity -- auto_register_asset_trg attached, name_column=name, purpose_column=ai_recommended_action, owner_column=owner_id"
+  - table: crm_accounts
+    reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped company-level account record, same class as crm_leads/crm_opportunities -- auto_register_asset_trg attached, name_column=name, owner_column=owner_id, no purpose/active column (no genuine fit)"
+  - table: crm_contacts
+    reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped person record belonging to a crm_account -- auto_register_asset_trg attached, name_column=name, no owner_column (belongs to the account, not assigned to a rep directly, matching clients/erp_customers' own NULL-owner precedent), no purpose/active column"
   - table: connector_documents
     reason: "Priority 9 (verification fix on PR #226, drizzle/0162): the Business Digital Twin's first-slice canonical document representation, pulled from real connector data (Gmail/Drive) -- a real, discoverable document asset. auto_register_asset_trg attached, name_column=title, module_column=toolkit_slug, owner_column=user_id"
   # Priority 4 domain A (subagent-p4-domain-a, drizzle/0153): Documents/

@@ -106,3 +106,31 @@ INSERT INTO compliance.module_registry (module_key, display_name, table_name, do
   ('crm_accounts', 'CRM Accounts', 'crm_accounts', 'crm', 'TOOLS', true, 'Company-level account record -- industry/address/lifecycle-stage/owner, with optional parent-account hierarchy for subsidiaries'),
   ('crm_contacts', 'CRM Contacts', 'crm_contacts', 'crm', 'TOOLS', true, 'Named person at a CRM account, with a primary-contact flag')
 ON CONFLICT (module_key) DO NOTHING;
+
+-- Asset Registry Coverage Check (GAP-UMR-TABLE-COVERAGE): both new tables are
+-- real, discoverable platform business records, same class as the sibling
+-- crm_leads/crm_opportunities (Priority 8, drizzle/0161) -- registered the
+-- same way, not exempted. Column choices match the live
+-- asset_registration_config rows for crm_leads/crm_opportunities/clients/
+-- erp_customers exactly (checked via Supabase MCP before writing this,
+-- not guessed): asset_type 'other' (no closer-fitting enum value for a
+-- company/contact master record), org_column org_id, no active_column
+-- (neither table has a boolean active flag -- lifecycle_stage is not a
+-- simple on/off toggle). crm_accounts gets owner_id as owner_column
+-- (assigned rep, same as crm_leads/crm_opportunities); crm_contacts has no
+-- owner concept of its own (it belongs to an account), so owner_column is
+-- NULL, matching clients/erp_customers' own NULL-owner precedent.
+INSERT INTO compliance.asset_registration_config
+  (source_table, asset_type, name_column, purpose_column, module_column, org_column, owner_column, active_column)
+VALUES
+  ('crm_accounts', 'other', 'name', NULL, NULL, 'org_id', 'owner_id', NULL),
+  ('crm_contacts', 'other', 'name', NULL, NULL, 'org_id', NULL, NULL)
+ON CONFLICT (source_table) DO NOTHING;
+
+CREATE OR REPLACE TRIGGER auto_register_asset_trg
+  AFTER INSERT OR UPDATE OR DELETE ON compliance.crm_accounts
+  FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
+
+CREATE OR REPLACE TRIGGER auto_register_asset_trg
+  AFTER INSERT OR UPDATE OR DELETE ON compliance.crm_contacts
+  FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
