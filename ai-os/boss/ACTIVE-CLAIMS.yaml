@@ -179,7 +179,7 @@ active:
       drizzle/ (new migration), new branding settings UI + theming plumbing.
       Coordinate with the BYO-AI-model claim below -- different file scope,
       should not collide.
-  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: BYOB bring-your-own-AI-model"
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework implementation Wave B: BYOB bring-your-own-AI-model"
     claimed_at: "2026-07-16T (this session)"
     claim: |
       Owner decision (2026-07-16): build BOTH BYOB interpretations as
@@ -188,6 +188,56 @@ active:
       actual definition. File scope: src/lib/orchestra-model-resolver.ts
       (extend, don't rewrite), new per-org BYO-model config table + UI.
       Coordinate with the white-label claim above -- different file scope.
+
+      UPDATE (same session): investigated orchestra-model-resolver.ts fully
+      before writing anything, per the dispatch brief's own instruction --
+      found the feature already exists in full depth from prior waves:
+      customer_model_config schema (provider/encrypted key/model/isActive/
+      sharedPoolEligible, drizzle/ already applied), pgcrypto-based
+      encryption (ai-config-crypto.ts), resolveModelConfig()/
+      resolvePlatformModelConfig() with platform-default fallback already
+      wired through callLLM(), full CRUD API
+      (GET/POST /api/settings/model-config,
+      DELETE /api/settings/model-config/[id]), a settings UI section
+      (OrchestraModelConfigSection.tsx, Settings > AI Configuration), and a
+      read-only audit loop (byo-model-audit.ts, Loop 14). No new table or
+      migration was needed, so none was added -- a duplicate schema would
+      only have created confusion, not closed a real gap.
+      Closed the two real gaps found against the dispatch brief instead:
+      (1) POST /api/settings/model-config only ever validated shape
+      (provider in the enum, modelName non-empty) before persisting a BYO
+      config -- added testProviderConnection() (orchestra-model-
+      resolver.ts), a real connectivity check via the same callLLM() path
+      every Orchestra Layer call already uses, run BEFORE persisting
+      (reuses the existing encrypted key when only modelName/flags change,
+      matching the UI's own "leave blank to keep existing key" behavior;
+      runs outside the write transaction so a slow/failing provider call
+      never holds a pooled Postgres transaction open). (2) no test coverage
+      existed proving the resolver's BYO-enabled-vs-disabled branching, or
+      that a configured org's provider actually failing at call time
+      degrades to the platform default rather than erroring out --
+      orchestra-model-resolver.test.ts now covers both, including an
+      end-to-end test that resolves a BYO config with a bad key and drives
+      it through the real callLLM() to prove the platform-default fallback
+      is actually exercised on failure (plus the inverse: no fallback
+      configured -> throws, not a silent swallow).
+      Deliberately did NOT touch clientModelConfig (Layer 3/client-level BYO
+      override) -- no settings API/UI exists for it at all, but the Owner's
+      scope was specifically org-admin-level BYO, and resolveClientModelConfig()
+      already falls back to the org's own resolveModelConfig() when no
+      client-specific row exists, so this is a separate, smaller, still-open
+      gap, not required by this task.
+      tsc --noEmit: 0 new errors (24 pre-existing, none in touched files).
+      eslint: clean. bun test: 1183 pass/1 fail/1 error -- both the fail
+      (flaky bcrypt-timing test in passcode-login-service.test.ts, passes in
+      isolation) and error (missing optional `docx` package in
+      officecli-client.test.ts) independently confirmed present on main
+      WITHOUT this change; net +12 new tests, all passing. All 5 sync-check
+      scripts pass (no schema/doc changes were needed). Branch:
+      review-wave-b-byob-ai-model, worktree
+      compliance-tracker/.claude/worktrees/agent-a21da9f1bbe69970b. PR #384
+      opened, NOT self-merged -- left for the supervising session's audit.
+      This session has no further active claims on this priority.
   - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Training LMS module (full depth)"
     claimed_at: "2026-07-16T (this session)"
     claim: |
