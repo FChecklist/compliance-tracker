@@ -2062,3 +2062,122 @@ recently_completed:
       mandatory-audit-check.yml requires, and to apply the drizzle
       migration to the live Supabase project.
 
+  - session_label: "claude-code (sub-agent) -- VERIDIAN Review Framework implementation Wave B: CRM Accounts & Contacts (full depth)"
+    completed_at: "2026-07-17T (this session)"
+    merged_as: "compliance-tracker#389 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
+    claim: |
+      Real output for the claim registered 2026-07-16 under this same
+      session_label (active-section entry above, "CRM Accounts & Contacts
+      (full depth)"). That dispatched session never produced a branch or
+      PR -- it silently died. Real gap re-confirmed via a fresh grep of
+      src/ immediately before this build: no crm_accounts/crm_contacts
+      table existed anywhere -- crm_leads/crm_opportunities (Wave 41)
+      modeled a prospect/deal as a bare name string with no company-level
+      record (industry/address/lifecycle-stage) and no person-level
+      contact record, and no way to represent a subsidiary/holding-company
+      hierarchy.
+
+      Found on session start, and did NOT resume either:
+      (1) compliance-tracker-wt-crm-accounts worktree, branch
+      review-wave-b-crm-accounts-contacts, one uncommitted-to-origin
+      commit (8ac48fd0, "Add CRM Accounts & Contacts") -- confirmed stale
+      via `git merge-base --is-ancestor origin/main HEAD` (its origin/main
+      base, 20ce8282, had already advanced to 12e1bea3 by the time this
+      session started) and rebuilt fresh instead, per this same file's own
+      Wave A security-fixes precedent (recently_completed entry above).
+      (2) A live, out-of-band orphaned schema artifact: crm_accounts/
+      crm_contacts tables already existed in the live Supabase DB (project
+      pcrjmlpuqsbocqfwoxod, applied 2026-07-16 12:20:38 as migration
+      "crm_accounts_contacts") with a different, undocumented shape (jsonb
+      billing_address/shipping_address blobs, crm_account_size/
+      crm_account_status enums, no org_id/owner_id FK constraints) --
+      confirmed zero rows in both tables, zero matching migration file
+      anywhere in git history on any branch, and zero application code
+      anywhere referencing them. A third abandoned attempt at this exact
+      task. Dropped both tables and their enum types (safe: empty, no
+      committed migration, no code dependency) rather than adopting
+      undocumented live drift, and applied a freshly authored, tracked
+      migration instead.
+
+      Full-depth build per the Owner's standing no-MVP directive, sized
+      for a 100-employee/500-project firm:
+      Schema: crm_accounts (industry/website/billing+shipping address/
+      owner/parent-account hierarchy via parent_account_id/lifecycle-stage
+      enum) + crm_contacts (name/title/email/phone/is-primary), nullable
+      account_id bridge columns added to crm_leads/crm_opportunities. RLS
+      matches 0031_wave41_crm.sql's app_runtime/service_role policy
+      pattern, but with FORCE ROW LEVEL SECURITY applied from the start
+      (Wave A's established posture, recently_completed entry above)
+      rather than replicating wave41's enabled-not-forced gap.
+      drizzle/0219_wave_b_crm_accounts_contacts.sql -- migration number
+      checked against latest origin/main (still 12e1bea3, unchanged)
+      immediately before authoring the file, and against the highest
+      existing drizzle/ filename (0218) at that same moment; 0219 was
+      free. Applied live via the Supabase MCP; get_advisors (security)
+      run before and after the migration (and again after a follow-up
+      FORCE ROW LEVEL SECURITY statement) shows byte-identical output,
+      zero new/changed findings.
+
+      Service layer: new src/lib/services/crm-accounts-service.ts (its own
+      file, matching this codebase's one-file-per-domain convention rather
+      than folding into crm-service.ts, which has no separate
+      crm-leads-service.ts/crm-opportunities-service.ts split to mirror).
+      Paginated/filtered listAccountsPaged, full account/contact CRUD,
+      convertLeadToAccount() (closes the loop the same way
+      convertLeadToClient() already does for `clients` -- independent of
+      it, a lead can convert to a client, an account, both, or neither),
+      linkOpportunityToAccount(), getAccountOverview() (one aggregate read
+      backing the detail page: account + contacts + linked leads/
+      opportunities + child accounts). Two pure, unit-tested helpers:
+      wouldCreateCycle() (blocks an account becoming its own ancestor,
+      directly or transitively, in the parent-account hierarchy) and
+      resolveAccountShippingAddress() (the "same as billing" convenience).
+      Org-scoped via withTenantContext, audit logging via logActivity
+      (dbUser-threaded CrmAccountContext, matching bcm-service.ts's
+      pattern) -- note crm-service.ts itself never adopted logActivity;
+      this file follows the newer, now-dominant convention (38 other
+      service files) rather than its immediate CRM sibling.
+
+      API: src/app/api/crm/accounts/** (list/create, get-overview/update,
+      contacts sub-collection, link-opportunity),
+      src/app/api/crm/contacts/[id] (update/delete), and
+      src/app/api/crm/leads/[id]/convert-to-account -- all matching
+      sibling crm/** routes' requireAuth()/ServiceError convention
+      exactly, gated by the same requireSalesEnabled() branch check as
+      crm-service.ts.
+
+      UI: src/app/(app)/crm/accounts/page.tsx (list, search, lifecycle-
+      stage filter, pagination, create dialog with owner/parent-account
+      pickers) and src/app/(app)/crm/accounts/[id]/page.tsx (profile edit,
+      billing address + "same as billing" shipping toggle, contacts roster
+      with add/set-primary/remove, linked leads/opportunities, subsidiary
+      list) -- list+detail shape mirroring /erp/customers (closest
+      existing "company master record" precedent) rather than the
+      existing /crm page's single-tab-page shape, per this task's own
+      explicit direction. Wired into AppSidebar.tsx under the existing
+      Sales & CRM section (sibling entry to VERI CRM AI) and into the
+      existing /crm leads tab itself (a new "To Account" button next to
+      the existing "Convert" to-client button, plus an "Accounts" link in
+      the page header) -- both messages/en.json and messages/hi.json
+      checked for existing salesCrm keys before adding the one new
+      "accounts" key to each, no duplicates.
+
+      8 new tests (crm-accounts-service.test.ts) covering wouldCreateCycle()
+      (self-parent, transitive-cycle, direct-cycle, legitimate re-parent,
+      detach-to-null cases) and resolveAccountShippingAddress() (both
+      branches) as pure predicates -- matches this repo's established
+      "don't touch withTenantContext/a live DB from a .test.ts file"
+      convention (approval-workflow-service.test.ts's own precedent).
+
+      tsc --noEmit clean (0 errors); bun run lint 0 errors (3 pre-existing
+      warnings, all in unrelated files: litigation/[id]/route.ts,
+      data-table.tsx, VeriComposer.tsx); bun test 1238 pass / 3 skip / 0
+      fail across 96 files (includes this PR's 8 new tests), no
+      regressions -- fresh clone off latest main, whole suite green.
+
+      Branch: review-wave-b-crm-accounts-contacts-v2 (a new branch name,
+      not the stale v1 worktree's branch, to avoid any ambiguity about
+      which commit history is authoritative). PR: compliance-tracker#389,
+      NOT merged -- left for the supervising session's audit per AGENTS.md
+      Rule 7(c)/Rule 10 and this task's own instruction not to self-merge.
+

@@ -31,7 +31,8 @@
       "salesCrm": {
         "title": "बिक्री और CRM",
         "items": {
-          "veriCrmAi": "VERI CRM AI"
+          "veriCrmAi": "VERI CRM AI",
+          "accounts": "खाते"
         }
       },
       "projects": {
