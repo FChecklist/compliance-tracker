@@ -41,29 +41,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (sub-agent) -- Priority 22, OfficeCLI mammoth-replacement implementation"
-    claimed_at: "2026-07-16T (this session)"
-    claim: |
-      Owner-directed implementation of the feasibility memo's GO recommendation
-      (ai-os/priority22_officecli_feasibility.md section 7 "Real next steps",
-      CONTROLLER.yaml PRIORITY-22): replace the `mammoth` docx-read dependency
-      at its one real call site (src/lib/services/ai-report-builder-service.ts's
-      proposeReportFromUpload()/isWordDoc() branch) with iOfficeAI/OfficeCLI,
-      vendoring the Linux x64 binary (real Vercel/CI runtime target) into
-      bin/officecli-linux-x64. New src/lib/officecli-client.ts wrapper
-      (child_process.execFile, array args only, tmp-file per invocation via
-      fs.mkdtemp, JSON parse, cleanup in finally). Removes the `mammoth`
-      dependency from package.json once wired. Explicitly does NOT touch
-      pptxgenjs/report-export.ts (CONDITIONAL-GO, separate architecture
-      decision, out of scope), office-addin/ or public/office-addin/
-      (unrelated, already-merged Microsoft Office Add-in connector), or
-      src/lib/supabase/auth-guard.ts / schema.ts's auth shape. Verified via
-      ai-os/boss/ACTIVE-CLAIMS.yaml recently_completed section (Priority 22
-      OfficeCLI feasibility check entry) that no other active claim touches
-      ai-report-builder-service.ts or the mammoth dependency at claim time.
-      Branch: priority22-officecli-mammoth-replacement, worktree
-      .claude/worktrees/agent-a96ed2679d96ad4eb. Not self-merged -- left for
-      the supervising session's audit per Rule 6/7(c)/10.
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
@@ -1000,6 +977,54 @@ recently_completed:
       entry and Ling-2.6-1T's own entry above -- both workstreams registered and completed their
       own claim lifecycle inline, so PR #372's original `active:` entries were closed without
       merging rather than merged and immediately made stale. See PR #372's closing comment.
+
+  - session_label: "claude-code (sub-agent) -- Priority 22, OfficeCLI mammoth-replacement implementation"
+    completed_at: "2026-07-16T (this session)"
+    merged_as: "compliance-tracker#378 (open, draft -- not yet merged)"
+    claim: |
+      Implemented the feasibility memo's GO recommendation
+      (ai-os/priority22_officecli_feasibility.md section 7 "Real next steps"):
+      replaced the `mammoth` docx-read dependency at its one real call site
+      (src/lib/services/ai-report-builder-service.ts's
+      proposeReportFromUpload()/isWordDoc() branch) with iOfficeAI/OfficeCLI.
+      Vendored bin/officecli-linux-x64 (v1.0.136, the real Vercel/CI runtime
+      target) -- checksum-verified via sha256sum against both GitHub's
+      release-assets API digest and the release's own SHA256SUMS file,
+      committed with the executable bit set (`git update-index --chmod=+x`,
+      since this dev machine is Windows and chmod alone doesn't affect git's
+      tracked mode there; `git ls-files -s` confirms 100755). New
+      src/lib/officecli-client.ts: child_process.execFile wrapper (array
+      args only, no shell interpolation), fs.mkdtemp() per invocation,
+      `officecli query <file> "p" --json`, parses into a { value: string }
+      shape matching mammoth's return type, cleans up in finally. Two real
+      findings beyond the feasibility memo, verified against the actual
+      binary this session: (1) `query` is genuinely one-shot/stateless and
+      recursively matches paragraphs nested inside table cells: (2) OfficeCLI
+      leaves a background resident process running after ANY command
+      touching a file (not just `open`), which does not self-exit within the
+      documented "adaptive 2-10s" idle-flush window (that governs disk-flush
+      timing, not process exit) -- `close <file>` reliably stops it and is
+      idempotent, so the wrapper always calls it after `query`.
+      OFFICECLI_SKIP_UPDATE=1 always set to disable the binary's background
+      update-check network call. Removed `mammoth` from package.json/
+      bun.lock (grep-confirmed no other src/ importer). Tests:
+      src/lib/officecli-client.test.ts -- 7 pure parseQueryResultToText()
+      tests (real captured JSON fixtures, run on any platform) + 3 real
+      (non-mocked) end-to-end integration tests invoking the actual
+      committed binary against a docx built with the existing `docx`
+      dependency, skipped via test.skipIf(process.platform !== "linux")
+      since only the Linux binary is vendored and this dev machine is
+      Windows (will run for real on this repo's ubuntu-latest CI). bunx tsc
+      --noEmit: 0 errors. bun run lint: 0 errors. bun test: 1178 pass/0
+      fail/3 skip (full suite, up from 1171 pre-existing). bun run build
+      kicked off; result to follow in a PR comment. Does NOT touch
+      pptxgenjs/report-export.ts (CONDITIONAL-GO, separate architecture
+      decision, out of scope) or office-addin/public/office-addin/
+      (unrelated, already-merged connector). Branch:
+      priority22-officecli-mammoth-replacement, worktree
+      .claude/worktrees/agent-a96ed2679d96ad4eb. PR #378 opened as draft
+      (will mark ready once the build result lands) -- NOT self-merged, left
+      for the supervising session's audit per Rule 6/7(c)/10.
 
   - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
     completed_at: "2026-07-15T (this session)"
