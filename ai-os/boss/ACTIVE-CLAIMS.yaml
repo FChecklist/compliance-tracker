@@ -140,7 +140,7 @@ active:
       src/lib/services/hr-attendance-service.ts, new src/app/api/hr/attendance/**,
       new src/app/(app)/hr/attendance/** pages. Does NOT touch
       construction_attendance (projexa-owned, separate concept).
-  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Fixed Assets wiring (full depth)"
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework implementation Wave B: Fixed Assets wiring (full depth)"
     claimed_at: "2026-07-16T (this session)"
     claim: |
       Real gap: erp_fixed_assets/erp_asset_categories/erp_depreciation_schedules/
@@ -152,6 +152,88 @@ active:
       src/app/api/erp/fixed-assets/**, new
       src/app/(app)/erp/fixed-assets/** pages. Schema/migration NOT touched
       (already exists).
+
+      UPDATE (2026-07-17, new dispatched session picking up this exact
+      claim -- re-verified live before starting: no open PR existed for a
+      fixed-assets branch, and the original claimed_at was already >4 hours
+      stale with zero matching work in flight, so treated as abandoned per
+      this file's own protocol, not duplicated blindly): re-confirmed the
+      gap by fresh grep of src/ immediately before writing anything --
+      still true, schema.ts was the only file referencing any of the 5
+      tables. Built full depth: erp-fixed-assets-service.ts (asset-category
+      + fixed-asset CRUD; a real configurable depreciation engine for both
+      straight-line and declining-balance/written-down-value, handling
+      mid-period-addition proration + a true-up period and
+      fully-depreciated-at-acquisition edge cases; period-by-period
+      schedule generation at capitalization time + a batch GL-posting run;
+      asset movement tracking; a disposal workflow (sale/scrap/write-off)
+      reusing the existing shared Approval Workflow Engine
+      (startApprovalWorkflow), the same precedent submitJournalEntry/
+      submitPurchaseRequisition already use -- not a bespoke status enum).
+      Disposal approval gate matches this codebase's existing convention
+      exactly: studied src/app/api/documents/[id]/dispose/route.ts (its own
+      disposal action), and gated
+      src/app/api/erp/fixed-assets/[id]/disposals/route.ts identically with
+      requireRole(dbUser, "manager") immediately after requireAuth();
+      initiateAssetDisposal itself only accepts a real dbUser (never an
+      ActorCtx api-key actor), matching submitJournalEntry's own "starts an
+      approval workflow -> requires a real user" precedent. Extended the
+      shared approval-decide route
+      (src/app/api/approval-workflows/steps/[id]/decide/route.ts) with its
+      3rd real entity-type consumer (erp_asset_disposal) plus the first
+      real "on rejected" dispatch (erp_journal_entry/erp_purchase_requisition
+      have no rejected state to move into -- a pre-existing gap in both,
+      left alone/out of scope here).
+      Full REST surface under src/app/api/erp/fixed-assets/** (categories,
+      assets, submit/capitalize, schedule, depreciation-runs, movements,
+      disposals), every route org-scoped via requireAuth() +
+      withTenantContext/requireErpEnabled(), matching sibling
+      erp-*-service.ts route conventions exactly. UI under
+      src/app/(app)/erp/fixed-assets/** (asset register + category
+      management tabs, matching erp/journal-entries/page.tsx's own layout;
+      a per-asset detail page with depreciation-schedule/movements/disposal
+      tabs, the disposal action only rendered client-side for
+      manager-rank-or-above users as UX only -- the route itself is the
+      real gate). Added the "Fixed Assets" sidebar nav entry + en/hi
+      messages keys.
+      Schema extension made, and why: erp_asset_disposals had NO status
+      column at all (schema-only since Wave 49/drizzle/0042), so there was
+      no way to represent pending/completed/rejected once disposal became
+      approval-gated -- genuinely required, not optional. Added via new
+      drizzle/0215_wave_b_fixed_assets_disposal_status.sql (plain text
+      column with a default, matching this same table's own disposalType
+      column precedent -- not a new pg enum). NOT applied live -- left for
+      the supervising session, same convention as every other
+      schema-touching claim in this file. No other schema change was
+      needed (erp_fixed_assets already had accumulatedDepreciation/
+      currentValue/journalEntryId columns from the original Wave 49
+      migration).
+      erp-fixed-assets-service.test.ts: 17 new tests -- both depreciation
+      methods' math (full-month purchase, mid-period addition producing a
+      true-up period, non-zero salvage value, fully-depreciated-at-
+      acquisition returning an empty schedule rather than erroring),
+      computeMonthlyDecliningRate's geometric formula + its zero-salvage
+      double-declining-balance fallback, and the manager-rank disposal
+      approval gate (exercises the real hasRole()/ROLE_RANK from
+      auth-guard.ts directly, not a reimplementation).
+      bunx tsc --noEmit: 0 errors. bun run lint: 0 errors (3 pre-existing
+      warnings in unrelated files). bun test (full suite): 1207 pass/0
+      fail/3 skip. bun run build: succeeds, all new routes/pages confirmed
+      present in the route manifest. All 5 sync-check scripts pass
+      (asset-registry-coverage/doc-cross-references/doc-quarantine-banner/
+      guardrail-presence/metadata-index-coverage).
+      Explicitly out of scope: posting the cash/bank receipt side of a sale
+      disposal (Payment Entries' own boundary, a separate active Wave B
+      claim in this same file); PROJEXA-side wiring (not named in this
+      workstream's scope); erp_fixed_assets/erp_asset_categories gaining a
+      companyId column (Priority 17's office/company-attribution
+      precedent) -- not required by this task, flagged as a possible
+      future gap, not silently added.
+      Branch: wave-b-fixed-assets-wiring. PR #387 opened against main, NOT
+      self-merged -- left for the supervising session's audit (this repo's
+      mandatory-audit-check.yml requires a structured AUDIT: PASS/AUDIT:
+      FAIL verdict comment before merge, not just a bare LGTM). This
+      session has no further active claims on this priority.
   - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Payment Entries approval flow (no gateway)"
     claimed_at: "2026-07-16T (this session)"
     claim: |
