@@ -219,7 +219,11 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   construction_change_orders: { table: constructionChangeOrders, orgIdColumn: constructionChangeOrders.orgId, columns: { status: constructionChangeOrders.status, projectId: constructionChangeOrders.projectId, costImpact: constructionChangeOrders.costImpact } },
   construction_site_diaries: { table: constructionSiteDiaries, orgIdColumn: constructionSiteDiaries.orgId, columns: { projectId: constructionSiteDiaries.projectId, weather: constructionSiteDiaries.weather } },
   construction_expense_entries: { table: constructionExpenseEntries, orgIdColumn: constructionExpenseEntries.orgId, columns: { projectId: constructionExpenseEntries.projectId, expenseHead: constructionExpenseEntries.expenseHead, amount: constructionExpenseEntries.amount } },
-  erp_purchase_orders: { table: erpPurchaseOrders, orgIdColumn: erpPurchaseOrders.orgId, columns: { status: erpPurchaseOrders.status, supplierId: erpPurchaseOrders.supplierId, grandTotal: erpPurchaseOrders.grandTotal } },
+  // Priority 17 final gap (2026-07-16): companyId whitelisted now that
+  // erp_purchase_orders/erp_quotations/erp_sales_orders carry the column
+  // (see this table's own comment further down for the full whitelist
+  // rationale established by #365's crm_leads/erp_sales_invoices entries).
+  erp_purchase_orders: { table: erpPurchaseOrders, orgIdColumn: erpPurchaseOrders.orgId, columns: { status: erpPurchaseOrders.status, supplierId: erpPurchaseOrders.supplierId, grandTotal: erpPurchaseOrders.grandTotal, companyId: erpPurchaseOrders.companyId } },
   erp_suppliers: { table: erpSuppliers, orgIdColumn: erpSuppliers.orgId, columns: { qualificationStatus: erpSuppliers.qualificationStatus, sanctionScreeningStatus: erpSuppliers.sanctionScreeningStatus, trade: erpSuppliers.trade } },
   erp_stock_ledger_entries: { table: erpStockLedgerEntries, orgIdColumn: erpStockLedgerEntries.orgId, columns: { itemId: erpStockLedgerEntries.itemId, quantityChange: erpStockLedgerEntries.quantityChange } },
   // -- new for the Owner's 30 Sales Reports / 30 Sales Analysis / AI Sales Cockpit catalog (2026-07-13) --
@@ -238,8 +242,13 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
       expectedCloseDate: crmOpportunities.expectedCloseDate,
     },
   },
-  erp_quotations: { table: erpQuotations, orgIdColumn: erpQuotations.orgId, columns: { status: erpQuotations.status, customerId: erpQuotations.customerId, grandTotal: erpQuotations.grandTotal, quotationDate: erpQuotations.quotationDate } },
-  erp_sales_orders: { table: erpSalesOrders, orgIdColumn: erpSalesOrders.orgId, columns: { status: erpSalesOrders.status, customerId: erpSalesOrders.customerId, grandTotal: erpSalesOrders.grandTotal, orderDate: erpSalesOrders.orderDate } },
+  // Priority 17 final gap: companyId whitelisted here now that erp_quotations
+  // carries the column -- direct continuation of #365, which left this exact
+  // gap unwired ("Sales/CRM beyond Leads ... those tables have no companyId
+  // column in the schema").
+  erp_quotations: { table: erpQuotations, orgIdColumn: erpQuotations.orgId, columns: { status: erpQuotations.status, customerId: erpQuotations.customerId, grandTotal: erpQuotations.grandTotal, quotationDate: erpQuotations.quotationDate, companyId: erpQuotations.companyId } },
+  // Priority 17 final gap: same as erp_quotations above.
+  erp_sales_orders: { table: erpSalesOrders, orgIdColumn: erpSalesOrders.orgId, columns: { status: erpSalesOrders.status, customerId: erpSalesOrders.customerId, grandTotal: erpSalesOrders.grandTotal, orderDate: erpSalesOrders.orderDate, companyId: erpSalesOrders.companyId } },
   erp_sales_invoices: { table: erpSalesInvoices, orgIdColumn: erpSalesInvoices.orgId, columns: { status: erpSalesInvoices.status, customerId: erpSalesInvoices.customerId, grandTotal: erpSalesInvoices.grandTotal, outstandingAmount: erpSalesInvoices.outstandingAmount, postingDate: erpSalesInvoices.postingDate, companyId: erpSalesInvoices.companyId } },
   erp_customers: { table: erpCustomers, orgIdColumn: erpCustomers.orgId, columns: { isActive: erpCustomers.isActive, defaultPaymentTermsDays: erpCustomers.defaultPaymentTermsDays, creditLimit: erpCustomers.creditLimit } },
   sales_referrals: { table: salesReferrals, orgIdColumn: salesReferrals.orgId, columns: { status: salesReferrals.status, salesPartnerId: salesReferrals.salesPartnerId, productKey: salesReferrals.productKey } },

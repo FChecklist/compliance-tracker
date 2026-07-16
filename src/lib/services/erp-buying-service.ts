@@ -91,15 +91,21 @@ export async function updateSupplier(ctx: { orgId: string }, supplierId: string,
 // three named enhancements.
 export type PurchaseOrderItemInput = { itemId?: string; description: string; quantity?: number; rate?: number }
 
-export async function listPurchaseOrders(ctx: { orgId: string }) {
+// Priority 17 final gap: companyId is an optional equality filter -- same
+// "omitted means no filter" convention as erp-budget-service.ts's
+// listBudgets(ctx, filters) and erp-selling-service.ts's ListQuotationsOptions/
+// ListSalesOrdersOptions companyId filters added alongside this one.
+export async function listPurchaseOrders(ctx: { orgId: string }, filters?: { companyId?: string }) {
   await requireErpEnabled(ctx.orgId)
-  return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.erpPurchaseOrders.findMany({
-      where: eq(erpPurchaseOrders.orgId, ctx.orgId),
+  return withTenantContext({ orgId: ctx.orgId }, (db) => {
+    const conditions = [eq(erpPurchaseOrders.orgId, ctx.orgId)]
+    if (filters?.companyId) conditions.push(eq(erpPurchaseOrders.companyId, filters.companyId))
+    return db.query.erpPurchaseOrders.findMany({
+      where: and(...conditions),
       orderBy: (t, { desc }) => desc(t.orderDate),
       with: { items: true },
     })
-  )
+  })
 }
 
 export async function getPurchaseOrder(ctx: { orgId: string }, purchaseOrderId: string) {
@@ -120,7 +126,7 @@ export async function getPurchaseOrder(ctx: { orgId: string }, purchaseOrderId: 
 // exposure rather than introducing a second, duplicate actor-union type.
 export async function createPurchaseOrder(
   ctx: ActorCtx,
-  input: { supplierId: string; orderDate: string; expectedDeliveryDate?: string; currencyId?: string; exchangeRate?: number; items: PurchaseOrderItemInput[] }
+  input: { supplierId: string; orderDate: string; expectedDeliveryDate?: string; companyId?: string; currencyId?: string; exchangeRate?: number; items: PurchaseOrderItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
@@ -139,6 +145,7 @@ export async function createPurchaseOrder(
     const [po] = await db.insert(erpPurchaseOrders).values({
       orgId: ctx.orgId, supplierId: input.supplierId, poNumber: Number(maxNumber) + 1,
       orderDate: input.orderDate, expectedDeliveryDate: input.expectedDeliveryDate,
+      companyId: input.companyId ?? null,
       currencyId, exchangeRate: exchangeRate.toString(), grandTotal: grandTotal.toString(),
       createdById: ctx.userId,
     }).returning()
