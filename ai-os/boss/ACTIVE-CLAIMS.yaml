@@ -41,6 +41,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (sub-agent) -- Priority 22, OfficeCLI mammoth-replacement implementation"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner-directed implementation of the feasibility memo's GO recommendation
+      (ai-os/priority22_officecli_feasibility.md section 7 "Real next steps",
+      CONTROLLER.yaml PRIORITY-22): replace the `mammoth` docx-read dependency
+      at its one real call site (src/lib/services/ai-report-builder-service.ts's
+      proposeReportFromUpload()/isWordDoc() branch) with iOfficeAI/OfficeCLI,
+      vendoring the Linux x64 binary (real Vercel/CI runtime target) into
+      bin/officecli-linux-x64. New src/lib/officecli-client.ts wrapper
+      (child_process.execFile, array args only, tmp-file per invocation via
+      fs.mkdtemp, JSON parse, cleanup in finally). Removes the `mammoth`
+      dependency from package.json once wired. Explicitly does NOT touch
+      pptxgenjs/report-export.ts (CONDITIONAL-GO, separate architecture
+      decision, out of scope), office-addin/ or public/office-addin/
+      (unrelated, already-merged Microsoft Office Add-in connector), or
+      src/lib/supabase/auth-guard.ts / schema.ts's auth shape. Verified via
+      ai-os/boss/ACTIVE-CLAIMS.yaml recently_completed section (Priority 22
+      OfficeCLI feasibility check entry) that no other active claim touches
+      ai-report-builder-service.ts or the mammoth dependency at claim time.
+      Branch: priority22-officecli-mammoth-replacement, worktree
+      .claude/worktrees/agent-a96ed2679d96ad4eb. Not self-merged -- left for
+      the supervising session's audit per Rule 6/7(c)/10.
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
