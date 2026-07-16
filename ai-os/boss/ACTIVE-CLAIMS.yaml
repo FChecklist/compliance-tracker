@@ -41,6 +41,65 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background sub-agent) -- Priority 17 final gap item 1: Sales-beyond-Leads office/company field"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner directive via CONTROLLER.yaml PRIORITY-17
+      final_2_gaps_dispatch_2026_07_15 (item 1): "Sales beyond Leads has no
+      office/company field." Direct continuation of the already-merged
+      compliance-tracker#365/projexa#26 (Priority 17 remaining-gap pass,
+      2026-07-15), which explicitly left this exact gap unwired and
+      documented why: "Sales/CRM beyond Leads (Opportunities/Quotations/
+      Sales Orders): those tables have no companyId column in the schema."
+      Confirmed via a fresh read of schema.ts: erpQuotations and
+      erpSalesOrders both carry orgId but no company/office column, same
+      gap class #365 closed for crmLeads/employeeProfiles/leaveRequests.
+      Also checked erpPurchaseOrders (buying side, not named by the Owner's
+      "Sales" wording but the identical structural gap) -- included it too
+      for consistency with #365's own precedent (erp_budgets/
+      erp_journal_entries/erp_sales_invoices all got companyId regardless of
+      Sales-vs-other-module boundary), flagged separately in this session's
+      own final report as a proactive addition beyond the 2 named tables,
+      not silently smuggled in.
+      Scope: additive nullable companyId text column (drizzle/0214, IF NOT
+      EXISTS, no DB-level FK -- same bare-text convention as every other
+      companyId column in this schema) on erpQuotations, erpSalesOrders,
+      erpPurchaseOrders; same single-company-per-org backfill logic as
+      #365 (computed at migration-apply time, not assumed); wired into
+      erp-selling-service.ts's listQuotations/createQuotation/
+      createQuotationRevision/convertQuotationToSalesOrder and
+      listSalesOrders/createSalesOrder, and erp-buying-service.ts's
+      listPurchaseOrders/createPurchaseOrder; TABLE_REGISTRY in
+      report-engine-service.ts whitelists companyId for erp_quotations,
+      erp_sales_orders, erp_purchase_orders (all 3 already existing
+      registry entries); v1/projexa alias routes (quotations, sales-orders,
+      purchase-orders) thread companyId through; PROJEXA side reuses the
+      existing src/components/company-scope.tsx CompanySelector (built by
+      #365/projexa#26, not forking a second one) on QuotationsClient.tsx,
+      SalesOrdersClient.tsx, PurchaseOrdersClient.tsx.
+      Does NOT touch src/lib/supabase/auth-guard.ts. Does NOT apply the
+      migration to the live Supabase database -- left for the supervising
+      session, same convention as #365 and every other schema-touching
+      claim in this file. Branch: priority17-sales-company-field
+      (compliance-tracker, worktree
+      ../compliance-tracker-wt-p17-sales-company-field) /
+      priority17-sales-company-field-projexa (projexa, worktree
+      ../projexa-wt-p17-sales-company-field). No overlap found with any
+      other active claim in this file at claim time -- none touch
+      erp_quotations/erpSalesOrders/erpPurchaseOrders/
+      erp-selling-service.ts/erp-buying-service.ts, and the sibling
+      final_2_gaps item 2 (Reports & Analysis consuming UI) is a separate
+      dispatched agent touching a different, new UI surface, not this
+      schema/service area.
+
+      UPDATE (same session): both PRs opened, NOT merged by this session.
+      compliance-tracker#377 (schema + services + report engine) and
+      projexa#27 (selector rollout to Quotations/Sales Orders/Purchase
+      Orders). Migration 0214 NOT applied live -- left for the supervising
+      session. tsc/lint/all 5 local sync-check scripts/full test suite
+      (1171 pass/0 fail) all clean in compliance-tracker; tsc/lint clean in
+      projexa (1 pre-existing unrelated warning). This session has no
+      further active claims.
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
