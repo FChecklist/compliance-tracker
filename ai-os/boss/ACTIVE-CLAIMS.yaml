@@ -41,6 +41,53 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background sub-agent) -- PROJEXA Reports & Analysis catalog UI (CONTROLLER.yaml PRIORITY-17 projexa_reports_dispatch_2026_07_16)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner directive: "look at the PROJEXA reports gaps and fill it. For
+      customer facing app, reports and analysis is important." Direct
+      follow-on to #375 (Priority 17 final gap 2, already merged), which
+      explicitly scoped PROJEXA's own equivalent gap out: PROJEXA never had
+      any UI consuming the ~230-entry report_definitions catalog
+      (getFullReportCatalog()/executeReportDefinition() in
+      report-engine-service.ts) -- its ReportsClient.tsx only ever offers a
+      fixed, hardcoded list of the 17 construction reports
+      (construction-reports-service.ts, via the pre-existing
+      /api/v1/projexa/reports/[reportName] alias).
+      Porting #375's exact proven approach to PROJEXA, zero new execution
+      logic, zero second engine/catalog: (1) compliance-tracker side -- 2
+      new thin GET/POST alias routes,
+      src/app/api/v1/projexa/reports/catalog/route.ts (wraps
+      getFullReportCatalog()) and
+      src/app/api/v1/projexa/reports/definitions/[id]/run/route.ts (wraps
+      executeReportDefinition()), both using requireAuthOrApiKey() (NOT
+      requireAuth() -- #375's own routes are session-auth, these are
+      server-to-server Bearer-key routes, matching every other
+      /v1/projexa/* route's pattern, e.g. quotations/route.ts). (2) PROJEXA
+      side -- new local proxy routes src/app/api/reports/catalog/route.ts +
+      src/app/api/reports/definitions/[id]/run/route.ts (requireAuth() +
+      callVeridian(), matching every existing PROJEXA proxy route, e.g.
+      api/quotations/route.ts), and a new "Full Catalog" section EXTENDING
+      ReportsClient.tsx (not replacing -- the existing 17-report
+      project-scoped list stays, since the two serve different real needs:
+      fixed list is project-scoped construction reports, new section is
+      org-scoped catalog browsing/search + inline run), reusing PROJEXA's
+      own existing src/components/company-scope.tsx CompanySelector (not
+      forking compliance-tracker's separate CompanySelector.tsx) gated on
+      each entry's supportsCompanyScope.
+      Scope boundary: does NOT touch src/lib/supabase/auth-guard.ts. No
+      schema/migration change expected or planned -- if one turns out to be
+      needed, it will be additive-only and NOT applied live, flagged
+      instead. Branch: projexa-reports-catalog-ui (both repos), worktrees
+      ../compliance-tracker-wt-projexa-reports /
+      ../projexa-wt-projexa-reports (sibling directories, same convention
+      as #375's own worktree note -- this session's sandboxed cwd cannot
+      reach either repo's .claude/worktrees/). Re-checked this file live
+      immediately before claiming: no other active entry touches
+      src/app/api/v1/projexa/reports/**, report-engine-service.ts's
+      execution logic, ReportsClient.tsx, or company-scope.tsx -- no
+      overlap found. Will not self-merge either PR (Rule 10) -- left open
+      for the supervising session's audit.
   - session_label: "claude-code (background sub-agent) -- Priority 17 final gap item 1: Sales-beyond-Leads office/company field"
     claimed_at: "2026-07-16T (this session)"
     claim: |
