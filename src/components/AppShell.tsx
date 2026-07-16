@@ -118,17 +118,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // not a rewrite of the existing flow.
   const body = (
     <>
-      <AppTopbar
-        sidebarCollapsed={veriChatV2Enabled ? sidebarCollapsed : undefined}
-        onToggleSidebar={veriChatV2Enabled ? () => setSidebarCollapsed((v) => !v) : undefined}
-      />
-      <HealthRibbon />
+      {/* `.no-print` (see globals.css's `@media print` block): none of this
+          app chrome belongs on a printed/PDF-exported report, invoice, or
+          compliance document -- only the actual page content (`children`)
+          should render on paper. */}
+      <div className="no-print">
+        <AppTopbar
+          sidebarCollapsed={veriChatV2Enabled ? sidebarCollapsed : undefined}
+          onToggleSidebar={veriChatV2Enabled ? () => setSidebarCollapsed((v) => !v) : undefined}
+        />
+        <HealthRibbon />
+      </div>
       {/* D5.B6: rendered here (in the shared `body` markup, above the
           veriChatV2/legacy branch split below) so it's always present in the
           authenticated chrome regardless of which org branch renders --
           TaskVisibilityPanel itself uses useVeriChatOptional() to stay safe
           when VeriChatProvider isn't mounted (legacy branch). */}
-      <TaskVisibilityPanel />
+      <div className="no-print"><TaskVisibilityPanel /></div>
       <div className="flex flex-1 overflow-hidden">
         {/* Collapsing conditionally renders AppSidebar rather than toggling a
             CSS width -- AppSidebar sets its own min-width internally, which
@@ -136,22 +142,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             on the veriChatV2 branch; sidebarCollapsed stays false for every
             other org since the toggle button isn't rendered for them. */}
         {!(veriChatV2Enabled && sidebarCollapsed) && (
-          <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+          <div className="no-print">
+            <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+          </div>
         )}
         {veriChatV2Enabled ? (
           <ResizablePanelGroup orientation="horizontal" defaultLayout={veriChatPanelLayout} onLayoutChange={onVeriChatPanelLayoutChange} className="flex-1 overflow-hidden">
             <ResizablePanel defaultSize={72} minSize={50}>
               <div className="h-full flex flex-col overflow-hidden">
                 <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream">
-                  {pathname !== "/home" && <OnboardingChecklist />}
-                  <TrialBanner />
+                  {pathname !== "/home" && <div className="no-print"><OnboardingChecklist /></div>}
+                  <div className="no-print"><TrialBanner /></div>
                   {children}
                 </main>
-                <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
+                <div className="no-print"><VeriComposer connectedConnectorsCount={connectedConnectorsCount} /></div>
               </div>
             </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={28} minSize={18} maxSize={40}>
+            <ResizableHandle withHandle className="no-print" />
+            <ResizablePanel defaultSize={28} minSize={18} maxSize={40} className="no-print">
               <VeriChatPanel />
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -160,16 +168,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {/* /home leads with the assistant (first-minute experience) -- the
                 legacy Get Started checklist would sit above it speaking old
                 compliance language, so it stays on every page except Home. */}
-            {pathname !== "/home" && <OnboardingChecklist />}
-            <TrialBanner />
+            {pathname !== "/home" && <div className="no-print"><OnboardingChecklist /></div>}
+            <div className="no-print"><TrialBanner /></div>
             {children}
           </main>
         )}
       </div>
-      {!veriChatV2Enabled && <GlobalChatDock />}
+      {!veriChatV2Enabled && <div className="no-print"><GlobalChatDock /></div>}
       {/* HelpWidget: floating help-chat button/panel, fixed-position, rendered
           once per authenticated session alongside other global overlays. */}
-      <HelpWidget />
+      <div className="no-print"><HelpWidget /></div>
     </>
   );
 

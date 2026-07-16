@@ -223,3 +223,62 @@
 .animate-vd-orbit-rev {
   animation: vd-orbit 90s linear infinite reverse;
 }
+
+/* ─── Print Stylesheet ───
+   Real @media print rules so reports, invoices, compliance documents, and
+   any other authenticated page prints/PDF-exports sanely instead of
+   dumping the full app chrome onto paper. Two halves work together:
+   (1) app-shell chrome (AppTopbar, AppSidebar, HealthRibbon,
+   TaskVisibilityPanel, GlobalChatDock, HelpWidget, TrialBanner,
+   OnboardingChecklist, VeriComposer/VeriChatPanel) is marked `.no-print`
+   at the component level in AppShell.tsx; (2) this block resets page
+   geometry/color and stops tables, cards, and headings from splitting
+   across a page break, generically, for every page that uses them --
+   no per-page CSS needed. */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  html, body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Content normally lives inside AppShell's scrolling <main>; let it
+     flow onto the page instead of clipping to the screen viewport. */
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  /* Screen-only decoration that means nothing on paper. */
+  .shadow-card, .shadow-modal, .shadow-nav, .shadow-saffron, .shadow-saffron-fab {
+    box-shadow: none !important;
+  }
+
+  /* Don't split a table row, card, or heading across a page break. */
+  table, tr, thead, tbody, .shadow-card, [data-print-block] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  h1, h2, h3, h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* This is an internal business app, not a public article -- keep links
+     legible without the browser's default underline/blue. */
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}

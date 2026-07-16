@@ -56,9 +56,10 @@ export default function TermsPage() {
           including processing your data through third-party AI model providers. <strong>We use data to train and
           improve our models and systems</strong>, as described in our <a href="/data-policy">Data Policy</a> and{" "}
           <a href="/privacy">Privacy Policy</a>; those documents describe scope, safeguards and the contact for
-          objections. Our systems are designed and operated in accordance with GDPR principles and SOC 2
-          trust-service criteria, and we rely on third-party subprocessors that maintain GDPR commitments and
-          SOC 2 attestations.
+          objections. Our systems are designed with database-enforced tenant isolation (row-level security),
+          session-verified authentication, and encrypted credential storage; we rely on third-party subprocessors
+          for hosting, database, and AI infrastructure, each of which publishes its own security and compliance
+          documentation.
         </p>
       </section>
 

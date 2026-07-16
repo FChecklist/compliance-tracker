@@ -52,11 +52,12 @@ export default function PrivacyPage() {
         <h2>4. Third parties and international transfers</h2>
         <p>
           We use third-party service providers to run the Services — including cloud hosting and database
-          infrastructure (Vercel, Supabase) and AI model providers reached through our model-routing layer.
-          These providers maintain <strong>GDPR compliance commitments and SOC 2 attestations</strong>. Our own
-          systems are designed and operated in accordance with GDPR principles and SOC 2 trust-service criteria.
-          Where data is transferred internationally, it is protected by appropriate safeguards such as standard
-          contractual clauses offered by our providers.
+          infrastructure (Vercel, Supabase) and AI model providers reached through our model-routing layer. These
+          subprocessors publish their own security and compliance documentation, which we encourage you to review
+          directly. Our own systems are designed with database-enforced tenant isolation (row-level security),
+          encrypted storage of API credentials, and session verification on every authenticated route — see
+          Section 5 below. Where data is transferred internationally, it is protected by appropriate safeguards
+          such as standard contractual clauses offered by our providers.
         </p>
       </section>
 

@@ -46,10 +46,10 @@ export default function DataPolicyPage() {
         <p>
           The Services rely on third-party subprocessors — cloud hosting and database infrastructure (Vercel,
           Supabase) and AI model providers reached through our model-routing layer (which may include OpenRouter
-          and the model vendors behind it). These subprocessors maintain <strong>GDPR compliance commitments and
-          SOC 2 attestations</strong>. Where you bring your own AI provider keys (BYOK), your data is processed by
-          your chosen provider under your own agreement with them; we store such keys encrypted and use them only
-          to make the calls you configure.
+          and the model vendors behind it). These subprocessors publish their own security and compliance
+          documentation, which we encourage you to review directly. Where you bring your own AI provider keys
+          (BYOK), your data is processed by your chosen provider under your own agreement with them; we store
+          such keys encrypted and use them only to make the calls you configure.
         </p>
       </section>
 
@@ -57,10 +57,14 @@ export default function DataPolicyPage() {
         <h2>5. Our compliance posture</h2>
         <p>
           Our systems are designed and operated in accordance with GDPR principles (lawfulness, purpose
-          limitation, data minimisation, security, accountability) and SOC 2 trust-service criteria (security,
-          availability, confidentiality), and run exclusively on infrastructure that holds current SOC 2
-          attestations and GDPR commitments. Every AI execution on the platform is logged with its model, token
-          usage, and outcome, giving an auditable ledger of automated processing.
+          limitation, data minimisation, security, accountability). Concretely: every organisation&apos;s data is
+          isolated at the database layer through row-level security enforced by Postgres itself, every
+          authenticated route verifies your session before granting access, no secrets are ever committed to our
+          source code, and API credentials are encrypted at rest. We do not hold a SOC 2 Type II certification
+          today, and we don&apos;t claim one — if your organisation needs that specific attestation from us
+          (as distinct from our infrastructure subprocessors), contact us to discuss your requirements. Every AI
+          execution on the platform is logged with its model, token usage, and outcome, giving an auditable
+          ledger of automated processing.
         </p>
       </section>
 
