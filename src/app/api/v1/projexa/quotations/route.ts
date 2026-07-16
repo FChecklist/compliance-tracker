@@ -23,6 +23,7 @@ function toQuotationShape(q: Awaited<ReturnType<typeof listQuotations>>["items"]
     status: q.status,
     version: q.version,
     revisionOf: q.revisionOf,
+    companyId: q.companyId,
     currencyId: q.currencyId,
     exchangeRate: q.exchangeRate,
     grandTotal: q.grandTotal,
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       status: params.get("status") ?? undefined,
       customerId: params.get("customerId") ?? undefined,
       projectId: params.get("projectId") ?? undefined,
+      companyId: params.get("companyId") ?? undefined,
       page: params.get("page") ? Number(params.get("page")) : undefined,
       pageSize: params.get("pageSize") ? Number(params.get("pageSize")) : undefined,
     })
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest) {
       ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
       : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
     const quotation = await createQuotation(actorCtx, {
-      customerId: body.customerId, leadId: body.leadId, projectId: body.projectId,
+      customerId: body.customerId, leadId: body.leadId, projectId: body.projectId, companyId: body.companyId,
       quotationDate: body.quotationDate, validTill: body.validTill,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, items,
     })

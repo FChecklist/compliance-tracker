@@ -17,6 +17,7 @@ function toPurchaseOrderShape(po: Awaited<ReturnType<typeof listPurchaseOrders>>
     id: po.id,
     poNumber: po.poNumber,
     vendorId: po.supplierId,
+    companyId: po.companyId,
     orderDate: po.orderDate,
     expectedDeliveryDate: po.expectedDeliveryDate,
     status: po.status,
@@ -32,8 +33,9 @@ export async function GET(request: NextRequest) {
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ purchaseOrders: [] })
 
+  const params = request.nextUrl.searchParams
   try {
-    const orders = await listPurchaseOrders({ orgId: ctx.orgId })
+    const orders = await listPurchaseOrders({ orgId: ctx.orgId }, { companyId: params.get("companyId") ?? undefined })
     return NextResponse.json({ purchaseOrders: orders.map(toPurchaseOrderShape) })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
       ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
       : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
     const po = await createPurchaseOrder(actorCtx, {
-      supplierId: body.vendorId, orderDate: body.orderDate, expectedDeliveryDate: body.expectedDeliveryDate,
+      supplierId: body.vendorId, orderDate: body.orderDate, expectedDeliveryDate: body.expectedDeliveryDate, companyId: body.companyId,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, items,
     })
     return NextResponse.json(toPurchaseOrderShape({ ...po, items: [] }), { status: 201 })
