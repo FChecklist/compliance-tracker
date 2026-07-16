@@ -41,6 +41,46 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "Super Boss (Claude Desktop) -- Priority 22, Ling-2.6-1T model trial (roster.ts)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner-directed external-tooling evaluation (CONTROLLER.yaml PRIORITY-22):
+      trial inclusionAI/Ling-2.6-1T (1T total params, MLA+Linear Attention,
+      262K ctx, MIT license, live on OpenRouter) as a candidate model for 2-3
+      real tasks currently routed to deepseek/deepseek-v4-pro (Senior Backend
+      Engineer/DevOps/Architecture Compliance Reviewer) or
+      deepseek/deepseek-r1-0528 (QA Engineer/AI Response Validator) in
+      src/lib/ai-team/roster.ts. Scope: real OpenRouter API-call comparison
+      (cost/latency/quality/failure behavior), NOT a roster-wide swap. Any
+      resulting change classifies the model as INTEGRATIVE_ELIGIBLE at most in
+      src/lib/model-tier-eligibility.ts (unproven model, cannot enter
+      JUDGMENT_ELIGIBLE per AGENTS.md Rule 10 -- only z-ai/glm-5.2 holds that
+      tier today). Files: src/lib/ai-team/roster.ts,
+      src/lib/model-tier-eligibility.ts. No auth-guard.ts/schema.ts changes.
+      No overlap found with any other active claim in this registry at claim
+      time.
+
+  - session_label: "Super Boss (Claude Desktop) -- Priority 22, OfficeCLI feasibility check (vs. existing broken mammoth/pptxgenjs)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner-directed external-tooling evaluation (CONTROLLER.yaml PRIORITY-22):
+      feasibility check only for iOfficeAI/OfficeCLI (self-contained .NET 10
+      binary, Apache 2.0) as a potential fix/replacement for this repo's
+      ALREADY-BROKEN, pre-existing mammoth (docx read) + pptxgenjs (pptx
+      write) dependency pair (confirmed missing/failing on origin/main itself
+      by multiple prior sessions, tracked by dep-panels/dep-recharts/dep-ts
+      worktrees -- see this file's own recently_completed section). Checking:
+      Vercel Node (not Edge) serverless function compatibility, deployment
+      binary-size fit, one-shot stateless CLI invocation pattern (not resident
+      open/set/close sessions). Explicitly distinct from, and does NOT touch,
+      the just-merged office-addin/** / public/office-addin/** Microsoft
+      Office task-pane connector (Priority 14 Wave 2, GAP-CONNECTOR-LAYERS) --
+      that is a Word/Excel-side UI add-in, this is a server-side
+      document-generation feasibility check, unrelated surfaces. No code
+      change expected this pass unless the feasibility check clearly passes;
+      go/no-go recorded either way. No overlap found with any other active
+      claim at claim time.
+
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
