@@ -50,6 +50,7 @@
         "title": "Finance",
         "items": {
           "journalEntries": "Journal Entries",
+          "paymentEntries": "Payment Entries",
           "budgeting": "Budgeting",
           "financialReports": "Financial Reports",
           "cashManagement": "Cash Management",
