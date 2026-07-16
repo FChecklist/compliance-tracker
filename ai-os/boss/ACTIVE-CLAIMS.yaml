@@ -927,6 +927,90 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop) -- Priority 22, Ling-2.6-1T model trial (roster.ts)"
+    completed_at: "2026-07-16T (this session)"
+    merged_as: "compliance-tracker#373 (merged)"
+    claim: |
+      CONTROLLER.yaml PRIORITY-22 workstream 1 only (Ling-2.6-1T trial).
+      Confirmed real OpenRouter slug (inclusionai/ling-2.6-1t) and provider
+      count live via GET /api/v1/models + /endpoints -- exactly 1 provider
+      (Novita) vs. deepseek/deepseek-v4-pro's 16, a structurally worse
+      single-provider risk than the 2026-07-10 GLM-5.2/DeepInfra incident,
+      with zero fallback available. Ran real OpenRouter API calls (3
+      backend-engineering prompts, both models, live .env.local key) plus 2
+      deliberate failure-mode tests. Corrected the dispatch brief's inaccurate
+      premise before starting (re-read roster.ts in full): the 3 real roles on
+      deepseek/deepseek-v4-pro are governance_backend_engineer,
+      chief_audit_officer, chief_operating_officer -- not Senior Backend
+      Engineer/DevOps/Architecture Compliance Reviewer/QA Engineer/AI Response
+      Validator as the brief claimed, and deepseek/deepseek-r1-0528 doesn't
+      exist in roster.ts at all. Result: Ling-2.6-1T is ~4.9x faster/~4.2x
+      cheaper but 2 of 3 test prompts surfaced real correctness gaps (an
+      ignored input field on a business-rule task; a permanently-stuck
+      failure state on an idempotent-webhook task) DeepSeek V4 Pro did not
+      have. Per AGENTS.md Rule 8 (90-day quality mandate) and the task's own
+      instruction: recommendation is do-not-adopt, no change made to
+      roster.ts or model-tier-eligibility.ts -- findings memo alone
+      (ai-os/priority22_ling_trial_findings.md) is the complete outcome.
+      Independently audited (AUDIT: PASS posted by the supervising session)
+      and merged as PR #373.
+
+  - session_label: "Super Boss (Claude Desktop) -- Priority 22, OfficeCLI feasibility check"
+    completed_at: "2026-07-16T (this session)"
+    merged_as: "compliance-tracker#374 (merged)"
+    claim: |
+      Owner-directed (CONTROLLER.yaml PRIORITY-22 workstream 2) feasibility check only (not a
+      rebuild) of whether iOfficeAI/OfficeCLI (github.com/iOfficeAI/OfficeCLI, Apache-2.0) can
+      replace this repo's real mammoth (docx-read, ai-report-builder-service.ts) + pptxgenjs
+      (pptx-export, report-export.ts) usage. Note: an earlier claim for this same task was
+      registered under `active:` in PR #372 (branch priority22-active-claims-registration,
+      still open/unmerged at the time this entry was written) -- that entry described the pair
+      as "ALREADY-BROKEN... confirmed missing/failing on origin/main". This session re-tested
+      that premise for real rather than assuming it: fresh `bun install` in an isolated worktree
+      with no prior node_modules installed both packages cleanly (mammoth@1.12.0,
+      pptxgenjs@3.12.0, 0 conflicts), `bunx tsc --noEmit` returned 0 errors, and `bun run build`
+      (`next build`) completed without any mammoth/pptxgenjs/docx-related error. The "broken"
+      claim traces back through several prior sessions' entries in this same file (Priority 15
+      HR & Payroll/PR #330, Priority 14 Wave 2 GAP-AI-WORKFORCE-GOVERNANCE, PLATFORM-01 Wave 1/
+      PR #339) which always mention mammoth/pptxgenjs in the same breath as the two genuinely-
+      confirmed breakages (react-resizable-panels v3->v4, recharts v2->v3) without an
+      independent isolated re-test of mammoth/pptxgenjs specifically -- likely either resolved
+      incidentally by the same fixes (`f644e892`, `8af65ccd`) or never a real breakage to begin
+      with (some of those sessions' own `next build` failures trace to missing DATABASE_URL/
+      Supabase env vars in their sandbox, unrelated to these two packages). Full honest
+      reconciliation in ai-os/priority22_officecli_feasibility.md section 2 -- this does not
+      accuse any prior session of dishonesty, just flags that the claim was copy-forwarded
+      without a fresh isolated check, and this session did that check.
+      Real smoke test of OfficeCLI v1.0.136 (win-x64 binary, downloaded directly from the GitHub
+      release, sha256 checksum-verified against GitHub's release-assets API digest): confirmed
+      self-contained .NET 10 runtime (this machine has zero dotnet installed, binary ran
+      immediately), real create+edit+read round-trips on .docx/.xlsx/.pptx (verified via `unzip
+      -l` that outputs are genuine OpenXML zips, and via `query --json` that text edits persist
+      and read back correctly), `batch` command confirmed for multi-op-per-invocation (amortizes
+      the ~2-6s per-process cold-start measured). Linux x64 release binary (the real Vercel
+      runtime target) is ~33.5MB, trivially within Vercel's 250MB unzipped serverless-function
+      limit (verified current via Vercel's own docs). Must run as a Node.js Serverless Function
+      (not Edge -- Edge can't spawn binaries) using one-shot child_process calls or `batch`, not
+      the tool's resident open/close mode (Vercel functions don't persist state between
+      invocations).
+      GO for replacing mammoth's single server-side call site (low risk, no UX change).
+      CONDITIONAL-GO for pptxgenjs (its real call site is CLIENT-SIDE -- report-export.ts's
+      exportPPTX() runs entirely in-browser today via dynamic import + Blob download, zero
+      server round-trip; replacing it with OfficeCLI requires a real architecture change to a
+      server-side generate + client-fetch pattern, not a drop-in package swap -- only worth it
+      if independently justified, not just to remove a dependency that isn't actually broken).
+      NO-GO on any implementation this pass -- feasibility memo only, per dispatch scope; no
+      production code changed. Scope: ai-os/priority22_officecli_feasibility.md (new),
+      this ACTIVE-CLAIMS.yaml entry, CONTROLLER.yaml PRIORITY-22 where-field update. Does NOT
+      touch src/lib/supabase/auth-guard.ts, schema.ts, office-addin/, or public/office-addin/
+      (separate, just-merged Microsoft Office Add-in connector work, unrelated feature). Branch:
+      priority22-officecli-feasibility, worktree .claude/worktrees/agent-a663b6d310ca58b9d. Not
+      self-merged -- left for the supervising session's audit per Rule 6/7(c)/10. Flags for the
+      reviewer: PR #372 (branch priority22-active-claims-registration) is now superseded by this
+      entry and Ling-2.6-1T's own entry above -- both workstreams registered and completed their
+      own claim lifecycle inline, so PR #372's original `active:` entries were closed without
+      merging rather than merged and immediately made stale. See PR #372's closing comment.
+
   - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
     completed_at: "2026-07-15T (this session)"
     merged_as: "compliance-tracker#346 + projexa#17"
