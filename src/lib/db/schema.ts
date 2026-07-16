@@ -64,7 +64,24 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // human would actually set. null = unenforced, same opt-in default pattern
   // as licensedSeats above -- see cost-guard.ts for the enforcement logic.
   monthlyCostCapUsd: numeric('monthly_cost_cap_usd', { precision: 10, scale: 2 }),
-  costCapEnforcementEnabled: boolean('cost_cap_enforcement_enabled').notNull().default(false),
+  // Wave A (VERIDIAN Review Framework remediation, 2026-07-17, security/bug
+  // quick-fix item 3): default flipped false->true. This alone does not
+  // start charging anyone anything -- cost-guard.ts's isOverLimit/
+  // canIncurCost only ever fire when BOTH this is true AND
+  // monthlyCostCapUsd (still nullable, still no default set here) is
+  // non-null, so an org with no cap amount configured is unaffected either
+  // way. What this closes: previously, even an org whose admin went on to
+  // set a monthlyCostCapUsd had a real window (between org creation and the
+  // admin remembering to also flip this separate toggle) where a configured
+  // cap silently enforced nothing. New orgs now start enforcement-ready by
+  // default -- setCostCap()/OrgLimitsSection.tsx's existing admin UI to
+  // configure/disable this remains the actual on/off switch, unchanged.
+  // Companion migration: drizzle/0216_wave_a_cost_cap_enforcement_default_true.sql
+  // (a schema-level default alone doesn't change the column's Postgres
+  // default for rows inserted outside Drizzle's own insert path).
+  // Deliberately NOT backfilled onto existing organisations -- see that
+  // migration's own header for why.
+  costCapEnforcementEnabled: boolean('cost_cap_enforcement_enabled').notNull().default(true),
   // Priority 8 (U-D27.B1.S1, GAP-SESSION-LIMIT): max concurrent sessions
   // per license -- opt-in, same posture as licensedSeats/monthlyCostCapUsd
   // above (every existing org's real behavior unchanged until an admin

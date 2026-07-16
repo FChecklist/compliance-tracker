@@ -157,6 +157,15 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   // for this model -- see orchestra-model-resolver.ts's platformFallbackFor
   // for why this exists at all: same-model failover, not a cost swap).
   "gpt-oss-120b": { promptPer1k: 0.00035, completionPer1k: 0.00075 }, // Cerebras
+  // Groq (Wave A, VERIDIAN Review Framework remediation, 2026-07-17): the
+  // vision-capable model newly registered in orchestra-model-resolver.ts's
+  // SOURCE_TYPE_MODEL_OVERRIDES.vision_document_extraction for "groq" --
+  // without this row, estimateCostUsd() would silently return null for
+  // every document-extraction call that resolves to it, the same class of
+  // gap the z-ai/glm-* rows below were added to close. Verified live via
+  // console.groq.com/docs/vision + groq.com/pricing 2026-07-17: $0.11 /
+  // $0.34 per 1M prompt/completion tokens.
+  "meta-llama/llama-4-scout-17b-16e-instruct": { promptPer1k: 0.00011, completionPer1k: 0.00034 }, // Groq
   "gpt-4o": { promptPer1k: 0.0025, completionPer1k: 0.01 },
   "gpt-4o-mini": { promptPer1k: 0.00015, completionPer1k: 0.0006 },
   "claude-sonnet-5": { promptPer1k: 0.003, completionPer1k: 0.015 },

@@ -134,7 +134,45 @@ export function escalatedPlatformConfig(): ResolvedModelConfig | null {
 const SOURCE_TYPE_MODEL_OVERRIDES: Record<string, Partial<Record<LLMProvider, string>>> = {
   // The exact map document-extraction-service.ts used to own locally --
   // moved here verbatim (not re-guessed) and wired back in below.
+  //
+  // Wave A (VERIDIAN Review Framework remediation, 2026-07-17, security/bug
+  // quick-fix item 4): this map had NO "groq" entry -- a real bug, not a
+  // disclosed gap. PLATFORM_DEFAULT_PROVIDER above is "groq" (a text-only
+  // reasoning model), which is what every org gets before configuring any
+  // BYO model of their own (the platform "floor tier"). For that entire
+  // population, applySourceTypeOverride() found no override for the primary
+  // provider ("groq") and then checked the fallback -- platformFallbackFor()'s
+  // Cerebras same-model failover, live when CEREBRAS_API_KEY is configured.
+  // "cerebras" ALSO had no entry in this map, so the lookup fell through
+  // both branches and returned null -- document-extraction-service.ts then
+  // logged a "failed" orchestra execution and skipped extraction entirely,
+  // silently, for every org on the platform default. Root cause was this
+  // map's missing groq entry, not document-extraction-service.ts itself
+  // (which correctly treats a null result as "cannot proceed").
+  //
+  // Fix: registered groq's own real vision-capable model, verified live via
+  // console.groq.com/docs/vision (2026-07-17) --
+  // meta-llama/llama-4-scout-17b-16e-instruct, which replaced Groq's
+  // decommissioned llama-3.2-*-vision-preview models and supports image
+  // input via the standard chat-completions endpoint, exactly like
+  // callVisionOpenAICompatible() already sends (llm-client.ts). Because
+  // applySourceTypeOverride() checks the PRIMARY provider first and returns
+  // immediately once found, this one addition resolves the entire
+  // floor-tier gap without ever needing to reach the Cerebras fallback
+  // branch. A pricing row was also added for this model in llm-client.ts's
+  // MODEL_PRICING -- without it, estimateCostUsd() would silently return
+  // null for every extraction call that resolves here, the same class of
+  // gap this fix closes.
+  //
+  // Cerebras deliberately still has NO entry here -- verified live via
+  // inference-docs.cerebras.ai (2026-07-17): Cerebras Cloud does not
+  // currently offer any vision/multimodal model. Registering a guessed
+  // model id for it would fail every request that actually reached that
+  // fallback branch with a confusing upstream error instead of this map's
+  // honest, already-handled "no override registered" null -- worse than the
+  // current documented behavior, so left unregistered rather than faked.
   vision_document_extraction: {
+    groq: "meta-llama/llama-4-scout-17b-16e-instruct",
     openai: "gpt-4o",
     anthropic: "claude-sonnet-5",
     google: "gemini-2.0-flash",

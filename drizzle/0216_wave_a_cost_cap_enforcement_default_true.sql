@@ -1,0 +1,31 @@
+-- VERIDIAN Review Framework remediation, Wave A (security/bug quick fixes),
+-- item 3: organisations.cost_cap_enforcement_enabled default flipped
+-- false -> true for newly created organisations.
+--
+-- Column-level DEFAULT change only -- applies to future INSERTs, does NOT
+-- backfill existing organisations (matching this repo's own established
+-- "don't retroactively assume an existing org's opt-in posture" convention,
+-- e.g. 0179_rls_gap_fix_7_tables.sql). An existing org's admin may have
+-- deliberately left enforcement off; silently flipping that now would be a
+-- behavior change this migration has no way to verify is wanted.
+--
+-- Real gap this closes: cost-guard.ts's isOverLimit/canIncurCost only ever
+-- fire when BOTH costCapEnforcementEnabled is true AND monthlyCostCapUsd
+-- (still nullable, still no default) is non-null -- so this default change
+-- alone enforces nothing for a brand-new org with no cap amount set. What
+-- it fixes is the window between an admin setting a monthlyCostCapUsd for a
+-- new org and separately remembering to also flip this toggle on --
+-- previously a cap could be configured and silently not enforced; new orgs
+-- now start enforcement-ready. setCostCap()/OrgLimitsSection.tsx (the
+-- existing admin UI) remains the real on/off switch for both fields
+-- together, unchanged by this migration.
+--
+-- Idempotent (ALTER COLUMN ... SET DEFAULT is safe to re-run) -- confirmed
+-- live (2026-07-17, project pcrjmlpuqsbocqfwoxod) that this column's actual
+-- Postgres default had already been flipped to `true` out-of-band by a
+-- prior session; this migration file makes that the correct, tracked,
+-- reproducible declared state for every environment (staging, a fresh
+-- database, CI), matching src/lib/db/schema.ts's own default.
+
+ALTER TABLE compliance.organisations
+  ALTER COLUMN cost_cap_enforcement_enabled SET DEFAULT true;
