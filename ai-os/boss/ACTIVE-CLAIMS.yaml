@@ -1236,6 +1236,87 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- VERIDIAN Review Framework implementation Wave A: security/bug quick fixes"
+    completed_at: "2026-07-17T (this session)"
+    merged_as: "compliance-tracker#385 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
+    claim: |
+      Same parent task as the active-section claim above (claimed
+      2026-07-16, "Wave A: security/bug quick fixes") -- all 4 items
+      re-verified against current code before implementing, correcting two
+      stale assumptions in that claim's own text: (1) the real file is
+      src/lib/supabase/api-key-auth.ts, not src/lib/api-key-auth.ts; (2) the
+      vision-model override map now lives in orchestra-model-resolver.ts's
+      SOURCE_TYPE_MODEL_OVERRIDES, not document-extraction-service.ts's
+      VISION_MODEL_OVERRIDES (generalized into the resolver in an earlier,
+      unrelated wave).
+      Found on session start: THREE earlier, uncommitted attempts at this
+      exact claim already existed on disk (compliance-tracker-wt-wave-a-security
+      branch wave-a-security-fixes-impl; .claude/worktrees/agent-a4f0d41d812d43528
+      branch review-wave-a-security-fixes; .claude/worktrees/agent-a594dea1a8374f3ec
+      branch wave-a-security-bug-quick-fixes) -- none ever committed, pushed,
+      or opened as a PR. All three independently converged on the same 4
+      root causes (useful cross-validation) but used different
+      implementation choices for item 1. This PR (#385) was built fresh off
+      latest main rather than resuming any of the three, synthesizing the
+      most defensible approach and independently re-verifying every
+      live-DB claim rather than trusting the abandoned attempts' own notes.
+      Their uncommitted worktree state is stale leftover, safe to discard.
+      (1) projexa_demo_key: confirmed live in compliance.api_keys (scopes
+      read,write, no rate limit, real production traffic through
+      2026-07-15, zero environment restriction). Added KNOWN_DEMO_KEY_IDS
+      + a DEMO_API_KEY_IDS env-var allowlist gate in validateApiKey() --
+      matches this codebase's own "env var presence gates a capability"
+      convention (orchestra-model-resolver.ts's platformApiKeyFor()) rather
+      than a NODE_ENV/VERCEL_ENV branch (no precedent for that anywhere in
+      this repo). Unset (the default everywhere, including production
+      today) rejects the key outright. No schema/migration needed -- key
+      not deleted, just gated.
+      (2) Confirmed live via pg_class.relforcerowsecurity (Supabase MCP,
+      project pcrjmlpuqsbocqfwoxod) that the 6 named tables (real names:
+      construction_submittals, construction_punch_list_items,
+      construction_change_orders, interior_mood_boards, interior_ffe_items,
+      interior_floor_plans) plus 5 same-origin-migration siblings
+      (construction_rfis, interior_floor_plan_rooms,
+      interior_furniture_placements, interior_materials,
+      interior_mood_board_items) were all RLS-enabled-not-forced (6 of the
+      11 had already been forced live by one of the earlier abandoned
+      attempts, independently re-confirmed here). Applied FORCE ROW LEVEL
+      SECURITY to all 11 live via the Supabase MCP (the remaining 5 by this
+      session); confirmed relforcerowsecurity=true on all 11 post-apply;
+      get_advisors (security) run before and after shows identical output,
+      zero new/changed findings -- expected, since Supabase's linter has no
+      lint category for "enabled but not forced." Added
+      drizzle/0215_wave_a_force_rls_construction_interior_tables.sql as the
+      tracked, idempotent migration.
+      (3) Confirmed organisations.costCapEnforcementEnabled defaulted to
+      false in schema.ts (live column default had already been flipped to
+      true out-of-band by an earlier abandoned attempt). Changed schema.ts
+      to default(true) + added
+      drizzle/0216_wave_a_cost_cap_enforcement_default_true.sql (column
+      DEFAULT only, no backfill of existing orgs). Verified safe via
+      cost-guard.ts: isOverLimit/canIncurCost also require a non-null
+      monthlyCostCapUsd, which stays null by default -- cannot block spend
+      on its own.
+      (4) Confirmed SOURCE_TYPE_MODEL_OVERRIDES.vision_document_extraction
+      in orchestra-model-resolver.ts had no groq entry -- groq is
+      PLATFORM_DEFAULT_PROVIDER, so every org on the platform default
+      silently got zero Document AI vision extraction (document-extraction-service.ts
+      itself was already correctly handling the null case, not the bug).
+      Registered groq -> meta-llama/llama-4-scout-17b-16e-instruct (verified
+      live via console.groq.com/docs/vision), added its MODEL_PRICING row in
+      llm-client.ts, updated the two orchestra-model-resolver.test.ts cases
+      that had asserted the old buggy "groq has no override" behavior
+      (switched to cerebras, which genuinely has none), and added an
+      explicit regression test reproducing the exact previously-broken
+      floor-tier shape. Added src/lib/supabase/api-key-auth.test.ts (zero
+      prior coverage) covering the new demo-key gate.
+      Verification: bunx tsc --noEmit clean; bun run lint 0 errors (3
+      pre-existing warnings in unrelated files); bun test 1197 pass / 3
+      skip / 0 fail across 93 files (fresh clone off latest main -- no
+      pre-existing-failure baseline needed, whole suite is green).
+      Branch: wave-a-security-final-impl. PR: compliance-tracker#385, NOT
+      merged -- left for the supervising session's audit per AGENTS.md Rule
+      7(c)/Rule 10 and this session's own instructions not to self-merge.
   - session_label: "claude-code (sub-agent) -- VERIDIAN Review Framework implementation Wave A: marketing/docs fixes"
     completed_at: "2026-07-16T (this session)"
     merged_as: "compliance-tracker#383 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
