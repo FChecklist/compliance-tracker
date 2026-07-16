@@ -88,6 +88,22 @@ active:
       execution logic, ReportsClient.tsx, or company-scope.tsx -- no
       overlap found. Will not self-merge either PR (Rule 10) -- left open
       for the supervising session's audit.
+
+      UPDATE (same session): both PRs opened, NOT merged by this session --
+      left for the supervising session's audit. compliance-tracker#379
+      (2 alias routes: GET reports/catalog, POST
+      reports/definitions/[id]/run) and projexa#28 (Full Catalog tab on
+      ReportsClient.tsx, new ReportCatalogSection.tsx/ReportCatalogRunner.tsx,
+      2 proxy routes, reports/page.tsx projectId made nullable -- a real
+      pre-existing regression risk found and fixed along the way: the page
+      previously would not render ReportsClient at all for an org with zero
+      projects, which would have hidden the new org-wide catalog tab too).
+      No schema/migration change -- none was needed. tsc --noEmit clean in
+      both repos, eslint clean (0 errors) in both, all 5 compliance-tracker
+      sync-check scripts pass, full compliance-tracker test suite 1171
+      pass/0 fail. compliance-tracker branch rebased onto latest main
+      (PR #378 merged concurrently) with zero conflicts, re-verified clean
+      post-rebase, force-pushed. This session has no further active claims.
   - session_label: "claude-code (background sub-agent) -- Priority 17 final gap item 1: Sales-beyond-Leads office/company field"
     claimed_at: "2026-07-16T (this session)"
     claim: |
