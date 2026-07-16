@@ -5361,7 +5361,7 @@ export const erpAssetDisposals = complianceSchemaDB.table('erp_asset_disposals',
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   // Wave B (VERIDIAN Review Framework remediation, Fixed Assets wiring,
-  // drizzle/0215): this table had NO status column at all -- schema-only
+  // drizzle/0218): this table had NO status column at all -- schema-only
   // since Wave 49/drizzle/0042, so there was no way to represent "disposal
   // awaiting approval" vs "finalized" vs "rejected" once a real
   // approval-gated disposal workflow (erp-fixed-assets-service.ts's
