@@ -4967,6 +4967,17 @@ export const erpJournalEntryStatusEnum = complianceSchemaDB.enum('erp_journal_en
 export const erpInvoiceStatusEnum = complianceSchemaDB.enum('erp_invoice_status', ['draft', 'submitted', 'partially_paid', 'paid', 'overdue', 'cancelled'])
 export const erpPaymentTypeEnum = complianceSchemaDB.enum('erp_payment_type', ['receive', 'pay'])
 export const erpPartyTypeEnum = complianceSchemaDB.enum('erp_party_type', ['customer', 'supplier'])
+// Wave B (VERIDIAN Review Framework, Payment Entries approval flow): a
+// dedicated status enum for erp_payment_entries, separate from
+// erpJournalEntryStatusEnum (which erp_journal_entries itself still uses
+// unchanged) -- erp_payment_entries had zero service-layer consumer before
+// this wave (confirmed via repo-wide grep), so widening its own status
+// column is a safe, additive-in-spirit change with no real caller to
+// break. Mirrors erpRequisitionStatusEnum's identical
+// draft/submitted/approved/rejected shape (Wave 55's Purchase Requisition),
+// the closest existing precedent for a document that goes through a real
+// approval decision rather than posting immediately.
+export const erpPaymentEntryStatusEnum = complianceSchemaDB.enum('erp_payment_entry_status', ['draft', 'submitted', 'approved', 'rejected', 'cancelled'])
 export const erpAssetStatusEnum = complianceSchemaDB.enum('erp_asset_status', ['draft', 'submitted', 'in_use', 'disposed', 'scrapped'])
 export const erpDepreciationMethodEnum = complianceSchemaDB.enum('erp_depreciation_method', ['straight_line', 'written_down_value'])
 
@@ -5116,8 +5127,29 @@ export const erpPaymentEntries = complianceSchemaDB.table('erp_payment_entries',
   referenceNo: text('reference_no'),
   referenceDate: date('reference_date', { mode: 'string' }),
   postingDate: date('posting_date', { mode: 'string' }).notNull(),
-  status: erpJournalEntryStatusEnum('status').notNull().default('draft'),
-  journalEntryId: text('journal_entry_id'), // set once posted to the GL
+  // Wave B: was erpJournalEntryStatusEnum (draft/submitted/cancelled, no
+  // approval concept) -- switched to the dedicated erpPaymentEntryStatusEnum
+  // below now that this table has a real approval workflow. 'submitted'
+  // here means "awaiting a manager-rank decision" (matches
+  // erp_purchase_requisitions' identical wording), not "posted to the GL" --
+  // journalEntryId below is only ever set once a decision reaches 'approved'.
+  status: erpPaymentEntryStatusEnum('status').notNull().default('draft'),
+  journalEntryId: text('journal_entry_id'), // set once approved + posted to the GL -- explicitly NOT set on a live payment-gateway callback; this table has no gateway/webhook writer anywhere (Owner directive: approval/record-keeping only, no money movement)
+  // Wave B: polymorphic link to the invoice this payment is applied
+  // against -- 'sales_invoice' -> erpSalesInvoices.id (payments received
+  // from a customer) or 'purchase_invoice' -> erpPurchaseInvoices.id
+  // (payments made to a supplier), matching erpJournalEntries' own
+  // referenceType/referenceId polymorphic convention. Both nullable -- a
+  // payment entry can still be logged standalone with no invoice link,
+  // unchanged behavior for any row that predates this wave.
+  invoiceType: text('invoice_type'),
+  invoiceId: text('invoice_id'),
+  createdById: text('created_by_id'), // who created/submitted this entry -- drives the self-approval guard (isSelfApproval), matching approval-workflow-service.ts's identical use of createdById
+  submittedById: text('submitted_by_id'),
+  submittedAt: timestamp('submitted_at'),
+  decidedById: text('decided_by_id'), // who approved/rejected
+  decidedAt: timestamp('decided_at'),
+  decisionComment: text('decision_comment'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -5323,11 +5355,22 @@ export const erpAssetDisposals = complianceSchemaDB.table('erp_asset_disposals',
   id: text('id').primaryKey().$defaultFn(() => createId()),
   assetId: text('asset_id').notNull(),
   disposalDate: date('disposal_date', { mode: 'string' }).notNull(),
-  disposalType: text('disposal_type').notNull(), // 'sale' | 'scrap'
+  disposalType: text('disposal_type').notNull(), // 'sale' | 'scrap' | 'write_off'
   saleValue: numeric('sale_value'),
   journalEntryId: text('journal_entry_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Wave B (VERIDIAN Review Framework remediation, Fixed Assets wiring,
+  // drizzle/0218): this table had NO status column at all -- schema-only
+  // since Wave 49/drizzle/0042, so there was no way to represent "disposal
+  // awaiting approval" vs "finalized" vs "rejected" once a real
+  // approval-gated disposal workflow (erp-fixed-assets-service.ts's
+  // initiateAssetDisposal, following submitJournalEntry/
+  // submitPurchaseRequisition's own startApprovalWorkflow precedent) was
+  // wired up. Plain text (not a new pg enum), matching this same table's
+  // own disposalType column precedent -- 3 known values ('pending' |
+  // 'completed' | 'rejected'), app-level validation only.
+  status: text('status').notNull().default('pending'),
 })
 
 // --- Buying ---
@@ -5856,10 +5899,29 @@ export const erpJournalEntryLinesRelations = relations(erpJournalEntryLines, ({ 
 export const erpFixedAssetsRelations = relations(erpFixedAssets, ({ one, many }) => ({
   category: one(erpAssetCategories, { fields: [erpFixedAssets.assetCategoryId], references: [erpAssetCategories.id] }),
   depreciationSchedules: many(erpDepreciationSchedules),
+  movements: many(erpAssetMovements),
+  disposals: many(erpAssetDisposals),
 }))
 
 export const erpDepreciationSchedulesRelations = relations(erpDepreciationSchedules, ({ one }) => ({
   asset: one(erpFixedAssets, { fields: [erpDepreciationSchedules.assetId], references: [erpFixedAssets.id] }),
+}))
+
+// Wave B (Fixed Assets wiring): query-side relations only -- no migration
+// needed, drizzle relations() are TS/query-builder metadata, not a physical
+// FK. Added alongside the first real service-layer consumer of these 3
+// tables (erp-fixed-assets-service.ts), matching erpFixedAssetsRelations/
+// erpDepreciationSchedulesRelations's own precedent above.
+export const erpAssetCategoriesRelations = relations(erpAssetCategories, ({ many }) => ({
+  assets: many(erpFixedAssets),
+}))
+
+export const erpAssetMovementsRelations = relations(erpAssetMovements, ({ one }) => ({
+  asset: one(erpFixedAssets, { fields: [erpAssetMovements.assetId], references: [erpFixedAssets.id] }),
+}))
+
+export const erpAssetDisposalsRelations = relations(erpAssetDisposals, ({ one }) => ({
+  asset: one(erpFixedAssets, { fields: [erpAssetDisposals.assetId], references: [erpFixedAssets.id] }),
 }))
 
 export const erpSalesInvoicesRelations = relations(erpSalesInvoices, ({ one, many }) => ({

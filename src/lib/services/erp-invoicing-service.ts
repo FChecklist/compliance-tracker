@@ -206,7 +206,9 @@ async function computeVendorTds(db: TenantDb, orgId: string, supplierId: string,
   return thisBasis * (Number(applicableRate.rate) / 100)
 }
 
-async function findControlAccount(db: TenantDb, orgId: string, accountType: "receivable" | "payable") {
+// Exported (Wave B) for erp-payment-entries-service.ts to reuse the exact
+// same control-account resolution rather than re-implementing it.
+export async function findControlAccount(db: TenantDb, orgId: string, accountType: "receivable" | "payable") {
   const account = await db.query.erpAccounts.findFirst({ where: and(eq(erpAccounts.orgId, orgId), eq(erpAccounts.accountType, accountType)) })
   if (!account) throw new ServiceError(`No chart-of-accounts entry with accountType='${accountType}' found -- set one up in Journal Entries > Chart of Accounts first`, 409)
   return account

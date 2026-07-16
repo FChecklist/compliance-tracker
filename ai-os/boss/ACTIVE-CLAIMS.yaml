@@ -1980,3 +1980,85 @@ recently_completed:
       detailed comment on the PR explaining the exact root cause and did
       not force it through.
 
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Payment Entries approval flow (no gateway)"
+    completed_at: "2026-07-17T (this session)"
+    claim: |
+      Real output for the claim registered 2026-07-16 under this same
+      session_label. erp_payment_entries (Wave 49 schema) had zero
+      service-layer consumer anywhere in this codebase before this PR
+      (confirmed via repo-wide grep) -- built the real thing per the
+      Owner's decision: wire it to a real create -> submit ->
+      approve/reject workflow, explicitly WITHOUT a live payment-gateway
+      connection (Razorpay's GitHub Secrets untouched, no SDK import, no
+      webhook route, no outbound network call anywhere in the new code).
+
+      Approval gate is mandatory (manager rank or above + independent-
+      approver check), reusing ROLE_RANK + isSelfApproval directly from
+      approval-workflow-service.ts (Wave 51's shared engine) rather than
+      inventing a new pattern -- but deliberately NOT routed through that
+      engine's own startApprovalWorkflow/decideApprovalStep machinery,
+      since that engine's documented behavior is "no workflow definition
+      configured -> auto-approve with zero gate" (see
+      erp-procurement-workflow-service.ts's submitPurchaseRequisition),
+      which is wrong for money movement and would contradict this task's
+      explicit "gated... requires a real authenticated user at manager
+      rank or above" requirement regardless of org configuration.
+      canDecidePaymentEntry() hard-codes the gate unconditionally instead.
+
+      Approving posts a real internal GL journal entry (bank account <->
+      receivable/payable control account) and, if linked to a sales/
+      purchase invoice, reduces that invoice's outstandingAmount exactly
+      like erp-invoicing-service.ts's recordSalesInvoicePayment (exported
+      findControlAccount from that file for reuse rather than
+      duplicating it). Rejecting has no GL/invoice side effect. Full
+      audit trail via the existing audit_logs table (same pattern as
+      veri-meeting-service.ts's listMeetingAuditLog).
+
+      File scope matches the original claim: new
+      src/lib/services/erp-payment-entries-service.ts, new
+      src/app/api/erp/payment-entries/** (list/create, get, submit,
+      decide, cancel, audit-log, pending-approvals inbox), new
+      src/app/(app)/erp/payment-entries/** UI (list, create dialog,
+      detail/approval dialog with audit trail), plus the schema change
+      itself: drizzle/0215_payment_entries_approval_workflow.sql adds a
+      dedicated erp_payment_entry_status enum (draft/submitted/approved/
+      rejected/cancelled, replacing the borrowed erp_journal_entry_status
+      this table used before) and workflow columns (createdById/
+      submittedById/submittedAt/decidedById/decidedAt/decisionComment/
+      invoiceType/invoiceId) -- safe since the table had no real writer
+      to break. Migration NOT yet applied to the live Supabase project --
+      left for the supervising/merging session, matching this repo's own
+      convention of shipping the SQL file in the PR itself. Also touched:
+      AppSidebar.tsx + messages/en.json + messages/hi.json (nav entry),
+      exported findControlAccount from erp-invoicing-service.ts.
+
+      16 new tests (erp-payment-entries-service.test.ts) covering the
+      full state machine (every valid/invalid transition) and the
+      decision gate (rank floor, self-approval block, self-approval-
+      checked-before-rank, null-creator legacy-row handling) -- pure-
+      function tests, matching this repo's established "don't touch
+      withTenantContext/a live DB from a .test.ts file" convention
+      (approval-workflow-service.test.ts's own precedent).
+
+      tsc/lint/full test suite all clean: bunx tsc --noEmit 0 errors
+      (fixed 4 errors, all in this PR's own new files, before this
+      claim); bun run lint 0 errors/3 pre-existing warnings unrelated to
+      this change; bun test 1206 pass/0 fail/3 skip, no regressions.
+      Migration numbering (0215) checked against latest origin/main
+      immediately before opening the PR -- no collision.
+
+      Known limitation carried forward per this task's own brief, not
+      solved here: if PROJEXA's shared-API-key proxy has no per-user
+      identity bridge to VERIDIAN, an "Approve" action from a PROJEXA UI
+      (none exists for this yet) wouldn't work the same way --
+      decidePaymentEntry requires a real ctx.dbUser session, no apiKey
+      actor-union exists on that function (unlike several sibling
+      erp-*-service.ts writers), by design. Separate, larger auth-
+      architecture gap, out of scope here.
+
+      PR #386 opened from wave-b-payment-entries-approval, NOT self-
+      merged per this task's own instruction -- left for a supervising
+      session to post the structured 8-field AUDIT: PASS/FAIL verdict
+      mandatory-audit-check.yml requires, and to apply the drizzle
+      migration to the live Supabase project.
+

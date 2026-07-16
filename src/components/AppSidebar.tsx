@@ -66,6 +66,7 @@ import {
   FlaskConical,
   Gem,
   Wrench,
+  Boxes,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -175,6 +176,8 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
       title: t("sections.finance.title"),
       items: [
         { label: t("sections.finance.items.journalEntries"), href: "/erp/journal-entries", icon: FileText },
+        { label: t("sections.finance.items.paymentEntries"), href: "/erp/payment-entries", icon: Banknote },
+        { label: t("sections.finance.items.fixedAssets"), href: "/erp/fixed-assets", icon: Boxes },
         { label: t("sections.finance.items.budgeting"), href: "/erp/budgets", icon: Wallet },
         { label: t("sections.finance.items.financialReports"), href: "/erp/reports", icon: TrendingUp },
         { label: t("sections.finance.items.cashManagement"), href: "/erp/cash-management", icon: Banknote },

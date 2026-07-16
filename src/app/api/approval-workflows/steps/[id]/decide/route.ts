@@ -3,17 +3,21 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { decideApprovalStep, ServiceError } from "@/lib/services/approval-workflow-service"
 import { markJournalEntrySubmittedFromApproval } from "@/lib/services/erp-accounting-service"
 import { markPurchaseRequisitionApprovedFromApproval } from "@/lib/services/erp-procurement-workflow-service"
+import { finalizeAssetDisposal, markAssetDisposalRejectedFromApproval } from "@/lib/services/erp-fixed-assets-service"
 
 // Entity-specific "on approved" dispatch, kept at the route layer rather
 // than inside the generic engine so approval-workflow-service.ts stays
 // entity-agnostic -- any future module that adopts this engine adds one
 // case here, not a new branch inside the shared service. Wave 55 added the
 // second real consumer (erp_purchase_requisition) to prove this generalizes.
+// Wave B (Fixed Assets wiring) added the third: erp_asset_disposal.
 async function onWorkflowApproved(ctx: { orgId: string; userId: string; dbUser: Parameters<typeof markJournalEntrySubmittedFromApproval>[0]['dbUser'] }, entityType: string, entityId: string) {
   if (entityType === "erp_journal_entry") {
     await markJournalEntrySubmittedFromApproval(ctx, entityId)
   } else if (entityType === "erp_purchase_requisition") {
     await markPurchaseRequisitionApprovedFromApproval(ctx, entityId)
+  } else if (entityType === "erp_asset_disposal") {
+    await finalizeAssetDisposal(ctx, entityId)
   }
 
   // Wave 58: fire an ERP webhook once the workflow-gated entity actually
@@ -22,8 +26,20 @@ async function onWorkflowApproved(ctx: { orgId: string; userId: string; dbUser: 
     const { deliverWebhook } = await import("@/lib/webhook-deliver")
     if (entityType === "erp_journal_entry") await deliverWebhook(ctx.orgId, "erp_journal_entry.submitted", { journalEntryId: entityId })
     else if (entityType === "erp_purchase_requisition") await deliverWebhook(ctx.orgId, "erp_purchase_requisition.approved", { requisitionId: entityId })
+    else if (entityType === "erp_asset_disposal") await deliverWebhook(ctx.orgId, "erp_asset_disposal.completed", { disposalId: entityId })
   } catch (webhookError) {
     console.error("Webhook delivery error (non-fatal):", webhookError)
+  }
+}
+
+// Wave B (Fixed Assets wiring): the first real "on rejected" dispatch --
+// erp_journal_entry/erp_purchase_requisition have no rejected state to move
+// into (a pre-existing gap in both, out of scope here), but
+// erp_asset_disposal's own status column (added this wave) needs one so a
+// rejected disposal doesn't linger as 'pending' forever.
+async function onWorkflowRejected(ctx: { orgId: string; userId: string; dbUser: Parameters<typeof markAssetDisposalRejectedFromApproval>[0]['dbUser'] }, entityType: string, entityId: string) {
+  if (entityType === "erp_asset_disposal") {
+    await markAssetDisposalRejectedFromApproval(ctx, entityId)
   }
 }
 
@@ -43,6 +59,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (result.instanceStatus === "approved") {
       await onWorkflowApproved({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId)
+    } else if (result.instanceStatus === "rejected") {
+      await onWorkflowRejected({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId)
     }
 
     return NextResponse.json(result)
