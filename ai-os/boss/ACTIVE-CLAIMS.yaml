@@ -104,6 +104,103 @@ active:
       pass/0 fail. compliance-tracker branch rebased onto latest main
       (PR #378 merged concurrently) with zero conflicts, re-verified clean
       post-rebase, force-pushed. This session has no further active claims.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave A: security/bug quick fixes"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner directive: implement Step 0 of the 2045-parameter VERIDIAN Review
+      Framework evaluation's remediation plan (control/CONTROLLER.yaml
+      REVIEW-FRAMEWORK-01). Scope: (1) env-gate/deactivate the live
+      projexa_demo_key shared API key in src/lib/api-key-auth.ts +
+      compliance.api_keys; (2) FORCE ROW LEVEL SECURITY on 6 tables
+      (submittals/punch_list/change_orders/mood_boards/ffe_items/floor_plans)
+      via a new drizzle migration; (3) costCapEnforcementEnabled default
+      change for new orgs in organisations schema; (4) fix Groq vision-model
+      routing gap in document-extraction-service.ts's VISION_MODEL_OVERRIDES.
+      File scope: src/lib/api-key-auth.ts, src/lib/db/schema.ts,
+      drizzle/ (new migration), src/lib/services/document-extraction-service.ts.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave A: marketing/docs fixes"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Same parent task as above. Scope: (1) remove/correct unsubstantiated
+      SOC 2 Type II + penetration-testing claims in src/app/pricing/page.tsx,
+      src/app/privacy/page.tsx, src/app/data-policy/page.tsx; (2) add a print
+      stylesheet; (3) add a public API changelog doc; (4) add a Sev-1
+      incident-command runbook doc. Low collision risk, docs/copy-focused.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: CRM Accounts & Contacts (full depth)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Real gap: no crm_accounts/crm_contacts table exists at all (CRM UI
+      only has Leads/Opportunities). Full-depth build per Owner's standing
+      no-MVP directive: schema + RLS + service layer + API routes + UI pages
+      + tests, sized for 100-employee/500-project scale. File scope:
+      src/lib/db/schema.ts, drizzle/ (new migration), new
+      src/lib/services/crm-accounts-service.ts, new src/app/api/crm/accounts/**,
+      new src/app/(app)/crm/accounts/** pages.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: HR Attendance & Manpower (full depth)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Real gap: no general HR attendance table exists (only project-scoped
+      construction_attendance for PROJEXA, a distinct concept -- see this
+      file's own prior note near "attendance (site-labour manpower...)").
+      Full-depth build: schema + RLS + service + API + UI + tests for
+      org-wide employee attendance/leave/timesheet tracking. File scope:
+      src/lib/db/schema.ts, drizzle/ (new migration), new
+      src/lib/services/hr-attendance-service.ts, new src/app/api/hr/attendance/**,
+      new src/app/(app)/hr/attendance/** pages. Does NOT touch
+      construction_attendance (projexa-owned, separate concept).
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Fixed Assets wiring (full depth)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Real gap: erp_fixed_assets/erp_asset_categories/erp_depreciation_schedules/
+      erp_asset_movements/erp_asset_disposals schema exists (drizzle/0042) but
+      zero service/API/UI consumes it. Full-depth build: service layer with
+      configurable depreciation (straight-line + declining-balance) + API
+      routes + UI + tests. File scope: new
+      src/lib/services/erp-fixed-assets-service.ts, new
+      src/app/api/erp/fixed-assets/**, new
+      src/app/(app)/erp/fixed-assets/** pages. Schema/migration NOT touched
+      (already exists).
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Payment Entries approval flow (no gateway)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner decision (2026-07-16): wire erpPaymentEntries + a real payment
+      approval workflow, explicitly WITHOUT a live payment gateway
+      connection (Razorpay creds stay held back). File scope: new
+      src/lib/services/erp-payment-entries-service.ts, new
+      src/app/api/erp/payment-entries/**, new
+      src/app/(app)/erp/payment-entries/** pages. No gateway/webhook code.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: BYOB white-label branding"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner decision (2026-07-16): build BOTH BYOB interpretations as
+      separate features. This claim = white-label (per-tenant logo/colors/
+      domain), extending the already-unused organisations.logo column.
+      File scope: src/lib/db/schema.ts (organisations table extension),
+      drizzle/ (new migration), new branding settings UI + theming plumbing.
+      Coordinate with the BYO-AI-model claim below -- different file scope,
+      should not collide.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: BYOB bring-your-own-AI-model"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner decision (2026-07-16): build BOTH BYOB interpretations as
+      separate features. This claim = per-tenant custom LLM/API-key
+      integration into the AI routing layer, per PLATFORM_STRATEGY.md's
+      actual definition. File scope: src/lib/orchestra-model-resolver.ts
+      (extend, don't rewrite), new per-org BYO-model config table + UI.
+      Coordinate with the white-label claim above -- different file scope.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Training LMS module (full depth)"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner decision (2026-07-16): build full-depth now, not deferred.
+      Real gap: Training doesn't exist as a product category at all -- zero
+      LMS/course/assessment/curriculum data model anywhere. Full-depth
+      build per Owner's standing no-MVP directive: course/curriculum
+      schema, assessment engine, completion tracking, role-based training
+      paths, trainer workspace, sized for 100-employee/500-project scale.
+      File scope: src/lib/db/schema.ts (new training_* tables), drizzle/
+      (new migration), new src/lib/services/training-service.ts, new
+      src/app/api/training/**, new src/app/(app)/training/** pages. Largest
+      single workstream in this wave -- expect a real multi-file PR.
   - session_label: "claude-code (background sub-agent) -- Priority 17 final gap item 1: Sales-beyond-Leads office/company field"
     claimed_at: "2026-07-16T (this session)"
     claim: |
