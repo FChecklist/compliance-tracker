@@ -107,6 +107,26 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // not a behavior change. getComplianceEngine() itself still validates the
   // value at call time rather than trusting this column blindly.
   country: text('country').default('IN'),
+  // Wave B (VERIDIAN Review Framework remediation, "BYOB white-label
+  // branding", 2026-07-17): `logo` (above) existed since drizzle/0000 and
+  // was never read/written anywhere in src/ before this wave -- confirmed
+  // via a fresh grep immediately before writing this migration. These 4
+  // columns are new. All nullable/opt-in -- every pre-existing org (all of
+  // which have every one of these columns NULL today, verified directly
+  // against the live DB before this migration was written) renders with
+  // the default VERIDIAN AI branding, completely unchanged, until an org
+  // admin explicitly sets one. See drizzle/0219_wave_b_white_label_branding.sql
+  // and src/lib/services/org-branding-service.ts for the full design
+  // rationale, including why customDomain deliberately stores only the
+  // requested domain string (no DNS verification/TLS/routing -- explicitly
+  // descoped, see that migration's own header) and why brand colors are
+  // plain unvalidated text at the DB layer (validated in the service layer
+  // instead, matching this table's own gstin/panNumber/cinNumber precedent).
+  brandPrimaryColor: text('brand_primary_color'),
+  brandAccentColor: text('brand_accent_color'),
+  faviconUrl: text('favicon_url'),
+  customDomain: text('custom_domain').unique(),
+  emailSenderName: text('email_sender_name'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

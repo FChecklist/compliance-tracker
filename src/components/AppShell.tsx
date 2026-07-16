@@ -69,6 +69,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const veriChatV2Enabled = me?.veriChatV2Enabled ?? false;
   const firmEnabled = me?.firmEnabled ?? false;
   const orgName = me?.orgName ?? "";
+  // Wave B (BYOB white-label branding): already-defaulted by /api/me
+  // (org-branding-service.ts's resolveBranding()) -- orgLogoUrl is only
+  // ever null for "no custom logo configured," never an error state, and
+  // the two colors always have a real value once orgId exists. Applied as
+  // CSS custom properties on the shell's own root wrapper below (not by
+  // overriding the design system's existing --color-ct-* Tailwind theme
+  // tokens, which Tailwind v4's `@theme inline` inlines as literal values
+  // at build time and can't be safely overridden at runtime) -- see
+  // globals.css's :root block for the matching --org-brand-primary/
+  // --org-brand-accent defaults these shadow per-tenant.
+  const orgLogoUrl = me?.orgLogoUrl ?? null;
+  const orgBrandPrimaryColor = me?.orgBrandPrimaryColor ?? undefined;
+  const orgBrandAccentColor = me?.orgBrandAccentColor ?? undefined;
 
   useEffect(() => {
     // Connectors sidebar/composer badge (Connectors.docx wave, 2026-07-10):
@@ -150,7 +163,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             other org since the toggle button isn't rendered for them. */}
         {!(veriChatV2Enabled && sidebarCollapsed) && (
           <div className="print:hidden">
-            <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+            <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
           </div>
         )}
         {veriChatV2Enabled ? (
@@ -201,7 +214,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
+    <div
+      className="flex h-screen flex-col overflow-hidden print:block print:h-auto print:overflow-visible"
+      style={{
+        "--org-brand-primary": orgBrandPrimaryColor,
+        "--org-brand-accent": orgBrandAccentColor,
+      } as React.CSSProperties}
+    >
       {veriChatV2Enabled ? <VeriChatProvider>{body}</VeriChatProvider> : body}
     </div>
   );

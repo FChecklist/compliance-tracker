@@ -20,6 +20,14 @@ export type MeResponse = {
   firmEnabled: boolean;
   orgPlan: string;
   trialEndsAt: string | null;
+  // Wave B (BYOB white-label branding): always already-defaulted server-side
+  // (org-branding-service.ts's resolveBranding()) -- orgLogoUrl is null only
+  // when the org hasn't set a custom logo (render the default /logo-mark.svg
+  // in that case), the two colors are never null for an org with a real
+  // orgId (they fall back to VERIDIAN AI's own default hex values).
+  orgLogoUrl: string | null;
+  orgBrandPrimaryColor: string | null;
+  orgBrandAccentColor: string | null;
 };
 
 async function fetchMe(): Promise<MeResponse> {
