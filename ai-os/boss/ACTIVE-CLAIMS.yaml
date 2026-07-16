@@ -132,6 +132,22 @@ active:
       compliance-tracker-wt-p17-reports (sibling directory, created via plain
       git worktree since this repo's own .claude/worktrees/ convention is not
       reachable from this session's sandboxed cwd).
+      UPDATE (same session): PR opened (compliance-tracker#375), NOT merged
+      by this session -- left for the supervising session's audit, per
+      standing convention. tsc --noEmit clean, eslint clean (0 errors, 3
+      pre-existing warnings in unrelated files), all 5 sync-check scripts
+      pass. All 4 execution types (deterministic_aggregation/
+      deterministic_formula/ai_recipe/external_service) are runnable through
+      the new UI, since executeReportDefinition() already returns one
+      uniform result shape for all of them -- the only disclosed limitation
+      is that a handful of deterministic_formula definitions need a
+      projectId report_definitions has no formal required-params schema for,
+      surfaced via the dispatcher's own real 400 error rather than guessed.
+      PROJEXA's own equivalent gap (no report_definitions-catalog UI there
+      either) is NOT addressed by this PR -- scoped to compliance-tracker
+      per the dispatch brief's primary target, left open. This session has
+      no further active claims.
+
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
