@@ -9650,5 +9650,15 @@ export const workspaceMemoryCapsuleEvents = complianceSchemaDB.table('workspace_
   itemCounts: jsonb('item_counts').notNull().default({}),
   status: text('status').notNull().default('completed'), // 'completed' | 'failed'
   errorMessage: text('error_message'),
+  // Which of the 3 sync-transport options (see
+  // ai-os/priority21_workspace_memory_design.md §4) produced this row.
+  // Nullable -- existing pre-this-wave rows predate this column and are all
+  // real manual download/upload events, but backfilling that assumption
+  // isn't this migration's job (additive-only column, no data rewrite).
+  // 'manual' = Option 1 (download/upload, PR #367); 'google_drive' = Option 2
+  // (auto-sync via the user's connected Drive account); 'veridian_pull' =
+  // Option 3 (first-party GET /api/workspace-memory/latest + the existing
+  // import route, no manual file handling).
+  syncMethod: text('sync_method'), // 'manual' | 'google_drive' | 'veridian_pull' | null
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })

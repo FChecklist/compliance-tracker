@@ -1,12 +1,30 @@
 "use client";
 
 // Priority 21, Layer 2 Workspace Memory -- entry point matching
-// ApiKeySection.tsx's shape exactly (ai-os/priority21_workspace_memory_design.md
-// §3.5): a primary action, a history list, toasts. No new UI paradigm.
+// ApiKeySection.tsx's shape (ai-os/priority21_workspace_memory_design.md
+// §3.5), extended per the Owner directive "have all 3 options for the
+// user" (ai-os/priority21_workspace_memory_design.md §4 named 3 real
+// cross-device sync-transport options and left the choice open -- this
+// builds all 3 as real, named, distinct user-facing choices rather than
+// defaulting to the design doc's own "start with Option 1" recommendation).
+// Every import path below (manual upload, Drive import, VERIDIAN pull) ends
+// up at the exact same additive-only importWorkspaceMemory() function --
+// see workspace-memory-service.ts -- so SEC-04's "never silently overwrite"
+// guarantee is identical no matter which option a user picks.
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Download, Upload, Brain, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import {
+  Download,
+  Upload,
+  Brain,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  HardDrive,
+  RefreshCw,
+  Link2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 type CapsuleEvent = {
@@ -15,7 +33,14 @@ type CapsuleEvent = {
   fileSizeBytes: number;
   itemCounts: { savedReports?: number; conversations?: number; messages?: number };
   status: string;
+  syncMethod?: "manual" | "google_drive" | "veridian_pull" | null;
   createdAt: string;
+};
+
+const SYNC_METHOD_LABEL: Record<string, string> = {
+  manual: "Download/Upload",
+  google_drive: "Google Drive",
+  veridian_pull: "VERIDIAN",
 };
 
 function formatBytes(n: number): string {
@@ -24,11 +49,27 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Shared by every "download bytes from a signed URL, then hand them to the existing import route" flow (Option 3, and any client-side re-use). Never a second parsing/writing code path -- just fetch bytes, POST to the same route the manual file picker already posts to. */
+async function importFromSignedUrl(signedUrl: string, fileName: string) {
+  const fileRes = await fetch(signedUrl);
+  if (!fileRes.ok) throw new Error("Failed to download the capsule");
+  const blob = await fileRes.blob();
+  const formData = new FormData();
+  formData.append("file", new File([blob], fileName, { type: "application/octet-stream" }));
+  const res = await fetch("/api/workspace-memory/import", { method: "POST", body: formData });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to import");
+  return data;
+}
+
 export default function WorkspaceMemorySection() {
   const [events, setEvents] = useState<CapsuleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [driveExporting, setDriveExporting] = useState(false);
+  const [driveImporting, setDriveImporting] = useState(false);
+  const [syncingNow, setSyncingNow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchEvents = useCallback(() => {
@@ -43,6 +84,8 @@ export default function WorkspaceMemorySection() {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  // ─── Option 1: manual download / upload ─────────────────────────────────
 
   const handleExport = async () => {
     setExporting(true);
@@ -93,14 +136,88 @@ export default function WorkspaceMemorySection() {
     }
   };
 
+  // ─── Option 2: sync via Google Drive ────────────────────────────────────
+
+  const handleDriveExport = async () => {
+    setDriveExporting(true);
+    try {
+      const res = await fetch("/api/workspace-memory/drive-export", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to sync to Google Drive");
+      toast.success(`Saved to Google Drive (VERIDIAN Workspace Memory folder)`);
+      fetchEvents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to sync to Google Drive");
+    } finally {
+      setDriveExporting(false);
+    }
+  };
+
+  const handleDriveImport = async () => {
+    setDriveImporting(true);
+    try {
+      const res = await fetch("/api/workspace-memory/drive-import", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to sync from Google Drive");
+      toast.success(
+        `Imported ${data.itemCounts.savedReports} saved reports from Google Drive (added as new)`
+      );
+      fetchEvents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to sync from Google Drive");
+    } finally {
+      setDriveImporting(false);
+    }
+  };
+
+  // ─── Option 3: sync via VERIDIAN (first-party pull-latest) ──────────────
+
+  const handleSyncNow = async () => {
+    setSyncingNow(true);
+    try {
+      const latestRes = await fetch("/api/workspace-memory/latest");
+      const latest = await latestRes.json();
+      if (!latestRes.ok) throw new Error(latest.error || "Nothing to sync yet");
+      const data = await importFromSignedUrl(latest.signedUrl, "workspace-memory.mv2");
+      toast.success(
+        `Synced ${data.itemCounts.savedReports} saved reports from your last export (added as new)`
+      );
+      fetchEvents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to sync");
+    } finally {
+      setSyncingNow(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div>
         <h3 className="text-sm font-semibold text-ct-navy flex items-center gap-2">
           <Brain className="size-4" />
           Workspace Memory
         </h3>
-        <div className="flex items-center gap-2">
+        <p className="text-xs text-ct-muted mt-1">
+          A portable capsule (.mv2) of your own saved report definitions and
+          recent AI-thread conversations, so you can carry them to another
+          device. This never includes other people&apos;s data or live
+          compliance/financial records. Importing always adds your saved
+          reports as new entries (never overwrites existing ones) and makes
+          imported conversations viewable read-only.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {/* Option 1 -- manual download/upload */}
+        <div className="rounded-lg border border-ct-border bg-ct-cloud p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-ct-navy">
+            <Download className="size-3.5" />
+            Download a file
+          </div>
+          <p className="text-[11px] text-ct-muted">
+            Save the .mv2 file yourself and carry it however you like (USB
+            drive, personal cloud folder, email to self).
+          </p>
           <input
             ref={fileInputRef}
             type="file"
@@ -108,36 +225,90 @@ export default function WorkspaceMemorySection() {
             className="hidden"
             onChange={handleFileSelected}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-8"
-            onClick={handleImportClick}
-            disabled={importing}
-          >
-            <Upload className="size-3.5 mr-1" />
-            {importing ? "Importing..." : "Import"}
-          </Button>
-          <Button
-            size="sm"
-            className="bg-ct-saffron hover:bg-ct-saffron-hover text-white text-xs h-8"
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            <Download className="size-3.5 mr-1" />
-            {exporting ? "Exporting..." : "Export My Workspace Memory"}
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            <Button
+              size="sm"
+              className="bg-ct-saffron hover:bg-ct-saffron-hover text-white text-xs h-8 w-full"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <Download className="size-3.5 mr-1" />
+              {exporting ? "Exporting..." : "Export"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 w-full"
+              onClick={handleImportClick}
+              disabled={importing}
+            >
+              <Upload className="size-3.5 mr-1" />
+              {importing ? "Importing..." : "Import"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Option 2 -- Google Drive auto-sync */}
+        <div className="rounded-lg border border-ct-border bg-ct-cloud p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-ct-navy">
+            <HardDrive className="size-3.5" />
+            Sync via Google Drive
+          </div>
+          <p className="text-[11px] text-ct-muted">
+            Auto-saves to a &quot;VERIDIAN Workspace Memory&quot; folder in
+            your connected Drive. Requires Google Drive connected in{" "}
+            <a href="/connectors" className="underline text-ct-teal inline-flex items-center gap-0.5">
+              Connectors <Link2 className="size-2.5" />
+            </a>
+            .
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 w-full"
+              onClick={handleDriveExport}
+              disabled={driveExporting}
+            >
+              <ArrowUpFromLine className="size-3.5 mr-1" />
+              {driveExporting ? "Saving..." : "Export to Drive"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 w-full"
+              onClick={handleDriveImport}
+              disabled={driveImporting}
+            >
+              <ArrowDownToLine className="size-3.5 mr-1" />
+              {driveImporting ? "Importing..." : "Import latest from Drive"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Option 3 -- first-party VERIDIAN sync */}
+        <div className="rounded-lg border border-ct-border bg-ct-cloud p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-ct-navy">
+            <RefreshCw className="size-3.5" />
+            Sync via VERIDIAN
+          </div>
+          <p className="text-[11px] text-ct-muted">
+            Pulls your last export straight from VERIDIAN&apos;s own storage
+            onto this device -- no file to save or upload yourself.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <Button
+              size="sm"
+              className="bg-ct-teal hover:bg-ct-teal-hover text-white text-xs h-8 w-full"
+              onClick={handleSyncNow}
+              disabled={syncingNow}
+            >
+              <RefreshCw className={`size-3.5 mr-1 ${syncingNow ? "animate-spin" : ""}`} />
+              {syncingNow ? "Syncing..." : "Sync now"}
+            </Button>
+          </div>
         </div>
       </div>
-
-      <p className="text-xs text-ct-muted bg-ct-cloud rounded-lg p-3">
-        Download a portable file (.mv2) containing your own saved report
-        definitions and your recent AI-thread conversations, so you can carry
-        them to another device. This never includes other people&apos;s data
-        or live compliance/financial records. Importing a capsule adds your
-        saved reports as new entries (never overwrites existing ones) and
-        makes imported conversations viewable read-only.
-      </p>
 
       {loading ? (
         <div className="space-y-3">
@@ -162,11 +333,16 @@ export default function WorkspaceMemorySection() {
                 <ArrowUpFromLine className="size-4 text-ct-saffron shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium text-ct-navy capitalize">{ev.direction}</span>
                   <span className="text-[10px] font-mono text-ct-muted bg-ct-cloud px-1.5 py-0.5 rounded">
                     {formatBytes(ev.fileSizeBytes)}
                   </span>
+                  {ev.syncMethod && (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5">
+                      {SYNC_METHOD_LABEL[ev.syncMethod] ?? ev.syncMethod}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-[11px] text-ct-muted mt-0.5">
                   {ev.itemCounts.savedReports ?? 0} reports, {ev.itemCounts.conversations ?? 0} conversations
