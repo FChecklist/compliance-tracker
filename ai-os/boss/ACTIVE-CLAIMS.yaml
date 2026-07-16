@@ -91,6 +91,15 @@ active:
       final_2_gaps item 2 (Reports & Analysis consuming UI) is a separate
       dispatched agent touching a different, new UI surface, not this
       schema/service area.
+
+      UPDATE (same session): both PRs opened, NOT merged by this session.
+      compliance-tracker#377 (schema + services + report engine) and
+      projexa#27 (selector rollout to Quotations/Sales Orders/Purchase
+      Orders). Migration 0214 NOT applied live -- left for the supervising
+      session. tsc/lint/all 5 local sync-check scripts/full test suite
+      (1171 pass/0 fail) all clean in compliance-tracker; tsc/lint clean in
+      projexa (1 pre-existing unrelated warning). This session has no
+      further active claims.
   - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
