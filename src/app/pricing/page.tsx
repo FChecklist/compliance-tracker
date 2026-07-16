@@ -123,7 +123,7 @@ const FAQS = [
   },
   {
     q: "Is my data secure on VERIDIAN AI?",
-    a: "Yes. All data is encrypted at rest (AES-256) and in transit (TLS 1.3). We are SOC 2 Type II compliant and host our infrastructure on AWS with data centres in Mumbai. Your AI keys (if using BYOK) are encrypted separately and never shared with any third party. We conduct regular security audits and penetration testing.",
+    a: "Yes. All data is encrypted in transit and at rest by our infrastructure providers. VERIDIAN AI is hosted on Vercel and Supabase, both of which hold current SOC 2 Type II certifications, and tenant data is additionally isolated at the database layer via row-level security. Your AI keys (if using BYOK) are encrypted separately and never shared with any third party. VERIDIAN AI itself does not currently hold a SOC 2 certification or an independent penetration-test report — if your organisation needs either for a vendor security review, contact our sales team to discuss your requirements.",
   },
   {
     q: "Do you offer discounts for NGOs or startups?",

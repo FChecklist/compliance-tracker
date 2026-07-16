@@ -46,8 +46,8 @@ export default function DataPolicyPage() {
         <p>
           The Services rely on third-party subprocessors — cloud hosting and database infrastructure (Vercel,
           Supabase) and AI model providers reached through our model-routing layer (which may include OpenRouter
-          and the model vendors behind it). These subprocessors maintain <strong>GDPR compliance commitments and
-          SOC 2 attestations</strong>. Where you bring your own AI provider keys (BYOK), your data is processed by
+          and the model vendors behind it). Vercel and Supabase each hold their own current <strong>SOC 2 Type II
+          certification and GDPR compliance commitments</strong>, per their published trust documentation. Where you bring your own AI provider keys (BYOK), your data is processed by
           your chosen provider under your own agreement with them; we store such keys encrypted and use them only
           to make the calls you configure.
         </p>
@@ -57,10 +57,12 @@ export default function DataPolicyPage() {
         <h2>5. Our compliance posture</h2>
         <p>
           Our systems are designed and operated in accordance with GDPR principles (lawfulness, purpose
-          limitation, data minimisation, security, accountability) and SOC 2 trust-service criteria (security,
-          availability, confidentiality), and run exclusively on infrastructure that holds current SOC 2
-          attestations and GDPR commitments. Every AI execution on the platform is logged with its model, token
-          usage, and outcome, giving an auditable ledger of automated processing.
+          limitation, data minimisation, security, accountability), enforced through database-level row-level
+          security tenant isolation, encrypted storage of API credentials, and per-organisation data isolation.
+          We run exclusively on infrastructure (Vercel, Supabase) that holds current SOC 2 Type II certification
+          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or
+          penetration-test attestation at this time. Every AI execution on the platform is logged with its model,
+          token usage, and outcome, giving an auditable ledger of automated processing.
         </p>
       </section>
 
