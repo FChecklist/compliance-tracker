@@ -5427,6 +5427,14 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   orderDate: date('order_date', { mode: 'string' }).notNull(),
   expectedDeliveryDate: date('expected_delivery_date', { mode: 'string' }),
   status: text('status').notNull().default('draft'), // 'draft'|'submitted'|'partially_received'|'completed'|'cancelled'
+  // Priority 17 final gap (2026-07-16): which erp_companies entity/office
+  // this purchase order belongs to -- nullable, null = org-wide/
+  // unattributed, same convention as crmLeads.companyId (Priority 17
+  // remaining-gap pass, 2026-07-15) and erp_budgets.companyId. No DB-level
+  // FK -- matches this codebase's existing companyId columns, which are
+  // all bare text with app-level validation only, never a drizzle
+  // .references() to erp_companies.
+  companyId: text('company_id'),
   // Priority 17 Wave 1: same nullable/optional-pair shape as
   // erp_purchase_invoices.currencyId/exchangeRate (Wave 66) -- lets a PO
   // be raised in a foreign supplier's own currency. A purchase order never
@@ -5575,6 +5583,17 @@ export const erpQuotations = complianceSchemaDB.table('erp_quotations', {
   orgId: text('org_id').notNull(),
   customerId: text('customer_id'),
   leadId: text('lead_id'), // nullable link to VERIDIAN's existing crm_leads -- a quotation can precede a formal customer
+  // Priority 17 final gap (2026-07-16): which erp_companies entity/office
+  // this quotation belongs to -- nullable, null = org-wide/unattributed,
+  // same convention as crmLeads.companyId (Priority 17 remaining-gap pass,
+  // 2026-07-15). No DB-level FK -- matches this codebase's existing
+  // companyId columns, which are all bare text with app-level validation
+  // only, never a drizzle .references() to erp_companies. Carried forward
+  // (not re-derived) onto a revision (createQuotationRevision) and onto the
+  // sales order a quotation converts to (convertQuotationToSalesOrder),
+  // matching this table's existing currencyId/exchangeRate carry-forward
+  // discipline.
+  companyId: text('company_id'),
   quotationNumber: integer('quotation_number').notNull(),
   quotationDate: date('quotation_date', { mode: 'string' }).notNull(),
   validTill: date('valid_till', { mode: 'string' }),
@@ -5634,6 +5653,13 @@ export const erpSalesOrders = complianceSchemaDB.table('erp_sales_orders', {
   customerId: text('customer_id').notNull(),
   opportunityId: text('opportunity_id'), // nullable link to VERIDIAN's existing crm_opportunities -- a "won" opportunity flows into a sales order
   quotationId: text('quotation_id'),
+  // Priority 17 final gap (2026-07-16): which erp_companies entity/office
+  // this sales order belongs to -- nullable, null = org-wide/unattributed,
+  // same convention as erpQuotations.companyId above. Carried forward from
+  // the source quotation by convertQuotationToSalesOrder(), or set directly
+  // on a standalone sales order -- same discipline as this table's existing
+  // currencyId/exchangeRate carry-forward. No DB-level FK.
+  companyId: text('company_id'),
   soNumber: integer('so_number').notNull(),
   orderDate: date('order_date', { mode: 'string' }).notNull(),
   deliveryDate: date('delivery_date', { mode: 'string' }),

@@ -175,7 +175,7 @@ export async function getCustomerOverview(ctx: { orgId: string }, customerId: st
 
 export type QuotationItemInput = { itemId?: string; description: string; quantity?: number; rate: number }
 
-export type ListQuotationsOptions = { search?: string; status?: string; customerId?: string; projectId?: string; page?: number; pageSize?: number }
+export type ListQuotationsOptions = { search?: string; status?: string; customerId?: string; projectId?: string; companyId?: string; page?: number; pageSize?: number }
 
 export async function listQuotations(ctx: { orgId: string }, opts: ListQuotationsOptions = {}): Promise<PagedResult<Awaited<ReturnType<typeof fetchQuotationPage>>["items"][number]>> {
   await requireErpEnabled(ctx.orgId)
@@ -189,6 +189,7 @@ async function fetchQuotationPage(db: TenantDb, orgId: string, opts: ListQuotati
   if (opts.status) conditions.push(eq(erpQuotations.status, opts.status))
   if (opts.customerId) conditions.push(eq(erpQuotations.customerId, opts.customerId))
   if (opts.projectId) conditions.push(eq(erpQuotations.projectId, opts.projectId))
+  if (opts.companyId) conditions.push(eq(erpQuotations.companyId, opts.companyId))
   const where = and(...conditions)
   // Wave 60's `customer` relation is a straight equality join and composes
   // fine with the conditions above; `search` needs a customer NAME match,
@@ -205,7 +206,7 @@ async function fetchQuotationPage(db: TenantDb, orgId: string, opts: ListQuotati
 
 export async function createQuotation(
   ctx: SellingActorCtx,
-  input: { customerId?: string; leadId?: string; projectId?: string; quotationDate: string; validTill?: string; currencyId?: string; exchangeRate?: number; items: QuotationItemInput[] }
+  input: { customerId?: string; leadId?: string; projectId?: string; companyId?: string; quotationDate: string; validTill?: string; currencyId?: string; exchangeRate?: number; items: QuotationItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId && !input.leadId) throw new ServiceError("A quotation needs a customerId or a leadId", 400)
@@ -228,6 +229,7 @@ export async function createQuotation(
 
     const quotation = await insertQuotationRow(db, ctx, {
       customerId: input.customerId ?? null, leadId: input.leadId ?? null, projectId: input.projectId ?? null,
+      companyId: input.companyId ?? null,
       quotationDate: input.quotationDate, validTill: input.validTill ?? null, version: 1, revisionOf: null,
       currencyId, exchangeRate,
     }, input.items)
@@ -264,7 +266,7 @@ export async function getQuotationForPdf(ctx: { orgId: string }, quotationId: st
 async function insertQuotationRow(
   db: TenantDb,
   ctx: { orgId: string; userId: string },
-  header: { customerId: string | null; leadId: string | null; projectId: string | null; quotationDate: string; validTill: string | null; version: number; revisionOf: string | null; currencyId?: string | null; exchangeRate?: number },
+  header: { customerId: string | null; leadId: string | null; projectId: string | null; companyId?: string | null; quotationDate: string; validTill: string | null; version: number; revisionOf: string | null; currencyId?: string | null; exchangeRate?: number },
   itemsInput: QuotationItemInput[]
 ) {
   const items = itemsInput.map((i) => ({ ...i, quantity: i.quantity ?? 1 }))
@@ -273,6 +275,7 @@ async function insertQuotationRow(
 
   const [quotation] = await db.insert(erpQuotations).values({
     orgId: ctx.orgId, customerId: header.customerId, leadId: header.leadId, projectId: header.projectId,
+    companyId: header.companyId ?? null,
     quotationNumber: Number(maxNumber) + 1, quotationDate: header.quotationDate, validTill: header.validTill,
     version: header.version, revisionOf: header.revisionOf,
     currencyId: header.currencyId ?? null, exchangeRate: (header.exchangeRate ?? 1).toString(),
@@ -310,6 +313,10 @@ export async function createQuotationRevision(ctx: SellingActorCtx, quotationId:
     const items = (itemsOverride ?? existing.items).map((i) => ({ itemId: i.itemId ?? undefined, description: i.description, quantity: Number(i.quantity), rate: Number(i.rate) }))
     const revision = await insertQuotationRow(db, ctx, {
       customerId: existing.customerId, leadId: existing.leadId, projectId: existing.projectId,
+      // Priority 17 final gap: a revision carries forward the same company/
+      // office attribution as the quotation it revises, same discipline as
+      // the currencyId/exchangeRate carry-forward just below.
+      companyId: existing.companyId,
       quotationDate: new Date().toISOString().slice(0, 10), validTill: existing.validTill, version: nextVersion, revisionOf: rootId,
       // Priority 17 Wave 1: a revision carries forward the same currency/rate
       // as the quotation it revises -- a customer negotiation doesn't
@@ -372,6 +379,10 @@ export async function convertQuotationToSalesOrder(ctx: SellingActorCtx, quotati
     const items: SalesOrderItemInput[] = quotation.items.map((i) => ({ itemId: i.itemId ?? undefined, description: i.description, quantity: Number(i.quantity), rate: Number(i.rate) }))
     const salesOrder = await insertSalesOrderRow(db, ctx, {
       customerId: quotation.customerId, opportunityId: null, quotationId: quotation.id, projectId: quotation.projectId,
+      // Priority 17 final gap: the sales order a customer accepted carries
+      // the same company/office attribution as the quotation it came from,
+      // same discipline as the currencyId/exchangeRate carry-forward below.
+      companyId: quotation.companyId,
       orderDate: input.orderDate, deliveryDate: input.deliveryDate ?? null,
       // Priority 17 Wave 1: the sales order a customer accepted carries the
       // exact currency/rate they were quoted at -- never silently
@@ -391,7 +402,7 @@ export async function convertQuotationToSalesOrder(ctx: SellingActorCtx, quotati
 
 export type SalesOrderItemInput = { itemId?: string; description: string; quantity?: number; rate: number }
 
-export type ListSalesOrdersOptions = { search?: string; status?: string; customerId?: string; projectId?: string; page?: number; pageSize?: number }
+export type ListSalesOrdersOptions = { search?: string; status?: string; customerId?: string; projectId?: string; companyId?: string; page?: number; pageSize?: number }
 
 export async function listSalesOrders(ctx: { orgId: string }, opts: ListSalesOrdersOptions = {}): Promise<PagedResult<Awaited<ReturnType<typeof fetchSalesOrderPage>>["items"][number]>> {
   await requireErpEnabled(ctx.orgId)
@@ -405,6 +416,7 @@ async function fetchSalesOrderPage(db: TenantDb, orgId: string, opts: ListSalesO
   if (opts.status) conditions.push(eq(erpSalesOrders.status, opts.status))
   if (opts.customerId) conditions.push(eq(erpSalesOrders.customerId, opts.customerId))
   if (opts.projectId) conditions.push(eq(erpSalesOrders.projectId, opts.projectId))
+  if (opts.companyId) conditions.push(eq(erpSalesOrders.companyId, opts.companyId))
   const where = and(...conditions)
   const all = await db.query.erpSalesOrders.findMany({ where, orderBy: (t, { desc }) => desc(t.orderDate), with: { items: true, customer: true } })
   const filtered = opts.search?.trim()
@@ -417,7 +429,7 @@ async function fetchSalesOrderPage(db: TenantDb, orgId: string, opts: ListSalesO
 async function insertSalesOrderRow(
   db: TenantDb,
   ctx: { orgId: string; userId: string },
-  header: { customerId: string; opportunityId: string | null; quotationId: string | null; projectId: string | null; orderDate: string; deliveryDate: string | null; currencyId?: string | null; exchangeRate?: number },
+  header: { customerId: string; opportunityId: string | null; quotationId: string | null; projectId: string | null; companyId?: string | null; orderDate: string; deliveryDate: string | null; currencyId?: string | null; exchangeRate?: number },
   itemsInput: SalesOrderItemInput[]
 ) {
   const items = itemsInput.map((i) => ({ ...i, quantity: i.quantity ?? 1 }))
@@ -426,6 +438,7 @@ async function insertSalesOrderRow(
 
   const [salesOrder] = await db.insert(erpSalesOrders).values({
     orgId: ctx.orgId, customerId: header.customerId, opportunityId: header.opportunityId, quotationId: header.quotationId, projectId: header.projectId,
+    companyId: header.companyId ?? null,
     soNumber: Number(maxNumber) + 1, orderDate: header.orderDate, deliveryDate: header.deliveryDate,
     currencyId: header.currencyId ?? null, exchangeRate: (header.exchangeRate ?? 1).toString(),
     grandTotal: grandTotal.toString(), createdById: ctx.userId,
@@ -442,7 +455,7 @@ async function insertSalesOrderRow(
 
 export async function createSalesOrder(
   ctx: SellingActorCtx,
-  input: { customerId: string; opportunityId?: string; quotationId?: string; projectId?: string; orderDate: string; deliveryDate?: string; currencyId?: string; exchangeRate?: number; items: SalesOrderItemInput[] }
+  input: { customerId: string; opportunityId?: string; quotationId?: string; projectId?: string; companyId?: string; orderDate: string; deliveryDate?: string; currencyId?: string; exchangeRate?: number; items: SalesOrderItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
@@ -467,6 +480,7 @@ export async function createSalesOrder(
 
     const salesOrder = await insertSalesOrderRow(db, ctx, {
       customerId: input.customerId, opportunityId: input.opportunityId ?? null, quotationId: input.quotationId ?? null, projectId: input.projectId ?? null,
+      companyId: input.companyId ?? null,
       orderDate: input.orderDate, deliveryDate: input.deliveryDate ?? null, currencyId, exchangeRate,
     }, input.items)
 

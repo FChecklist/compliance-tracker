@@ -18,6 +18,7 @@ function toSalesOrderShape(so: Awaited<ReturnType<typeof listSalesOrders>>["item
     opportunityId: so.opportunityId,
     quotationId: so.quotationId,
     projectId: so.projectId,
+    companyId: so.companyId,
     orderDate: so.orderDate,
     deliveryDate: so.deliveryDate,
     status: so.status,
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
       status: params.get("status") ?? undefined,
       customerId: params.get("customerId") ?? undefined,
       projectId: params.get("projectId") ?? undefined,
+      companyId: params.get("companyId") ?? undefined,
       page: params.get("page") ? Number(params.get("page")) : undefined,
       pageSize: params.get("pageSize") ? Number(params.get("pageSize")) : undefined,
     })
@@ -68,7 +70,7 @@ export async function POST(request: NextRequest) {
       ? { orgId: ctx.orgId, userId: actorId, dbUser: ctx.dbUser }
       : { orgId: ctx.orgId, userId: actorId, apiKey: ctx.apiKey! }
     const salesOrder = await createSalesOrder(actorCtx, {
-      customerId: body.customerId, opportunityId: body.opportunityId, quotationId: body.quotationId, projectId: body.projectId,
+      customerId: body.customerId, opportunityId: body.opportunityId, quotationId: body.quotationId, projectId: body.projectId, companyId: body.companyId,
       orderDate: body.orderDate, deliveryDate: body.deliveryDate,
       currencyId: body.currencyId, exchangeRate: body.exchangeRate, items,
     })
