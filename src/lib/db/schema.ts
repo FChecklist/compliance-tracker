@@ -4396,6 +4396,13 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   // which are all bare text with app-level validation only, never a drizzle
   // .references() to erp_companies.
   companyId: text('company_id'),
+  // VERIDIAN Review Framework Wave B (2026-07-17): nullable link to the new
+  // crm_accounts table below -- a lead can be attributed to an existing
+  // account (e.g. a new contact reaching out from a company already
+  // tracked), same bare-text/no-FK/nullable convention as companyId just
+  // above. Unset for every lead created before this wave (unchanged
+  // behavior) and unset by default for a brand-new, unaffiliated lead.
+  accountId: text('account_id'),
   convertedClientId: text('converted_client_id'), // set when convertLeadToClient() runs -- closes the loop into the Wave-1 clients table
   // Priority 15 (Sales & CRM depth wave): next scheduled follow-up for this
   // lead, surfaced on the pipeline dashboard/list views so a rep's queue is
@@ -4447,6 +4454,12 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // every opportunity created before this wave, and every compliance-CRM
   // opportunity that only ever used clientId, is unaffected.
   erpCustomerId: text('erp_customer_id'),
+  // VERIDIAN Review Framework Wave B (2026-07-17): nullable link to the new
+  // crm_accounts table below -- an opportunity can belong to a tracked
+  // account (a company with its own address/industry/lifecycle-stage
+  // record), independent of whether it also has a leadId/clientId. Same
+  // bare-text/no-FK/nullable convention as accountId on crmLeads above.
+  accountId: text('account_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4470,6 +4483,89 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
   note: text('note'),
   changedById: text('changed_by_id'),
   changedAt: timestamp('changed_at').notNull().defaultNow(),
+})
+
+// ─── VERIDIAN CRM Accounts & Contacts (Review Framework Wave B, 2026-07-17) ─
+// Real gap confirmed via a fresh grep of src/ immediately before this wave:
+// crm_leads/crm_opportunities (Wave 41) never had a persistent company-level
+// "account" record or a person-level "contact" record underneath them -- a
+// lead was a bare name string with no industry/address/lifecycle-stage
+// tracking, no way to model a subsidiary/parent-company hierarchy, and no
+// way to record more than one named contact person at a company. This is
+// deliberately its own bounded identity space alongside crm_leads/
+// crm_opportunities/clients/erp_customers -- this codebase already runs
+// multiple separate party-identity spaces linked by nullable bridge columns
+// rather than hard merges (see crmOpportunities.erpCustomerId's own comment
+// above), so crm_accounts/crm_contacts follows that same precedent instead
+// of overloading `clients` or `erp_customers`.
+export const crmAccountLifecycleStageEnum = complianceSchemaDB.enum('crm_account_lifecycle_stage', ['prospect', 'active_client', 'dormant', 'churned'])
+
+export const crmAccounts = complianceSchemaDB.table('crm_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  industry: text('industry'),
+  website: text('website'),
+  // Billing/shipping address inline as two single-address field groups --
+  // an account has exactly one of each, unlike erp_addresses' Wave 84
+  // polymorphic multi-address model (built for invoicing-time address
+  // selection across many addresses of the same type). shippingSameAsBilling
+  // lets the UI/service skip re-entering duplicate fields; resolved by
+  // resolveAccountShippingAddress() in crm-accounts-service.ts.
+  billingLine1: text('billing_line1'),
+  billingLine2: text('billing_line2'),
+  billingCity: text('billing_city'),
+  billingState: text('billing_state'),
+  billingPostalCode: text('billing_postal_code'),
+  billingCountry: text('billing_country'),
+  shippingSameAsBilling: boolean('shipping_same_as_billing').notNull().default(true),
+  shippingLine1: text('shipping_line1'),
+  shippingLine2: text('shipping_line2'),
+  shippingCity: text('shipping_city'),
+  shippingState: text('shipping_state'),
+  shippingPostalCode: text('shipping_postal_code'),
+  shippingCountry: text('shipping_country'),
+  ownerId: text('owner_id'), // assigned rep -- same convention as crmLeads.ownerId
+  // Self-referential parent-account link for a subsidiary/holding-company
+  // hierarchy. No DB-level self-FK (matches this codebase's bare-text
+  // companyId/leadId/clientId bridge-column convention -- app-level
+  // validation only); cycle-safety (an account can never become its own
+  // ancestor) is enforced by wouldCreateCycle() in the service layer.
+  parentAccountId: text('parent_account_id'),
+  lifecycleStage: crmAccountLifecycleStageEnum('lifecycle_stage').notNull().default('prospect'),
+  // Same convention as crmLeads.companyId (Priority 17 remaining-gap pass) --
+  // nullable, null = org-wide/unattributed.
+  companyId: text('company_id'),
+  // Set when this account is created via convertLeadToAccount() -- closes
+  // the loop the same way crmLeads.convertedClientId already does for the
+  // Wave-1 `clients` table.
+  convertedFromLeadId: text('converted_from_lead_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// A named person at an account -- distinct from erp_contacts (Wave 84,
+// polymorphic, erp_customer/erp_supplier only, built for invoicing-time
+// contact selection) the same way crm_leads/crm_opportunities are their own
+// identity space distinct from erp_customers (see crmOpportunities.erpCustomerId
+// comment above). One account can have many contacts; isPrimary marks the
+// main point of contact, enforced single-per-account by
+// setPrimaryContact()/createContact() in crm-accounts-service.ts, not a DB
+// constraint (matches this schema's general preference for app-level
+// enforcement over a partial unique index for this class of invariant).
+export const crmContacts = complianceSchemaDB.table('crm_contacts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  accountId: text('account_id').notNull(),
+  name: text('name').notNull(),
+  title: text('title'),
+  email: text('email'),
+  phone: text('phone'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────

@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 // sales CRM.
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks } from "lucide-react";
+import Link from "next/link";
+import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks, Building2 } from "lucide-react";
 import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,10 @@ import {
 
 type Lead = {
   id: string; name: string; contactEmail: string | null; source: string | null; status: string; convertedClientId: string | null;
+  // VERIDIAN Review Framework Wave B (2026-07-17): nullable link to the new
+  // crm_accounts table -- independent of convertedClientId (a lead can be
+  // converted to a client, an account, both, or neither).
+  accountId: string | null;
   aiScore: number | null; aiRecommendedAction: string | null;
 };
 type Opportunity = {
@@ -127,6 +132,21 @@ export default function CrmPage() {
     }
   };
 
+  // VERIDIAN Review Framework Wave B (2026-07-17): a lead that represents a
+  // real company worth account-managing (not just a one-off client record)
+  // converts into the new crm_accounts table instead -- independent of
+  // convertLead() above.
+  const convertLeadAccount = async (leadId: string) => {
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}/convert-to-account`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success("Converted to account");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to convert lead to account");
+    }
+  };
+
   const createOpportunity = async () => {
     if (!oppName.trim() || !oppLeadId) return;
     setCreatingOpp(true);
@@ -211,9 +231,14 @@ export default function CrmPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-heading text-ct-navy">CRM</h1>
-        <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, not just manage an existing one.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy">CRM</h1>
+          <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, not just manage an existing one.</p>
+        </div>
+        <Link href="/crm/accounts">
+          <Button variant="outline"><Building2 className="size-4 mr-1.5" /> Accounts</Button>
+        </Link>
       </div>
 
       <Tabs defaultValue="leads">
@@ -286,6 +311,11 @@ export default function CrmPage() {
                           <ArrowRightCircle className="size-3.5 mr-1" /> Convert
                         </Button>
                       </>
+                    )}
+                    {!lead.accountId && (
+                      <Button size="sm" variant="outline" onClick={() => convertLeadAccount(lead.id)}>
+                        <Building2 className="size-3.5 mr-1" /> To Account
+                      </Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => scoreLead(lead.id)} disabled={scoringId === lead.id}>
                       {scoringId === lead.id ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}

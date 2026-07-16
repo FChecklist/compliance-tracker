@@ -149,6 +149,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
       title: t("sections.salesCrm.title"),
       items: [
         { label: t("sections.salesCrm.items.veriCrmAi"), href: "/crm", icon: TrendingUp },
+        // VERIDIAN Review Framework Wave B (2026-07-17): the new crm_accounts/
+        // crm_contacts surface -- company-level account records with a
+        // contacts roster underneath, sibling to the existing Leads/
+        // Opportunities tabs on /crm.
+        { label: t("sections.salesCrm.items.accounts"), href: "/crm/accounts", icon: Building2 },
       ],
     },
     // Only shown once an org enables the separate, opt-in VERIDIAN AI PMS
