@@ -980,7 +980,7 @@ recently_completed:
 
   - session_label: "claude-code (sub-agent) -- Priority 22, OfficeCLI mammoth-replacement implementation"
     completed_at: "2026-07-16T (this session)"
-    merged_as: "compliance-tracker#378 (open, draft -- not yet merged)"
+    merged_as: "compliance-tracker#378 (open, ready for review -- not yet merged)"
     claim: |
       Implemented the feasibility memo's GO recommendation
       (ai-os/priority22_officecli_feasibility.md section 7 "Real next steps"):
@@ -1015,16 +1015,24 @@ recently_completed:
       dependency, skipped via test.skipIf(process.platform !== "linux")
       since only the Linux binary is vendored and this dev machine is
       Windows (will run for real on this repo's ubuntu-latest CI). bunx tsc
-      --noEmit: 0 errors. bun run lint: 0 errors. bun test: 1178 pass/0
-      fail/3 skip (full suite, up from 1171 pre-existing). bun run build
-      kicked off; result to follow in a PR comment. Does NOT touch
+      --noEmit: 0 errors. bun run lint: 0 errors. bun test locally (Windows,
+      3 real integration tests skip): 1178 pass/0 fail/3 skip. CONFIRMED via
+      this repo's own CI on PR #378 (ubuntu-latest, the real Vercel/prod
+      runtime match): Build job compiled successfully (53s) and generated
+      all 570 static pages with zero errors; Unit Tests job ran 1181 pass/0
+      fail -- critically, on Linux CI all 3 previously-skipped real
+      end-to-end integration tests in officecli-client.test.ts actually ran
+      against the vendored binary and passed (main extraction test 2628ms,
+      corrupt-file-rejection test 1425ms). Lint/Type Check/all other checks
+      pass; audit-check correctly shows fail (no self-audit posted, per Rule
+      7c) -- left for the supervising session. Does NOT touch
       pptxgenjs/report-export.ts (CONDITIONAL-GO, separate architecture
       decision, out of scope) or office-addin/public/office-addin/
       (unrelated, already-merged connector). Branch:
       priority22-officecli-mammoth-replacement, worktree
-      .claude/worktrees/agent-a96ed2679d96ad4eb. PR #378 opened as draft
-      (will mark ready once the build result lands) -- NOT self-merged, left
-      for the supervising session's audit per Rule 6/7(c)/10.
+      .claude/worktrees/agent-a96ed2679d96ad4eb. PR #378 open, ready for
+      review -- NOT self-merged, left for the supervising session's audit
+      per Rule 6/7(c)/10.
 
   - session_label: "claude-code (sub-agent) -- Priority 17 Wave 1, Inventory/Stock + Procurement workflow depth"
     completed_at: "2026-07-15T (this session)"
