@@ -2232,3 +2232,94 @@ recently_completed:
       NOT merged -- left for the supervising session's audit per AGENTS.md
       Rule 7(c)/Rule 10 and this task's own instruction not to self-merge.
 
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework implementation Wave B: BYOB white-label branding (re-dispatch)"
+    completed_at: "2026-07-17T (this session)"
+    merged_as: "compliance-tracker#390 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
+    claim: |
+      Picks up the active-section claim above ("BYOB white-label branding",
+      claimed 2026-07-16) -- that dispatched session never produced a
+      branch, commit, or PR and was confirmed dead (no matching entry in
+      `git branch -a`, `git ls-remote --heads origin`, or `gh pr list
+      --search`). Independently re-verified from scratch per this task's own
+      instruction not to trust the stale claim text blindly.
+
+      Real finding on session start: the dead session HAD applied its DDL
+      directly to the live Supabase project (pcrjmlpuqsbocqfwoxod) via MCP
+      before dying -- organisations.brand_primary_color/brand_accent_color/
+      favicon_url/custom_domain/email_sender_name and a public org-branding
+      storage bucket already existed live, with no matching drizzle/ file,
+      no schema.ts fields, and no code anywhere reading/writing them.
+      Verified this was safe to build on rather than discard: all 5 columns
+      NULL on every one of the 18 live orgs, the bucket had 0 objects and no
+      storage.objects RLS policies, the custom_domain partial unique index
+      was well-formed. Reused that exact design (documented in the new
+      migration's own header) instead of inventing a colliding alternative.
+
+      Built: drizzle/0219_wave_b_white_label_branding.sql (idempotent, now
+      matching live reality); schema.ts organisations extension
+      (brandPrimaryColor/brandAccentColor/faviconUrl/customDomain/
+      emailSenderName, logo finally wired up for real use); new
+      src/lib/services/org-branding-service.ts (single sanctioned
+      resolve/validate/write path, resolveBranding() always returns safe
+      defaults so an unconfigured org never renders broken/blank); new
+      src/app/api/settings/branding/route.ts (GET any org member, PATCH
+      admin-or-above via requireRole(dbUser, "admin"), matching
+      OrgLimitsSection's own API route convention) and
+      src/app/api/settings/branding/logo/route.ts (upload/reset, following
+      documents/route.ts's storage pattern but against a PUBLIC bucket --
+      a logo isn't confidential like compliance documents, so it doesn't
+      need documents.ts's private+signed-URL treatment); new
+      src/components/BrandingSection.tsx (Settings > Branding tab, matching
+      OrgLimitsSection.tsx's structure, with live preview); wired into
+      src/app/api/me/route.ts (resolved branding, already-defaulted) ->
+      src/lib/queries/use-me.ts -> src/components/AppShell.tsx (new
+      --org-brand-primary/--org-brand-accent CSS custom properties applied
+      per-tenant at the shell root -- deliberately NOT an attempt to
+      override the existing --color-ct-* Tailwind v4 `@theme inline` tokens,
+      which are inlined as literals at build time and can't be safely
+      runtime-overridden) -> src/components/AppSidebar.tsx (logo image +
+      wordmark swap when a custom logo is configured, plus an accent
+      underline -- the one deliberate scope boundary: not re-theming every
+      bg-ct-saffron/text-ct-saffron usage across the sidebar, a separately-
+      scoped redesign).
+
+      Confirmed zero file-scope overlap with the separately-merged
+      BYO-AI-model claim (compliance-tracker#384, see the active-section
+      entry above/below it): `gh pr diff 384 --name-only` shows it touched
+      only src/lib/orchestra-model-resolver.ts,
+      src/app/api/settings/model-config/route.ts, and its own test file;
+      a fresh `git diff` confirms this PR touches none of those, nor
+      customer_model_config or OrchestraModelConfigSection.tsx.
+
+      Deliberately descoped: custom_domain stores the requested string
+      only -- DNS verification, TLS/SSL provisioning, and Host-header-based
+      request routing are a separate, much larger infrastructure workstream
+      (called out explicitly in the migration file and the settings UI copy,
+      not half-built). emailSenderName column exists and is settable but no
+      email-sending pipeline in this codebase reads it yet (same "field
+      exists, not every consumer wired in the same wave" precedent as
+      several pre-existing organisations columns).
+
+      Migration numbering: confirmed drizzle/0218_wave_b_fixed_assets_
+      disposal_status.sql was the highest-numbered file immediately before
+      creating drizzle/0219_wave_b_white_label_branding.sql -- no collision.
+      Applied live via Supabase MCP (idempotent ADD COLUMN IF NOT EXISTS /
+      ON CONFLICT DO NOTHING against pcrjmlpuqsbocqfwoxod); get_advisors
+      (security) shows no new findings, only pre-existing unrelated ones.
+
+      bunx tsc --noEmit: 0 errors. bun run lint: 0 errors, 3 pre-existing
+      warnings unrelated to this change. bun test (full suite): 1250
+      pass/0 fail/3 skip, including 20 new tests across
+      org-branding-service.test.ts (default-fallback for an unconfigured
+      org, public-URL resolution, hex/domain validation, domain-uniqueness-
+      across-orgs, asset get/set) and
+      src/app/api/settings/branding/route.test.ts (the access-control gate:
+      member/branch_manager rejected 403, admin/veridian_admin allowed
+      through, GET has no role gate, a validation error surfaces as 400 not
+      500).
+
+      Branch: wave-b-white-label-branding. PR #390 opened against main,
+      NOT self-merged -- left for the supervising session's audit (this
+      repo's mandatory-audit-check.yml requires the structured 8-field
+      AUDIT: PASS/AUDIT: FAIL verdict comment, not just a bare LGTM). This
+      session has no further active claims on this priority.
