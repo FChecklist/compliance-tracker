@@ -30,6 +30,16 @@ describe("estimateCostUsd", () => {
   test("returns 0 (not null) for zero-token usage on a known model", () => {
     expect(estimateCostUsd("gpt-4o-mini", { promptTokens: 0, completionTokens: 0 })).toBe(0)
   })
+
+  // Wave A (VERIDIAN Review Framework remediation, 2026-07-17): the Groq
+  // vision model newly wired into orchestra-model-resolver.ts's
+  // vision_document_extraction override must have a pricing row too, same
+  // reasoning as the free-OpenRouter-variant case above -- otherwise every
+  // document-extraction call that resolves to it would silently cost-track
+  // as null.
+  test("has pricing registered for the newly-registered Groq vision model (meta-llama/llama-4-scout-17b-16e-instruct)", () => {
+    expect(estimateCostUsd("meta-llama/llama-4-scout-17b-16e-instruct", { promptTokens: 1000, completionTokens: 1000 })).not.toBeNull()
+  })
 })
 
 // Prompt & Cache Management Framework, Phase 1 (2026-07-14): regression

@@ -45,8 +45,12 @@ describe("applySourceTypeOverride", () => {
 
   test("falls back to the fallback provider's override when the primary provider has none registered", async () => {
     const { applySourceTypeOverride } = await import("./orchestra-model-resolver")
+    // Wave A (2026-07-17): primary changed from "groq" to "cerebras" -- groq
+    // now has its own registered vision override (this same wave's fix), so
+    // it's no longer a valid "primary has none registered" case. cerebras
+    // remains deliberately unregistered (see this file's own header).
     const original = config({
-      provider: "groq", model: "openai/gpt-oss-120b",
+      provider: "cerebras", model: "gpt-oss-120b",
       fallback: { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free", apiKey: "fallback-key" },
     })
     const result = applySourceTypeOverride(original, "vision_document_extraction")
@@ -57,18 +61,48 @@ describe("applySourceTypeOverride", () => {
 
   test("returns null when a registered sourceType has no override for the primary OR fallback provider", async () => {
     const { applySourceTypeOverride } = await import("./orchestra-model-resolver")
-    // groq has no vision override, and there's no fallback at all here.
-    const result = applySourceTypeOverride(config({ provider: "groq", fallback: undefined }), "vision_document_extraction")
+    // Wave A (2026-07-17): cerebras has no vision override (verified live --
+    // Cerebras Cloud offers no vision/multimodal model, see this file's own
+    // header comment) and there's no fallback at all here. groq itself is no
+    // longer a valid case for this test -- its own vision override is now
+    // registered as a direct fix for the bug this same wave closed.
+    const result = applySourceTypeOverride(config({ provider: "cerebras", fallback: undefined }), "vision_document_extraction")
     expect(result).toBeNull()
   })
 
   test("returns null when neither primary nor fallback provider has a registered override", async () => {
     const { applySourceTypeOverride } = await import("./orchestra-model-resolver")
+    // Wave A (2026-07-17): cerebras is (deliberately) the only LLMProvider
+    // with zero vision_document_extraction coverage on either side now --
+    // used for both primary and fallback here purely to exercise the
+    // "checked both, still nothing" code path.
     const result = applySourceTypeOverride(
-      config({ provider: "groq", fallback: { provider: "cerebras", model: "gpt-oss-120b", apiKey: "k" } }),
+      config({ provider: "cerebras", fallback: { provider: "cerebras", model: "gpt-oss-120b", apiKey: "k" } }),
       "vision_document_extraction"
     )
     expect(result).toBeNull()
+  })
+
+  test("Wave A regression: groq (the platform floor-tier default provider) now resolves its own vision override directly, without needing the fallback", async () => {
+    const { applySourceTypeOverride } = await import("./orchestra-model-resolver")
+    // Reproduces the exact real-world shape that was silently broken: the
+    // platform default (groq/openai/gpt-oss-120b) with its real Cerebras
+    // same-model failover attached (platformFallbackFor()'s behavior when
+    // CEREBRAS_API_KEY is configured). Before this wave's fix, this returned
+    // null (neither groq nor cerebras had a registered override) and every
+    // org on the platform default silently got zero document AI vision
+    // extraction. It must now resolve via groq's own primary override and
+    // never even need to consult the fallback.
+    const result = applySourceTypeOverride(
+      config({
+        provider: "groq", model: "openai/gpt-oss-120b",
+        fallback: { provider: "cerebras", model: "gpt-oss-120b", apiKey: "fallback-key" },
+      }),
+      "vision_document_extraction"
+    )
+    expect(result?.provider).toBe("groq")
+    expect(result?.model).toBe("meta-llama/llama-4-scout-17b-16e-instruct")
+    expect(result?.apiKey).toBe("key-1") // unchanged -- primary override keeps the primary's own apiKey, not the fallback's
   })
 
   test("preserves isCustomerConfigured/fallback fields when only the model/provider swap", async () => {
