@@ -8,6 +8,11 @@ import { users, employeeProfiles, leaveRequests, leaveBalances, employmentStatus
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+// VERIDIAN Review Framework remediation, Wave B (2026-07-17): an approved
+// leave request should show up as actual attendance without a separate
+// manual step -- see hr-attendance-service.ts's syncLeaveIntoAttendance for
+// the full rationale (weekend skipping, not clobbering a real check-in).
+import { syncLeaveIntoAttendance } from "./hr-attendance-service"
 export { ServiceError }
 
 export type HrContext = { orgId: string; userId: string }
@@ -164,6 +169,17 @@ export async function decideLeaveRequest(ctx: HrContext, requestId: string, deci
           .set({ usedDays: String(Number(balance.usedDays) + Number(request.numDays)), updatedAt: new Date() })
           .where(eq(leaveBalances.id, balance.id))
       }
+    }
+    return updated
+  }).then(async (updated) => {
+    // Runs in its own transaction (withTenantContext), deliberately outside
+    // the one above -- attendance materialization is additive and
+    // idempotent (onConflictDoUpdate keyed on org/user/date), so it doesn't
+    // need the same atomicity as the balance decrement above it. Uses the
+    // already-updated row's own fields (userId/startDate/endDate/companyId
+    // are unchanged by the update above, just carried through on `updated`).
+    if (decision === "approved" && updated) {
+      await syncLeaveIntoAttendance(ctx, { id: updated.id, userId: updated.userId, startDate: updated.startDate, endDate: updated.endDate, companyId: updated.companyId })
     }
     return updated
   })

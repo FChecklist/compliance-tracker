@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from "next/server"
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { listAttendance, markAttendance, ServiceError } from "@/lib/services/hr-attendance-service"
+
+export async function GET(request: NextRequest) {
+  const { response, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId) return NextResponse.json({ records: [] })
+
+  try {
+    const params = request.nextUrl.searchParams
+    const records = await listAttendance({ orgId }, {
+      userId: params.get("userId") || undefined,
+      departmentId: params.get("departmentId") || undefined,
+      companyId: params.get("companyId") || undefined,
+      startDate: params.get("startDate") || undefined,
+      endDate: params.get("endDate") || undefined,
+    })
+    return NextResponse.json({ records })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Attendance list error:", error)
+    return NextResponse.json({ error: "Failed to fetch attendance records" }, { status: 500 })
+  }
+}
+
+// Direct mark/correct for a single employee/day. Self-marking is always
+// allowed (an employee correcting their own day); marking someone else's
+// attendance requires manager-or-above, matching decideLeaveRequest's own
+// role gate in src/app/api/hr/leave-requests/[id]/route.ts.
+export async function POST(request: NextRequest) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  try {
+    const body = await request.json()
+    const targetUserId = body.userId || dbUser.id
+    if (targetUserId !== dbUser.id) {
+      const roleErr = requireRole(dbUser, "manager")
+      if (roleErr) return roleErr
+    }
+    const result = await markAttendance({ orgId, userId: dbUser.id }, targetUserId, {
+      date: body.date, status: body.status, checkInAt: body.checkInAt, checkOutAt: body.checkOutAt,
+      hoursWorked: body.hoursWorked, notes: body.notes,
+    })
+    return NextResponse.json(result, { status: 201 })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Attendance mark error:", error)
+    return NextResponse.json({ error: "Failed to mark attendance" }, { status: 500 })
+  }
+}
