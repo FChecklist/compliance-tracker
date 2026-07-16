@@ -51,6 +51,7 @@
         "items": {
           "journalEntries": "जर्नल एंट्रीज़",
           "paymentEntries": "भुगतान प्रविष्टियाँ",
+          "fixedAssets": "स्थायी संपत्तियां",
           "budgeting": "बजटिंग",
           "financialReports": "वित्तीय रिपोर्ट",
           "cashManagement": "नकदी प्रबंधन",
