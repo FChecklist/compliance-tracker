@@ -82,7 +82,6 @@
     "jspdf-autotable": "^5.0.8",
     "libphonenumber-js": "^1.13.8",
     "lucide-react": "^1.24.0",
-    "mammoth": "^1.11.0",
     "mathjs": "^15.2.0",
     "ml-regression-simple-linear": "^3.0.1",
     "next": "^16.2.10",

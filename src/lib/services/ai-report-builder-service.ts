@@ -13,16 +13,21 @@
 // - Excel/CSV: the `xlsx` package -- already a dependency, already used for
 //   Excel export in reports/page.tsx. No extraction path for spreadsheets
 //   exists anywhere else in this codebase to reuse.
-// - Word (.docx): `mammoth`, added this wave specifically for READING .docx
-//   text -- the `docx` package added in the same PR for Word *export* has
-//   no robust read/parse API (it's a document-generation library).
+// - Word (.docx): PRIORITY-22 (2026-07-16) replaced `mammoth` with the
+//   vendored iOfficeAI/OfficeCLI binary (src/lib/officecli-client.ts) --
+//   the `docx` package added in the same original PR for Word *export*
+//   still has no robust read/parse API (it's a document-generation
+//   library), so a dedicated read path is still needed; OfficeCLI's own
+//   `query <file> "p" --json` gives strictly richer structure than
+//   mammoth.extractRawText()'s flat string for the same call site. See
+//   ai-os/priority22_officecli_feasibility.md for the full evaluation.
 //
 // The proposed report is NOT saved here -- proposeReportFromUpload() only
 // returns a proposal for the user to review; saving happens via the
 // pre-existing createSavedReport() (custom-report-service.ts), org-scoped
 // exactly like every other saved report, once the user confirms.
 import * as XLSX from "xlsx"
-import mammoth from "mammoth"
+import { extractDocxRawText } from "@/lib/officecli-client"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMVision, callLLMJson, stripJsonFence } from "@/lib/llm-client"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -82,7 +87,7 @@ export async function extractUploadContent(input: { buffer: Buffer; mimeType: st
   }
 
   if (isWordDoc(mimeType, fileName)) {
-    const { value: text } = await mammoth.extractRawText({ buffer })
+    const { value: text } = await extractDocxRawText(buffer)
     if (!text.trim()) throw new ServiceError("The uploaded Word document has no readable text content", 400)
     return { kind: "text", text: text.trim() }
   }
