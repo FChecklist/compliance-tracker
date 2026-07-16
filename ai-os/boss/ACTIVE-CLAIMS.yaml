@@ -140,6 +140,57 @@ active:
       src/lib/services/hr-attendance-service.ts, new src/app/api/hr/attendance/**,
       new src/app/(app)/hr/attendance/** pages. Does NOT touch
       construction_attendance (projexa-owned, separate concept).
+
+      UPDATE (2026-07-17, new dispatched session picking up this exact
+      claim -- this is the 3rd time in this effort that a registered claim's
+      dispatched session died with zero trace, so per this file's own
+      established protocol none of the prior claim's notes were trusted:
+      re-verified everything independently before writing a line of code).
+      Cloned fresh off latest main, checked for any branch with "attendance"
+      in the name (git branch -a) and any leftover worktree -- found
+      neither. Checked `gh pr list` for any open/merged/closed PR referencing
+      attendance -- found none. Confirmed via a fresh grep of src/ that the
+      real gap was still open (only construction_attendance existed, exactly
+      as this claim's own note said). One real surprise the claim's notes
+      did NOT mention: a `list_tables` check against the live Supabase
+      project (pcrjmlpuqsbocqfwoxod) before writing the migration found the
+      dead 2026-07-16 session HAD reached the database directly --
+      compliance.hr_attendance + compliance.hr_timesheet_entries + a
+      hr_timesheet_approval_status enum already existed live, 0 rows, zero
+      trace in git (no schema.ts entry, no migration file, no
+      module_registry row, no PR). Confirmed via grep this was referenced
+      nowhere in the codebase, then dropped both as part of the new
+      migration rather than leaving live-DB-only orphans behind (see
+      drizzle/0219_hr_attendance.sql's own header comment for the full
+      account). Built fresh under different, more schema-consistent table
+      names (hr_attendance_records, not hr_attendance -- userId-linked like
+      leaveRequests/leaveBalances, not employeeId-linked like the orphan
+      was) rather than resuming the orphan's shape.
+
+      Delivered: migration 0219_hr_attendance.sql (hr_attendance_records +
+      hr_holidays, RLS + indexes + module_registry rows), applied live via
+      Supabase MCP with get_advisors run after (no new advisories),
+      hr-attendance-service.ts (check-in/out, manager bulk-mark, list/query
+      by employee/department/date-range, pure monthly-summary calculation,
+      holiday CRUD, syncLeaveIntoAttendance wired into hr-service.ts's
+      decideLeaveRequest so approved leave auto-materializes into
+      attendance rows), full src/app/api/hr/attendance/** REST surface,
+      src/app/(app)/hr/attendance/** UI (My Attendance calendar grid, Team
+      bulk-mark, monthly Summary report, Holiday calendar management),
+      HR nav + en/hi i18n wiring, and hr-attendance-service.test.ts (20
+      tests, pure-function only, matching this repo's own
+      erp-fixed-assets-service.test.ts convention of not exercising a live
+      DB from a .test.ts file). tsc --noEmit clean (0 errors, whole repo),
+      eslint 0 errors (3 pre-existing unrelated warnings), full test suite
+      1250 pass/0 fail/3 skip. Honest scope note: erp-payroll-service.ts
+      was checked and confirmed to have zero attendance/days-worked input
+      today (computes purely from salary structure components) -- so
+      nothing was silently left disconnected, but wiring payroll to
+      actually consume the new getPayableDaysForPayroll() is a genuine
+      follow-on gap, not done in this change. Branch:
+      feat/hr-attendance-manpower. PR: #391 (open, not self-merged, no
+      AUDIT verdict posted -- left for the supervising session per this
+      effort's own CI gate convention).
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework implementation Wave B: Fixed Assets wiring (full depth)"
     claimed_at: "2026-07-16T (this session)"
     claim: |
