@@ -53,9 +53,13 @@ export default function PrivacyPage() {
         <p>
           We use third-party service providers to run the Services — including cloud hosting and database
           infrastructure (Vercel, Supabase) and AI model providers reached through our model-routing layer.
-          These providers maintain <strong>GDPR compliance commitments and SOC 2 attestations</strong>. Our own
-          systems are designed and operated in accordance with GDPR principles and SOC 2 trust-service criteria.
-          Where data is transferred internationally, it is protected by appropriate safeguards such as standard
+          Vercel and Supabase each publish their own current <strong>SOC 2 Type II certification and GDPR
+          compliance documentation</strong>, available from their respective trust centres. VERIDIAN AI OS
+          itself is not independently SOC 2 certified; we operate in accordance with GDPR principles
+          (lawfulness, purpose limitation, data minimisation, security, accountability) through technical
+          measures under our direct control, including database-level row-level security tenant isolation,
+          encrypted storage of API credentials, and audit logging of system actions (see Section 5). Where
+          data is transferred internationally, it is protected by appropriate safeguards such as standard
           contractual clauses offered by our providers.
         </p>
       </section>

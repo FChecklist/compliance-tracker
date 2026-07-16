@@ -118,14 +118,6 @@ active:
       routing gap in document-extraction-service.ts's VISION_MODEL_OVERRIDES.
       File scope: src/lib/api-key-auth.ts, src/lib/db/schema.ts,
       drizzle/ (new migration), src/lib/services/document-extraction-service.ts.
-  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave A: marketing/docs fixes"
-    claimed_at: "2026-07-16T (this session)"
-    claim: |
-      Same parent task as above. Scope: (1) remove/correct unsubstantiated
-      SOC 2 Type II + penetration-testing claims in src/app/pricing/page.tsx,
-      src/app/privacy/page.tsx, src/app/data-policy/page.tsx; (2) add a print
-      stylesheet; (3) add a public API changelog doc; (4) add a Sev-1
-      incident-command runbook doc. Low collision risk, docs/copy-focused.
   - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: CRM Accounts & Contacts (full depth)"
     claimed_at: "2026-07-16T (this session)"
     claim: |
@@ -1244,6 +1236,44 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (sub-agent) -- VERIDIAN Review Framework implementation Wave A: marketing/docs fixes"
+    completed_at: "2026-07-16T (this session)"
+    merged_as: "compliance-tracker#383 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
+    claim: |
+      Same parent task as REVIEW-FRAMEWORK-01's Wave A dispatch. Scope: (1)
+      removed/corrected unsubstantiated SOC 2 Type II + penetration-testing
+      claims in src/app/pricing/page.tsx, src/app/privacy/page.tsx,
+      src/app/data-policy/page.tsx -- confirmed zero backing anywhere in this
+      codebase or ai-os/CONSTITUTION.yaml, and also found and fixed an
+      outright false "AWS with data centres in Mumbai" infra claim (no AWS
+      SDK dependency exists anywhere; real infra is Vercel sin1 + Supabase).
+      Verified via live web search that Vercel and Supabase (the real infra
+      providers) do each hold current SOC 2 Type II certifications --
+      corrected copy attributes that fact to them specifically rather than
+      to VERIDIAN AI OS itself, and states plainly VERIDIAN AI OS does not
+      hold an independent certification (no invented "in progress" claim).
+      (2) Added a real @media print stylesheet (src/app/globals.css) --
+      src/components/AppShell.tsx's persistent chrome (sidebar/topbar/health
+      ribbon/onboarding checklist/trial banner/global chat dock/VERI Chat
+      composer+panel/help widget/task visibility panel) marked print:hidden
+      at the shared shell level so Reports, ERP Invoicing, and every other
+      (app)/ page prints cleanly without per-page CSS; .no-print/.print-only
+      utilities + page-break-avoidance rules added to globals.css. (3) Added
+      docs/API_CHANGELOG.md -- dated /api/v1/** changelog compiled from real
+      git history (Wave 11's original introduction through today's PROJEXA
+      Reports & Analysis catalog aliases), citing real commit hashes/PRs.
+      (4) Added docs/SEV1_INCIDENT_RUNBOOK.md -- grounded in this repo's
+      actual operating model (AGENTS.md's real agent roles, no on-call
+      rotation, no paging service anywhere), citing the real
+      CRON_SECRET/GROQ_API_KEY incident precedents from
+      secrets-audit/run/route.ts, real Vercel/Supabase recovery levers, and
+      explicitly naming honest gaps (no paging, no status page, Sentry DSN
+      unverified, gitleaks non-blocking, no rehearsed DR) instead of implying
+      they're solved. tsc --noEmit: zero new errors (all pre-existing errors
+      found are in unrelated files -- react-resizable-panels version
+      mismatch, missing optional @litertjs/core/pptxgenjs/docx/@memvid/sdk
+      deps). eslint on all 5 changed source files: clean. No schema/API
+      changes -- pure copy/CSS/docs. Branch: review-wave-a-marketing-docs.
   - session_label: "Super Boss (Claude Desktop) -- Priority 22, Ling-2.6-1T model trial (roster.ts)"
     completed_at: "2026-07-16T (this session)"
     merged_as: "compliance-tracker#373 (merged)"

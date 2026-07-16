@@ -223,3 +223,84 @@
 .animate-vd-orbit-rev {
   animation: vd-orbit 90s linear infinite reverse;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Print Stylesheet
+   ─────────────────────────────────────────────────────────────────────────
+   Covers the authenticated app shell (src/components/AppShell.tsx already
+   marks the persistent chrome -- sidebar, topbar, health ribbon, onboarding
+   checklist, trial banner, VERI Chat composer/panel, global chat dock, help
+   widget, task visibility panel -- with `print:hidden`/`print:*` utility
+   classes; the rules below handle the rest: page setup, and generic
+   content-area rules so anything rendered inside AppShell's `{children}`
+   slot -- e.g. Reports (`/reports`), ERP Invoicing (`/erp/invoicing`), and
+   any other data table/card/detail view -- prints cleanly without every
+   individual page needing its own print CSS.
+
+   Two escape-hatch utilities for page-specific fine-tuning beyond the
+   chrome-vs-content split AppShell already does:
+     .no-print    -- hide an in-page element only when printing (e.g. a
+                     page's own "Filter"/"Bulk actions" toolbar, action-menu
+                     buttons inside a table row).
+     .print-only  -- show an element only when printing (e.g. a "Printed
+                     from VERIDIAN AI on <date>" footer added to a specific
+                     report/invoice template).
+   ───────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  /* Respect background colors/shadows only where they're genuinely
+     content-carrying (status badges, chart colors); everything else -- most
+     saffron/teal chrome accents -- is cosmetic and just burns ink/toner on a
+     printed page, so we don't force color-adjust globally. Authors who need
+     a specific colored element to survive printing (e.g. a status badge)
+     should add `print:[print-color-adjust:exact]` on that element directly
+     rather than relying on a blanket override here. */
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Avoid splitting a table row, card, or heading across a page boundary --
+     the single highest-impact rule for "prints cleanly" on data-heavy
+     screens like Reports and Invoicing. */
+  table, tr, thead, tbody {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, .font-heading {
+    page-break-after: avoid;
+  }
+  [data-slot="card"] {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid;
+  }
+
+  /* Scrollable containers throughout the app (data tables, panels) clip
+     content to a fixed viewport height on screen via overflow-auto/hidden --
+     on paper there's no viewport to scroll, so let content flow across
+     pages instead of getting cut off after one screen's worth. */
+  .overflow-auto, .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
