@@ -76,10 +76,18 @@ export type ExportResult = {
   itemCounts: { savedReports: number; conversations: number; messages: number }
 }
 
+// syncMethod defaults to "manual" (Option 1, the pre-existing download/
+// upload flow, PR #367) -- the drive-export/latest-pull routes are the only
+// callers that ever pass something else, per
+// ai-os/priority21_workspace_memory_design.md §4's 3 options.
+export type WorkspaceMemorySyncMethod = "manual" | "google_drive" | "veridian_pull"
+
 export async function exportWorkspaceMemory(
   ctx: { orgId: string; dbUser: typeof users.$inferSelect },
-  request?: Request
+  request?: Request,
+  opts: { syncMethod?: WorkspaceMemorySyncMethod } = {}
 ): Promise<ExportResult> {
+  const syncMethod: WorkspaceMemorySyncMethod = opts.syncMethod ?? "manual"
   const { orgId, dbUser } = ctx
   const userId = dbUser.id
 
@@ -195,6 +203,7 @@ export async function exportWorkspaceMemory(
           fileSizeBytes: bytes.byteLength,
           itemCounts,
           status: "completed",
+          syncMethod,
         })
         .returning()
 
@@ -259,10 +268,12 @@ export type ImportedConversationPreview = {
 export async function importWorkspaceMemory(
   ctx: { orgId: string; dbUser: typeof users.$inferSelect },
   fileBytes: Buffer,
-  request?: Request
+  request?: Request,
+  opts: { syncMethod?: WorkspaceMemorySyncMethod } = {}
 ): Promise<ImportResult> {
   const { orgId, dbUser } = ctx
   const userId = dbUser.id
+  const syncMethod: WorkspaceMemorySyncMethod = opts.syncMethod ?? "manual"
 
   if (fileBytes.byteLength > MAX_IMPORT_SIZE_BYTES) {
     throw new ServiceError("Capsule exceeds 25 MB limit", 400)
@@ -344,6 +355,7 @@ export async function importWorkspaceMemory(
           fileSizeBytes: fileBytes.byteLength,
           itemCounts,
           status: "completed",
+          syncMethod,
         })
         .returning()
 
@@ -379,4 +391,53 @@ export async function listWorkspaceMemoryEvents(ctx: { orgId: string; userId: st
     orderBy: desc(workspaceMemoryCapsuleEvents.createdAt),
     limit: 20,
   })
+}
+
+// ─── Option 3: first-party "pull latest capsule" (no manual file handling) ─
+// ai-os/priority21_workspace_memory_design.md §4 named 3 real sync-transport
+// options and left the choice open; the Owner directive is "have all 3".
+// This is the backend half of Option 3 -- it does NOT add a new import code
+// path (SEC-04: the existing additive-only importWorkspaceMemory() above is
+// the only place a capsule is ever parsed/written from). It only locates the
+// caller's own most recent export and mints a fresh signed URL for it, the
+// same signed-URL mechanism exportWorkspaceMemory() already uses. The
+// client-side "Sync via VERIDIAN" action fetches that URL, then POSTs the
+// resulting bytes to the pre-existing POST /api/workspace-memory/import
+// route -- same request shape a manual upload would produce, just assembled
+// by the browser instead of the user's file picker.
+
+/**
+ * Finds the caller's own most recently completed export event -- org AND
+ * user scoped (a capsule is per-user, not just per-org, same "RLS is the
+ * floor, not the whole story" posture every other reader of this table
+ * already follows). Returns null if this user has never exported one yet
+ * (never throws for "not found" -- that is a legitimate, expected state for
+ * a first-time user, not an error).
+ */
+export async function getLatestExportedCapsule(ctx: { orgId: string; userId: string }, db: TenantDb) {
+  return db.query.workspaceMemoryCapsuleEvents.findFirst({
+    where: and(
+      eq(workspaceMemoryCapsuleEvents.orgId, ctx.orgId),
+      eq(workspaceMemoryCapsuleEvents.userId, ctx.userId),
+      eq(workspaceMemoryCapsuleEvents.direction, "export"),
+      eq(workspaceMemoryCapsuleEvents.status, "completed")
+    ),
+    orderBy: desc(workspaceMemoryCapsuleEvents.createdAt),
+  })
+}
+
+/**
+ * Mints a fresh short-lived signed URL for an already-stored capsule object
+ * path -- the same bucket/TTL export already uses. Kept as its own function
+ * (rather than inlined in the route) so both the export flow and the
+ * Option-3 "latest" route mint signed URLs the exact same way, never two
+ * slightly-different implementations of "generate a link into this bucket."
+ */
+export async function createCapsuleSignedUrl(objectPath: string): Promise<{ signedUrl: string; expiresInSeconds: number }> {
+  const admin = getStorageAdminClient()
+  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(objectPath, SIGNED_URL_TTL_SECONDS)
+  if (error || !data) {
+    throw new ServiceError("Failed to generate a download link for this capsule", 500)
+  }
+  return { signedUrl: data.signedUrl, expiresInSeconds: SIGNED_URL_TTL_SECONDS }
 }
