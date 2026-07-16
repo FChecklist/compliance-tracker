@@ -2,7 +2,7 @@ import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPool
 import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
 import { canIncurCost } from "@/lib/cost-guard";
-import type { LLMProvider, LLMFallback } from "@/lib/llm-client";
+import { callLLM, LLMHttpError, type LLMProvider, type LLMFallback } from "@/lib/llm-client";
 
 export type ResolvedModelConfig = {
   provider: LLMProvider;
@@ -180,6 +180,50 @@ export function applySourceTypeOverride(config: ResolvedModelConfig, sourceType?
   }
 
   return null
+}
+
+export type ConnectionTestResult = { ok: true } | { ok: false; error: string };
+
+// Review Framework remediation, Wave B (BYO-AI-model): a real connectivity
+// check for an org admin's proposed provider/model/key BEFORE it's persisted
+// to customer_model_config. Before this, POST /api/settings/model-config
+// only validated shape (provider is one of the 4 allowed enum values,
+// modelName is a non-empty string) -- a bad/expired key or a misspelled
+// model name saved silently and only surfaced later as a confusing failure
+// deep inside some unrelated Orchestra Layer call, with nothing pointing an
+// admin back to "your BYO config is broken."
+//
+// Makes exactly ONE real completion call against the given provider (via
+// the same callLLM() every real Orchestra Layer call already goes through,
+// so this is testing the actual code path, not a parallel one) with a tiny
+// maxTokens and no fallback -- a connection test that itself silently fell
+// back to the platform default would defeat the point. Never logs the key
+// (callLLM/dispatchLLM never log it either); on failure, returns the
+// provider's own error message truncated to something safe to surface to
+// an admin in a toast, not a raw stack trace.
+export async function testProviderConnection(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string
+): Promise<ConnectionTestResult> {
+  try {
+    await callLLM(
+      provider,
+      model,
+      apiKey,
+      "You are a connection test. Reply with only the single word OK.",
+      "ping",
+      { temperature: 0, maxTokens: 5 }
+    );
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof LLMHttpError) {
+      const detail = error.message.length > 300 ? `${error.message.slice(0, 300)}...` : error.message;
+      return { ok: false, error: `Provider rejected the request (HTTP ${error.status ?? "unknown"}): ${detail}` };
+    }
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return { ok: false, error: message.length > 300 ? `${message.slice(0, 300)}...` : message };
+  }
 }
 
 /**
