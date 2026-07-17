@@ -28,8 +28,19 @@
 // that bridge exists -- identical to how PROJEXA's leave-approval button
 // already behaves for the same reason. Other transitions keep the existing
 // broader write-scope check.
+//
+// VERIDIAN Review Framework remediation: both the base gate and the
+// approval-specific gate are now routed through the shared
+// permission-service.ts utility (ERP_ACTION_ROLES["erp.quotations.update_status"]
+// = "member", ERP_ACTION_ROLES["erp.quotations.approve"] = "manager") --
+// no behavior change from the previous inline requireRoleOrScope/
+// requireRole calls, single source of truth only. The real-dbUser-required
+// check on the 'approved' branch stays inline (it isn't a role-rank
+// concept requirePermissionForUser expresses -- see permission-service.ts's
+// own documented limitation of requireRoleOrScope for API-key callers).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requirePermission, requirePermissionForUser } from "@/lib/services/permission-service"
 import { updateQuotationStatus, ServiceError } from "@/lib/services/erp-selling-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -37,7 +48,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "member", "write")
+  const roleErr = requirePermission(ctx, "erp.quotations.update_status")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
   const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
@@ -51,7 +62,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (!ctx.dbUser) {
         return NextResponse.json({ error: "Approving a quotation requires a real user session, not an API key" }, { status: 400 })
       }
-      const managerErr = requireRole(ctx.dbUser, "manager")
+      const managerErr = requirePermissionForUser(ctx.dbUser, "erp.quotations.approve")
       if (managerErr) return managerErr
     }
 

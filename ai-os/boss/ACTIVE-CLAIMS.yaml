@@ -41,6 +41,93 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (Track 1, VERIDIAN Review Framework REVIEW-FRAMEWORK-WAVE4) -- shared ERP permission-check utility + Fixed Assets / Sales Orders / Quotations RBAC"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      CONTROLLER.yaml REVIEW-FRAMEWORK-WAVE4, TRACK 1 (this session's own
+      dispatch, see that entry's dispatch_plan): of the 21 ERP & Finance
+      modules sharing the identical "Access Control / Role-Based
+      Permissions" finding in the 2045-row VERIDIAN_Review_Framework CSV,
+      this claim builds the ONE shared permission-check utility + applies
+      it to exactly the 3 Weight-5 Critical modules named in that dispatch
+      plan (Fixed Assets, Sales Orders, Quotations) -- General Ledger,
+      Chart of Accounts, Accounts Payable/Receivable, Banking, Cash
+      Management, Cost Centers, Budgets, Financial Statements, Sales
+      Invoices, Purchase Orders, Purchase Receipts, RFQs, Supplier
+      Quotations, Sales Credit Notes, Inventory & Materials, CRM Accounts/
+      Contacts, and HR Attendance are explicitly OUT of scope for this
+      claim (CRM Accounts/Contacts and HR Attendance already have their own
+      separate active claims/worktrees elsewhere; the remaining 14 GL/AP/etc
+      modules are TRACK 2/3, Kimi.com/z.ai, held until this PR merges).
+
+      Re-verified live before starting: no existing claim or open PR
+      touches src/lib/services/permission-service.ts (new file, does not
+      exist on main), src/lib/services/erp-fixed-assets-service.ts,
+      src/lib/services/erp-selling-service.ts, or any
+      src/app/api/erp/fixed-assets/**, src/app/api/v1/projexa/quotations/**,
+      src/app/api/v1/projexa/sales-orders/** route. The Wave B Fixed Assets
+      wiring claim (PR #387) already merged before this session started --
+      re-read that merged code fresh rather than assuming from this file's
+      own stale note; it already has a "manager"-rank disposal gate,
+      confirmed and preserved, not duplicated.
+
+      Does NOT invent a new role system: this codebase's real one already
+      exists (src/lib/supabase/auth-guard.ts's 10-value UserRole/ROLE_RANK/
+      hasRole()/requireRole()/requireRoleOrScope()), confirmed by reading
+      it in full plus several real call sites (fixed-assets disposal,
+      quotation approval, erp-payment-entries-service.ts's
+      canDecidePaymentEntry) before writing anything. New file
+      src/lib/services/permission-service.ts is a thin, additive layer on
+      top: ERP_ACTION_ROLES (a flat action-string -> minimum UserRole
+      table, the single source of truth other tracks are expected to
+      extend) + requirePermission(ctx, action) [CombinedAuthContext,
+      wraps requireRoleOrScope] + requirePermissionForUser(dbUser, action)
+      [AuthContext, wraps requireRole]. Real unit tests added
+      (permission-service.test.ts, 14 tests, no DB access needed --
+      exercises the real requireRole/requireRoleOrScope primitives
+      directly, matching erp-fixed-assets-service.test.ts's own established
+      DB-free gate-testing convention).
+
+      Applied to: Fixed Assets (gated create/update/movement at "member",
+      category management/capitalize/depreciation-run at "manager" --
+      all previously ungated by role, requireAuth() only; disposal's
+      pre-existing "manager" gate preserved, routed through the same
+      utility for a single source of truth). Also closed 2 genuine
+      business-rule gaps found by reading erp-fixed-assets-service.ts in
+      full: (1) this was the only GL-posting ERP service NOT calling the
+      existing isPeriodOpenForDate() helper (erp-accounting-service.ts,
+      erp-cash-service.ts, erp-invoicing-service.ts,
+      erp-payment-entries-service.ts all already do) before posting --
+      added to submitFixedAsset (throws, single-doc precedent) and
+      runDepreciationBatch (skips + reports the row, matching that
+      function's own existing skip-ineligible-rows convention) and
+      finalizeAssetDisposal (skips GL posting only, matching its own
+      existing missing-accounts-configured honesty pattern); (2) a
+      defense-in-depth netBookValue >= 0 guard in finalizeAssetDisposal
+      (cheap, since generateDepreciationSchedule already prevents this by
+      construction -- documented as a safety net against future
+      regression, not claimed as fixing an currently-reachable bug).
+      Sales Orders: closed the real gap -- [id]/route.ts's single-record
+      PATCH gated every status transition (including cancelling a
+      confirmed order) at "member" while its own sibling
+      bulk-status/route.ts already required "manager" for the identical
+      operation; brought both to the same policy via ERP_ACTION_ROLES.
+      Quotations: no additional gap found (create/revise/convert already
+      "member", approve already "manager" + real-session-required) --
+      existing inline checks routed through the same utility for
+      consistency, zero behavior change, documented as such rather than
+      inventing a change to claim credit.
+
+      Verification: bun test (full suite) 1305 pass / 0 fail / 3 skip
+      (includes the 14 new permission-service tests + updated
+      erp-fixed-assets-service.test.ts comment). bunx tsc --noEmit: clean.
+      eslint on every changed/new file: clean. Manually traced one full
+      request path per module (route -> service -> DB) confirming each new
+      gate actually blocks the call, not just exists unused. No
+      schema/migration touched -- confirmed drizzle/*.sql tail matches
+      origin/main exactly (0223) immediately before this commit, no
+      collision. Branch: rbac-permission-utility. PR opened against main,
+      NOT self-merged -- left for the supervising session's audit.
   - session_label: "claude-code (background sub-agent) -- PROJEXA_GAP_ANALYSIS.md gap #5: Change Order e-signature auto-transition + PROJEXA signature-status visibility"
     claimed_at: "2026-07-17T (this session)"
     claim: |
