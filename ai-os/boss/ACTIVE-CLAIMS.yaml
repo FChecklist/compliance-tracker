@@ -41,6 +41,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      CONTROLLER.yaml entry REVIEW-FRAMEWORK-WAVE4, Track 1 (this session's
+      own Claude Web remote agents): closing CRM Accounts/Contacts' two
+      remaining Weight-5-Critical findings from the 2045-row review --
+      "Business Rule & Validation Accuracy" and "Access Control /
+      Role-Based Permissions". Multi-tenant isolation (crm_accounts/
+      crm_contacts tables + forced RLS, PR #389) is already real and closed
+      by a prior wave -- NOT redoing that.
+      First checked for the shared cross-cutting RBAC utility a parallel
+      track in this same wave was asked to build (likely
+      src/lib/services/permission-service.ts or similar): `gh pr list
+      --state all` (open + last ~100 including all merged) has no such PR,
+      and `git branch -r` has no matching branch name, as of this claim.
+      Does not exist yet at claim time -- per this task's own instructions,
+      NOT building that shared cross-cutting utility here (explicitly
+      another track's job); instead following this codebase's own real,
+      established precedent for exactly this kind of resource-level gate:
+      ROLE_RANK + a pure canDecideX()-style gate function, same pattern as
+      erp-payment-entries-service.ts's canDecidePaymentEntry() (Wave B
+      payment-entries approval) and the requireRole(dbUser, "manager") gate
+      already used by v1/projexa/leads/bulk-reassign/route.ts. Scoped ONLY
+      to src/lib/services/crm-accounts-service.ts and its API routes under
+      src/app/api/crm/accounts/**, src/app/api/crm/contacts/**,
+      src/app/api/crm/leads/[id]/convert-to-account -- flagging in the PR
+      description that the supervising session should reconcile/replace
+      this local gate with the shared utility once that other track's PR
+      lands, if its shape differs.
+      File scope: src/lib/services/crm-accounts-service.ts,
+      crm-accounts-service.test.ts, the route.ts files listed above. No
+      schema/migration change planned (pending confirmation while reading
+      the schema in full). Explicitly NOT touching Fixed Assets, Sales
+      Orders, Quotations, or crm-service.ts (leads/opportunities) -- out of
+      scope per this task's own instructions, other tracks own those.
   - session_label: "claude-code (background sub-agent) -- PROJEXA_GAP_ANALYSIS.md gap #5: Change Order e-signature auto-transition + PROJEXA signature-status visibility"
     claimed_at: "2026-07-17T (this session)"
     claim: |
