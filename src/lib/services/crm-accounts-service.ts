@@ -11,18 +11,42 @@
 // crm-service.ts (requireSalesEnabled) -- crm/accounts is a sibling surface
 // under the same Sales & CRM nav section.
 import { crmAccounts, crmContacts, crmLeads, crmOpportunities, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, ilike, sql } from "drizzle-orm"
 import { logActivity } from "@/lib/audit"
 import { ServiceError } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
 import type { PagedResult } from "./crm-service"
+// VERIDIAN Review Framework Wave 4 (2026-07-17): RBAC gate for this file.
+// A parallel track in the same wave was asked to build a shared,
+// cross-cutting permission-check utility (checked `gh pr list --state all`
+// and `git branch -r` immediately before writing this -- no such PR/branch
+// exists yet at the time this was written). Rather than inventing a new
+// role model, this reuses the codebase's own real, established precedent
+// for exactly this kind of resource-level gate: ROLE_RANK + a pure
+// canDecideX()-style function, same shape as
+// erp-payment-entries-service.ts's canDecidePaymentEntry() (Wave B payment
+// approval) and the requireRole(dbUser, "manager") gate already used by
+// v1/projexa/leads/bulk-reassign/route.ts. If the shared utility lands
+// later with a different shape, the supervising session should replace
+// canEditAccount/canReassignOrDeleteAccount below with calls into it --
+// the call sites (this file + the 6 CRM accounts/contacts routes) are the
+// only places that would need to change.
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
+// Reuse the existing Email/Phone Validation Engine (VCEL Data Quality
+// Engine) rather than hand-rolling a second email/phone regex -- see that
+// file's own header for why generic email/phone validation uses standard
+// npm libraries (validator.js / libphonenumber-js) in this codebase.
+import { isValidEmail, isValidPhoneNumber } from "@/lib/engines/data-quality-engine"
 export { ServiceError }
 export type { PagedResult }
 
 export type CrmAccountContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 type AccountRow = typeof crmAccounts.$inferSelect
+
+const MANAGER_RANK = ROLE_RANK.manager // 3 -- manager/senior_professional/branch_manager/admin/veridian_admin
+const MEMBER_RANK = ROLE_RANK.member // 2 -- member/team_member and above (i.e. not viewer/client_viewer/external_auditor)
 
 // --- Pure helpers (unit-tested directly, no DB) ----------------------------
 
@@ -79,6 +103,130 @@ export function resolveAccountShippingAddress(account: {
   }
 }
 
+// --- Access control (pure, no DB) -------------------------------------------
+// Grounded in a real construction/sales-org shape: a rep manages the
+// accounts assigned to them (or any unowned/unclaimed account -- ownerId
+// null, e.g. a freshly lead-converted account nobody has picked up yet),
+// while a sales manager (or above) can act on any account in the org. This
+// mirrors the existing precedent for owner-scoped write access + a
+// manager-rank escalation elsewhere in this codebase (see
+// v1/projexa/leads/bulk-reassign/route.ts's requireRole(ctx, "manager")
+// and erp-payment-entries-service.ts's canDecidePaymentEntry()).
+
+export type AccessGateResult = { ok: true } | { ok: false; reason: string }
+
+/**
+ * Who may edit an existing account's own fields (name, industry, address,
+ * lifecycle stage, parent hierarchy, linking a contact/opportunity to it,
+ * etc.) -- everything EXCEPT reassigning ownership or deleting the account,
+ * see canReassignOrDeleteAccount below for that higher bar. A rep (member
+ * rank or above) may edit an account they own, or an unowned account;
+ * manager rank and above may edit any account regardless of owner.
+ */
+export function canEditAccount(actorRole: string, accountOwnerId: string | null, actorId: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MEMBER_RANK) return { ok: false, reason: "This action requires member role or higher" }
+  if (actorRank >= MANAGER_RANK) return { ok: true }
+  if (accountOwnerId === null || accountOwnerId === actorId) return { ok: true }
+  return { ok: false, reason: "Only this account's owner or a manager can make this change" }
+}
+
+/**
+ * Reassigning an account's owner (ownerId change to a value different from
+ * the account's current owner) or deleting an account outright is a
+ * team-lead-level action regardless of who currently owns it -- manager
+ * rank or above only. Matches the existing bulk-reassign-leads precedent
+ * (requireRole(dbUser, "manager") in v1/projexa/leads/bulk-reassign/route.ts).
+ */
+export function canReassignOrDeleteAccount(actorRole: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MANAGER_RANK) return { ok: false, reason: "This action requires manager role or higher" }
+  return { ok: true }
+}
+
+/** Creating a brand-new account/contact has no existing owner to check against -- any rep (member rank+) can create. */
+export function canCreateCrmRecord(actorRole: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MEMBER_RANK) return { ok: false, reason: "This action requires member role or higher" }
+  return { ok: true }
+}
+
+function assertGate(gate: AccessGateResult): void {
+  if (!gate.ok) throw new ServiceError(gate.reason, 403)
+}
+
+// --- Business-rule validation (pure, no DB) ---------------------------------
+
+/**
+ * Normalizes a website/URL down to a bare, lowercase domain for duplicate
+ * matching -- "https://www.Acme.com/contact" and "acme.com" should be
+ * recognized as the same company. Strips protocol, leading www., and any
+ * path/query. Returns null for a blank/missing website (never matches
+ * anything, including another blank website -- absence of a domain is not
+ * itself a duplicate signal).
+ */
+export function extractDomain(website: string | null | undefined): string | null {
+  const trimmed = website?.trim().toLowerCase()
+  if (!trimmed) return null
+  const withoutProtocol = trimmed.replace(/^[a-z]+:\/\//, "")
+  const withoutWww = withoutProtocol.replace(/^www\./, "")
+  const domain = withoutWww.split(/[/?#]/)[0].trim()
+  return domain || null
+}
+
+function normalizeAccountName(name: string | null | undefined): string {
+  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+/**
+ * Duplicate-account detection: same org + (case/whitespace-insensitive
+ * exact name match OR same website domain). Real gap this closes -- before
+ * this, nothing stopped two "Acme Corp" rows (or the same company entered
+ * twice under slightly different casing) from existing side by side, with
+ * no way for a rep creating the second one to even know the first exists.
+ * Intentionally a soft block (see confirmDuplicate on CreateAccountInput/
+ * UpdateAccountInput) rather than a hard unique constraint -- legitimate
+ * same-name-different-company cases exist (e.g. two unrelated local
+ * businesses named "Acme"), so the rep gets a warning + an explicit
+ * override, not a silent failure.
+ */
+export function findDuplicateAccountMatches<T extends { id: string; name: string; website: string | null }>(
+  candidates: T[],
+  name: string,
+  website: string | null | undefined,
+  excludeAccountId?: string
+): T[] {
+  const normalizedName = normalizeAccountName(name)
+  const domain = extractDomain(website)
+  return candidates.filter((c) => {
+    if (c.id === excludeAccountId) return false
+    if (normalizeAccountName(c.name) === normalizedName) return true
+    if (domain && extractDomain(c.website) === domain) return true
+    return false
+  })
+}
+
+/** Contact email/phone format validation -- beyond the DB's bare NOT NULL/text-column constraints. Blank/absent values are allowed (both fields are optional); only a NON-BLANK malformed value is rejected. */
+export function validateContactFormat(input: { email?: string | null; phone?: string | null }): void {
+  if (input.email?.trim() && !isValidEmail(input.email)) {
+    throw new ServiceError(`"${input.email}" is not a valid email address`, 400)
+  }
+  if (input.phone?.trim() && !isValidPhoneNumber(input.phone)) {
+    throw new ServiceError(`"${input.phone}" is not a valid phone number`, 400)
+  }
+}
+
+async function findDuplicateAccountsInOrg(db: TenantDb, orgId: string, name: string, website: string | null | undefined, excludeAccountId?: string) {
+  // Org-scoped in-memory scan, same performance assumption already
+  // documented on wouldCreateCycle() above -- a 100-employee firm's account
+  // book is not the kind of fan-out that needs a DB-side fuzzy-match query.
+  const candidates = await db.query.crmAccounts.findMany({
+    where: eq(crmAccounts.orgId, orgId),
+    columns: { id: true, name: true, website: true },
+  })
+  return findDuplicateAccountMatches(candidates, name, website, excludeAccountId)
+}
+
 // --- Accounts CRUD ----------------------------------------------------------
 
 export type ListAccountsOptions = {
@@ -120,10 +268,14 @@ export type CreateAccountInput = {
   billingLine1?: string; billingLine2?: string; billingCity?: string; billingState?: string; billingPostalCode?: string; billingCountry?: string
   shippingSameAsBilling?: boolean
   shippingLine1?: string; shippingLine2?: string; shippingCity?: string; shippingState?: string; shippingPostalCode?: string; shippingCountry?: string
+  // Set true to create anyway after the caller has already seen (and
+  // dismissed) a 409 duplicate-account warning from findDuplicateAccountMatches().
+  confirmDuplicate?: boolean
 }
 
 export async function createAccount(ctx: CrmAccountContext, input: CreateAccountInput) {
   await requireSalesEnabled(ctx.orgId)
+  assertGate(canCreateCrmRecord(ctx.dbUser.role))
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
 
@@ -132,6 +284,17 @@ export async function createAccount(ctx: CrmAccountContext, input: CreateAccount
       const parent = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, input.parentAccountId), eq(crmAccounts.orgId, ctx.orgId)) })
       if (!parent) throw new ServiceError("Parent account not found", 404)
     }
+
+    if (!input.confirmDuplicate) {
+      const duplicates = await findDuplicateAccountsInOrg(db, ctx.orgId, name, input.website)
+      if (duplicates.length) {
+        throw new ServiceError(
+          `A similar account already exists: ${duplicates.map((d) => d.name).join(", ")}. Resubmit with confirmDuplicate: true to create it anyway.`,
+          409
+        )
+      }
+    }
+
     const [account] = await db.insert(crmAccounts).values({
       orgId: ctx.orgId, name, industry: input.industry || null, website: input.website || null,
       ownerId: input.ownerId || null, parentAccountId: input.parentAccountId || null,
@@ -156,6 +319,12 @@ export async function updateAccount(ctx: CrmAccountContext, accountId: string, p
     const existing = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, accountId), eq(crmAccounts.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Account not found", 404)
 
+    // Ownership reassignment (ownerId changing to a genuinely different
+    // value) is gated at manager rank regardless of who currently owns the
+    // account; every other field edit follows the owner-or-manager gate.
+    const isReassignment = patch.ownerId !== undefined && (patch.ownerId || null) !== existing.ownerId
+    assertGate(isReassignment ? canReassignOrDeleteAccount(ctx.dbUser.role) : canEditAccount(ctx.dbUser.role, existing.ownerId, ctx.userId))
+
     if (patch.parentAccountId !== undefined && patch.parentAccountId !== null) {
       const allAccounts = await db.query.crmAccounts.findMany({ where: eq(crmAccounts.orgId, ctx.orgId), columns: { id: true, parentAccountId: true } })
       if (wouldCreateCycle(allAccounts, accountId, patch.parentAccountId)) {
@@ -163,11 +332,70 @@ export async function updateAccount(ctx: CrmAccountContext, accountId: string, p
       }
     }
 
+    if ((patch.name !== undefined || patch.website !== undefined) && !patch.confirmDuplicate) {
+      const nextName = patch.name !== undefined ? patch.name.trim() : existing.name
+      const nextWebsite = patch.website !== undefined ? patch.website : existing.website
+      const duplicates = await findDuplicateAccountsInOrg(db, ctx.orgId, nextName, nextWebsite, accountId)
+      if (duplicates.length) {
+        throw new ServiceError(
+          `A similar account already exists: ${duplicates.map((d) => d.name).join(", ")}. Resubmit with confirmDuplicate: true to save anyway.`,
+          409
+        )
+      }
+    }
+
+    // confirmDuplicate is a request-only flag (this function's own
+    // duplicate-check gate above) -- not a crm_accounts column, must not be
+    // spread into the update payload.
+    const { confirmDuplicate: _confirmDuplicate, ...columns } = patch
     const [updated] = await db.update(crmAccounts)
-      .set({ ...patch, lifecycleStage: patch.lifecycleStage as AccountRow["lifecycleStage"] | undefined, updatedAt: new Date() })
+      .set({ ...columns, lifecycleStage: columns.lifecycleStage as AccountRow["lifecycleStage"] | undefined, updatedAt: new Date() })
       .where(eq(crmAccounts.id, accountId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_account.updated", entityType: "crm_account", entityId: accountId })
     return updated
+  })
+}
+
+/**
+ * Deleting an account outright -- manager rank or above only (same bar as
+ * reassignment, see canReassignOrDeleteAccount). Real referential-integrity
+ * gap this closes: crm_accounts has no DB-level FK from crm_contacts/
+ * child crm_accounts/crm_leads.accountId/crm_opportunities.accountId (this
+ * schema's established bare-text bridge-column convention -- see this
+ * table's own schema.ts comment), so nothing previously stopped an account
+ * from being deleted out from under contacts/leads/opportunities that
+ * still pointed at it, leaving orphaned accountId references with no way
+ * to resolve them back to a real account. Blocks deletion instead, listing
+ * what still needs to be reassigned or removed first.
+ */
+export async function deleteAccount(ctx: CrmAccountContext, accountId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  assertGate(canReassignOrDeleteAccount(ctx.dbUser.role))
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, accountId), eq(crmAccounts.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Account not found", 404)
+
+    const [contacts, childAccounts, leads, opportunities] = await Promise.all([
+      db.query.crmContacts.findMany({ where: and(eq(crmContacts.accountId, accountId), eq(crmContacts.orgId, ctx.orgId)), columns: { id: true } }),
+      db.query.crmAccounts.findMany({ where: and(eq(crmAccounts.parentAccountId, accountId), eq(crmAccounts.orgId, ctx.orgId)), columns: { id: true } }),
+      db.query.crmLeads.findMany({ where: and(eq(crmLeads.accountId, accountId), eq(crmLeads.orgId, ctx.orgId)), columns: { id: true } }),
+      db.query.crmOpportunities.findMany({ where: and(eq(crmOpportunities.accountId, accountId), eq(crmOpportunities.orgId, ctx.orgId)), columns: { id: true } }),
+    ])
+    const blockers: string[] = []
+    if (contacts.length) blockers.push(`${contacts.length} contact(s)`)
+    if (childAccounts.length) blockers.push(`${childAccounts.length} child account(s)`)
+    if (leads.length) blockers.push(`${leads.length} linked lead(s)`)
+    if (opportunities.length) blockers.push(`${opportunities.length} linked opportunity/opportunities`)
+    if (blockers.length) {
+      throw new ServiceError(
+        `Cannot delete this account -- it still has ${blockers.join(", ")}. Reassign or remove them first.`,
+        409
+      )
+    }
+
+    await db.delete(crmAccounts).where(eq(crmAccounts.id, accountId))
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_account.deleted", entityType: "crm_account", entityId: accountId })
+    return { id: accountId }
   })
 }
 
@@ -179,6 +407,7 @@ export async function updateAccount(ctx: CrmAccountContext, accountId: string, p
 // a client, an account, both, or neither.
 export async function convertLeadToAccount(ctx: CrmAccountContext, leadId: string) {
   await requireSalesEnabled(ctx.orgId)
+  assertGate(canCreateCrmRecord(ctx.dbUser.role)) // creates a brand-new account -- no pre-existing owner to check
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!lead) throw new ServiceError("Lead not found", 404)
@@ -215,6 +444,7 @@ export async function linkOpportunityToAccount(ctx: CrmAccountContext, opportuni
     ])
     if (!account) throw new ServiceError("Account not found", 404)
     if (!opportunity) throw new ServiceError("Opportunity not found", 404)
+    assertGate(canEditAccount(ctx.dbUser.role, account.ownerId, ctx.userId)) // mutates the account's linked-opportunity roster -- an account edit
     const [updated] = await db.update(crmOpportunities).set({ accountId, updatedAt: new Date() }).where(eq(crmOpportunities.id, opportunityId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_account.opportunity_linked", entityType: "crm_account", entityId: accountId, details: JSON.stringify({ opportunityId }) })
     return updated
@@ -248,10 +478,12 @@ export async function createContact(ctx: CrmAccountContext, accountId: string, i
   await requireSalesEnabled(ctx.orgId)
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
+  validateContactFormat(input)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const account = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, accountId), eq(crmAccounts.orgId, ctx.orgId)) })
     if (!account) throw new ServiceError("Account not found", 404)
+    assertGate(canEditAccount(ctx.dbUser.role, account.ownerId, ctx.userId)) // adding a contact is an edit of the parent account's roster
 
     if (input.isPrimary) {
       await db.update(crmContacts).set({ isPrimary: false, updatedAt: new Date() }).where(and(eq(crmContacts.accountId, accountId), eq(crmContacts.orgId, ctx.orgId)))
@@ -267,9 +499,12 @@ export async function createContact(ctx: CrmAccountContext, accountId: string, i
 
 export async function updateContact(ctx: CrmAccountContext, contactId: string, patch: Partial<CreateContactInput>) {
   await requireSalesEnabled(ctx.orgId)
+  validateContactFormat(patch)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmContacts.findFirst({ where: and(eq(crmContacts.id, contactId), eq(crmContacts.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Contact not found", 404)
+    const parentAccount = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, existing.accountId), eq(crmAccounts.orgId, ctx.orgId)), columns: { ownerId: true } })
+    assertGate(canEditAccount(ctx.dbUser.role, parentAccount?.ownerId ?? null, ctx.userId))
 
     if (patch.isPrimary === true) {
       await db.update(crmContacts).set({ isPrimary: false, updatedAt: new Date() }).where(and(eq(crmContacts.accountId, existing.accountId), eq(crmContacts.orgId, ctx.orgId)))
@@ -285,6 +520,8 @@ export async function deleteContact(ctx: CrmAccountContext, contactId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmContacts.findFirst({ where: and(eq(crmContacts.id, contactId), eq(crmContacts.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Contact not found", 404)
+    const parentAccount = await db.query.crmAccounts.findFirst({ where: and(eq(crmAccounts.id, existing.accountId), eq(crmAccounts.orgId, ctx.orgId)), columns: { ownerId: true } })
+    assertGate(canEditAccount(ctx.dbUser.role, parentAccount?.ownerId ?? null, ctx.userId))
     await db.delete(crmContacts).where(eq(crmContacts.id, contactId))
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "crm_contact.deleted", entityType: "crm_contact", entityId: contactId, details: JSON.stringify({ accountId: existing.accountId }) })
     return { id: contactId }
