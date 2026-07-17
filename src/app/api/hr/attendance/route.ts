@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listAttendance, markAttendance, ServiceError } from "@/lib/services/hr-attendance-service"
+import { resolveAttendanceViewerScope } from "@/lib/services/hr-attendance-access"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
+// Access control: below-manager requesters are always scoped to their own
+// records, whether or not they explicitly asked for someone else's --
+// resolveAttendanceViewerScope() also throws a 403 if they explicitly named
+// a *different* user. See hr-attendance-access.ts for the full rationale
+// (this closes a real gap: this route previously had no role check at all,
+// so any authenticated org member could pass ?userId=<anyone> or omit the
+// filter entirely to read every employee's attendance).
 export async function GET(request: NextRequest) {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ records: [] })
 
   try {
     const params = request.nextUrl.searchParams
+    const scopedUserId = resolveAttendanceViewerScope(dbUser, params.get("userId") || undefined)
     const records = await listAttendance({ orgId }, {
-      userId: params.get("userId") || undefined,
+      userId: scopedUserId,
       departmentId: params.get("departmentId") || undefined,
       companyId: params.get("companyId") || undefined,
       startDate: params.get("startDate") || undefined,
@@ -37,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const targetUserId = body.userId || dbUser.id
     if (targetUserId !== dbUser.id) {
-      const roleErr = requireRole(dbUser, "manager")
+      const roleErr = requirePermissionForUser(dbUser, "erp.hr_attendance.mark_other")
       if (roleErr) return roleErr
     }
     const result = await markAttendance({ orgId, userId: dbUser.id }, targetUserId, {

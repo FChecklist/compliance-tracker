@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listAssetDisposals, initiateAssetDisposal, ServiceError } from "@/lib/services/erp-fixed-assets-service"
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,18 +21,26 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 // Owner's brief: disposal requires "a real authenticated user at manager
 // rank or above, not just an API key" -- matches
-// src/app/api/documents/[id]/dispose/route.ts's own identical gate exactly
-// (requireRole(dbUser, "manager") immediately after requireAuth). Whether
-// an *additional* org-configured approval-workflow sign-off is also needed
-// on top of this route-level gate is decided by initiateAssetDisposal
-// itself (startApprovalWorkflow), same as submitJournalEntry/
-// submitPurchaseRequisition's own "no workflow configured -> auto-approve"
-// precedent -- this gate is the floor, not a replacement for that engine.
+// src/app/api/documents/[id]/dispose/route.ts's own identical gate exactly.
+// Whether an *additional* org-configured approval-workflow sign-off is
+// also needed on top of this route-level gate is decided by
+// initiateAssetDisposal itself (startApprovalWorkflow), same as
+// submitJournalEntry/submitPurchaseRequisition's own "no workflow
+// configured -> auto-approve" precedent -- this gate is the floor, not a
+// replacement for that engine.
+//
+// VERIDIAN Review Framework remediation: this route already had the
+// correct "manager" gate before this wave (PR #387) -- routed through the
+// new shared permission-service.ts utility here (ERP_ACTION_ROLES
+// ["erp.fixed_assets.dispose"] = "manager") purely so this module's own
+// policy lives in the same single table as every other action's, not
+// because the previous inline requireRole(dbUser, "manager") call was
+// wrong. Behavior is unchanged.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
-  const roleCheck = requireRole(dbUser, "manager")
+  const roleCheck = requirePermissionForUser(dbUser, "erp.fixed_assets.dispose")
   if (roleCheck) return roleCheck
 
   try {

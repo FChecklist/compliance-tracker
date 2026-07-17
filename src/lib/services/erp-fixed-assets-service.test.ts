@@ -116,11 +116,17 @@ describe("computeMonthlyDecliningRate", () => {
 })
 
 // The disposal route (src/app/api/erp/fixed-assets/[id]/disposals/route.ts)
-// gates POST with requireRole(dbUser, "manager") -- the exact same
+// gates POST via requirePermissionForUser(dbUser, "erp.fixed_assets.dispose")
+// (permission-service.ts, VERIDIAN Review Framework remediation wave) --
+// which resolves to hasRole(dbUser, "manager") underneath, the exact same
 // convention as src/app/api/documents/[id]/dispose/route.ts's own disposal
-// gate. This exercises the REAL hasRole()/ROLE_RANK the route calls
-// (imported directly, not reimplemented), confirming every role in the
-// live enum lands on the correct side of the manager-or-above line.
+// gate and unchanged from this route's original inline
+// requireRole(dbUser, "manager") call. This exercises the REAL
+// hasRole()/ROLE_RANK the route's gate ultimately calls (imported
+// directly, not reimplemented), confirming every role in the live enum
+// lands on the correct side of the manager-or-above line. See
+// permission-service.test.ts for tests of the requirePermissionForUser()/
+// ERP_ACTION_ROLES layer itself.
 describe("disposal approval gate -- hasRole(dbUser, 'manager') as used by the disposals route", () => {
   const rolesBelowManager: UserRole[] = ["viewer", "client_viewer", "external_auditor", "member", "team_member"]
   const rolesManagerOrAbove: UserRole[] = ["manager", "senior_professional", "branch_manager", "admin", "veridian_admin"]

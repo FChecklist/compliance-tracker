@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listAssetCategories, createAssetCategory, ServiceError } from "@/lib/services/erp-fixed-assets-service"
 
 export async function GET() {
@@ -17,10 +18,19 @@ export async function GET() {
   }
 }
 
+// VERIDIAN Review Framework remediation (Critical: Access Control /
+// Role-Based Permissions): previously gated only by requireAuth() -- any
+// authenticated org member could define which GL accounts an entire
+// category of assets posts depreciation/acquisition entries against. Now
+// requires "manager" rank (ERP_ACTION_ROLES["erp.fixed_assets.category_manage"]),
+// matching this module's own established bar for anything that shapes GL
+// posting behavior.
 export async function POST(request: Request) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleErr = requirePermissionForUser(dbUser, "erp.fixed_assets.category_manage")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()

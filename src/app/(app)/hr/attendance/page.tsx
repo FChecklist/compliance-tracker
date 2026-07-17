@@ -92,7 +92,14 @@ export default function HrAttendancePage() {
   }, []);
 
   const loadMyRecords = useCallback(async () => {
-    const res = await fetch(`/api/hr/attendance?startDate=${monthStart}&endDate=${monthEnd}`);
+    // VERIDIAN Review Framework Wave 4: explicitly scoped to myId now (was
+    // previously an unfiltered org-wide fetch, client-filtered afterward --
+    // that relied on the API returning everyone's records with no server-
+    // side role check, which is the exact RBAC gap this wave closed in
+    // GET /api/hr/attendance; a manager viewing "My Attendance" would
+    // otherwise now pull the whole org's records over the wire only to
+    // filter it down to one row's worth client-side).
+    const res = await fetch(`/api/hr/attendance?startDate=${monthStart}&endDate=${monthEnd}&userId=${myId}`);
     const data = await res.json();
     const mine: AttendanceRecord[] = (data.records ?? []).filter((r: AttendanceRecord) => r.userId === myId);
     setMyRecords(mine);

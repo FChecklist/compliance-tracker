@@ -76,6 +76,93 @@ active:
       the schema in full). Explicitly NOT touching Fixed Assets, Sales
       Orders, Quotations, or crm-service.ts (leads/opportunities) -- out of
       scope per this task's own instructions, other tracks own those.
+  - session_label: "claude-code (Track 1, VERIDIAN Review Framework REVIEW-FRAMEWORK-WAVE4) -- shared ERP permission-check utility + Fixed Assets / Sales Orders / Quotations RBAC"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      CONTROLLER.yaml REVIEW-FRAMEWORK-WAVE4, TRACK 1 (this session's own
+      dispatch, see that entry's dispatch_plan): of the 21 ERP & Finance
+      modules sharing the identical "Access Control / Role-Based
+      Permissions" finding in the 2045-row VERIDIAN_Review_Framework CSV,
+      this claim builds the ONE shared permission-check utility + applies
+      it to exactly the 3 Weight-5 Critical modules named in that dispatch
+      plan (Fixed Assets, Sales Orders, Quotations) -- General Ledger,
+      Chart of Accounts, Accounts Payable/Receivable, Banking, Cash
+      Management, Cost Centers, Budgets, Financial Statements, Sales
+      Invoices, Purchase Orders, Purchase Receipts, RFQs, Supplier
+      Quotations, Sales Credit Notes, Inventory & Materials, CRM Accounts/
+      Contacts, and HR Attendance are explicitly OUT of scope for this
+      claim (CRM Accounts/Contacts and HR Attendance already have their own
+      separate active claims/worktrees elsewhere; the remaining 14 GL/AP/etc
+      modules are TRACK 2/3, Kimi.com/z.ai, held until this PR merges).
+
+      Re-verified live before starting: no existing claim or open PR
+      touches src/lib/services/permission-service.ts (new file, does not
+      exist on main), src/lib/services/erp-fixed-assets-service.ts,
+      src/lib/services/erp-selling-service.ts, or any
+      src/app/api/erp/fixed-assets/**, src/app/api/v1/projexa/quotations/**,
+      src/app/api/v1/projexa/sales-orders/** route. The Wave B Fixed Assets
+      wiring claim (PR #387) already merged before this session started --
+      re-read that merged code fresh rather than assuming from this file's
+      own stale note; it already has a "manager"-rank disposal gate,
+      confirmed and preserved, not duplicated.
+
+      Does NOT invent a new role system: this codebase's real one already
+      exists (src/lib/supabase/auth-guard.ts's 10-value UserRole/ROLE_RANK/
+      hasRole()/requireRole()/requireRoleOrScope()), confirmed by reading
+      it in full plus several real call sites (fixed-assets disposal,
+      quotation approval, erp-payment-entries-service.ts's
+      canDecidePaymentEntry) before writing anything. New file
+      src/lib/services/permission-service.ts is a thin, additive layer on
+      top: ERP_ACTION_ROLES (a flat action-string -> minimum UserRole
+      table, the single source of truth other tracks are expected to
+      extend) + requirePermission(ctx, action) [CombinedAuthContext,
+      wraps requireRoleOrScope] + requirePermissionForUser(dbUser, action)
+      [AuthContext, wraps requireRole]. Real unit tests added
+      (permission-service.test.ts, 14 tests, no DB access needed --
+      exercises the real requireRole/requireRoleOrScope primitives
+      directly, matching erp-fixed-assets-service.test.ts's own established
+      DB-free gate-testing convention).
+
+      Applied to: Fixed Assets (gated create/update/movement at "member",
+      category management/capitalize/depreciation-run at "manager" --
+      all previously ungated by role, requireAuth() only; disposal's
+      pre-existing "manager" gate preserved, routed through the same
+      utility for a single source of truth). Also closed 2 genuine
+      business-rule gaps found by reading erp-fixed-assets-service.ts in
+      full: (1) this was the only GL-posting ERP service NOT calling the
+      existing isPeriodOpenForDate() helper (erp-accounting-service.ts,
+      erp-cash-service.ts, erp-invoicing-service.ts,
+      erp-payment-entries-service.ts all already do) before posting --
+      added to submitFixedAsset (throws, single-doc precedent) and
+      runDepreciationBatch (skips + reports the row, matching that
+      function's own existing skip-ineligible-rows convention) and
+      finalizeAssetDisposal (skips GL posting only, matching its own
+      existing missing-accounts-configured honesty pattern); (2) a
+      defense-in-depth netBookValue >= 0 guard in finalizeAssetDisposal
+      (cheap, since generateDepreciationSchedule already prevents this by
+      construction -- documented as a safety net against future
+      regression, not claimed as fixing an currently-reachable bug).
+      Sales Orders: closed the real gap -- [id]/route.ts's single-record
+      PATCH gated every status transition (including cancelling a
+      confirmed order) at "member" while its own sibling
+      bulk-status/route.ts already required "manager" for the identical
+      operation; brought both to the same policy via ERP_ACTION_ROLES.
+      Quotations: no additional gap found (create/revise/convert already
+      "member", approve already "manager" + real-session-required) --
+      existing inline checks routed through the same utility for
+      consistency, zero behavior change, documented as such rather than
+      inventing a change to claim credit.
+
+      Verification: bun test (full suite) 1305 pass / 0 fail / 3 skip
+      (includes the 14 new permission-service tests + updated
+      erp-fixed-assets-service.test.ts comment). bunx tsc --noEmit: clean.
+      eslint on every changed/new file: clean. Manually traced one full
+      request path per module (route -> service -> DB) confirming each new
+      gate actually blocks the call, not just exists unused. No
+      schema/migration touched -- confirmed drizzle/*.sql tail matches
+      origin/main exactly (0223) immediately before this commit, no
+      collision. Branch: rbac-permission-utility. PR opened against main,
+      NOT self-merged -- left for the supervising session's audit.
   - session_label: "claude-code (background sub-agent) -- PROJEXA_GAP_ANALYSIS.md gap #5: Change Order e-signature auto-transition + PROJEXA signature-status visibility"
     claimed_at: "2026-07-17T (this session)"
     claim: |
@@ -2642,3 +2729,98 @@ recently_completed:
       explanation posted on the PR itself, branch deleted. This closes the
       last of the original 9-workstream 2026-07-16 implementation_wave
       (A1/A2/B1-B7) in full.
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework Wave 4 (REVIEW-FRAMEWORK-WAVE4): HR Attendance business-rule validation + RBAC"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      TRACK 1 of REVIEW-FRAMEWORK-WAVE4 (see CONTROLLER.yaml's own entry):
+      close out HR Attendance & Manpower's 2 remaining Weight-5-Critical
+      gaps -- "Business Rule & Validation Accuracy" and "Access Control /
+      Role-Based Permissions" -- on top of the already-merged/RLS-forced
+      tables from PR #391/#392/#400. Explicitly NOT touching Fixed Assets,
+      Sales Orders, Quotations, CRM Accounts/Contacts, or the shared
+      cross-cutting ERP permission utility (a parallel track's job) --
+      checked `gh pr list --repo FChecklist/compliance-tracker --state all`
+      and `--state open` fresh before starting: no shared permission
+      utility exists anywhere yet, merged or open, so this built a LOCAL,
+      attendance-only permission check instead (src/lib/services/hr-
+      attendance-access.ts) explicitly flagged for reconciliation once the
+      shared one lands -- see that file's own header comment.
+
+      Read hr-attendance-service.ts and all 6 API route files in full
+      before writing anything. Real gaps found (not guessed):
+      (1) GET /api/hr/attendance and GET /api/hr/attendance/summary had
+      NO role check at all -- any authenticated org member could pass
+      ?userId=<anyone> or omit the filter to read every employee's
+      attendance/summary. Confirmed live in the UI too: the attendance
+      page's "Summary" tab (src/app/(app)/hr/attendance/page.tsx) is NOT
+      gated by isManager, unlike "Team"/"Holidays" which correctly are --
+      a regular employee genuinely sees that tab today.
+      (2) markAttendance()'s upsert always built its `set` clause from
+      only the current call's fields, defaulting checkInAt/checkOutAt/
+      hoursWorked/notes to null when omitted -- a manager correcting just
+      `status` on an existing row silently wiped that day's real recorded
+      check-in/check-out times and notes. Real data-loss bug, fixed by
+      reading the existing row first and falling back to it field-by-field.
+      (3) No future-date rejection anywhere (checkIn/checkOut/
+      markAttendance all accepted any date, past or future).
+      (4) No cross-reference against hr_holidays before accepting an
+      'absent' mark (someone could be marked absent on a declared company
+      holiday).
+      (5) No half-day/late-mark derivation existed at all -- status was
+      purely whatever the caller passed, with 'half_day' never actually
+      derived from worked hours and no late-check-in concept anywhere.
+      Added: checkOut() auto-downgrades 'present' -> 'half_day' when
+      worked hours fall under a 4-hour threshold; a new isLateCheckIn()
+      pure helper flags a check-in after 09:15 UTC-wall-clock (documented,
+      honest per-timezone limitation -- no org/employee timezone concept
+      exists in schema.ts), exposed as a read-time-computed `isLate` field
+      (not a new column, matching this file's own established "don't
+      persist what's cheaply re-derivable" convention for weekend/holiday).
+      (6) Minor correctness fix: syncLeaveIntoAttendance now also skips
+      declared holidays (not just weekends) when materializing approved
+      leave into attendance rows, same rationale as the weekend skip.
+
+      Deliberately did NOT need a new migration -- every fix above is
+      service/route logic + a new local file, no schema change. Re-checked
+      `ls drizzle/*.sql | sort -V | tail` immediately before the final
+      commit (last real migration: 0223_force_rls_hr_attendance_holidays.sql)
+      to confirm nothing was needed.
+
+      Delivered: src/lib/services/hr-attendance-access.ts (new, local RBAC
+      helper), src/lib/services/hr-attendance-service.ts (business-rule
+      fixes above), src/app/api/hr/attendance/route.ts +
+      src/app/api/hr/attendance/summary/route.ts (RBAC wiring),
+      src/app/(app)/hr/attendance/page.tsx (loadMyRecords now explicitly
+      passes userId, tightening the payload now that the backend properly
+      scopes non-managers), and an expanded hr-attendance-service.test.ts
+      covering the new pure helpers (isValidDateString/isFutureDate/
+      assertNotFutureDate/isLateCheckIn) and resolveAttendanceViewerScope's
+      full allow/deny matrix (self views own, non-manager denied another's,
+      manager/veridian_admin allowed any). See PR description for
+      tsc/lint/build/test results and branch/PR number.
+
+      UPDATE (2026-07-17, same session, before opening the PR): the shared
+      ERP permission utility this claim's own local-fallback note was
+      watching for merged mid-flight as PR #401 (src/lib/services/
+      permission-service.ts, ERP_ACTION_ROLES + requirePermissionForUser/
+      requirePermission), from a concurrent sibling TRACK 1 session.
+      Rebased onto origin/main (fast-forward, no conflicts -- different
+      files) and reconciled before opening this PR rather than shipping a
+      competing inline check: registered erp.hr_attendance.mark_other /
+      erp.hr_attendance.holiday_manage in that utility's ERP_ACTION_ROLES
+      (both "manager"), replaced this module's 4 inline
+      requireRole(dbUser, "manager") write-route call sites with
+      requirePermissionForUser(), and updated permission-service.test.ts's
+      2 policy-table-integrity tests to include the new actions. Kept
+      hr-attendance-access.ts's resolveAttendanceViewerScope() as its own,
+      separate, still-needed piece -- it does per-request read scoping
+      (self vs. named-other userId), a different problem than the shared
+      utility's fixed-action write gate, not something that utility makes
+      redundant. Re-ran everything after reconciling: full suite 1327
+      pass/3 skip/0 fail, tsc --noEmit clean, eslint 0 errors (3
+      pre-existing warnings), bun run build green. Branch:
+      hr-attendance-business-rules-rbac. No new migration (confirmed via
+      `ls drizzle/*.sql | sort -V | tail` immediately before the final
+      commit -- last real migration still 0223_force_rls_hr_attendance_
+      holidays.sql; branch base == origin/main tip 13bddf6f at time of
+      PR). PR opened against main, not merged, per instructions.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listHolidays, addHoliday, ServiceError } from "@/lib/services/hr-attendance-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET(request: NextRequest) {
   const { response, orgId } = await requireAuth()
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  const roleErr = requireRole(dbUser, "manager")
+  const roleErr = requirePermissionForUser(dbUser, "erp.hr_attendance.holiday_manage")
   if (roleErr) return roleErr
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 

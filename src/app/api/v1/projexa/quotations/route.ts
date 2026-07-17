@@ -7,7 +7,8 @@
 // of the base shape from day one -- this route has no legacy flat-array
 // caller to preserve compatibility with.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requirePermission } from "@/lib/services/permission-service"
 import { listQuotations, createQuotation, ServiceError, type QuotationItemInput } from "@/lib/services/erp-selling-service"
 
 function toQuotationShape(q: Awaited<ReturnType<typeof listQuotations>>["items"][number]) {
@@ -55,10 +56,16 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// VERIDIAN Review Framework remediation: routed through the shared
+// permission-service.ts utility (ERP_ACTION_ROLES["erp.quotations.create"]
+// = "member") -- no behavior change from the previous inline
+// requireRoleOrScope(ctx, "member", "write") call, just a single source of
+// truth for this module's policy shared with [id]/route.ts,
+// [id]/convert/route.ts and [id]/revisions/route.ts.
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "member", "write")
+  const roleErr = requirePermission(ctx, "erp.quotations.create")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
   const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id

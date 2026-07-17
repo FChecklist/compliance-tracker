@@ -2,14 +2,23 @@
 // erp-selling-service.ts's bulkUpdateSalesOrderStatus. Orders whose current
 // status doesn't allow the requested transition are reported back as
 // `skipped`/`missing` rather than silently ignored or failing the batch.
+//
+// VERIDIAN Review Framework remediation: routed through the shared
+// permission-service.ts utility (ERP_ACTION_ROLES["erp.sales_orders.update_status"]
+// = "manager") -- no behavior change from the previous inline
+// requireRoleOrScope(ctx, "manager", "write") call. This route's own
+// pre-existing "manager" bar is exactly what [id]/route.ts's single-record
+// PATCH was brought up to match in this same wave -- see that route's
+// comment for the inconsistency this closes.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requirePermission } from "@/lib/services/permission-service"
 import { bulkUpdateSalesOrderStatus, ServiceError } from "@/lib/services/erp-selling-service"
 
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "manager", "write")
+  const roleErr = requirePermission(ctx, "erp.sales_orders.update_status")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
   const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
