@@ -173,6 +173,70 @@ export const ERP_ACTION_ROLES = {
   "erp.inventory.cycle_count": "member", // records physical count, does not post to GL
   "erp.inventory.cycle_count_plan": "member", // routine planning data entry
   "erp.inventory.reorder_level": "member", // routine planning configuration
+  // General Ledger / Journal Entries (VERIDIAN Review Framework Wave 4,
+  // Track 2 -- RBAC only). This codebase consolidates General Ledger
+  // posting into the journal-entries module (there is no separate
+  // general-ledger/ file path -- a journal entry IS the GL posting unit,
+  // created as a draft and then submitted to actually post). Modules 1
+  // (General Ledger) and 4 (Journal Entries) in the runbook therefore
+  // share this single set of entries and the same route files.
+  // Create = "member": a draft entry is routine data entry, does NOT post
+  // to the GL (see erp-accounting-service.ts's createJournalEntry -- it
+  // only inserts a row in status "draft"). Submit = "manager": this is
+  // the action that actually posts the entry to the GL, is hard to
+  // cleanly reverse (reversal needs a fresh reversing JE, not an edit),
+  // and is gated by the accounting-period lock on top of this role gate.
+  // Note: the existing inline requireRoleOrScope(ctx, "manager", "write")
+  // on /api/v1/projexa/journal-entries POST was an outlier vs. the rest
+  // of this table (every other module's create action -- fixed_assets,
+  // sales_orders, quotations -- is "member" for the draft step); routing
+  // it through this table aligns the PROJEXA alias with that established
+  // pattern. Tracked in the route file's own comment.
+  "erp.journal_entries.create": "member", // create a DRAFT journal entry -- routine data entry, does not post to GL
+  "erp.journal_entries.submit": "manager", // submit/post the entry to the GL -- financially final, hard to reverse cleanly
+
+  // Chart of Accounts (VERIDIAN Review Framework Wave 4, Track 2 -- RBAC
+  // only). Lives at /api/erp/accounts/ (the route file's own comments
+  // call it "chart of accounts"; there is no separate chart-of-accounts/
+  // file path in this codebase). The PROJEXA alias at
+  // /api/v1/projexa/accounts/ is read-only (GET only) for this wave -- no
+  // role gate needed there. Account creation defines GL account mappings
+  // (which account an entire class of transactions posts to) -- this is
+  // master-data configuration, NOT routine data entry, so it sits at
+  // "manager" matching the established precedent for category/master-data
+  // configuration (erp.fixed_assets.category_manage: "manager").
+  "erp.chart_of_accounts.create": "manager", // define a new GL account in the chart -- master-data configuration
+
+  // Fiscal Year & Periods (VERIDIAN Review Framework Wave 4, Track 2 --
+  // RBAC only). Fiscal-year creation and period generation/close/sign-off
+  // are all configuration/attestation actions that shape the books
+  // themselves, not routine data entry -- "manager" per this table's own
+  // documented rule for actions that are hard to cleanly reverse. The one
+  // exception is reopen: the existing /api/erp/periods/[id]/reopen route
+  // already required "admin" inline (reopening a closed accounting period
+  // reopens the books and is one of the most sensitive actions in any
+  // ERP); that stricter bar is preserved here rather than loosened to
+  // "manager" just to fit this table's "member or manager" framing --
+  // the runbook's rule is a minimum bar, not a maximum. See STEP 9 notes
+  // in the PR description for the deviation rationale.
+  "erp.fiscal_years.create": "manager", // define the org's fiscal calendar -- configuration
+  "erp.fiscal_periods.generate": "manager", // generate the period grid for a fiscal year -- configuration
+  "erp.fiscal_periods.close": "manager", // close a period (lock) -- hard to undo, blocks further posting
+  "erp.fiscal_periods.reopen": "admin", // reopen a closed period -- reopens the books; existing "admin" bar preserved
+  "erp.fiscal_periods.sign_off": "manager", // period sign-off -- financially significant attestation
+  "erp.fiscal_periods.checklist_complete": "manager", // complete a period-close checklist item -- manager-level attestation
+
+  // Banking / Bank Reconciliation (VERIDIAN Review Framework Wave 4,
+  // Track 2 -- RBAC only). All three write actions are routine
+  // reconciliation data entry that does NOT move money or post to the GL
+  // (verified by reading erp-bank-reconciliation-service.ts: import just
+  // inserts rows into erBankStatementImports/Lines; matchLine/ignoreLine
+  // only update the status field on a statement line). The PROJEXA alias
+  // at /api/v1/projexa/bank-reconciliation/ is read-only for this wave
+  // (see that route file's own comment) -- no role gate needed there.
+  "erp.banking.import_statement": "member", // upload a bank statement file -- routine data entry, does not post to GL
+  "erp.banking.match_line": "member", // link a bank line to an existing JE -- routine reconciliation, doesn't move money
+  "erp.banking.ignore_line": "member", // mark a line as ignored -- routine reconciliation cleanup
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES

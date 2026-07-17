@@ -8,7 +8,8 @@
 // Bearer-key (apiKey) actor, not just a session dbUser -- see that
 // function's own comment in erp-accounting-service.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requirePermission } from "@/lib/services/permission-service"
 import { listJournalEntriesPaged, createJournalEntry, ServiceError, type JournalEntryInput } from "@/lib/services/erp-accounting-service"
 
 function toEntryShape(e: { id: string; entryNumber: number; postingDate: string; referenceType: string | null; referenceId: string | null; userRemark: string | null; status: string; totalDebit: string; totalCredit: string; companyId: string | null }) {
@@ -48,7 +49,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "manager", "write")
+  // VERIDIAN Review Framework remediation (Wave 4, Track 2): replaces the
+  // previous inline requireRoleOrScope(ctx, "manager", "write") literal
+  // with the centralized ERP_ACTION_ROLES["erp.journal_entries.create"]
+  // lookup. Policy is "member" (not "manager") because createJournalEntry
+  // only inserts a DRAFT row -- it does not post to the GL; the sibling
+  // /api/erp/journal-entries/[id]/submit route is the action that actually
+  // posts and is the one gated at "manager". Aligns this PROJEXA alias
+  // with the established pattern in ERP_ACTION_ROLES (every other module's
+  // create action -- fixed_assets, sales_orders, quotations -- is "member"
+  // for the draft step). See permission-service.ts's own comment on this
+  // entry for the full rationale.
+  const roleErr = requirePermission(ctx, "erp.journal_entries.create")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
