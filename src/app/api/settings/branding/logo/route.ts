@@ -9,7 +9,7 @@ import { ORG_BRANDING_BUCKET, resolveBranding, updateBrandingAsset, getBrandingA
 // established pattern (service-role admin client, org-scoped object path,
 // sanitized filename, size limit matching the bucket's own
 // file_size_limit) -- the one deliberate divergence is that org-branding is
-// a PUBLIC bucket (see drizzle/0219_wave_b_white_label_branding.sql's
+// a PUBLIC bucket (see drizzle/0221_wave_b_white_label_branding.sql's
 // header for why a logo doesn't need documents.ts's private+signed-URL
 // treatment), so this route uses getPublicUrl-backed resolution
 // (org-branding-service.ts) instead of createSignedUrl.

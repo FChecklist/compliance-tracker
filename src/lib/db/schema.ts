@@ -115,7 +115,7 @@ export const organisations = complianceSchemaDB.table('organisations', {
   // which have every one of these columns NULL today, verified directly
   // against the live DB before this migration was written) renders with
   // the default VERIDIAN AI branding, completely unchanged, until an org
-  // admin explicitly sets one. See drizzle/0219_wave_b_white_label_branding.sql
+  // admin explicitly sets one. See drizzle/0221_wave_b_white_label_branding.sql
   // and src/lib/services/org-branding-service.ts for the full design
   // rationale, including why customDomain deliberately stores only the
   // requested domain string (no DNS verification/TLS/routing -- explicitly

@@ -3,7 +3,7 @@
 // and was never read or written anywhere in src/ before this wave --
 // confirmed via a fresh grep of the codebase immediately before writing the
 // migration that added the 4 sibling columns below it
-// (drizzle/0219_wave_b_white_label_branding.sql). This service is the single
+// (drizzle/0221_wave_b_white_label_branding.sql). This service is the single
 // place that reads/writes/validates per-org branding, mirroring
 // org-license-service.ts's own plain-`db`-import shape (no withTenantContext
 // wrapper -- these are single-row-by-orgId reads/writes against
