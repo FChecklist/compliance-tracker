@@ -2325,7 +2325,7 @@ recently_completed:
       session has no further active claims on this priority.
   - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Training LMS module (full depth) -- REAL outcome, superseding the still-open active-section claim above (claimed 2026-07-16, never produced a branch or PR -- that dispatched session silently died)"
     completed_at: "2026-07-17T (this session)"
-    merged_as: "compliance-tracker#TBD (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
+    merged_as: "compliance-tracker#395 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10; a COMPETING PR #394 for this same gap also exists, see collision note appended below)"
     claim: |
       Direct continuation/redo of the dead 2026-07-16 "Training LMS module"
       claim (still sitting unclosed under this file's own active: section,
@@ -2463,10 +2463,39 @@ recently_completed:
       Reward (a separate, already-designed system per
       [[veridian_veri_reward_eval]], not requested here).
 
-      Branch: feat/training-lms-module-direct. PR opened against main
-      (URL/number to be filled in once `gh pr create` returns), NOT
+      Branch: feat/training-lms-module-direct. PR opened against main:
+      https://github.com/FChecklist/compliance-tracker/pull/395. NOT
       self-merged -- left for the supervising session's audit. Did not
       post an AUDIT: PASS/FAIL verdict comment -- that's this repo's
       mandatory-audit-check.yml gate, reserved for the supervising
       session. This session has no further active claims on this
       priority.
+
+      PR is now compliance-tracker#395 (filled in post-creation).
+
+      COLLISION DISCOVERED AFTER THE FACT (protocol item 4 -- reporting
+      honestly, not silently working around it): a second, independently-
+      dispatched background session also built and opened a competing PR
+      for this exact same "Training LMS module" gap while this session was
+      working -- compliance-tracker#394, branch feat/training-lms-module.
+      Its own final report claims it found the same orphaned live
+      training_* tables this entry describes, but chose to DROP and
+      rebuild them (12 tables, different enum values, an added
+      training_lesson_progress table) rather than reuse them, and that it
+      applied that drop+rebuild live via the Supabase MCP.
+
+      Re-checked live DB state (pcrjmlpuqsbocqfwoxod) immediately after
+      both sessions finished: the 11 training_* tables currently live
+      match THIS entry's design exactly (rich_text/video_url/document
+      enum values, is_mandatory/target_roles columns present, 0 rows) --
+      NOT the other session's claimed 12-table/renamed-enum rebuild, and
+      no training_lesson_progress table exists live. Either the other
+      session's live-DB drop+rebuild claim did not actually execute
+      against this project, or it executed and this session's own
+      idempotent CREATE-TABLE-IF-NOT-EXISTS apply (run afterward) simply
+      layered on top without conflict because the table names coincided.
+      Flagging this explicitly rather than asserting which -- the
+      supervising session auditing #394 vs #395 should independently
+      re-verify live DB state before assuming either PR's own narrative
+      is accurate, and only one of these two PRs should be merged (they
+      are mutually exclusive schema designs for the same tables).
