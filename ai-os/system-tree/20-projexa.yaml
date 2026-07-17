@@ -30,7 +30,7 @@ domains:
     output: "A Bearer-authenticated fetch to VERIDIAN's API (default https://veridian-compliance-ai.vercel.app/api/v1/projexa)."
     rules:
       - "callVeridian(path, {method, body, apiKey, organizationId}) is the single chokepoint for all construction-domain data/AI in this repo."
-      - "getVeridianApiKey(organizationId) exists to look up a per-org key from veridian_credentials, but EVERY route currently calls callVeridian with no apiKey/organizationId -- confirmed by grepping every route -- so it silently falls back to the single shared process.env.VERIDIAN_API_KEY. This matches the codebase's own 'MVP note' comments, not a hidden bug."
+      - "STALE CLAIM, CORRECTED 2026-07-17 (PROJEXA-COMPLETION-01 phase2a/phase3): ~~EVERY route currently calls callVeridian with no apiKey/organizationId... This matches the codebase's own 'MVP note' comments, not a hidden bug~~ -- this WAS a real, severe cross-tenant data-isolation bug (any real signed-up tenant's procurement/inventory/currencies/companies/etc. calls silently read/wrote a DIFFERENT org's data via the shared fallback key; invisible against the demo org, which has no veridian_credentials row). Fixed in projexa#32 (merged, independently audited): 40 call sites across 26 files now pass organizationId explicitly. getVeridianApiKey(organizationId) is used correctly at these call sites now, not bypassed."
       - "PROJEXA's own Postgres schema (Drizzle+postgres.js) holds ONLY tenant/auth/collaboration plumbing: organizations, memberships, veridianCredentials, assistantQueries, conversations, conversationParticipants, messages, profiles, todos. No BOQ/schedule/RFI/budget tables exist locally -- confirmed by the schema file's own header comment."
       - "Zero direct LLM-provider calls anywhere in PROJEXA -- no OpenAI/Anthropic/etc. SDK or key found in src/ or .env.local. /api/assistant and /api/discuss are pure proxies to VERIDIAN's /assistant and /discuss endpoints."
     guardrails: ["Auth is Supabase Auth (cookie-based), enforced in src/middleware.ts (route-prefix redirect) and requireAuth() in src/lib/supabase/auth-guard.ts (RLS-scoped session read, not a service-role key)."]
@@ -84,7 +84,7 @@ domains:
     objects:
       - "/api/assistant (GET history, POST -> VERIDIAN /assistant), /api/discuss (POST -> VERIDIAN /discuss)"
       - "/api/capability-tree (GET, keeps Bearer key server-side)"
-      - "/api/change-orders(+[id]) -- PATCH action:'submit' drives an e-signature workflow via signers"
+      - "/api/change-orders(+[id]) -- PATCH action:'submit' drives an e-signature workflow via signers. STALE, CORRECTED 2026-07-17: this route used to also accept action:'approve'/'reject', a one-click override with zero signature check -- removed (compliance-tracker#398/projexa#35, PROJEXA_GAP_ANALYSIS.md gap #5, closed). Real approval now only happens via e-signature completion; GET /api/change-orders/[id]/signature-status (new route) surfaces real signer progress instead."
       - "/api/design-materials, /api/ffe(+[id],margin-summary), /api/floor-plans(+[id],rooms,rooms/[roomId],placements,placements/[placementId],scene)"
       - "/api/mood-boards(+[id]) -- status transitions draft->shared->approved"
       - "/api/punch-list(+[id]) -- status transitions open->ready_for_review->verified_closed"
@@ -138,8 +138,8 @@ domains:
     workflow: []
 
   - id: PRX-11
-    name: "ui/ components -- shadcn primitives plus 4 notable custom/dead-code cases"
-    objects: ["~40 shadcn primitives (unremarkable)", "dashboard-card.tsx (used only on /dashboard)", "status-badge.tsx (StatusBadge/PriorityBadge) -- confirmed DEAD CODE, no usage found anywhere outside its own definition", "compliance-chart.tsx -- confirmed DEAD CODE, same", "data-table.tsx (DataTable, TanStack wrapper) -- confirmed UNREFERENCED anywhere, likely ported but not yet wired into any feature client"]
+    name: "RESOLVED 2026-07-17 -- ui/ components -- shadcn primitives plus 2 confirmed-dead files deleted, 1 kept (was wrongly flagged dead)"
+    objects: ["~40 shadcn primitives (unremarkable)", "dashboard-card.tsx (used only on /dashboard)", "status-badge.tsx (StatusBadge/PriorityBadge) -- DELETED (projexa#34), confirmed zero remaining references before deletion", "compliance-chart.tsx -- DELETED (projexa#34), same", "data-table.tsx (DataTable, TanStack wrapper) -- STALE CLAIM, CORRECTED: ~~confirmed UNREFERENCED anywhere~~ -- actually actively used in EmployeesClient.tsx/PayrollClient.tsx/RecruitmentClient.tsx, KEPT not deleted (projexa#34 caught and fixed this file's own wrong flag before acting on it)."]
     input: "N/A."
     output: "N/A."
     rules:
@@ -179,5 +179,5 @@ domains:
 count_of_domains: 13
 notable_findings:
   - "STALE, CORRECTED 2026-07-17: ~~PRX-05 is the single largest concrete gap found in this entire system-tree effort: 12+ nav-linked, middleware-protected modules with zero page implementation.~~ PRX-05 is fully RESOLVED -- see that entry."
-  - "PRX-11's dead-code components (status-badge, compliance-chart) and unwired data-table are minor cleanup candidates, not architectural problems -- STILL OPEN as of 2026-07-17, not yet re-verified."
-  - "NEW 2026-07-17 (PROJEXA-COMPLETION-01): real remaining gaps confirmed via PROJEXA_GAP_ANALYSIS.md + fresh live-repo verification -- (1) PROJEXA repo has zero real CI (only an @claude-mention chatbot workflow, no lint/typecheck/build/test gate, and branch protection cannot be set via API on this private free-tier repo); (2) change-order 'pending approval' status has no visible approve/reject UI action, deliberately left unresolved pending a real design decision about e-signature completion integrity (PROJEXA_GAP_ANALYSIS.md gap #5); (3) 23 of 43 pages have never been exercised by a real live-user browser test, only confirmed to exist as files. Full plan: control/CONTROLLER.yaml, id PROJEXA-COMPLETION-01."
+  - "RESOLVED 2026-07-17: ~~PRX-11's dead-code components (status-badge, compliance-chart) and unwired data-table are minor cleanup candidates -- STILL OPEN~~. status-badge.tsx/compliance-chart.tsx deleted, data-table.tsx correctly kept (see PRX-11)."
+  - "UPDATED 2026-07-17 (PROJEXA-COMPLETION-01, phases closed since the entry below was first written): (1) DONE -- real Lint/TypeCheck/Build CI added (projexa#31); branch protection still cannot be set via API on this free-tier private repo, enforcement remains this session's own discipline. (2) DONE -- change-order approve/reject bypass closed on both sides (compliance-tracker#398, projexa#35): real approval now only via e-signature completion, no fake button; PROJEXA UI shows real signer progress instead. Also found and closed a related, more severe instance of the same bypass in VERIDIAN's own VeriChatPanel Approvals tab (same PR pair). (3) STILL OPEN, narrowed not closed: the 2026-07-17 phase2a/phase2b work was a code-level audit (page->route->real backend handler trace), not a live-browser click-through, for 19 of the ~23 untested pages -- found and fixed 2 real bugs this way (cross-tenant organizationId leak, KB/Wiki save always-fails for any real user), but genuine UI/UX-level issues a live test would catch (rendering, form validation, empty states) remain unverified on those pages. Full detail: control/CONTROLLER.yaml, id PROJEXA-COMPLETION-01."
