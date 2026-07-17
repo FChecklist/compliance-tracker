@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { importBankStatement, ServiceError } from "@/lib/services/erp-bank-reconciliation-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
+// VERIDIAN Review Framework remediation (Wave 4, Track 2: Access Control /
+// Role-Based Permissions): previously gated only by requireAuth() -- now
+// requires at least "member" rank (ERP_ACTION_ROLES["erp.banking.import_statement"]).
+// "member" (not "manager") because importBankStatement just inserts rows
+// into erpBankStatementImports/Lines (see erp-bank-reconciliation-service.ts)
+// -- it does NOT post to the GL or move money. Routine data entry per the
+// runbook's rule.
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleErr = requirePermissionForUser(dbUser, "erp.banking.import_statement")
+  if (roleErr) return roleErr
 
   try {
     const formData = await request.formData()
