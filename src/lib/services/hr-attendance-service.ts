@@ -13,6 +13,18 @@
 // gating enforced in the API route via requireRole, exactly like
 // decideLeaveRequest's PATCH route) -- see schema.ts's comment directly
 // above hrAttendanceRecords for the full column-level rationale.
+//
+// VERIDIAN Review Framework Wave 4 (REVIEW-FRAMEWORK-WAVE4, 2026-07-17):
+// this file previously had no genuine business-rule validation beyond
+// "checkOut must be after checkIn" -- re-read in full before this wave to
+// confirm what was actually missing rather than guessing: no future-date
+// rejection anywhere, no cross-reference against hr_holidays before
+// accepting an 'absent' mark, no half-day/late-mark derivation at all
+// (status was purely whatever the caller passed), and a real upsert bug in
+// markAttendance (documented at its own definition below) that silently
+// nulled out a day's recorded check-in/check-out/notes on any partial
+// correction. All fixed in this wave; see each function's own comment for
+// the specific rule and reasoning.
 import {
   users, employeeProfiles, hrAttendanceRecords, hrHolidays, hrAttendanceStatusEnum,
 } from "@/lib/db"
@@ -38,9 +50,92 @@ export type AttendanceStatus = (typeof hrAttendanceStatusEnum.enumValues)[number
 // gap if a 6-day-week org ever needs this, not invented here.
 const WEEKEND_DAYS = new Set([0, 6])
 
+// Below-threshold worked hours on checkout auto-downgrade a day from
+// 'present' to 'half_day' (see checkOut()). 4 hours is half of a standard
+// 8-hour day -- the same implicit full-day length markAttendance's own
+// hoursWorked/date-range logic already assumes elsewhere in this codebase
+// (no separate "standard shift length" concept exists in schema.ts to read
+// instead).
+const HALF_DAY_HOURS_THRESHOLD = 4
+
+// Late-check-in threshold: 09:00 + a 15-minute grace window, i.e. a
+// check-in strictly after 09:15 counts as late. Honest limitation, same
+// class as WEEKEND_DAYS above and documented the same way: this compares
+// against the UTC wall-clock hour of the checkInAt timestamp because there
+// is no per-org (or per-employee) timezone/shift-start concept anywhere in
+// schema.ts today (checked fresh before writing this) -- a real gap for
+// any org outside a single timezone, not invented away here. Deliberately
+// NOT persisted as a new column: matches this file's own established
+// design principle (see hrAttendanceStatusEnum's schema.ts comment on why
+// `weekend` is computed at read time, not stored) of not persisting state
+// that's cheaply re-derivable from data already on the row, so it can
+// never silently drift from the real check-in timestamp it's computed
+// from. Exposed as `isLate` on checkIn()'s return value and on every row
+// listAttendance() returns.
+const WORKDAY_START_HOUR_UTC = 9
+const LATE_GRACE_MINUTES = 15
+
 export function isWeekendDate(dateStr: string): boolean {
   const day = new Date(`${dateStr}T00:00:00Z`).getUTCDay()
   return WEEKEND_DAYS.has(day)
+}
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * True for a syntactically valid 'YYYY-MM-DD' string that parses to a real
+ * calendar date. Deliberately does NOT rely on `new Date(...)` alone to
+ * catch an impossible date (e.g. '2026-02-30') -- JS Date silently rolls
+ * an out-of-range day/month over into the next month rather than
+ * producing an Invalid Date (`new Date('2026-02-30')` parses as March 2),
+ * so this reconstructs the string from the parsed UTC components and
+ * requires an exact round-trip.
+ */
+export function isValidDateString(dateStr: string): boolean {
+  if (!ISO_DATE_RE.test(dateStr)) return false
+  const d = new Date(`${dateStr}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return false
+  return d.toISOString().slice(0, 10) === dateStr
+}
+
+/**
+ * True when `dateStr` is strictly after today, i.e. attendance for a date
+ * that hasn't happened yet. Compared as whole UTC calendar days (matching
+ * isWeekendDate's own UTC-per-calendar-day convention) -- "today" is
+ * computed fresh on every call, not cached, so this stays correct across a
+ * midnight boundary within a long-running process.
+ */
+export function isFutureDate(dateStr: string): boolean {
+  const today = new Date().toISOString().slice(0, 10)
+  return dateStr > today
+}
+
+/**
+ * Rejects a malformed date string or a future date. Used everywhere a
+ * caller supplies a date for an attendance EVENT that's supposed to have
+ * already happened (check-in, check-out, a direct mark/correction) -- an
+ * employee cannot be marked present, absent, half-day, or on-leave for a
+ * day that hasn't occurred yet. Deliberately NOT applied to holidays
+ * (addHoliday): a holiday calendar is legitimately declared in advance
+ * (e.g. filing next year's holiday list), so a future date there is
+ * correct, not a bug.
+ */
+export function assertNotFutureDate(dateStr: string, label = "date"): void {
+  if (!isValidDateString(dateStr)) throw new ServiceError(`${label} must be a valid YYYY-MM-DD date`, 400)
+  if (isFutureDate(dateStr)) throw new ServiceError(`${label} cannot be in the future`, 400)
+}
+
+/**
+ * A check-in strictly after 09:15 UTC-wall-clock on its own calendar day
+ * counts as late. See WORKDAY_START_HOUR_UTC/LATE_GRACE_MINUTES above for
+ * the honest per-timezone limitation.
+ */
+export function isLateCheckIn(checkInAt: Date): boolean {
+  const deadline = new Date(Date.UTC(
+    checkInAt.getUTCFullYear(), checkInAt.getUTCMonth(), checkInAt.getUTCDate(),
+    WORKDAY_START_HOUR_UTC, LATE_GRACE_MINUTES
+  ))
+  return checkInAt.getTime() > deadline.getTime()
 }
 
 /** Inclusive list of ISO 'YYYY-MM-DD' dates from start to end. */
@@ -160,22 +255,25 @@ async function getOrgUserIds(orgId: string, departmentId?: string): Promise<stri
 /** Self-service check-in. Idempotent per day: re-checking in the same day updates the existing row rather than erroring. */
 export async function checkIn(ctx: HrAttendanceContext, date?: string) {
   const day = date || new Date().toISOString().slice(0, 10)
+  if (date) assertNotFutureDate(date) // only validate an explicitly-supplied date; the default (today) is always valid
   const now = new Date()
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const [row] = await db.insert(hrAttendanceRecords).values({
+  const row = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [r] = await db.insert(hrAttendanceRecords).values({
       orgId: ctx.orgId, userId: ctx.userId, date: day, status: "present",
       checkInAt: now, markedById: ctx.userId, source: "self",
     }).onConflictDoUpdate({
       target: [hrAttendanceRecords.orgId, hrAttendanceRecords.userId, hrAttendanceRecords.date],
       set: { checkInAt: now, status: "present", markedById: ctx.userId, source: "self", updatedAt: now },
     }).returning()
-    return row
+    return r
   })
+  return { ...row, isLate: isLateCheckIn(now) }
 }
 
 /** Self-service check-out. Requires an existing check-in for the same day (or an explicit date). */
 export async function checkOut(ctx: HrAttendanceContext, date?: string) {
   const day = date || new Date().toISOString().slice(0, 10)
+  if (date) assertNotFutureDate(date)
   const now = new Date()
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.hrAttendanceRecords.findFirst({
@@ -184,8 +282,16 @@ export async function checkOut(ctx: HrAttendanceContext, date?: string) {
     if (!existing) throw new ServiceError("No check-in found for this day -- check in first", 400)
     if (!existing.checkInAt) throw new ServiceError("Cannot check out without a check-in time recorded", 400)
     const hoursWorked = computeHoursWorked(new Date(existing.checkInAt), now)
+    // Half-day threshold rule: a self-service check-in always starts as
+    // 'present' (see checkIn() above); if the actual worked hours at
+    // checkout fall below HALF_DAY_HOURS_THRESHOLD, downgrade to
+    // 'half_day' automatically rather than leaving a raw timestamp pair
+    // with no derived status reflecting it. Only downgrades a still-
+    // 'present' row -- never overrides a status a manager already set via
+    // markAttendance (e.g. a manual 'on_leave' correction mid-day).
+    const status = existing.status === "present" && hoursWorked < HALF_DAY_HOURS_THRESHOLD ? "half_day" : existing.status
     const [row] = await db.update(hrAttendanceRecords)
-      .set({ checkOutAt: now, hoursWorked: String(hoursWorked), updatedAt: now })
+      .set({ checkOutAt: now, hoursWorked: String(hoursWorked), status, updatedAt: now })
       .where(eq(hrAttendanceRecords.id, existing.id)).returning()
     return row
   })
@@ -207,12 +313,33 @@ export type MarkAttendanceInput = {
  * ctx.userId) happens in the API route, matching decideLeaveRequest's own
  * split (hr-service.ts has no permission checks itself; the PATCH route
  * calls requireRole before invoking it).
+ *
+ * VERIDIAN Review Framework Wave 4 fixes, both grounded in re-reading this
+ * function fresh:
+ *  1. Real data-loss bug: the previous version always built its upsert
+ *     `values`/`set` from ONLY the fields passed in this call, defaulting
+ *     checkInAt/checkOutAt/hoursWorked/notes to null whenever omitted --
+ *     so a manager correcting just `status` on an existing row (e.g.
+ *     'present' -> 'half_day') silently wiped that day's real recorded
+ *     check-in/check-out timestamps and notes back to null. Fixed by
+ *     reading the existing row first and falling back to its values for
+ *     any field this call didn't explicitly supply. `notes` distinguishes
+ *     "omitted" (preserve) from "explicitly cleared" (`notes: ""`) via an
+ *     `undefined` check, not `input.notes || existing`.
+ *  2. No future-date or holiday cross-check existed at all. Added:
+ *     rejects a future date (assertNotFutureDate), and rejects `status:
+ *     'absent'` on a date hr_holidays lists (nobody can be "absent" from a
+ *     declared non-working day). Deliberately does NOT block 'present' on
+ *     a holiday -- an employee genuinely coming in on a declared holiday
+ *     is a real scenario this shouldn't reject; compensatory-off tracking
+ *     for that case is a real, separate future gap, not invented here.
  */
 export async function markAttendance(ctx: HrAttendanceContext, targetUserId: string, input: MarkAttendanceInput) {
   if (!hrAttendanceStatusEnum.enumValues.includes(input.status)) {
     throw new ServiceError(`status must be one of: ${hrAttendanceStatusEnum.enumValues.join(", ")}`, 400)
   }
   if (!input.date) throw new ServiceError("date is required", 400)
+  assertNotFutureDate(input.date)
 
   let hoursWorked = input.hoursWorked != null ? input.hoursWorked : undefined
   if (input.checkInAt && input.checkOutAt) {
@@ -223,15 +350,26 @@ export async function markAttendance(ctx: HrAttendanceContext, targetUserId: str
     const targetUser = await db.query.users.findFirst({ where: and(eq(users.id, targetUserId), eq(users.orgId, ctx.orgId)) })
     if (!targetUser) throw new ServiceError("Employee not found", 404)
 
+    if (input.status === "absent") {
+      const holiday = await db.query.hrHolidays.findFirst({
+        where: and(eq(hrHolidays.orgId, ctx.orgId), eq(hrHolidays.date, input.date)),
+      })
+      if (holiday) throw new ServiceError(`Cannot mark absent on a declared holiday (${holiday.name})`, 400)
+    }
+
+    const existing = await db.query.hrAttendanceRecords.findFirst({
+      where: and(eq(hrAttendanceRecords.orgId, ctx.orgId), eq(hrAttendanceRecords.userId, targetUserId), eq(hrAttendanceRecords.date, input.date)),
+    })
+
     const values = {
       orgId: ctx.orgId, userId: targetUserId, date: input.date, status: input.status,
-      checkInAt: input.checkInAt ? new Date(input.checkInAt) : null,
-      checkOutAt: input.checkOutAt ? new Date(input.checkOutAt) : null,
-      hoursWorked: hoursWorked != null ? String(hoursWorked) : null,
+      checkInAt: input.checkInAt ? new Date(input.checkInAt) : (existing?.checkInAt ?? null),
+      checkOutAt: input.checkOutAt ? new Date(input.checkOutAt) : (existing?.checkOutAt ?? null),
+      hoursWorked: hoursWorked != null ? String(hoursWorked) : (existing?.hoursWorked ?? null),
       markedById: ctx.userId,
       source: targetUserId === ctx.userId ? "self" : "manager",
-      notes: input.notes || null,
-    }
+      notes: input.notes !== undefined ? (input.notes || null) : (existing?.notes ?? null),
+    } as const
     const [row] = await db.insert(hrAttendanceRecords).values(values).onConflictDoUpdate({
       target: [hrAttendanceRecords.orgId, hrAttendanceRecords.userId, hrAttendanceRecords.date],
       set: { ...values, updatedAt: new Date() },
@@ -259,7 +397,7 @@ export async function listAttendance(ctx: { orgId: string }, filters?: ListAtten
   const departmentUserIds = await getOrgUserIds(ctx.orgId, filters?.departmentId)
   if (filters?.departmentId && (!departmentUserIds || departmentUserIds.length === 0)) return []
 
-  return withTenantContext({ orgId: ctx.orgId }, (db) => {
+  const rows = await withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(hrAttendanceRecords.orgId, ctx.orgId)]
     if (filters?.userId) conditions.push(eq(hrAttendanceRecords.userId, filters.userId))
     if (filters?.companyId) conditions.push(eq(hrAttendanceRecords.companyId, filters.companyId))
@@ -271,6 +409,10 @@ export async function listAttendance(ctx: { orgId: string }, filters?: ListAtten
       orderBy: (t, { desc }) => desc(t.date),
     })
   })
+  // isLate is derived at read time, not stored -- see isLateCheckIn's own
+  // comment for why. Only ever true for a row that actually has a
+  // checkInAt.
+  return rows.map((r) => ({ ...r, isLate: r.checkInAt ? isLateCheckIn(new Date(r.checkInAt)) : false }))
 }
 
 export type MonthlySummaryFilters = { userId?: string; departmentId?: string; companyId?: string }
@@ -336,6 +478,10 @@ export async function listHolidays(ctx: { orgId: string }, year?: number) {
 
 export async function addHoliday(ctx: HrAttendanceContext, input: { date: string; name: string }) {
   if (!input.date || !input.name?.trim()) throw new ServiceError("date and name are required", 400)
+  // Deliberately no assertNotFutureDate here -- a holiday calendar is
+  // legitimately declared ahead of time (e.g. filing next year's list); a
+  // future date is the normal case, not a bug. Format is still validated.
+  if (!isValidDateString(input.date)) throw new ServiceError("date must be a valid YYYY-MM-DD date", 400)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [row] = await db.insert(hrHolidays).values({ orgId: ctx.orgId, date: input.date, name: input.name })
       .onConflictDoUpdate({ target: [hrHolidays.orgId, hrHolidays.date], set: { name: input.name } })
@@ -367,15 +513,31 @@ export async function deleteHoliday(ctx: { orgId: string }, holidayId: string) {
  * despite an approved leave request for that day (e.g. leave later
  * shortened in person, not through this system) shouldn't have their real
  * attendance silently erased by this sync.
+ *
+ * VERIDIAN Review Framework Wave 4: also skips declared holidays now, for
+ * the exact same reason weekends are skipped -- a company holiday inside
+ * an approved leave range was previously marked 'on_leave' (burning a
+ * "used a leave day" row for a day nobody was expected to work anyway).
+ * computeMonthlySummary's own weekend/holiday short-circuit already
+ * prevented this from skewing attendancePercent/workingDays (both are
+ * excluded from the denominator before the row's status is even read), so
+ * this was a real but low-impact semantic-accuracy fix, not a
+ * previously-wrong summary number -- documented honestly, not oversold.
  */
 export async function syncLeaveIntoAttendance(
   ctx: HrAttendanceContext,
   leaveRequest: { id: string; userId: string; startDate: string; endDate: string; companyId: string | null }
 ) {
-  const dates = enumerateDates(leaveRequest.startDate, leaveRequest.endDate).filter((d) => !isWeekendDate(d))
-  if (dates.length === 0) return []
+  const allDates = enumerateDates(leaveRequest.startDate, leaveRequest.endDate).filter((d) => !isWeekendDate(d))
+  if (allDates.length === 0) return []
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const holidays = await db.query.hrHolidays.findMany({
+      where: and(eq(hrHolidays.orgId, ctx.orgId), gte(hrHolidays.date, allDates[0]), lte(hrHolidays.date, allDates[allDates.length - 1])),
+    })
+    const holidaySet = new Set(holidays.map((h) => h.date))
+    const dates = allDates.filter((d) => !holidaySet.has(d))
+
     const results: (typeof hrAttendanceRecords.$inferSelect)[] = []
     for (const date of dates) {
       const existing = await db.query.hrAttendanceRecords.findFirst({
