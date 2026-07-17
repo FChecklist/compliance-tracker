@@ -4,11 +4,22 @@
 // matching this repo's established pattern of not exercising
 // withTenantContext/a live DB from a .test.ts file (see
 // erp-fixed-assets-service.test.ts's own note on this).
+//
+// VERIDIAN Review Framework Wave 4 (REVIEW-FRAMEWORK-WAVE4, 2026-07-17):
+// added coverage for the new business-rule pure helpers (isValidDateString
+// / isFutureDate / assertNotFutureDate / isLateCheckIn) and for
+// resolveAttendanceViewerScope (hr-attendance-access.ts), the local RBAC
+// helper -- it's pure enough (plain-object input, no DB) to unit-test the
+// same way, covering the allow/deny matrix the task asked for: self views
+// own, non-manager tries to view someone else's (denied), manager views
+// anyone's.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
-  isWeekendDate, enumerateDates, datesInMonth, computeHoursWorked, computeMonthlySummary, ServiceError,
+  isWeekendDate, enumerateDates, datesInMonth, computeHoursWorked, computeMonthlySummary,
+  isValidDateString, isFutureDate, assertNotFutureDate, isLateCheckIn, ServiceError,
 } from "./hr-attendance-service"
+import { resolveAttendanceViewerScope } from "./hr-attendance-access"
 
 describe("isWeekendDate", () => {
   test("Saturday and Sunday are weekends", () => {
@@ -142,5 +153,121 @@ describe("computeMonthlySummary", () => {
     const summary = computeMonthlySummary(7, 2026, [], nonWeekendDates)
     expect(summary.workingDays).toBe(0)
     expect(summary.attendancePercent).toBe(100)
+  })
+})
+
+describe("isValidDateString", () => {
+  test("accepts a real calendar date", () => {
+    expect(isValidDateString("2026-07-17")).toBe(true)
+  })
+  test("rejects malformed strings", () => {
+    expect(isValidDateString("17-07-2026")).toBe(false)
+    expect(isValidDateString("2026/07/17")).toBe(false)
+    expect(isValidDateString("not-a-date")).toBe(false)
+    expect(isValidDateString("")).toBe(false)
+  })
+  test("rejects a syntactically-shaped but impossible calendar date", () => {
+    expect(isValidDateString("2026-02-30")).toBe(false)
+    expect(isValidDateString("2026-13-01")).toBe(false)
+  })
+})
+
+describe("isFutureDate", () => {
+  test("a date far in the future is future", () => {
+    expect(isFutureDate("2099-01-01")).toBe(true)
+  })
+  test("a date far in the past is not future", () => {
+    expect(isFutureDate("2000-01-01")).toBe(false)
+  })
+})
+
+describe("assertNotFutureDate", () => {
+  test("throws a ServiceError for a future date", () => {
+    expect(() => assertNotFutureDate("2099-01-01")).toThrow(ServiceError)
+  })
+  test("throws a ServiceError for a malformed date", () => {
+    expect(() => assertNotFutureDate("not-a-date")).toThrow(ServiceError)
+  })
+  test("does not throw for a past date", () => {
+    expect(() => assertNotFutureDate("2000-01-01")).not.toThrow()
+  })
+  test("error message includes the given label", () => {
+    try {
+      assertNotFutureDate("2099-01-01", "checkInAt date")
+      throw new Error("should have thrown")
+    } catch (e) {
+      expect(e).toBeInstanceOf(ServiceError)
+      expect((e as ServiceError).message).toContain("checkInAt date")
+      expect((e as ServiceError).status).toBe(400)
+    }
+  })
+})
+
+describe("isLateCheckIn", () => {
+  test("09:00 UTC is on time (before the 09:15 grace deadline)", () => {
+    expect(isLateCheckIn(new Date("2026-07-17T09:00:00Z"))).toBe(false)
+  })
+  test("exactly 09:15 UTC is still on time (deadline is exclusive)", () => {
+    expect(isLateCheckIn(new Date("2026-07-17T09:15:00Z"))).toBe(false)
+  })
+  test("09:16 UTC is late", () => {
+    expect(isLateCheckIn(new Date("2026-07-17T09:16:00Z"))).toBe(true)
+  })
+  test("an early check-in (07:00 UTC) is not late", () => {
+    expect(isLateCheckIn(new Date("2026-07-17T07:00:00Z"))).toBe(false)
+  })
+  test("a very late check-in (14:00 UTC) is late", () => {
+    expect(isLateCheckIn(new Date("2026-07-17T14:00:00Z"))).toBe(true)
+  })
+})
+
+describe("resolveAttendanceViewerScope (RBAC)", () => {
+  const self = { id: "user-1", role: "member" }
+  const otherEmployee = { id: "user-2", role: "member" }
+  const manager = { id: "user-3", role: "manager" }
+  const veridianAdmin = { id: "user-4", role: "veridian_admin" }
+
+  test("throws 401 for an unauthenticated viewer", () => {
+    try {
+      resolveAttendanceViewerScope(null, undefined)
+      throw new Error("should have thrown")
+    } catch (e) {
+      expect(e).toBeInstanceOf(ServiceError)
+      expect((e as ServiceError).status).toBe(401)
+    }
+  })
+
+  test("a non-manager with no userId filter is scoped to themselves", () => {
+    expect(resolveAttendanceViewerScope(self, undefined)).toBe("user-1")
+  })
+
+  test("a non-manager explicitly requesting their own userId gets themselves", () => {
+    expect(resolveAttendanceViewerScope(self, "user-1")).toBe("user-1")
+  })
+
+  test("a non-manager requesting a different employee's userId is denied with 403", () => {
+    try {
+      resolveAttendanceViewerScope(self, otherEmployee.id)
+      throw new Error("should have thrown")
+    } catch (e) {
+      expect(e).toBeInstanceOf(ServiceError)
+      expect((e as ServiceError).status).toBe(403)
+    }
+  })
+
+  test("a manager can view a specific other employee's records", () => {
+    expect(resolveAttendanceViewerScope(manager, otherEmployee.id)).toBe(otherEmployee.id)
+  })
+
+  test("a manager with no userId filter gets an org-wide (unfiltered) query", () => {
+    expect(resolveAttendanceViewerScope(manager, undefined)).toBeUndefined()
+  })
+
+  test("veridian_admin (higher rank than manager) can also view any employee's records", () => {
+    expect(resolveAttendanceViewerScope(veridianAdmin, otherEmployee.id)).toBe(otherEmployee.id)
+  })
+
+  test("a manager can still view their own records explicitly", () => {
+    expect(resolveAttendanceViewerScope(manager, manager.id)).toBe(manager.id)
   })
 })
