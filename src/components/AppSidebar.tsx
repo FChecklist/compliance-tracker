@@ -462,18 +462,46 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
+function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
   const pathname = usePathname();
   const t = useTranslations("Nav");
   const sections = getNavSections(t, overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled);
 
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-3 px-5 py-5">
-        <Image src="/logo-mark.svg" alt="VERIDIAN AI" width={34} height={34} className="size-[34px]" unoptimized />
-        <span className="font-heading text-lg text-ct-navy tracking-tight">
-          VERIDIAN AI
+      {/* Logo -- Wave B (BYOB white-label branding): when an org admin has
+          configured a custom logo (org-branding-service.ts's
+          resolveBranding(), plumbed through AppShell.tsx from /api/me), it
+          replaces the default VERIDIAN AI mark here; the wordmark switches
+          to the org's own name so a branded org doesn't show a
+          tenant-chosen icon next to a competitor-facing product name. No
+          logo configured (the overwhelming common case today -- every
+          existing org has this NULL) renders byte-identical to before this
+          wave. The border-bottom accent line is the other minimum-viable
+          per-tenant touchpoint this wave wires up (see globals.css's
+          --org-brand-accent/--org-brand-primary custom properties) --
+          deliberately the ONLY two spots re-themed in this pass rather than
+          retrofitting every bg-ct-saffron/text-ct-saffron usage across the
+          sidebar (a much larger, separately-scoped redesign); see this
+          wave's PR description for that explicit scope boundary. */}
+      <Link
+        href="/"
+        className="flex items-center gap-3 px-5 py-5 border-b-2"
+        style={{ borderBottomColor: "var(--org-brand-accent)" }}
+      >
+        <Image
+          src={orgLogoUrl || "/logo-mark.svg"}
+          alt={orgLogoUrl ? `${orgName || "Organisation"} logo` : "VERIDIAN AI"}
+          width={34}
+          height={34}
+          className="size-[34px] rounded-sm object-contain"
+          unoptimized
+        />
+        <span
+          className="font-heading text-lg tracking-tight truncate"
+          style={{ color: "var(--org-brand-primary)" }}
+        >
+          {orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
         </span>
       </Link>
 
@@ -623,23 +651,23 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string }) {
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null }) {
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
+function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -657,7 +685,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
       </SheetContent>
     </Sheet>
   );

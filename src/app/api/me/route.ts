@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm"
 import { isPmsEnabledForOrg } from "@/lib/services/pms-enablement-service"
 import { isVeriChatV2EnabledForOrg } from "@/lib/services/veri-chat-v2-enablement-service"
 import { isFirmEnabledForOrg } from "@/lib/services/firm-enablement-service"
+import { resolveBranding } from "@/lib/services/org-branding-service"
 
 export async function GET() {
   const { response, dbUser, orgId } = await requireAuth()
@@ -17,6 +18,14 @@ export async function GET() {
   const pmsEnabled = orgId ? await isPmsEnabledForOrg(orgId) : false
   const veriChatV2Enabled = orgId ? await isVeriChatV2EnabledForOrg(orgId) : false
   const firmEnabled = orgId ? await isFirmEnabledForOrg(orgId) : false
+  // Wave B (BYOB white-label branding): resolved here (not raw org columns)
+  // so every consumer (AppShell for the sidebar logo/CSS vars, the Branding
+  // settings section itself) gets the SAME already-defaulted values -- an
+  // org that has never configured branding gets the real default VERIDIAN
+  // AI colors/null-logo back, never a raw null a client would have to
+  // remember to fall back on itself. See org-branding-service.ts's own
+  // resolveBranding() header for why this is the only sanctioned read path.
+  const branding = orgId ? await resolveBranding(orgId) : null
 
   return NextResponse.json({
     id: dbUser?.id ?? null,
@@ -39,6 +48,9 @@ export async function GET() {
     firmEnabled,
     orgPlan: org?.plan ?? "free",
     trialEndsAt: org?.trialEndsAt ? org.trialEndsAt.toISOString() : null,
+    orgLogoUrl: branding?.logoUrl ?? null,
+    orgBrandPrimaryColor: branding?.primaryColor ?? null,
+    orgBrandAccentColor: branding?.accentColor ?? null,
   })
 }
 

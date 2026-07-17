@@ -148,6 +148,24 @@
   --sidebar-accent-foreground: #1C2B3A;
   --sidebar-border: #E2E8F0;
   --sidebar-ring: #F5820A;
+
+  /* Wave B (VERIDIAN Review Framework remediation, "BYOB white-label
+     branding", 2026-07-17): default per-tenant brand values, shadowed at
+     runtime by AppShell.tsx's inline style with the org's own configured
+     colors (org-branding-service.ts's resolveBranding(), via /api/me). A
+     deliberately NEW, separate pair of custom properties -- not an attempt
+     to make --color-ct-navy/--color-ct-saffron above runtime-overridable,
+     which Tailwind v4's `@theme inline` inlines as literal values into
+     every utility class at build time (bg-ct-saffron etc. would NOT pick up
+     a runtime override of --color-ct-saffron). Consumers that want
+     per-tenant theming reference these two vars directly (see
+     AppSidebar.tsx's logo wordmark/accent underline for the current usage)
+     rather than the ct-* Tailwind tokens, which stay the fixed VERIDIAN AI
+     defaults everywhere else in the app -- see this wave's PR description
+     for why a full re-theme of every ct-saffron usage was deliberately out
+     of scope ("at minimum the sidebar logo and a CSS custom property"). */
+  --org-brand-primary: #1C2B3A;
+  --org-brand-accent: #F5820A;
 }
 
 @layer base {
