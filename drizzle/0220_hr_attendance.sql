@@ -93,3 +93,18 @@ INSERT INTO compliance.module_registry (module_key, display_name, table_name, do
   ('hr_attendance_records', 'Employee Attendance', 'hr_attendance_records', 'hr', 'TOOLS', false, 'Org-wide per-employee per-day attendance (present/absent/half-day/leave/holiday), distinct from construction_attendance (PROJEXA site-labour)'),
   ('hr_holidays', 'Holiday Calendar', 'hr_holidays', 'hr', 'TOOLS', false, 'Org-wide declared holiday dates used to compute attendance working-day denominators')
 ON CONFLICT (module_key) DO NOTHING;
+
+-- Asset Registry Coverage Check (GAP-UMR-TABLE-COVERAGE): hr_attendance_records
+-- is exempted (per-day status enum, no genuine display-name column, same class
+-- as crm_stage_history -- see ai-os/registry/asset-registry-coverage.yaml).
+-- hr_holidays IS registered -- it has a genuine name column (the holiday's
+-- own name), same class as clients/erp_customers.
+INSERT INTO compliance.asset_registration_config
+  (source_table, asset_type, name_column, purpose_column, module_column, org_column, owner_column, active_column)
+VALUES
+  ('hr_holidays', 'other', 'name', NULL, NULL, 'org_id', NULL, NULL)
+ON CONFLICT (source_table) DO NOTHING;
+
+CREATE OR REPLACE TRIGGER auto_register_asset_trg
+  AFTER INSERT OR UPDATE OR DELETE ON compliance.hr_holidays
+  FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();
