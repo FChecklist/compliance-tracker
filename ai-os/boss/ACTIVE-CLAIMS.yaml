@@ -2323,3 +2323,150 @@ recently_completed:
       repo's mandatory-audit-check.yml requires the structured 8-field
       AUDIT: PASS/AUDIT: FAIL verdict comment, not just a bare LGTM). This
       session has no further active claims on this priority.
+  - session_label: "claude-code (Super Boss, interactive) -- VERIDIAN Review Framework implementation Wave B: Training LMS module (full depth) -- REAL outcome, superseding the still-open active-section claim above (claimed 2026-07-16, never produced a branch or PR -- that dispatched session silently died)"
+    completed_at: "2026-07-17T (this session)"
+    merged_as: "compliance-tracker#TBD (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
+    claim: |
+      Direct continuation/redo of the dead 2026-07-16 "Training LMS module"
+      claim (still sitting unclosed under this file's own active: section,
+      line ~366) -- that dispatched session registered the claim, then
+      silently died without ever producing a branch, commit, or PR. This
+      entry is the real outcome; the stale active entry is left as-is
+      (append-only convention) rather than edited, per this file's own
+      protocol item 3.
+
+      ORPHANED LIVE-DB DRIFT FOUND (per this effort's standing pre-flight
+      check -- this is now 5 of 5 dead-2026-07-16-session claims that left
+      real DDL live): before writing any code, queried the live Supabase
+      project (pcrjmlpuqsbocqfwoxod) via the Supabase MCP for
+      training_*/lms_*/course_* objects. Found all 11 tables the design
+      below needed already live in `compliance` schema -- migration name
+      `training_lms_wave_b`, version 20260716123536 in list_migrations,
+      with ZERO matching file in drizzle/ and ZERO schema.ts/service/API/UI
+      code anywhere (confirmed via fresh grep of src/). Independently
+      verified before reusing anything: SELECT count(*) on all 11 tables
+      = 0 rows each; pg_class.relforcerowsecurity already ENABLE+FORCEd on
+      all 11; pg_policies already carry the correct app_runtime_org_scoped
+      + service_role_bypass_* pair; pg_constraint shows zero FK
+      constraints (matches this schema's bare-text-reference convention).
+      The orphaned design was well-formed and matched this codebase's own
+      conventions exactly -- REUSED as-is rather than dropped and rebuilt,
+      documented in drizzle/0222's own header. Two columns
+      (training_courses.is_mandatory/target_roles) and one enum value
+      (training_lesson_content_type 'document') were genuinely new
+      requirements not present in the orphaned design; added additively.
+      Applied the full idempotent migration live via the Supabase MCP
+      (apply_migration) so schema.ts and the live DB stay in sync, not
+      just the fresh-environment migration file.
+
+      Real gap re-confirmed via a fresh grep of src/ before building:
+      zero LMS/course/assessment/curriculum data model existed. Checked
+      employmentStatusEnum, OnboardingChecklist.tsx (a one-time signup/
+      setup UX nudge -- localStorage steps like "set up AI configuration",
+      NOT a training concept), and every "onboarding" call site in src/
+      for an existing role-based "required-training-for-role-X" concept
+      first -- none exists. trainingPaths (targetRole/targetDepartmentId)
+      + trainingPathAssignments/assignPath() IS this new concept, not a
+      duplicate of something that already existed.
+
+      Built full depth per the Owner's standing no-MVP directive, sized
+      for a 100-employee/500-project firm: trainingCourses/Modules/Lessons
+      (course/curriculum authoring, lesson content types rich_text/
+      video_url/document -- document type reuses the EXISTING `documents`
+      table's linkedEntityType/linkedEntityId pattern and the EXISTING
+      POST /api/documents upload endpoint, no new upload path invented);
+      trainingAssessments/Questions (MCQ/true_false auto-graded,
+      short_answer case-insensitive-trimmed-match, per-question points,
+      configurable passing threshold + max-attempts retake policy, pure
+      gradeAnswer()/gradeSubmission() scoring functions unit-tested
+      directly per hr-attendance-service.ts's own established pure-
+      helpers-for-testing convention); trainingEnrollments (self-enroll or
+      manager-assigned, not_started/in_progress/completed state, due
+      dates) + trainingAssessmentAttempts + trainingCompletions (a course
+      WITH an assessment completes automatically on passing; a course with
+      NO assessment completes via an explicit learner action,
+      markCourseComplete -- documented honestly in training-service.ts's
+      header that per-lesson granular progress isn't tracked, since the
+      reused schema only has enrollment-level status, not a lesson-
+      progress table); trainingPaths/PathCourses/PathAssignments +
+      assignPath() (assign a learning path to an individual, a whole
+      department, or a role -- fans out into real trainingEnrollments rows
+      for every required course, idempotent per employee+course).
+
+      Service layer (training-service.ts) uses withTenantContext/
+      logActivity/ServiceError throughout, matching hr-attendance-
+      service.ts's exact conventions (that file merged today and was used
+      as the direct precedent per the task brief). 17 REST API routes
+      under src/app/api/training/**, all requireAuth()-gated, authoring/
+      roster/path-assignment additionally requireRole('manager')-gated,
+      matching markAttendance/bulkMarkAttendance's own self-vs-other
+      split. 3 UI pages (src/app/(app)/training/page.tsx hub with My
+      Training/Catalog/Manage tabs, courses/[id] authoring+learner view,
+      paths/page.tsx path+assignment management) matching hr/attendance/
+      page.tsx's tab layout and design tokens exactly. Wired into
+      AppSidebar.tsx (Training, under People & HR, GraduationCap icon) and
+      messages/en.json + messages/hi.json (new "training" key under
+      sections.peopleHr.items).
+
+      RLS: FORCE ROW LEVEL SECURITY from the start on all 11 tables (Wave
+      A security posture), app_runtime_org_scoped + service_role_bypass_*
+      policy pair, matching every table added since Wave A.
+
+      Asset Registry Coverage Check: judgment made per-table (drizzle/0222
+      + ai-os/registry/asset-registry-coverage.yaml, both lists updated).
+      REGISTERED (genuine own display-name column, real discoverable
+      content): training_courses (title), training_paths (name),
+      training_modules (title), training_lessons (title),
+      training_assessments (title), training_questions (question_text --
+      the question IS this row's own identifying content, same reasoning
+      as clm_clauses using title over body_text). EXEMPTED (join table,
+      assignment/enrollment record, or append-only attempt/completion log
+      with no name of its own, same class as crm_stage_history/
+      hr_attendance_records): training_enrollments,
+      training_assessment_attempts, training_completions,
+      training_path_courses, training_path_assignments. node
+      scripts/check-asset-registry-coverage.mjs: passed (431 tables
+      accounted for).
+
+      Migration: drizzle/0222_training_lms_module.sql. Confirmed no
+      collision by checking `ls drizzle/*.sql | sort -V | tail` immediately
+      before writing (highest was 0221_wave_b_white_label_branding.sql)
+      and again immediately before opening the PR via `git fetch origin
+      main` (branch was still exactly at origin/main's HEAD, 704cb6e, zero
+      new commits landed during this session).
+
+      Full verification suite run (not just tsc/lint/test):
+      bunx tsc --noEmit: 0 errors (0 pre-existing either, this branch is
+      clean). bun run lint: 0 errors, 3 pre-existing warnings in untouched
+      files (litigation/[id]/route.ts, data-table.tsx, VeriComposer.tsx).
+      bun run build (production Next.js build): succeeded cleanly, zero
+      errors -- /training, /training/courses/[id], /training/paths all
+      present in the route output; also regenerated
+      src/lib/protected-routes.generated.ts to add "/training" (expected
+      codegen side effect, included in the PR). bun test (full suite):
+      1289 pass / 3 skip / 0 fail, including 11 new tests in
+      training-service.test.ts (gradeAnswer/gradeSubmission: multiple
+      choice, true/false, short-answer case-insensitive matching, partial
+      credit, exact-threshold-passes, empty-question-set-never-silently-
+      passes). All 5 sync-check scripts pass (guardrail-presence,
+      doc-cross-references, doc-quarantine-banner, metadata-index-
+      coverage, asset-registry-coverage).
+
+      Deliberately out of scope, stated honestly rather than silently
+      dropped: per-lesson granular progress tracking (which individual
+      lessons an employee has opened, for a course with no assessment --
+      the reused schema only tracks enrollment-level status); enforcing
+      mandatory-course completion as a hard gate on anything else (no
+      existing cross-module enforcement point for this exists in the
+      codebase today); short-answer AI-assisted grading (exact/case-
+      insensitive match only); a leaderboard/gamification tie-in to VERI
+      Reward (a separate, already-designed system per
+      [[veridian_veri_reward_eval]], not requested here).
+
+      Branch: feat/training-lms-module-direct. PR opened against main
+      (URL/number to be filled in once `gh pr create` returns), NOT
+      self-merged -- left for the supervising session's audit. Did not
+      post an AUDIT: PASS/FAIL verdict comment -- that's this repo's
+      mandatory-audit-check.yml gate, reserved for the supervising
+      session. This session has no further active claims on this
+      priority.
