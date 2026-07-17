@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listFixedAssets, createFixedAsset, ServiceError } from "@/lib/services/erp-fixed-assets-service"
 
 export async function GET(request: NextRequest) {
@@ -20,10 +21,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// VERIDIAN Review Framework remediation (Critical: Access Control /
+// Role-Based Permissions): previously gated only by requireAuth() -- any
+// authenticated org member, including a read-only viewer/client_viewer/
+// external_auditor account, could create a fixed asset. Now requires at
+// least "member" rank via the shared permission-service.ts utility (see
+// ERP_ACTION_ROLES["erp.fixed_assets.create"]).
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleErr = requirePermissionForUser(dbUser, "erp.fixed_assets.create")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()

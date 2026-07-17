@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { getFixedAsset, updateFixedAsset, ServiceError } from "@/lib/services/erp-fixed-assets-service"
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,10 +19,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 }
 
+// VERIDIAN Review Framework remediation (Critical: Access Control /
+// Role-Based Permissions): previously gated only by requireAuth() -- now
+// requires at least "member" rank (ERP_ACTION_ROLES["erp.fixed_assets.update"]).
+// Low incremental risk in practice (updateFixedAsset itself already refuses
+// to edit anything past "draft" status), but a viewer-tier account should
+// not be able to edit a draft asset record either.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  const roleErr = requirePermissionForUser(dbUser, "erp.fixed_assets.update")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

@@ -31,6 +31,7 @@ import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { createJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
+import { isPeriodOpenForDate } from "./erp-financial-report-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 // Matches erp-accounting-service.ts's createJournalEntry / erp-procurement-
@@ -417,6 +418,20 @@ export async function submitFixedAsset(ctx: ErpContext, assetId: string, input: 
     if (!asset.category.assetAccountId) {
       throw new ServiceError("This asset's category has no Asset Account configured -- set one on the category before posting an acquisition entry, or submit without a sourceAccountId to skip GL posting", 400)
     }
+    // VERIDIAN Review Framework remediation: this module posts to the GL
+    // (createJournalEntry) but, unlike every other GL-posting ERP service
+    // in this codebase (erp-accounting-service.ts's submitJournalEntry,
+    // erp-cash-service.ts, erp-invoicing-service.ts,
+    // erp-payment-entries-service.ts -- all call isPeriodOpenForDate before
+    // posting), this one never checked whether the posting date's
+    // accounting period was still open. Without this, an asset could be
+    // capitalized with an acquisition entry silently backdated into an
+    // already-closed period. Closes the gap with the SAME existing helper
+    // those other services already call, not a new check reinvented here.
+    const periodOpen = await isPeriodOpenForDate(ctx, asset.purchaseDate)
+    if (!periodOpen) {
+      throw new ServiceError(`The accounting period covering ${asset.purchaseDate} is closed -- cannot post this asset's acquisition entry`, 409)
+    }
     const lines: JournalEntryLineInput[] = [
       { accountId: asset.category.assetAccountId, debit: Number(asset.purchaseCost) },
       { accountId: input.sourceAccountId, credit: Number(asset.purchaseCost) },
@@ -482,7 +497,7 @@ export type DepreciationRunResult = { scheduleId: string; assetId: string; journ
  * updated -- it just has no journalEntryId, an honest "tracked but not
  * posted to the GL" state rather than silently skipping it.
  */
-export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: string; assetId?: string }): Promise<{ postedCount: number; results: DepreciationRunResult[] }> {
+export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: string; assetId?: string }): Promise<{ postedCount: number; results: DepreciationRunResult[]; skippedClosedPeriod: string[] }> {
   await requireErpEnabled(ctx.orgId)
   if (!input.asOfDate) throw new ServiceError("asOfDate is required", 400)
 
@@ -493,6 +508,7 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
   })
 
   const results: DepreciationRunResult[] = []
+  const skippedClosedPeriod: string[] = []
   for (const row of pending) {
     // Schedule rows aren't directly orgId-tagged -- resolve + org-scope the
     // owning asset per row, and silently skip (never cross-post) any row
@@ -501,6 +517,17 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
       db.query.erpFixedAssets.findFirst({ where: and(eq(erpFixedAssets.id, row.assetId), eq(erpFixedAssets.orgId, ctx.orgId)) })
     )
     if (!asset || asset.status !== "in_use") continue // disposed/scrapped/draft assets never depreciate further
+
+    // VERIDIAN Review Framework remediation: matches submitFixedAsset's own
+    // new isPeriodOpenForDate gate above -- a depreciation run must not
+    // silently post into an already-closed accounting period either.
+    // Unlike submitFixedAsset (a single-document action that throws),
+    // this function already has an established "skip ineligible rows and
+    // keep going" convention (the asset-not-found/not-in_use check just
+    // above) -- a closed-period row is skipped the same way, so one closed
+    // period never aborts an entire org-wide depreciation run.
+    const periodOpen = await isPeriodOpenForDate(ctx, row.scheduleDate)
+    if (!periodOpen) { skippedClosedPeriod.push(row.id); continue }
 
     const category = await withTenantContext({ orgId: ctx.orgId }, (db) =>
       db.query.erpAssetCategories.findFirst({ where: eq(erpAssetCategories.id, asset.assetCategoryId) })
@@ -532,7 +559,7 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
     results.push({ scheduleId: row.id, assetId: asset.id, journalEntryId, depreciationAmount: Number(row.depreciationAmount) })
   }
 
-  return { postedCount: results.length, results }
+  return { postedCount: results.length, results, skippedClosedPeriod }
 }
 
 // ============================================================
@@ -682,11 +709,35 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
   const category = await withTenantContext({ orgId: ctx.orgId }, (db) => db.query.erpAssetCategories.findFirst({ where: eq(erpAssetCategories.id, asset.assetCategoryId) }))
 
   const netBookValue = round2(Number(asset.purchaseCost) - Number(asset.accumulatedDepreciation))
+  // Defense-in-depth invariant guard (VERIDIAN Review Framework
+  // remediation): generateDepreciationSchedule already caps accumulated
+  // depreciation at (purchaseCost - salvageValue) by construction (see that
+  // function's own comment + erp-fixed-assets-service.test.ts's coverage
+  // of it), so netBookValue should never actually go negative through this
+  // module's own normal code path. This check exists purely as a cheap,
+  // explicit safety net against a future regression (e.g. a manual data
+  // fix, or a future change to the schedule engine) rather than silently
+  // assuming the invariant will always hold -- refuses to post a disposal
+  // that would represent an asset disposed below zero net value.
+  if (netBookValue < 0) {
+    throw new ServiceError(`Asset ${asset.assetName} has a negative net book value (${netBookValue}) -- refusing to post a disposal; this indicates a data-integrity issue upstream of this disposal, not something a disposal can fix`, 409)
+  }
   const saleValue = round2(Number(disposal.saleValue ?? 0))
   const gainLoss = round2(saleValue - netBookValue) // positive = gain on disposal, negative = loss
 
+  // VERIDIAN Review Framework remediation: same isPeriodOpenForDate gate as
+  // submitFixedAsset/runDepreciationBatch above -- a disposal must not
+  // silently post its write-off/gain-loss entry into an already-closed
+  // accounting period either. Folded into the existing GL-posting
+  // condition below (not a separate throw) so a closed period degrades
+  // the exact same way the missing-accounts case already does: the
+  // disposal itself still completes, "tracked but not posted to the GL"
+  // -- consistent with this function's own existing honesty convention,
+  // not a new posture invented here.
+  const periodOpenForDisposal = await isPeriodOpenForDate(ctx, disposal.disposalDate)
+
   let journalEntryId: string | undefined
-  if (category?.assetAccountId && category?.accumulatedDepreciationAccountId) {
+  if (category?.assetAccountId && category?.accumulatedDepreciationAccountId && periodOpenForDisposal) {
     const lines: JournalEntryLineInput[] = [
       { accountId: category.accumulatedDepreciationAccountId, debit: Number(asset.accumulatedDepreciation) },
       { accountId: category.assetAccountId, credit: Number(asset.purchaseCost) },

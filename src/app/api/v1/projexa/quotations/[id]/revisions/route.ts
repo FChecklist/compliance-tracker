@@ -2,8 +2,13 @@
 // over erp-selling-service.ts's createQuotationRevision. Creates a NEW
 // quotation row (its own quotationNumber) linked via version/revisionOf --
 // see that function's own comment for why an in-place edit was rejected.
+//
+// VERIDIAN Review Framework remediation: routed through the shared
+// permission-service.ts utility (ERP_ACTION_ROLES["erp.quotations.revise"]
+// = "member") -- no behavior change.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requirePermission } from "@/lib/services/permission-service"
 import { createQuotationRevision, ServiceError, type QuotationItemInput } from "@/lib/services/erp-selling-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -11,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "member", "write")
+  const roleErr = requirePermission(ctx, "erp.quotations.revise")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
   const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
