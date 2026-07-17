@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listFiscalYears, createFiscalYear, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function GET() {
@@ -17,12 +18,18 @@ export async function GET() {
   }
 }
 
+// VERIDIAN Review Framework remediation (Wave 4, Track 2: Access Control /
+// Role-Based Permissions): replaces the previous inline requireRole(dbUser,
+// "manager") literal with the centralized ERP_ACTION_ROLES["erp.fiscal_years.create"]
+// lookup. Same "manager" policy, single source of truth. "manager" (not
+// "member") because defining the org's fiscal calendar is configuration
+// that shapes the books themselves, not routine data entry.
 export async function POST(request: Request) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
-  const roleCheck = requireRole(dbUser, "manager")
-  if (roleCheck) return roleCheck
+  const roleErr = requirePermissionForUser(dbUser, "erp.fiscal_years.create")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()
