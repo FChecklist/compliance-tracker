@@ -2499,3 +2499,20 @@ recently_completed:
       re-verify live DB state before assuming either PR's own narrative
       is accurate, and only one of these two PRs should be merged (they
       are mutually exclusive schema designs for the same tables).
+
+      RESOLVED (2026-07-17, supervising session): independently re-queried
+      live DB state directly (not trusting either PR's narrative) --
+      confirmed exactly 11 compliance.training_* tables exist live, column-
+      for-column matching THIS PR's (#395) design including its 2 additive
+      columns and 1 additive enum value; no training_lesson_progress table
+      exists, meaning #394's claimed drop+12-table-rebuild did not persist
+      against live reality regardless of what its own report asserted.
+      #395 independently audited in full (migration, RLS, asset-registry
+      register/exempt judgment calls, submitAttempt/gradeSubmission
+      security and scoring logic, tsc/lint/build/test all re-run fresh) and
+      MERGED. #394 CLOSED without merging (not a code-quality rejection --
+      a reasonable alternative design, just not the one that ended up live
+      and already has deployed application code depending on it) --
+      explanation posted on the PR itself, branch deleted. This closes the
+      last of the original 9-workstream 2026-07-16 implementation_wave
+      (A1/A2/B1-B7) in full.
