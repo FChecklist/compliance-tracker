@@ -40,6 +40,11 @@ type MeetingDetail = MeetingSummary & {
 type ApprovalItem = {
   id: string; kind: "approval_request" | "workflow_step" | "drafted_communication" | "quotation" | "change_order";
   title: string; sub: string; createdAt: string;
+  // change_order items come back with actionable: false -- their real
+  // approval only happens via e-signature completion now (see
+  // api/veri-chat/approvals/route.ts's own comment for why); this panel
+  // must not offer a decision it can't actually enforce.
+  actionable?: boolean;
 };
 
 type SuggestedWorkItem = { title: string; category: string; assignee: string | null; dueDateHint: string | null };
@@ -140,10 +145,12 @@ export default function VeriChatPanel() {
   function openMeetingHere(id: string) { closeThread(); setActiveEmailId(null); setActiveMeetingId(id); }
   function openEmailHere(id: string) { closeThread(); setActiveMeetingId(null); setActiveEmailId(id); }
 
-  // One decision handler for all 5 approval sources -- each branch calls
-  // that mechanism's own existing, unchanged route (see the header note);
-  // this function only exists to give ApprovalsList a single onDecide prop
-  // instead of 5 differently-shaped callbacks.
+  // One decision handler for the 4 real approval sources -- each branch
+  // calls that mechanism's own existing, unchanged route (see the header
+  // note). change_order is deliberately NOT one of these branches anymore
+  // (see ApprovalsList's own comment) -- this function is never called for
+  // a non-actionable item, ApprovalsList doesn't render a decision control
+  // for one.
   async function decideApproval(item: ApprovalItem, decision: "approve" | "reject") {
     try {
       if (item.kind === "approval_request") {
@@ -169,12 +176,6 @@ export default function VeriChatPanel() {
         const res = await fetch(`/api/v1/projexa/quotations/${item.id}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: decision === "approve" ? "approved" : "draft" }),
-        });
-        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error); }
-      } else if (item.kind === "change_order") {
-        const res = await fetch(`/api/v1/projexa/change-orders/${item.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: decision === "approve" ? "approve" : "reject" }),
         });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error); }
       }
@@ -398,10 +399,19 @@ function ApprovalsList({ approvals, onDecide }: { approvals: ApprovalItem[]; onD
         <div key={`${a.kind}-${a.id}`} className="px-4 py-3 border-b border-ct-border/60">
           <p className="text-[13px] font-semibold text-ct-navy truncate capitalize">{a.title}</p>
           <p className="text-[12px] text-ct-muted truncate mt-0.5">{a.sub}</p>
-          <div className="flex gap-3 mt-1.5">
-            <button type="button" onClick={() => onDecide(a, "approve")} className="text-[11.5px] font-semibold text-emerald-600">Approve</button>
-            <button type="button" onClick={() => onDecide(a, "reject")} className="text-[11.5px] font-semibold text-red-600">Reject</button>
-          </div>
+          {a.actionable === false ? (
+            // change_order: real approval only happens via e-signature
+            // completion now -- a Approve/Reject button here would be a
+            // fake one-click override with no signature behind it (the
+            // exact bypass this panel used to have, since closed). `sub`
+            // above already carries the real signature progress.
+            <p className="text-[11px] text-ct-muted mt-1.5 italic">Decided via e-signature, not here</p>
+          ) : (
+            <div className="flex gap-3 mt-1.5">
+              <button type="button" onClick={() => onDecide(a, "approve")} className="text-[11.5px] font-semibold text-emerald-600">Approve</button>
+              <button type="button" onClick={() => onDecide(a, "reject")} className="text-[11.5px] font-semibold text-red-600">Reject</button>
+            </div>
+          )}
         </div>
       ))}
     </div>

@@ -41,6 +41,97 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background sub-agent) -- PROJEXA_GAP_ANALYSIS.md gap #5: Change Order e-signature auto-transition + PROJEXA signature-status visibility"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      Owner-approved judgment call (standing authority granted this session):
+      gap #5 in projexa's PROJEXA_GAP_ANALYSIS.md ("Change Order 'pending
+      approval' status has no visible approve/reject action") was previously
+      deferred because a naive one-click Approve/Reject button would let any
+      team member flip a change order regardless of whether the real external
+      signer actually signed -- would undermine the entire reason this uses
+      e-signature instead of a status flag. Decision: do NOT add a fake
+      button. Instead close the real underlying gap found by reading both
+      files in full: construction-change-order-service.ts already has
+      markChangeOrderApproved()/markChangeOrderRejected() with a comment
+      literally saying "Called from the e-signature completion path" -- but
+      esignature-service.ts's submitSignature()/declineSignature() never
+      call anything when linkedEntityType is "change_order". The wiring was
+      stubbed and never connected.
+      Fix: inline the constructionChangeOrders status update directly inside
+      submitSignature() (when allSigned && request.linkedEntityType ===
+      "change_order") and declineSignature() (when the fetched request's
+      linkedEntityType === "change_order"), using the same rawDb pattern
+      already used by both functions (no withTenantContext -- these are the
+      public tokenized-signer-access functions, no authenticated org context
+      exists at this point, same RLS-bypass rationale already documented at
+      the top of the file). Did NOT import markChangeOrderApproved/
+      markChangeOrderRejected from construction-change-order-service.ts to
+      avoid introducing a circular import (that file already imports
+      createSignatureRequest from esignature-service.ts) and because those
+      functions require a real ctx.userId, which does not exist on the
+      external-signer token path. approvedById intentionally left untouched
+      (null) on the e-sign-triggered approval since no real dbUser performed
+      it -- only status (+ approvedAt on approve, matching the column's
+      existing purpose) are set, honestly reflecting who actually acted.
+      Only linkedEntityType === "change_order" is handled; document/
+      erp_contract branches are untouched.
+      PROJEXA side: replacing the empty Actions cell for pending_approval
+      change orders with a real, honest signature-status display (e.g.
+      "Awaiting signature (2 of 3 signed)"), sourced from a real signature
+      request lookup, not a fake approve/reject control.
+      File scope (compliance-tracker): src/lib/services/esignature-service.ts
+      only. File scope (projexa): change-orders UI component + a thin
+      signature-status route if no existing route/alias covers it. No
+      schema/migration change. Re-checked this file for any other active
+      claim touching esignature-service.ts, construction-change-order-
+      service.ts, or PROJEXA's change-orders UI -- found none (the only
+      other match anywhere in this file is a merged, unrelated entry about a
+      VERI Chat Approvals-tab listing aggregator, listChangeOrdersAwaitingApproval,
+      which is a different read-only queue, not this signing-completion
+      wiring). Will not self-merge either PR -- left for the supervising
+      session's audit; compliance-tracker's mandatory-audit-check.yml AUDIT
+      verdict comment intentionally not posted by this session.
+
+      UPDATE (same session, addition): coordinator identified a second,
+      related integrity bypass -- verified independently before acting:
+      src/app/api/v1/projexa/change-orders/[id]/route.ts's PATCH handler
+      had `action === "approve"`/`action === "reject"` branches calling
+      markChangeOrderApproved()/markChangeOrderRejected() directly, no
+      e-signature check at all, and VeriChatPanel.tsx's Approvals tab
+      (item.kind === "change_order") was the only real caller -- so any
+      user who could see that tab could one-click approve/reject a change
+      order with zero signature, the exact bypass the Owner rejected for
+      PROJEXA's own UI, just present in VERIDIAN's internal admin surface
+      instead (predates this session's e-signature auto-transition wiring).
+      Also spawned a separate background task suggestion for this same gap
+      before the coordinator's message arrived -- attempted to withdraw it
+      once told to fold the fix into this branch instead, but it had
+      already been started by the user as an independent session. Flagging
+      here (and in this session's final report) that a SEPARATE session may
+      now be independently working the identical fix
+      (src/app/api/v1/projexa/change-orders/[id]/route.ts,
+      src/components/veri-chat/VeriChatPanel.tsx) at the same time as this
+      one -- real collision risk, not silently resolved, needs the
+      supervising session to reconcile whichever lands second.
+      Fix chosen (option (a), matching the coordinator's own reasoning for
+      not inventing a second bespoke approval path): removed the
+      action === "approve"/"reject" branches from the PATCH route entirely
+      (the real bypass surface, not just the button) and changed
+      VeriChatPanel's Approvals tab to show real, read-only signature
+      progress for change_order items instead of Approve/Reject buttons --
+      sourced server-side in src/app/api/veri-chat/approvals/route.ts via
+      the same listSignatureRequests() this whole branch's other alias
+      route already calls, not a second data path. markChangeOrderApproved/
+      markChangeOrderRejected are left in construction-change-order-
+      service.ts (still real, tested-by-tracing functions) but are now
+      unreachable from any route -- their own header comments updated to
+      say so honestly rather than left claiming a caller that no longer
+      exists.
+      Additional file scope: src/app/api/v1/projexa/change-orders/[id]/route.ts,
+      src/components/veri-chat/VeriChatPanel.tsx,
+      src/app/api/veri-chat/approvals/route.ts,
+      src/lib/services/construction-change-order-service.ts (comment-only).
   - session_label: "claude-code (background sub-agent) -- PROJEXA Reports & Analysis catalog UI (CONTROLLER.yaml PRIORITY-17 projexa_reports_dispatch_2026_07_16)"
     claimed_at: "2026-07-16T (this session)"
     claim: |

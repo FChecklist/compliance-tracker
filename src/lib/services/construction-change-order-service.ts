@@ -87,10 +87,21 @@ export async function submitChangeOrderForApproval(
   })
 }
 
-// Called from the e-signature completion path (or manually) once every
-// signer has signed -- marks the change order approved. Rejection is a
-// separate explicit action (a signer declining isn't auto-detected here;
-// see esignature-service.ts's own signer-status tracking for that detail).
+// NOT called from anywhere as of the e-signature wiring fix below --
+// esignature-service.ts's submitSignature() now updates
+// constructionChangeOrders directly instead of calling this (it runs on
+// the public, tokenized-signer-access path with no real ctx.userId this
+// function requires, and importing it would create a circular import with
+// this file's own import of createSignatureRequest from esignature-service.ts).
+// This function used to be reachable via a v1/projexa PATCH `action:
+// "approve"` branch that let ANY caller flip a change order to approved
+// with zero signature ever happening -- that branch was removed as a real
+// integrity bypass, not just dead-coded here. Left in place (not deleted)
+// as a real, correct building block for a possible future *properly
+// audited* manual-override path, should one ever be built -- do not wire
+// a new unaudited caller to this without an explicit elevated-permission
+// gate and a visible "manually overridden" trail distinguishing it from a
+// real signature.
 export async function markChangeOrderApproved(ctx: { orgId: string; userId: string }, changeOrderId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [row] = await db.update(constructionChangeOrders).set({
@@ -101,6 +112,9 @@ export async function markChangeOrderApproved(ctx: { orgId: string; userId: stri
   })
 }
 
+// Same "not called from anywhere" note as markChangeOrderApproved() above
+// -- esignature-service.ts's declineSignature() updates
+// constructionChangeOrders directly instead of calling this now.
 export async function markChangeOrderRejected(ctx: { orgId: string }, changeOrderId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [row] = await db.update(constructionChangeOrders).set({ status: "rejected" })
