@@ -194,6 +194,25 @@ export async function submitSignature(token: string, input: { signatureImageData
     completedAt: allSigned ? new Date() : undefined,
   }).where(eq(esignatureRequests.id, request.id))
 
+  // Wave 141's construction-change-order-service.ts built markChangeOrderApproved()/
+  // markChangeOrderRejected() specifically for this moment ("Called from the
+  // e-signature completion path") but nothing ever called them -- a change
+  // order sent for approval would sit at "pending_approval" forever even
+  // after every signer signed. Updating the linked entity directly here
+  // (not importing those functions) both avoids a circular import
+  // (construction-change-order-service.ts already imports
+  // createSignatureRequest from this file) and sidesteps the fact that those
+  // functions require a real ctx.userId, which doesn't exist on this public,
+  // tokenized-signer-access path. approvedById is deliberately left
+  // untouched (no real dbUser performed this action -- an external signer
+  // did); only status and approvedAt are set. Only change_order is handled --
+  // document/erp_contract have no status field to transition.
+  if (allSigned && request.linkedEntityType === "change_order") {
+    await rawDb.update(constructionChangeOrders).set({
+      status: "approved", approvedAt: new Date(),
+    }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
+  }
+
   return updatedSigner
 }
 
@@ -201,10 +220,25 @@ export async function declineSignature(token: string, reason?: string) {
   const signer = await resolveSignerFromToken(token)
   if (signer.status !== "pending") throw new ServiceError("This signer has already responded", 409)
 
+  const request = await rawDb.query.esignatureRequests.findFirst({ where: eq(esignatureRequests.id, signer.requestId) })
+  if (!request) throw new ServiceError("Signature request not found", 404)
+
   const [updatedSigner] = await rawDb.update(esignatureSigners).set({
     status: "declined", declinedAt: new Date(), declineReason: reason,
   }).where(eq(esignatureSigners.id, signer.id)).returning()
 
-  await rawDb.update(esignatureRequests).set({ status: "declined" }).where(eq(esignatureRequests.id, signer.requestId))
+  await rawDb.update(esignatureRequests).set({ status: "declined" }).where(eq(esignatureRequests.id, request.id))
+
+  // Same rationale as submitSignature() above -- a decline should reject the
+  // linked change order rather than leaving it stuck at "pending_approval"
+  // forever. Matches markChangeOrderRejected()'s own field set exactly
+  // (status only, no approvedById/approvedAt -- that function never sets
+  // them for a rejection either).
+  if (request.linkedEntityType === "change_order") {
+    await rawDb.update(constructionChangeOrders).set({
+      status: "rejected",
+    }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
+  }
+
   return updatedSigner
 }
