@@ -297,6 +297,18 @@ registered:
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch (drizzle/0198): org-scoped supplier-submitted quotation (against an RFQ or logged directly) -- auto_register_asset_trg attached, name_column=quotation_number (integer), owner_column=created_by_id (nullable), active_column=NULL (status is a real Postgres enum erp_supplier_quotation_status, not boolean)"
   - table: erp_cycle_count_plans
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch (drizzle/0198): org-scoped warehouse stock cycle-count campaign master -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id (nullable), active_column=NULL (status free text)"
+  - table: training_courses
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): org-scoped course/curriculum catalog entry, real discoverable content -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=created_by, active_column=NULL (status is a real Postgres enum draft/published/archived, not boolean)"
+  - table: training_paths
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): org-scoped named learning-path (ordered course sequence assigned to a role/department) -- auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by, active_column=is_active (genuine TRUE-means-active flag)"
+  - table: training_modules
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): named module/section within a course, same class as pms_milestones -- auto_register_asset_trg attached, name_column=title, purpose_column=description, no owner column exists (belongs to the course, not assigned to a person)"
+  - table: training_lessons
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): named lesson/content-unit within a module -- auto_register_asset_trg attached, name_column=title, no purpose/owner/active column exists"
+  - table: training_assessments
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): named quiz/assessment attached to a course or module -- auto_register_asset_trg attached, name_column=title, purpose_column=description, no owner/active column exists"
+  - table: training_questions
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a question bank entry -- registered using question_text as name_column (the question IS this row's own identifying content, same reasoning as clm_clauses using title over body_text, adapted since this table has no separate title field) -- auto_register_asset_trg attached, no purpose/owner/active column exists"
 exempted:
   - table: access_review_certifications
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (reviewedRole is a point-in-time role snapshot, not this row's own name) -- a per-user-per-cycle decision record, same class as this codebase's other append-only join/log tables, not a named asset"
@@ -876,3 +888,13 @@ exempted:
     reason: "richer status semantics (5-value lifecycleStatus) than the generic trigger's boolean active_column model supports -- managed via Priority 3's registerAsset()/updateAsset() app-level hooks instead, which the trigger's ON CONFLICT UPDATE would otherwise clobber on every unrelated column update"
   - table: workspace_memory_capsule_events
     reason: "Priority 21, Layer 2 Workspace Memory (ai-os/priority21_workspace_memory_design.md): same class as prompt_cache_metrics/scoped_delegations above -- one row per export/import action against a user's own memvid capsule, no display-name column (direction is 'export'|'import', storageObjectPath is an opaque bucket path, not a human-readable name), and no user/admin ever browses this table by name the way they would a report/screen/dashboard/ai_agent. Internal per-user event log, not a discoverable platform asset."
+  - table: training_enrollments
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a per-employee-per-course enrollment/assignment record, same class as crm_stage_history/hr_attendance_records -- no genuine display-name column of its own (status is a workflow enum, not a name), a decision/progress-state record, not a discoverable platform asset in its own right (the course it points to is already registered)."
+  - table: training_assessment_attempts
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): an append-only quiz-attempt score log, same class as hr_attendance_records/crm_stage_history -- no genuine display-name column (submittedAnswers/score are content and outcome, not a name)."
+  - table: training_completions
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a per-enrollment completion record, same class as hr_attendance_records -- no genuine display-name column, a decision/outcome record derived from an enrollment that is itself unregistered."
+  - table: training_path_courses
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): pure join table (training_path_id x course_id, ordering + required flag only) -- no name column at all, same class as crm_leads/crm_opportunities' own unregistered bridge tables."
+  - table: training_path_assignments
+    reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a per-employee learning-path assignment/fan-out record, same class as training_enrollments -- no genuine display-name column (assignedVia is a workflow discriminator, not a name)."
