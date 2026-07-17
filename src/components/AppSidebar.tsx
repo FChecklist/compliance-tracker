@@ -67,6 +67,7 @@ import {
   Gem,
   Wrench,
   Boxes,
+  CalendarCheck,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +150,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
       title: t("sections.salesCrm.title"),
       items: [
         { label: t("sections.salesCrm.items.veriCrmAi"), href: "/crm", icon: TrendingUp },
+        // VERIDIAN Review Framework Wave B (2026-07-17): the new crm_accounts/
+        // crm_contacts surface -- company-level account records with a
+        // contacts roster underneath, sibling to the existing Leads/
+        // Opportunities tabs on /crm.
+        { label: t("sections.salesCrm.items.accounts"), href: "/crm/accounts", icon: Building2 },
       ],
     },
     // Only shown once an org enables the separate, opt-in VERIDIAN AI PMS
@@ -270,6 +276,7 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         { label: t("sections.peopleHr.items.leaveHolidayCompliance"), href: "/leave-holiday", icon: CheckSquare },
         { label: t("sections.peopleHr.items.poshCompliance"), href: "/posh", icon: UserCheck },
         { label: t("sections.peopleHr.items.veriHrAi"), href: "/hr", icon: Users },
+        { label: t("sections.peopleHr.items.attendance"), href: "/hr/attendance", icon: CalendarCheck },
         { label: t("sections.peopleHr.items.recruitment"), href: "/recruitment", icon: UserPlus },
         { label: t("sections.peopleHr.items.performanceReviews"), href: "/performance-reviews", icon: ClipboardCheck },
       ],

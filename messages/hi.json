@@ -31,7 +31,8 @@
       "salesCrm": {
         "title": "बिक्री और CRM",
         "items": {
-          "veriCrmAi": "VERI CRM AI"
+          "veriCrmAi": "VERI CRM AI",
+          "accounts": "खाते"
         }
       },
       "projects": {
@@ -122,6 +123,7 @@
           "leaveHolidayCompliance": "अवकाश और छुट्टी अनुपालन",
           "poshCompliance": "POSH अनुपालन",
           "veriHrAi": "VERI HR AI",
+          "attendance": "उपस्थिति",
           "recruitment": "भर्ती",
           "performanceReviews": "प्रदर्शन समीक्षा"
         }

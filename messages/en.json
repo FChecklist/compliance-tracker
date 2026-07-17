@@ -31,7 +31,8 @@
       "salesCrm": {
         "title": "Sales & CRM",
         "items": {
-          "veriCrmAi": "VERI CRM AI"
+          "veriCrmAi": "VERI CRM AI",
+          "accounts": "Accounts"
         }
       },
       "projects": {
@@ -122,6 +123,7 @@
           "leaveHolidayCompliance": "Leave & Holiday Compliance",
           "poshCompliance": "POSH Compliance",
           "veriHrAi": "VERI HR AI",
+          "attendance": "Attendance",
           "recruitment": "Recruitment",
           "performanceReviews": "Performance Reviews"
         }
