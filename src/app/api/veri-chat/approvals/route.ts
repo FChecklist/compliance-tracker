@@ -7,6 +7,7 @@ import { listMyPendingApprovals } from "@/lib/services/approval-workflow-service
 import { listDraftedCommunications } from "@/lib/services/communication-drafting-service"
 import { listQuotations } from "@/lib/services/erp-selling-service"
 import { listChangeOrdersAwaitingApproval } from "@/lib/services/construction-change-order-service"
+import { listSignatureRequests } from "@/lib/services/esignature-service"
 
 // Priority 18a (VERI Chat second-screen unification): "everything currently
 // waiting on the current user's decision" was scattered across 5 real,
@@ -18,8 +19,14 @@ import { listChangeOrdersAwaitingApproval } from "@/lib/services/construction-ch
 // transitions, each with their own status enum and no shared queue at all.
 // This route is a thin, read-only aggregator over all five -- it creates no
 // new approval logic, just normalizes each service's own list call into one
-// shape so the panel can render one feed. Every actual decision (approve/
-// reject) still goes through each mechanism's own existing, unchanged route.
+// shape so the panel can render one feed. For 4 of the 5 kinds, the actual
+// decision (approve/reject) still goes through each mechanism's own
+// existing, unchanged route. change_order is the one exception (added after
+// a real integrity bypass was found and closed, see
+// v1/projexa/change-orders/[id]/route.ts's own comment): a change order's
+// real approval only ever happens via e-signature completion now, so those
+// items are `actionable: false` here and carry a real signature-progress
+// summary instead of an approve/reject decision.
 export type UnifiedApprovalItem = {
   id: string
   kind: "approval_request" | "workflow_step" | "drafted_communication" | "quotation" | "change_order"
@@ -28,6 +35,7 @@ export type UnifiedApprovalItem = {
   createdAt: string
   entityType?: string
   entityId?: string
+  actionable?: boolean // defaults to true client-side when omitted -- only change_order sets this false
 }
 
 export async function GET() {
@@ -96,14 +104,34 @@ export async function GET() {
     })(),
     (async () => {
       const changeOrders = await listChangeOrdersAwaitingApproval({ orgId })
-      for (const c of changeOrders) {
+      // Real signature progress, not a decision -- see this file's own
+      // header comment. Same underlying listSignatureRequests() the
+      // v1/projexa/change-orders/[id]/signature-status alias route uses
+      // for PROJEXA's UI, not a second data path.
+      await Promise.all(changeOrders.map(async (c) => {
+        let sub = c.reason ?? "—"
+        try {
+          const requests = await listSignatureRequests({ orgId }, { linkedEntityType: "change_order", linkedEntityId: c.id })
+          const latest = requests[0]
+          if (latest) {
+            const signedCount = latest.signers.filter((s) => s.status === "signed").length
+            const declined = latest.signers.find((s) => s.status === "declined")
+            sub = declined
+              ? `Declined by ${declined.name}${declined.declineReason ? ` — "${declined.declineReason}"` : ""}`
+              : `Awaiting signature (${signedCount} of ${latest.signers.length} signed)`
+          } else {
+            sub = "No signature request created yet"
+          }
+        } catch {
+          // Leave the fallback (c.reason) -- one change order's signature
+          // lookup failing must not blank out the rest of this feed.
+        }
         items.push({
           id: c.id, kind: "change_order",
           title: `Change order #${c.number}: ${c.title}`,
-          sub: c.reason ?? "—",
-          createdAt: c.createdAt.toISOString(),
+          sub, createdAt: c.createdAt.toISOString(), actionable: false,
         })
-      }
+      }))
     })(),
   ])
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
 import {
-  getChangeOrder, submitChangeOrderForApproval, markChangeOrderApproved, markChangeOrderRejected, ServiceError,
+  getChangeOrder, submitChangeOrderForApproval, ServiceError,
 } from "@/lib/services/construction-change-order-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -38,16 +38,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       const changeOrder = await submitChangeOrderForApproval({ orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }, id, body.signers ?? [])
       return NextResponse.json(changeOrder)
     }
-    if (body.action === "approve") {
-      const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
-      const changeOrder = await markChangeOrderApproved({ orgId: ctx.orgId, userId: actorId }, id)
-      return NextResponse.json(changeOrder)
-    }
-    if (body.action === "reject") {
-      const changeOrder = await markChangeOrderRejected({ orgId: ctx.orgId }, id)
-      return NextResponse.json(changeOrder)
-    }
-    return NextResponse.json({ error: "action must be 'submit', 'approve', or 'reject'" }, { status: 400 })
+    // action === "approve"/"reject" was deliberately removed here (this
+    // route used to call markChangeOrderApproved()/markChangeOrderRejected()
+    // directly, letting ANY caller flip a change order to approved/rejected
+    // with zero signature ever happening -- the exact integrity bypass the
+    // Owner rejected for PROJEXA's own UI, just reachable from this API
+    // instead). The only real approval mechanism now is e-signature
+    // completion: esignature-service.ts's submitSignature()/
+    // declineSignature() auto-transition the linked change order's status
+    // once every signer has actually signed (or on a decline). Use GET
+    // /change-orders/[id]/signature-status to see real progress.
+    return NextResponse.json({ error: "action must be 'submit' -- a change order can only be approved/rejected via a real e-signature completion, see GET .../signature-status" }, { status: 400 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 projexa change-order update error:", error)
