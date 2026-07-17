@@ -67,6 +67,7 @@ import {
   Gem,
   Wrench,
   Boxes,
+  CalendarCheck,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -275,6 +276,7 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         { label: t("sections.peopleHr.items.leaveHolidayCompliance"), href: "/leave-holiday", icon: CheckSquare },
         { label: t("sections.peopleHr.items.poshCompliance"), href: "/posh", icon: UserCheck },
         { label: t("sections.peopleHr.items.veriHrAi"), href: "/hr", icon: Users },
+        { label: t("sections.peopleHr.items.attendance"), href: "/hr/attendance", icon: CalendarCheck },
         { label: t("sections.peopleHr.items.recruitment"), href: "/recruitment", icon: UserPlus },
         { label: t("sections.peopleHr.items.performanceReviews"), href: "/performance-reviews", icon: ClipboardCheck },
       ],

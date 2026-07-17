@@ -65,6 +65,8 @@ registered:
     reason: "Priority 8 (drizzle/0161): org-scoped ERP purchase order -- auto_register_asset_trg attached, name_column=po_number (integer, verified jsonb ->> extraction works before use), owner_column=created_by_id"
   - table: leave_requests
     reason: "Priority 8 (drizzle/0161): org-scoped HR leave request -- registered as asset_type task (a real approval-workflow object), auto_register_asset_trg attached, name_column=leave_type, purpose_column=reason, owner_column=user_id"
+  - table: hr_holidays
+    reason: "VERIDIAN Review Framework remediation, Wave B HR Attendance & Manpower (drizzle/0220): org-wide holiday calendar entry -- a genuine named record (holiday name + date), same class as clients/erp_customers -- auto_register_asset_trg attached, asset_type other, name_column=name, org_column=org_id, no purpose/owner/active column (none exist)"
   - table: crm_leads
     reason: "Priority 8 (drizzle/0161): org-scoped CRM lead -- auto_register_asset_trg attached, name_column=name, purpose_column=ai_score_reasoning, owner_column=owner_id"
   - table: crm_opportunities
@@ -404,6 +406,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: crm_stage_history
     reason: "Priority 15 Sales & CRM depth wave (2026-07-14): an append-only stage-change ledger for crm_leads/crm_opportunities (fromStage/toStage/note/changedById), same class as the already-exempted access_review_certifications -- no genuine display-name column (toStage is a status value, not this row's own name), a decision/audit-trail record, not a discoverable platform asset."
+  - table: hr_attendance_records
+    reason: "VERIDIAN Review Framework remediation, Wave B HR Attendance & Manpower (drizzle/0220): one per-user-per-day attendance status record (present/absent/half_day/on_leave/holiday), same class as crm_stage_history -- no genuine display-name column (status is an enum value, not this row's own name), a decision/log record, not a discoverable platform asset."
   - table: customer_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: data_separation_audit

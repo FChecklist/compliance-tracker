@@ -4657,6 +4657,97 @@ export const leaveBalances = complianceSchemaDB.table('leave_balances', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN HR Attendance (VERIDIAN Review Framework remediation, Wave B,
+// 2026-07-17) ───────────────────────────────────────────────────────────
+// Real gap re-confirmed by reading this schema fresh before writing a
+// single line here: the only existing "attendance" concept anywhere in
+// this file is `constructionAttendance` (below, PROJEXA section) --
+// project-scoped SITE-LABOUR roster tracking (present/absent/half_day per
+// constructionLabourRoster row, per project). That is a distinct concept
+// for construction-site day-labour, not general office employees, and
+// nothing here touches it. There was no general, org-wide, per-employee-
+// per-day attendance table for the office staff this schema already models
+// via `employeeProfiles`/`users` -- so an approved leave request had
+// nowhere to actually land as a day-by-day attendance record, and there
+// was no way to answer "who was present on 12 July" at all for non-site
+// staff.
+//
+// Employee linkage deliberately mirrors leaveRequests/leaveBalances, not
+// erpPayslips: `userId` (bare text, references users.id by convention, no
+// DB-level FK -- same posture as every other userId/companyId column in
+// this schema) rather than `employeeId` (which erpPayslips uses to
+// reference employeeProfiles.id). Attendance is marked against the login
+// identity the exact same way leave is requested against it -- not every
+// user has created an employeeProfiles row yet, and requiring one just to
+// check in would be a new, unrequested constraint.
+//
+// Status model: `present`/`absent`/`half_day` match constructionAttendance's
+// own enum values (deliberately -- same underlying real-world concept, kept
+// vocabulary-consistent across the two tables even though they don't share
+// rows). Two more states exist here that pure site-labour tracking doesn't
+// need: `on_leave` (system-derived from an approved leaveRequests row
+// covering that date, never hand-picked from a dropdown) and `holiday`
+// (system-derived from hrHolidays below). `weekend` is intentionally NOT a
+// stored status -- Saturday/Sunday are computed at read time by the service
+// layer, not persisted as a row, so a day nobody could have attended never
+// gets a database row implying otherwise, and can't silently drift from the
+// real calendar day-of-week.
+export const hrAttendanceStatusEnum = complianceSchemaDB.enum('hr_attendance_status', ['present', 'absent', 'half_day', 'on_leave', 'holiday'])
+
+export const hrAttendanceRecords = complianceSchemaDB.table('hr_attendance_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  // Same nullable office/entity-attribution convention as leaveRequests.companyId
+  // / employeeProfiles.companyId (Priority 17) -- null means org-wide/unattributed.
+  companyId: text('company_id'),
+  userId: text('user_id').notNull(),
+  date: date('date').notNull(),
+  status: hrAttendanceStatusEnum('status').notNull().default('present'),
+  checkInAt: timestamp('check_in_at'),
+  checkOutAt: timestamp('check_out_at'),
+  // Nullable: derived from check-in/out when both are present, or entered
+  // directly by a manager bulk-marking a day with no check-in/out event at
+  // all (e.g. backfilling a paper attendance register).
+  hoursWorked: numeric('hours_worked'),
+  // Nullable, FK-by-convention on leaveRequests.id (no DB-level FK, matching
+  // this schema's own established bare-text-reference posture) -- set only
+  // when status = 'on_leave'; links this row back to the approved request
+  // that produced it.
+  leaveRequestId: text('leave_request_id'),
+  // The user who created/last edited this specific row -- self (check-in),
+  // or a manager/HR bulk-marking someone else's day. Same actor-recording
+  // convention as leaveRequests.approverId.
+  markedById: text('marked_by_id').notNull(),
+  // 'self' | 'manager' | 'auto_leave' | 'auto_holiday' -- the 'auto_*'
+  // values are system-generated (see syncLeaveIntoAttendance/syncHolidays
+  // in hr-attendance-service.ts) and are never produced by a direct
+  // mark-attendance API call.
+  source: text('source').notNull().default('self'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Org-wide holiday calendar, needed so monthly attendance summaries can
+// exclude declared holidays from the "working days" denominator. Searched
+// this schema fresh for an existing concept before adding this table:
+// `holidayListFilings` (HR statutory-compliance section, above) is a
+// STATUTORY FILING TRACKER -- has this year's state holiday list been
+// filed with the labour department -- a compliance checklist row, not an
+// actual list of calendar dates an attendance engine could read. No other
+// holiday-dates concept exists anywhere in this schema. Deliberately
+// minimal and org-wide only (no per-company/office dimension) -- a real
+// multi-office calendar, e.g. a Gujarat office observing a state holiday a
+// Delhi office doesn't, is a genuine future gap, not invented here just to
+// look complete.
+export const hrHolidays = complianceSchemaDB.table('hr_holidays', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  date: date('date').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── VERIDIAN Ticketing (Wave 39, PLATFORM_STRATEGY.md §21) ──────────────
 // Peppermint/Trudesk/FlowInquiry were evaluated and rejected as software
 // (each needs its own standalone server -- Node+Postgres+Docker,
