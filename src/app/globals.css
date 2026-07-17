@@ -163,7 +163,7 @@
      rather than the ct-* Tailwind tokens, which stay the fixed VERIDIAN AI
      defaults everywhere else in the app -- see this wave's PR description
      for why a full re-theme of every ct-saffron usage was deliberately out
-     of scope ("at minimum the sidebar logo and a CSS custom property").
+     of scope ("at minimum the sidebar logo and a CSS custom property"). */
   --org-brand-primary: #1C2B3A;
   --org-brand-accent: #F5820A;
 }
