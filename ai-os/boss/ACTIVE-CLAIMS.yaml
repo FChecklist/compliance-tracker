@@ -92,6 +92,46 @@ active:
       wiring). Will not self-merge either PR -- left for the supervising
       session's audit; compliance-tracker's mandatory-audit-check.yml AUDIT
       verdict comment intentionally not posted by this session.
+
+      UPDATE (same session, addition): coordinator identified a second,
+      related integrity bypass -- verified independently before acting:
+      src/app/api/v1/projexa/change-orders/[id]/route.ts's PATCH handler
+      had `action === "approve"`/`action === "reject"` branches calling
+      markChangeOrderApproved()/markChangeOrderRejected() directly, no
+      e-signature check at all, and VeriChatPanel.tsx's Approvals tab
+      (item.kind === "change_order") was the only real caller -- so any
+      user who could see that tab could one-click approve/reject a change
+      order with zero signature, the exact bypass the Owner rejected for
+      PROJEXA's own UI, just present in VERIDIAN's internal admin surface
+      instead (predates this session's e-signature auto-transition wiring).
+      Also spawned a separate background task suggestion for this same gap
+      before the coordinator's message arrived -- attempted to withdraw it
+      once told to fold the fix into this branch instead, but it had
+      already been started by the user as an independent session. Flagging
+      here (and in this session's final report) that a SEPARATE session may
+      now be independently working the identical fix
+      (src/app/api/v1/projexa/change-orders/[id]/route.ts,
+      src/components/veri-chat/VeriChatPanel.tsx) at the same time as this
+      one -- real collision risk, not silently resolved, needs the
+      supervising session to reconcile whichever lands second.
+      Fix chosen (option (a), matching the coordinator's own reasoning for
+      not inventing a second bespoke approval path): removed the
+      action === "approve"/"reject" branches from the PATCH route entirely
+      (the real bypass surface, not just the button) and changed
+      VeriChatPanel's Approvals tab to show real, read-only signature
+      progress for change_order items instead of Approve/Reject buttons --
+      sourced server-side in src/app/api/veri-chat/approvals/route.ts via
+      the same listSignatureRequests() this whole branch's other alias
+      route already calls, not a second data path. markChangeOrderApproved/
+      markChangeOrderRejected are left in construction-change-order-
+      service.ts (still real, tested-by-tracing functions) but are now
+      unreachable from any route -- their own header comments updated to
+      say so honestly rather than left claiming a caller that no longer
+      exists.
+      Additional file scope: src/app/api/v1/projexa/change-orders/[id]/route.ts,
+      src/components/veri-chat/VeriChatPanel.tsx,
+      src/app/api/veri-chat/approvals/route.ts,
+      src/lib/services/construction-change-order-service.ts (comment-only).
   - session_label: "claude-code (background sub-agent) -- PROJEXA Reports & Analysis catalog UI (CONTROLLER.yaml PRIORITY-17 projexa_reports_dispatch_2026_07_16)"
     claimed_at: "2026-07-16T (this session)"
     claim: |
