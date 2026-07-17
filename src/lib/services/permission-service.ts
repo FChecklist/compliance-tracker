@@ -126,6 +126,53 @@ export const ERP_ACTION_ROLES = {
   // documented policy of leaving self-service actions ungated by role.
   "erp.hr_attendance.mark_other": "manager", // manager/HR correcting or bulk-marking a DIFFERENT employee's attendance
   "erp.hr_attendance.holiday_manage": "manager", // create/delete a row on the org holiday calendar
+
+  // Cash Management
+  "erp.cash_accounts.create": "member", // routine data entry, no money movement
+  "erp.cash_vouchers.create_and_post": "manager", // posts to GL and moves money
+
+  // Cost Centers
+  "erp.cost_centers.create": "member", // routine reference data entry
+
+  // Sales Invoices
+  "erp.sales_invoices.create": "member", // creates draft, not yet posted
+  "erp.sales_invoices.submit": "manager", // posts to GL, fires webhook, moves money
+  "erp.sales_invoices.e_invoice": "member", // generates e-invoice payload, no GL posting
+
+  // Purchase Orders
+  "erp.purchase_orders.create": "member", // creates draft PO, not yet committed
+
+  // Goods Receipts (Purchase Receipts)
+  "erp.goods_receipts.create": "member", // creates draft receipt, stock not yet posted
+  "erp.goods_receipts.submit": "manager", // posts real FIFO stock, updates PO status
+  "erp.goods_receipts.putaway": "member", // routine warehouse physical operation
+  "erp.goods_receipts.landed_costs": "manager", // affects inventory valuation, hard to undo
+  "erp.goods_receipts.update_putaway": "member", // routine warehouse location update
+
+  // RFQs
+  "erp.rfqs.create": "member", // routine procurement data entry
+  "erp.rfqs.send": "member", // changes status to sent, no financial impact
+
+  // Supplier Quotations
+  "erp.supplier_quotations.create": "member", // routine procurement data entry
+
+  // Sales Credit Notes
+  "erp.sales_credit_notes.create": "member", // creates draft, not yet posted
+  "erp.sales_credit_notes.submit": "manager", // posts reversing GL entries, moves money
+  "erp.sales_credit_notes.link_return": "member", // just a link/association, no GL posting
+
+  // Purchase Credit Notes
+  "erp.purchase_credit_notes.create": "member", // creates draft, not yet posted
+  "erp.purchase_credit_notes.submit": "manager", // posts reversing GL entries, affects AP
+  "erp.purchase_credit_notes.link_return": "member", // just a link/association, no GL posting
+
+  // Inventory & Materials
+  "erp.inventory.issue": "member", // FIFO stock out, routine warehouse operation
+  "erp.inventory.receipt": "member", // FIFO stock in, routine warehouse operation
+  "erp.inventory.abc_classification": "member", // analytical computation, no financial commitment
+  "erp.inventory.cycle_count": "member", // records physical count, does not post to GL
+  "erp.inventory.cycle_count_plan": "member", // routine planning data entry
+  "erp.inventory.reorder_level": "member", // routine planning configuration
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES
