@@ -33,7 +33,14 @@ function apiKeyCtx(scopes: string[]): CombinedAuthContext {
 }
 
 describe("ERP_ACTION_ROLES -- policy table integrity", () => {
-  test("every action this wave introduced is present with a real UserRole value", () => {
+  test("every action registered so far is present with a real UserRole value", () => {
+    // Extended by the HR Attendance & Manpower wave (same
+    // REVIEW-FRAMEWORK-WAVE4 effort, a concurrent sibling track to the one
+    // that introduced this file) to also cover
+    // erp.hr_attendance.mark_other / erp.hr_attendance.holiday_manage --
+    // see permission-service.ts's own ERP_ACTION_ROLES comment on why
+    // every module extending this table is expected to also extend its
+    // own integrity tests, rather than leaving them to silently drift.
     const expected: ErpAction[] = [
       "erp.fixed_assets.create",
       "erp.fixed_assets.update",
@@ -49,13 +56,15 @@ describe("ERP_ACTION_ROLES -- policy table integrity", () => {
       "erp.quotations.convert",
       "erp.quotations.update_status",
       "erp.quotations.approve",
+      "erp.hr_attendance.mark_other",
+      "erp.hr_attendance.holiday_manage",
     ]
     for (const action of expected) {
       expect(typeof ERP_ACTION_ROLES[action]).toBe("string")
     }
   })
 
-  test("the elevated (manager-gated) actions are exactly the ones that touch the GL, dispose an asset, or reverse a commitment", () => {
+  test("the elevated (manager-gated) actions are exactly the ones that touch the GL, dispose an asset, reverse a commitment, or correct/manage another employee's HR records", () => {
     const managerGated = (Object.keys(ERP_ACTION_ROLES) as ErpAction[]).filter((a) => ERP_ACTION_ROLES[a] === "manager")
     expect(managerGated.sort()).toEqual([
       "erp.fixed_assets.capitalize",
@@ -64,6 +73,8 @@ describe("ERP_ACTION_ROLES -- policy table integrity", () => {
       "erp.fixed_assets.dispose",
       "erp.quotations.approve",
       "erp.sales_orders.update_status",
+      "erp.hr_attendance.mark_other",
+      "erp.hr_attendance.holiday_manage",
     ].sort())
   })
 })

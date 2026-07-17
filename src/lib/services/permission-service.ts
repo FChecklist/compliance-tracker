@@ -116,6 +116,16 @@ export const ERP_ACTION_ROLES = {
   "erp.quotations.convert": "member",
   "erp.quotations.update_status": "member",
   "erp.quotations.approve": "manager",
+
+  // HR Attendance & Manpower (VERIDIAN Review Framework: Critical -- RBAC
+  // + business rules, closed in the same wave as this file). Self-service
+  // check-in/check-out and marking one's OWN day are handled by identity
+  // (targetUserId === ctx.userId), not a role gate -- there is no
+  // "erp.hr_attendance.mark_own" entry because that path was never
+  // role-restricted in the first place, matching this table's own
+  // documented policy of leaving self-service actions ungated by role.
+  "erp.hr_attendance.mark_other": "manager", // manager/HR correcting or bulk-marking a DIFFERENT employee's attendance
+  "erp.hr_attendance.holiday_manage": "manager", // create/delete a row on the org holiday calendar
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES

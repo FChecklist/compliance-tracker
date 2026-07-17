@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listAttendance, markAttendance, ServiceError } from "@/lib/services/hr-attendance-service"
 import { resolveAttendanceViewerScope } from "@/lib/services/hr-attendance-access"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 // Access control: below-manager requesters are always scoped to their own
 // records, whether or not they explicitly asked for someone else's --
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const targetUserId = body.userId || dbUser.id
     if (targetUserId !== dbUser.id) {
-      const roleErr = requireRole(dbUser, "manager")
+      const roleErr = requirePermissionForUser(dbUser, "erp.hr_attendance.mark_other")
       if (roleErr) return roleErr
     }
     const result = await markAttendance({ orgId, userId: dbUser.id }, targetUserId, {

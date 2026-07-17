@@ -1,54 +1,40 @@
 // VERIDIAN Review Framework Wave 4 (REVIEW-FRAMEWORK-WAVE4) -- HR
 // Attendance "Access Control / Role-Based Permissions" remediation.
 //
-// LOCAL, ATTENDANCE-ONLY PERMISSION CHECK -- explicitly NOT the shared,
-// cross-cutting ERP permission utility. This same wave's dispatch plan
-// (see CONTROLLER.yaml's REVIEW-FRAMEWORK-WAVE4 entry, dispatch_plan /
-// TRACK 1) calls for a shared permission-check utility to be built once
-// and reused across the ~21 ERP/Finance modules that share this identical
-// gap (General Ledger, Fixed Assets, Sales Orders, Quotations, etc.).
-// Checked fresh, immediately before writing this file, for that utility:
-//   gh pr list --repo FChecklist/compliance-tracker --state all --limit 40
-//   gh pr list --repo FChecklist/compliance-tracker --state open
-// Neither merged history nor any open PR contains a shared permission
-// utility (no `permission-service.ts` or equivalent exists anywhere in
-// src/lib/services/ as of this commit either -- grepped for
-// `hasPermission|checkPermission|permissionService` with zero hits). Since
-// building that shared utility is explicitly a different track's job (per
-// the dispatch instructions for this task), this file is scoped ONLY to
-// HR attendance's two read routes (GET /api/hr/attendance and GET
-// /api/hr/attendance/summary) and reuses this codebase's EXISTING role
-// model (`ROLE_RANK` / the manager-rank bar already enforced on the
-// mark-someone-else's-attendance and bulk-mark routes in this same
-// module) rather than inventing a new one.
+// LOCAL READ-SCOPING HELPER -- deliberately NOT superseded by the shared
+// cross-cutting ERP permission utility (src/lib/services/permission-
+// service.ts, merged as part of this same wave, PR #401, ERP_ACTION_ROLES
+// + requirePermissionForUser/requirePermission). That utility is a
+// fixed-action write GATE ("does this action require manager rank",
+// allow/deny) -- it has no slot for this file's actual problem, which is
+// per-request READ scoping ("which userId should this query run with,
+// given who's asking and who they asked for"). So this file is NOT a
+// stopgap superseded by that utility; it solves a genuinely different
+// concern and is expected to keep existing alongside it.
 //
-// RECONCILE: while finishing this file, incidentally observed (shared
-// build scratchpad, not a merged/PR-verified source -- not depended on
-// here, per this task's own instruction to only trust merged history or
-// an open PR) that a concurrent sibling track appears to be building
-// exactly the anticipated shared utility at
-// src/lib/services/permission-service.ts: a flat `ERP_ACTION_ROLES:
-// Record<string, UserRole>` policy table plus `requirePermissionForUser
-// (dbUser, action)` / `requirePermission(ctx, action, scope)` gate
-// functions, also built on top of the same auth-guard.ts ROLE_RANK/
-// hasRole/requireRole primitives this file uses. When that (or whatever
-// actually lands) is confirmed merged, reconciliation is NOT simply
-// "delete this file" -- that utility is a fixed-action write GATE
-// ("does this action require manager rank", returns allow/deny), whereas
-// resolveAttendanceViewerScope solves a different problem: per-request
-// READ scoping ("which userId should this query actually run with,
-// given who's asking and who they asked for"), which a flat action->role
-// table has no slot for. The right reconciliation is most likely:
-// register HR attendance's write actions (mark/bulk-mark/holiday
-// create-delete) in that utility's ERP_ACTION_ROLES table and call its
-// gate functions from this module's write routes (they currently inline
-// `requireRole(dbUser, "manager")` directly, same pattern the shared
-// utility replaces elsewhere) -- while KEEPING resolveAttendanceViewerScope
-// for the two read routes' self-vs-other scoping, possibly rewritten to
-// delegate its internal rank check to the shared utility's role table
-// instead of importing ROLE_RANK directly. Re-verify the utility's real,
-// merged shape before making that call -- this note is a lead, not a
-// verified fact.
+// What WAS reconciled once permission-service.ts confirmed-merged (this
+// same commit): this module's WRITE routes (mark-someone-else,
+// bulk-mark, holiday create/delete) previously inlined
+// `requireRole(dbUser, "manager")` directly -- now registered as
+// `erp.hr_attendance.mark_other` / `erp.hr_attendance.holiday_manage` in
+// permission-service.ts's ERP_ACTION_ROLES and gated via
+// `requirePermissionForUser()`, exactly the pattern that utility's own
+// header comment asks every module to follow instead of a bare role
+// string literal. Only this file's own two read routes (GET
+// /api/hr/attendance, GET /api/hr/attendance/summary) still use
+// resolveAttendanceViewerScope() below, and still reuse this codebase's
+// EXISTING role model (`ROLE_RANK` from auth-guard.ts) directly rather
+// than inventing a new one -- consistent with, not competing against,
+// the shared utility.
+//
+// History: at the time this file was first written, `gh pr list --state
+// all/open` against FChecklist/compliance-tracker showed no shared
+// permission utility yet (merged or open) -- built as a local fallback
+// per this task's own dispatch instructions. permission-service.ts
+// merged (PR #401) shortly after, from a concurrent sibling track,
+// before this PR itself was opened -- rebased onto it and reconciled the
+// write-route call sites above in the same commit, rather than shipping
+// a competing inline check.
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "./compliance-service"
 
