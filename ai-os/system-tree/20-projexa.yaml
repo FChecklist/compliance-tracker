@@ -2,9 +2,25 @@
 # Source: direct inventory of C:\Users\Dell\Downloads\Claude Code\projexa this
 # session (~130 TS/TSX files). Confirmed against actual code, not just its
 # own AGENTS.md/PROJEXA_TASK_GOVERNANCE.md claims.
+#
+# CORRECTED 2026-07-17 (PROJEXA-COMPLETION-01, Super Boss supervising
+# session): tree_version 1's two biggest flagged findings -- PRX-04's "no
+# project switcher exists" and PRX-05's "12+ nav-linked pages with zero
+# implementation" -- were BOTH stale and false as of this correction.
+# Ground truth re-verified directly against the live repo (git tree API,
+# not assumed): (a) src/components/ProjectSwitcher.tsx +
+# resolveSelectedProject() + a ?projectId= query param exist and are wired
+# into every project-scoped page (confirmed via PROJEXA_GAP_ANALYSIS.md's
+# own real 2026-07-12/13 live-browser user test, commit 8bd7186/95154eb);
+# (b) all 43 current src/app/(app)/**/page.tsx files were cross-checked
+# against every AppSidebar.tsx nav href -- zero dangling links, PRX-05 is
+# fully resolved. See PRX-04/PRX-05 below for the corrected content (kept,
+# not deleted, per this repo's own append/correct-don't-erase discipline --
+# the ORIGINAL wrong claim is struck through and left visible so a future
+# session can see what changed and why).
 
 repo: projexa
-tree_version: 1
+tree_version: 2
 domains:
 
   - id: PRX-01
@@ -41,26 +57,27 @@ domains:
     workflow: ["Signup -> Supabase user created -> org+membership created (or deferred to first login if email confirmation is pending) -> authenticated."]
 
   - id: PRX-04
-    name: "Authenticated app pages (11 pages)"
+    name: "Authenticated app pages (43 pages as of 2026-07-17, up from 11 at tree_version 1)"
     objects:
       - "/dashboard -- org-wide KPI cards (projects, budget, revenue, expenses) + per-project table, from VERIDIAN /dashboard"
       - "/schedule -- ScheduleGanttClient (Gantt/critical path)"
       - "/rfis, /submittals, /punch-list, /change-orders, /mood-boards, /ffe, /floor-plans, /floor-plans/[id], /floor-plans/[id]/walkthrough"
-    input: "See PRX-01's workflow -- every list page loads the FIRST project in the org (no project-switcher UI exists yet)."
+      - "Plus (new since tree_version 1, not yet given their own PRX entries): /accounting, /budgets, /copilot, /customers(+[id]), /documents, /employees, /expenses, /grc, /hr, /inventory, /invoices, /knowledge-base, /kpis, /labour, /materials, /meetings, /payroll, /permits, /procurement, /purchase-orders, /quotations, /recruitment, /reports, /sales(+/leads,+/opportunities), /sales-orders, /scope, /settings, /site-diary, /vendors, /wiki, /work-progress -- confirmed present via direct git-tree listing (30 additional page.tsx files), NOT individually feature-audited yet (see PROJEXA-COMPLETION-01 Phase 2 in control/CONTROLLER.yaml for that in-progress work)."
+    input: "STALE CLAIM, CORRECTED 2026-07-17: ~~every list page loads the FIRST project in the org (no project-switcher UI exists yet)~~. A real ProjectSwitcher.tsx + resolveSelectedProject() + ?projectId= param now exists and is wired into every project-scoped page (verified live, PROJEXA_GAP_ANALYSIS.md gap #1, RESOLVED)."
     output: "Rendered construction-domain UI, backed entirely by VERIDIAN's API."
-    rules: ["Every list page shares one pattern: server component calls callVeridian('/dashboard'), takes data.projects[0], passes projectId to a client component -- a real, confirmed gap: no project switcher exists."]
+    rules: ["STALE CLAIM, CORRECTED 2026-07-17: ~~a real, confirmed gap: no project switcher exists~~ -- see input field above, this was fixed 2026-07-13 and independently re-verified 2026-07-17."]
     guardrails: []
     workflow: []
 
   - id: PRX-05
-    name: "GAP: 12+ sidebar-linked modules with NO page implementation"
-    objects: ["/scope", "/work-progress", "/site-diary", "/documents", "/manpower", "/labour", "/materials", "/vendors", "/budgets", "/expenses", "/kpis", "/reports", "/ai-copilot", "/settings"]
+    name: "RESOLVED 2026-07-17 (was: GAP - 12+ sidebar-linked modules with NO page implementation)"
+    objects: ["/scope", "/work-progress", "/site-diary", "/documents", "/manpower (does not exist as a separate route -- /labour covers this; nav does not link to /manpower)", "/labour", "/materials", "/vendors", "/budgets", "/expenses", "/kpis", "/reports", "/ai-copilot (route is actually /copilot)", "/settings"]
     input: "N/A."
-    output: "N/A -- a 404 today."
+    output: "N/A -- STALE CLAIM, CORRECTED 2026-07-17: ~~a 404 today~~. Every one of these routes now has a real page.tsx, confirmed via direct git-tree API listing, cross-checked against every current AppSidebar.tsx href with zero dangling links found."
     rules:
-      - "src/middleware.ts protects these route prefixes AND AppSidebar.tsx links to all of them (Scope of Work/BOQ, Work Progress, Site Diary, Documents, Manpower & Attendance, Materials, Vendors, Budgets, Expenses, KPIs, Reports, AI Copilot, Settings) -- but NONE have a corresponding page under src/app/(app)/. Confirmed by direct file-tree comparison, not inferred."
+      - "STALE CLAIM as of tree_version 1 (2026-07-14ish) -- has since been fully closed, most likely during the Priority 15/16/17 PROJEXA waves referenced in control/CONTROLLER.yaml. This tree was not kept in sync with that work, which is exactly why PROJEXA-COMPLETION-01 re-verified ground truth directly against the repo instead of trusting this file."
     guardrails: []
-    workflow: ["This is a genuine, confirmed gap between the UI's own stated navigation and what's actually implemented -- flagged for the Owner, not fixed by this tree."]
+    workflow: ["No longer a gap. Real remaining question (open, PROJEXA-COMPLETION-01 Phase 2): these 43 pages exist, but only ~20 of them have ever been exercised by a real live-user browser test (PROJEXA_GAP_ANALYSIS.md, 2026-07-12/13) -- feature DEPTH on the other ~23 is unverified, not confirmed broken."]
 
   - id: PRX-06
     name: "VERIDIAN-proxy API routes (thin passthrough)"
@@ -161,5 +178,6 @@ domains:
 
 count_of_domains: 13
 notable_findings:
-  - "PRX-05 is the single largest concrete gap found in this entire system-tree effort: 12+ nav-linked, middleware-protected modules with zero page implementation."
-  - "PRX-11's dead-code components (status-badge, compliance-chart) and unwired data-table are minor cleanup candidates, not architectural problems."
+  - "STALE, CORRECTED 2026-07-17: ~~PRX-05 is the single largest concrete gap found in this entire system-tree effort: 12+ nav-linked, middleware-protected modules with zero page implementation.~~ PRX-05 is fully RESOLVED -- see that entry."
+  - "PRX-11's dead-code components (status-badge, compliance-chart) and unwired data-table are minor cleanup candidates, not architectural problems -- STILL OPEN as of 2026-07-17, not yet re-verified."
+  - "NEW 2026-07-17 (PROJEXA-COMPLETION-01): real remaining gaps confirmed via PROJEXA_GAP_ANALYSIS.md + fresh live-repo verification -- (1) PROJEXA repo has zero real CI (only an @claude-mention chatbot workflow, no lint/typecheck/build/test gate, and branch protection cannot be set via API on this private free-tier repo); (2) change-order 'pending approval' status has no visible approve/reject UI action, deliberately left unresolved pending a real design decision about e-signature completion integrity (PROJEXA_GAP_ANALYSIS.md gap #5); (3) 23 of 43 pages have never been exercised by a real live-user browser test, only confirmed to exist as files. Full plan: control/CONTROLLER.yaml, id PROJEXA-COMPLETION-01."
