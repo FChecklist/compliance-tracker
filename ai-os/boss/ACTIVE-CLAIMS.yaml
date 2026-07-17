@@ -2763,3 +2763,29 @@ recently_completed:
       full allow/deny matrix (self views own, non-manager denied another's,
       manager/veridian_admin allowed any). See PR description for
       tsc/lint/build/test results and branch/PR number.
+
+      UPDATE (2026-07-17, same session, before opening the PR): the shared
+      ERP permission utility this claim's own local-fallback note was
+      watching for merged mid-flight as PR #401 (src/lib/services/
+      permission-service.ts, ERP_ACTION_ROLES + requirePermissionForUser/
+      requirePermission), from a concurrent sibling TRACK 1 session.
+      Rebased onto origin/main (fast-forward, no conflicts -- different
+      files) and reconciled before opening this PR rather than shipping a
+      competing inline check: registered erp.hr_attendance.mark_other /
+      erp.hr_attendance.holiday_manage in that utility's ERP_ACTION_ROLES
+      (both "manager"), replaced this module's 4 inline
+      requireRole(dbUser, "manager") write-route call sites with
+      requirePermissionForUser(), and updated permission-service.test.ts's
+      2 policy-table-integrity tests to include the new actions. Kept
+      hr-attendance-access.ts's resolveAttendanceViewerScope() as its own,
+      separate, still-needed piece -- it does per-request read scoping
+      (self vs. named-other userId), a different problem than the shared
+      utility's fixed-action write gate, not something that utility makes
+      redundant. Re-ran everything after reconciling: full suite 1327
+      pass/3 skip/0 fail, tsc --noEmit clean, eslint 0 errors (3
+      pre-existing warnings), bun run build green. Branch:
+      hr-attendance-business-rules-rbac. No new migration (confirmed via
+      `ls drizzle/*.sql | sort -V | tail` immediately before the final
+      commit -- last real migration still 0223_force_rls_hr_attendance_
+      holidays.sql; branch base == origin/main tip 13bddf6f at time of
+      PR). PR opened against main, not merged, per instructions.
