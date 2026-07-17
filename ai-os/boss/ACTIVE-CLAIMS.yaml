@@ -2323,3 +2323,97 @@ recently_completed:
       repo's mandatory-audit-check.yml requires the structured 8-field
       AUDIT: PASS/AUDIT: FAIL verdict comment, not just a bare LGTM). This
       session has no further active claims on this priority.
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework implementation Wave B: Training LMS module (full depth), real build"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      Direct continuation of this file's own earlier "Training LMS module"
+      claim (2026-07-16) that never produced a branch, commit, or PR -- it
+      silently died. Before writing any migration, checked the live
+      Supabase project (pcrjmlpuqsbocqfwoxod) directly via MCP and found
+      that dead session HAD reached the database: 11
+      compliance.training_* tables + 4 enums already existed live
+      (FORCE RLS applied), all genuinely empty (0 rows each), with zero
+      trace in git (no schema.ts entry, no migration file, no
+      module_registry row, no PR). Confirmed via grep across drizzle/*.sql
+      and src/ that nothing anywhere referenced any of these identifiers.
+      Per this effort's own established rule (verify abandoned state
+      yourself, don't resume it blindly, build fresh): dropped the
+      orphaned live objects and recreated with an independently-designed,
+      tracked schema (adds training_lesson_progress, absent from the dead
+      session's live design; renames the lesson content-type enum to
+      text/video/document to match this module's own written spec) rather
+      than adopting the undocumented drift as-is -- see
+      drizzle/0222_training_lms.sql's own header comment for the full
+      account.
+
+      Real gap re-confirmed by a fresh grep of src/ before writing a
+      single line: zero LMS/course/assessment/curriculum data model
+      existed anywhere. Full-depth build per the Owner's standing no-MVP
+      directive, sized for a real 100-employee firm's training/L&D needs.
+
+      Data model (12 tables, all compliance schema, org-scoped, FORCE
+      ROW LEVEL SECURITY from creation): training_courses,
+      training_modules, training_lessons, training_lesson_progress,
+      training_assessments, training_questions, training_enrollments,
+      training_assessment_attempts, training_completions, training_paths,
+      training_path_courses, training_path_assignments. Lesson document
+      attachments reuse the existing generic `documents` table (Wave 61's
+      linkedEntityType/linkedEntityId pattern) rather than a new upload
+      path -- upload itself goes through the existing POST /api/documents,
+      which already supports these fields. Confirmed (fresh grep of
+      schema.ts) that no pre-existing "required training for role X"
+      concept exists -- onboardingSteps (M-20) is the unrelated one-time
+      org-signup wizard -- trainingPaths.targetRole/targetDepartmentId is
+      the first such mechanism, not a duplicate of one.
+
+      Service layer: training-service.ts (courses/modules/lessons/
+      curricula/enrollment/lesson-progress/manager dashboard) and
+      training-assessment-service.ts (quiz authoring/scoring/retake
+      policy) -- split by sub-concern, same convention as hr-service.ts /
+      hr-attendance-service.ts. Uses withTenantContext/logActivity/
+      ServiceError throughout. REST API under /api/training/**
+      (requireAuth + requireRole("manager") gating for authoring/
+      assignment). UI under (app)/training/** (My Learning hub, course
+      player, trainer authoring workspace, manager roster/completion
+      dashboard matching hr-attendance-service.ts's getMonthlySummaries
+      rollup shape). Wired into AppSidebar.tsx and messages/en.json +
+      hi.json (no pre-existing training keys found).
+
+      training_courses and training_paths registered in the Asset
+      Registry Coverage Check (genuine display-name columns); the other
+      10 tables are join/transactional/log rows or an answer-key table
+      (training_questions.correctAnswer should never be copied into a
+      general registry snapshot) -- exempted with per-table reasoning.
+      node scripts/check-asset-registry-coverage.mjs passes: all 432
+      tables accounted for (134 registered, 299 exempted).
+
+      Migration numbering: confirmed drizzle/0221_wave_b_white_label_
+      branding.sql was the highest-numbered file immediately before
+      creating drizzle/0222_training_lms.sql -- no collision. Re-fetched
+      origin/main immediately before opening the PR; still the same
+      commit this branch was cut from, so no rebase/renumbering was
+      needed.
+
+      bunx tsc --noEmit: 0 errors (no pre-existing errors either, checked
+      against the same commit). bun run lint: 0 errors, 3 pre-existing
+      warnings unrelated to this change. bun run build: succeeds cleanly
+      (the actual Next.js production build, not skipped -- all
+      /training/** routes present in the route manifest). bun test (full
+      suite): 1296 pass/0 fail/3 skip, including 18 new tests across
+      training-service.test.ts and training-assessment-service.test.ts
+      (pure scoring/state-model functions, matching this repo's
+      established no-live-DB-in-.test.ts convention).
+
+      Explicitly out of scope: department-based curriculum assignment has
+      a working API (POST /api/training/paths/[id]/assign with
+      departmentId) but the authoring UI only exposes the role-based
+      assignment control, noted inline in the UI copy; certificateCode is
+      a text reference string, not a rendered PDF; mandatory-training
+      deadline enforcement elsewhere in the app (e.g. blocking other
+      actions until required training completes) is not wired -- this PR
+      builds the tracking substrate, not a hard gate.
+
+      Branch: feat/training-lms-module. PR #394 opened against main, NOT
+      self-merged -- left for the supervising session's audit. No AUDIT:
+      PASS/FAIL verdict comment posted. This session has no further
+      active claims on this priority.
