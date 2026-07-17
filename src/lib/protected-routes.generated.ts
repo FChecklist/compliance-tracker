@@ -81,6 +81,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/team",
   "/the-firm-practice",
   "/tickets",
+  "/training",
   "/users",
   "/vendor-risk",
   "/veri-ai",

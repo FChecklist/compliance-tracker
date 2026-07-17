@@ -297,6 +297,10 @@ registered:
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch (drizzle/0198): org-scoped supplier-submitted quotation (against an RFQ or logged directly) -- auto_register_asset_trg attached, name_column=quotation_number (integer), owner_column=created_by_id (nullable), active_column=NULL (status is a real Postgres enum erp_supplier_quotation_status, not boolean)"
   - table: erp_cycle_count_plans
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch (drizzle/0198): org-scoped warehouse stock cycle-count campaign master -- auto_register_asset_trg attached, name_column=name, owner_column=created_by_id (nullable), active_column=NULL (status free text)"
+  - table: training_courses
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): org-scoped course catalog entry, same class as clients/erp_customers -- auto_register_asset_trg attached, name_column=title, purpose_column=description, owner_column=created_by_id, active_column=NULL (status is a real Postgres enum training_course_status, not boolean)"
+  - table: training_paths
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): org-scoped curriculum/learning-path master -- auto_register_asset_trg attached, name_column=name, purpose_column=description, owner_column=created_by_id, active_column=is_active (genuine TRUE-means-active flag)"
 exempted:
   - table: access_review_certifications
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (reviewedRole is a point-in-time role snapshot, not this row's own name) -- a per-user-per-cycle decision record, same class as this codebase's other append-only join/log tables, not a named asset"
@@ -876,3 +880,23 @@ exempted:
     reason: "richer status semantics (5-value lifecycleStatus) than the generic trigger's boolean active_column model supports -- managed via Priority 3's registerAsset()/updateAsset() app-level hooks instead, which the trigger's ON CONFLICT UPDATE would otherwise clobber on every unrelated column update"
   - table: workspace_memory_capsule_events
     reason: "Priority 21, Layer 2 Workspace Memory (ai-os/priority21_workspace_memory_design.md): same class as prompt_cache_metrics/scoped_delegations above -- one row per export/import action against a user's own memvid capsule, no display-name column (direction is 'export'|'import', storageObjectPath is an opaque bucket path, not a human-readable name), and no user/admin ever browses this table by name the way they would a report/screen/dashboard/ai_agent. Internal per-user event log, not a discoverable platform asset."
+  - table: training_modules
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): ordered content-grouping unit within a training_courses row -- title exists but a module has no independent identity a user would browse in a registry separate from its parent course; same class as pms_milestones' sibling join-shaped tables, not registered on its own."
+  - table: training_lessons
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): ordered content unit within a training_modules row (text/video/document) -- exists only in the context of its parent course/module, no independent discoverable identity, same reasoning as training_modules above."
+  - table: training_lesson_progress
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): per-(enrollment, lesson) status-tracking row (not_started/in_progress/completed) -- no genuine display-name column, same class as hr_attendance_records/crm_stage_history -- a progress-log record, not a discoverable platform asset."
+  - table: training_assessments
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): a quiz/exam attached to a course or module -- has a title, but exists only as a scoring gate within its parent course, browsed via the course it belongs to rather than independently; kept exempted to match training_modules/training_lessons' own containment reasoning rather than registering a third tier of the same course hierarchy."
+  - table: training_questions
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): one question within a training_assessments row -- question_text is content, not a display name, and correct_answer/options are exactly the kind of sensitive-answer-key data the auto_register_asset trigger should never copy into a general-purpose registry snapshot -- exempted, not registered."
+  - table: training_enrollments
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): per-employee per-course enrollment/progress row -- no genuine display-name column (status is an enum value, not this row's own name), same class as hr_attendance_records -- a progress record, not a discoverable platform asset."
+  - table: training_assessment_attempts
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): one quiz-attempt score record -- no display-name column, and submitted_answers is exam-response data that should not be copied into a general registry snapshot, same reasoning as training_questions -- exempted."
+  - table: training_completions
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): one proof-of-completion record per enrollment -- certificate_code is a reference string, not a genuine chosen display name, same class as training_enrollments/hr_attendance_records -- exempted."
+  - table: training_path_courses
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): pure join table (which courses belong to which curriculum, in what order) -- no display-name column of its own, same class as crm_stage_history's join-shaped sibling tables."
+  - table: training_path_assignments
+    reason: "VERIDIAN Review Framework remediation, Wave B Training/LMS (drizzle/0222): a record of why/how an employee was assigned a curriculum (individual/department/role rollout) -- no genuine display-name column (assigned_via is a mode value, not a name), same class as training_enrollments -- exempted."

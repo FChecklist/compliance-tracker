@@ -4768,6 +4768,253 @@ export const hrHolidays = complianceSchemaDB.table('hr_holidays', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN Training / LMS (Wave B, 2026-07-17) ─────────────────────────
+// Real gap re-confirmed by a fresh grep of src/ before writing a single line
+// here: zero LMS/course/assessment/curriculum data model existed anywhere
+// (matches this table's own ACTIVE-CLAIMS.yaml entry from the dead
+// 2026-07-16 session). The only pre-existing "training"-adjacent concept in
+// this schema is `onboardingSteps` (M-20) -- that is the ORG SIGNUP wizard
+// (profile/compliance/upload/invite/ai-config), a one-time setup flow with
+// no relationship to ongoing employee learning/compliance-training. Nothing
+// here touches it.
+//
+// CLEANUP, same migration: this repo's own ACTIVE-CLAIMS.yaml records the
+// same "Training LMS module" claim (2026-07-16) that never produced a
+// branch, commit, or PR. Per this effort's established rule (verify
+// abandoned state yourself, don't resume it blindly), list_tables/execute_sql
+// against the live project (pcrjmlpuqsbocqfwoxod) were checked fresh and
+// found that dead session HAD reached the database directly -- 11
+// `compliance.training_*` tables + 4 enums, all FORCE-RLS'd, all genuinely
+// empty (0 rows), with zero trace in git (no schema.ts entry, no migration
+// file, no module_registry row, no PR). The live column shapes were
+// reviewed and are largely reasonable, but were independently re-designed
+// here rather than blindly adopted -- notably this version adds a genuine
+// per-lesson progress table (trainingLessonProgress, absent from the dead
+// session's design) since "ordered content units" with no per-unit
+// completion tracking cannot actually answer "has this employee finished
+// module 2" for a multi-lesson course. The orphaned live objects are
+// dropped in drizzle/[N]_training_lms.sql before these are (re)created.
+//
+// Design conventions, matched to this schema's own established patterns:
+// - text id via createId() / gen_random_uuid()::text (DB-side default,
+//   app always supplies its own via Drizzle), orgId text NOT NULL on every
+//   table, bare-text cross-references (no DB-level FK) except where the
+//   referenced row is foundational (organisations/users), matching
+//   crmAccounts/hrAttendanceRecords' own posture.
+// - Role/department-based assignment (trainingPaths.targetRole /
+//   targetDepartmentId) is bare free text / bare text-no-FK, same as
+//   employeeProfiles.companyId and leaveRequests.companyId -- there is no
+//   existing "required training for role X" concept anywhere in this
+//   schema to link into (onboardingSteps, checked above, is unrelated), so
+//   this is the FIRST such concept, not a duplicate of one.
+// - Lesson content reuses the EXISTING generic `documents` table (Wave 61's
+//   linkedEntityType/linkedEntityId discriminator pattern, see documents'
+//   own header comment) for the 'document' content type and for optional
+//   supplementary attachments on any lesson/course -- linkedEntityType
+//   'training_lesson' | 'training_course', linkedEntityId = the row's id.
+//   No new file-upload path, no new attachment table.
+export const trainingCourseStatusEnum = complianceSchemaDB.enum('training_course_status', ['draft', 'published', 'archived'])
+export const trainingLessonContentTypeEnum = complianceSchemaDB.enum('training_lesson_content_type', ['text', 'video', 'document'])
+export const trainingQuestionTypeEnum = complianceSchemaDB.enum('training_question_type', ['multiple_choice', 'true_false', 'short_answer'])
+export const trainingProgressStatusEnum = complianceSchemaDB.enum('training_progress_status', ['not_started', 'in_progress', 'completed'])
+
+export const trainingCourses = complianceSchemaDB.table('training_courses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  category: text('category'), // free text, e.g. 'compliance' | 'technical' | 'onboarding' | 'soft_skills' -- advisory, not enum-enforced, matches documents.category's own rationale (new categories keep appearing)
+  isMandatory: boolean('is_mandatory').notNull().default(false),
+  // Bare free text, deliberately not FK'd to userRoleEnum -- a course can
+  // target a role that doesn't map 1:1 to the auth-permission role system
+  // (e.g. "site supervisor"), same non-enum posture as leaveRequests.leaveType.
+  targetRole: text('target_role'),
+  targetDepartmentId: text('target_department_id'),
+  estimatedDurationMinutes: integer('estimated_duration_minutes'),
+  status: trainingCourseStatusEnum('status').notNull().default('draft'),
+  // Course-level default; an individual trainingAssessments row can override
+  // with its own passingScorePercent (e.g. a stricter final exam vs. a
+  // lenient module quiz) -- see training-assessment-service.ts's fallback.
+  passingScorePercent: integer('passing_score_percent').notNull().default(70),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const trainingModules = complianceSchemaDB.table('training_modules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  courseId: text('course_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const trainingLessons = complianceSchemaDB.table('training_lessons', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  moduleId: text('module_id').notNull(),
+  courseId: text('course_id').notNull(), // denormalized from the parent module -- same convention as trainingAssessments.courseId below, avoids a join for every course-level rollup
+  title: text('title').notNull(),
+  contentType: trainingLessonContentTypeEnum('content_type').notNull().default('text'),
+  content: text('content'), // rich text / markdown body, used when contentType = 'text'
+  videoUrl: text('video_url'), // used when contentType = 'video' -- an external link (YouTube/Vimeo/S3), not a re-hosted file
+  sortOrder: integer('sort_order').notNull().default(0),
+  estimatedDurationMinutes: integer('estimated_duration_minutes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// One row per (enrollment, lesson) -- lets a multi-lesson course answer
+// "which lessons has this employee actually finished" instead of only a
+// single course-level status. Deliberately keyed off enrollmentId (not
+// bare employeeId+courseId) so re-enrollment (e.g. an annual mandatory
+// refresher) starts a clean progress slate tied to its own enrollment,
+// matching trainingAssessmentAttempts' own enrollmentId-keyed convention.
+export const trainingLessonProgress = complianceSchemaDB.table('training_lesson_progress', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  enrollmentId: text('enrollment_id').notNull(),
+  lessonId: text('lesson_id').notNull(),
+  employeeId: text('employee_id').notNull(), // denormalized from the enrollment -- lets a manager dashboard query lesson-level progress without joining back through trainingEnrollments for the common case
+  status: trainingProgressStatusEnum('status').notNull().default('not_started'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const trainingAssessments = complianceSchemaDB.table('training_assessments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  courseId: text('course_id').notNull(),
+  moduleId: text('module_id'), // nullable: a module-level quiz has this set; a course-level final exam leaves it null
+  title: text('title').notNull(),
+  description: text('description'),
+  passingScorePercent: integer('passing_score_percent'), // nullable: falls back to the parent trainingCourses.passingScorePercent when unset
+  maxAttempts: integer('max_attempts'), // nullable = unlimited retakes
+  timeLimitMinutes: integer('time_limit_minutes'), // nullable = untimed
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const trainingQuestions = complianceSchemaDB.table('training_questions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  assessmentId: text('assessment_id').notNull(),
+  questionText: text('question_text').notNull(),
+  questionType: trainingQuestionTypeEnum('question_type').notNull().default('multiple_choice'),
+  // multiple_choice: string[] of option labels. true_false/short_answer: '[]'.
+  options: jsonb('options').notNull().default([]),
+  // multiple_choice: number (option index) or number[] (multi-select).
+  // true_false: boolean. short_answer: string, matched case-insensitively
+  // after trimming (see training-assessment-service.ts's scoreQuestion).
+  correctAnswer: jsonb('correct_answer').notNull(),
+  points: integer('points').notNull().default(1),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Per-employee enrollment in a course -- self-enrolled (assignedById null)
+// or manager/path assigned (assignedById set). UNIQUE(org_id, employee_id,
+// course_id) below means re-enrollment after a prior completion requires a
+// service-layer decision (delete+recreate for a refresher), not a second
+// concurrent row -- matches hrAttendanceRecords' own single-live-row-per-key
+// posture.
+export const trainingEnrollments = complianceSchemaDB.table('training_enrollments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  employeeId: text('employee_id').notNull(), // references users.id by convention (bare text, no DB-level FK) -- same posture as leaveRequests.userId
+  courseId: text('course_id').notNull(),
+  trainingPathId: text('training_path_id'), // nullable: set when this enrollment was created as a side effect of a trainingPathAssignments row; null for a direct/self enrollment
+  status: trainingProgressStatusEnum('status').notNull().default('not_started'),
+  enrolledAt: timestamp('enrolled_at').notNull().defaultNow(),
+  startedAt: timestamp('started_at'),
+  dueDate: date('due_date'),
+  assignedById: text('assigned_by_id'), // null = self-enrolled; set = manager/path-assigned, same self-vs-manager distinction as hrAttendanceRecords.source
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const trainingAssessmentAttempts = complianceSchemaDB.table('training_assessment_attempts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  assessmentId: text('assessment_id').notNull(),
+  enrollmentId: text('enrollment_id').notNull(),
+  employeeId: text('employee_id').notNull(),
+  attemptNumber: integer('attempt_number').notNull().default(1),
+  submittedAnswers: jsonb('submitted_answers').notNull().default({}), // { [questionId]: answer } -- same shape as trainingQuestions.correctAnswer per question
+  score: numeric('score').notNull(),
+  maxScore: numeric('max_score').notNull(),
+  scorePercent: numeric('score_percent').notNull(),
+  passed: boolean('passed').notNull(),
+  passingThresholdApplied: integer('passing_threshold_applied').notNull(), // snapshot of the threshold actually used (assessment override or course default) at submit time -- so a later change to either doesn't retroactively flip a past attempt's pass/fail, matching this schema's snapshot-at-transaction-time discipline (see erp_purchase_invoices.withholdingTaxAmount's identical rationale)
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  submittedAt: timestamp('submitted_at').notNull().defaultNow(),
+})
+
+// One per enrollment (UNIQUE below) -- the proof-of-completion record.
+// certificateCode is a human-shareable reference (e.g. on a printed
+// certificate or a completion email), generated by the service layer at
+// completion time, not a DB sequence/trigger.
+export const trainingCompletions = complianceSchemaDB.table('training_completions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  enrollmentId: text('enrollment_id').notNull().unique(),
+  certificateCode: text('certificate_code').notNull(),
+  completedAt: timestamp('completed_at').notNull().defaultNow(),
+  score: numeric('score'), // nullable: a course with no assessment (lesson-completion-only) has no score to record
+  passed: boolean('passed').notNull().default(true),
+  bestAttemptId: text('best_attempt_id'), // nullable: references trainingAssessmentAttempts.id by convention, the highest-scoring passing attempt this completion is based on
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Curriculum / learning path: an ordered sequence of courses assigned to a
+// role or department (Requirement 1's "curricula/learning-paths").
+export const trainingPaths = complianceSchemaDB.table('training_paths', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  targetDepartmentId: text('target_department_id'),
+  targetRole: text('target_role'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const trainingPathCourses = complianceSchemaDB.table('training_path_courses', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  trainingPathId: text('training_path_id').notNull(),
+  courseId: text('course_id').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isRequired: boolean('is_required').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// A record of *why* an employee is enrolled in a path's courses (individual
+// pick, or a department/role-wide rollout) -- distinct from
+// trainingEnrollments, which is the per-course progress row this assignment
+// fans out into (one trainingPathAssignments row -> N trainingEnrollments
+// rows, one per course in the path at assignment time).
+export const trainingPathAssignments = complianceSchemaDB.table('training_path_assignments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  trainingPathId: text('training_path_id').notNull(),
+  employeeId: text('employee_id').notNull(),
+  assignedVia: text('assigned_via').notNull().default('individual'), // 'individual' | 'department' | 'role' -- which assignPath* entry point produced this row
+  assignedViaDepartmentId: text('assigned_via_department_id'),
+  assignedViaRole: text('assigned_via_role'),
+  assignedById: text('assigned_by_id').notNull(),
+  assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  dueDate: date('due_date'),
+})
+
 // ─── VERIDIAN Ticketing (Wave 39, PLATFORM_STRATEGY.md §21) ──────────────
 // Peppermint/Trudesk/FlowInquiry were evaluated and rejected as software
 // (each needs its own standalone server -- Node+Postgres+Docker,
