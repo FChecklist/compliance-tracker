@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { reopenPeriod, ServiceError } from "@/lib/services/erp-financial-report-service"
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
-  const roleCheck = requireRole(dbUser, "admin")
-  if (roleCheck) return roleCheck
+  // manager: reopening a closed period unlocks locked financial data
+  const roleErr = requirePermissionForUser(dbUser, "erp.fiscal_year.reopen_period")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

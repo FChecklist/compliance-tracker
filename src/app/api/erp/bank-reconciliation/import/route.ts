@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { importBankStatement, ServiceError } from "@/lib/services/erp-bank-reconciliation-service"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -8,6 +9,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: routine data entry, importing a bank statement file
+  const roleErr = requirePermissionForUser(dbUser, "erp.banking.import")
+  if (roleErr) return roleErr
 
   try {
     const formData = await request.formData()

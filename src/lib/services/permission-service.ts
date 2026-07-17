@@ -126,6 +126,27 @@ export const ERP_ACTION_ROLES = {
   // documented policy of leaving self-service actions ungated by role.
   "erp.hr_attendance.mark_other": "manager", // manager/HR correcting or bulk-marking a DIFFERENT employee's attendance
   "erp.hr_attendance.holiday_manage": "manager", // create/delete a row on the org holiday calendar
+
+  // General Ledger / Journal Entries (VERIDIAN Review Framework: Critical -- RBAC)
+  "erp.general_ledger.create": "member", // routine data entry: creates a draft journal entry, does not post
+  "erp.general_ledger.submit": "manager", // posts the entry to the general ledger, hard to undo once posted
+
+  // Chart of Accounts (VERIDIAN Review Framework: Critical -- RBAC)
+  "erp.chart_of_accounts.create": "manager", // master data: creating GL accounts affects the entire accounting structure
+
+  // Fiscal Year & Periods (VERIDIAN Review Framework: Critical -- RBAC)
+  "erp.fiscal_year.create": "manager", // creating a fiscal year is a structural accounting action
+  "erp.fiscal_year.generate_periods": "manager", // generating periods defines the accounting calendar
+  "erp.fiscal_year.close_period": "manager", // closing a period locks financial data, hard to undo
+  "erp.fiscal_year.reopen_period": "manager", // reopening a closed period unlocks locked financial data
+  "erp.fiscal_year.sign_off_period": "manager", // signing off is a managerial approval step
+  "erp.fiscal_year.checklist_add": "manager", // adding period-close checklist items is a managerial task
+  "erp.fiscal_year.checklist_complete": "manager", // completing checklist items is part of the period-close process
+
+  // Banking / Bank Reconciliation (VERIDIAN Review Framework: Critical -- RBAC)
+  "erp.banking.import": "member", // routine data entry: importing a bank statement file
+  "erp.banking.match": "manager", // matching a bank line to a GL entry affects reconciliation integrity
+  "erp.banking.ignore": "member", // routine reconciliation data entry: marking a line as irrelevant
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES

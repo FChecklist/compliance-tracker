@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { matchLine, ServiceError } from "@/lib/services/erp-bank-reconciliation-service"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: matching a bank line to a GL entry affects reconciliation integrity
+  const roleErr = requirePermissionForUser(dbUser, "erp.banking.match")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

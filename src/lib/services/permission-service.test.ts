@@ -58,6 +58,23 @@ describe("ERP_ACTION_ROLES -- policy table integrity", () => {
       "erp.quotations.approve",
       "erp.hr_attendance.mark_other",
       "erp.hr_attendance.holiday_manage",
+      // General Ledger / Journal Entries
+      "erp.general_ledger.create",
+      "erp.general_ledger.submit",
+      // Chart of Accounts
+      "erp.chart_of_accounts.create",
+      // Fiscal Year & Periods
+      "erp.fiscal_year.create",
+      "erp.fiscal_year.generate_periods",
+      "erp.fiscal_year.close_period",
+      "erp.fiscal_year.reopen_period",
+      "erp.fiscal_year.sign_off_period",
+      "erp.fiscal_year.checklist_add",
+      "erp.fiscal_year.checklist_complete",
+      // Banking / Bank Reconciliation
+      "erp.banking.import",
+      "erp.banking.match",
+      "erp.banking.ignore",
     ]
     for (const action of expected) {
       expect(typeof ERP_ACTION_ROLES[action]).toBe("string")
@@ -67,14 +84,24 @@ describe("ERP_ACTION_ROLES -- policy table integrity", () => {
   test("the elevated (manager-gated) actions are exactly the ones that touch the GL, dispose an asset, reverse a commitment, or correct/manage another employee's HR records", () => {
     const managerGated = (Object.keys(ERP_ACTION_ROLES) as ErpAction[]).filter((a) => ERP_ACTION_ROLES[a] === "manager")
     expect(managerGated.sort()).toEqual([
+      "erp.chart_of_accounts.create",
       "erp.fixed_assets.capitalize",
       "erp.fixed_assets.category_manage",
       "erp.fixed_assets.depreciation_run",
       "erp.fixed_assets.dispose",
-      "erp.quotations.approve",
-      "erp.sales_orders.update_status",
+      "erp.fiscal_year.checklist_add",
+      "erp.fiscal_year.checklist_complete",
+      "erp.fiscal_year.close_period",
+      "erp.fiscal_year.create",
+      "erp.fiscal_year.generate_periods",
+      "erp.fiscal_year.reopen_period",
+      "erp.fiscal_year.sign_off_period",
+      "erp.general_ledger.submit",
+      "erp.banking.match",
       "erp.hr_attendance.mark_other",
       "erp.hr_attendance.holiday_manage",
+      "erp.quotations.approve",
+      "erp.sales_orders.update_status",
     ].sort())
   })
 })
@@ -143,5 +170,91 @@ describe("requirePermission -- CombinedAuthContext (requireAuthOrApiKey) routes,
 
   test("neither a session nor an API key present is refused", () => {
     expect(requirePermission({ orgId: null, dbUser: null, apiKey: null, response: null }, "erp.quotations.create")).not.toBeNull()
+  })
+})
+
+// --- wave4-erp-rbac-batch1 tests: General Ledger, Chart of Accounts, Fiscal Year & Periods, Banking ---
+
+describe("General Ledger / Journal Entries -- RBAC", () => {
+  test("member is allowed to create a draft journal entry (member-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.general_ledger.create")).toBeNull()
+  })
+
+  test("member is blocked from submitting a journal entry to the GL (manager-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.general_ledger.submit")).not.toBeNull()
+  })
+
+  test("manager is allowed to submit a journal entry to the GL", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.general_ledger.submit")).toBeNull()
+  })
+
+  test("projexa (CombinedAuthContext): member session can create a draft journal entry", () => {
+    expect(requirePermission(sessionCtx("member"), "erp.general_ledger.create")).toBeNull()
+  })
+
+  test("projexa (CombinedAuthContext): member session is blocked from submitting to GL", () => {
+    expect(requirePermission(sessionCtx("member"), "erp.general_ledger.submit")).not.toBeNull()
+  })
+})
+
+describe("Chart of Accounts -- RBAC", () => {
+  test("member is blocked from creating a GL account (manager-gated master data)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.chart_of_accounts.create")).not.toBeNull()
+  })
+
+  test("manager is allowed to create a GL account", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.chart_of_accounts.create")).toBeNull()
+  })
+})
+
+describe("Fiscal Year & Periods -- RBAC", () => {
+  test("member is blocked from creating a fiscal year (manager-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.fiscal_year.create")).not.toBeNull()
+  })
+
+  test("manager is allowed to create a fiscal year", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.fiscal_year.create")).toBeNull()
+  })
+
+  test("member is blocked from closing a period (manager-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.fiscal_year.close_period")).not.toBeNull()
+  })
+
+  test("manager is allowed to close a period", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.fiscal_year.close_period")).toBeNull()
+  })
+
+  test("member is blocked from reopening a period (manager-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.fiscal_year.reopen_period")).not.toBeNull()
+  })
+
+  test("manager is allowed to reopen a period", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.fiscal_year.reopen_period")).toBeNull()
+  })
+
+  test("member is blocked from signing off a period (manager-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.fiscal_year.sign_off_period")).not.toBeNull()
+  })
+
+  test("manager is allowed to sign off a period", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.fiscal_year.sign_off_period")).toBeNull()
+  })
+})
+
+describe("Banking / Bank Reconciliation -- RBAC", () => {
+  test("member is allowed to import a bank statement (member-gated routine data entry)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.banking.import")).toBeNull()
+  })
+
+  test("member is blocked from matching a bank line (manager-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.banking.match")).not.toBeNull()
+  })
+
+  test("manager is allowed to match a bank line", () => {
+    expect(requirePermissionForUser(userWithRole("manager"), "erp.banking.match")).toBeNull()
+  })
+
+  test("member is allowed to ignore a bank line (member-gated)", () => {
+    expect(requirePermissionForUser(userWithRole("member"), "erp.banking.ignore")).toBeNull()
   })
 })

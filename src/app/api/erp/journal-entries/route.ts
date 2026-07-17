@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listJournalEntries, createJournalEntry, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function GET(request: NextRequest) {
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: routine data entry, creates a draft journal entry that does not post to the GL
+  const roleErr = requirePermissionForUser(dbUser, "erp.general_ledger.create")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()

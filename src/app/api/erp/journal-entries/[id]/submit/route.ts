@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { submitJournalEntry, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: posts the entry to the general ledger, hard to undo once posted
+  const roleErr = requirePermissionForUser(dbUser, "erp.general_ledger.submit")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

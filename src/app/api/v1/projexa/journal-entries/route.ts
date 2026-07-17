@@ -8,7 +8,8 @@
 // Bearer-key (apiKey) actor, not just a session dbUser -- see that
 // function's own comment in erp-accounting-service.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requirePermission } from "@/lib/services/permission-service"
 import { listJournalEntriesPaged, createJournalEntry, ServiceError, type JournalEntryInput } from "@/lib/services/erp-accounting-service"
 
 function toEntryShape(e: { id: string; entryNumber: number; postingDate: string; referenceType: string | null; referenceId: string | null; userRemark: string | null; status: string; totalDebit: string; totalCredit: string; companyId: string | null }) {
@@ -48,7 +49,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const roleErr = requireRoleOrScope(ctx, "manager", "write")
+  // member: routine data entry, creates a draft journal entry that does not post to the GL
+  const roleErr = requirePermission(ctx, "erp.general_ledger.create")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 

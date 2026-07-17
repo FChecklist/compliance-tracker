@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { signOffPeriod, ServiceError } from "@/lib/services/erp-financial-report-service"
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  const roleCheck = requireRole(dbUser, "manager")
-  if (roleCheck) return roleCheck
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: signing off is a managerial approval step
+  const roleErr = requirePermissionForUser(dbUser, "erp.fiscal_year.sign_off_period")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

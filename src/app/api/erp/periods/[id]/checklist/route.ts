@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listChecklistItems, addChecklistItem, ServiceError } from "@/lib/services/erp-financial-report-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -23,9 +24,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 export async function POST(request: NextRequest, { params }: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  const roleCheck = requireRole(dbUser, "manager")
-  if (roleCheck) return roleCheck
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: adding period-close checklist items is a managerial task
+  const roleErr = requirePermissionForUser(dbUser, "erp.fiscal_year.checklist_add")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

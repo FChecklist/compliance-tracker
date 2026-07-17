@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 import { listFiscalYears, createFiscalYear, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function GET() {
@@ -21,8 +22,9 @@ export async function POST(request: Request) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
-  const roleCheck = requireRole(dbUser, "manager")
-  if (roleCheck) return roleCheck
+  // manager: creating a fiscal year is a structural accounting action
+  const roleErr = requirePermissionForUser(dbUser, "erp.fiscal_year.create")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()
