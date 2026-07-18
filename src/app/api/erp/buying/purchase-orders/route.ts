@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listPurchaseOrders, createPurchaseOrder, ServiceError } from "@/lib/services/erp-buying-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET() {
   const { response, orgId } = await requireAuth()
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: creates draft PO, not yet committed
+  const roleErr = requirePermissionForUser(dbUser, "erp.purchase_orders.create")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()
