@@ -3817,3 +3817,12 @@ recently_completed:
       drizzle/*.sql), so this PR would not have been merged by this session
       even had CI gone green -- reported to the Owner for sign-off, with the
       CI-trigger anomaly flagged as its own separate open item.
+  - session_label: "claude-code (task-20260718-230826-rescue-pr--427) -- Rescue PR #427"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescue PR #427 (branch worker/task-20260718-084003-calculation-engine--
+      calculation-governan), "Calculation Engine / Calculation Governance:
+      close 5 gap-analysis findings". CI failing on audit-check and Unit
+      Tests. Scope: checkout PR head, merge origin/main, fix real CI
+      failures, renumber any drizzle migration if needed, post AUDIT
+      comment, merge if TIER1+green or report for Owner sign-off if TIER2.
