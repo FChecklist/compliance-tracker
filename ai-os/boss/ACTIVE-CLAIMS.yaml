@@ -1797,20 +1797,41 @@ active:
       officecli-client.ts, chat-service.ts, help/ask/route.ts and their
       tests), post required AUDIT comment, merge if TIER1 and green.
 
-  - session_label: "claude-code (task-20260718-195946-rescue-pr--422) -- Rescue and merge PR #422"
-    claimed_at: "2026-07-18T (this session)"
-    claim: |
-      Rescuing PR #422 (branch worker/task-20260718-061005-ai-cost-
-      governance---finops--cost-contro, "AI cost governance / FinOps cost
-      controls"). CI currently failing on audit-check and/or Unit Tests
-      per task instructions. Scope: merge origin/main, renumber any
-      drizzle migration if present, fix real CI failures only (no
-      guardrail weakening), post required AUDIT comment, merge if TIER1
-      and green -- otherwise report TIER2 for Owner sign-off.
-
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-195946-rescue-pr--422) -- Rescue and merge PR #422"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #422 (tier1, self-merged after CI green), squash commit 097ae295."
+    claim: |
+      Rescued PR #422 (branch worker/task-20260718-061005-ai-cost-
+      governance---finops--cost-contro, "AI Cost Governance & FinOps:
+      proactive cost-ceiling alert + default free-tier spend cap"), opened
+      by a now-stopped autonomous worker dispatcher with CI failing
+      (audit-check + Unit Tests). Worked around a worktree collision (the
+      original worker's own task dir still had that branch checked out) by
+      fetching the PR branch into a locally-named `pr-422-work` branch
+      instead of `gh pr checkout`. Merged origin/main once (conflicts in
+      PROGRESS.md -- kept ours -- and this file's own active:/
+      recently_completed: lists -- both sides additive, kept both, no real
+      logic conflict). No drizzle/*.sql or schema.ts changes anywhere in
+      the final diff -- TIER1 confirmed (monthlyCostCapUsd/
+      costCapEnforcementEnabled columns already existed pre-PR). Original
+      CI failures both resolved by the merge + a real audit comment (no
+      code bug in the PR's own changes needed fixing): audit-check had
+      simply never had a verdict posted (the stopped worker never reached
+      that step); Unit Tests was already fixed upstream by an unrelated
+      main commit before this rescue ran, reproduced 0 failures locally
+      post-merge. Verification: bunx tsc --noEmit clean, bun run lint 0
+      errors (3 pre-existing unrelated warnings), bun test 1497 pass/0
+      fail across 110 files. Read the full diff by hand (7 files) before
+      posting a structured `AUDIT: PASS` PR comment with all 8 required
+      fields. Waited for the full branch-protection-required check set
+      (Lint/Type Check/Build/audit-check/Guardrail Presence Check/Asset
+      Registry Coverage Check/Unit Tests/E2E Tests) to go green, then
+      squash-merged and deleted the remote branch. Vercel preview check
+      was still pending at merge time (not a required check, matches
+      prior rescue sessions' documented precedent) -- did not block merge.
   - session_label: "claude-code (worker task-20260718-061005-ai-cost-governance---finops--cost-contro) -- AI Cost Governance & FinOps: proactive cost-ceiling alert + default free-tier spend cap"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd at time of this entry -- branch worker/task-20260718-061005-ai-cost-governance---finops--cost-contro"
