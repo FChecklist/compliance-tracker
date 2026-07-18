@@ -1866,6 +1866,53 @@ active:
       failures (src/lib/ai-response-locale.ts, document-extraction-service.ts,
       officecli-client.ts, chat-service.ts, help/ask/route.ts and their
       tests), post required AUDIT comment, merge if TIER1 and green.
+  - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescuing PR #424 (branch worker/task-20260718-062002-ai-cost-
+      governance---finops--cost-monito, "AI Cost Governance & FinOps:
+      anomaly detection, spend forecast, idle capacity" -- the same task
+      claimed just above by the original dispatcher). CI currently failing
+      on audit-check and Unit Tests. Scope: merge origin/main, renumber any
+      drizzle migration if present, fix real CI failures, post required
+      AUDIT comment, merge if TIER1 and green (report for Owner sign-off
+      if TIER2 -- touches drizzle/schema).
+  - session_label: "claude-code (task-20260718-202149-rescue-pr--414) -- Rescue and merge PR #414"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescuing PR #414 (branch worker/task-20260718-045007-ai-architecture--
+      ai-interaction-efficien, "AI Architecture / AI Interaction Efficiency
+      gap closure (11 findings)"). CI showed audit-check FAILURE, all other
+      checks (Lint/Type Check/Unit Tests/Build/E2E/CodeQL/Sentinel) green at
+      claim time. Diff touches drizzle/0225_ai_interaction_efficiency_gap_
+      closure.sql and src/lib/db/schema.ts -- TIER2, will not self-merge.
+      Scope: merge origin/main, renumber migration if a higher one now
+      exists on main, fix any real CI failures, post required AUDIT
+      comment, report for Owner sign-off (no merge).
+
+      UPDATE (2026-07-18, same session): merged origin/main twice (main
+      moved mid-rescue -- PR #413, then PR #418/#420/#422/#424 chain);
+      both times additive-only conflicts in PROGRESS.md (kept ours) and
+      this file (kept both sides). Migration 0225 confirmed still the next
+      free number both times (main's highest stayed at 0224, no collision).
+      Read the full diff personally against the PR's own description before
+      auditing -- all 11 findings' claims verified accurate (deriveConfidenceLabel
+      is an honest heuristic proxy, not a fabricated score; createWorkflowThread()'s
+      new required-choice throw has exactly one caller path and it's fully wired
+      end-to-end, no runtime-400 regression). Discovered and worked around a
+      real platform quirk: GitHub Actions created zero check suites for this
+      PR's pushed commits while it sat in mergeStateStatus=DIRTY/CONFLICTING
+      (third-party apps like Vercel still reacted) -- re-merging main to reach
+      MERGEABLE state is what let Actions start creating check suites again;
+      documented here in case another rescue session hits the same silent
+      symptom. Re-verified after final merge: bunx tsc --noEmit 0 errors,
+      bun run lint 0 errors, bun test 1532 pass/0 fail. Posted structured
+      AUDIT: PASS comment (8 fields). Full CI green (Lint/Type Check/Unit
+      Tests/Build/E2E/CodeQL/Sentinel/audit-check) except Vercel preview
+      (rate-limited, non-required, same as prior rescue sessions' precedent).
+      TIER2 (touches drizzle/0225 + schema.ts) -- NOT self-merged. Reported
+      to Owner as ready for sign-off.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
