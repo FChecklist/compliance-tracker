@@ -8,7 +8,8 @@ import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
-import { detectHighImpactAction, logHighImpactClassification, checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
+import { detectHighImpactAction, checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
+import { logHighImpactClassification } from "@/lib/high-impact-classification-logger"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th

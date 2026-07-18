@@ -309,6 +309,8 @@ registered:
     reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): named quiz/assessment attached to a course or module -- auto_register_asset_trg attached, name_column=title, purpose_column=description, no owner/active column exists"
   - table: training_questions
     reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a question bank entry -- registered using question_text as name_column (the question IS this row's own identifying content, same reasoning as clm_clauses using title over body_text, adapted since this table has no separate title field) -- auto_register_asset_trg attached, no purpose/owner/active column exists"
+  - table: business_terminology_glossary
+    reason: "AI Architecture / Explainability & Transparency gap-closure (drizzle/0225 creates the table, drizzle/0226 registers it): a genuinely named, purpose-bearing platform asset (asset_type=other, same reasoning as report_definitions -- term is the display name, definition is the purpose) -- auto_register_asset_trg attached, name_column=term, purpose_column=definition, module_column=category, org_column=org_id (nullable -- platform-wide when null, same convention as report_definitions), owner_column=NULL (no single-user ownership concept), active_column=NULL (no boolean active/inactive state on a glossary entry)"
 exempted:
   - table: access_review_certifications
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (reviewedRole is a point-in-time role snapshot, not this row's own name) -- a per-user-per-cycle decision record, same class as this codebase's other append-only join/log tables, not a named asset"
