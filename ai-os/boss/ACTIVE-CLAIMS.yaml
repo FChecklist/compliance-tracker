@@ -67,6 +67,44 @@ active:
       branch: superboss/mother-router-phase-1. Migration NOT applied to any
       live DB by this session -- tier2 (schema-touching), held for Owner
       sign-off per this repo's own established rule, not auto-merged.
+  - session_label: "Super Boss (Claude Desktop, interactive) -- fix flaky Unit Tests CI check (createJournalEntry export leak)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Owner-requested follow-up to a spawn_task chip flagged earlier this
+      session (task_0bd44564): the repo's required "Unit Tests" branch-
+      protection check was failing on main itself (confirmed on main's own
+      CI run 29633305166, 06:02 UTC 2026-07-18, before any of this
+      session's PRs existed) with "SyntaxError: Export named
+      'createJournalEntry' not found in module
+      erp-accounting-service.ts" during erp-fixed-assets-service.test.ts.
+      Root cause found: src/lib/services/tenant-isolation.test.ts's
+      mock.module() calls replaced 5 ERP service modules with tiny
+      object-literal stubs (e.g. `{ listCostCenters, ServiceError }` for
+      erp-accounting-service) that dropped every OTHER real export
+      (including createJournalEntry). bun's mock.module() has no reliable
+      per-test restoration (mock.restore() in afterEach does not undo it,
+      confirmed against bun-types' own API surface) -- when this file
+      happened to run before erp-fixed-assets-service.test.ts in CI's
+      Linux file-discovery order (never reproduced locally on Windows,
+      even forcing the same 2-file order explicitly), the stale stub
+      leaked into that unrelated file's import and crashed it.
+      Fix (branch fix/tenant-isolation-mock-module-leak, off main, NOT
+      layered on the unrelated AIROUTER-01/superboss/mother-router-phase-1
+      branch): every mock.module() call in this file now spreads the real
+      module's captured exports before overriding the one function under
+      test (so a leak is at worst stale data, never a missing-export
+      crash), AND afterEach now explicitly restores all 8 mocked modules
+      back to their real, captured-at-load-time implementations (so
+      nothing leaks past this file's own suite at all, regardless of
+      execution order on any platform). Could not reproduce the original
+      failure locally to prove it via a red-then-green local test, given
+      the Linux/Windows file-order difference -- pushed to CI as the real
+      validation, per this repo's own established practice of not
+      overclaiming untested behavior. NOTE: this specific claim was already
+      merged as PR #434 (commit fe2bde84) by the time this Mother Router
+      branch merged main -- kept here as-is rather than hand-editing
+      through the conflict; a separate housekeeping PR (#435) moves it to
+      recently_completed on main directly.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
