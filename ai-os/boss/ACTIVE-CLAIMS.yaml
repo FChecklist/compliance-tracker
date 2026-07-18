@@ -41,6 +41,61 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (this session, CLI) -- VERIDIAN Review Framework gap-closure: Checks & Balances / Separation of Duties & Approval Controls (task-20260718-092002)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 4 distinct findings (listed twice each in the source task, 8
+      rows total) from the Checks & Balances / Separation of Duties &
+      Approval Controls review area:
+        1. SoD -- hard requesterId != approverId check missing on several
+           approval-like call sites outside the shared Approval Workflow
+           Engine (which already has isSelfApproval(), added Wave
+           "Close 5 of area 3's remaining PLAN-16 guardrail items", commit
+           52bc3aa7 -- confirmed by reading the file, NOT re-adding there).
+           Confirmed real gaps (role-rank check only, no self-check) in:
+           src/app/api/approvals/[id]/route.ts (old approvalRequests maker-
+           checker), erp-selling-service.ts:updateQuotationStatus,
+           hr-service.ts:decideLeaveRequest, construction-boq-service.ts:
+           approveBoq, erp-returns-service.ts (4 functions: approve/reject
+           x sales/purchase returns), construction-field-workflow-
+           service.ts (verifyPunchListItemClosed, reviewSubmittal),
+           access-review-service.ts:reviewCertification (self-certification
+           variant), erp-contract-service.ts:approveAmendment (dead code,
+           fixed defensively). erp-payment-entries-service.ts and
+           construction-kpi-service.ts already have their own self-checks
+           -- confirmed, not touched.
+        2. Four-Eyes -- cross-wiring high-impact-action-detector.ts's 9
+           categories into approval-workflow-service.ts so a
+           createWorkflowDefinition step whose entityType/name text matches
+           a high-impact category gets requiredApprovals floored at 2 (not
+           just defaulted), enforced again defensively at
+           startApprovalWorkflow's instance-step creation so pre-existing
+           stored definitions also get the floor at the real gating
+           chokepoint without a data migration.
+        3. Role-Based Approval Matrix -- new aggregate read view (API +
+           page) over approvalWorkflowDefinitions + steps across ALL entity
+           types at once, alongside the existing per-entityType-filtered
+           GET /api/approval-workflows and the existing static DoA page
+           (src/app/(app)/doa, a manually-entered table -- different data
+           source, not replaced).
+        4. Conflict of Interest Detection -- audited entity_relationships
+           real usage (relationshipType values in use today: triggers_
+           approval, depends_on, owned_by, sourced_from, supersedes,
+           executed_by -- zero personal/vendor-relationship edges exist).
+           Confirms the finding's own recommended approach (defer until
+           real relationship data exists) is still accurate as of this
+           session -- documenting as correctly-deferred in PROGRESS.md, not
+           building a detector with nothing real to query.
+      File scope: src/app/api/approvals/[id]/route.ts,
+      src/lib/services/{approval-workflow-service,erp-selling-service,hr-
+      service,construction-boq-service,erp-returns-service,construction-
+      field-workflow-service,access-review-service,erp-contract-service}.ts,
+      src/lib/high-impact-action-detector.ts (additive trigger-phrase
+      extension only), a new approval-matrix API route + UI section, plus
+      their *.test.ts files. NOT touching permission-service.ts's
+      ERP_ACTION_ROLES table (per this task's own instructions) or any
+      other in-flight worker's declared file scope -- cross-checked against
+      every other active: entry above before starting, no overlap found.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
