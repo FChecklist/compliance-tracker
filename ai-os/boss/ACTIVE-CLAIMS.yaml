@@ -1866,21 +1866,46 @@ active:
       failures (src/lib/ai-response-locale.ts, document-extraction-service.ts,
       officecli-client.ts, chat-service.ts, help/ask/route.ts and their
       tests), post required AUDIT comment, merge if TIER1 and green.
-  - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
-    claimed_at: "2026-07-18T (this session)"
-    claim: |
-      Rescuing PR #424 (branch worker/task-20260718-062002-ai-cost-
-      governance---finops--cost-monito, "AI Cost Governance & FinOps:
-      anomaly detection, spend forecast, idle capacity" -- the same task
-      claimed just above by the original dispatcher). CI currently failing
-      on audit-check and Unit Tests. Scope: merge origin/main, renumber any
-      drizzle migration if present, fix real CI failures, post required
-      AUDIT comment, merge if TIER1 and green (report for Owner sign-off
-      if TIER2 -- touches drizzle/schema).
-
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #424 (tier1, self-merged after CI green), squash commit cc1af35d."
+    claim: |
+      Rescued PR #424 (branch worker/task-20260718-062002-ai-cost-
+      governance---finops--cost-monito, "AI Cost Governance & FinOps:
+      anomaly detection, spend forecast, idle capacity"), opened by a
+      now-stopped autonomous worker dispatcher with CI failing (audit-check
+      + Unit Tests). Worked around a worktree collision (the original
+      worker's own task dir still had that branch checked out) via
+      `git fetch origin <branch>:pr-424-local` instead of `gh pr checkout`.
+      Merged origin/main THREE times over the course of this rescue --
+      main kept advancing mid-flight from sibling rescue sessions: (1)
+      initial merge, conflicts in PROGRESS.md (kept ours) and this file's
+      active:/recently_completed: lists (additive, kept both); (2) after
+      PR #422 landed ("proactive AI cost-ceiling alert"), a real overlap
+      in src/lib/cost-guard.ts -- auto-merged cleanly with no conflict
+      markers since the two PRs added disjoint, non-overlapping pieces
+      (#422's checkCostCeilingBreaches/classifyCostBreach vs. this PR's
+      forecastedMonthEndSpendUsd) -- verified by reading the merged file in
+      full, not just trusting a clean auto-merge; (3) after PR #422's own
+      rescue-claim chore commit landed, another PROGRESS.md/ACTIVE-CLAIMS
+      content-only conflict (kept ours / kept both). No drizzle/*.sql or
+      schema.ts changes anywhere in the final diff -- TIER1 confirmed. Ran
+      bunx tsc --noEmit / bun run lint / bun test fresh after each of the
+      3 merges (final: 0 errors, 1519 pass/0 fail across 113 files). Read
+      the full diff by hand (14 files) before posting a structured
+      `AUDIT: PASS` PR comment with all 8 required fields. The first
+      audit-check CI run failed because it ran (on push) before the
+      comment existed -- re-ran that one job after posting, passed.
+      Waited for the full branch-protection-required check set (Lint/Type
+      Check/Build/audit-check/Guardrail Presence Check/Asset Registry
+      Coverage Check/Unit Tests/E2E Tests) to go green after the final
+      push, then squash-merged and deleted the remote branch. Vercel
+      preview check failed (build-rate-limited, not a required check,
+      matches prior rescue sessions' documented precedent) -- did not
+      block merge.
   - session_label: "claude-code (task-20260718-195946-rescue-pr--422) -- Rescue and merge PR #422"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #422 (tier1, self-merged after CI green), squash commit 097ae295."
