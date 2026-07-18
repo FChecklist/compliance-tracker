@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { runApprovalDecisionMonitor } from "@/lib/monitors/approval-decision-monitor"
+import { isSelfApproval } from "@/lib/services/approval-workflow-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -27,11 +28,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { decision, rejectionReason } = body
     if (decision !== "approve" && decision !== "reject") return NextResponse.json({ error: "decision must be 'approve' or 'reject'" }, { status: 400 })
 
-    type Outcome = { kind: "ok"; updated: typeof approvalRequests.$inferSelect } | { kind: "not_found" } | { kind: "forbidden" }
+    type Outcome = { kind: "ok"; updated: typeof approvalRequests.$inferSelect } | { kind: "not_found" } | { kind: "forbidden" } | { kind: "self_approval" }
 
     const outcome: Outcome = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
       const req_ = await db.query.approvalRequests.findFirst({ where: eq(approvalRequests.id, id) })
       if (!req_ || req_.status !== "pending") return { kind: "not_found" }
+
+      // Separation of Duties: this table's own maker-checker design has
+      // always had a distinct requestedById (maker) and approvedById
+      // (checker) column, but nothing ever compared them -- an admin-rank
+      // user could create their own policy_publish/worker_agent_proposal/
+      // code_change_request row and then decide it themselves. Reuses the
+      // shared engine's own isSelfApproval() (approval-workflow-
+      // service.ts) rather than reimplementing the same equality check.
+      if (isSelfApproval(req_.requestedById, dbUser.id)) {
+        return { kind: "self_approval" }
+      }
 
       // Worker Agent Governance (Wave 16, VAIOS constitution §4): "only
       // Layer 1 may approve" -- veridian_admin is the stricter, in-app
@@ -105,6 +117,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     })
 
     if (outcome.kind === "forbidden") return NextResponse.json({ error: "This action requires veridian_admin role or higher" }, { status: 403 })
+    if (outcome.kind === "self_approval") return NextResponse.json({ error: "You cannot approve or reject a request you submitted yourself -- an independent approver is required" }, { status: 403 })
     if (outcome.kind === "not_found") return NextResponse.json({ error: "Approval request not found or already resolved" }, { status: 404 })
     return NextResponse.json({ id: outcome.updated.id, status: outcome.updated.status })
   } catch (error) {

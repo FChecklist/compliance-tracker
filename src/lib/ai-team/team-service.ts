@@ -15,6 +15,7 @@ import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { checkCostPolicy } from "./cost-policy"
 import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
+import { resolveEffectiveModel } from "./roster-overrides"
 
 function platformOpenRouterKey(): string {
   const key = process.env.OPENROUTER_API_KEY
@@ -43,16 +44,25 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
   const systemPrompt = await resolvePromptTemplate(role.promptKey!)
   const apiKey = platformOpenRouterKey()
 
+  // VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+  // 2026-07-18): resolve an admin-set DB override BEFORE the actual call --
+  // this is the one place that actually spends money/tokens for every
+  // LLM-backed role, so it's the real enforcement point for
+  // roster-overrides.ts, not just the tier-eligibility pre-flight checks
+  // upstream of this function. Falls back to role.model (guaranteed
+  // non-null by requireCallableRole above) on any resolution failure.
+  const effectiveModel = (await resolveEffectiveModel(roleKey)) ?? role.model!
+
   // Pre-flight cost check uses a rough usage estimate (input length as a
   // token-count proxy) -- good enough to catch a wildly oversized prompt
   // before spending; the real, precise check is the returned usage itself.
   const roughEstimate = { promptTokens: Math.ceil((systemPrompt.length + input.length) / 4), completionTokens: 500 }
-  const preflight = checkCostPolicy(role.model!, roughEstimate)
+  const preflight = checkCostPolicy(effectiveModel, roughEstimate)
   if (!preflight.allowed) throw new Error(`Cost & Policy Engine blocked call to '${roleKey}': ${preflight.reason}`)
 
-  const result = await callLLM("openrouter", role.model!, apiKey, systemPrompt, input)
+  const result = await callLLM("openrouter", effectiveModel, apiKey, systemPrompt, input)
 
-  const postflight = checkCostPolicy(role.model!, result.usage)
+  const postflight = checkCostPolicy(effectiveModel, result.usage)
   if (!postflight.allowed) {
     // The call already happened (money spent); this flags it for the Cost
     // Governance Officer / human review rather than pretending it didn't.
@@ -69,11 +79,16 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
     roleKey,
     taskSummary: input.slice(0, 200),
     provider: "openrouter",
-    model: role.model!,
+    model: effectiveModel,
     usage: result.usage,
   })
 
-  return { ...result, role }
+  // `role` returned with its own `.model` set to the model actually called
+  // (not necessarily roster.ts's static default) -- every existing
+  // downstream reader of `execution.role.model` (dispatch route's
+  // estimateCostUsd/executedBy response field) picks up the real value
+  // automatically, with no separate plumbing needed.
+  return { ...result, role: { ...role, model: effectiveModel } }
 }
 
 export type ClassificationResult = { role: string; reasoning: string; confidence: number }

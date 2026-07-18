@@ -103,6 +103,8 @@ index:
       covers: "UMR (Universal Metadata Registry) coverage manifest -- every DB table must be listed registered or exempted, enforced by scripts/check-asset-registry-coverage.mjs on every PR. Row-level registration is genuinely automatic (a live Postgres trigger, zero human/AI touch per row); table-level onboarding is auto-VERIFIED but not auto-performed -- a new table needs a one-time migration + registry entry before the trigger covers it."
     - path: ai-os/registry/ARTIFACTS.yaml
       covers: "Enterprise Asset Registry scaffold. NOT YET POPULATED -- a real, named, still-open gap, not silently dropped."
+    - path: ai-os/registry/maintainability-scorecard.md
+      covers: "VERIDIAN Review Framework gap-closure (2026-07-18): pointer + methodology doc for the consolidated Maintainability score (guardrail-violation rate + continuous-improvement backlog + dependency health, all real signals already persisted elsewhere) -- live number via GET /api/ai/team/maintainability-dashboard (veridian_admin-only), computed by src/lib/services/maintainability-dashboard-service.ts. This doc is not itself a data snapshot -- query the API for the current score."
     - path: ai-os/registry/stale-doc-manifest.yaml
       covers: "GAP-UNIFIED-SOT-REMAINDER (b) quarantine manifest -- every root-level stale doc moved to docs/archive/ plus every file already under the tree4-unified/audit-tree archive dirs, each must carry the exact ARCHIVED/STALE banner, enforced by scripts/check-doc-quarantine-banner.mjs on every PR."
     - path: ai-os/LIFECYCLE.yaml

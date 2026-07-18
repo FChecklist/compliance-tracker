@@ -78,7 +78,7 @@ describe("QA_PRECOMPLETION_GATE_LEAF -- real Guardrail Engine wiring", () => {
 })
 
 describe("buildDispatchSelfAssessment -- derives a real HandoverFields object from already-computed dispatch signals", () => {
-  const BASE = { requiresAudit: false, riskLevel: "low", lowConfidenceDetected: false, lowConfidenceMatchedPhrase: null, outputSummary: "120-character response from Senior Backend Engineer (senior_backend_engineer)" }
+  const BASE = { requiresAudit: false, riskLevel: "low", lowConfidenceDetected: false, lowConfidenceMatchedPhrase: null, knowledgeGapDetected: false, knowledgeGapMatchedPhrase: null, outputSummary: "120-character response from Senior Backend Engineer (senior_backend_engineer)" }
 
   test("a clean, low-risk, high-confidence dispatch gets validationPassed 'yes' and passes GOV-08's own field validation", () => {
     const fields = buildDispatchSelfAssessment(BASE)
@@ -93,6 +93,14 @@ describe("buildDispatchSelfAssessment -- derives a real HandoverFields object fr
     expect(fields.validationPassed).toBe("partial")
     expect(fields.confidence).toBe("low")
     expect(fields.knownRisks).toContain("i think")
+    expect(validateHandoverFields(fields)).toEqual({ valid: true })
+  })
+
+  test("a dispatch flagged for review (knowledge gap) gets validationPassed 'partial' and a distinct Known Risks narrative", () => {
+    const fields = buildDispatchSelfAssessment({ ...BASE, requiresAudit: true, knowledgeGapDetected: true, knowledgeGapMatchedPhrase: "i don't have access to" })
+    expect(fields.validationPassed).toBe("partial")
+    expect(fields.confidence).toBe("low")
+    expect(fields.knownRisks).toContain("insufficient knowledge")
     expect(validateHandoverFields(fields)).toEqual({ valid: true })
   })
 

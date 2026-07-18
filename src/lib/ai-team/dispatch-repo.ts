@@ -11,6 +11,7 @@
 // `gh api repos/FChecklist/compliance-tracker/dispatches` directly.
 
 import { getRole, isAuditOrganizationRole } from "./roster"
+import { resolveEffectiveModel } from "./roster-overrides"
 import { validateTightTask, type TightTask } from "../task-tightening"
 import { checkTierEligibility } from "../model-tier-eligibility"
 
@@ -48,7 +49,15 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
   // this path has no live callers yet, but it's the trigger for
   // ai-workforce-agent.mjs, so it gets the same enforcement rather than
   // being left as the one dispatch surface without it.
-  const tierCheck = checkTierEligibility(role.model, task.complexityTier)
+  //
+  // VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+  // 2026-07-18): checked against the EFFECTIVE model (DB override if set),
+  // not role.model -- ai-workforce-agent.mjs (the process that actually
+  // runs this dispatch) independently resolves the same override for its
+  // OWN tier check and its actual OpenRouter call, so this pre-flight gate
+  // must agree with what will really run, not the static default.
+  const effectiveModel = (await resolveEffectiveModel(roleKey)) ?? role.model
+  const tierCheck = checkTierEligibility(effectiveModel, task.complexityTier)
   if (!tierCheck.eligible) {
     throw new Error(`${tierCheck.reason} ${tierCheck.guidance}`)
   }

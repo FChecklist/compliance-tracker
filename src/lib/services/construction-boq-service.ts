@@ -12,6 +12,7 @@ import {
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
 
 export type BoqContext = { orgId: string; userId: string }
@@ -222,6 +223,9 @@ export async function approveBoq(ctx: { orgId: string; userId: string }, boqId: 
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("BOQ not found", 404)
     if (boq.status !== "submitted") throw new ServiceError("Only a submitted BOQ can be approved", 400)
+    if (isSelfApproval(boq.createdById, ctx.userId)) {
+      throw new ServiceError("You cannot approve a BOQ you created yourself -- an independent approver is required", 403)
+    }
     const [row] = await db.update(constructionBoqs)
       .set({ status: "approved", approvedById: ctx.userId, approvedAt: new Date(), updatedAt: new Date() })
       .where(eq(constructionBoqs.id, boqId)).returning()
