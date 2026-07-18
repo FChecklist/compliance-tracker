@@ -41,6 +41,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-084003-calculation-engine--calculation-governan) -- Calculation Engine / Calculation Governance gap closure (5 findings)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap closure for 5 findings scoped to the
+      VCEL calculation-engine module: Calculation Explainability (Medium),
+      Calculation Version Control (High), Calculation Auditability
+      (Medium), Formula Testing Framework (Medium), AI Suggested
+      Calculations (Low). Re-verified via fresh code read before starting
+      (docs/master/CAPABILITY_COVERAGE.md's "26 of 211 wired" figure is a
+      stale 2026-07-09 snapshot -- capability-tree-service.ts/
+      task-execution-engine.ts as of 2026-07-14 actually wire ~160-170
+      engineKeys; noting this in PROGRESS.md rather than trusting the doc).
+      File scope: src/lib/db/schema.ts (computationEngines version columns
+      + new calculation_invocations audit table), a new drizzle/02xx
+      migration, src/lib/engines/engine-invocation.ts (new thin
+      invoke-and-audit wrapper), src/lib/engines/in/income-tax-engine.ts,
+      src/lib/engines/in/gst-engine.ts, src/lib/engines/payroll-engine.ts,
+      src/lib/engines/in/tds-engine.ts (optional breakdown/steps field on
+      a representative set of statutory result types), src/lib/
+      task-execution-engine.ts's executeEngineDispatch (route dispatchEngine
+      through the new wrapper; emit structured breakdown message when
+      present), src/lib/structured-message.ts +
+      src/components/chat/StructuredMessageContent.tsx (new "calculation"
+      structured-message type, extending the existing Wave 151
+      summary/confirmation renderer), src/components/veri-chat/
+      VeriComposer.tsx (calculator-suggestion row off the existing chain
+      picker search box), src/lib/engines/*.test.ts (new golden-value
+      formula test suite). NOT touching
+      src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope -- this task has no RBAC dimension.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
