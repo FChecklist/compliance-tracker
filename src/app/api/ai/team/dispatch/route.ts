@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { classifyTask, runRole, runGuardrailLevel, getRole } from "@/lib/ai-team/team-service"
+import { resolveEffectiveModel } from "@/lib/ai-team/roster-overrides"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
+import { detectKnowledgeGap } from "@/lib/knowledge-sufficiency-gate"
 import { recordActivity } from "@/lib/activity-log-service"
 import { estimateCostUsd } from "@/lib/llm-client"
 import { classifyRisk, type BlastRadius } from "@/lib/risk-classification"
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
 import { buildDispatchSelfAssessment, checkQaPreCompletionGate } from "@/lib/qa-precompletion-gate"
+import { computeDispatchConfidencePercentage } from "@/lib/dispatch-confidence-scoring"
+import { bandConfidence } from "@/lib/confidence-banding"
 import { checkResponseVocabulary, checkVocabularyDispatchEligibility, type VocabularyDispatchType } from "@/lib/response-vocabulary-gate"
 
 registerAllGuardrails()
@@ -121,7 +126,16 @@ export async function POST(request: NextRequest) {
         blockedBy: { reason: `Role "${classification.role}" could not be resolved to a callable model.`, guidance: "Check the role_key -- it must be a real, LLM-backed role in roster.ts (not human-only or code-only)." },
       }, { status: 422 })
     }
-    const tierCheck = checkTierEligibility(targetRole.model, complexityTier!)
+    // VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+    // 2026-07-18): checked against the EFFECTIVE model (DB override if an
+    // admin set one, else targetRole.model) -- runRole() below resolves the
+    // exact same value for the actual call, so this gate can never pass a
+    // static model that isn't the one that actually runs. Checking
+    // targetRole.model here while an override silently ran a different,
+    // ineligible model would be a real guardrail bypass, not just a stale
+    // check.
+    const effectiveModel = (await resolveEffectiveModel(classification.role)) ?? targetRole.model
+    const tierCheck = checkTierEligibility(effectiveModel, complexityTier!)
     if (!tierCheck.eligible) {
       if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
@@ -130,6 +144,20 @@ export async function POST(request: NextRequest) {
         blockedBy: { reason: tierCheck.reason, guidance: tierCheck.guidance },
       }, { status: 422 })
     }
+
+    // AIROUTER-01 (Mother Router, Owner directive 2026-07-18): fire-and-
+    // forget audit log of this dispatch's resolved model into
+    // ai_routing_audit_log. Deliberately NOT awaited and NOT consumed --
+    // this route's own tierCheck/targetRole.model above remain the actual
+    // gate and dispatch model, unchanged. See mother-router.ts's own header
+    // for why this route wasn't rewired to consume a policy override in
+    // this pass (a disclosed, deliberate scope decision, not an oversight).
+    void resolveMotherRouterModel({
+      scope: "software_team",
+      model: targetRole.model,
+      complexityTier: complexityTier!,
+      roleKey: classification.role,
+    }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
 
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
@@ -162,6 +190,14 @@ export async function POST(request: NextRequest) {
     // Guardrail levels below only ran when a caller explicitly opted in.
     const lowConfidence = detectLowConfidenceResponse(execution.content)
 
+    // GP-06 (Knowledge, CONSTITUTION.yaml): "no 'do I have sufficient
+    // knowledge' self-check exists" -- a distinct failure mode from generic
+    // hedging (lowConfidence above): an explicit admission the executing
+    // role lacked the knowledge/access to do the task at all. Same
+    // deterministic, no-extra-LLM-call posture, its own independent
+    // requiresAudit trigger below.
+    const knowledgeGap = detectKnowledgeGap(execution.content)
+
     // GAP-RESPONSE-VOCABULARY: for a dispatch that declared a fixed
     // vocabulary (only possible here at all because of the mechanical-tier
     // eligibility gate above), validate the model's raw reply against it.
@@ -185,7 +221,7 @@ export async function POST(request: NextRequest) {
     // input the caller doesn't already provide.
     const blastRadius: BlastRadius = touchesAccount || touchesUser ? "platform" : touchesProduct ? "org" : "single"
     const riskLevel = classifyRisk({ highImpactCategory: detectHighImpactAction(objective ?? "").category, blastRadius })
-    const requiresAudit = lowConfidence.detected || riskLevel === "high" || riskLevel === "critical" || (vocabularyCheck !== null && !vocabularyCheck.allowed)
+    const requiresAudit = lowConfidence.detected || knowledgeGap.insufficientKnowledge || riskLevel === "high" || riskLevel === "critical" || (vocabularyCheck !== null && !vocabularyCheck.allowed)
 
     const guardrails: Record<string, unknown> = { platform: platformGuardrails }
     if (touchesProduct || requiresAudit) guardrails.product = await runGuardrailLevel("GUARDRAIL_PRODUCT", execution.content)
@@ -214,6 +250,8 @@ export async function POST(request: NextRequest) {
       riskLevel,
       lowConfidenceDetected: lowConfidence.detected,
       lowConfidenceMatchedPhrase: lowConfidence.matchedPhrase,
+      knowledgeGapDetected: knowledgeGap.insufficientKnowledge,
+      knowledgeGapMatchedPhrase: knowledgeGap.matchedPhrase,
       outputSummary: `${execution.content.length}-character response from ${execution.role.title} (${execution.role.roleKey})`,
     })
     // GOV-08 (HANDOVER_PROTOCOL_LEAF) reused unmodified to validate the
@@ -239,6 +277,18 @@ export async function POST(request: NextRequest) {
     const qaGate = checkQaPreCompletionGate({ handoverValidationPassed: selfAssessmentFields.validationPassed })
     const lifecycleStage = qaGate.passed ? "completed" : "reviewing"
 
+    // GP-09 (Confidence) gap-closure: a real numeric score, computed here
+    // rather than left to an optional reviewer-supplied value at closure
+    // time -- see dispatch-confidence-scoring.ts's header for why this is
+    // still an honest proxy (never a model self-reported number) and not a
+    // claim that the source document's literal mechanism now exists.
+    const confidencePercentage = computeDispatchConfidencePercentage({
+      lowConfidenceDetected: lowConfidence.detected,
+      knowledgeGapDetected: knowledgeGap.insufficientKnowledge,
+      riskLevel,
+    })
+    const confidenceBand = bandConfidence(confidencePercentage)
+
     const activityRow = orgId
       ? await recordActivity({
           orgId, userId: dbUser.id, activityType: "ai_team_dispatch",
@@ -248,9 +298,13 @@ export async function POST(request: NextRequest) {
           // Real cost when this model's pricing is known (estimateCostUsd
           // returns null for an unpriced model) -- forwarded to the
           // reflection row's cost verdict, never fabricated.
-          costUsd: estimateCostUsd(targetRole.model, execution.usage) ?? undefined,
+          // execution.role.model (not targetRole.model) -- reflects the
+          // model actually called, in case an override was in effect.
+          costUsd: estimateCostUsd(execution.role.model!, execution.usage) ?? undefined,
           riskLevel,
           selfAssessment: handoverFieldCheck.passed ? selfAssessmentFields : undefined,
+          confidencePercentage,
+          confidenceBand,
         })
       : null
 
@@ -262,7 +316,10 @@ export async function POST(request: NextRequest) {
       usage: execution.usage,
       requiresAudit,
       riskLevel,
+      confidencePercentage,
+      confidenceBand,
       lowConfidenceSignal: lowConfidence.detected ? lowConfidence.matchedPhrase : null,
+      knowledgeGapSignal: knowledgeGap.insufficientKnowledge ? knowledgeGap.matchedPhrase : null,
       // GAP-RESPONSE-VOCABULARY: null when responseVocabulary wasn't
       // declared (ordinary free-form dispatch, unchanged). When declared,
       // always surfaced -- both the match and the honest mismatch case --
@@ -289,4 +346,36 @@ export async function GET() {
   }
   const { AI_TEAM_ROSTER } = await import("@/lib/ai-team/roster")
   return NextResponse.json({ roster: AI_TEAM_ROSTER })
+}
+
+// VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+// 2026-07-18): the roster.ts role->model mapping admin edit surface --
+// GET .../roster/overrides for the joined roster+override view (see the
+// dedicated route below), PATCH here to set or clear one role's override.
+// Kept on this same dispatch route file rather than a new one -- this IS
+// the AI Dev Team dispatch surface these overrides govern, same
+// veridian_admin gate as GET above.
+export async function PATCH(request: NextRequest) {
+  const { user, dbUser, response: authError } = await requireAuth()
+  if (!user) return authError!
+  if (!dbUser || dbUser.role !== "veridian_admin") {
+    return NextResponse.json({ error: "veridian_admin-only" }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json()
+    const { roleKey, model, reason } = body as { roleKey?: string; model?: string | null; reason?: string }
+    if (!roleKey) return NextResponse.json({ error: "roleKey is required" }, { status: 400 })
+
+    const { setRoleOverride, clearRoleOverride } = await import("@/lib/ai-team/roster-overrides")
+    if (model === null || model === undefined) {
+      await clearRoleOverride(roleKey)
+      return NextResponse.json({ status: "cleared", roleKey })
+    }
+    await setRoleOverride(roleKey, model, dbUser.id, reason)
+    return NextResponse.json({ status: "set", roleKey, model })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to set role override"
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }
