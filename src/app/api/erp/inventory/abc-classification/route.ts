@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listAbcClassifications, computeAbcClassification, ServiceError } from "@/lib/services/erp-inventory-planning-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET() {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ classifications: [] })
 
@@ -18,9 +19,12 @@ export async function GET() {
 }
 
 export async function POST() {
-  const { response, orgId } = await requireAuth()
+  const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: analytical computation, no financial commitment
+  const roleErr = requirePermissionForUser(dbUser, "erp.inventory.abc_classification")
+  if (roleErr) return roleErr
 
   try {
     const classified = await computeAbcClassification({ orgId })

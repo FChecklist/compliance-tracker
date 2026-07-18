@@ -47,7 +47,9 @@ export async function callLLMCached(
 
   const hit = await db.query.llmResponseCache.findFirst({ where: eq(llmResponseCache.cacheKey, cacheKey) });
   if (hit && hit.expiresAt > now) {
-    return { content: hit.content, usage: { promptTokens: hit.promptTokens, completionTokens: hit.completionTokens }, cached: true };
+    // durationMs: 0 -- a cache hit made no real provider call, so there is
+    // no latency to report (distinct from a genuinely instant 0ms call).
+    return { content: hit.content, usage: { promptTokens: hit.promptTokens, completionTokens: hit.completionTokens }, durationMs: 0, cached: true };
   }
 
   const result = await callLLM(provider, model, apiKey, systemPrompt, userMessage, options, fallback);

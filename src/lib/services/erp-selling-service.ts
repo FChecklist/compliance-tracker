@@ -38,6 +38,7 @@ export { ServiceError }
 import { requireErpEnabled } from "./erp-enablement-service"
 import { logActivity } from "@/lib/audit"
 import type { PagedResult } from "./crm-service"
+import { isSelfApproval } from "./approval-workflow-service"
 
 // Priority 17 Wave 1 (multi-currency Selling & Buying): identical
 // validation shape to erp-invoicing-service.ts's resolveInvoiceCurrency()
@@ -356,6 +357,15 @@ export async function updateQuotationStatus(ctx: { orgId: string; userId: string
     const allowed = QUOTATION_TRANSITIONS[currentStatus] ?? []
     if (!allowed.includes(status)) {
       throw new ServiceError(`Cannot move a '${currentStatus}' quotation to '${status}' -- valid next status(es): ${allowed.length ? allowed.join(", ") : "none (terminal)"}`, 409)
+    }
+    // Separation of Duties: the 'approved' transition is this quotation's
+    // real approval gate (route.ts already requires a real dbUser + manager
+    // rank for it) -- but rank alone doesn't stop the quotation's own
+    // creator, if they hold manager rank, from approving their own quote.
+    // Same isSelfApproval() semantics as the shared Approval Workflow
+    // Engine (approval-workflow-service.ts).
+    if (status === "approved" && isSelfApproval(existing.createdById, ctx.userId)) {
+      throw new ServiceError("You cannot approve a quotation you created yourself -- an independent approver is required", 403)
     }
     const [updated] = await db.update(erpQuotations).set({ status }).where(eq(erpQuotations.id, quotationId)).returning()
     return updated

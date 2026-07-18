@@ -136,16 +136,13 @@ async function runOfficeCli(args: string[]): Promise<string> {
   }
 }
 
-/**
- * Extracts raw text from a .docx buffer via the vendored OfficeCLI binary.
- * Returns a `{ value: string }` shape matching `mammoth.extractRawText()`'s
- * return value, since that is exactly what this function replaces at its
- * one real call site (ai-report-builder-service.ts's isWordDoc() branch) --
- * kept identical on purpose so the call site needs no destructuring change.
- */
-export async function extractDocxRawText(buffer: Buffer): Promise<{ value: string }> {
+// Shared by extractDocxRawText/extractPptxRawText below -- the only
+// difference between the two formats at this call site is the tmp file's
+// extension (OfficeCLI dispatches its format handling off the file
+// extension, confirmed live for both .docx and .pptx during this task).
+async function extractOfficeRawText(buffer: Buffer, extension: "docx" | "pptx"): Promise<{ value: string }> {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "officecli-"))
-  const tmpFile = path.join(tmpDir, "upload.docx")
+  const tmpFile = path.join(tmpDir, `upload.${extension}`)
 
   try {
     await fs.writeFile(tmpFile, buffer)
@@ -172,4 +169,27 @@ export async function extractDocxRawText(buffer: Buffer): Promise<{ value: strin
     // so that never surfaces as a request failure.
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
+}
+
+/**
+ * Extracts raw text from a .docx buffer via the vendored OfficeCLI binary.
+ * Returns a `{ value: string }` shape matching `mammoth.extractRawText()`'s
+ * return value, since that is exactly what this function replaces at its
+ * one real call site (ai-report-builder-service.ts's isWordDoc() branch) --
+ * kept identical on purpose so the call site needs no destructuring change.
+ */
+export async function extractDocxRawText(buffer: Buffer): Promise<{ value: string }> {
+  return extractOfficeRawText(buffer, "docx")
+}
+
+// VERIDIAN Review Framework remediation ("Supports Multiple Input Types",
+// 2026-07-18): verified live against the real vendored binary before this
+// was written (create pptx -> add slide -> add shape with text -> close ->
+// `query <file> "p" --json`) -- the same `p` (paragraph) selector used for
+// docx returns the shape's paragraph/run text at
+// /slide[n]/shape[...]/paragraph[n], with the same top-level `text` field
+// parseQueryResultToText() already concatenates. Real query output, not
+// assumed from docx's own behavior.
+export async function extractPptxRawText(buffer: Buffer): Promise<{ value: string }> {
+  return extractOfficeRawText(buffer, "pptx")
 }

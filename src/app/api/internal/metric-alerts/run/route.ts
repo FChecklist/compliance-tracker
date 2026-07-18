@@ -3,6 +3,7 @@ import { evaluateAllMetricAlertRules } from "@/lib/services/metric-alert-service
 import { checkTicketSlaBreaches } from "@/lib/services/ticket-service"
 import { checkTaskOverdue } from "@/lib/services/task-service"
 import { reprioritizeTasks } from "@/lib/services/task-reprioritization-service"
+import { checkCostCeilingBreaches } from "@/lib/cost-guard"
 
 /**
  * Cron-triggered entry point for Wave 38's metric alert rules
@@ -23,6 +24,12 @@ import { reprioritizeTasks } from "@/lib/services/task-reprioritization-service"
  * checkTaskOverdue: that function only notifies (read-only); reprioritizeTasks
  * is the real WRITE to tasks.priority. See task-reprioritization-service.ts's
  * own header for the honest scope of what this does and does not cover.
+ *
+ * AI Cost Governance & FinOps gap-closure (2026-07-18) adds
+ * checkCostCeilingBreaches() as a fifth consumer -- same reuse-this-cron
+ * reasoning, notify-only like checkTicketSlaBreaches/checkTaskOverdue. See
+ * cost-guard.ts for what it checks and why it re-notifies daily rather than
+ * tracking dedup state.
  */
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
@@ -35,13 +42,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const [metricAlerts, ticketSla, taskOverdue, taskReprioritization] = await Promise.all([
+    const [metricAlerts, ticketSla, taskOverdue, taskReprioritization, costCeiling] = await Promise.all([
       evaluateAllMetricAlertRules(),
       checkTicketSlaBreaches(),
       checkTaskOverdue(),
       reprioritizeTasks(),
+      checkCostCeilingBreaches(),
     ])
-    return NextResponse.json({ ranAt: new Date().toISOString(), metricAlerts, ticketSla, taskOverdue, taskReprioritization })
+    return NextResponse.json({ ranAt: new Date().toISOString(), metricAlerts, ticketSla, taskOverdue, taskReprioritization, costCeiling })
   } catch (error) {
     console.error("Metric alert evaluation run failed:", error)
     return NextResponse.json({ error: "Metric alert evaluation run failed" }, { status: 500 })
