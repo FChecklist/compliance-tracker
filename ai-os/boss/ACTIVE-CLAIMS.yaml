@@ -1913,6 +1913,18 @@ active:
       TIER2 (touches drizzle/0225 + schema.ts) -- NOT self-merged. Reported
       to Owner as ready for sign-off.
 
+  - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue and merge PR #425"
+    claimed_at: "2026-07-18T21:25:30Z"
+    claim: |
+      Rescuing PR #425 (branch worker/task-20260718-084006-checks---
+      balances--audit-trail---immutab) per the standard rescue protocol:
+      checkout real PR head, merge origin/main, renumber any drizzle
+      migration if present, run tsc/lint/test locally, push, post
+      structured AUDIT comment, wait for CI, merge if TIER1+green or
+      report TIER2 for Owner sign-off if it touches drizzle/*.sql or
+      schema.ts. File scope: whatever PR #425's own diff touches, plus
+      this task's own PROGRESS.md and this claim entry.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
