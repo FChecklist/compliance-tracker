@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { getComplianceItem, updateComplianceItem, deleteComplianceItem, ServiceError } from "@/lib/services/compliance-service"
+import { getComplianceItem, updateComplianceItem, deleteComplianceItem, ServiceError, serviceErrorBody } from "@/lib/services/compliance-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const result = await getComplianceItem({ orgId: ctx.orgId }, id)
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) return NextResponse.json(serviceErrorBody(error), { status: error.status })
     console.error("Compliance detail API error:", error)
     return NextResponse.json({ error: "Failed to fetch compliance item" }, { status: 500 })
   }
@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     )
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) return NextResponse.json(serviceErrorBody(error), { status: error.status })
     console.error("Compliance update API error:", error)
     return NextResponse.json({ error: "Failed to update compliance item" }, { status: 500 })
   }
@@ -58,7 +58,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     )
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) return NextResponse.json(serviceErrorBody(error), { status: error.status })
     console.error("Compliance delete API error:", error)
     return NextResponse.json({ error: "Failed to delete compliance item" }, { status: 500 })
   }

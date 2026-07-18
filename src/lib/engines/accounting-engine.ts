@@ -3,6 +3,7 @@
 // (double-entry/journal/ledger posting/trial balance/P&L/balance sheet/cash
 // flow/financial-year-close/chart-of-accounts are already implemented there).
 import Decimal from "decimal.js"
+import type { EngineResult, EngineResultStep } from "./types"
 
 export type LedgerAccountBalance = { accountId: string; debit: number; credit: number }
 
@@ -21,6 +22,30 @@ export function verifyBalancesNetToZero(balances: LedgerAccountBalance[]): { bal
   const totalCredit = balances.reduce((sum, b) => sum.plus(b.credit), new Decimal(0))
   const difference = totalDebit.minus(totalCredit)
   return { balanced: difference.abs().lt(0.01), totalDebit: totalDebit.toNumber(), totalCredit: totalCredit.toNumber(), difference: difference.toNumber() }
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// additive EngineResult-shaped variant, alongside (not replacing)
+// verifyBalancesNetToZero() above -- see engines/types.ts's header for why
+// this is additive rather than a signature change. Wired into
+// task-execution-engine.ts's balance_verification_engine case, the only
+// real caller (confirmed via grep). Closes "Explains Calculations
+// Step-by-Step" for this engine: `steps` lists each account's own
+// debit/credit contribution, not just the final total.
+export function verifyBalancesNetToZeroExplained(balances: LedgerAccountBalance[]): EngineResult<{ balanced: boolean; totalDebit: number; totalCredit: number; difference: number }> {
+  const result = verifyBalancesNetToZero(balances)
+  const steps: EngineResultStep[] = balances.map((b) => ({ label: `Account ${b.accountId}`, value: `Dr ${b.debit} / Cr ${b.credit}` }))
+  steps.push({ label: "Total Debit", value: result.totalDebit })
+  steps.push({ label: "Total Credit", value: result.totalCredit })
+  steps.push({ label: "Difference (Debit - Credit)", value: result.difference })
+  return {
+    value: result,
+    explanation: result.balanced
+      ? `The ${balances.length} account balance(s) net to zero (within the 0.01 rounding tolerance) -- total debits and total credits match, so this trial balance is in balance.`
+      : `The ${balances.length} account balance(s) do NOT net to zero -- total debits (${result.totalDebit}) and total credits (${result.totalCredit}) differ by ${result.difference}. This trial balance is out of balance.`,
+    assumptions: ["A difference within 0.01 (absolute) is treated as balanced, to absorb floating-point/rounding noise, not a real imbalance."],
+    steps,
+  }
 }
 
 // Consolidation Engine -- simple additive consolidation with intercompany elimination

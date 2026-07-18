@@ -33,6 +33,14 @@ export type RecordOrchestraExecutionInput = {
   provider?: string;
   model?: string;
   usage?: LLMUsage;
+  // AI Architecture / Explainability & Transparency gap-closure
+  // (2026-07-18): "Explains Workflow Decisions" -- plain-language reason
+  // this call routed to `model`/`provider` (e.g. "escalated off the floor
+  // tier: high-impact action detected" or "using org's own configured
+  // model"). Optional -- only call sites that actually made a routing
+  // decision (as opposed to always using the one model an org has
+  // configured) have anything real to say here.
+  routingRationale?: string;
 };
 
 export function recordOrchestraExecution(params: RecordOrchestraExecutionInput): void {
@@ -58,6 +66,7 @@ export function recordOrchestraExecution(params: RecordOrchestraExecutionInput):
       promptTokens: params.usage?.promptTokens ?? null,
       completionTokens: params.usage?.completionTokens ?? null,
       costUsd: costUsd !== null ? costUsd.toFixed(6) : null,
+      routingRationale: params.routingRationale ?? null,
     });
   }).catch((err) => console.warn(`orchestra_executions logging failed for layer '${params.layerKey}' (non-fatal):`, err));
 }

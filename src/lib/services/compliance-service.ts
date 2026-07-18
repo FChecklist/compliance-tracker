@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/audit"
 import { notifyAssigned } from "@/lib/email"
 import { checkAndUnlockAchievements } from "./veri-reward-service"
 import type { ServiceContext, ReadContext } from "./context"
+import { lookupErrorCode, type ErrorCode } from "@/lib/errors/error-catalog"
 
 export const VALID_STATUSES = ["pending", "in_progress", "completed", "overdue", "not_applicable", "draft"] as const
 export const VALID_PRIORITIES = ["low", "medium", "high", "critical"] as const
@@ -27,6 +28,18 @@ export type ListComplianceFilters = {
   limit?: number
 }
 
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// `code` is optional and additive -- every existing `new ServiceError(message,
+// status)` call site across the codebase keeps working unchanged. When a
+// caller does pass a code that matches ERROR_CODES, friendlyMessage/
+// remediationSteps are looked up automatically; a caller can also pass its
+// own explicit friendlyMessage/remediationSteps to override the catalog
+// (e.g. when the technical message already needs a one-off explanation the
+// generic catalog entry doesn't cover). `message` remains the precise,
+// technical string every current `instanceof ServiceError` catch block
+// already reads -- this never changes existing behavior, only adds fields a
+// caller can opt into surfacing.
+//
 // Exception Handling Framework (VERIDIAN Review Framework gap closure,
 // Checks & Balances / Exception Handling & Recovery track, 2026-07-18):
 // every service function in this codebase already threw a real, meaningful
@@ -50,13 +63,44 @@ export type ListComplianceFilters = {
 export type ExceptionKind = "business" | "system"
 
 export class ServiceError extends Error {
+  public code?: ErrorCode | string
+  public friendlyMessage?: string
+  public remediationSteps?: string[]
   public readonly kind: ExceptionKind
   public readonly retryable: boolean
 
-  constructor(message: string, public status: number, opts?: { kind?: ExceptionKind; retryable?: boolean }) {
+  constructor(
+    message: string,
+    public status: number,
+    opts?: {
+      code?: ErrorCode | string
+      friendlyMessage?: string
+      remediationSteps?: string[]
+      kind?: ExceptionKind
+      retryable?: boolean
+    }
+  ) {
     super(message)
+    this.code = opts?.code
+    const catalogEntry = lookupErrorCode(opts?.code)
+    this.friendlyMessage = opts?.friendlyMessage ?? catalogEntry?.friendlyMessage
+    this.remediationSteps = opts?.remediationSteps ?? catalogEntry?.remediationSteps
     this.kind = opts?.kind ?? (status >= 500 ? "system" : "business")
     this.retryable = opts?.retryable ?? this.kind === "system"
+  }
+}
+
+/**
+ * The additive response-body shape a route CAN opt into for a ServiceError
+ * catch (existing `{ error: error.message }` call sites are untouched --
+ * this is a new, richer alternative, not a required migration).
+ */
+export function serviceErrorBody(error: ServiceError) {
+  return {
+    error: error.message,
+    ...(error.code ? { code: error.code } : {}),
+    ...(error.friendlyMessage ? { friendlyMessage: error.friendlyMessage } : {}),
+    ...(error.remediationSteps?.length ? { remediationSteps: error.remediationSteps } : {}),
   }
 }
 
@@ -157,9 +201,9 @@ export async function createComplianceItem(ctx: ServiceContext, input: CreateCom
     period, financialYear, acknowledgementNumber, registrationNumber, amount, filedDate, paidDate,
     recurrenceType, clientId } = input
 
-  if (!title || title.trim().length === 0) throw new ServiceError("Title is required", 400)
-  if (!complianceType) throw new ServiceError("complianceType is required", 400)
-  if (!departmentId) throw new ServiceError("departmentId is required", 400)
+  if (!title || title.trim().length === 0) throw new ServiceError("Title is required", 400, { code: "VALIDATION_FAILED" })
+  if (!complianceType) throw new ServiceError("complianceType is required", 400, { code: "VALIDATION_FAILED" })
+  if (!departmentId) throw new ServiceError("departmentId is required", 400, { code: "VALIDATION_FAILED" })
   const parsedDueDate = dueDate ? new Date(dueDate) : null
   if (!parsedDueDate || isNaN(parsedDueDate.getTime())) throw new ServiceError("A valid dueDate is required", 400)
 
@@ -225,7 +269,7 @@ export async function getComplianceItem(ctx: ReadContext, id: string) {
     return { item, logs }
   })
 
-  if (!result) throw new ServiceError("Compliance item not found", 404)
+  if (!result) throw new ServiceError("Compliance item not found", 404, { code: "NOT_FOUND" })
   const { item, logs } = result
 
   return {
@@ -423,7 +467,7 @@ export async function deleteComplianceItem(ctx: ServiceContext, id: string) {
     return true
   })
 
-  if (!result) throw new ServiceError("Compliance item not found", 404)
+  if (!result) throw new ServiceError("Compliance item not found", 404, { code: "NOT_FOUND" })
   return { success: true }
 }
 

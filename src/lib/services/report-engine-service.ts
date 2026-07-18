@@ -302,6 +302,27 @@ export function getTableRegistryMetadata(): Record<string, { columns: string[] }
  * TABLE_REGISTRY, since most tables genuinely have no company dimension and
  * a caller passing companyId "just in case" shouldn't break the report.
  */
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Reports & Dashboards" -- deterministic_aggregation rows (110/204,
+// 54% of report_definitions) previously returned {columns,rows} with zero
+// `note` at all, the only executionType with no explanation whatsoever (see
+// PROGRESS.md for the full before/after coverage numbers). This generates a
+// real, config-derived note for every aggregation run instead -- what table
+// it queried, how it grouped/aggregated, and any filters actually applied --
+// rather than a static placeholder, since the real config is right here.
+export function buildAggregationNote(
+  config: { tableKey?: string; groupByColumn?: string; aggregation: "count" | "sum" | "avg"; aggregationColumnKey?: string; filterEquals?: { columnKey: string; value: string | number | boolean } },
+  runtimeScope?: { companyId?: string }
+): string {
+  const aggLabel = config.aggregation === "count" ? "Count of records" : config.aggregation === "sum" ? `Sum of "${config.aggregationColumnKey}"` : `Average of "${config.aggregationColumnKey}"`
+  const groupedBy = config.groupByColumn ? `grouped by "${config.groupByColumn}"` : "as a single ungrouped total"
+  const filters: string[] = []
+  if (config.filterEquals) filters.push(`"${config.filterEquals.columnKey}" = ${JSON.stringify(config.filterEquals.value)}`)
+  if (runtimeScope?.companyId) filters.push(`company = ${runtimeScope.companyId}`)
+  const filterClause = filters.length > 0 ? `, filtered to rows where ${filters.join(" and ")}` : ""
+  return `${aggLabel} from "${config.tableKey}", ${groupedBy}${filterClause}, scoped to your organisation only.`
+}
+
 export async function runAggregationFromConfig(ctx: { orgId: string }, config: AggregationConfig, runtimeScope?: { companyId?: string }): Promise<ReportDefinitionResult> {
   const { entry, groupByColumn, aggregationColumn, filterColumn } = resolveAggregationTarget(config)
   const whereClauses: SQL[] = []
@@ -314,7 +335,11 @@ export async function runAggregationFromConfig(ctx: { orgId: string }, config: A
       groupByColumn, aggregation: config.aggregation, aggregationColumn, extraWhere,
     })
     const groupLabel = config.groupByColumn ?? "Group"
-    return { columns: [groupLabel, "Value"], rows: rows.map((r) => ({ [groupLabel]: String(r.groupValue), Value: r.value })) }
+    return {
+      columns: [groupLabel, "Value"],
+      rows: rows.map((r) => ({ [groupLabel]: String(r.groupValue), Value: r.value })),
+      note: buildAggregationNote(config, runtimeScope?.companyId && entry.columns.companyId ? runtimeScope : undefined),
+    }
   })
 }
 
