@@ -77,6 +77,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/secretarial-audit",
   "/settings",
   "/statutory-registers",
+  "/task-duplicates",
   "/tasks",
   "/tds-returns",
   "/team",

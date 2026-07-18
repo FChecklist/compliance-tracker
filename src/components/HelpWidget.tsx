@@ -11,6 +11,11 @@ import { cn } from "@/lib/utils";
 interface ChatMessage {
   question: string;
   answer: string;
+  // AI Architecture / Explainability & Transparency gap-closure
+  // (2026-07-18): "Explain Software Functionality" -- which KB pages (if
+  // any) actually grounded this answer, so the user can tell a real,
+  // documented answer apart from freeform generation.
+  sources?: { id: string; title: string; slug: string }[];
 }
 
 export default function HelpWidget() {
@@ -45,7 +50,7 @@ export default function HelpWidget() {
       });
 
       const data = await res.json();
-      setMessages((prev) => [...prev, { question, answer: data.answer }]);
+      setMessages((prev) => [...prev, { question, answer: data.answer, sources: data.sources }]);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -114,6 +119,11 @@ export default function HelpWidget() {
                       <p className="text-sm leading-relaxed text-[#1C2B3A]">
                         {msg.answer}
                       </p>
+                      {msg.sources && msg.sources.length > 0 && (
+                        <p className="text-xs text-[#1C2B3A]/50">
+                          Based on: {msg.sources.map((s) => s.title).join(", ")}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>

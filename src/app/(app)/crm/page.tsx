@@ -24,6 +24,9 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { AiDecisionExplanationCard } from "@/components/ai/AiDecisionExplanationCard";
+import { GlossaryTermTooltip } from "@/components/ai/GlossaryTermTooltip";
+import type { AiDecisionExplanation } from "@/lib/explainability/ai-decision-explanation";
 
 type Lead = {
   id: string; name: string; contactEmail: string | null; source: string | null; status: string; convertedClientId: string | null;
@@ -73,6 +76,13 @@ export default function CrmPage() {
   const [creatingOpp, setCreatingOpp] = useState(false);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+  // "Explain AI Decisions" -- an on-demand, cached-per-id "Why?" panel backed
+  // by /api/crm/{leads,opportunities}/[id]/explain, rendered via the shared
+  // AiDecisionExplanationCard rather than this page's own ad-hoc markup.
+  const [explainOpenId, setExplainOpenId] = useState<string | null>(null);
+  const [explanations, setExplanations] = useState<Record<string, AiDecisionExplanation | null>>({});
+  const [explainLoadingId, setExplainLoadingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [leadRes, oppRes] = await Promise.all([fetch("/api/crm/leads"), fetch("/api/crm/opportunities")]);
@@ -193,6 +203,22 @@ export default function CrmPage() {
       toast.error(err instanceof Error ? err.message : "Failed to analyze opportunity");
     } finally {
       setScoringId(null);
+    }
+  };
+
+  const toggleExplain = async (kind: "leads" | "opportunities", id: string) => {
+    if (explainOpenId === id) { setExplainOpenId(null); return; }
+    setExplainOpenId(id);
+    if (explanations[id] !== undefined) return;
+    setExplainLoadingId(id);
+    try {
+      const res = await fetch(`/api/crm/${kind}/${id}/explain`);
+      const data = await res.json();
+      setExplanations((prev) => ({ ...prev, [id]: res.ok ? (data.explanation ?? null) : null }));
+    } catch {
+      setExplanations((prev) => ({ ...prev, [id]: null }));
+    } finally {
+      setExplainLoadingId(null);
     }
   };
 
@@ -328,7 +354,14 @@ export default function CrmPage() {
                         {creatingTaskId === lead.id ? <Loader2 className="size-3 animate-spin mr-1" /> : <ListChecks className="size-3 mr-1" />}
                         Create Task
                       </Button>
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => toggleExplain("leads", lead.id)}>
+                        {explainLoadingId === lead.id ? <Loader2 className="size-3 animate-spin mr-1" /> : null}
+                        {explainOpenId === lead.id ? "Hide why" : "Why?"}
+                      </Button>
                     </p>
+                  )}
+                  {explainOpenId === lead.id && explanations[lead.id] && (
+                    <AiDecisionExplanationCard explanation={explanations[lead.id]!} />
                   )}
                 </div>
               ))}
@@ -389,7 +422,8 @@ export default function CrmPage() {
                     </div>
                     {opp.aiWinProbability != null && (
                       <Badge variant="outline" className="text-xs gap-1">
-                        <Sparkles className="size-3 text-ct-saffron" /> {opp.aiWinProbability}% win
+                        <Sparkles className="size-3 text-ct-saffron" /> {opp.aiWinProbability}%{" "}
+                        <GlossaryTermTooltip term="Win Probability">win</GlossaryTermTooltip>
                       </Badge>
                     )}
                     <Badge className={`text-xs border-0 ${OPP_STAGE_COLORS[opp.stage] ?? "bg-ct-cloud text-ct-muted"}`}>{opp.stage}</Badge>
@@ -419,7 +453,14 @@ export default function CrmPage() {
                           Create Task
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={() => toggleExplain("opportunities", opp.id)}>
+                        {explainLoadingId === opp.id ? <Loader2 className="size-3 animate-spin mr-1" /> : null}
+                        {explainOpenId === opp.id ? "Hide why" : "Why?"}
+                      </Button>
                     </p>
+                  )}
+                  {explainOpenId === opp.id && explanations[opp.id] && (
+                    <AiDecisionExplanationCard explanation={explanations[opp.id]!} />
                   )}
                 </div>
               ))}

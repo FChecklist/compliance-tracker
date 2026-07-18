@@ -77,3 +77,19 @@ export async function getOrchestraAnalytics(ctx: { orgId: string }, sinceDays: n
     }
   })
 }
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explains Workflow Decisions" -- routingRationale is written on every
+// recordOrchestraExecution() call that has one (chat-service.ts's
+// escalation decision today), but writing it isn't the same as it being
+// "surfaced on request" (the finding's own phrasing) -- this is that
+// surface: a single execution row, by id, org-scoped like every other read
+// in this file.
+export async function getOrchestraExecutionRationale(ctx: { orgId: string }, executionId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.orchestraExecutions.findFirst({
+      where: and(eq(orchestraExecutions.id, executionId), eq(orchestraExecutions.orgId, ctx.orgId)),
+      columns: { id: true, eventType: true, model: true, provider: true, status: true, routingRationale: true, createdAt: true },
+    })
+  )
+}
