@@ -132,6 +132,55 @@ active:
       Explicitly NOT touching permission-service.ts's ERP_ACTION_ROLES
       table or any other in-flight worker's declared scope, per this
       task's own instructions.
+  - session_label: "claude-code (interactive session) -- Checks & Balances / Exception Handling & Recovery gap-closure (task-20260718-091002)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing the 4 distinct findings (each listed twice in the dispatch) from
+      the VERIDIAN Review Framework's Checks & Balances / Exception Handling
+      & Recovery evaluation: Human Override & Approval (HAB-02), Exception
+      Handling Framework, Automatic Rollback & Recovery, Continuous Internal
+      Controls Monitoring (AUDIT-03 L3).
+
+      Re-read the actual current code before assuming the gap descriptions
+      still hold (per this task's own instructions) -- confirmed all 4 gaps
+      are still real as of this claim:
+        - ServiceError has 2 independent class definitions (compliance-
+          service.ts, workspace-memory-service.ts) with no retryable/business-
+          vs-system taxonomy on either.
+        - erp-fixed-assets-service.ts's runDepreciationBatch/
+          finalizeAssetDisposal post a journal entry via createJournalEntry
+          (its own committed transaction) then separately mark the source
+          row done in a LATER transaction -- if that second write throws, the
+          JE is already committed but the source row still reads "pending",
+          so a retry double-posts. approval-workflows/steps/[id]/decide/
+          route.ts has the same shape one level up: decideApprovalStep
+          commits "approved" before onWorkflowApproved's finalize call runs;
+          if that throws, the instance is stuck "approved" forever with no
+          automatic retry.
+        - AUDIT-03's L3 Rolling Health Audit has no aggregate query/report at
+          all yet (confirmed: no such route/service exists).
+        - The only real "confirmed boolean -> block execution" gate in the
+          whole codebase is task-service.ts's createTask (detectHighImpactAction
+          inlined there) -- chat-service.ts/task-execution-engine.ts/the AI
+          dispatch route only use detectHighImpactAction for model-escalation
+          risk signaling, not a confirm gate, so there's genuinely no second
+          implementation to reconcile against, just one inline block worth
+          extracting into a reusable function.
+
+      File scope: src/lib/services/compliance-service.ts (ServiceError
+      taxonomy), src/lib/services/workspace-memory-service.ts (dedup its
+      ServiceError class, same fix sales-engine-service.ts already got
+      2026-07-09), new src/lib/services/exception-taxonomy.ts, src/lib/
+      services/erp-accounting-service.ts (new voidDraftJournalEntry
+      compensating action), src/lib/services/erp-fixed-assets-service.ts,
+      src/app/api/approval-workflows/steps/[id]/decide/route.ts, new
+      src/lib/controls-health-audit.ts + src/app/api/ai/team/controls-health/
+      route.ts, src/lib/high-impact-action-detector.ts (new
+      checkHighImpactConfirmation shared function) + src/lib/services/
+      task-service.ts (adopt it, zero behavior change), ai-os/CONSTITUTION.yaml
+      (HAB-02/AUDIT-03/GP-29 status+mechanism+gap updates, amendment_log
+      entry). NOT touching src/lib/services/permission-service.ts (another
+      track's declared scope, and this task doesn't need a new RBAC entry).
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |

@@ -30,7 +30,7 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
-import { createJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
+import { createJournalEntry, voidDraftJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
@@ -481,6 +481,7 @@ export async function listDepreciationSchedule(ctx: { orgId: string }, assetId: 
 }
 
 export type DepreciationRunResult = { scheduleId: string; assetId: string; journalEntryId?: string; depreciationAmount: number }
+export type DepreciationRunFailure = { scheduleId: string; assetId: string; error: string }
 
 /**
  * Posts every unposted depreciation-schedule row (optionally scoped to one
@@ -497,7 +498,7 @@ export type DepreciationRunResult = { scheduleId: string; assetId: string; journ
  * updated -- it just has no journalEntryId, an honest "tracked but not
  * posted to the GL" state rather than silently skipping it.
  */
-export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: string; assetId?: string }): Promise<{ postedCount: number; results: DepreciationRunResult[]; skippedClosedPeriod: string[] }> {
+export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: string; assetId?: string }): Promise<{ postedCount: number; results: DepreciationRunResult[]; skippedClosedPeriod: string[]; failed: DepreciationRunFailure[] }> {
   await requireErpEnabled(ctx.orgId)
   if (!input.asOfDate) throw new ServiceError("asOfDate is required", 400)
 
@@ -509,6 +510,7 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
 
   const results: DepreciationRunResult[] = []
   const skippedClosedPeriod: string[] = []
+  const failed: DepreciationRunFailure[] = []
   for (const row of pending) {
     // Schedule rows aren't directly orgId-tagged -- resolve + org-scope the
     // owning asset per row, and silently skip (never cross-post) any row
@@ -548,18 +550,35 @@ export async function runDepreciationBatch(ctx: ErpContext, input: { asOfDate: s
       journalEntryId = je.id
     }
 
-    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-      await db.update(erpDepreciationSchedules).set({ isPosted: true, journalEntryId }).where(eq(erpDepreciationSchedules.id, row.id))
-      const newAccumulated = round2(Number(row.accumulatedDepreciationAfter))
-      const newCurrentValue = round2(Number(asset.purchaseCost) - newAccumulated)
-      await db.update(erpFixedAssets).set({ accumulatedDepreciation: newAccumulated.toString(), currentValue: newCurrentValue.toString(), updatedAt: new Date() }).where(eq(erpFixedAssets.id, asset.id))
-      await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_depreciation_schedule.posted", entityType: "erp_depreciation_schedule", entityId: row.id })
-    })
+    // Automatic Rollback & Recovery (VERIDIAN Review Framework gap closure,
+    // 2026-07-18): createJournalEntry above already committed in its own
+    // transaction. If this second, separate write throws, the schedule row
+    // stays isPosted:false -- the exact condition the `pending` query above
+    // re-selects on the next run -- so without the compensating void below,
+    // a retry would post a SECOND depreciation JE for the same row. Caught
+    // and skipped (not rethrown) rather than aborting the whole batch,
+    // matching this function's own existing "one bad row never aborts the
+    // rest" convention (asset-not-found/closed-period above).
+    try {
+      await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+        await db.update(erpDepreciationSchedules).set({ isPosted: true, journalEntryId }).where(eq(erpDepreciationSchedules.id, row.id))
+        const newAccumulated = round2(Number(row.accumulatedDepreciationAfter))
+        const newCurrentValue = round2(Number(asset.purchaseCost) - newAccumulated)
+        await db.update(erpFixedAssets).set({ accumulatedDepreciation: newAccumulated.toString(), currentValue: newCurrentValue.toString(), updatedAt: new Date() }).where(eq(erpFixedAssets.id, asset.id))
+        await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_depreciation_schedule.posted", entityType: "erp_depreciation_schedule", entityId: row.id })
+      })
+    } catch (error) {
+      if (journalEntryId) {
+        await voidDraftJournalEntry(ctx, journalEntryId, `runDepreciationBatch follow-up write failed for schedule ${row.id}`).catch(() => {})
+      }
+      failed.push({ scheduleId: row.id, assetId: asset.id, error: error instanceof Error ? error.message : String(error) })
+      continue
+    }
 
     results.push({ scheduleId: row.id, assetId: asset.id, journalEntryId, depreciationAmount: Number(row.depreciationAmount) })
   }
 
-  return { postedCount: results.length, results, skippedClosedPeriod }
+  return { postedCount: results.length, results, skippedClosedPeriod, failed }
 }
 
 // ============================================================
@@ -770,17 +789,33 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
     // no-accounts-configured branch.
   }
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    await db.update(erpAssetDisposals).set({ status: "completed", journalEntryId }).where(eq(erpAssetDisposals.id, disposalId))
-    const [updatedAsset] = await db.update(erpFixedAssets).set({
-      status: disposal.disposalType === "sale" ? "disposed" : "scrapped",
-      currentValue: "0",
-      updatedAt: new Date(),
-    }).where(eq(erpFixedAssets.id, asset.id)).returning()
+  // Automatic Rollback & Recovery (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): createJournalEntry above already committed independently.
+  // If this final write throws, `disposal.status` stays 'pending' (this
+  // function's own re-entry guard above), so it's safely retriable -- but
+  // without voiding the just-created JE first, that retry would post a
+  // SECOND write-off/gain-loss entry for the same disposal. Void it, then
+  // rethrow the original error unchanged (single-document action, same
+  // "throw and let the caller see the real failure" convention as
+  // submitFixedAsset).
+  try {
+    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+      await db.update(erpAssetDisposals).set({ status: "completed", journalEntryId }).where(eq(erpAssetDisposals.id, disposalId))
+      const [updatedAsset] = await db.update(erpFixedAssets).set({
+        status: disposal.disposalType === "sale" ? "disposed" : "scrapped",
+        currentValue: "0",
+        updatedAt: new Date(),
+      }).where(eq(erpFixedAssets.id, asset.id)).returning()
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_asset_disposal.completed", entityType: "erp_asset_disposal", entityId: disposalId })
-    return { ...updatedAsset, disposalId, journalEntryId, gainLoss }
-  })
+      await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_asset_disposal.completed", entityType: "erp_asset_disposal", entityId: disposalId })
+      return { ...updatedAsset, disposalId, journalEntryId, gainLoss }
+    })
+  } catch (error) {
+    if (journalEntryId) {
+      await voidDraftJournalEntry(ctx, journalEntryId, `finalizeAssetDisposal follow-up write failed for disposal ${disposalId}`).catch(() => {})
+    }
+    throw error
+  }
 }
 
 /** Called from the approval-decide route once a disposal's workflow instance is rejected -- the disposal stays a real, visible 'rejected' record rather than lingering forever as 'pending'; the asset itself is untouched, still 'in_use'. */
