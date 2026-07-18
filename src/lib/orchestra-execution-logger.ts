@@ -6,9 +6,9 @@
 // jsonb (the pre-Wave-23 pattern). Fire-and-forget with a caught/logged
 // failure, matching the original helper's own posture -- observability
 // logging must never block or fail the actual AI operation it's recording.
-import { orchestraLayers, orchestraExecutions } from "@/lib/db";
+import { db, orchestraLayers, orchestraExecutions } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { estimateCostUsd, type LLMUsage } from "@/lib/llm-client";
 
 export type RecordOrchestraExecutionInput = {
@@ -60,4 +60,35 @@ export function recordOrchestraExecution(params: RecordOrchestraExecutionInput):
       costUsd: costUsd !== null ? costUsd.toFixed(6) : null,
     });
   }).catch((err) => console.warn(`orchestra_executions logging failed for layer '${params.layerKey}' (non-fatal):`, err));
+}
+
+// VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail" finding
+// (VERIDIAN_AI_CONSTITUTION.md #19 / SEC-03): TTL-based purge of the full
+// prompt/response text this module persists. Cross-org by nature (a purge
+// sweep has no single org to scope to) -- uses the direct `db` import
+// (DATABASE_URL, bypasses RLS) rather than withTenantContext, matching
+// every existing cross-org loop's own convention (see
+// instruction-mismatch-audit.ts). Only `input`/`output` are cleared; every
+// other column (status/model/tokens/cost/duration/timestamps) is left
+// untouched and permanent, so the audit trail (who/when/what model/what it
+// cost) survives purge even after the raw text itself expires.
+export const DEFAULT_ORCHESTRA_PAYLOAD_RETENTION_DAYS = 90;
+
+export type PurgeExpiredOrchestraPayloadsResult = { purgedCount: number; retentionDays: number };
+
+export async function purgeExpiredOrchestraPayloads(
+  retentionDays: number = DEFAULT_ORCHESTRA_PAYLOAD_RETENTION_DAYS
+): Promise<PurgeExpiredOrchestraPayloadsResult> {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const purged = await db
+    .update(orchestraExecutions)
+    .set({ input: {}, output: null, payloadPurgedAt: sql`now()` })
+    .where(and(isNull(orchestraExecutions.payloadPurgedAt), lt(orchestraExecutions.createdAt, cutoff)))
+    .returning({ id: orchestraExecutions.id });
+  return { purgedCount: purged.length, retentionDays };
+}
+
+/** Read-back helper for the admin/audit surface: has this row's payload already expired? Distinct from "does not exist" -- payloadPurgedAt null + row present means the payload is still live. */
+export function hasPayloadExpired(payloadPurgedAt: Date | null): boolean {
+  return payloadPurgedAt !== null;
 }

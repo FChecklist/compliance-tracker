@@ -70,6 +70,7 @@ import {
   CalendarCheck,
   GraduationCap,
   Copy,
+  Activity,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -404,6 +405,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           label: t("sections.tools.items.enterpriseKpiHub"),
           href: "/kpi-hub",
           icon: LayoutDashboard,
+        },
+        {
+          label: t("sections.tools.items.aiObservability"),
+          href: "/ai-observability",
+          icon: Activity,
         },
         {
           label: t("sections.tools.items.knowledgeBase"),

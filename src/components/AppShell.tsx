@@ -167,26 +167,46 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
         {veriChatV2Enabled ? (
-          <ResizablePanelGroup orientation="horizontal" defaultLayout={veriChatPanelLayout} onLayoutChange={onVeriChatPanelLayoutChange} className="flex-1 overflow-hidden print:block print:overflow-visible">
-            <ResizablePanel defaultSize={72} minSize={50}>
-              <div className="h-full flex flex-col overflow-hidden print:block print:overflow-visible print:h-auto">
-                <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
-                  <div className="print:hidden">
-                    {pathname !== "/home" && <OnboardingChecklist />}
-                    <TrialBanner />
-                  </div>
-                  {children}
-                </main>
-                <div className="print:hidden">
-                  <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
-                </div>
+          // Merged-Home-page pattern (compliance-tracker/veridian-scope-selector-in-home.html,
+          // the Owner's agreed UI/UX reference, confirmed 2026-07-18): on
+          // /home, VeriChatPanel merges into the main content area instead
+          // of sitting in its own side panel -- VeriChatPanel itself reads
+          // the same shared veri-chat-context state either way, so nothing
+          // it shows changes, only where it's mounted. Real, confirmed drift
+          // fixed here: this branch previously always rendered the 2-panel
+          // split, including on /home, despite the reference mockup calling
+          // for the panel to disappear there.
+          pathname === "/home" ? (
+            <div className="flex-1 flex flex-col overflow-hidden print:block print:overflow-visible print:h-auto">
+              <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
+                {children}
+              </main>
+              <div className="print:hidden">
+                <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
               </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={28} minSize={18} maxSize={40} className="print:hidden">
-              <VeriChatPanel />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+            </div>
+          ) : (
+            <ResizablePanelGroup orientation="horizontal" defaultLayout={veriChatPanelLayout} onLayoutChange={onVeriChatPanelLayoutChange} className="flex-1 overflow-hidden print:block print:overflow-visible">
+              <ResizablePanel defaultSize={72} minSize={50}>
+                <div className="h-full flex flex-col overflow-hidden print:block print:overflow-visible print:h-auto">
+                  <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
+                    <div className="print:hidden">
+                      <OnboardingChecklist />
+                      <TrialBanner />
+                    </div>
+                    {children}
+                  </main>
+                  <div className="print:hidden">
+                    <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
+                  </div>
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={28} minSize={18} maxSize={40} className="print:hidden">
+                <VeriChatPanel />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )
         ) : (
           <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
             {/* /home leads with the assistant (first-minute experience) -- the
