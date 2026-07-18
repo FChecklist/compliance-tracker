@@ -17,6 +17,13 @@ import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-trigge
 // worker-agent-service.ts/automation-rule-service.ts already follow for
 // their own entity types.
 import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
+// VERIDIAN Review Framework gap closure, 2026-07-18 ("Duplicate Work
+// Detection"): index every task at creation/edit so
+// task-dedup-service.ts's on-demand audit has something real to compare
+// against -- deliberately a separate 'task' entityType from the capability
+// registry's own indexCapability() above (see that file's own header for
+// why business tasks are a different concept from capabilities).
+import { indexTaskForDedup } from "./task-dedup-service"
 // Wave 173 (GAP-DCMD graph edge): best-effort -- when a chain-originated
 // task's org has configured a real approval_workflow_definitions row for
 // entityType 'tasks', starting a workflow instance here is what makes
@@ -251,6 +258,11 @@ export async function createTask(ctx: ServiceContext, input: {
 
   if (!result) throw new ServiceError("Assistant not found", 404)
 
+  // Best-effort, additive -- never blocks task creation on a failed
+  // embedding call, same contract as the dynamic-chain indexing below.
+  indexTaskForDedup(orgId, result.id, result.title, result.description)
+    .catch((err) => console.error(`Failed to index task ${result.id} for duplicate detection:`, err))
+
   // Wave 173 (GAP-DCMD, "a chain's task creates an approval"): best-effort,
   // additive -- only fires when this task actually resolved a dynamicChainId
   // AND the org has configured a real approval_workflow_definitions row for
@@ -358,6 +370,12 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
   if (!result) throw new ServiceError("Task not found", 404)
   if (!result.ok) throw new ServiceError(result.error, 400)
   const { updated } = result
+
+  if (input.title !== undefined || input.description !== undefined) {
+    indexTaskForDedup(orgId, updated.id, updated.title, updated.description)
+      .catch((err) => console.error(`Failed to re-index task ${updated.id} for duplicate detection:`, err))
+  }
+
   return { id: updated.id, title: updated.title, description: updated.description, status: updated.status, priority: updated.priority, updatedAt: updated.updatedAt.toISOString() }
 }
 

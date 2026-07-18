@@ -3286,11 +3286,17 @@ export const itDrFailoverTestsRelations = relations(itDrFailoverTests, ({ one })
 export const mdmDuplicateCandidates = complianceSchemaDB.table('mdm_duplicate_candidates', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
-  entityType: text('entity_type').notNull(), // 'erp_customer'|'erp_supplier'
+  // Gap closure, 2026-07-18 (VERIDIAN Review Framework, "Duplicate Data
+  // Detection"): 'erp_purchase_invoice' added as a 3rd entity type reusing
+  // this same table (free text column, no migration needed) -- see
+  // mdm-quality-service.ts's file header for why invoices reuse this
+  // workflow instead of a second parallel system, and why mergeDuplicates()
+  // explicitly refuses to auto-merge that entity type.
+  entityType: text('entity_type').notNull(), // 'erp_customer'|'erp_supplier'|'erp_purchase_invoice'
   entityIdA: text('entity_id_a').notNull(),
   entityIdB: text('entity_id_b').notNull(),
   matchScore: numeric('match_score').notNull(), // 0..1
-  matchReason: text('match_reason').notNull(), // 'name_similarity'|'gstin_match'|'pan_match'|'combined'
+  matchReason: text('match_reason').notNull(), // 'name_similarity'|'gstin_match'|'pan_match'|'combined'|'invoice_number_match'
   status: text('status').notNull().default('pending'), // 'pending'|'confirmed_duplicate'|'not_duplicate'|'merged'
   reviewedById: text('reviewed_by_id'),
   reviewedAt: timestamp('reviewed_at'),

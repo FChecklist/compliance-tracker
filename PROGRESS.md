@@ -41,27 +41,75 @@ pairs in the dispatch): "Duplicate Work Detection" (tasks table) and
         worker_agent/automation_rule/module/prompt_pattern/dynamic_chain
         only -- the finding's own text calls this "a narrower, different
         concept" from ordinary business-task dedup.
+- [x] Extended src/lib/services/mdm-quality-service.ts with a 3rd
+      MdmEntityType, 'erp_purchase_invoice': scanForDuplicates() has a new
+      exact supplierId+invoiceNumber match branch (no similarity
+      threshold needed -- an exact repeat invoice number for the same
+      supplier is never a legitimate coincidence), reusing the existing
+      mdmDuplicateCandidates table/review workflow (no migration --
+      entityType is a free-text column, only its comment was updated).
+      mergeDuplicates() now explicitly rejects this entity type (no safe
+      merge semantics for a posted invoice, which may already be paid/
+      posted to the ledger) -- confirm/not_duplicate is the terminal,
+      actionable state, documented as a deliberate boundary. Extended
+      listDuplicateCandidates() name resolution to show a human-readable
+      invoice label (supplier name + invoice number + amount). Extended
+      src/app/(app)/mdm-quality/page.tsx: entity-type selector now
+      includes "Purchase Invoices"; the Data Completeness panel (a
+      customer/supplier-only concept) is skipped for that entity type
+      instead of fetching/showing a fabricated score; confirmed invoice
+      duplicates show "Void or credit-note the duplicate manually" instead
+      of an Merge button that would just 400.
+- [x] Built src/lib/services/task-dedup-service.ts: a sibling to (NOT
+      merged into) capability-registry-service.ts -- reuses the same
+      underlying entity-agnostic src/lib/embeddings.ts
+      (storeEmbedding/findSimilar) with its own 'task' entityType,
+      deliberately kept OUT of CAPABILITY_ENTITY_TYPES (per the finding's
+      own text calling capability dedup "a narrower, different concept").
+      indexTaskForDedup() embeds title+description; findSimilarActiveTasks()
+      finds candidate matches scoped to org + optional projectId (tasks'
+      closest real "module" concept) among active (pending/in_progress)
+      tasks only; scanForDuplicateTasks() runs the same pairwise on-demand
+      audit shape as auditDuplicateCapabilities(), default threshold 0.92
+      as the finding specifies. Added task-dedup-service.test.ts covering
+      the one pure function (buildTaskDedupContent), matching this repo's
+      established "don't exercise a live DB from a .test.ts file"
+      convention (see capability-registry-service.test.ts's own note).
+- [x] Wired indexing into src/lib/services/task-service.ts: createTask()
+      and updateTask() (on title/description change) call
+      indexTaskForDedup() best-effort (fire-and-forget, never blocks task
+      creation/update on an embedding failure) -- same pattern already
+      used there for dynamic_chain capability indexing.
+- [x] New API route src/app/api/tasks/duplicates/route.ts (GET,
+      requireAuth + requireRole "manager", optional ?projectId= filter) --
+      mirrors the existing capability-registry/duplicates and
+      mdm/duplicates/scan route shape (on-demand, real embedding-API-cost
+      audit, admin/manager-triggered, never auto-merges/cancels).
+- [x] New page src/app/(app)/task-duplicates/page.tsx (manager/admin
+      gated, "Scan for duplicate tasks" button + results list) mirroring
+      src/app/(app)/capability-registry/page.tsx's established UI pattern.
+- [x] Added a "Duplicate Task Detection" nav entry (Tools section) in
+      src/components/AppSidebar.tsx + messages/en.json + messages/hi.json.
+      src/lib/protected-routes.generated.ts picked up the new
+      /task-duplicates route automatically (build-time codegen).
+- [x] Did NOT touch src/lib/services/permission-service.ts's shared
+      ERP_ACTION_ROLES table structure or any other file (per this task's
+      own instructions) -- confirmed via `git status` before finalizing.
+- [x] Verification, fresh `bun install` first (node_modules was absent):
+      bunx tsc --noEmit -- 0 errors. bun run lint -- 0 errors, 3
+      pre-existing unrelated warnings (same ones noted by the prior
+      session in this repo's history). bun test -- 1424 pass / 0 fail
+      (1421 pre-existing + 3 new). bun run build -- succeeded,
+      /task-duplicates present in the route manifest. Guardrail Presence
+      Check 88/88, Asset Registry Coverage Check 431/431 (no new table --
+      confirmed no migration needed, entityType stayed free text),
+      Metadata Index Coverage Check 30/30, Doc Quarantine Banner Check
+      44/44, Doc Cross-Reference Check 339/339. `ls drizzle/*.sql | sort
+      -V | tail` confirmed no new migration file was created.
 
 ## Remaining
-- [ ] Extend src/lib/services/mdm-quality-service.ts with a 3rd
-      MdmEntityType, 'erp_purchase_invoice': scanForDuplicates() exact
-      supplierId+invoiceNumber match branch, reusing the existing
-      mdmDuplicateCandidates table/review workflow (no migration --
-      entityType is free text). mergeDuplicates() must reject this
-      entity type (no safe merge semantics for a posted invoice);
-      confirm/not_duplicate is the terminal state. Extend
-      listDuplicateCandidates() name resolution for invoice candidates.
-- [ ] Build src/lib/services/task-dedup-service.ts: sibling to (not part
-      of) capability-registry-service.ts, own 'task' entityType over the
-      same embeddings.ts infra, org+optional-projectId scoped, active
-      (pending/in_progress) tasks only, >=0.92 threshold matching the
-      finding's own stated pattern.
-- [ ] Wire indexing into src/lib/services/task-service.ts createTask()/
-      updateTask() (best-effort, fire-and-forget).
-- [ ] New API route src/app/api/tasks/duplicates/route.ts (GET,
-      requireAuth + requireRole "manager").
-- [ ] New page src/app/(app)/task-duplicates/page.tsx + nav entry in
-      src/components/AppSidebar.tsx + messages/en.json + messages/hi.json.
-- [ ] Do NOT touch permission-service.ts's ERP_ACTION_ROLES structure.
-- [ ] Run bun test / bunx tsc --noEmit / bun run lint / bun run build.
-- [ ] Open PR against main (not self-merged).
+- [ ] Open PR against main (not self-merged), left for the supervising
+      session's audit per Rule 7(c)/Rule 10.
+- [ ] Move this session's ai-os/boss/ACTIVE-CLAIMS.yaml entry from
+      `active:` to `recently_completed:` once the PR merges (or is
+      abandoned), per that file's own protocol.

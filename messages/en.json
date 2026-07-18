@@ -206,6 +206,7 @@
           "metricAlerts": "Metric Alerts",
           "ticketing": "Ticketing",
           "capabilityRegistry": "Capability Registry",
+          "taskDuplicates": "Duplicate Task Detection",
           "veriTodoAi": "VERI To Do AI",
           "veriMomAi": "VERI MOM AI",
           "voiceTickets": "Voice Tickets",
