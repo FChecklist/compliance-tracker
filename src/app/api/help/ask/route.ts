@@ -11,6 +11,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLM } from "@/lib/llm-client";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale";
 
 export async function POST(request: NextRequest) {
   const { user, dbUser, orgId, response } = await requireAuth();
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
 
   let systemPrompt: string;
   try {
-    systemPrompt = await resolvePromptTemplate("help.ai_assistant_system");
+    const locale = await getPreferredAiResponseLocale();
+    systemPrompt = await resolvePromptTemplate("help.ai_assistant_system", "production", locale);
   } catch {
     return NextResponse.json({
       answer:
