@@ -12,7 +12,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
-import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { buildPurposeClause, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -598,6 +598,19 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // matching Wave 144's stated intent for that field ("prove what was
     // actually asked of the LLM").
     const normalizedMessage = normalizeForLlm(userMessage)
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18): "Explainability of Output" -- personalize tone/address
+    // using the real requesting user's name/role. Prepended to the message
+    // actually sent to the LLM, NOT to systemPrompt (see purpose-bound-ai.ts's
+    // buildUserContextBlock() header for why) and NOT to normalizedMessage
+    // itself, so orchestra_executions logging still shows exactly what Wave
+    // 144 intended ("what was actually asked"), unpolluted by this addition.
+    // Best-effort: a lookup failure never blocks the reply.
+    const requestingUser = await withTenantContext({ orgId, userId }, (db) =>
+      db.query.users.findFirst({ where: eq(users.id, userId), columns: { name: true, role: true } })
+    ).catch(() => null)
+    const userContextBlock = buildUserContextBlock(requestingUser)
+    const messageForLlm = userContextBlock ? `${userContextBlock}\n\n${normalizedMessage}` : normalizedMessage
 
     // Escalation (2026-07-10, founder directive): floor-tier calls
     // (!isCustomerConfigured -- never overrides an org's own BYO model)
@@ -640,7 +653,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     let { content: reply, usage } = await callLLM(
       effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
       systemPrompt,
-      normalizedMessage,
+      messageForLlm,
       // enablePromptCache is opt-in and additive (see llm-client.ts) -- only
       // callAnthropic reads it today, and only above its own minimum
       // cacheable size; every other provider silently ignores the flag and
@@ -656,7 +669,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
         if (escalated) {
           const retried = await callLLM(
             escalated.provider, escalated.model, escalated.apiKey,
-            systemPrompt, normalizedMessage,
+            systemPrompt, messageForLlm,
             { temperature: 0.4, maxTokens: 800, history, enablePromptCache: true },
             escalated.fallback
           )
@@ -712,13 +725,19 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       status: gateResult.passed ? "completed" : "gated",
       durationMs: Date.now() - startedAt,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): "Explains Workflow Decisions" -- plain-language
+      // version of the same `escalation` object already logged above.
+      routingRationale: escalation.escalated
+        ? `Escalated from ${escalation.originalModel} to ${effectiveConfig.model}: ${escalation.signals.join(", ")}${escalation.matchedPhrase ? ` (matched "${escalation.matchedPhrase}")` : ""}.`
+        : `Used ${effectiveConfig.model}, the org's configured model for this domain -- no escalation signal fired.`,
     })
     // Prompt & Cache Management Framework, Phase 1 (2026-07-14): a separate,
     // fire-and-forget record from the log above -- see promptCacheMetrics'
     // own schema comment for why this is a distinct table, not new columns
     // on orchestraExecutions.
     recordPromptCacheMetric({
-      orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
+      orgId, userId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     })
     if (!gateResult.passed) {

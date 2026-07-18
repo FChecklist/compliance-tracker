@@ -601,7 +601,18 @@ export const notifications = complianceSchemaDB.table('notifications', {
 // if a user is later renamed/deactivated, the historical log must still
 // show who they were AT THE TIME, not a live join that changes retroactively.
 // This table is append-only at the DB level: app_runtime has no UPDATE/
-// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql).
+// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql). Wave 10's
+// service_role grant (drizzle/0008_wave10_grant_service_role_compliance_
+// schema.sql) briefly re-opened this for the service_role credential --
+// closed again by drizzle/0225_audit_trail_immutability_and_backstop_
+// triggers.sql, which also adds a generic AFTER-trigger backstop
+// (`db_trigger.insert|update|delete`-prefixed rows written into this same
+// table) on the 4 highest-risk source tables (users, compliance_items,
+// erp_journal_entries, erp_payment_entries) so a write path that forgets
+// to call logActivity() still leaves a DB-level trace. See that migration's
+// header for the full design writeup and its one honest limitation
+// (the `postgres`/DATABASE_URL role still owns this table and can't be
+// REVOKEd from via ownership privileges alone).
 // `clientId` (not `clientEntityId`) to match the convention every other
 // domain table already established (complianceItems/challans/notices/
 // auditPoints/documents/tasks all scope by `clients.id`, not
@@ -1302,6 +1313,14 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   promptTokens: integer('prompt_tokens'),
   completionTokens: integer('completion_tokens'),
   costUsd: numeric('cost_usd'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): "Explains Workflow Decisions" -- no workflow/routing
+  // decision was ever explained anywhere; this row already records WHICH
+  // model/provider ran, but never WHY that one (vs. the org's own default,
+  // e.g. an escalation/fallback/floor-tier decision). Nullable/additive,
+  // same posture as the Wave 22/23 columns above -- only populated by call
+  // sites that actually have a routing decision to explain.
+  routingRationale: text('routing_rationale'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   // VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail" finding
   // (VERIDIAN_AI_CONSTITUTION.md #19 / SEC-03's own documented gap): full
@@ -4285,6 +4304,23 @@ export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one 
   parentPage: one(knowledgeBasePages, { fields: [knowledgeBasePages.parentPageId], references: [knowledgeBasePages.id] }),
 }))
 
+// ─── Business Terminology Glossary (AI Architecture / Explainability &
+// Transparency gap-closure, 2026-07-18, migration 0225) ───────────────────
+// "Explain Business Terminology" finding: no structured glossary/explainer
+// existed anywhere. orgId nullable = platform-wide, same convention as
+// report_definitions.orgId (a platform row an org sees by default, plus
+// room for an org to define its own terms later without a schema change).
+export const businessTerminologyGlossary = complianceSchemaDB.table('business_terminology_glossary', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // nullable = platform-wide
+  term: text('term').notNull(),
+  definition: text('definition').notNull(),
+  category: text('category'), // free text, e.g. 'finance' | 'compliance' | 'construction' | 'crm'
+  aliases: jsonb('aliases').notNull().default([]), // string[] alternate names/abbreviations
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Automation Rules (Wave 30, n8n-inspired trigger→condition→action) ──
 // Deliberately much smaller than n8n itself: single-condition rules, no
 // node-graph, no chained multi-step workflows, no AI/code-execution action
@@ -4573,6 +4609,15 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   aiScoreReasoning: text('ai_score_reasoning'),
   aiRecommendedAction: text('ai_recommended_action'),
   aiScoredAt: timestamp('ai_scored_at'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): additive -- rows scored before this wave simply have
+  // all three null/empty, same "never scored just shows nothing" convention
+  // as the Wave 75 columns above. aiRejectedAlternatives closes the "Explain
+  // 'Why Not' for Rejected Options" finding; aiAssumptions/aiConfidence back
+  // the shared AiDecisionExplanation shape (src/lib/explainability/).
+  aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
+  aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
+  aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4593,6 +4638,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]), // string[]
   aiRecommendedAction: text('ai_recommended_action'),
   aiAnalyzedAt: timestamp('ai_analyzed_at'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): same additive columns/rationale as crmLeads above.
+  aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
+  aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
+  aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
   // Priority 15 (Sales & CRM depth wave): next scheduled follow-up, same
   // rationale as crmLeads.nextActionDate above.
   nextActionDate: date('next_action_date', { mode: 'string' }),
@@ -8803,6 +8853,15 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   promptTokens: integer('prompt_tokens').notNull().default(0),
   completionTokens: integer('completion_tokens').notNull().default(0),
   estimatedCostUsd: numeric('estimated_cost_usd'),
+  // VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+  // 2026-07-18): prompt-cache reads (Prompt & Cache Management Framework
+  // Phase 1) were only ever reflected in prompt_cache_metrics, an
+  // observability table cost-guard.ts/getTokenUsageSummary never reads --
+  // Finance's real ledger had no idea caching was saving anything. Null
+  // when caching wasn't attempted on this call, same "absence means not
+  // attempted" contract as prompt_cache_metrics.cache_read_tokens -- see
+  // llm-client.ts's estimateCacheSavingsUsd for the computation.
+  cacheSavingsUsd: numeric('cache_savings_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

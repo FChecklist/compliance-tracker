@@ -81,6 +81,31 @@ export function buildPurposeClause(domain: string): string {
   )
 }
 
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explainability of Output" -- "No personalization of the AI's actual
+// generated content/tone" (the finding named llm-client.ts's "system prompt
+// assembly" as the fix location; that file is a pure provider-transport
+// client with zero prompt-assembly logic, confirmed by reading it in full).
+// Deliberately NOT appended to the system prompt string itself (where
+// buildPurposeClause() above lives) -- chat-service.ts's systemPrompt is
+// the exact string the Prompt & Cache Management Framework (Phase 1,
+// prompt-cache/compiler.ts) treats as one static, org/domain-shared
+// cache_control block (see llm-client.ts's callAnthropic: the WHOLE system
+// string becomes one cacheable block). Personalizing it per-user would
+// silently defeat that caching for every single call, a real cost/latency
+// regression this gap-closure should not introduce. Instead this is meant
+// to be prepended to the per-call user message (which already varies every
+// call, so it costs nothing extra) -- see chat-service.ts's generateAiReply
+// for the real call site. Built only from real fields already on the
+// `users` row (name, role) -- never fabricated, and blank when a caller has
+// neither, same "shows nothing rather than guessing" convention as every
+// other optional-signal field in this codebase.
+export function buildUserContextBlock(user: { name?: string | null; role?: string | null } | null | undefined): string {
+  if (!user?.name) return ""
+  const roleClause = user.role ? `, role: ${user.role}` : ""
+  return `[Context: speaking with ${user.name}${roleClause} -- address them naturally, keep tone appropriate for their role]`
+}
+
 export function isToolAllowedForDomain(domain: string | null | undefined, codeReference: string | null | undefined): boolean {
   if (!codeReference) return false
   const resolvedDomain = domain ?? DEFAULT_DOMAIN
