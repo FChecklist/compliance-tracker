@@ -74,6 +74,21 @@ active:
       wiring only), src/app/api/help/ask/route.ts. Not touching
       src/lib/services/permission-service.ts or any ERP/CRM/HR RBAC work
       other active claims in this file own.
+
+      UPDATE (2026-07-18, same session, before opening the PR): all 4
+      findings closed (3 real code changes + 1 documented owner-decision,
+      no unilateral action taken on that one -- see PROGRESS.md). Also
+      fixed the internal per-provider dispatch function return types in
+      llm-client.ts (callOpenAICompatible/callAnthropic/callGoogle/
+      dispatchLLM/callVisionOpenAICompatible/callVisionAnthropic/
+      callVisionGoogle/dispatchVisionLLM) to return the pre-timing
+      { content, usage } shape rather than the now-durationMs-bearing
+      LLMResult, and llm-response-cache.ts's cache-hit branch to report
+      durationMs: 0 (no real provider call made on a hit). Verification:
+      bunx tsc --noEmit clean, bun run lint 0 errors (3 pre-existing
+      warnings, unrelated files), bun test 1421 pass/0 fail across 103
+      files (full suite). PR opened against main, not merged, per
+      instructions.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
