@@ -3537,6 +3537,41 @@ recently_completed:
       worker's declared scope. Full suite green (1328 pass/0 fail), tsc
       --noEmit clean, eslint 0 errors, guardrail-presence check passed
       (88/88 markers). Branch: see PR.
+
+      UPDATE (task-20260718-212532-rescue-pr--423, same-day rescue session):
+      PR #423 (this exact claim's branch) was opened by the now-stopped
+      autonomous worker dispatcher with CI red (audit-check had no verdict
+      comment yet) and stale against main. `gh pr checkout 423` collided
+      with the original worker's own still-live worktree holding this
+      branch name -- worked around via `gh pr checkout 423 -b
+      rescue-423-local`. Merged origin/main: 3 real conflicts (PROGRESS.md
+      kept ours; ACTIVE-CLAIMS.yaml itself, this append-only log, combined
+      both sides' new entries rather than picking one; token-usage-
+      service.ts, this PR's cacheSavingsUsd addition to the totals query
+      vs. main's concurrent getPlatformMonthlyForecast() 6th parallel query
+      -- combined both). Migration 0225 confirmed already correctly
+      next-sequential (main's real highest was 0224) -- no renumbering
+      needed. Verified clean post-merge: tsc --noEmit clean, lint 0 errors
+      (3 pre-existing unrelated warnings), bun test 1527 pass/0 fail, bun
+      run build succeeds, all 6 scripts/check-*.mjs guardrail/sync checks
+      pass. Read the full diff directly -- small, additive, well-scoped,
+      correct 90% cache-read-discount math, no auth/RBAC surface touched.
+      Posted structured AUDIT: PASS PR comment (all 8 fields); audit-check
+      initially failed on the same push (job ran before the comment landed
+      -- a real race, not a content defect) and was re-triggered via `gh
+      run rerun`, then passed. All 7 branch-protection-required checks
+      green (Lint, Type Check, Build, audit-check, Guardrail Presence
+      Check, Asset Registry Coverage Check, Unit Tests); Vercel preview
+      deploy failed separately on an unrelated external rate-limit
+      ("Deployment rate limited -- retry in 24 hours", not a required
+      check, not caused by this PR's code).
+
+      NOT MERGED: this PR's own diff touches src/lib/db/schema.ts
+      (tokenUsageLedger.cacheSavingsUsd) and drizzle/0225_*.sql, making it
+      TIER2 per this rescue task's own instructions -- schema/migration-
+      touching PRs are never self-merged by a rescue session regardless of
+      how green CI is. Reported to the Owner as CI-green, audited, ready
+      for sign-off.
   - session_label: "claude-code (task-20260718-202902-rescue-pr--415) -- Rescue PR #415"
     completed_at: "2026-07-18T (this session)"
     merged_as: "NOT MERGED -- TIER2 (touches drizzle/*.sql), awaiting Owner sign-off per task instructions; also blocked on a GitHub Actions infra issue, see below."
