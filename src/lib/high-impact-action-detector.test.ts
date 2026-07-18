@@ -4,7 +4,7 @@
 // this wave, not a full backfill of detectHighImpactAction's own coverage.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { HIGH_IMPACT_CATEGORY_LABELS, HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "./high-impact-action-detector"
+import { HIGH_IMPACT_CATEGORY_LABELS, HIGH_IMPACT_CATEGORY_GUIDANCE, detectHighImpactAction, type HighImpactCategory } from "./high-impact-action-detector"
 
 describe("HIGH_IMPACT_CATEGORY_GUIDANCE", () => {
   const categories = Object.keys(HIGH_IMPACT_CATEGORY_LABELS) as HighImpactCategory[]
@@ -27,5 +27,33 @@ describe("HIGH_IMPACT_CATEGORY_GUIDANCE", () => {
     const values = categories.map((c) => HIGH_IMPACT_CATEGORY_GUIDANCE[c])
     const unique = new Set(values)
     expect(unique.size).toBe(categories.length)
+  })
+})
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Impact of Decisions" -- the 3 new categories added this wave.
+describe("detectHighImpactAction -- new categories", () => {
+  test("detects bulk operations", () => {
+    const result = detectHighImpactAction("bulk reassign all leads to Priya")
+    expect(result.isHighImpact).toBe(true)
+    expect(result.category).toBe("bulk_operations")
+  })
+
+  test("detects outbound communication sends", () => {
+    const result = detectHighImpactAction("send email to all customers about the price change")
+    expect(result.isHighImpact).toBe(true)
+    expect(result.category).toBe("communication_send")
+  })
+
+  test("detects financial posting", () => {
+    const result = detectHighImpactAction("post journal entry for March depreciation")
+    expect(result.isHighImpact).toBe(true)
+    expect(result.category).toBe("financial_posting")
+  })
+
+  test("plain informational text is not flagged", () => {
+    const result = detectHighImpactAction("show me last month's compliance summary")
+    expect(result.isHighImpact).toBe(false)
+    expect(result.category).toBeNull()
   })
 })

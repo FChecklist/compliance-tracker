@@ -11,6 +11,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLM } from "@/lib/llm-client";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { retrieveRelevantKbPages } from "@/lib/services/knowledge-base-service";
 
 export async function POST(request: NextRequest) {
   const { user, dbUser, orgId, response } = await requireAuth();
@@ -45,15 +46,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No AI model configured" }, { status: 400 });
   }
 
+  // AI Architecture / Explainability & Transparency gap-closure
+  // (2026-07-18): "Explain Software Functionality" -- ground the answer in
+  // the org's own knowledge base pages instead of pure freeform generation,
+  // when anything relevant is actually indexed. Best-effort: a retrieval
+  // failure falls back to the exact pre-existing ungrounded behavior rather
+  // than blocking the question.
+  const relevantPages = await retrieveRelevantKbPages({ orgId }, String(question ?? "")).catch(() => []);
+  const groundingBlock = relevantPages.length > 0
+    ? "\n\nRelevant knowledge base content (use this if it answers the question; say so honestly if it doesn't):\n" +
+      relevantPages.map((p) => `--- ${p.title} ---\n${(p.content ?? "").slice(0, 1500)}`).join("\n\n")
+    : "";
+
   const result = await callLLM(
     modelConfig.provider,
     modelConfig.model,
     modelConfig.apiKey,
-    systemPrompt + "\n\nCurrent page: " + currentPath,
+    systemPrompt + "\n\nCurrent page: " + currentPath + groundingBlock,
     question,
     undefined,
     modelConfig.fallback,
   );
 
-  return NextResponse.json({ answer: result.content });
+  return NextResponse.json({
+    answer: result.content,
+    // Explicit "grounded or not" signal + sources -- the finding's own
+    // recommended approach ("retrieve relevant chunks before answering").
+    sources: relevantPages.map((p) => ({ id: p.id, title: p.title, slug: p.slug })),
+  });
 }

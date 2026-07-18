@@ -8,7 +8,7 @@ import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
-import { detectHighImpactAction, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
+import { detectHighImpactAction, logHighImpactClassification, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
@@ -177,6 +177,14 @@ export async function createTask(ctx: ServiceContext, input: {
   // execution triggered until the caller resubmits with confirmed: true.
   if (!input.confirmed) {
     const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18): "Explain Risks Before Actions" -- logs every
+    // classification (matched or not) for later sample audit of misses,
+    // not just the ones that already trip the confirmation gate below.
+    logHighImpactClassification({
+      orgId, userId: dbUser.id, layerKey: "task_oa", eventType: "task.create",
+      text: `${title} ${description ?? ""}`, detection,
+    })
     if (detection.isHighImpact && detection.category) {
       // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
       // Protocol"): a user who already said "always approve"/"always

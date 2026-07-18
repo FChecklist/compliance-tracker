@@ -9,10 +9,14 @@
 // deterministic gates over LLM classification wherever a gate needs to be
 // unconditionally reliable (see policy-enforcement-engine.ts's own
 // reasoning for the same choice).
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 
 export type HighImpactCategory =
   | "delete" | "archive" | "payment" | "approval" | "rejection"
   | "compliance_submission" | "access_changes" | "data_export" | "configuration_changes"
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+  // see HIGH_IMPACT_CATEGORY_GUIDANCE's own comment below for why these 3.
+  | "bulk_operations" | "communication_send" | "financial_posting"
 
 const TRIGGERS: Record<HighImpactCategory, string[]> = {
   delete: ["delete", "remove", "erase", "permanently delete"],
@@ -24,6 +28,12 @@ const TRIGGERS: Record<HighImpactCategory, string[]> = {
   access_changes: ["grant access", "revoke access", "change permission", "change role", "add admin", "remove admin", "change password", "reset password"],
   data_export: ["export data", "export report", "bulk export", "download all"],
   configuration_changes: ["change setting", "update configuration", "modify config", "change config"],
+  // "delete" itself is checked earlier in TRIGGERS' iteration order and
+  // already catches any "delete ..." phrasing, so it's deliberately not
+  // duplicated here (a duplicate trigger here could never actually fire).
+  bulk_operations: ["reassign all", "bulk reassign", "bulk update", "apply to all", "update all records"],
+  communication_send: ["send email", "send an email", "send message", "notify all", "email all", "broadcast"],
+  financial_posting: ["post journal", "post entry", "close the period", "close period", "post to ledger", "finalize the books"],
 }
 
 export type HighImpactDetection = { isHighImpact: boolean; category: HighImpactCategory | null; matchedPhrase: string | null }
@@ -58,6 +68,9 @@ export const HIGH_IMPACT_CATEGORY_LABELS: Record<HighImpactCategory, string> = {
   access_changes: "Access Change",
   data_export: "Data Export",
   configuration_changes: "Configuration Change",
+  bulk_operations: "Bulk Operation",
+  communication_send: "Send Communication",
+  financial_posting: "Financial Posting",
 }
 
 // Wave 155 (TaskDocx_Evaluation.md, "Guardrail for every task... predefined
@@ -80,4 +93,46 @@ export const HIGH_IMPACT_CATEGORY_GUIDANCE: Record<HighImpactCategory, string> =
   access_changes: "This changes who can see or do what. Confirm if the person/role is correct, or cancel to review permissions first.",
   data_export: "This exports data outside the platform. Confirm if you need the export, or cancel if this wasn't intentional.",
   configuration_changes: "This changes shared settings for everyone. Confirm if you're sure, or cancel to check the impact first.",
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+  // "Explain Impact of Decisions" -- broadened from 9 to 12 categories.
+  // Picked by re-reading TRIGGERS above against what's actually reachable
+  // through this same gate (task-service.ts's createTask, VeriComposer) but
+  // had no matching category yet: bulk operations (bulkReassignLeads/
+  // bulkReassignOpportunities-style "affect many records at once" actions),
+  // outbound communication (email/notification sends this platform's own
+  // email-intelligence-service.ts/notifyAssigned() already perform on a
+  // user's behalf), and financial-ledger posting specifically (distinct
+  // from "payment" above -- posting a journal entry/closing a period
+  // doesn't move money but does lock in an accounting record the same way
+  // a payment locks in a cash movement).
+  bulk_operations: "This affects many records at once. Confirm the count/filter is right, or cancel to narrow it down first.",
+  communication_send: "This sends a message to someone outside your own review. Confirm the content and recipient are correct, or cancel to revise first.",
+  financial_posting: "This posts a permanent accounting record (e.g. a journal entry or period close). Confirm the figures are correct, or cancel to review first.",
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Risks Before Actions" (Low, two duplicate findings) -- the
+// keyword/regex gate above can miss a risky action phrased unusually (e.g.
+// "wipe this record" instead of "delete"). detectHighImpactAction() itself
+// stays a pure, side-effect-free function (unchanged) so it's still safe to
+// call speculatively/in tests; this is a SEPARATE, best-effort call a real
+// AI-initiated-write call site can make right after detection, logging the
+// classification outcome (matched OR not) so a human can later sample rows
+// where isHighImpact=false and check whether that was actually correct.
+// Fire-and-forget, same posture as recordOrchestraExecution's own callers --
+// audit logging must never block or fail the real write it's observing.
+export function logHighImpactClassification(params: {
+  orgId: string; userId?: string; layerKey: string; eventType: string
+  text: string; detection: HighImpactDetection
+}): void {
+  recordOrchestraExecution({
+    orgId: params.orgId, userId: params.userId, layerKey: params.layerKey,
+    eventType: `${params.eventType}.high_impact_classification`,
+    // Truncated -- this is a sample-audit trail for classification quality,
+    // not a full content log (that's what orchestra_executions' own
+    // eventType-specific "completed" row already does for the real action).
+    input: { text: params.text.slice(0, 500) },
+    output: { isHighImpact: params.detection.isHighImpact, category: params.detection.category, matchedPhrase: params.detection.matchedPhrase },
+    status: "completed", durationMs: 0,
+  })
 }
