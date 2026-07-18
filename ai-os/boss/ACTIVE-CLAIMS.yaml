@@ -1942,7 +1942,6 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
-<<<<<<< HEAD
   - session_label: "claude-code -- task-20260718-090002: Checks & Balances / Duplicate Work + Duplicate Data Detection gap closure"
     claimed_at: "2026-07-18T (this session)"
     claim: |
