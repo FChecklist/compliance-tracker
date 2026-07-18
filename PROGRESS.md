@@ -17,7 +17,7 @@
       Confirmed via `git ls-tree origin/main -- drizzle/` that main's real
       highest migration is now 0235 (support_sessions through
       register_ai_team_role_overrides, all merged after this PR opened) --
-      real collision. Renamed to `drizzle/0236_calculation_engine_governance.sql`
+      real collision. Renamed to `drizzle/0241_calculation_engine_governance.sql`
       (git mv, precedent-matching prior rescue sessions' renumber commits).
       No internal filename references elsewhere in the codebase (grepped
       clean). schema.ts's calculationInvocations table / computationEngines
@@ -69,7 +69,7 @@
       anomaly documented in this session's ACTIVE-CLAIMS.yaml for PR #415's
       rescue (same symptom: stuck check-suite association, not fixable by
       further code changes in this repo).
-- [x] TIER classification: this PR touches `drizzle/0236_calculation_engine_governance.sql`
+- [x] TIER classification: this PR touches `drizzle/0241_calculation_engine_governance.sql`
       + `src/lib/db/schema.ts` -> **TIER2**. Per task constraints, will NOT
       merge this PR myself even if CI had gone green.
 
