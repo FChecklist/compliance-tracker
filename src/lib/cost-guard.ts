@@ -7,8 +7,8 @@
 // 'product_orchestra' rows only: 'ai_team_internal' spend is platform-owned
 // (orgId is null for those rows by design, see token-usage-service.ts) and
 // out of scope for a per-org cap.
-import { db, tokenUsageLedger, organisations } from "@/lib/db"
-import { eq, and, gte } from "drizzle-orm"
+import { db, tokenUsageLedger, organisations, users, notifications } from "@/lib/db"
+import { eq, and, gte, isNotNull, inArray } from "drizzle-orm"
 import { sql } from "drizzle-orm"
 
 export interface CostStatus {
@@ -63,4 +63,74 @@ export async function setCostCap(orgId: string, monthlyCostCapUsd: number | null
   await db.update(organisations)
     .set({ monthlyCostCapUsd: monthlyCostCapUsd === null ? null : String(monthlyCostCapUsd), costCapEnforcementEnabled: enforcementEnabled })
     .where(eq(organisations.id, orgId))
+}
+
+// Gap-closure (VERIDIAN Review Framework, AI Cost Governance & FinOps,
+// 2026-07-18): canIncurCost() already blocks further spend once an org
+// crosses its cap, but that's a reactive gate an admin only discovers by
+// hitting it (or by opening /api/settings/org-limits and checking). Nothing
+// pushed a signal out before then -- a genuine "requires an admin to check a
+// page" gap. Reuses metric-alert-service.ts's own established alerting
+// shape rather than inventing a new one: a pure classify function (mirrors
+// that file's `compare()`), a notify-on-breach pass driven by the same
+// daily /api/internal/metric-alerts/run cron entry point (see that route's
+// Promise.all -- ticket SLAs and task overdue checks already share this one
+// scheduled job the same way), and the existing `notifications` table/
+// insert shape (type: "system", metadata carrying the identifiers a click-
+// through would need). Deliberately re-notifies every run while the breach
+// persists rather than tracking "already notified" state, matching
+// checkTicketSlaBreaches/checkTaskOverdue's own existing precedent in this
+// codebase (no dedup column on those either) -- consistent daily cadence
+// (see vercel.json), not a new spam vector.
+export function classifyCostBreach(status: Pick<CostStatus, "isOverLimit" | "isNearLimit">): "over" | "near" | "none" {
+  if (status.isOverLimit) return "over"
+  if (status.isNearLimit) return "near"
+  return "none"
+}
+
+export async function checkCostCeilingBreaches(): Promise<{ checked: number; overLimit: number; nearLimit: number }> {
+  const orgs = await db.query.organisations.findMany({
+    where: and(eq(organisations.costCapEnforcementEnabled, true), isNotNull(organisations.monthlyCostCapUsd)),
+  })
+
+  let overLimit = 0
+  let nearLimit = 0
+
+  for (const org of orgs) {
+    try {
+      const status = await getCostStatus(org.id)
+      const breach = classifyCostBreach(status)
+      if (breach === "none") continue
+      if (breach === "over") overLimit++
+      else nearLimit++
+
+      // Notified set matches /api/settings/org-limits' own PATCH gate
+      // (admin or manager can change the cap) -- the people who can
+      // actually act on this alert, not every org member.
+      const recipients = await db.query.users.findMany({
+        where: and(eq(users.orgId, org.id), inArray(users.role, ["admin", "manager"])),
+      })
+
+      const title = breach === "over"
+        ? `AI spend cap reached: ${org.name}`
+        : `AI spend approaching cap: ${org.name}`
+      const message = breach === "over"
+        ? `${org.name} has reached its monthly AI spend cap of $${status.monthlyCostCapUsd?.toFixed(2)} (current spend: $${status.currentSpendUsd.toFixed(2)}). Further AI usage is blocked until the cap is raised or the month resets.`
+        : `${org.name} has used $${status.currentSpendUsd.toFixed(2)} of its $${status.monthlyCostCapUsd?.toFixed(2)} monthly AI spend cap (${Math.round((status.currentSpendUsd / (status.monthlyCostCapUsd ?? 1)) * 100)}%).`
+
+      for (const recipient of recipients) {
+        await db.insert(notifications).values({
+          userId: recipient.id,
+          title,
+          message,
+          type: "system",
+          metadata: { orgId: org.id, breach, monthlyCostCapUsd: status.monthlyCostCapUsd, currentSpendUsd: status.currentSpendUsd },
+        })
+      }
+    } catch (err) {
+      console.error(`Cost ceiling check failed for org ${org.id}:`, err)
+    }
+  }
+
+  return { checked: orgs.length, overLimit, nearLimit }
 }

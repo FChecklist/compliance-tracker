@@ -1800,6 +1800,43 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-061005-ai-cost-governance---finops--cost-contro) -- AI Cost Governance & FinOps: proactive cost-ceiling alert + default free-tier spend cap"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "not yet committed/PR'd at time of this entry -- branch worker/task-20260718-061005-ai-cost-governance---finops--cost-contro"
+    summary: |
+      Two related VERIDIAN Review Framework findings, closed in one PR since
+      both live in cost-guard.ts / the org-provisioning path. Checked this
+      file first -- no other active claim touched cost-guard.ts,
+      metric-alert-service.ts, or org-provisioning-service.ts.
+      [Medium] Cost ceiling breach alert: added checkCostCeilingBreaches() +
+      pure classifyCostBreach() to src/lib/cost-guard.ts, wired as a 5th
+      consumer of the existing daily /api/internal/metric-alerts/run cron
+      (vercel.json 0 5 * * *) alongside checkTicketSlaBreaches/
+      checkTaskOverdue/reprioritizeTasks/evaluateAllMetricAlertRules --
+      reuses that route's exact cron-fan-out + notifications-insert pattern
+      per the task's own recommended approach, rather than building a new
+      mechanism. Notifies each breaching org's admin/manager-role users
+      (same recipient set /api/settings/org-limits' PATCH gate already
+      uses) on "near" (>=80%, cost-guard.ts's existing threshold) or "over"
+      limit. Deliberately re-notifies every run while a breach persists,
+      matching checkTicketSlaBreaches/checkTaskOverdue's own existing
+      no-dedup precedent in this codebase.
+      [High] Free-tier/trial AI spend cap: org-provisioning-service.ts's
+      provisionOrganisation() (confirmed the single shared org-creation
+      path for both the human-signup flow and POST
+      /api/v1/platform/provision-org -- neither passes a plan, every org
+      created today is "free") now sets monthlyCostCapUsd=$20 +
+      costCapEnforcementEnabled=true at creation time via a new
+      defaultMonthlyCostCapUsdForPlan(plan) helper (null/unenforced for any
+      other plan value, so a future paid tier stays opt-in). Org-creation-
+      time default keyed on plan, not a blanket update -- every
+      pre-existing organisations row is untouched.
+      Did not touch permission-service.ts's ERP_ACTION_ROLES or any other
+      in-flight worker's declared scope. Verification: bun test (full
+      suite) 1426 pass/0 fail (incl. 2 new DB-free unit-test files for the
+      2 new pure helpers), bunx tsc --noEmit clean, bunx eslint clean on
+      every changed/new file, bun run build green,
+      check-guardrail-presence.mjs 88/88 markers passed.
   - session_label: "claude-code (task-20260718-185244-rescue-pr--420) -- Rescue and merge PR #420"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #420 (tier1, self-merged after CI green)."
