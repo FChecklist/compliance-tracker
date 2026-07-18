@@ -1,80 +1,67 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-090002-checks---balances--duplicate---data-qual
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+Task: VERIDIAN Review Framework gap closure -- 4 findings (2 duplicate
+pairs in the dispatch): "Duplicate Work Detection" (tasks table) and
+"Duplicate Data Detection" (vendors/customers/invoices).
 
 ## Completed
 - [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
-
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml; no conflicting active
+      claim on this file scope; registered this task's own claim.
+- [x] Investigated current code before writing anything (per this task's
+      own instructions to re-verify stale findings against real code):
+      - **Duplicate Data Detection is LARGELY already resolved**, not a
+        clean gap: src/lib/services/mdm-quality-service.ts (Wave 93,
+        MDM007/MDM008 gap closure) is a real, generalized pg_trgm +
+        gstin/pan-number similarity dedup service for erp_customers /
+        erp_suppliers, with a full scan -> pending candidate -> human
+        review (confirm/not-duplicate) -> merge workflow, its own table
+        (mdmDuplicateCandidates/mdmMergeLog), API routes
+        (src/app/api/mdm/duplicates/**) and UI
+        (src/app/(app)/mdm-quality/page.tsx). It was NOT built on top of
+        src/lib/gst/reconciliation-engine.ts as the finding's own
+        "recommended approach" text assumed -- that assumption in the
+        finding is stale; a different, already-generalized service exists.
+        Purchase-invoice duplicates were the one real remaining gap: only
+        an ephemeral exact-match array (detectDuplicateInvoices in
+        src/lib/engines/audit-engine.ts), reachable only through an
+        AI-planned task_execution_engine.ts case
+        ("duplicate_invoice_detector"), no persistent candidate/review
+        workflow or direct UI/API surface for AP staff.
+      - **Duplicate Work Detection (tasks table) is a genuine, still-open
+        gap**: confirmed by src/lib/loop-prevention.ts's own header
+        comment, which explicitly says duplicate-task detection "doesn't
+        exist yet" ("that graph doesn't exist yet ... adding a fake
+        detector with nothing real to detect against would be worse than
+        naming the gap honestly"). grep across src/lib and src/app/api
+        confirmed zero existing similarity/dedup logic against the
+        `tasks` table. src/lib/services/capability-registry-service.ts's
+        auditDuplicateCapabilities() (>=0.92 pgvector-embedding
+        similarity) is real but explicitly scoped to
+        worker_agent/automation_rule/module/prompt_pattern/dynamic_chain
+        only -- the finding's own text calls this "a narrower, different
+        concept" from ordinary business-task dedup.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] Extend src/lib/services/mdm-quality-service.ts with a 3rd
+      MdmEntityType, 'erp_purchase_invoice': scanForDuplicates() exact
+      supplierId+invoiceNumber match branch, reusing the existing
+      mdmDuplicateCandidates table/review workflow (no migration --
+      entityType is free text). mergeDuplicates() must reject this
+      entity type (no safe merge semantics for a posted invoice);
+      confirm/not_duplicate is the terminal state. Extend
+      listDuplicateCandidates() name resolution for invoice candidates.
+- [ ] Build src/lib/services/task-dedup-service.ts: sibling to (not part
+      of) capability-registry-service.ts, own 'task' entityType over the
+      same embeddings.ts infra, org+optional-projectId scoped, active
+      (pending/in_progress) tasks only, >=0.92 threshold matching the
+      finding's own stated pattern.
+- [ ] Wire indexing into src/lib/services/task-service.ts createTask()/
+      updateTask() (best-effort, fire-and-forget).
+- [ ] New API route src/app/api/tasks/duplicates/route.ts (GET,
+      requireAuth + requireRole "manager").
+- [ ] New page src/app/(app)/task-duplicates/page.tsx + nav entry in
+      src/components/AppSidebar.tsx + messages/en.json + messages/hi.json.
+- [ ] Do NOT touch permission-service.ts's ERP_ACTION_ROLES structure.
+- [ ] Run bun test / bunx tsc --noEmit / bun run lint / bun run build.
+- [ ] Open PR against main (not self-merged).

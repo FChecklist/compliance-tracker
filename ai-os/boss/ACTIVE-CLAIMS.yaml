@@ -1621,6 +1621,57 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code -- task-20260718-090002: Checks & Balances / Duplicate Work + Duplicate Data Detection gap closure"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap closure, 4 findings (2 pairs of
+      duplicates in the dispatch itself): "Duplicate Work Detection" (no
+      duplicate-task detection on the `tasks` table for ordinary business
+      work, e.g. two people independently starting the same compliance
+      filing) and "Duplicate Data Detection" (no general-purpose
+      duplicate-data detection for vendors/customers/invoices outside GST
+      reconciliation).
+      Read the actual current code before writing anything (per this
+      task's own instructions to re-verify stale findings): confirmed
+      "Duplicate Data Detection" is now LARGELY already resolved --
+      src/lib/services/mdm-quality-service.ts (Wave 93, MDM007/MDM008) is
+      a real, generalized pg_trgm + gstin/pan dedup service for
+      erp_customers/erp_suppliers with a full scan/review/merge workflow
+      and UI (src/app/(app)/mdm-quality/page.tsx), NOT built on
+      reconciliation-engine.ts as the finding's own recommended-approach
+      text assumed -- that assumption is stale. Purchase-invoice
+      duplicates only had an ephemeral exact-match array
+      (detectDuplicateInvoices in src/lib/engines/audit-engine.ts),
+      reachable only via an AI-planned task_execution_engine.ts case, no
+      persistent candidate/review workflow. Extending mdm-quality-service.ts
+      with a 3rd MdmEntityType ('erp_purchase_invoice', exact
+      supplierId+invoiceNumber match) to close that real remainder,
+      reusing the same table/UI rather than reviving reconciliation-engine.ts.
+      Confirmed "Duplicate Work Detection" is a genuine, still-open gap --
+      loop-prevention.ts's own header explicitly says duplicate-task
+      detection doesn't exist yet ("that graph doesn't exist yet"). Building
+      src/lib/services/task-dedup-service.ts as a sibling to (NOT part of)
+      capability-registry-service.ts's auditDuplicateCapabilities (the
+      >=0.92 pgvector-embedding pattern the finding names) -- the finding's
+      own text says capability dedup is "a narrower, different concept," so
+      this is deliberately a separate file/entity type ('task', not added
+      to CAPABILITY_ENTITY_TYPES), indexed at task-service.ts's createTask/
+      updateTask, scoped per org + optional projectId (the closest real
+      "module" scope tasks has).
+      File scope: src/lib/services/mdm-quality-service.ts,
+      src/lib/db/schema.ts (mdmDuplicateCandidates comment only, entityType
+      stays free text -- no migration), src/lib/services/task-service.ts
+      (indexing hook only), new src/lib/services/task-dedup-service.ts,
+      new src/app/api/tasks/duplicates/route.ts, new
+      src/app/(app)/task-duplicates/page.tsx, src/components/AppSidebar.tsx
+      + messages/en.json + messages/hi.json (new nav entry only).
+      Explicitly NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table structure (per this task's own instructions --
+      additive-only if a new entry is genuinely needed). Checked this file
+      live before claiming: no other active entry touches mdm-quality-
+      service.ts, task-service.ts, capability-registry-service.ts, or
+      task-execution-engine.ts's duplicate_invoice_detector case.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
