@@ -41,6 +41,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework: AI Architecture / Multi-Modal & Multi-Language Support gap closure"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Task task-20260718-053006-ai-architecture--multi-modal---multi-lan:
+      closing 2 Medium findings from the AI Architecture section of the
+      review framework -- "Multi-Language AI Responses" and "Supports
+      Multiple Input Types (Image, PDF, Office, Audio, Video, Email, Chat,
+      URL, etc.)".
+
+      Checked `gh pr list --state open` + `git branch -r` fresh before
+      starting: 4 sibling AI-Architecture tasks are active this same
+      morning (branches worker/task-20260718-045005-...-capability-registry,
+      -045007-...-interaction-efficien, -045009-...-orchestration--routi,
+      -051002-...-domain-accuracy---quali). Diffed each against main for
+      src/lib/llm-client.ts and src/lib/services/document-extraction-
+      service.ts -- only the -045009 (orchestration/routing/failover)
+      branch touches llm-client.ts, and only to add one MODEL_PRICING row
+      (deepseek/deepseek-v4-pro) -- no overlap with this claim's system-
+      prompt/locale work or document-extraction-service.ts. No claim/PR
+      found touching either file for these findings.
+
+      Scope: (1) src/lib/prompt-os-resolver.ts (locale param on
+      resolvePromptTemplate, additive, defaults to no-op) + new src/lib/
+      ai-response-locale.ts (language-directive table/helper, deliberately
+      decoupled from src/i18n/locales.ts's UI-catalog-constrained
+      en/hi list) + wiring into chat-service.ts's generateAiReply/
+      generateVeriGroupReply and help/ask/route.ts (the actual
+      conversational "AI response" surfaces the finding names) -- NOT
+      touching next-intl's UI message catalogs (a separate, much larger
+      full-UI-translation undertaking, out of scope for this finding's own
+      recommended approach). (2) src/lib/services/document-extraction-
+      service.ts (PDF via pdf-parse text extraction, Word .docx + new
+      PowerPoint .pptx via src/lib/officecli-client.ts, best-effort .eml
+      email text) + src/app/api/documents/route.ts's trigger condition +
+      src/lib/officecli-client.ts (new extractPptxRawText, verified live
+      against the vendored binary before writing any code that depends on
+      it). Video explicitly out of scope -- no rasterization/frame-
+      extraction infra exists in this codebase or its dependencies, and
+      documented as a disclosed limitation rather than faked.
+
+      Not touching src/lib/services/permission-service.ts or any other
+      in-flight worker's declared scope, per this task's own instructions.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
