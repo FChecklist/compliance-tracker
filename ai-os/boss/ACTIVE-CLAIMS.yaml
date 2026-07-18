@@ -41,6 +41,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive rescue session) -- PR #412 rescue (Support session impersonation)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescuing PR #412 (branch worker/task-20260717-194828-support-session-impersonation),
+      opened by a now-stopped autonomous worker dispatcher, currently failing
+      CI (audit-check, Asset Registry Coverage Check) and stale against main.
+      Scope: merge origin/main into the PR branch, resolve conflicts, fix any
+      real CI failures (no test-skipping/guardrail-weakening), renumber any
+      drizzle migration if needed, post a structured AUDIT comment per
+      AGENTS.md Rule 10, and merge if TIER1 (no schema/migration diff) once
+      green -- or stop and report for Owner sign-off if TIER2 (schema.ts /
+      drizzle/*.sql touched). Per the matching recently_completed entry
+      below (dated 2026-07-18, same branch name), this PR adds
+      supportSessions table + drizzle/0224_support_sessions.sql + 2 new
+      columns on auditLogs -- expect TIER2.
+      File scope: whatever this PR's own diff already touches
+      (support-session-service.ts, schema.ts, drizzle/0224_*, audit.ts,
+      support-session API routes) plus this file (ACTIVE-CLAIMS.yaml) and
+      PROGRESS.md. Not picking up any new/unrelated gap.
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry"
     claimed_at: "2026-07-18T (this session)"
     claim: |
