@@ -8,8 +8,8 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
@@ -17,6 +17,7 @@ import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { fetchLiveRates, buildLiveRatePairs, type SkippedCurrency } from "@/lib/exchange-rate-feed-client"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -412,6 +413,107 @@ export async function getLatestExchangeRate(ctx: { orgId: string }, fromCurrency
       orderBy: (t, { desc }) => desc(t.rateDate),
     })
   })
+}
+
+export type LiveRefreshResult = { baseCode: string; rateDate: string; refreshed: number; skipped: SkippedCurrency[] }
+
+// Shared core for both the single-org on-demand refresh and the all-orgs
+// cron sweep below. Idempotent per (orgId, rateDate): re-running on the same
+// day deletes and re-inserts only that day's source='live' rows (see
+// drizzle/0224_erp_exchange_rates_source.sql), so a manual on-demand refresh
+// and the nightly cron never duplicate or conflict with each other, and
+// neither ever touches a 'manual' rate an admin typed in by hand.
+async function refreshOrgLiveRates(
+  tdb: TenantDb,
+  orgId: string,
+  rateDate: string,
+  dbUser?: typeof users.$inferSelect
+): Promise<LiveRefreshResult> {
+  const currencies = await tdb.query.erpCurrencies.findMany({ where: eq(erpCurrencies.orgId, orgId) })
+  const base = currencies.find((c) => c.isBaseCurrency)
+  if (!base) throw new ServiceError("No base currency is configured for this organization yet", 400)
+
+  const others = currencies.filter((c) => c.id !== base.id)
+  if (others.length === 0) {
+    return { baseCode: base.code, rateDate, refreshed: 0, skipped: [] }
+  }
+
+  const live = await fetchLiveRates(base.code)
+  const { pairs, skipped } = buildLiveRatePairs(base, others, live, rateDate)
+
+  await tdb
+    .delete(erpExchangeRates)
+    .where(and(eq(erpExchangeRates.orgId, orgId), eq(erpExchangeRates.rateDate, rateDate), eq(erpExchangeRates.source, "live")))
+
+  if (pairs.length > 0) {
+    await tdb.insert(erpExchangeRates).values(pairs.map((p) => ({ orgId, ...p, source: "live" })))
+  }
+
+  if (dbUser) {
+    await logActivity({
+      tx: tdb,
+      orgId,
+      dbUser,
+      action: "erp_exchange_rate.live_refresh",
+      entityType: "erp_exchange_rate",
+      entityId: base.id,
+      details: `Refreshed ${pairs.length} live rate(s) against base ${base.code} for ${rateDate}; skipped ${skipped.length} currency(ies) not covered by the feed`,
+    })
+  }
+
+  return { baseCode: base.code, rateDate, refreshed: pairs.length, skipped }
+}
+
+/**
+ * On-demand live refresh for a single org (POST /api/erp/exchange-rates/refresh).
+ * Pulls open.er-api.com's latest rates for the org's configured base currency
+ * and writes both directions (base<->other) for every other currency the org
+ * has set up, tagged source='live' so they're distinguishable from rates an
+ * admin entered by hand via createExchangeRate.
+ */
+export async function refreshLiveExchangeRates(ctx: ErpContext): Promise<LiveRefreshResult> {
+  await requireErpEnabled(ctx.orgId)
+  const rateDate = new Date().toISOString().slice(0, 10)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (tdb) =>
+    refreshOrgLiveRates(tdb, ctx.orgId, rateDate, ctx.dbUser)
+  )
+}
+
+/**
+ * Cron entry point (/api/internal/exchange-rate-refresh/run): refreshes live
+ * rates for every org that has configured a base currency, one at a time so
+ * one org's feed/base-currency failure never blocks the rest. No per-row
+ * dbUser attribution here -- same reasoning as evaluateAllMetricAlertRules()
+ * in metric-alert-service.ts: a scheduled job has no single request-scoped
+ * user to attribute the write to, and fabricating one would be worse than
+ * recording none.
+ */
+export async function refreshLiveExchangeRatesForAllOrgs(): Promise<{
+  orgsRefreshed: number
+  orgsFailed: number
+  totalRatesRefreshed: number
+}> {
+  const rateDate = new Date().toISOString().slice(0, 10)
+  const baseCurrencies = await db.query.erpCurrencies.findMany({ where: eq(erpCurrencies.isBaseCurrency, true) })
+
+  let orgsRefreshed = 0
+  let orgsFailed = 0
+  let totalRatesRefreshed = 0
+
+  for (const base of baseCurrencies) {
+    try {
+      const result = await withTenantContext({ orgId: base.orgId }, (tdb) =>
+        refreshOrgLiveRates(tdb, base.orgId, rateDate)
+      )
+      orgsRefreshed++
+      totalRatesRefreshed += result.refreshed
+    } catch (err) {
+      orgsFailed++
+      console.error(`Live exchange-rate refresh failed for org ${base.orgId}:`, err)
+    }
+  }
+
+  return { orgsRefreshed, orgsFailed, totalRatesRefreshed }
 }
 
 // ============================================================

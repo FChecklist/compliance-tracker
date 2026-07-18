@@ -5236,6 +5236,12 @@ export const erpExchangeRates = complianceSchemaDB.table('erp_exchange_rates', {
   toCurrencyId: text('to_currency_id').notNull(),
   rate: numeric('rate').notNull(),
   rateDate: date('rate_date', { mode: 'string' }).notNull(),
+  // REVIEW-FRAMEWORK-WAVE4 Track 1b: 'manual' (typed in via createExchangeRate,
+  // the pre-existing default behaviour) vs 'live' (fetched from the
+  // open.er-api.com feed by refreshLiveExchangeRates). Lets a daily live
+  // refresh replace only its own prior rows without disturbing rates an admin
+  // entered by hand. See drizzle/0224_erp_exchange_rates_source.sql.
+  source: text('source').notNull().default('manual'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
