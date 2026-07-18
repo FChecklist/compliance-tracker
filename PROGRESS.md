@@ -54,6 +54,7 @@ directory -- overwritten here for this task.)
 - [x] Verification: `bunx tsc --noEmit` clean; `bun run lint` 0 errors (same 3 pre-existing warnings in unrelated files as before this change); `bun test` full suite -- **1391 pass, 0 fail** (was 1388 before this change -- the +3 are the new `hasGroundingData` tests); governance checks all pass (`check-metadata-index-coverage.mjs`, `check-doc-cross-references.mjs`, `check-guardrail-presence.mjs` 88/88 markers, `check-asset-registry-coverage.mjs`, `check-doc-quarantine-banner.mjs`)
 - [x] promptfooconfig.yaml validated as syntactically-correct YAML directly (js-yaml). Known environment limitation, not a regression: a live `promptfoo validate`/`eval` run in this sandbox fails on a pre-existing `ajv`/`ajv-formats` module-resolution mismatch under `bun install`'s node_modules layout, unrelated to this change's YAML content (reproduces identically via both `bunx` and `npx` against the file as it stood before this PR's edits too) -- not something in scope for this finding to fix, and CI's own `bun install --frozen-lockfile` step may resolve differently than this ad hoc reinstall did.
 
+- [x] Opened PR: https://github.com/FChecklist/compliance-tracker/pull/417 (not self-merged, per Rule 6/Rule 7(c) -- left for the supervising session's audit)
+
 ## Remaining
-- [ ] None outstanding on the code side. Update ACTIVE-CLAIMS.yaml claim -> recently_completed once the PR merges (this session does not merge its own PR -- Rule 6/7(c))
-- [ ] Open PR (not self-merged, per Rule 6/Rule 7(c) -- left for the supervising session's audit)
+- [ ] None outstanding on the code side. Update ACTIVE-CLAIMS.yaml claim -> recently_completed once PR #417 merges (this session does not merge its own PR -- Rule 6/7(c))
