@@ -34,4 +34,6 @@ Monitoring & Forecasting (4 findings).
 - [x] Pushed merged branch; posted structured `AUDIT: PASS` PR comment (all 8 fields).
 - [x] Mandatory Audit Check job had run before the comment existed (failed); re-ran it after posting — passed.
 - [x] Main moved again mid-rescue (PR #422, "proactive AI cost-ceiling alerts", also touching `cost-guard.ts`) — merged a second time; `cost-guard.ts` auto-merged cleanly (additive, non-overlapping: PR #422 added `checkCostCeilingBreaches`/`classifyCostBreach`, this PR added `forecastedMonthEndSpendUsd` — both coexist). Re-ran full verification after this second merge — still 0 errors/1519 pass. Re-pushed, all CI green including audit-check.
-- [ ] Merge (squash + delete branch) — TIER1, CI green, audit PASS.
+- [x] Main moved a third time (PR #422's own rescue-claim chore commit) — merged again, content-only conflicts (PROGRESS.md/ACTIVE-CLAIMS.yaml), no source overlap. Re-verified clean, re-pushed, CI green again.
+- [x] Merged (squash + delete branch) — TIER1, CI green, audit PASS. Squash commit `cc1af35d`.
+- [x] Moved rescue claim from `active:` to `recently_completed:` in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
