@@ -6,11 +6,12 @@
 // to run anomaly detection against; this tracks cases however they're
 // first identified (audit, whistleblower, system alert, external report).
 import { fraudCases, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 
 export type FraudContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -46,29 +47,42 @@ export async function getFraudCase(ctx: { orgId: string }, caseId: string) {
   })
 }
 
-export async function createFraudCase(ctx: FraudActorCtx, input: FraudCaseInput) {
+/**
+ * The actual insert logic, taking an already-open tx directly. Split out
+ * from createFraudCase (below) so a caller that already has its own
+ * withTenantContext transaction open (e.g. erp-payment-entries-service.ts's
+ * system-alert auto-detection) can create a fraud case in the SAME
+ * transaction, rather than calling createFraudCase and triggering a second,
+ * nested withTenantContext -- this codebase's DB pool is a single
+ * connection (see src/lib/db/index.ts), so a nested db.transaction() call
+ * from inside an already-open one would deadlock waiting for a connection
+ * the outer transaction is still holding.
+ */
+export async function createFraudCaseTx(db: TenantDb, ctx: FraudActorCtx, input: FraudCaseInput) {
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
   if (!input.reportedDate) throw new ServiceError("reportedDate is required", 400)
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${fraudCases.caseNumber}), 0)` })
-      .from(fraudCases).where(eq(fraudCases.orgId, ctx.orgId))
+  const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${fraudCases.caseNumber}), 0)` })
+    .from(fraudCases).where(eq(fraudCases.orgId, ctx.orgId))
 
-    const [fraudCase] = await db.insert(fraudCases).values({
-      orgId: ctx.orgId, caseNumber: Number(maxNumber) + 1, title: input.title,
-      fraudType: input.fraudType ?? "other", detectionSource: input.detectionSource ?? "other",
-      description: input.description, financialExposure: input.financialExposure !== undefined ? String(input.financialExposure) : undefined,
-      reportedDate: input.reportedDate, investigatorId: input.investigatorId, linkedRiskId: input.linkedRiskId,
-      recordedById: ctx.userId,
-    }).returning()
+  const [fraudCase] = await db.insert(fraudCases).values({
+    orgId: ctx.orgId, caseNumber: Number(maxNumber) + 1, title: input.title,
+    fraudType: input.fraudType ?? "other", detectionSource: input.detectionSource ?? "other",
+    description: input.description, financialExposure: input.financialExposure !== undefined ? String(input.financialExposure) : undefined,
+    reportedDate: input.reportedDate, investigatorId: input.investigatorId, linkedRiskId: input.linkedRiskId,
+    recordedById: ctx.userId,
+  }).returning()
 
-    await logActivity(
-      ctx.dbUser
-        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
-        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
-    )
-    return fraudCase
-  })
+  await logActivity(
+    ctx.dbUser
+      ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
+      : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.created", entityType: "fraud_case", entityId: fraudCase.id }
+  )
+  return fraudCase
+}
+
+export async function createFraudCase(ctx: FraudActorCtx, input: FraudCaseInput) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => createFraudCaseTx(db, ctx, input))
 }
 
 const VALID_FRAUD_TRANSITIONS: Record<string, string[]> = {
@@ -98,6 +112,19 @@ export async function updateFraudCaseStatus(ctx: FraudActorCtx, caseId: string, 
         ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
         : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "fraud_case.status_changed", entityType: "fraud_case", entityId: caseId, details: JSON.stringify({ from: fraudCase.status, to: status }) }
     )
+
+    // Risk-Based Escalation (VERIDIAN Review Framework gap-closure): the
+    // finding's own example -- "a flagged fraud case... automatically
+    // escalating to a named human owner" -- fires exactly here, the moment
+    // a case moves from suspected to CONFIRMED real fraud.
+    if (status === "confirmed") {
+      await recordAndEscalateAnomaly(db, {
+        orgId: ctx.orgId, eventType: "fraud_confirmed", severity: "critical",
+        sourceEntityType: "fraud_case", sourceEntityId: caseId, actorUserId: ctx.userId,
+        reason: `Fraud case confirmed: ${fraudCase.title}`,
+        detail: { fraudType: fraudCase.fraudType, financialExposure: fraudCase.financialExposure },
+      })
+    }
     return updated
   })
 }

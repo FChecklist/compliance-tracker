@@ -1,5 +1,4 @@
-# ============================================================================
-# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
+# =====================================================================# ACTIVE CLAIMS REGISTRY -- read this BEFORE picking any new gap/task to work
 # on in this repo (or in veda-advisors / projexa). Created 2026-07-14 in
 # direct response to the Owner naming 4 parallel Claude sessions working
 # across this codebase at once, with no existing mechanism for one session
@@ -71,6 +70,73 @@ active:
       formula test suite). NOT touching
       src/lib/services/permission-service.ts or any other in-flight
       worker's declared scope -- this task has no RBAC dimension.
+  - session_label: "claude-code (worker task-20260718-091004-checks---balances--risk--fraud---anomaly) -- VERIDIAN Review Framework gap-closure: Checks & Balances / Risk, Fraud & Anomaly Detection"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 4 distinct findings (8 rows, duplicated) from the review
+      framework's "Checks & Balances / Risk, Fraud & Anomaly Detection"
+      section: (1) Anomaly Detection -- Tier-1 rule-engine monitors for
+      bulk data export, after-hours high-impact actions, and repeated
+      failed auth (confirmed PLATFORM_STRATEGY.md #29's ~30-event-type gap
+      is real but AI-OPS-SCOPED ONLY -- this task's actual gap is a
+      SEPARATE, business-facing anomaly surface with zero overlap with
+      escalation-ladder.ts/monitor-protocol.ts/monitor_agents, so building
+      net-new rather than extending #29's registry); (2) Fraud & Abuse
+      Detection -- rule-based duplicate-payment/round-number/threshold-
+      avoidance signals in erp-payment-entries-service.ts auto-populating
+      fraud_cases.detectionSource='system_alert'; (3) Policy Compliance
+      Verification -- automated evidence gate (linked risk -> audit
+      finding retestResult='passed' chain) before framework_controls can
+      self-attest into 'verified'; (4) Risk-Based Escalation -- new
+      business-risk escalation path (high-severity risk logged / fraud
+      case confirmed / anomaly detected -> named human owner via
+      departments.head_id or org admin fallback), explicitly NOT reusing
+      escalation-ladder.ts's CSEO/COO/Super-Boss ladder (that ladder is
+      AI-operational-failure-shaped by design, confirmed via
+      docs/ESCALATION_MATRIX.md -- a different concern from a business
+      risk event needing a human owner).
+      Scope: new tables risk_anomaly_events + auth_failure_events
+      (additive migration), new src/lib/risk-anomaly-detection.ts +
+      src/lib/services/risk-escalation-service.ts +
+      src/lib/services/auth-failure-service.ts, hooks added to
+      erp-payment-entries-service.ts, fraud-case-service.ts,
+      risk-register-service.ts, frameworks/controls/[id]/route.ts,
+      login-form.tsx, passcode-login-service.ts, compliance/reports export
+      buttons. Does NOT touch permission-service.ts's ERP_ACTION_ROLES
+      structure (additive-only if any new key is genuinely needed) or any
+      other in-flight worker's declared scope -- checked this file in full
+      before starting, no other active entry overlaps this area.
+  - session_label: "claude-code (task-20260718-053002-ai-architecture--explainability---transp) -- VERIDIAN Review Framework: AI Architecture / Explainability & Transparency gap-closure (26 findings)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing all 26 findings under the "AI Architecture / Explainability &
+      Transparency" review-framework parameter in one coherent PR (per this
+      task's own instructions: shared module/area, not 26 separate PRs).
+      Reading the actual current implementation of each named module first
+      before assuming the gap descriptions (written against an earlier
+      snapshot) are still accurate -- will note in PROGRESS.md rather than
+      make an unnecessary change if a finding is already resolved.
+      Expected shared-infra file scope (subject to revision once each file
+      is actually read): src/lib/report-engine-service.ts (note/narrative
+      pattern -> shared component), src/lib/services/crm-service.ts
+      (aiRecommendedAction / explanation pattern -> generic decision-
+      explanation service + rejectedAlternatives), src/lib/llm-client.ts
+      (system-prompt user-context block), src/lib/errors/ServiceError (or
+      wherever that type lives -- friendlyMessage + remediationSteps +
+      plain-language 'why' field via an error-code lookup table),
+      src/lib/engines/* (shared EngineResult<T> type with explanation +
+      optional intermediate-steps), src/lib/orchestra-execution-logger.ts
+      (routingRationale field), HIGH_IMPACT_CATEGORY_GUIDANCE (wherever
+      defined -- broadened category list), a new business-terminology
+      glossary table + hover/inline explainer component, and a docs-
+      embedding index for the help chatbot.
+      Explicitly NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table structure (per this task's own instructions) --
+      will only add new keys additively if this area's work genuinely
+      needs a new permission-service entry, and has re-checked this file's
+      other active claims first to confirm no overlap with that file.
+      Will update this entry's outcome in recently_completed: once merged
+      or abandoned, per this file's own protocol.
   - session_label: "Super Boss (Claude Desktop, interactive) -- AIROUTER-01 Mother Router Phase 1"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -1972,6 +2038,101 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code -- task-20260718-090002: Checks & Balances / Duplicate Work + Duplicate Data Detection gap closure"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap closure, 4 findings (2 pairs of
+      duplicates in the dispatch itself): "Duplicate Work Detection" (no
+      duplicate-task detection on the `tasks` table for ordinary business
+      work, e.g. two people independently starting the same compliance
+      filing) and "Duplicate Data Detection" (no general-purpose
+      duplicate-data detection for vendors/customers/invoices outside GST
+      reconciliation).
+      Read the actual current code before writing anything (per this
+      task's own instructions to re-verify stale findings): confirmed
+      "Duplicate Data Detection" is now LARGELY already resolved --
+      src/lib/services/mdm-quality-service.ts (Wave 93, MDM007/MDM008) is
+      a real, generalized pg_trgm + gstin/pan dedup service for
+      erp_customers/erp_suppliers with a full scan/review/merge workflow
+      and UI (src/app/(app)/mdm-quality/page.tsx), NOT built on
+      reconciliation-engine.ts as the finding's own recommended-approach
+      text assumed -- that assumption is stale. Purchase-invoice
+      duplicates only had an ephemeral exact-match array
+      (detectDuplicateInvoices in src/lib/engines/audit-engine.ts),
+      reachable only via an AI-planned task_execution_engine.ts case, no
+      persistent candidate/review workflow. Extending mdm-quality-service.ts
+      with a 3rd MdmEntityType ('erp_purchase_invoice', exact
+      supplierId+invoiceNumber match) to close that real remainder,
+      reusing the same table/UI rather than reviving reconciliation-engine.ts.
+      Confirmed "Duplicate Work Detection" is a genuine, still-open gap --
+      loop-prevention.ts's own header explicitly says duplicate-task
+      detection doesn't exist yet ("that graph doesn't exist yet"). Building
+      src/lib/services/task-dedup-service.ts as a sibling to (NOT part of)
+      capability-registry-service.ts's auditDuplicateCapabilities (the
+      >=0.92 pgvector-embedding pattern the finding names) -- the finding's
+      own text says capability dedup is "a narrower, different concept," so
+      this is deliberately a separate file/entity type ('task', not added
+      to CAPABILITY_ENTITY_TYPES), indexed at task-service.ts's createTask/
+      updateTask, scoped per org + optional projectId (the closest real
+      "module" scope tasks has).
+      File scope: src/lib/services/mdm-quality-service.ts,
+      src/lib/db/schema.ts (mdmDuplicateCandidates comment only, entityType
+      stays free text -- no migration), src/lib/services/task-service.ts
+      (indexing hook only), new src/lib/services/task-dedup-service.ts,
+      new src/app/api/tasks/duplicates/route.ts, new
+      src/app/(app)/task-duplicates/page.tsx, src/components/AppSidebar.tsx
+      + messages/en.json + messages/hi.json (new nav entry only).
+      Explicitly NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table structure (per this task's own instructions --
+      additive-only if a new entry is genuinely needed). Checked this file
+      live before claiming: no other active entry touches mdm-quality-
+      service.ts, task-service.ts, capability-registry-service.ts, or
+      task-execution-engine.ts's duplicate_invoice_detector case.
+  - session_label: "claude-code (worker task-20260718-084006-checks---balances--audit-trail---immutab) -- Checks & Balances / Audit Trail & Immutable Logging gap closure"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure task, 4 findings (2 duplicate
+      pairs): "Complete Audit Trail" (Medium -- no DB-level trigger backstop
+      on high-risk tables) and "Immutable Activity Logs" (High -- no DB-level
+      immutability guarantee). Read src/lib/audit.ts, schema.ts's auditLogs
+      table, and every drizzle/*.sql touching audit_logs before writing
+      anything.
+      Found the "Immutable Activity Logs" gap description is PARTLY stale:
+      `REVOKE UPDATE, DELETE ON compliance.audit_logs FROM app_runtime`
+      already exists (drizzle/0005_wave7_hierarchy_and_audit_foundation.sql,
+      2026-07-02) -- app_runtime has been append-only-enforced on this table
+      for weeks. But drizzle/0008_wave10_grant_service_role_compliance_schema.sql
+      (2026-07-03) did `GRANT ... UPDATE, DELETE ON ALL TABLES IN SCHEMA
+      compliance TO service_role` (+ matching ALTER DEFAULT PRIVILEGES) to
+      fix an unrelated MCP bug, and that blanket grant silently re-opened
+      exactly the hole 0005 had closed, for the `service_role` credential
+      specifically (used by /api/mcp, esignature-service.ts, and ~10 other
+      call sites per grep). Closing that reopened gap: a new migration
+      REVOKEs UPDATE/DELETE on compliance.audit_logs from service_role too.
+      Honest limitation documented in the migration + PROGRESS.md: the
+      `postgres` role (DATABASE_URL, used by src/lib/db/index.ts's plain
+      `db` export) owns the compliance schema/tables per orchestra_changes.md
+      entry #17, and table ownership privileges cannot be revoked by REVOKE
+      -- true full immutability needs the pre-existing, already-flagged
+      "retire DATABASE_URL's use of the postgres/service_role bypass"
+      infrastructure debt (orchestra_changes.md, end of entry #57) closed
+      first, which is out of scope here (needs owner sign-off + no live DB
+      access in this session).
+      For "Complete Audit Trail": adding a generic AFTER INSERT/UPDATE/DELETE
+      backstop trigger (writes its own `db_trigger.<op>`-prefixed row into
+      audit_logs, wrapped in EXCEPTION WHEN OTHERS so a backstop failure can
+      never break the primary write) on 4 curated highest-risk tables:
+      users (user/role), compliance_items (compliance), erp_journal_entries
+      + erp_payment_entries (financial) -- matching the finding's own
+      recommended scope, not applied schema-wide to avoid noise/duplication
+      risk on high-churn tables.
+      File scope: new drizzle/0225_*.sql migration file only (no live DB
+      access in this session -- same "author the file, supervising/live-
+      migration-capable session applies it" convention as several other
+      entries in this log), + a schema.ts comment update near auditLogs
+      documenting both fixes. No application code (routes/services) touched.
+      Not self-merged -- left for the supervising session's audit + the
+      live migration step, per AGENTS.md Rule 7(c)/Rule 10.
   - session_label: "claude-code (worker task-20260718-062002-ai-cost-governance---finops--cost-monito) -- AI Cost Governance & FinOps: anomaly detection, spend forecast, idle capacity"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -2070,6 +2231,43 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Claude Code (headless rescue task) -- Rescue PR #429"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "PR #429 squash-merged, commit 0208c702"
+    claim: |
+      Rescued PR #429 (branch worker/task-20260718-090002-checks---
+      balances--duplicate---data-qual, "Close duplicate-work and
+      duplicate-data detection gaps"). Original CI failures: audit-check
+      (no structured AUDIT comment posted yet) and Unit Tests (the
+      tenant-isolation.test.ts mock.module() leak, already fixed on main
+      by another session by the time this rescue ran). Worked directly in
+      the branch's existing worktree (gh pr checkout 429 failed --
+      already checked out elsewhere on this host). Merged origin/main
+      into the PR branch FIVE separate times over ~20 minutes -- main was
+      moving fast from multiple concurrent rescue sessions merging PRs
+      (#425, #423, #421, #432 all landed mid-rescue); each merge was
+      additive-only in ACTIVE-CLAIMS.yaml/PROGRESS.md (kept both sides /
+      kept ours respectively) with zero real code conflicts in the PR's
+      own 13 files. Caught and fixed a self-inflicted bug twice: a stray
+      `<<<<<<< HEAD` marker left in ACTIVE-CLAIMS.yaml after resolving a
+      conflict (removed the closing markers but missed the opening one) --
+      caught both times by re-diffing/re-parsing the file as YAML after
+      pushing, before it could reach CI. Confirmed TIER1: no drizzle/*.sql
+      added, schema.ts's only change is a comment widening on the existing
+      free-text mdmDuplicateCandidates.entityType/matchReason columns.
+      Re-verified locally after every merge: bunx tsc --noEmit 0 errors,
+      bun run lint 0 errors (3 pre-existing warnings), bun test all pass
+      (count rose from 1616 to 1670 across the 5 merges as main's other
+      concurrent PRs added their own tests). Read gh pr diff 429 in full
+      after each push (recomputed clean against current main each time).
+      Posted structured AUDIT: PASS PR comment (all 8 required fields).
+      Also independently rediscovered the same GitHub Actions check-suite
+      stall other rescue sessions logged above (zero github-actions suite
+      created while mergeStateStatus stayed DIRTY/CONFLICTING) -- confirms
+      their finding that reaching a real MERGEABLE state (not just pushing)
+      is what unsticks Actions, not a one-off fluke. Once MERGEABLE, CI
+      and Mandatory Audit Check both ran and passed within minutes; merged
+      via gh pr merge 429 --squash --delete-branch.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 2: audited support-session impersonation ('act on behalf of customer')"
     completed_at: "2026-07-18T (this session)"
     merged_as: "PR not yet opened as of this entry -- branch worker/task-20260717-194828-support-session-impersonation"
@@ -2117,7 +2315,7 @@ recently_completed:
       across 102 files (includes the 12 new pure-helper tests).
   - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
     completed_at: "2026-07-18T (this session)"
-    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
+    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0236_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
     claim: |
       Rescued PR #425 (branch worker/task-20260718-084006-checks---
       balances--audit-trail---immutab, "Audit trail: close immutability +
@@ -2126,7 +2324,7 @@ recently_completed:
       ahead of merge-base -- merged origin/main (real conflicts only in
       PROGRESS.md, kept ours, and this claims file, kept both sides
       additively). Confirmed the PR's own diff is exactly 2 files: new
-      drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql
+      drizzle/0236_audit_trail_immutability_and_backstop_triggers.sql
       (REVOKE UPDATE/DELETE on compliance.audit_logs from service_role,
       closing a gap silently reopened by 0008's blanket schema-wide GRANT;
       plus a generic AFTER-trigger audit-trail backstop on users/
@@ -3744,6 +3942,71 @@ recently_completed:
       commit -- last real migration still 0223_force_rls_hr_attendance_
       holidays.sql; branch base == origin/main tip 13bddf6f at time of
       PR). PR opened against main, not merged, per instructions.
+
+  - session_label: "claude-code (this session) -- VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cache-Driven Savings"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing the single Medium finding "Prompt Cache Framework savings
+      reflected in the cost ledger" (gap: cache-driven savings not
+      reflected in token_usage_ledger). Confirmed live: recordPromptCacheMetric()
+      (src/lib/prompt-cache/metrics.ts), called from chat-service.ts's
+      generateAiReply() (VERI Chat's 1:1 AI thread, the same real call site
+      Prompt & Cache Framework Phase 1 wired), only ever wrote to
+      prompt_cache_metrics -- an observability table neither cost-guard.ts
+      nor getTokenUsageSummary() reads. token_usage_ledger (the table
+      Finance/cost-guard actually read) had ZERO rows for this call site,
+      cache-driven savings or otherwise (also true, as a pre-existing,
+      out-of-scope-for-this-claim gap: no scope='product_orchestra' row of
+      any kind existed anywhere in the codebase before this change).
+      Scope: added tokenUsageLedger.cacheSavingsUsd column (migration
+      drizzle/0225), estimateCacheSavingsUsd() in llm-client.ts (Anthropic's
+      documented 90% cache-read discount), logTokenUsage() now computes and
+      stores it, recordPromptCacheMetric() now also calls logTokenUsage()
+      (scope: product_orchestra) alongside its existing prompt_cache_metrics
+      write, getTokenUsageSummary() now surfaces totalCacheSavingsUsd +
+      per-group cacheSavingsUsd. Files: src/lib/llm-client.ts(+test),
+      src/lib/services/token-usage-service.ts, src/lib/prompt-cache/metrics.ts,
+      src/lib/services/chat-service.ts (one-line call-site change, passing
+      userId through), src/lib/db/schema.ts, drizzle/0225_*.sql. Did NOT
+      touch src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope. Full suite green (1328 pass/0 fail), tsc
+      --noEmit clean, eslint 0 errors, guardrail-presence check passed
+      (88/88 markers). Branch: see PR.
+
+      UPDATE (task-20260718-212532-rescue-pr--423, same-day rescue session):
+      PR #423 (this exact claim's branch) was opened by the now-stopped
+      autonomous worker dispatcher with CI red (audit-check had no verdict
+      comment yet) and stale against main. `gh pr checkout 423` collided
+      with the original worker's own still-live worktree holding this
+      branch name -- worked around via `gh pr checkout 423 -b
+      rescue-423-local`. Merged origin/main: 3 real conflicts (PROGRESS.md
+      kept ours; ACTIVE-CLAIMS.yaml itself, this append-only log, combined
+      both sides' new entries rather than picking one; token-usage-
+      service.ts, this PR's cacheSavingsUsd addition to the totals query
+      vs. main's concurrent getPlatformMonthlyForecast() 6th parallel query
+      -- combined both). Migration 0225 confirmed already correctly
+      next-sequential (main's real highest was 0224) -- no renumbering
+      needed. Verified clean post-merge: tsc --noEmit clean, lint 0 errors
+      (3 pre-existing unrelated warnings), bun test 1527 pass/0 fail, bun
+      run build succeeds, all 6 scripts/check-*.mjs guardrail/sync checks
+      pass. Read the full diff directly -- small, additive, well-scoped,
+      correct 90% cache-read-discount math, no auth/RBAC surface touched.
+      Posted structured AUDIT: PASS PR comment (all 8 fields); audit-check
+      initially failed on the same push (job ran before the comment landed
+      -- a real race, not a content defect) and was re-triggered via `gh
+      run rerun`, then passed. All 7 branch-protection-required checks
+      green (Lint, Type Check, Build, audit-check, Guardrail Presence
+      Check, Asset Registry Coverage Check, Unit Tests); Vercel preview
+      deploy failed separately on an unrelated external rate-limit
+      ("Deployment rate limited -- retry in 24 hours", not a required
+      check, not caused by this PR's code).
+
+      NOT MERGED: this PR's own diff touches src/lib/db/schema.ts
+      (tokenUsageLedger.cacheSavingsUsd) and drizzle/0225_*.sql, making it
+      TIER2 per this rescue task's own instructions -- schema/migration-
+      touching PRs are never self-merged by a rescue session regardless of
+      how green CI is. Reported to the Owner as CI-green, audited, ready
+      for sign-off.
   - session_label: "claude-code -- VERIDIAN Review Framework gap-closure: AI Architecture / AI Orchestration, Routing & Failover"
     claimed_at: "2026-07-18T (this session)"
     claim: |

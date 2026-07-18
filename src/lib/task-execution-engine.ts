@@ -718,10 +718,17 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
       return { closingBalance: computeClosingBalance(Number(inputs.openingBalance), Number(inputs.totalDebits), Number(inputs.totalCredits), truthy(inputs.isDebitNormal)) };
     }
     case "balance_verification_engine": {
-      const { verifyBalancesNetToZero } = await import("@/lib/engines/accounting-engine");
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): the *Explained() variant -- see accounting-engine.ts's
+      // header comment. Safe here specifically because this dispatch's
+      // return value is only ever JSON.stringify'd into a task chat message
+      // (executeEngineDispatch, below) and sanity-checked by
+      // assertValidDispatchOutput (tolerates any nested shape, only rejects
+      // NaN/Infinity numbers) -- adding fields doesn't break either.
+      const { verifyBalancesNetToZeroExplained } = await import("@/lib/engines/accounting-engine");
       const balances = inputs.balances as { accountId: string; debit: number; credit: number }[];
       if (!Array.isArray(balances)) throw new Error("balances must be an array");
-      return verifyBalancesNetToZero(balances);
+      return verifyBalancesNetToZeroExplained(balances);
     }
     case "consolidation_engine": {
       const { consolidateBalances } = await import("@/lib/engines/accounting-engine");
@@ -1226,10 +1233,13 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // the registry's own recommended default, and IQR) via a `method` input.
   switch (engineKey) {
     case "trend_analysis_engine": {
-      const { analyzeTrend } = await import("@/lib/engines/analytics-engine");
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): same *Explained() wiring rationale as
+      // balance_verification_engine above.
+      const { analyzeTrendExplained } = await import("@/lib/engines/analytics-engine");
       const values = inputs.values as number[];
       if (!Array.isArray(values)) throw new Error("values must be an array of numbers");
-      return analyzeTrend(values.map(Number));
+      return analyzeTrendExplained(values.map(Number));
     }
     case "analytics_variance_engine": {
       const { analyzeAnalyticsVariance } = await import("@/lib/engines/analytics-engine");
