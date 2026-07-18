@@ -626,6 +626,19 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   details: text('details'),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
+  // Support Sessions (VERIDIAN Review Framework Wave 4, Track 1b item 2):
+  // both nullable additive columns -- every pre-existing row and every
+  // pre-existing logActivity() call site is completely unaffected (null =
+  // "not performed under a support session," the overwhelming majority of
+  // rows). Set together, only by logActivity()'s new optional
+  // `supportSession` param: supportSessionId names which support_sessions
+  // row was active, actingOnBehalfOfUserId is the impersonated target user
+  // at the time of the write -- kept as its own column (not inferred by
+  // joining supportSessionId -> support_sessions.targetUserId) so this row
+  // stays a true point-in-time snapshot even if that session record were
+  // ever amended.
+  supportSessionId: text('support_session_id'),
+  actingOnBehalfOfUserId: text('acting_on_behalf_of_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -10194,3 +10207,59 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
   assignedAt: timestamp('assigned_at').notNull().defaultNow(),
   dueDate: date('due_date', { mode: 'string' }),
 })
+
+// ─── Support Sessions (VERIDIAN Review Framework Wave 4, Track 1b item 2)
+// ─────────────────────────────────────────────────────────────────────────
+// Real, audited "act on behalf of customer" capability -- confirmed via a
+// fresh grep of src/ immediately before this table was added: zero "act on
+// behalf"/"impersonat"/"support session" concept existed anywhere in this
+// codebase. A veridian_admin (support staff, ROLE_RANK 6, the platform's own
+// top role -- see auth-guard.ts) starts a time-limited (1 hour, fixed) session
+// against one target org + one target user there; every read/write performed
+// under that session is expected to carry supportSessionId/
+// actingOnBehalfOfUserId on its audit_logs row (see the two nullable columns
+// added to auditLogs below), so the impersonated org can see exactly who
+// accessed them, when, why, and what they did -- without a cross-org join
+// (initiatedByName/targetUserName are denormalized snapshots, same
+// "don't force a join to see who acted" rationale as audit.ts's own
+// actorName on auditLogs).
+//
+// tokenHash follows the exact hashSHA256()/never-persist-the-raw-token
+// convention as apiKeys.keyHash and orgInviteLinks.tokenHash (see
+// api-keys.ts, invite-link-service.ts) -- the raw token is handed back to
+// the caller exactly once, at start time, and is what whoami-target's
+// caller presents to prove it's operating inside a real, still-active
+// session.
+//
+// This table is inherently cross-org (a support agent's own org is never
+// the target org), so writes go through the raw/service-role db client, not
+// withTenantContext -- the same posture autoProvisionUser/
+// provisionOrganisation already document for platform-level operations that
+// predate or cross tenant boundaries. Reads for the IMPERSONATED org's own
+// admin (GET /api/support-sessions/on-my-org) go through the normal
+// app_runtime RLS path instead, scoped by targetOrgId = current_org_id() --
+// see the migration for the exact 2-policy app_runtime/service_role_bypass
+// shape every other tenant table in this schema uses.
+export const supportSessions = complianceSchemaDB.table('support_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  initiatedByUserId: text('initiated_by_user_id').notNull(),
+  // Denormalized snapshot at start time, not a live join -- same rationale
+  // as audit.ts's actorName: the target org must keep seeing who accessed
+  // them even if that support user is later renamed/deactivated.
+  initiatedByName: text('initiated_by_name').notNull(),
+  targetOrgId: text('target_org_id').notNull(),
+  targetUserId: text('target_user_id').notNull(),
+  targetUserName: text('target_user_name').notNull(),
+  reason: text('reason').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  endedReason: text('ended_reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const supportSessionsRelations = relations(supportSessions, ({ one }) => ({
+  initiatedBy: one(users, { fields: [supportSessions.initiatedByUserId], references: [users.id] }),
+  targetOrg: one(organisations, { fields: [supportSessions.targetOrgId], references: [organisations.id] }),
+  targetUser: one(users, { fields: [supportSessions.targetUserId], references: [users.id] }),
+}))

@@ -1916,6 +1916,51 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 2: audited support-session impersonation ('act on behalf of customer')"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "PR not yet opened as of this entry -- branch worker/task-20260717-194828-support-session-impersonation"
+    claim: |
+      Real, audited act-on-behalf-of-customer support-session capability,
+      built exactly per this claim's own original plan (no redesign):
+        - schema.ts: new supportSessions table (initiatedByUserId/Name,
+          targetOrgId, targetUserId/Name, reason, tokenHash, expiresAt,
+          endedAt/endedReason) + relations; 2 new nullable columns on the
+          EXISTING auditLogs table (supportSessionId,
+          actingOnBehalfOfUserId) -- did NOT create a second log table.
+        - drizzle/0224_support_sessions.sql: table + FORCE ROW LEVEL
+          SECURITY, 2-policy app_runtime_org_scoped (target_org_id =
+          compliance.current_org_id())/service_role_bypass shape matching
+          drizzle/0219's CRM precedent, plus the 2 additive audit_logs
+          columns. NOT applied to a live DB from this session (no
+          DATABASE_URL/Supabase MCP available here) -- committed for
+          deploy/db:push to pick up, same as this repo's other recent
+          migrations.
+        - src/lib/services/support-session-service.ts: startSupportSession/
+          endSupportSession/validateSupportSessionToken/
+          listSupportSessionsForOrg/getSupportSessionById, reusing
+          hashSHA256 from api-keys.ts. Writes (inherently cross-org: the
+          initiating veridian_admin's own org is never the target org) go
+          through the raw/service-role db client, same posture as
+          autoProvisionUser/provisionOrganisation; the target org's own
+          admin's read goes through withTenantContext/RLS.
+        - src/lib/audit.ts: logActivity() extended with an optional
+          `supportSession` param -- backward-compatible, every pre-existing
+          call site untouched.
+        - Routes: POST /api/support-sessions/start (veridian_admin only),
+          POST /api/support-sessions/[id]/end (veridian_admin OR the
+          target org's own admin), GET /api/support-sessions/whoami-target
+          (bearer ss_... token, proves a real tenant-scoped read + a real
+          audit-marked log row attributed to the real actor with
+          actingOnBehalfOfUserId set), GET /api/support-sessions/on-my-org
+          (target org's own admin, RLS-scoped).
+        - src/lib/services/support-session-service.test.ts: pure-helper
+          unit tests (evaluateSupportSessionStatus, isSupportSessionActive,
+          generateSupportSessionToken).
+      Did not touch src/lib/services/permission-service.ts or any ERP
+      module route, per the original claim's scope boundary.
+      Verified: tsc --noEmit 0 errors; eslint 0 errors (3 pre-existing
+      warnings, unrelated to this change); bun test 1389 pass / 0 fail
+      across 102 files (includes the 12 new pure-helper tests).
   - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
