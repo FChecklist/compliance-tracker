@@ -69,6 +69,7 @@ import {
   Boxes,
   CalendarCheck,
   GraduationCap,
+  Copy,
   Activity,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -434,6 +435,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           label: t("sections.tools.items.capabilityRegistry"),
           href: "/capability-registry",
           icon: Database,
+        },
+        {
+          label: t("sections.tools.items.taskDuplicates"),
+          href: "/task-duplicates",
+          icon: Copy,
         },
         {
           label: t("sections.tools.items.veriTodoAi"),

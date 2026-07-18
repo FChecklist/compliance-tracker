@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 type DuplicateCandidate = {
   id: string; entityType: string; entityIdA: string; entityIdB: string;
@@ -29,6 +30,7 @@ type QualityScoreRow = { id: string; name: string; qualityScore: number; missing
 
 const REASON_LABEL: Record<string, string> = {
   name_similarity: "Name similarity", gstin_match: "GSTIN match", pan_match: "PAN match", combined: "Combined signals",
+  invoice_number_match: "Same supplier + invoice number",
 };
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   pending: "secondary", confirmed_duplicate: "default", not_duplicate: "outline", merged: "outline",
@@ -44,16 +46,22 @@ export default function MdmQualityPage() {
   const [mergeCandidate, setMergeCandidate] = useState<DuplicateCandidate | null>(null);
   const [merging, setMerging] = useState(false);
 
+  // Quality (completeness) scoring is a customer/supplier-only concept --
+  // "missing GSTIN/contact/address" doesn't map to a posted invoice, so
+  // that fetch/panel is skipped entirely for erp_purchase_invoice rather
+  // than showing a fabricated score.
+  const hasQualityScores = entityType !== "erp_purchase_invoice";
+
   const load = useCallback(async () => {
     setLoading(true);
     const [candRes, scoreRes] = await Promise.all([
       fetch(`/api/mdm/duplicates?entityType=${entityType}&status=pending`),
-      fetch(`/api/mdm/quality-scores?entityType=${entityType}`),
+      hasQualityScores ? fetch(`/api/mdm/quality-scores?entityType=${entityType}`) : Promise.resolve(null),
     ]);
     setCandidates((await candRes.json()).candidates ?? []);
-    setScores((await scoreRes.json()).scores ?? []);
+    setScores(scoreRes ? (await scoreRes.json()).scores ?? [] : []);
     setLoading(false);
-  }, [entityType]);
+  }, [entityType, hasQualityScores]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -96,14 +104,15 @@ export default function MdmQualityPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2"><Fingerprint className="w-6 h-6" />Master Data Quality</h1>
-          <p className="text-sm text-ct-muted mt-1">Duplicate detection (name similarity + GSTIN/PAN match) and completeness scoring for Customers/Suppliers.</p>
+          <p className="text-sm text-ct-muted mt-1">Duplicate detection (name similarity + GSTIN/PAN match, or exact supplier + invoice number for purchase invoices) and completeness scoring for Customers/Suppliers.</p>
         </div>
         <div className="flex gap-2">
           <Select value={entityType} onValueChange={setEntityType}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="erp_customer">Customers</SelectItem>
               <SelectItem value="erp_supplier">Suppliers</SelectItem>
+              <SelectItem value="erp_purchase_invoice">Purchase Invoices</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={scan} disabled={scanning} className="bg-ct-teal hover:bg-ct-teal/90">
@@ -115,7 +124,7 @@ export default function MdmQualityPage() {
       {loading ? (
         <div className="text-center text-ct-muted p-10">Loading…</div>
       ) : (
-        <div className="grid lg:grid-cols-2 gap-4">
+        <div className={cn("grid gap-4", hasQualityScores && "lg:grid-cols-2")}>
           <Card className="rounded-xl shadow-card bg-white">
             <CardContent className="p-4 space-y-3">
               <h3 className="font-medium text-ct-navy text-sm">Duplicate Candidates ({candidates.length})</h3>
@@ -141,23 +150,25 @@ export default function MdmQualityPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl shadow-card bg-white">
-            <CardContent className="p-4 space-y-3">
-              <h3 className="font-medium text-ct-navy text-sm">Data Completeness Scores</h3>
-              <ul className="space-y-2 max-h-[420px] overflow-y-auto">
-                {scores.length === 0 ? <li className="text-xs text-ct-muted">No active records.</li> : scores.map((s) => (
-                  <li key={s.id} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-ct-navy">{s.name}</span>
-                      <span className="text-ct-muted">{Math.round(s.qualityScore * 100)}%</span>
-                    </div>
-                    <Progress value={s.qualityScore * 100} className="h-1.5" />
-                    {s.missingFields.length > 0 && <p className="text-[11px] text-ct-muted">Missing: {s.missingFields.join(", ")}</p>}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          {hasQualityScores && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardContent className="p-4 space-y-3">
+                <h3 className="font-medium text-ct-navy text-sm">Data Completeness Scores</h3>
+                <ul className="space-y-2 max-h-[420px] overflow-y-auto">
+                  {scores.length === 0 ? <li className="text-xs text-ct-muted">No active records.</li> : scores.map((s) => (
+                    <li key={s.id} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-ct-navy">{s.name}</span>
+                        <span className="text-ct-muted">{Math.round(s.qualityScore * 100)}%</span>
+                      </div>
+                      <Progress value={s.qualityScore * 100} className="h-1.5" />
+                      {s.missingFields.length > 0 && <p className="text-[11px] text-ct-muted">Missing: {s.missingFields.join(", ")}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -202,7 +213,11 @@ function ConfirmedDuplicatesPanel({ entityType, onMerge }: { entityType: string;
           {confirmed.map((c) => (
             <li key={c.id} className="flex items-center justify-between text-xs border border-ct-border rounded-lg p-3">
               <span>{c.entityAName} vs {c.entityBName}</span>
-              <Button size="sm" onClick={() => onMerge(c)}><GitMerge className="w-3 h-3 mr-1" />Merge</Button>
+              {c.entityType === "erp_purchase_invoice" ? (
+                <span className="text-ct-muted text-[11px] italic">Void or credit-note the duplicate manually</span>
+              ) : (
+                <Button size="sm" onClick={() => onMerge(c)}><GitMerge className="w-3 h-3 mr-1" />Merge</Button>
+              )}
             </li>
           ))}
         </ul>
