@@ -13,6 +13,7 @@ import { ServiceError } from "./compliance-service"
 // manual step -- see hr-attendance-service.ts's syncLeaveIntoAttendance for
 // the full rationale (weekend skipping, not clobbering a real check-in).
 import { syncLeaveIntoAttendance } from "./hr-attendance-service"
+import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
 
 export type HrContext = { orgId: string; userId: string }
@@ -154,6 +155,13 @@ export async function decideLeaveRequest(ctx: HrContext, requestId: string, deci
     const request = await db.query.leaveRequests.findFirst({ where: and(eq(leaveRequests.id, requestId), eq(leaveRequests.orgId, ctx.orgId)) })
     if (!request) throw new ServiceError("Leave request not found", 404)
     if (request.status !== "pending") throw new ServiceError("This request has already been decided", 400)
+    // Separation of Duties: a manager could otherwise approve/reject their
+    // own leave request (they hold sufficient rank, since the route only
+    // gates on role) -- same isSelfApproval() semantics as the shared
+    // Approval Workflow Engine.
+    if (isSelfApproval(request.userId, ctx.userId)) {
+      throw new ServiceError("You cannot approve or reject your own leave request -- an independent approver is required", 403)
+    }
 
     const [updated] = await db.update(leaveRequests)
       .set({ status: decision, approverId: ctx.userId, approvedAt: new Date(), updatedAt: new Date() })
