@@ -190,7 +190,12 @@ export function ChainRows({
   );
 }
 
-export type ChainSelectorResult = { title: string; modePill?: string; pathKeys?: string[] };
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "Measures AI Reduction
+// Over Time" / "Uses Option Selectors Before AI Processing"): skippedChainSelector
+// makes the skip/resolve decision explicit and recorded (chat-service.ts's
+// createWorkflowThread() now requires one or the other) instead of a caller
+// silently omitting modePill/pathKeys with no trace this dialog ever ran.
+export type ChainSelectorResult = { title: string; modePill?: string; pathKeys?: string[]; skippedChainSelector: boolean };
 
 // The new component this wave actually adds: a pre-conversation step that
 // offers the same ChainRows picker used everywhere else, then hands back
@@ -252,7 +257,7 @@ export function ChainSelectorDialog({
   function confirmWithChain() {
     const resolvedTitle = title.trim() || "New workflow";
     if (!chainComplete) {
-      onConfirm({ title: resolvedTitle });
+      onConfirm({ title: resolvedTitle, skippedChainSelector: true });
       reset();
       return;
     }
@@ -266,12 +271,13 @@ export function ChainSelectorDialog({
       title: resolvedTitle,
       modePill: concrete.length ? pathSegmentDisplay(concrete[0]) : undefined,
       pathKeys: concrete.length ? concrete.map((s) => (typeof s === "string" ? s : s.values.join("+"))) : undefined,
+      skippedChainSelector: false,
     });
     reset();
   }
 
   function skip() {
-    onConfirm({ title: title.trim() || "New workflow" });
+    onConfirm({ title: title.trim() || "New workflow", skippedChainSelector: true });
     reset();
   }
 

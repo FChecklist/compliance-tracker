@@ -45,6 +45,8 @@ registered:
   # source_table is UNIQUE -- see drizzle/0155's own header note.)
   - table: automation_rules
   - table: policies
+  - table: abac_policies
+    reason: "VERIDIAN Review Framework gap-closure (2026-07-18): ABAC deny-policy layer, drizzle/0228 -- asset_type=policy (same family as `policies` above), name_column=description (no dedicated name column; auto_register_asset() falls back to 'abac_policies:<id>' when null), owner_column=created_by_id, active_column=is_active, auto_register_asset_trg attached"
   - table: approval_workflow_definitions
   - table: bcm_plans
   - table: framework_controls
@@ -311,6 +313,8 @@ registered:
     reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): named quiz/assessment attached to a course or module -- auto_register_asset_trg attached, name_column=title, purpose_column=description, no owner/active column exists"
   - table: training_questions
     reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a question bank entry -- registered using question_text as name_column (the question IS this row's own identifying content, same reasoning as clm_clauses using title over body_text, adapted since this table has no separate title field) -- auto_register_asset_trg attached, no purpose/owner/active column exists"
+  - table: ai_model_registry
+    reason: "AIROUTER-01 (drizzle/0226): PLATFORM-WIDE by design (no org_id column -- a shared catalog of every AI model/provider pair the platform knows about, same class as module_registry/subscription_plans) -- auto_register_asset_trg attached, name_column=model (a genuine human-recognizable identifier e.g. \"z-ai/glm-5.2\"), purpose_column=notes, active_column=NULL (status is a real Postgres enum active/disabled/deprecated, not boolean, matching training_courses's own precedent)"
 exempted:
   - table: access_review_certifications
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (reviewedRole is a point-in-time role snapshot, not this row's own name) -- a per-user-per-cycle decision record, same class as this codebase's other append-only join/log tables, not a named asset"
@@ -826,6 +830,8 @@ exempted:
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (idpEntryPoint/idpIssuer/spEntityId are IdP integration URLs, not this row's own name) AND contains a security-sensitive IdP signing certificate (idpCert) -- same sensitivity class as api_keys, deliberately excluded from the general-purpose searchable registry"
   - table: stage0_sources
     reason: "Priority 18b Option B (2026-07-15): a stage-0 self-serve VERI Chat membership/provenance record (userId, orgId, sourceType, sourceTokenId, sourceConversationId) -- no display-name column at all, same class as sales_referral_links/conversation_share_links/erp_supplier_portal_links, which are also link/token/membership rows rather than human-readable named business objects."
+  - table: support_sessions
+    reason: "REVIEW-FRAMEWORK-WAVE4 Track 1b item 2 (2026-07-18, PR #412): internal auth/security-infrastructure state for the 'act on behalf of customer' support-impersonation flow -- same self-exemption class as user_active_sessions (a SHA-256 token_hash column, not a human-readable name) AND carries a security-sensitive token_hash like api_keys/sso_configurations, deliberately excluded from the general-purpose searchable registry to avoid surfacing impersonation-session credential metadata in a broad search/routing surface. Also cross-org by design (target_org_id is the CUSTOMER org being supported, not the initiating veridian_admin's own org) -- registering it would misattribute a platform-support artifact to the wrong tenant's asset list."
   - table: task_agent_executions
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: task_capabilities
@@ -902,3 +908,7 @@ exempted:
     reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): pure join table (training_path_id x course_id, ordering + required flag only) -- no name column at all, same class as crm_leads/crm_opportunities' own unregistered bridge tables."
   - table: training_path_assignments
     reason: "VERIDIAN Review Framework remediation, Wave B Training LMS module (drizzle/0222): a per-employee learning-path assignment/fan-out record, same class as training_enrollments -- no genuine display-name column (assignedVia is a workflow discriminator, not a name)."
+  - table: ai_routing_policies
+    reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): no genuine display-name column -- scope (enum) + version (int) is a compound identity, not a per-row name, and rule is opaque policy jsonb. A versioned configuration record, same class as approval_workflow_step_approvals/access_review_certifications -- not a discoverable named asset."
+  - table: ai_routing_audit_log
+    reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): append-only audit log of routing decisions, no display-name column -- same class as the already-exempted activity_log/api_key_request_log."

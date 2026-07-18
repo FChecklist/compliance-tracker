@@ -7,12 +7,16 @@ import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-en
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
+import { detectKnowledgeGap } from "@/lib/knowledge-sufficiency-gate"
 import { recordActivity } from "@/lib/activity-log-service"
 import { estimateCostUsd } from "@/lib/llm-client"
 import { classifyRisk, type BlastRadius } from "@/lib/risk-classification"
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
 import { buildDispatchSelfAssessment, checkQaPreCompletionGate } from "@/lib/qa-precompletion-gate"
+import { computeDispatchConfidencePercentage } from "@/lib/dispatch-confidence-scoring"
+import { bandConfidence } from "@/lib/confidence-banding"
 import { checkResponseVocabulary, checkVocabularyDispatchEligibility, type VocabularyDispatchType } from "@/lib/response-vocabulary-gate"
 
 registerAllGuardrails()
@@ -141,6 +145,20 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
+    // AIROUTER-01 (Mother Router, Owner directive 2026-07-18): fire-and-
+    // forget audit log of this dispatch's resolved model into
+    // ai_routing_audit_log. Deliberately NOT awaited and NOT consumed --
+    // this route's own tierCheck/targetRole.model above remain the actual
+    // gate and dispatch model, unchanged. See mother-router.ts's own header
+    // for why this route wasn't rewired to consume a policy override in
+    // this pass (a disclosed, deliberate scope decision, not an oversight).
+    void resolveMotherRouterModel({
+      scope: "software_team",
+      model: targetRole.model,
+      complexityTier: complexityTier!,
+      roleKey: classification.role,
+    }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
+
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
     if (blocked) {
@@ -172,6 +190,14 @@ export async function POST(request: NextRequest) {
     // Guardrail levels below only ran when a caller explicitly opted in.
     const lowConfidence = detectLowConfidenceResponse(execution.content)
 
+    // GP-06 (Knowledge, CONSTITUTION.yaml): "no 'do I have sufficient
+    // knowledge' self-check exists" -- a distinct failure mode from generic
+    // hedging (lowConfidence above): an explicit admission the executing
+    // role lacked the knowledge/access to do the task at all. Same
+    // deterministic, no-extra-LLM-call posture, its own independent
+    // requiresAudit trigger below.
+    const knowledgeGap = detectKnowledgeGap(execution.content)
+
     // GAP-RESPONSE-VOCABULARY: for a dispatch that declared a fixed
     // vocabulary (only possible here at all because of the mechanical-tier
     // eligibility gate above), validate the model's raw reply against it.
@@ -195,7 +221,7 @@ export async function POST(request: NextRequest) {
     // input the caller doesn't already provide.
     const blastRadius: BlastRadius = touchesAccount || touchesUser ? "platform" : touchesProduct ? "org" : "single"
     const riskLevel = classifyRisk({ highImpactCategory: detectHighImpactAction(objective ?? "").category, blastRadius })
-    const requiresAudit = lowConfidence.detected || riskLevel === "high" || riskLevel === "critical" || (vocabularyCheck !== null && !vocabularyCheck.allowed)
+    const requiresAudit = lowConfidence.detected || knowledgeGap.insufficientKnowledge || riskLevel === "high" || riskLevel === "critical" || (vocabularyCheck !== null && !vocabularyCheck.allowed)
 
     const guardrails: Record<string, unknown> = { platform: platformGuardrails }
     if (touchesProduct || requiresAudit) guardrails.product = await runGuardrailLevel("GUARDRAIL_PRODUCT", execution.content)
@@ -224,6 +250,8 @@ export async function POST(request: NextRequest) {
       riskLevel,
       lowConfidenceDetected: lowConfidence.detected,
       lowConfidenceMatchedPhrase: lowConfidence.matchedPhrase,
+      knowledgeGapDetected: knowledgeGap.insufficientKnowledge,
+      knowledgeGapMatchedPhrase: knowledgeGap.matchedPhrase,
       outputSummary: `${execution.content.length}-character response from ${execution.role.title} (${execution.role.roleKey})`,
     })
     // GOV-08 (HANDOVER_PROTOCOL_LEAF) reused unmodified to validate the
@@ -249,6 +277,18 @@ export async function POST(request: NextRequest) {
     const qaGate = checkQaPreCompletionGate({ handoverValidationPassed: selfAssessmentFields.validationPassed })
     const lifecycleStage = qaGate.passed ? "completed" : "reviewing"
 
+    // GP-09 (Confidence) gap-closure: a real numeric score, computed here
+    // rather than left to an optional reviewer-supplied value at closure
+    // time -- see dispatch-confidence-scoring.ts's header for why this is
+    // still an honest proxy (never a model self-reported number) and not a
+    // claim that the source document's literal mechanism now exists.
+    const confidencePercentage = computeDispatchConfidencePercentage({
+      lowConfidenceDetected: lowConfidence.detected,
+      knowledgeGapDetected: knowledgeGap.insufficientKnowledge,
+      riskLevel,
+    })
+    const confidenceBand = bandConfidence(confidencePercentage)
+
     const activityRow = orgId
       ? await recordActivity({
           orgId, userId: dbUser.id, activityType: "ai_team_dispatch",
@@ -263,6 +303,8 @@ export async function POST(request: NextRequest) {
           costUsd: estimateCostUsd(execution.role.model!, execution.usage) ?? undefined,
           riskLevel,
           selfAssessment: handoverFieldCheck.passed ? selfAssessmentFields : undefined,
+          confidencePercentage,
+          confidenceBand,
         })
       : null
 
@@ -274,7 +316,10 @@ export async function POST(request: NextRequest) {
       usage: execution.usage,
       requiresAudit,
       riskLevel,
+      confidencePercentage,
+      confidenceBand,
       lowConfidenceSignal: lowConfidence.detected ? lowConfidence.matchedPhrase : null,
+      knowledgeGapSignal: knowledgeGap.insufficientKnowledge ? knowledgeGap.matchedPhrase : null,
       // GAP-RESPONSE-VOCABULARY: null when responseVocabulary wasn't
       // declared (ordinary free-form dispatch, unchanged). When declared,
       // always surfaced -- both the match and the honest mismatch case --
