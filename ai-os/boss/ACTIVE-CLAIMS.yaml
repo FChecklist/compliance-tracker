@@ -2201,6 +2201,43 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Claude Code (headless rescue task) -- Rescue PR #429"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "PR #429 squash-merged, commit 0208c702"
+    claim: |
+      Rescued PR #429 (branch worker/task-20260718-090002-checks---
+      balances--duplicate---data-qual, "Close duplicate-work and
+      duplicate-data detection gaps"). Original CI failures: audit-check
+      (no structured AUDIT comment posted yet) and Unit Tests (the
+      tenant-isolation.test.ts mock.module() leak, already fixed on main
+      by another session by the time this rescue ran). Worked directly in
+      the branch's existing worktree (gh pr checkout 429 failed --
+      already checked out elsewhere on this host). Merged origin/main
+      into the PR branch FIVE separate times over ~20 minutes -- main was
+      moving fast from multiple concurrent rescue sessions merging PRs
+      (#425, #423, #421, #432 all landed mid-rescue); each merge was
+      additive-only in ACTIVE-CLAIMS.yaml/PROGRESS.md (kept both sides /
+      kept ours respectively) with zero real code conflicts in the PR's
+      own 13 files. Caught and fixed a self-inflicted bug twice: a stray
+      `<<<<<<< HEAD` marker left in ACTIVE-CLAIMS.yaml after resolving a
+      conflict (removed the closing markers but missed the opening one) --
+      caught both times by re-diffing/re-parsing the file as YAML after
+      pushing, before it could reach CI. Confirmed TIER1: no drizzle/*.sql
+      added, schema.ts's only change is a comment widening on the existing
+      free-text mdmDuplicateCandidates.entityType/matchReason columns.
+      Re-verified locally after every merge: bunx tsc --noEmit 0 errors,
+      bun run lint 0 errors (3 pre-existing warnings), bun test all pass
+      (count rose from 1616 to 1670 across the 5 merges as main's other
+      concurrent PRs added their own tests). Read gh pr diff 429 in full
+      after each push (recomputed clean against current main each time).
+      Posted structured AUDIT: PASS PR comment (all 8 required fields).
+      Also independently rediscovered the same GitHub Actions check-suite
+      stall other rescue sessions logged above (zero github-actions suite
+      created while mergeStateStatus stayed DIRTY/CONFLICTING) -- confirms
+      their finding that reaching a real MERGEABLE state (not just pushing)
+      is what unsticks Actions, not a one-off fluke. Once MERGEABLE, CI
+      and Mandatory Audit Check both ran and passed within minutes; merged
+      via gh pr merge 429 --squash --delete-branch.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 2: audited support-session impersonation ('act on behalf of customer')"
     completed_at: "2026-07-18T (this session)"
     merged_as: "PR not yet opened as of this entry -- branch worker/task-20260717-194828-support-session-impersonation"
