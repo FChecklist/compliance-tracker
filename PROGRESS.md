@@ -1,39 +1,39 @@
-# PROGRESS -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 1: live exchange-rate feed
+# PROGRESS -- task-20260718-053004-ai-architecture--governance---audit
 
-Task: build a live exchange-rate feed. Following the prior-session-validated plan
-precisely (registered as a claim, never implemented). Hardcoded-currency UI bugs
-(the other half of the finding) are already closed by merged PR #370 -- not touched.
+VERIDIAN Review Framework gap-closure: AI Architecture / Governance & Audit (5 findings).
 
 ## Completed
-- [x] Read governance docs + registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
-- [x] Studied existing patterns: whisper-client.ts (mockable HTTP client),
-      erp-accounting-service.ts exchange-rate area, exchange-rates API routes,
-      internal /run cron routes (isAuthorized/CRON_SECRET), vercel.json crons,
-      erp_exchange_rates schema
-- [x] 1. src/lib/exchange-rate-feed-client.ts -- DB-free open.er-api.com client
-- [x] 1b. src/lib/exchange-rate-feed-client.test.ts -- mocked-fetch unit tests
-- [x] 2. erp-accounting-service.ts: refreshLiveExchangeRates(ctx) +
-      refreshLiveExchangeRatesForAllOrgs() (shared refreshOrgLiveRates core,
-      idempotent per org+rateDate on source='live' rows)
-- [x] 3. erp_exchange_rates.source column: schema.ts + additive migration
-      0224_erp_exchange_rates_source.sql (confirmed no collision -- it was
-      already the latest migration number when checked)
-- [x] 4. POST /api/erp/exchange-rates/refresh (requireAuth-gated)
-- [x] 5. /api/internal/exchange-rate-refresh/run (CRON_SECRET-gated, same
-      isAuthorized() pattern as metric-alerts/run etc.)
-- [x] 6. vercel.json: one once-daily cron line (30 9 * * *)
-
-- [x] Verify: `tsc --noEmit` -- 0 errors. `bun run lint` -- 0 errors, 3
-      pre-existing warnings in unrelated files (litigation route, data-table,
-      VeriComposer), none introduced by this change. `bun test` -- **1388
-      pass, 0 fail**, 2720 expect() calls across 102 files (includes the new
-      exchange-rate-feed-client.test.ts: 11 pass, 0 fail, 21 expect() calls).
-      Console noise during the full run (APP_RUNTIME_DATABASE_URL warnings,
-      "boom"/"db unreachable" errors) is expected fail-closed logging from
-      pre-existing unrelated tests exercising their own error paths, not
-      failures.
+- [x] Read governance docs (ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml, OS.yaml) and registered this session's claim in ai-os/boss/ACTIVE-CLAIMS.yaml (committed + pushed separately, no collisions found with the 5 findings' real file scope).
+- [x] Re-verified each finding against current code before implementing (per task brief) -- several were partially stale; corrected CONSTITUTION.yaml's status/gap text everywhere that was true rather than making an unnecessary code change to "fix" something already resolved.
+- [x] **ABAC / Fine-Grained Policies (Critical)**: generalized approval-workflow-service.ts's single conditionField/conditionOperator predicate into a reusable multi-condition evaluator.
+  - `src/lib/abac.ts` (new, pure) -- `AttributeCondition`/`evaluateAttributeCondition`/`evaluateAttributeConditions`, unit-tested (`src/lib/abac.test.ts`, 8 tests).
+  - `approval_workflow_step_definitions.conditions` (new nullable jsonb array column, additive) -- AND-combined with the legacy single condition when both present.
+  - `abac_policies` new org-scoped table (deny-only overlay, RLS+FORCE) + `src/lib/services/abac-policy-service.ts` (list/create/enable-disable + `checkAbacDenyPolicies`/`checkAbacDenyPoliciesWithDb`/`requireAbacAllowed`). DB-accepting variant used from within an already-open transaction to avoid nesting `withTenantContext` (this codebase's pool is `max: 1`).
+  - Wired for real into `approval-workflow-service.ts`'s `decideApprovalStep` (supplementary deny check after the existing RBAC rank check).
+  - API: `src/app/api/governance/abac-policies/route.ts` (GET/POST, admin-gated) + `[id]/route.ts` (PATCH enable/disable).
+  - Migrations: `drizzle/0225_abac_policy_layer.sql`, `drizzle/0228_register_abac_policies_asset.sql` (UMR asset-registry coverage, required by `scripts/check-asset-registry-coverage.mjs`).
+  - `ai-os/CONSTITUTION.yaml` GP-02 (Authority) mechanism note extended to document the new ABAC layer.
+- [x] **Audit Trail (Medium)**: confirmed full prompt/response text was already persisted for most real call sites (chat-service.ts, fde-service.ts -- Wave 144/146, PII-redacted); CONSTITUTION.yaml's SEC-03 "500-char excerpt only" gap text was stale for those (the 500-char excerpt is real, but only for the policy-`denied` case, which never reaches a model). The one genuinely missing piece -- no TTL/expiry on stored full text -- is now closed:
+  - `orchestra_executions.payload_purged_at` (new nullable timestamp column) -- migration `drizzle/0226_orchestra_execution_payload_purge.sql`.
+  - `purgeExpiredOrchestraPayloads()` in `src/lib/orchestra-execution-logger.ts` -- nulls `input`/`output` past a retention window (default 90d, env-overridable), leaves every other audit column (status/model/cost/duration) permanent.
+  - New cron: `src/app/api/internal/orchestra-log-purge/run/route.ts`, wired into `vercel.json` (daily, 09:45).
+  - CONSTITUTION.yaml SEC-03 gap text corrected.
+- [x] **Unified cross-table audit search (Medium)**: `compliance.audit_search` view (migration `drizzle/0227_audit_search_view.sql`) unions `audit_logs` + `orchestra_executions` + `activity_log` into one `{source_table, id, org_id, user_id, actor_label, action, entity_type, entity_id, details, created_at}` shape.
+  - Security: `security_invoker = true` (PG15+) **and** an explicit `org_id = compliance.current_org_id()` filter hardcoded into every branch (fails closed to zero rows if the GUC is ever unset, never leaks cross-org).
+  - `src/lib/services/audit-search-service.ts` (`searchAuditTrail`, raw `db.execute(sql...)` through `withTenantContext`, matching `mdm-quality-service.ts`'s existing raw-query convention).
+  - API: `src/app/api/governance/audit-search/route.ts` (requireAuth-only, matching the existing `/api/audit` route's gating -- the view only exposes non-sensitive columns per source).
+- [x] **Maintainability dashboard (High)**: confirmed no maintainability score of any kind existed (VERIDIAN_AUDIT_ORGANIZATION.md explicitly declined to build the ~149 fake specialist-auditor roles including "Maintainability Auditor" -- correctly, per its own reasoning). Built a real, additive scorecard instead of an LLM role:
+  - `src/lib/services/maintainability-dashboard-service.ts` -- combines guardrail-violation rate (`loopImprovements` where `improvementType='guardrail_violation'`, real BLOCK/FAIL outputs from the Guardrail Team's existing checks), continuous-improvement backlog (stale `isDeployed=false` rows), and `monitoring-engine.ts`'s existing `dependencyHealthScore`, into one 0-100 score. Honestly reports what it does NOT cover (static analysis, dependency freshness) rather than fabricating those. Unit-tested (`.test.ts`, pure combiner).
+  - API: `src/app/api/ai/team/maintainability-dashboard/route.ts` (veridian_admin-gated, matches `/api/ai/team/governance-health`'s posture).
+  - Surfaced in `ai-os/`: `ai-os/registry/maintainability-scorecard.md` (methodology + pointer doc, not a data dump) + registered in `ai-os/OS.yaml`'s `health_and_compliance` index.
+- [x] **GP-06/GP-09/GP-26 enforcement (High)**: re-verified each against current code -- GP-09 and GP-26's CONSTITUTION.yaml status/gap text were significantly stale (real mechanisms already existed for the AI Team dispatch surface); GP-06 was genuinely still open.
+  - GP-06 (Knowledge): new `src/lib/knowledge-sufficiency-gate.ts::detectKnowledgeGap()`, mirroring `floor-tier-escalation.ts::detectLowConfidenceResponse()`'s exact deterministic pattern -- detects an explicit knowledge/access-gap admission in the executing role's own output. Wired into `/api/ai/team/dispatch/route.ts` as its own independent `requiresAudit` trigger and into `buildDispatchSelfAssessment`'s `knownRisks` narrative. Unit-tested.
+  - GP-09 (Confidence): confirmed `confidence-banding.ts::bandConfidence()` + the real 98/95/90 tiered thresholds already existed (D18/PLAN-20), just never computed by the system itself -- only ever an optional reviewer-supplied value at closure time. New `src/lib/dispatch-confidence-scoring.ts::computeDispatchConfidencePercentage()` computes a real 0-100 score at DISPATCH time from already-real signals (low-confidence/knowledge-gap detection, risk level), persisted immediately on `activity_log` (additive `confidencePercentage`/`confidenceBand` now settable at dispatch, not just closure -- `activity-log-service.ts` extended additively). Unit-tested.
+  - GP-26 (Self-Evaluation): confirmed `qa-precompletion-gate.ts::buildDispatchSelfAssessment()` + `checkQaPreCompletionGate()` already enforce a mandatory structured self-assessment for AI Team dispatch (blocks completion without a passing handover or an explicit, permanent override) -- CONSTITUTION.yaml's POLICY_ONLY status was stale. No new code needed beyond the GP-06 field threaded through; corrected the doc.
+  - CONSTITUTION.yaml GP-06/GP-09/GP-26 (and UMR-04, which shared GP-09's now-corrected premise) updated to PARTIALLY_ENFORCED with accurate, narrower gap text (both still real: AI Team dispatch surface only, proxy signals not literal model self-report).
+- [x] Also fixed real-but-incidental CI-gate requirements surfaced along the way: registered the new `abac_policies` table in `ai-os/registry/asset-registry-coverage.yaml` (required by `scripts/check-asset-registry-coverage.mjs`).
+- [x] Full verification: `bunx tsc --noEmit` clean (0 errors), `bun test` 1443 pass / 0 fail across 107 files (includes all new tests), `bun run lint` 0 errors (3 pre-existing unrelated warnings), `scripts/check-guardrail-presence.mjs` / `check-asset-registry-coverage.mjs` / `check-doc-cross-references.mjs` / `check-doc-quarantine-banner.mjs` / `check-metadata-index-coverage.mjs` all pass.
 
 ## Remaining
-- [ ] None -- task complete. Not yet committed/pushed/PR'd (repo has no
-      human reviewer bottleneck, but Rule 6 still requires a branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] Open PR (not self-merged, per this task's own instruction and AGENTS.md Rule 6/7c) -- flag for the supervising session's audit. Apply drizzle migrations (0225-0228) to the live Supabase project as part of that merge, matching this repo's convention of shipping the SQL in the PR itself.
+- [ ] Note for the supervising session: `scripts/check-migration-collision.mjs` reports a PRE-EXISTING collision at migration number 0224 (`0224_crm_accounts_contacts_actor_columns_no_fk.sql` vs `0224_erp_exchange_rates_source.sql`, both already on `main`, neither touched by this session) -- not part of this task's scope, flagging rather than silently fixing someone else's already-merged files. This session's own new migrations are 0225-0228, no collisions.

@@ -43,6 +43,8 @@ registered:
   # source_table is UNIQUE -- see drizzle/0155's own header note.)
   - table: automation_rules
   - table: policies
+  - table: abac_policies
+    reason: "VERIDIAN Review Framework gap-closure (2026-07-18): ABAC deny-policy layer, drizzle/0228 -- asset_type=policy (same family as `policies` above), name_column=description (no dedicated name column; auto_register_asset() falls back to 'abac_policies:<id>' when null), owner_column=created_by_id, active_column=is_active, auto_register_asset_trg attached"
   - table: approval_workflow_definitions
   - table: bcm_plans
   - table: framework_controls
