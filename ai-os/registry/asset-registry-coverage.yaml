@@ -33,6 +33,8 @@ registered:
     reason: "domain C (drizzle/0155): org-scoped outbound integration config -- trigger only copies name/module/owner/org/status, never the `secret` or `url` columns, so no signing-secret leak into the registry -- auto_register_asset_trg attached"
   - table: subscription_plans
     reason: "domain C (drizzle/0155): PLATFORM-WIDE by design (no org_id column -- shared pricing-plan catalog every org reads the same rows from) -- org_column=NULL is correct here, auto_register_asset_trg attached"
+  - table: ai_team_role_overrides
+    reason: "PR #415 rescue (2026-07-18, drizzle/0227): admin-editable override of which model an AI Team role uses (PATCH /api/ai/team/dispatch) -- name_column=role_key, purpose_column=reason, owner_column=updated_by_user_id, PLATFORM-WIDE by design (no org_id column -- the AI Team roster is the platform's own internal org chart) -- org_column=NULL is correct here, auto_register_asset_trg attached"
   - table: access_review_cycles
     reason: "domain C (drizzle/0155): org-scoped periodic access-review process -- asset_type=task, owner_column=created_by_id, auto_register_asset_trg attached"
   # Priority 4 domain B (subagent p4/domain-b-workflow, drizzle/0154):
@@ -326,6 +328,8 @@ exempted:
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch review (2026-07-14): has a genuine display-name column (label) but NO direct org_id column -- only indirectly scoped via user_id -> users.org_id, a per-user personal resource. Same cross-tenant-leak reasoning as the already-exempted notifications table."
   - table: ai_configurations
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: ai_reduction_snapshots
+    reason: "PR #415 rescue (2026-07-18): a monthly, platform-wide SUM snapshot of task_capabilities' cumulative counters (ai-reduction-service.ts's takeAiReductionSnapshot(), run by /api/internal/ai-reduction-snapshot/run). No genuine display-name column (snapshot_date identifies WHEN the snapshot ran, not this row's own name) and no org_id column -- one row per platform-wide sweep across every org, same class as the already-exempted monitor_execution_log directly below it in the registry's own reasoning. An internal trend-analysis log, not a discoverable named business object."
   - table: api_key_request_log
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: passcode_login_attempts

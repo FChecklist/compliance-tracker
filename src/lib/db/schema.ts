@@ -1244,6 +1244,32 @@ export const taskChatMessages = complianceSchemaDB.table('task_chat_messages', {
 // Seeded with the 5 layers from the master spec: Task OA, User Assistant OA,
 // Customer Account OA, Global Intelligence OA, Meta OA. Global read (no
 // org scoping), same as subscription_plans.
+// VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+// 2026-07-18): "internal AI Team roster is static, not admin-editable."
+// roster.ts's AI_TEAM_ROSTER array (~180 roles) stays the single source of
+// truth for role metadata (team/title/promptKey/isHuman/isCodeOnly) --
+// rewriting that as DB rows would be a much larger, riskier migration for
+// no real benefit (an admin doesn't need to invent new roles at runtime).
+// What genuinely needed to be admin-editable was narrower: WHICH model a
+// role calls. This table is an additive OVERRIDE layer on top of roster.ts,
+// not a replacement -- roster-overrides.ts's resolveEffectiveModel() checks
+// this table first, falling back to roster.ts's own static `model` field
+// when no override row exists (or the DB read fails) for a roleKey. One row
+// per role_key (unique) -- an override is a standing "use THIS model
+// instead," not a history log (updated_at/updated_by_user_id capture the
+// most recent change for audit purposes; a full change-history table is a
+// straightforward additive follow-up if ever needed, not blocked by this
+// shape).
+export const aiTeamRoleOverrides = complianceSchemaDB.table('ai_team_role_overrides', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull().unique(),
+  model: text('model').notNull(),
+  reason: text('reason'),
+  updatedByUserId: text('updated_by_user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const orchestraLayers = complianceSchemaDB.table('orchestra_layers', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   layerKey: text('layer_key').notNull(),
@@ -9730,6 +9756,33 @@ export const taskCapabilities = complianceSchemaDB.table('task_capabilities', {
   orgId: text('org_id'), // nullable = platform-wide, deliberate (see header)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// VERIDIAN Review Framework remediation (Predictive AI Model Selection gap,
+// 2026-07-18): "No metric tracks whether AI usage/dependence decreases over
+// time." taskCapabilities above only stores CUMULATIVE fullSoftwareCount/
+// packageAvailableCount/novelCount counters (recordExecutionOutcome() in
+// capability-learning-service.ts increments them, never resets or
+// timestamps an individual increment) -- there was no way to answer "did
+// the platform's software-vs-AI mix improve THIS month" from that table
+// alone, only "what is the mix right now, cumulative since forever." This
+// table is a monthly, platform-wide SNAPSHOT of the summed cumulative
+// counters (ai-reduction-service.ts's takeAiReductionSnapshot()) -- diffing
+// two consecutive rows gives that specific month's real bucket
+// distribution, since the underlying counters only ever increase. No
+// orgId: taskCapabilities' own counters are already mostly platform-wide
+// (see that table's own orgId comment), and a single platform-wide trend is
+// what "is AI usage/dependence decreasing over time" asks for; a per-org
+// breakdown is a straightforward additive column later if ever needed, not
+// blocked by this shape.
+export const aiReductionSnapshots = complianceSchemaDB.table('ai_reduction_snapshots', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  snapshotDate: date('snapshot_date', { mode: 'string' }).notNull(),
+  fullSoftwareCount: integer('full_software_count').notNull(),
+  packageAvailableCount: integer('package_available_count').notNull(),
+  novelCount: integer('novel_count').notNull(),
+  totalCount: integer('total_count').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // Priority 5: the "Approved Lower AI Instruction Package" -- what makes the

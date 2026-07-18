@@ -96,11 +96,41 @@ if (isAuditOrganizationRole(roleKey)) {
   process.exit(1)
 }
 
+// VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+// 2026-07-18): resolves the same admin-set DB override
+// src/lib/ai-team/roster-overrides.ts's resolveEffectiveModel() checks --
+// this script runs standalone in CI (no Drizzle/DATABASE_URL access, same
+// constraint as fetchSystemPrompt() below), so it queries the table
+// directly via PostgREST using the same AI_TEAM_SUPABASE_URL/
+// AI_TEAM_SUPABASE_ANON_KEY secrets, rather than duplicating
+// roster-overrides.ts's DB-client logic in a script that can't import it.
+// Fails open to role.model (the static default) on ANY error -- a
+// transient PostgREST hiccup must never be the reason a dispatch that
+// would otherwise work fails.
+async function resolveEffectiveModel(roleKeyToResolve, staticModel) {
+  try {
+    const supabaseUrl = stripQuotes(process.env.AI_TEAM_SUPABASE_URL) || "https://pcrjmlpuqsbocqfwoxod.supabase.co"
+    const serviceKey = stripQuotes(process.env.AI_TEAM_SUPABASE_ANON_KEY)
+    const url = `${supabaseUrl}/rest/v1/ai_team_role_overrides?select=model&role_key=eq.${encodeURIComponent(roleKeyToResolve)}`
+    const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "compliance" } })
+    if (!res.ok) return staticModel
+    const rows = await res.json()
+    return rows.length && rows[0].model ? rows[0].model : staticModel
+  } catch (err) {
+    console.error(`[ai-workforce-agent] WARNING: failed to resolve role override for '${roleKeyToResolve}', falling back to the static default: ${err.message}`)
+    return staticModel
+  }
+}
+const effectiveModel = await resolveEffectiveModel(roleKey, role.model)
+
 // Wave 163 (Boss directive: "based on complexity given to the AI model"):
 // this is the actual pipeline both real cheap-tier dispatches this session
 // went through (GPT-OSS-120B, DeepSeek V4 Pro) -- neither had any tier
-// check at all before this. Checked before any OpenRouter spend.
-const tierCheck = checkTierEligibility(role.model, rawTask.complexityTier)
+// check at all before this. Checked before any OpenRouter spend. Checked
+// against effectiveModel (not role.model) so an admin override that points
+// at an ineligible-tier model is caught here, not silently allowed through
+// while only the (correct) static model was ever checked.
+const tierCheck = checkTierEligibility(effectiveModel, rawTask.complexityTier)
 if (!tierCheck.eligible) {
   console.error(`[ai-workforce-agent] ${tierCheck.reason}`)
   console.error(`[ai-workforce-agent] ${tierCheck.guidance}`)
@@ -304,7 +334,7 @@ async function logUsageToLedger(usage) {
       headers: { "Content-Type": "application/json", "x-ai-team-secret": logSecret },
       body: JSON.stringify({
         roleKey,
-        model: role.model,
+        model: effectiveModel,
         provider: "openrouter",
         promptTokens: usage.prompt_tokens ?? 0,
         completionTokens: usage.completion_tokens ?? 0,
@@ -346,7 +376,7 @@ async function callOpenRouter(messages) {
           "HTTP-Referer": "https://veridian-compliance-ai.vercel.app",
           "X-Title": "VERIDIAN AI Workforce",
         },
-        body: JSON.stringify({ model: role.model, messages, tools: TOOLS, temperature: 0.2 }),
+        body: JSON.stringify({ model: effectiveModel, messages, tools: TOOLS, temperature: 0.2 }),
       })
       const bodyText = await res.text()
       if (!res.ok) throw new Error(`OpenRouter HTTP ${res.status}: ${bodyText.slice(0, 500)}`)
@@ -519,7 +549,7 @@ async function main() {
   }
 
   console.log("=== AI WORKFORCE AGENT RESULT ===")
-  console.log(JSON.stringify({ roleKey, model: role.model, ...finished }, null, 2))
+  console.log(JSON.stringify({ roleKey, model: effectiveModel, ...finished }, null, 2))
 
   // GITHUB_OUTPUT for the workflow step to pick up.
   if (process.env.GITHUB_OUTPUT) {
@@ -531,7 +561,7 @@ async function main() {
     // and mandatory-audit-check.yml's CI gate -- neither role that has
     // dispatched through this pipeline so far (GPT-OSS-120B, DeepSeek V4
     // Pro) has earned judgment-tier trust, so both are always true today.
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `requires_audit=${requiresMandatoryAudit(role.model)}\n`)
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `requires_audit=${requiresMandatoryAudit(effectiveModel)}\n`)
   }
 }
 

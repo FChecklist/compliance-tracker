@@ -56,6 +56,40 @@ const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
 // when the free primary is actually down.
 const CEREBRAS_GPT_OSS_MODEL = "gpt-oss-120b"
 
+// Wave (2026-07-10, founder directive): the model a floor-tier call escalates
+// TO when src/lib/floor-tier-escalation.ts's deterministic signals fire.
+// GLM-5.2, already pinned to OpenRouter provider "DeepInfra" in
+// llm-client.ts's OPENROUTER_PROVIDER_PREFERENCE. Callers must only use this
+// for requests that resolved to `isCustomerConfigured: false` -- never
+// overrides an org's own BYO model choice. Declared here (moved up from
+// beside escalatedPlatformConfig() below) so platformFallbackFor() can
+// reference it directly instead of forward-referencing a later const.
+const ESCALATED_PROVIDER: LLMProvider = "openrouter"
+const ESCALATED_MODEL = "z-ai/glm-5.2"
+
+// VERIDIAN Review Framework remediation (AI Failover & High Availability
+// gap, 2026-07-18): before this, ONLY the floor tier (below) had a
+// same-quality-class failover -- the escalated tier (ESCALATED_MODEL,
+// what a floor-tier call upgrades to when floor-tier-escalation.ts's
+// signals fire, see escalatedPlatformConfig() below) and every BYO/
+// customer-configured "premium" model fell straight through to the
+// generic OpenRouter free fallback (PLATFORM_FALLBACK_MODEL, a much
+// weaker model) -- a real quality cliff for exactly the calls judged
+// important enough to escalate to begin with. Same "same tier, different
+// infra" reasoning as the Cerebras branch below: if GLM-5.2 itself is
+// down, retry on a different real reasoning model (DeepSeek V4 Pro --
+// already judgment/integrative-eligible per model-tier-eligibility.ts,
+// and pinned to OpenRouter provider "DeepSeek" in llm-client.ts's
+// OPENROUTER_PROVIDER_PREFERENCE, genuinely separate upstream infra from
+// GLM-5.2's DeepInfra routing) instead of collapsing all the way to the
+// free floor model. Deliberately scoped to the ESCALATED_MODEL only, not
+// every arbitrary BYO/premium config: an org's own BYO model choice has no
+// platform-known "same-tier sibling" to fail over to -- inventing one
+// would be guessing at a customer's intent, not a real reliability
+// improvement, so those configs still fall through to the generic
+// OpenRouter fallback below (the only universally-safe default).
+const ESCALATED_FALLBACK_MODEL = "deepseek/deepseek-v4-pro"
+
 function platformFallbackFor(primary: { provider: LLMProvider; model: string }): LLMFallback | undefined {
   // Same-model failover for the floor tier specifically: if Groq's
   // gpt-oss-120b is the primary and it fails, retry the SAME model on
@@ -66,6 +100,15 @@ function platformFallbackFor(primary: { provider: LLMProvider; model: string }):
   if (primary.provider === PLATFORM_DEFAULT_PROVIDER && primary.model === PLATFORM_DEFAULT_MODEL) {
     const cerebrasKey = platformApiKeyFor("cerebras")
     if (cerebrasKey) return { provider: "cerebras", model: CEREBRAS_GPT_OSS_MODEL, apiKey: cerebrasKey }
+  }
+
+  // Escalated-tier failover -- see ESCALATED_FALLBACK_MODEL's own comment
+  // above. Checked before the generic fallback below so it takes priority
+  // whenever OPENROUTER_API_KEY is configured (the same key both the
+  // primary escalated call and this fallback use).
+  if (primary.provider === ESCALATED_PROVIDER && primary.model === ESCALATED_MODEL) {
+    const openrouterKey = process.env.OPENROUTER_API_KEY
+    if (openrouterKey) return { provider: "openrouter", model: ESCALATED_FALLBACK_MODEL, apiKey: openrouterKey }
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -89,20 +132,30 @@ export function platformApiKeyFor(provider: LLMProvider): string | undefined {
   }
 }
 
-// Wave (2026-07-10, founder directive): the model a floor-tier call escalates
-// TO when src/lib/floor-tier-escalation.ts's deterministic signals fire.
-// GLM-5.2, already pinned to OpenRouter provider "DeepInfra" in
-// llm-client.ts's OPENROUTER_PROVIDER_PREFERENCE. Callers must only use this
-// for requests that resolved to `isCustomerConfigured: false` -- never
-// overrides an org's own BYO model choice.
-const ESCALATED_PROVIDER: LLMProvider = "openrouter"
-const ESCALATED_MODEL = "z-ai/glm-5.2"
-
-/** Returns the escalation target for a floor-tier call, or null if OPENROUTER_API_KEY isn't configured (nothing sensible to escalate to). */
+/**
+ * Returns the escalation target for a floor-tier call, or null if
+ * OPENROUTER_API_KEY isn't configured (nothing sensible to escalate to).
+ *
+ * Bug fix (VERIDIAN Review Framework remediation, AI Failover, 2026-07-18):
+ * this never populated `fallback` at all before -- every other real config
+ * returned by this file (resolveModelConfig/resolveClientModelConfig/
+ * resolvePlatformModelConfig, all below) sets it via platformFallbackFor(),
+ * but this function built its ResolvedModelConfig by hand and skipped that
+ * call entirely. Net effect: chat-service.ts's escalated retry
+ * (`callLLM(..., escalated.fallback)`) always ran with `fallback: undefined`
+ * -- an escalated call had literally NO failover path, not even the generic
+ * one every other call site gets. Now goes through the same
+ * platformFallbackFor() every other branch uses, which (see that function)
+ * resolves this specific primary to the new DeepSeek V4 Pro same-tier
+ * failover.
+ */
 export function escalatedPlatformConfig(): ResolvedModelConfig | null {
   const apiKey = platformApiKeyFor(ESCALATED_PROVIDER)
   if (!apiKey) return null
-  return { provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL, apiKey, isCustomerConfigured: false }
+  return {
+    provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL, apiKey, isCustomerConfigured: false,
+    fallback: platformFallbackFor({ provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL }),
+  }
 }
 
 // ─── Source-type-aware routing (D26.B5.S1, ai-os/STATUS-REPORT.md item 9) ──

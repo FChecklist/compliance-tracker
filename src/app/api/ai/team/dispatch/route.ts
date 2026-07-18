@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { classifyTask, runRole, runGuardrailLevel, getRole } from "@/lib/ai-team/team-service"
+import { resolveEffectiveModel } from "@/lib/ai-team/roster-overrides"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
@@ -125,7 +126,16 @@ export async function POST(request: NextRequest) {
         blockedBy: { reason: `Role "${classification.role}" could not be resolved to a callable model.`, guidance: "Check the role_key -- it must be a real, LLM-backed role in roster.ts (not human-only or code-only)." },
       }, { status: 422 })
     }
-    const tierCheck = checkTierEligibility(targetRole.model, complexityTier!)
+    // VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+    // 2026-07-18): checked against the EFFECTIVE model (DB override if an
+    // admin set one, else targetRole.model) -- runRole() below resolves the
+    // exact same value for the actual call, so this gate can never pass a
+    // static model that isn't the one that actually runs. Checking
+    // targetRole.model here while an override silently ran a different,
+    // ineligible model would be a real guardrail bypass, not just a stale
+    // check.
+    const effectiveModel = (await resolveEffectiveModel(classification.role)) ?? targetRole.model
+    const tierCheck = checkTierEligibility(effectiveModel, complexityTier!)
     if (!tierCheck.eligible) {
       if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
       return NextResponse.json({
@@ -288,7 +298,9 @@ export async function POST(request: NextRequest) {
           // Real cost when this model's pricing is known (estimateCostUsd
           // returns null for an unpriced model) -- forwarded to the
           // reflection row's cost verdict, never fabricated.
-          costUsd: estimateCostUsd(targetRole.model, execution.usage) ?? undefined,
+          // execution.role.model (not targetRole.model) -- reflects the
+          // model actually called, in case an override was in effect.
+          costUsd: estimateCostUsd(execution.role.model!, execution.usage) ?? undefined,
           riskLevel,
           selfAssessment: handoverFieldCheck.passed ? selfAssessmentFields : undefined,
           confidencePercentage,
@@ -334,4 +346,36 @@ export async function GET() {
   }
   const { AI_TEAM_ROSTER } = await import("@/lib/ai-team/roster")
   return NextResponse.json({ roster: AI_TEAM_ROSTER })
+}
+
+// VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+// 2026-07-18): the roster.ts role->model mapping admin edit surface --
+// GET .../roster/overrides for the joined roster+override view (see the
+// dedicated route below), PATCH here to set or clear one role's override.
+// Kept on this same dispatch route file rather than a new one -- this IS
+// the AI Dev Team dispatch surface these overrides govern, same
+// veridian_admin gate as GET above.
+export async function PATCH(request: NextRequest) {
+  const { user, dbUser, response: authError } = await requireAuth()
+  if (!user) return authError!
+  if (!dbUser || dbUser.role !== "veridian_admin") {
+    return NextResponse.json({ error: "veridian_admin-only" }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json()
+    const { roleKey, model, reason } = body as { roleKey?: string; model?: string | null; reason?: string }
+    if (!roleKey) return NextResponse.json({ error: "roleKey is required" }, { status: 400 })
+
+    const { setRoleOverride, clearRoleOverride } = await import("@/lib/ai-team/roster-overrides")
+    if (model === null || model === undefined) {
+      await clearRoleOverride(roleKey)
+      return NextResponse.json({ status: "cleared", roleKey })
+    }
+    await setRoleOverride(roleKey, model, dbUser.id, reason)
+    return NextResponse.json({ status: "set", roleKey, model })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to set role override"
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }

@@ -3714,6 +3714,48 @@ recently_completed:
       commit -- last real migration still 0223_force_rls_hr_attendance_
       holidays.sql; branch base == origin/main tip 13bddf6f at time of
       PR). PR opened against main, not merged, per instructions.
+  - session_label: "claude-code -- VERIDIAN Review Framework gap-closure: AI Architecture / AI Orchestration, Routing & Failover"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closed all 7 findings from the VERIDIAN Review Framework's "AI
+      Architecture / AI Orchestration, Routing & Failover" area in one PR
+      (registered late -- after confirming scope by reading every named
+      module fresh, not before; no collision found via a full-file grep for
+      orchestra/routing/failover/roster/model-tier/model-resolver before
+      starting real edits).
+
+      File scope: src/lib/orchestra-model-resolver.ts + .test.ts,
+      src/lib/llm-client.ts (added deepseek-v4-pro MODEL_PRICING row),
+      src/lib/loops/byo-model-audit.ts + new .test.ts (Loop 14 extended, not
+      a new loop), src/lib/services/routing-accuracy-report-service.ts (new)
+      + .test.ts, src/lib/services/orchestra-trace-service.ts (new),
+      src/lib/services/ai-reduction-service.ts (new) + .test.ts,
+      src/lib/ai-team/roster-overrides.ts (new) + .test.ts,
+      src/lib/ai-team/team-service.ts, src/lib/ai-team/dispatch-repo.ts,
+      scripts/ai-workforce-agent.mjs, src/app/api/ai/team/dispatch/route.ts,
+      new src/app/api/ai/team/roster/overrides/route.ts, new
+      src/app/api/orchestra/{traces,traces/[id],routing-accuracy,
+      ai-reduction-trend}/route.ts, new
+      src/app/api/internal/{routing-accuracy-report,ai-reduction-snapshot}/run/route.ts,
+      new src/app/(app)/ai-observability/page.tsx, new
+      src/components/AiTeamRosterSection.tsx, src/app/(app)/settings/page.tsx,
+      src/components/AppSidebar.tsx, messages/{en,hi}.json,
+      src/lib/db/schema.ts, new drizzle/0233_ai_reduction_snapshots.sql +
+      0234_ai_team_role_overrides.sql, vercel.json (2 new cron entries).
+      Explicitly did NOT touch src/lib/services/permission-service.ts or
+      ERP_ACTION_ROLES, per this task's own instructions.
+
+      Two real pre-existing bugs found and fixed while implementing the
+      named findings (not scope creep -- both are the SAME
+      platformFallbackFor()/escalation-accuracy machinery the findings
+      already named): (1) escalatedPlatformConfig() never populated
+      `fallback` at all -- the escalated tier had ZERO failover before this
+      PR, not just a weak one. (2) Loop 14's missed-escalation sample is new
+      instrumentation, not a bug fix.
+
+      Full detail, per-finding notes on what was already resolved vs. a real
+      gap, and verification results (tsc/eslint/bun test: 1422 pass/0 fail)
+      are in this branch's PROGRESS.md. Not yet PR'd as of this claim entry.
   - session_label: "claude-code (task-20260718-202902-rescue-pr--415) -- Rescue PR #415"
     completed_at: "2026-07-18T (this session)"
     merged_as: "NOT MERGED -- TIER2 (touches drizzle/*.sql), awaiting Owner sign-off per task instructions; also blocked on a GitHub Actions infra issue, see below."
