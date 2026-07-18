@@ -1741,6 +1741,60 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-180652-rescue-pr--430) -- Rescue and merge PR #430"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #430 (tier1, self-merged after CI green), squash commit 8902b86c."
+    claim: |
+      Rescued PR #430 (branch worker/task-20260718-091002-checks---balances--
+      exception-handling, "Checks & Balances / Exception Handling & Recovery":
+      ServiceError business/system + retryable taxonomy, exception-taxonomy.ts's
+      withAutomaticRecovery, compensating-rollback voidDraftJournalEntry wired
+      into fixed-assets depreciation/disposal, withAutomaticRecovery around the
+      approval-decide finalize step + a new controls-health-audit.ts L3 rolling
+      snapshot, and checkHighImpactConfirmation() extracted as HAB-02's first
+      reusable confirm-gate), opened by a now-stopped autonomous worker
+      dispatcher with CI failing (audit-check + Unit Tests) and BEHIND main.
+      Real work done: rebased FOUR times onto origin/main as concurrent
+      sibling PRs (#431, #428, and #428's own rescue-registration commit)
+      kept landing mid-rescue -- each time resolving real PROGRESS.md/
+      ACTIVE-CLAIMS.yaml conflicts by hand (kept every session's own distinct
+      entries, discarded nothing) and confirming the other auto-merged files
+      (CONSTITUTION.yaml, high-impact-action-detector.ts) stayed correct by
+      diffing against each new base. No drizzle/*.sql migration in this PR --
+      confirmed TIER1 before and after every rebase. Ran bun install/tsc/
+      lint/test fresh after each rebase (1477 pass/0 fail on the final
+      rebase). Read the full diff by hand (15 files) before posting a
+      structured `AUDIT: PASS` PR comment with all 8 required fields
+      (re-posted after each rebase to keep evidence accurate). Waited for the
+      full branch-protection-required check set (Lint/Type Check/Build/
+      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/
+      Unit Tests) to go green on the final commit, then squash-merged and
+      deleted the remote branch. Vercel preview check failed
+      (build-rate-limited, not a required check) -- noted, did not block
+      merge.
+  - session_label: "claude-code (task-20260718-180654-rescue-pr--428) -- Rescue and merge PR #428"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #428 (tier1, self-merged after CI green), squash commit 7f631cf5."
+    claim: |
+      Rescued PR #428 (branch worker/task-20260718-085003-checks---
+      balances--business-rule---calcu, "Checks & Balances: pre-execution
+      business-rule gate, calculation cross-verification, AI-output
+      validation"), opened by a now-stopped autonomous worker dispatcher
+      with CI failing (audit-check + Unit Tests) and BEHIND main. Real work
+      done: rebased twice onto origin/main (first cleanly; a second time
+      after PR #431, a sibling "Checks & Balances" PR, merged mid-flight --
+      resolved real conflicts in PROGRESS.md/ACTIVE-CLAIMS.yaml by hand,
+      confirmed no actual source-file conflict existed between the two
+      PRs). No drizzle/*.sql migration in this PR -- confirmed TIER1. Ran
+      bun install/tsc/lint/test fresh after each rebase (1464 pass/0 fail
+      on the final rebase, matching PR's own prior claimed count). Read the
+      full diff by hand (11 files) before posting a structured `AUDIT:
+      PASS` PR comment with all 8 required fields. Waited for the full
+      branch-protection-required check set (Lint/Type Check/Build/audit-
+      check/Guardrail Presence Check/Asset Registry Coverage Check/Unit
+      Tests) to go green, then squash-merged and deleted the remote branch.
+      Vercel preview check failed (build-rate-limited, not a required
+      check) -- noted, did not block merge.
   - session_label: "Super Boss (Claude Desktop, interactive) -- Home-page merge panel fix + veridian-ui-kit adoption"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #436 (tier1, self-merged after CI green), commit 3d3f6aef. Sibling repos: FChecklist/veridian-ui-kit (new shared package), FChecklist/projexa PR #38 (adoption, awaiting Owner review -- no CI/branch-protection in that repo)."
