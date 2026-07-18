@@ -41,6 +41,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "Claude Code (headless rescue task) -- Rescue PR #429"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescuing PR #429 (branch worker/task-20260718-090002-checks---
+      balances--duplicate---data-qual, "Close duplicate-work and
+      duplicate-data detection gaps"): audit-check and Unit Tests CI jobs
+      currently failing. Scope: merge origin/main into this PR's branch,
+      fix any real CI failures (task-dedup-service.ts /
+      mdm-quality-service.ts area, src/lib/services/), post required
+      AUDIT PR comment, get CI green, and merge if TIER1 (no
+      drizzle/*.sql or schema.ts changes) or report TIER2 for Owner
+      sign-off otherwise. Not touching AIROUTER-01 or the
+      tenant-isolation.test.ts mock-leak fix above -- different files.
   - session_label: "Super Boss (Claude Desktop, interactive) -- AIROUTER-01 Mother Router Phase 1"
     claimed_at: "2026-07-18T (this session)"
     claim: |
