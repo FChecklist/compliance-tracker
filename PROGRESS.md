@@ -61,13 +61,31 @@
       from earlier in this PR's history), not something fixable by further
       code changes in this repo.
 
+## Completed (continued)
+- [x] Registered + closed the rescue claim via a separate small PR
+      (FChecklist/compliance-tracker#451, `chore/register-close-pr-415-
+      rescue-claim`) rather than folding it into PR #415's own diff --
+      this doubled as a diagnostic: that fresh PR triggered CI normally
+      within seconds and merged clean (squash), proving the CI-trigger
+      anomaly is isolated to PR #415's specific branch/PR object, not a
+      repo-wide or account-wide outage.
+- [x] Tried one more remediation on PR #415 itself: closed and reopened it
+      (a `reopened` pull_request event is a normal CI trigger type) --
+      still zero GitHub Actions check-suite created afterward (checked via
+      the checks API, ~2 more minutes of waiting). PR is back to its
+      correct OPEN state with the same head commit, no side effects.
+
 ## Remaining
-- [ ] CI has not gone green because GitHub Actions has not run at all on
-      this branch since the rescue's fixes were pushed -- this is an
-      infrastructure-side blocker, not a code defect. Re-triggering (a
-      normal push + a deliberate empty-commit push) did not resolve it
-      within this session. Needs either: GitHub-side investigation (Owner
-      or repo admin), or simply time/retry outside this session's window.
+- [ ] CI has not gone green on PR #415 because GitHub Actions has not run
+      at all on this branch since the rescue's fixes were pushed -- this
+      is a confirmed infrastructure-side blocker (isolated to this one
+      PR/branch, not a code defect and not a repo-wide outage), not
+      something fixable by further pushes from this session. 4 distinct
+      retrigger attempts tried (2 real pushes, 1 empty-commit push, 1
+      close+reopen) over ~35 minutes, none resolved it. Needs GitHub-side
+      investigation (Owner or a repo admin with dashboard/support access)
+      or simply time.
 - [ ] Because of the above, CI cannot be confirmed green in this session,
       and per task constraints this PR (TIER2 -- touches drizzle/*.sql)
-      must not be merged regardless. No merge action taken.
+      must not be merged regardless. No merge action taken on PR #415
+      itself.
