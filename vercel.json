@@ -20,6 +20,8 @@
     { "path": "/api/internal/report-schedules/run", "schedule": "45 8 * * *" },
     { "path": "/api/internal/capability-audit/run", "schedule": "0 9 * * *" },
     { "path": "/api/internal/exchange-rate-refresh/run", "schedule": "30 9 * * *" },
-    { "path": "/api/internal/orchestra-log-purge/run", "schedule": "45 9 * * *" }
+    { "path": "/api/internal/orchestra-log-purge/run", "schedule": "45 9 * * *" },
+    { "path": "/api/internal/cost-anomalies/run", "schedule": "15 9 * * *" },
+    { "path": "/api/internal/idle-ai-capacity/run", "schedule": "0 10 1 1,4,7,10 *" }
   ]
 }
