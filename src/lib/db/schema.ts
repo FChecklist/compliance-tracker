@@ -1313,6 +1313,14 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   promptTokens: integer('prompt_tokens'),
   completionTokens: integer('completion_tokens'),
   costUsd: numeric('cost_usd'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): "Explains Workflow Decisions" -- no workflow/routing
+  // decision was ever explained anywhere; this row already records WHICH
+  // model/provider ran, but never WHY that one (vs. the org's own default,
+  // e.g. an escalation/fallback/floor-tier decision). Nullable/additive,
+  // same posture as the Wave 22/23 columns above -- only populated by call
+  // sites that actually have a routing decision to explain.
+  routingRationale: text('routing_rationale'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   // VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail" finding
   // (VERIDIAN_AI_CONSTITUTION.md #19 / SEC-03's own documented gap): full
@@ -4254,6 +4262,23 @@ export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one 
   parentPage: one(knowledgeBasePages, { fields: [knowledgeBasePages.parentPageId], references: [knowledgeBasePages.id] }),
 }))
 
+// ─── Business Terminology Glossary (AI Architecture / Explainability &
+// Transparency gap-closure, 2026-07-18, migration 0225) ───────────────────
+// "Explain Business Terminology" finding: no structured glossary/explainer
+// existed anywhere. orgId nullable = platform-wide, same convention as
+// report_definitions.orgId (a platform row an org sees by default, plus
+// room for an org to define its own terms later without a schema change).
+export const businessTerminologyGlossary = complianceSchemaDB.table('business_terminology_glossary', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // nullable = platform-wide
+  term: text('term').notNull(),
+  definition: text('definition').notNull(),
+  category: text('category'), // free text, e.g. 'finance' | 'compliance' | 'construction' | 'crm'
+  aliases: jsonb('aliases').notNull().default([]), // string[] alternate names/abbreviations
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Automation Rules (Wave 30, n8n-inspired trigger→condition→action) ──
 // Deliberately much smaller than n8n itself: single-condition rules, no
 // node-graph, no chained multi-step workflows, no AI/code-execution action
@@ -4542,6 +4567,15 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   aiScoreReasoning: text('ai_score_reasoning'),
   aiRecommendedAction: text('ai_recommended_action'),
   aiScoredAt: timestamp('ai_scored_at'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): additive -- rows scored before this wave simply have
+  // all three null/empty, same "never scored just shows nothing" convention
+  // as the Wave 75 columns above. aiRejectedAlternatives closes the "Explain
+  // 'Why Not' for Rejected Options" finding; aiAssumptions/aiConfidence back
+  // the shared AiDecisionExplanation shape (src/lib/explainability/).
+  aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
+  aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
+  aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4562,6 +4596,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]), // string[]
   aiRecommendedAction: text('ai_recommended_action'),
   aiAnalyzedAt: timestamp('ai_analyzed_at'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): same additive columns/rationale as crmLeads above.
+  aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
+  aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
+  aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
   // Priority 15 (Sales & CRM depth wave): next scheduled follow-up, same
   // rationale as crmLeads.nextActionDate above.
   nextActionDate: date('next_action_date', { mode: 'string' }),

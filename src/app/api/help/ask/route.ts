@@ -11,6 +11,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLM } from "@/lib/llm-client";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { retrieveRelevantKbPages } from "@/lib/services/knowledge-base-service";
 import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale";
 import { normalizeForLlm } from "@/lib/prompt-normalizer";
 import { passesReplyGate } from "@/lib/ai-reply-gate";
@@ -70,9 +71,26 @@ export async function POST(request: NextRequest) {
   const systemPrompt = systemPromptTemplate + "\n\nCurrent page: " + currentPath;
   // Same static-prefix caching signal chat-service.ts uses -- the resolved
   // template + current page is identical across every question asked from
-  // that page, regardless of which user/org sent it.
+  // that page, regardless of which user/org sent it. The KB grounding block
+  // below is per-question and deliberately kept OUT of this string (appended
+  // to the message instead) so it doesn't fragment the cache fingerprint --
+  // same reasoning chat-service.ts's generateAiReply() uses for
+  // userContextBlock (see its own comment on that pattern).
   const { fingerprint: promptCacheFingerprint } = compileStaticPrefix(systemPrompt);
   const normalizedQuestion = normalizeForLlm(question ?? "");
+
+  // AI Architecture / Explainability & Transparency gap-closure
+  // (2026-07-18): "Explain Software Functionality" -- ground the answer in
+  // the org's own knowledge base pages instead of pure freeform generation,
+  // when anything relevant is actually indexed. Best-effort: a retrieval
+  // failure falls back to the exact pre-existing ungrounded behavior rather
+  // than blocking the question.
+  const relevantPages = await retrieveRelevantKbPages({ orgId }, String(question ?? "")).catch(() => []);
+  const groundingBlock = relevantPages.length > 0
+    ? "\n\nRelevant knowledge base content (use this if it answers the question; say so honestly if it doesn't):\n" +
+      relevantPages.map((p) => `--- ${p.title} ---\n${(p.content ?? "").slice(0, 1500)}`).join("\n\n")
+    : "";
+  const messageForLlm = normalizedQuestion + groundingBlock;
 
   const startedAt = Date.now();
   try {
@@ -81,7 +99,7 @@ export async function POST(request: NextRequest) {
       modelConfig.model,
       modelConfig.apiKey,
       systemPrompt,
-      normalizedQuestion,
+      messageForLlm,
       { enablePromptCache: true },
       modelConfig.fallback
     );
@@ -109,7 +127,12 @@ export async function POST(request: NextRequest) {
     if (!gateResult.passed) {
       return NextResponse.json({ answer: FALLBACK_ANSWER });
     }
-    return NextResponse.json({ answer: reply });
+    // Explicit "grounded or not" signal + sources -- the finding's own
+    // recommended approach ("retrieve relevant chunks before answering").
+    return NextResponse.json({
+      answer: reply,
+      sources: relevantPages.map((p) => ({ id: p.id, title: p.title, slug: p.slug })),
+    });
   } catch (err) {
     console.error("Help AI reply failed:", err);
     recordOrchestraExecution({

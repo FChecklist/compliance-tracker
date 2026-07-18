@@ -8,7 +8,8 @@ import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
-import { checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
+import { detectHighImpactAction, checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
+import { logHighImpactClassification } from "@/lib/high-impact-classification-logger"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
@@ -183,6 +184,18 @@ export async function createTask(ctx: ServiceContext, input: {
   // actually created from. Returns early with NO task row inserted and NO
   // execution triggered until the caller resubmits with confirmed: true.
   if (!input.confirmed) {
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18): "Explain Risks Before Actions" -- logs every
+    // classification (matched or not) for later sample audit of misses,
+    // not just the ones that already trip the confirmation gate below.
+    // detectHighImpactAction stays a pure, side-effect-free function (per
+    // its own doc comment) so it's safe to call here purely for the audit
+    // trail, separately from the real gating decision below.
+    const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
+    logHighImpactClassification({
+      orgId, userId: dbUser.id, layerKey: "task_oa", eventType: "task.create",
+      text: `${title} ${description ?? ""}`, detection,
+    })
     // Human Override & Approval (HAB-02 gap closure, 2026-07-18): the
     // detect-and-shape logic itself now lives in checkHighImpactConfirmation
     // (high-impact-action-detector.ts), the one shared, reusable gate, not
