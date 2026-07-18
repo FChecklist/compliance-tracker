@@ -1786,6 +1786,44 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code (worker task-20260718-062002-ai-cost-governance---finops--cost-monito) -- AI Cost Governance & FinOps: anomaly detection, spend forecast, idle capacity"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure task, 4 findings under "AI Cost
+      Governance & FinOps": (1) cost anomaly detection (tenant/role spend
+      spike vs baseline), (2) forecasted vs actual monthly AI spend, (3)
+      FinOps dashboard reconciling engineering cost claims against Finance's
+      ledger, (4) unused/idle AI capacity identification.
+      Read the real current implementation first: cost-guard.ts (per-org
+      monthly cap enforcement, real), token-usage-service.ts (Finance-facing
+      spend report grouped by scope/role/model/org, real, veridian_admin-
+      gated GET /api/ai/team/token-usage), customerModelConfig/
+      clientModelConfig (BYO AI capacity provisioning, already has
+      lastUsedAt precisely for idle detection -- see
+      orchestra-model-resolver.ts's borrowFromSharedPool()). Plan (pending
+      confirmation while implementing): (1) new
+      src/lib/services/cost-anomaly-service.ts, ratio-based recent-vs-
+      baseline deviation per org and per AI-Team role, cron /run route; (2)
+      new src/lib/spend-forecast.ts (shared pure linear run-rate calc),
+      wired into cost-guard.ts's CostStatus (org-level, surfaced in the
+      existing OrgLimitsSection.tsx settings UI) and into
+      token-usage-service.ts's TokenUsageSummary (platform-level, Finance
+      report); (3) deferring per the task's own recommended approach --
+      documenting only in PROGRESS.md, no code; (4) new
+      src/lib/services/idle-ai-capacity-service.ts querying
+      customerModelConfig/clientModelConfig by lastUsedAt/createdAt vs a
+      90-day cutoff, quarterly cron /run route.
+      File scope: src/lib/cost-guard.ts, src/lib/spend-forecast.ts (new),
+      src/lib/services/token-usage-service.ts,
+      src/lib/services/cost-anomaly-service.ts (new),
+      src/lib/services/idle-ai-capacity-service.ts (new),
+      src/app/api/internal/cost-anomalies/run/route.ts (new),
+      src/app/api/internal/idle-ai-capacity/run/route.ts (new),
+      src/components/OrgLimitsSection.tsx, vercel.json (2 new cron entries).
+      No schema/migration change planned (customerModelConfig/
+      clientModelConfig/tokenUsageLedger/organisations already carry every
+      column needed). Not touching permission-service.ts or any other
+      track's declared scope.
   - session_label: "claude-code (task-20260718-185246-rescue-pr--418) -- Rescue and merge PR #418"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -1796,6 +1834,17 @@ active:
       failures (src/lib/ai-response-locale.ts, document-extraction-service.ts,
       officecli-client.ts, chat-service.ts, help/ask/route.ts and their
       tests), post required AUDIT comment, merge if TIER1 and green.
+  - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescuing PR #424 (branch worker/task-20260718-062002-ai-cost-
+      governance---finops--cost-monito, "AI Cost Governance & FinOps:
+      anomaly detection, spend forecast, idle capacity" -- the same task
+      claimed just above by the original dispatcher). CI currently failing
+      on audit-check and Unit Tests. Scope: merge origin/main, renumber any
+      drizzle migration if present, fix real CI failures, post required
+      AUDIT comment, merge if TIER1 and green (report for Owner sign-off
+      if TIER2 -- touches drizzle/schema).
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
