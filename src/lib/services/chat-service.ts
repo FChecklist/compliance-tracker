@@ -629,7 +629,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // own schema comment for why this is a distinct table, not new columns
     // on orchestraExecutions.
     recordPromptCacheMetric({
-      orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
+      orgId, userId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     })
     if (!gateResult.passed) {

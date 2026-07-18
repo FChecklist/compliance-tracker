@@ -8,7 +8,7 @@
 // for withTenantContext's org-scoped model.
 import { db, tokenUsageLedger } from "@/lib/db"
 import { sql, gte, and, isNotNull } from "drizzle-orm"
-import { estimateCostUsd, type LLMUsage } from "@/lib/llm-client"
+import { estimateCostUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 
 export type LogTokenUsageInput = {
   scope: "ai_team_internal" | "product_orchestra"
@@ -26,6 +26,7 @@ export type LogTokenUsageInput = {
 export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
   try {
     const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
+    const cacheSavingsUsd = estimateCacheSavingsUsd(input.model, input.usage)
     await db.insert(tokenUsageLedger).values({
       scope: input.scope,
       orgId: input.orgId ?? null,
@@ -38,6 +39,7 @@ export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
       promptTokens: input.usage.promptTokens,
       completionTokens: input.usage.completionTokens,
       estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
+      cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
     })
   } catch (err) {
     console.error("[token-usage] failed to log usage (non-fatal):", err)
@@ -50,12 +52,18 @@ export type TokenUsageSummaryRow = {
   promptTokens: number
   completionTokens: number
   estimatedCostUsd: number
+  cacheSavingsUsd: number
 }
 
 export type TokenUsageSummary = {
   sinceDays: number
   totalCostUsd: number
   totalRequests: number
+  // VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+  // 2026-07-18): real $ saved by prompt-cache reads across the window,
+  // summed from token_usage_ledger.cache_savings_usd -- see
+  // src/lib/prompt-cache/metrics.ts for the call site that populates it.
+  totalCacheSavingsUsd: number
   byScope: TokenUsageSummaryRow[]
   byRole: TokenUsageSummaryRow[]
   byModel: TokenUsageSummaryRow[]
@@ -67,6 +75,7 @@ const AGG_COLUMNS = {
   promptTokens: sql<number>`coalesce(sum(${tokenUsageLedger.promptTokens}), 0)::int`,
   completionTokens: sql<number>`coalesce(sum(${tokenUsageLedger.completionTokens}), 0)::int`,
   estimatedCostUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float`,
+  cacheSavingsUsd: sql<number>`coalesce(sum(${tokenUsageLedger.cacheSavingsUsd}), 0)::float`,
 }
 
 /** Finance-facing report: real spend, grouped every way that answers "where and why". veridian_admin-gated at the route level. */
@@ -87,14 +96,18 @@ export async function getTokenUsageSummary(sinceDays = 7): Promise<TokenUsageSum
     db.select({ groupKey: tokenUsageLedger.orgId, ...AGG_COLUMNS })
       .from(tokenUsageLedger).where(and(sinceClause, isNotNull(tokenUsageLedger.orgId)))
       .groupBy(tokenUsageLedger.orgId).orderBy(sql`4 desc`),
-    db.select({ requests: sql<number>`count(*)::int`, estimatedCostUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float` })
-      .from(tokenUsageLedger).where(sinceClause),
+    db.select({
+      requests: sql<number>`count(*)::int`,
+      estimatedCostUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float`,
+      cacheSavingsUsd: sql<number>`coalesce(sum(${tokenUsageLedger.cacheSavingsUsd}), 0)::float`,
+    }).from(tokenUsageLedger).where(sinceClause),
   ])
 
   return {
     sinceDays,
     totalCostUsd: totals[0]?.estimatedCostUsd ?? 0,
     totalRequests: totals[0]?.requests ?? 0,
+    totalCacheSavingsUsd: totals[0]?.cacheSavingsUsd ?? 0,
     byScope,
     byRole,
     byModel,

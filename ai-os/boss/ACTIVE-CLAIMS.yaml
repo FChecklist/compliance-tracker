@@ -2892,3 +2892,33 @@ recently_completed:
       commit -- last real migration still 0223_force_rls_hr_attendance_
       holidays.sql; branch base == origin/main tip 13bddf6f at time of
       PR). PR opened against main, not merged, per instructions.
+
+  - session_label: "claude-code (this session) -- VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cache-Driven Savings"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing the single Medium finding "Prompt Cache Framework savings
+      reflected in the cost ledger" (gap: cache-driven savings not
+      reflected in token_usage_ledger). Confirmed live: recordPromptCacheMetric()
+      (src/lib/prompt-cache/metrics.ts), called from chat-service.ts's
+      generateAiReply() (VERI Chat's 1:1 AI thread, the same real call site
+      Prompt & Cache Framework Phase 1 wired), only ever wrote to
+      prompt_cache_metrics -- an observability table neither cost-guard.ts
+      nor getTokenUsageSummary() reads. token_usage_ledger (the table
+      Finance/cost-guard actually read) had ZERO rows for this call site,
+      cache-driven savings or otherwise (also true, as a pre-existing,
+      out-of-scope-for-this-claim gap: no scope='product_orchestra' row of
+      any kind existed anywhere in the codebase before this change).
+      Scope: added tokenUsageLedger.cacheSavingsUsd column (migration
+      drizzle/0225), estimateCacheSavingsUsd() in llm-client.ts (Anthropic's
+      documented 90% cache-read discount), logTokenUsage() now computes and
+      stores it, recordPromptCacheMetric() now also calls logTokenUsage()
+      (scope: product_orchestra) alongside its existing prompt_cache_metrics
+      write, getTokenUsageSummary() now surfaces totalCacheSavingsUsd +
+      per-group cacheSavingsUsd. Files: src/lib/llm-client.ts(+test),
+      src/lib/services/token-usage-service.ts, src/lib/prompt-cache/metrics.ts,
+      src/lib/services/chat-service.ts (one-line call-site change, passing
+      userId through), src/lib/db/schema.ts, drizzle/0225_*.sql. Did NOT
+      touch src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope. Full suite green (1328 pass/0 fail), tsc
+      --noEmit clean, eslint 0 errors, guardrail-presence check passed
+      (88/88 markers). Branch: see PR.
