@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
 import { createClient } from "@supabase/supabase-js"
 import { createId } from "@paralleldrive/cuid2"
-import { isVisionExtractable, extractDocumentContent } from "@/lib/services/document-extraction-service"
+import { isDocumentExtractable, extractDocumentContent } from "@/lib/services/document-extraction-service"
 import { listDocuments, markSupersededVersion, ServiceError } from "@/lib/services/document-service"
 import { classifyBusinessObjectType } from "@/lib/business-object-classifier"
 import { applyClassificationWithDb } from "@/lib/services/document-classification-service"
@@ -170,16 +170,18 @@ export async function POST(request: NextRequest) {
       return doc
     })
 
-    // Wave 35 (Document AI): fire-and-forget vision extraction -- never
-    // blocks or fails the upload response. Image types only this pass (see
-    // document-extraction-service.ts for why PDF is deliberately deferred).
+    // Wave 35 (Document AI): fire-and-forget extraction -- never blocks or
+    // fails the upload response. Covers both the vision path (images) and
+    // the text-extraction path (PDF/Word/PowerPoint/email -- see
+    // document-extraction-service.ts's own header for why those were added
+    // and why video is not).
     //
     // Bug fix (2026-07-06): wrapped in after() -- a bare un-awaited promise
     // here could be killed by Vercel before it ran, same root cause found in
     // Meeting Intelligence (see veri-meeting-service.ts).
-    if (isVisionExtractable(file.type)) {
-      const imageBase64 = Buffer.from(bytes).toString("base64")
-      after(() => extractDocumentContent({ orgId, userId: dbUser.id, documentId: result.id, imageBase64, mimeType: file.type }).catch((err) =>
+    if (isDocumentExtractable(file.type)) {
+      const fileBase64 = Buffer.from(bytes).toString("base64")
+      after(() => extractDocumentContent({ orgId, userId: dbUser.id, documentId: result.id, fileBase64, mimeType: file.type }).catch((err) =>
         console.error("Fire-and-forget document extraction failed to even start:", err)
       ))
     }
