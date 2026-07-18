@@ -60,6 +60,11 @@ active:
       session's PROGRESS.md for the full per-finding disposition. Not
       touching permission-service.ts's ERP_ACTION_ROLES table or any other
       in-flight worker's declared scope.
+
+      UPDATE (2026-07-18, same session): implemented, verified, and PR
+      opened against main (not merged, per instructions -- Rule 6 requires
+      green CI first). tsc/lint/build clean; full suite 1397 pass/0 fail (9
+      new tests). PR: https://github.com/FChecklist/compliance-tracker/pull/414
     claim: |
       CONTROLLER.yaml entry REVIEW-FRAMEWORK-WAVE4, Track 1 (this session's
       own Claude Web remote agents): closing CRM Accounts/Contacts' two
