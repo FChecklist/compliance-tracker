@@ -10194,3 +10194,53 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
   assignedAt: timestamp('assigned_at').notNull().defaultNow(),
   dueDate: date('due_date', { mode: 'string' }),
 })
+
+// ─── AI Router "Mother Router" (AIROUTER-01, CONTROLLER.yaml, Owner ────────
+// directive 2026-07-18) ──────────────────────────────────────────────────
+// A real, unifying model/provider registry + versioned routing policy +
+// audit log, layered ADDITIVELY on top of the 3 existing resolution
+// mechanisms (orchestra-model-resolver.ts / model-tier-eligibility.ts /
+// roster.ts) -- none of those files are modified for this. See
+// src/lib/ai-router/mother-router.ts for the resolution logic and
+// drizzle/0225_ai_router_mother_router.sql for the full migration
+// rationale (including why compliance.subscription_plans below is SEEDED
+// here rather than a new table being invented, and why BYOB gets no new
+// columns -- customer_model_config above already implements it).
+export const aiRouterScopeEnum = complianceSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing'])
+export const aiModelStatusEnum = complianceSchemaDB.enum('ai_model_status', ['active', 'disabled', 'deprecated'])
+export const aiModelHealthEnum = complianceSchemaDB.enum('ai_model_health', ['healthy', 'degraded', 'down'])
+
+export const aiModelRegistry = complianceSchemaDB.table('ai_model_registry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').notNull(), // free text, not aiProviderEnum -- see migration header (cerebras deliberately excluded from that enum)
+  model: text('model').notNull(),
+  tier: text('tier').notNull(), // mirrors task-tightening.ts's ComplexityTier, descriptive metadata only -- not the enforcement mechanism (that stays model-tier-eligibility.ts, untouched)
+  status: aiModelStatusEnum('status').notNull().default('active'),
+  costPer1kInput: numeric('cost_per_1k_input', { precision: 10, scale: 6 }),
+  costPer1kOutput: numeric('cost_per_1k_output', { precision: 10, scale: 6 }),
+  healthStatus: aiModelHealthEnum('health_status').notNull().default('healthy'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const aiRoutingPolicies = complianceSchemaDB.table('ai_routing_policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: aiRouterScopeEnum('scope').notNull(),
+  version: integer('version').notNull(),
+  isActive: boolean('is_active').notNull().default(false),
+  rule: jsonb('rule').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdBy: text('created_by'),
+})
+
+export const aiRoutingAuditLog = complianceSchemaDB.table('ai_routing_audit_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: aiRouterScopeEnum('scope').notNull(),
+  context: jsonb('context').notNull().default({}),
+  resolvedProvider: text('resolved_provider').notNull(),
+  resolvedModel: text('resolved_model').notNull(),
+  policyVersion: integer('policy_version'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
