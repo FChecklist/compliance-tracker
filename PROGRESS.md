@@ -1,57 +1,79 @@
-# PROGRESS -- task-20260718-180652-rescue-pr--430
+# PROGRESS -- task-20260718-084004-calculation-engine--formula-library---cu
 
-Task: Rescue and merge PR #430 (FChecklist/compliance-tracker), branch
-worker/task-20260718-091002-checks---balances--exception-handling.
+VERIDIAN Review Framework gap-closure: Calculation Engine / Formula Library & Customization (3 findings).
+
+## Investigation summary (read before assuming the findings still hold)
+
+All 3 findings cite `docs/master/CAPABILITY_COVERAGE.md`'s VCEL Computation Engines
+table, which said "26 of 211 implemented engines (12.3%) wired into the Chain
+Selector" and every industry category (Accounting/Payroll/Inventory/etc.) at 0%.
+That doc was accurate when written (2026-07-10) but went stale: waves 165-170
+(PRs #164/#165 and follow-ons, already merged to `main` long before this task)
+wired 12 more engine categories end to end without this doc being updated to
+match. Verified directly from source, not from the doc or the findings:
+`Object.keys(WIRED_ENGINE_INPUT_FIELDS)` in `src/lib/services/capability-tree-service.ts`
+cross-checked against the `dispatchEngine()` switch in `src/lib/task-execution-engine.ts`.
+
+Real current state (before this PR's own fix): **125 of 211 engines (59.2%)**
+already wired into Chain Selector dispatch, across every category except
+Manufacturing (still explicitly out of scope, 2026-07-08 decision, unchanged)
+and AI Support/Document Processing (100% of their dispatch-ready engines take
+array/object input the Chain Selector's UI can't render yet -- same documented
+constraint as the 3 Mathematical engines). Every remaining gap in every
+category is an existing, individually-commented, deliberate deferral (array/
+grid input with no UI support yet, a DB-rule-lookup dependency, or "already a
+real product feature/ERP service elsewhere, not re-dispatched as a second
+surface") -- not neglect.
 
 ## Completed
-- [x] Registered this rescue task's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      before starting.
-- [x] Confirmed PR #430 state via `gh pr view`: OPEN, mergeStateStatus
-      BEHIND main, audit-check + Unit Tests FAILING, all other checks green.
-- [x] Worked directly in the original worker's own (idle, clean) worktree at
-      `/opt/veridian/ai-os/tasks/task-20260718-091002-checks---balances--
-      exception-handling/workspace` rather than fighting the branch's
-      existing worktree lock.
-- [x] Read the PR's full diff by hand (15 files, +628/-119 originally): a
-      well-scoped Exception Handling Framework (ServiceError business/system
-      + retryable taxonomy, exception-taxonomy.ts's withAutomaticRecovery),
-      Automatic Rollback & Recovery (voidDraftJournalEntry compensating
-      action wired into fixed-assets depreciation/disposal + the
-      approval-decide route), Continuous Internal Controls Monitoring (new
-      controls-health-audit.ts L3 rolling snapshot), and Human Override &
-      Approval (checkHighImpactConfirmation() extracted as HAB-02's first
-      reusable confirm-gate). No drizzle/*.sql migration in the diff --
-      confirmed TIER1.
-- [x] Rebased onto origin/main FOUR times, because three sibling "Checks &
-      Balances" rescue/gap-closure PRs (#431, #428, and #428's own
-      rescue-registration commit #441) kept merging into main mid-rescue.
-      Each time: resolved real conflicts in PROGRESS.md and
-      ai-os/boss/ACTIVE-CLAIMS.yaml by hand (both files are per-task scratch
-      logs each session naturally edits; kept every session's own distinct
-      content/claim entries, never discarded another session's work), and
-      confirmed the other auto-merged files (ai-os/CONSTITUTION.yaml,
-      high-impact-action-detector.ts) stayed correct by diffing against each
-      new base -- no real source-file overlap existed between any of these
-      sibling PRs.
-- [x] Ran `bun install --frozen-lockfile && bunx tsc --noEmit && bun run
-      lint && bun test` fresh after every rebase: tsc clean throughout, lint
-      0 errors (3 pre-existing unrelated warnings), full suite green every
-      time (1434 -> 1441 -> 1477 -> 1477 pass / 0 fail, growing only because
-      sibling PRs' own new tests landed in main between rebases).
-- [x] Posted the structured `AUDIT: PASS` PR comment (all 8 required fields)
-      after each rebase, keeping the Evidence Recorded field accurate to
-      that rebase's real test/tsc/lint counts.
-- [x] Waited for CI on the final rebased commit: all branch-protection
-      required checks green (Lint, Type Check, Build, audit-check, Guardrail
-      Presence Check, Asset Registry Coverage Check, Unit Tests). Vercel
-      preview check failed (build-rate-limited, not a required check) --
-      noted, not a merge blocker.
-- [x] Classified TIER1 (no drizzle/*.sql or schema.ts touched, confirmed on
-      every rebase).
-- [x] Merged PR #430 (`gh pr merge 430 --squash --delete-branch`, squash
-      commit `8902b86c`).
-- [x] Moved this task's own claim (and PR #430's own in-diff claim entry)
-      from `active` to `recently_completed` in ACTIVE-CLAIMS.yaml.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no active claim on this area (Chain
+      Selector / computation-engine wiring / CAPABILITY_COVERAGE.md); no collision.
+- [x] Read `docs/master/CAPABILITY_COVERAGE.md`, `src/lib/services/capability-tree-service.ts`,
+      `src/lib/task-execution-engine.ts` in full to verify the findings against
+      real current code, per the task's own instruction to check before writing code.
+- [x] Verified all 211 implemented engines' wiring status per category, with
+      exact counts derived from source (not estimated) -- see the rewritten
+      `CAPABILITY_COVERAGE.md` table for the full breakdown.
+- [x] Found one genuine small oversight (not a documented deferral like every
+      other gap): `loan_schedule_generator`/`amortization_engine` are 2
+      registered `computation_engines` rows for the *same* computation as
+      `emi_calculator` (`calculateEmi()`), dispatch-ready since Wave 168, but
+      never given a Chain Selector leaf. Fixed in
+      `src/lib/services/capability-tree-service.ts`: extracted `EMI_FIELDS`
+      and assigned it to all 3 keys. Banking Engine goes from 4/9 to 6/9 wired.
+      This is a genuine, if small, real closure of the "Reusable Formula
+      Library" finding's actual gap (more engines browsable/clickable in the
+      Chain Selector), not a documentation-only fix.
+- [x] Rewrote `docs/master/CAPABILITY_COVERAGE.md`'s VCEL Computation Engines
+      section with the accurate current per-category wired/implemented counts
+      (127/211 = 60.2%, after the Banking fix above) and an updated roadmap
+      reflecting what's actually still blocking (almost entirely: a richer
+      structured-input/grid UI, one single piece of follow-on work, not
+      per-category busywork -- Accounting/Payroll/Inventory are NOT still at
+      0% as the findings' source doc claimed).
+- [x] "Industry Specific Calculation Library" finding: confirmed stale in the
+      same pass -- Accounting (25%), Payroll (67%), Inventory (40%), Income Tax
+      (100%) are all wired today, not 0%. Manufacturing (11 engines) remains
+      out of scope, unchanged, per the existing 2026-07-08 decision -- this
+      finding's own gap description already states that as a known fact, not
+      something this task was asked to reverse.
+- [x] "Custom Formula Builder" finding: confirmed it still does not exist (no
+      org-defined, UI-authored formula builder anywhere in the codebase).
+      Per the finding's own recommended approach ("lower priority than closing
+      the Chain Selector wiring gap... revisit once a concrete customer need
+      surfaces via FDE requests"), and finding no evidence of such a customer
+      need in `ai-os/MASTER-TRACKER.yaml` or `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      deliberately did NOT build this. Documented here rather than building
+      something ahead of demand, consistent with the finding's own guidance.
+- [x] Confirmed no touch needed to `src/lib/services/permission-service.ts` or
+      any RBAC/`ERP_ACTION_ROLES` surface -- this task's scope (Chain Selector
+      calculator wiring) has no access-control dimension of its own.
 
 ## Remaining
-- [ ] None. PR #430 is merged. Final status reported via task checkpoint.
+- [ ] None of the 3 findings require further code changes at this task's
+      scope. The one substantive follow-on identified (a richer structured-
+      input/grid UI to unlock the ~12 remaining array-input-blocked engine
+      categories) is deliberately NOT attempted here -- it's a genuinely
+      separate, multi-day UI feature (composer + Chain Selector input-field
+      types), not a calculation-engine-wiring fix, and is already called out
+      as its own roadmap item in the doc this PR updates.
