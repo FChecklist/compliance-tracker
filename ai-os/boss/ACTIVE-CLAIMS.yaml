@@ -132,6 +132,32 @@ active:
       Explicitly NOT touching permission-service.ts's ERP_ACTION_ROLES
       table or any other in-flight worker's declared scope, per this
       task's own instructions.
+  - session_label: "claude-code (worker task-20260718-084004-calculation-engine--formula-library---cu) -- VERIDIAN Review Framework: Calculation Engine / Formula Library & Customization gap-closure"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Dispatched task (pre-scoped, not freely picked from MASTER-TRACKER.yaml),
+      closing 3 findings: Reusable Formula Library, Industry Specific
+      Calculation Library, Custom Formula Builder -- all citing
+      docs/master/CAPABILITY_COVERAGE.md's "26 of 211 (12.3%)" VCEL engine
+      Chain Selector wiring figure. Read capability-tree-service.ts and
+      task-execution-engine.ts in full before writing anything, per this
+      task's own instruction not to assume the gap description is still
+      accurate: found the doc stale (last touched before waves 165-170
+      wired 12 more engine categories without updating it) -- real state
+      was already 125/211 (59.2%) wired, not 26/211. Found and fixed one
+      genuine small oversight (loan_schedule_generator/amortization_engine,
+      same computation as emi_calculator, dispatch-ready but never given a
+      Chain Selector leaf) -- everything else is an existing, individually
+      documented deliberate deferral (array/grid input UI limitation, or
+      already real elsewhere), not neglect. Rewrote CAPABILITY_COVERAGE.md's
+      VCEL table with accurate current numbers (127/211 = 60.2% after the
+      fix). Did NOT build a Custom Formula Builder UI -- that finding's own
+      recommended approach says lower priority than Chain Selector wiring,
+      revisit only if a concrete customer need surfaces; none found in
+      MASTER-TRACKER.yaml or this file. File scope: capability-tree-service.ts
+      (Banking Engine section only), docs/master/CAPABILITY_COVERAGE.md,
+      PROGRESS.md. No permission-service.ts or RBAC touch -- out of scope
+      for this area. Full detail in this task's own PROGRESS.md.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |

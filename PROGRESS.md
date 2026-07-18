@@ -1,85 +1,79 @@
-# PROGRESS -- task-20260718-085003-checks---balances--business-rule---calcu
+# PROGRESS -- task-20260718-084004-calculation-engine--formula-library---cu
 
-VERIDIAN Review Framework gap-closure: Checks & Balances / Business Rule &
-Calculation Verification. The 6 findings in this task's brief are 3 unique
-gaps, each listed twice.
+VERIDIAN Review Framework gap-closure: Calculation Engine / Formula Library & Customization (3 findings).
+
+## Investigation summary (read before assuming the findings still hold)
+
+All 3 findings cite `docs/master/CAPABILITY_COVERAGE.md`'s VCEL Computation Engines
+table, which said "26 of 211 implemented engines (12.3%) wired into the Chain
+Selector" and every industry category (Accounting/Payroll/Inventory/etc.) at 0%.
+That doc was accurate when written (2026-07-10) but went stale: waves 165-170
+(PRs #164/#165 and follow-ons, already merged to `main` long before this task)
+wired 12 more engine categories end to end without this doc being updated to
+match. Verified directly from source, not from the doc or the findings:
+`Object.keys(WIRED_ENGINE_INPUT_FIELDS)` in `src/lib/services/capability-tree-service.ts`
+cross-checked against the `dispatchEngine()` switch in `src/lib/task-execution-engine.ts`.
+
+Real current state (before this PR's own fix): **125 of 211 engines (59.2%)**
+already wired into Chain Selector dispatch, across every category except
+Manufacturing (still explicitly out of scope, 2026-07-08 decision, unchanged)
+and AI Support/Document Processing (100% of their dispatch-ready engines take
+array/object input the Chain Selector's UI can't render yet -- same documented
+constraint as the 3 Mathematical engines). Every remaining gap in every
+category is an existing, individually-commented, deliberate deferral (array/
+grid input with no UI support yet, a DB-rule-lookup dependency, or "already a
+real product feature/ERP service elsewhere, not re-dispatched as a second
+surface") -- not neglect.
 
 ## Completed
-
-- [x] Re-read the current codebase before planning (per this task's own
-      instructions) rather than trusting the finding text as still-accurate.
-      Confirmed: `guardrail-engine.ts` (Wave 157) is real, existing generic
-      rule-engine infrastructure -- it just had zero "process"/"output"
-      phase consumers wired to real calculation dispatch or AI output, and
-      GST already has genuine Calculation Cross-Verification
-      (`gst/validation-engine.ts`'s `checkTaxCalculation()`), which this PR
-      does **not** duplicate.
-- [x] **Business Rule Validation Before Execution** -- new
-      `src/lib/business-rule-validator.ts` wires `guardrail-engine.ts`'s
-      `evaluateGuardrails()` as a genuine PRE-EXECUTION gate
-      (`assertBusinessRulesBeforeExecution()`), called at the top of
-      `dispatchTool()` and `dispatchEngine()` in `task-execution-engine.ts`,
-      alongside the existing POST-execution `assertValidDispatchOutput()`
-      (`dispatch-output-validator.ts`). Registered real "process"-phase
-      rules in `guardrail-registrations.ts` for the financially material
-      engines: GST rate-split engines (0-40% sanity bound), EMI/loan
-      engines (principal/tenure/rate sanity bounds), gratuity calculator
-      (salary/years-of-service sanity bounds), commission calculator (rate
-      bound). Unregistered engine keys are unaffected (guardrail-engine's
-      own "not rigid" guarantee).
-- [x] **Calculation Cross-Verification** -- new
-      `src/lib/calculation-cross-verification.ts`. GST already had this
-      (not duplicated). Added the same discipline to the two named domains
-      that didn't: `crossVerifyEmi()` independently re-derives
-      principal/interest/final-balance from the amortization SCHEDULE
-      itself (summation), a different route than the closed-form EMI
-      formula that produced it; `crossVerifyGratuity()` checks the
-      statutory "gratuity <= one month's salary per year of service" bound
-      independently of the 15/26 or 15/30 formula. Wired into
-      `dispatchEngine()`'s `gratuity_calculator` and
-      `emi_calculator`/`loan_schedule_generator`/`amortization_engine`
-      cases -- a verification failure throws
-      `CalculationVerificationError` instead of returning a possibly-wrong
-      result, matching `dispatch-output-validator.ts`'s own posture.
-- [x] **AI Output Validation by Business Rules** -- found a concrete,
-      previously-unvalidated target:
-      `src/app/api/documents/extract/route.ts`'s AI document extraction
-      (`demandAmount`/`gstin`/`pan`/`complianceType`/`dueDate`) feeds a
-      human-reviewable compliance-item draft
-      (`DocumentUploadSection.tsx`) with zero validation against business
-      rules. Added a new "output"-phase guardrail
-      (`AI_DOCUMENT_EXTRACTION_LEAF`) reusing existing deterministic
-      validators (`isValidGstinFormat`/`isValidGstinChecksum`/
-      `isValidPanFormat` from `data-quality-engine.ts`,
-      `VALID_TYPES` from `compliance-service.ts`) plus new amount/date
-      plausibility bounds. A violation is recorded via
-      `recordGuardrailViolation()` (audit trail) and surfaced as a
-      `validationWarning` in the API response and a visible banner in
-      `DocumentUploadSection.tsx` -- non-blocking (a human still
-      reviews/edits every field before a compliance item is created), so
-      this is a second, independent check layered on the existing human
-      review, not a replacement for it.
-- [x] Added real unit tests: `business-rule-validator.test.ts`,
-      `calculation-cross-verification.test.ts`, plus new describe blocks in
-      `guardrail-registrations.test.ts` covering every new leaf/check
-      (positive and negative cases, including deliberately-corrupted
-      EMI/gratuity results to prove the cross-verification actually
-      detects a broken calculation, not just restate the primary formula).
-- [x] Verification: `bun install` (node_modules wasn't present in this
-      workspace checkout), `bunx tsc --noEmit` clean (0 errors),
-      `bunx eslint` clean on every changed/new file, `bun test` full suite
-      1457 pass / 0 fail, `bun run build` succeeds.
-- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      per that file's protocol before starting real work. Did not touch
-      `permission-service.ts`'s `ERP_ACTION_ROLES` table or any other
-      in-flight worker's declared scope.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no active claim on this area (Chain
+      Selector / computation-engine wiring / CAPABILITY_COVERAGE.md); no collision.
+- [x] Read `docs/master/CAPABILITY_COVERAGE.md`, `src/lib/services/capability-tree-service.ts`,
+      `src/lib/task-execution-engine.ts` in full to verify the findings against
+      real current code, per the task's own instruction to check before writing code.
+- [x] Verified all 211 implemented engines' wiring status per category, with
+      exact counts derived from source (not estimated) -- see the rewritten
+      `CAPABILITY_COVERAGE.md` table for the full breakdown.
+- [x] Found one genuine small oversight (not a documented deferral like every
+      other gap): `loan_schedule_generator`/`amortization_engine` are 2
+      registered `computation_engines` rows for the *same* computation as
+      `emi_calculator` (`calculateEmi()`), dispatch-ready since Wave 168, but
+      never given a Chain Selector leaf. Fixed in
+      `src/lib/services/capability-tree-service.ts`: extracted `EMI_FIELDS`
+      and assigned it to all 3 keys. Banking Engine goes from 4/9 to 6/9 wired.
+      This is a genuine, if small, real closure of the "Reusable Formula
+      Library" finding's actual gap (more engines browsable/clickable in the
+      Chain Selector), not a documentation-only fix.
+- [x] Rewrote `docs/master/CAPABILITY_COVERAGE.md`'s VCEL Computation Engines
+      section with the accurate current per-category wired/implemented counts
+      (127/211 = 60.2%, after the Banking fix above) and an updated roadmap
+      reflecting what's actually still blocking (almost entirely: a richer
+      structured-input/grid UI, one single piece of follow-on work, not
+      per-category busywork -- Accounting/Payroll/Inventory are NOT still at
+      0% as the findings' source doc claimed).
+- [x] "Industry Specific Calculation Library" finding: confirmed stale in the
+      same pass -- Accounting (25%), Payroll (67%), Inventory (40%), Income Tax
+      (100%) are all wired today, not 0%. Manufacturing (11 engines) remains
+      out of scope, unchanged, per the existing 2026-07-08 decision -- this
+      finding's own gap description already states that as a known fact, not
+      something this task was asked to reverse.
+- [x] "Custom Formula Builder" finding: confirmed it still does not exist (no
+      org-defined, UI-authored formula builder anywhere in the codebase).
+      Per the finding's own recommended approach ("lower priority than closing
+      the Chain Selector wiring gap... revisit once a concrete customer need
+      surfaces via FDE requests"), and finding no evidence of such a customer
+      need in `ai-os/MASTER-TRACKER.yaml` or `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      deliberately did NOT build this. Documented here rather than building
+      something ahead of demand, consistent with the finding's own guidance.
+- [x] Confirmed no touch needed to `src/lib/services/permission-service.ts` or
+      any RBAC/`ERP_ACTION_ROLES` surface -- this task's scope (Chain Selector
+      calculator wiring) has no access-control dimension of its own.
 
 ## Remaining
-
-- [ ] None known. Everything scoped to this task's 3 unique findings is
-      closed. Not attempted (explicitly out of scope / no live target
-      found in this pass): retrofitting a "process"/"output" guardrail
-      through every other `computation_engines.key` beyond the
-      GST/EMI/payroll ones the review named -- guardrail-engine.ts's
-      registry is additive, so extending coverage to more engines later is
-      safe and doesn't require touching this PR's code.
+- [ ] None of the 3 findings require further code changes at this task's
+      scope. The one substantive follow-on identified (a richer structured-
+      input/grid UI to unlock the ~12 remaining array-input-blocked engine
+      categories) is deliberately NOT attempted here -- it's a genuinely
+      separate, multi-day UI feature (composer + Chain Selector input-field
+      types), not a calculation-engine-wiring fix, and is already called out
+      as its own roadmap item in the doc this PR updates.
