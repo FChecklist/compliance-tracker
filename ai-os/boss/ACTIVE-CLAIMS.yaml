@@ -41,25 +41,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (interactive rescue session) -- PR #412 rescue (Support session impersonation)"
-    claimed_at: "2026-07-18T (this session)"
-    claim: |
-      Rescuing PR #412 (branch worker/task-20260717-194828-support-session-impersonation),
-      opened by a now-stopped autonomous worker dispatcher, currently failing
-      CI (audit-check, Asset Registry Coverage Check) and stale against main.
-      Scope: merge origin/main into the PR branch, resolve conflicts, fix any
-      real CI failures (no test-skipping/guardrail-weakening), renumber any
-      drizzle migration if needed, post a structured AUDIT comment per
-      AGENTS.md Rule 10, and merge if TIER1 (no schema/migration diff) once
-      green -- or stop and report for Owner sign-off if TIER2 (schema.ts /
-      drizzle/*.sql touched). Per the matching recently_completed entry
-      below (dated 2026-07-18, same branch name), this PR adds
-      supportSessions table + drizzle/0224_support_sessions.sql + 2 new
-      columns on auditLogs -- expect TIER2.
-      File scope: whatever this PR's own diff already touches
-      (support-session-service.ts, schema.ts, drizzle/0224_*, audit.ts,
-      support-session API routes) plus this file (ACTIVE-CLAIMS.yaml) and
-      PROGRESS.md. Not picking up any new/unrelated gap.
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -1980,6 +1961,94 @@ recently_completed:
       Verified: tsc --noEmit 0 errors; eslint 0 errors (3 pre-existing
       warnings, unrelated to this change); bun test 1389 pass / 0 fail
       across 102 files (includes the 12 new pure-helper tests).
+  - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
+    claim: |
+      Rescued PR #425 (branch worker/task-20260718-084006-checks---
+      balances--audit-trail---immutab, "Audit trail: close immutability +
+      complete-coverage gaps", opened by a now-stopped autonomous worker
+      dispatcher). Branch was 31 commits behind main, only 1 real commit
+      ahead of merge-base -- merged origin/main (real conflicts only in
+      PROGRESS.md, kept ours, and this claims file, kept both sides
+      additively). Confirmed the PR's own diff is exactly 2 files: new
+      drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql
+      (REVOKE UPDATE/DELETE on compliance.audit_logs from service_role,
+      closing a gap silently reopened by 0008's blanket schema-wide GRANT;
+      plus a generic AFTER-trigger audit-trail backstop on users/
+      compliance_items/erp_journal_entries/erp_payment_entries) and a
+      comment-only addition to schema.ts's auditLogs doc comment -- no
+      application code touched. Checked git ls-tree origin/main --
+      drizzle/ : highest existing is 0224 (two files share that number),
+      no 0225 exists on main yet, so this PR's 0225 filename needed no
+      renumbering *at check time* -- but flagging a real three-way
+      collision risk: PR #412 (0225_support_sessions.sql) and PR #414
+      (0225_ai_interaction_efficiency_gap_closure.sql), both also open/
+      TIER2 right now, independently claim the same number for their own
+      migrations. Whichever of these three merges/applies first keeps
+      0225; the other two need renumbering by whoever handles them next --
+      documented in this PR's own PROGRESS.md so a future session doesn't
+      miss it. Locally: bunx tsc --noEmit 0 errors, bun run lint 0 errors
+      (3 pre-existing unrelated warnings), bun test 1523 pass/0 fail --
+      confirms the PR's original CI failures (audit-check, Unit Tests)
+      were staleness against main, not real defects in this PR's 2-file
+      diff. Posted structured AUDIT: PASS comment (8 fields). Full CI
+      green (Lint/Type Check/Unit Tests/Build/E2E/CodeQL/Sentinel/
+      audit-check) except Vercel preview (rate-limited, non-required, same
+      as prior rescue sessions' precedent). TIER2 (touches drizzle/0225 +
+      schema.ts) -- NOT self-merged. Reported to Owner as ready for
+      sign-off, with the 0225-collision risk flagged for whoever applies
+      it live.
+  - session_label: "claude-code (task-20260718-205406-rescue-pr--412) -- Rescue PR #412"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #412 -- NOT merged by this session. TIER2 (touches drizzle/0225_support_sessions.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
+    claim: |
+      Rescued PR #412 (branch worker/task-20260717-194828-support-session-impersonation,
+      "Support session impersonation" -- act-on-behalf-of-customer support
+      tooling, opened by a now-stopped autonomous worker dispatcher). Real
+      work done, not just a re-trigger:
+        - Real migration-number collision found and fixed: the PR's
+          drizzle/0224_support_sessions.sql collided with TWO migrations
+          merged to main in the interim (0224_crm_accounts_contacts_actor_
+          columns_no_fk.sql, 0224_erp_exchange_rates_source.sql) --
+          renamed to drizzle/0225_support_sessions.sql, re-verified against
+          the repo's new scripts/check-migration-collision.mjs CI gate
+          (added to main since this PR was opened).
+        - Real Asset Registry Coverage Check failure found and fixed: the
+          new support_sessions table wasn't registered or exempted --
+          added an exempted entry to ai-os/registry/asset-registry-
+          coverage.yaml (internal auth/security-infrastructure state with a
+          security-sensitive token_hash column, same class as the existing
+          user_active_sessions/api_keys exemptions).
+        - Merged origin/main into the PR branch twice (main advanced again
+          mid-rescue, same platform pattern documented in the PR #413/#414
+          rescue entries -- re-merging main after CI goes green is what
+          moves GitHub off a stale DIRTY/CONFLICTING mergeStateStatus).
+          PROGRESS.md conflicts kept ours (the PR branch's own) both times;
+          one real ACTIVE-CLAIMS.yaml conflict, resolved by keeping both
+          sides' distinct entries.
+        - Independently re-read the PR's full diff (all 11 files) rather
+          than trusting its own self-report or the prior Super Boss review
+          quoted in the PR body; confirmed the cross-org write posture
+          (raw/service-role client, matches autoProvisionUser precedent),
+          the RLS-scoped own-org read path, the TOCTOU-safe atomic end-
+          session update, and the whoami-target route's bearer-token auth
+          (matches the established api-key-auth.ts/webhook precedent, not
+          a novel requireAuth() bypass) before posting AUDIT: PASS.
+        - Re-ran full local verification post-rebase: bunx tsc --noEmit (0
+          errors), bun run lint (0 errors, 3 pre-existing unrelated
+          warnings), bun test (1535 pass / 0 fail across 115 files).
+      Also opened and self-merged a small separate TIER1 PR (#450) to
+      register this session's ACTIVE-CLAIMS.yaml claim before starting, per
+      Rule 11 -- audit-check on that PR initially failed because the
+      workflow run predated the AUDIT comment; re-triggered via `gh run
+      rerun` once the comment was posted, same fix applied to PR #412's own
+      audit-check run.
+      All CI required checks green (Lint/Type Check/Unit Tests/Build/E2E/
+      CodeQL/Sentinel checks/Asset Registry/Migration Collision/audit-
+      check); only the non-required Vercel preview is pending/rate-limited,
+      same as every other rescue this session's log documents. NOT self-
+      merged -- reported to Owner as TIER2, ready for sign-off.
   - session_label: "claude-code (task-20260718-202151-rescue-pr--413) -- Rescue and merge PR #413"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #413 (tier1, self-merged after CI green), squash commit 3ea9aa38."
@@ -3521,3 +3590,64 @@ recently_completed:
       commit -- last real migration still 0223_force_rls_hr_attendance_
       holidays.sql; branch base == origin/main tip 13bddf6f at time of
       PR). PR opened against main, not merged, per instructions.
+  - session_label: "claude-code (task-20260718-202902-rescue-pr--415) -- Rescue PR #415"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "NOT MERGED -- TIER2 (touches drizzle/*.sql), awaiting Owner sign-off per task instructions; also blocked on a GitHub Actions infra issue, see below."
+    claim: |
+      Rescued PR #415 (branch worker/task-20260718-045009-ai-architecture--
+      ai-orchestration--routi, "AI Architecture/Orchestration: close 7
+      routing, failover & observability gaps"), opened by a now-stopped
+      autonomous worker dispatcher with CI failing (audit-check + Asset
+      Registry Coverage Check). Worked around a worktree collision (the
+      original worker's own task dir still had this branch checked out)
+      via `git fetch origin refs/pull/415/head:pr-415-rescue` instead of
+      `gh pr checkout`.
+
+      Merged origin/main: real conflict in vercel.json (both sides
+      independently added new cron entries -- combined both sets);
+      PROGRESS.md kept ours.
+
+      Found and fixed the actual CI failure: Asset Registry Coverage Check
+      was failing because this PR's 2 new tables (ai_team_role_overrides,
+      ai_reduction_snapshots) made no explicit registry decision. Registered
+      ai_team_role_overrides (real admin-editable config, drizzle/0227) and
+      exempted ai_reduction_snapshots (internal append-only trend log, same
+      class as monitor_execution_log) in
+      ai-os/registry/asset-registry-coverage.yaml. Confirmed migrations
+      0225/0226 don't collide with main's real highest (0224, which itself
+      already has a pre-existing unrelated duplicate on main -- not
+      introduced by this PR, not touched).
+
+      Verified clean after the fix: bunx tsc --noEmit, bun run lint (0
+      errors), bun test (1553 pass/0 fail), plus all 6 local CI guardrail
+      scripts (asset-registry-coverage, migration-collision,
+      guardrail-presence, doc-cross-references, doc-quarantine-banner,
+      metadata-index-coverage).
+
+      Read the full PR diff directly (38 files, ~2650 lines) before
+      auditing -- consistent requireAuth()/veridian_admin gating,
+      tenant-scoped traces via withTenantContext, a real KNOWN_MODELS
+      allowlist on the new AI Team roster-override feature, fail-open
+      posture on override resolution, and 2 legitimate pre-existing bugs
+      fixed in-scope by the original PR (escalatedPlatformConfig() never
+      populated `fallback`; tier-eligibility checks upgraded to check the
+      effective/override model, not a stale static one, at all 3 real
+      dispatch surfaces per AGENTS.md Rule 10). Posted a structured
+      `AUDIT: PASS` PR comment (all 8 required fields).
+
+      BLOCKED, not merged: after pushing the merge + fix (and, later, a
+      deliberate empty-commit retrigger), GitHub Actions never created a
+      check-suite for this branch at all across 3 separate pushes spanning
+      20+ minutes -- confirmed via the checks API (only third-party app
+      suites appeared, stuck "queued"; no GitHub Actions suite entry
+      whatsoever), while sibling PRs in the same repo got normal
+      pull_request-triggered CI runs in the same wall-clock window.
+      Confirmed this is NOT a config regression from this rescue's own
+      changes -- `git diff origin/main -- .github/workflows/` is empty.
+      This reads as a GitHub Actions-side reliability issue specific to
+      this one PR/branch (possibly a stuck check-suite association from
+      earlier in the PR's history), not something a further code change in
+      this repo can fix. Also separately TIER2 regardless (touches
+      drizzle/*.sql), so this PR would not have been merged by this session
+      even had CI gone green -- reported to the Owner for sign-off, with the
+      CI-trigger anomaly flagged as its own separate open item.
