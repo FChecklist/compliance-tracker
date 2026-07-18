@@ -14,4 +14,4 @@
 - [x] `bunx tsc --noEmit` clean, `bunx eslint` clean on all changed files, `bun test` full suite 1436 pass / 0 fail (2854 expect calls), `bun run build` compiles successfully
 
 ## Remaining
-- [ ] Open PR against main
+- [x] Open PR against main -- https://github.com/FChecklist/compliance-tracker/pull/418 (not self-merged, per Rule 6)

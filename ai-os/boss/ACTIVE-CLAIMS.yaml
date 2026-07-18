@@ -83,6 +83,12 @@ active:
 
       Not touching src/lib/services/permission-service.ts or any other
       in-flight worker's declared scope, per this task's own instructions.
+
+      Verification: bun test full suite 1436 pass / 0 fail (2854 expect
+      calls, includes 3 new test files), bunx tsc --noEmit clean, eslint
+      clean on every changed/new file, bun run build compiles successfully.
+      PR opened against main, NOT self-merged: https://github.com/
+      FChecklist/compliance-tracker/pull/418
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
