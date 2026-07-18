@@ -10,6 +10,7 @@
 import { db, tokenUsageLedger, organisations } from "@/lib/db"
 import { eq, and, gte } from "drizzle-orm"
 import { sql } from "drizzle-orm"
+import { buildSpendForecast } from "@/lib/spend-forecast"
 
 export interface CostStatus {
   monthlyCostCapUsd: number | null
@@ -18,6 +19,12 @@ export interface CostStatus {
   enforcementEnabled: boolean
   isOverLimit: boolean
   isNearLimit: boolean
+  // AI Cost Governance & FinOps gap-closure (2026-07-18): "forecasted vs
+  // actual monthly AI spend" -- simple linear run-rate projection (see
+  // spend-forecast.ts), surfaced next to currentSpendUsd in
+  // OrgLimitsSection.tsx so an org admin can see whether they're on pace to
+  // exceed their own cap before the month actually ends, not just after.
+  forecastedMonthEndSpendUsd: number
 }
 
 const NEAR_LIMIT_THRESHOLD = 0.8
@@ -47,7 +54,8 @@ export async function getCostStatus(orgId: string): Promise<CostStatus> {
   const spendRemainingUsd = monthlyCostCapUsd === null ? null : Math.max(0, monthlyCostCapUsd - currentSpendUsd)
   const isOverLimit = enforcementEnabled && monthlyCostCapUsd !== null && currentSpendUsd >= monthlyCostCapUsd
   const isNearLimit = enforcementEnabled && monthlyCostCapUsd !== null && currentSpendUsd >= monthlyCostCapUsd * NEAR_LIMIT_THRESHOLD
-  return { monthlyCostCapUsd, currentSpendUsd, spendRemainingUsd, enforcementEnabled, isOverLimit, isNearLimit }
+  const forecastedMonthEndSpendUsd = buildSpendForecast(currentSpendUsd, new Date()).forecastedMonthEndSpendUsd
+  return { monthlyCostCapUsd, currentSpendUsd, spendRemainingUsd, enforcementEnabled, isOverLimit, isNearLimit, forecastedMonthEndSpendUsd }
 }
 
 export async function canIncurCost(orgId: string): Promise<{ allowed: true } | { allowed: false; reason: string }> {

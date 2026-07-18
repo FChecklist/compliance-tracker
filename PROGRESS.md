@@ -1,80 +1,25 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-062002-ai-cost-governance---finops--cost-monito
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cost
+Monitoring & Forecasting (4 findings).
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] Registered active claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting (Rule 11).
+- [x] Read the real current implementation first (`cost-guard.ts`, `token-usage-service.ts`, `customerModelConfig`/`clientModelConfig`, `orchestra-model-resolver.ts`'s existing idle-detection precedent) before writing any code.
+- [x] **Cost anomaly detection** (Medium): new `src/lib/services/cost-anomaly-service.ts` — ratio-based recent-vs-baseline deviation check, per org (tenant, `scope='product_orchestra'`) and per AI-Team role (`scope='ai_team_internal'`), sourced from the real `token_usage_ledger`. Simple/explainable per the finding's own recommended approach: `recentSpend / baselineAvgDaily >= 3x` (default), with a `$1` minimum-spend floor to avoid flagging trivial noise, plus a distinct "new spender" case (real spend above the floor with zero baseline). Pure `classifyAnomaly()` unit-tested (7 tests); DB wrapper `detectCostAnomalies()` not unit-tested, matching this codebase's established pure/DB-touching test split. New cron entry point `GET /api/internal/cost-anomalies/run` (`CRON_SECRET`-gated, same pattern as every other `/api/internal/*/run` route) + daily `vercel.json` cron line. No dashboard/inbox surface yet — honestly disclosed scope limit, same posture as `ai-performance-report-service.ts` and its sibling cadence reports.
+- [x] **Forecasted vs actual monthly AI spend** (Medium): new shared pure module `src/lib/spend-forecast.ts` (linear run-rate projection: `spend-to-date / days-elapsed * days-in-month`), unit-tested (11 tests). Wired into two real, already-live surfaces rather than building a new dashboard:
+  - Per-org: `cost-guard.ts`'s `CostStatus` gained `forecastedMonthEndSpendUsd`, computed in `getCostStatus()`. Surfaced in the existing `OrgLimitsSection.tsx` settings UI (already the real, live admin surface for `cost-guard.ts` — `GET/PATCH /api/settings/org-limits`) as "Forecasted (linear run-rate): ~$X by month end" plus an "On pace to exceed cap" badge when the forecast crosses a configured cap the org isn't over yet.
+  - Platform-wide: `token-usage-service.ts`'s `TokenUsageSummary` (the existing veridian_admin-gated `GET /api/ai/team/token-usage` Finance report) gained `platformMonthlyForecast`, via new `getPlatformMonthlyForecast()`.
+- [x] **Unused/idle AI capacity identified** (Low): new `src/lib/services/idle-ai-capacity-service.ts`. `customerModelConfig` (org/Layer-2) and `clientModelConfig` (client/Layer-3) rows with a real configured API key ARE this schema's "provisioned AI capacity" records, and both already carry `lastUsedAt` for exactly this purpose (same field `orchestra-model-resolver.ts`'s `borrowFromSharedPool()` already reads to compute idleness for a different, 5-minute-cutoff question). Idle = unused (or never used since `createdAt`) for 90+ days (quarterly). Pure `classifyIdleCapacity()` unit-tested (4 tests); DB wrapper `findIdleAiCapacity()` not unit-tested. New cron entry point `GET /api/internal/idle-ai-capacity/run` + quarterly `vercel.json` cron line (`0 10 1 1,4,7,10 *`). Per the finding's own recommended approach ("simple quarterly query, not worth dedicated tooling at current scale") — one deterministic query, no new table, no dashboard.
+- [x] Verified: `bunx tsc --noEmit` clean; `bunx eslint` clean on every new/changed file; full `bun test` — 1443 pass / 0 fail (was already passing before this change; no regressions).
+- [x] No schema/migration changes — every column needed (`customerModelConfig.lastUsedAt`, `clientModelConfig.lastUsedAt`, `tokenUsageLedger.*`, `organisations.monthlyCostCapUsd`) already existed.
+- [x] Did not touch `permission-service.ts` or any other in-flight worker's declared scope (checked `ai-os/boss/ACTIVE-CLAIMS.yaml` first — no overlap found).
+
+## Deferred (documented, not implemented)
+
+- [ ] **FinOps dashboard reconciles engineering cost claims against Finance's ledger** (Medium) — deferred per the finding's own recommended approach ("Defer unless spend scale or an audit requirement justifies building a second independent estimate"). `token-usage-service.ts`'s `token_usage_ledger` already **is** a real, single spend ledger (Finance's own source of truth, per that file's header) — but there is no second, *independent* engineering-side cost estimate anywhere in this codebase to reconcile it against (the closest analog, `docs/analysis/cost-estimate-5org-50user.md`, is a one-off manual guesstimate produced by a different worker session for a different purpose, not a live/automated second source). Building a real independent estimator (e.g. deriving expected cost from `orchestra_executions` row counts × per-layer model pricing, cross-checked against the ledger's own `estimatedCostUsd`) is a genuinely separate, non-trivial piece of work whose ROI depends on spend scale/audit requirements this codebase doesn't currently have evidence for. Not built speculatively here — left explicitly open rather than closed with a token/fake reconciliation.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+
+- [ ] None of the 4 findings' recommended-scope work remains open — 3 closed with real code, 1 explicitly deferred above.
