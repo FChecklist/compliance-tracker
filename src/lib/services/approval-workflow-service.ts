@@ -26,6 +26,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { detectHighImpactAction, type HighImpactCategory } from "@/lib/high-impact-action-detector"
 
 export type WorkflowContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -39,15 +40,49 @@ type StepDefInput = {
   conditionValue?: number
 }
 
+// Four-Eyes Principle cross-wire (Checks & Balances gap-closure): a step
+// whose entityType/name textually names one of high-impact-action-
+// detector.ts's 9 "never execute silently" categories (delete/payment/
+// compliance_submission/etc., VERIDIAN.docx CSV 205 §26) is a critical
+// action by this codebase's own existing definition of "critical" -- so it
+// gets a hard requiredApprovals floor of 2 (dual control / four-eyes) even
+// if the org admin configuring the step tried to set it to 1. Previously
+// requiredApprovals was opt-in per step with no relationship to the
+// high-impact taxonomy at all. Reuses the SAME detector every other
+// consumer (AI Team dispatch risk classification, task/chat confirmation
+// gate) already relies on -- one taxonomy, not a second one invented here.
+const MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS = 2
+
+export function detectCriticalActionCategory(entityType: string, stepName: string): HighImpactCategory | null {
+  return detectHighImpactAction(`${entityType.replace(/_/g, " ")} ${stepName}`).category
+}
+
+export function enforceFourEyesFloor(entityType: string, stepName: string, requestedApprovals: number): number {
+  const category = detectCriticalActionCategory(entityType, stepName)
+  return category ? Math.max(requestedApprovals, MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS) : requestedApprovals
+}
+
 export async function listWorkflowDefinitions(ctx: { orgId: string }, entityType?: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    return db.query.approvalWorkflowDefinitions.findMany({
+    const defs = await db.query.approvalWorkflowDefinitions.findMany({
       where: entityType
         ? and(eq(approvalWorkflowDefinitions.orgId, ctx.orgId), eq(approvalWorkflowDefinitions.entityType, entityType))
         : eq(approvalWorkflowDefinitions.orgId, ctx.orgId),
       with: { steps: { orderBy: (t, { asc }) => asc(t.stepOrder) } },
       orderBy: (t, { desc }) => desc(t.createdAt),
     })
+    // Annotates each step with its inferred critical-action category and
+    // whether four-eyes is actually satisfied -- the Role-Based Approval
+    // Matrix view (ApprovalMatrixSection, reading this same GET
+    // /api/approval-workflows with no entityType filter) reads this
+    // directly rather than re-deriving it client-side.
+    return defs.map((def) => ({
+      ...def,
+      steps: def.steps.map((step) => {
+        const highImpactCategory = detectCriticalActionCategory(def.entityType, step.name)
+        return { ...step, highImpactCategory, fourEyesSatisfied: step.requiredApprovals >= MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS }
+      }),
+    }))
   })
 }
 
@@ -70,7 +105,7 @@ export async function createWorkflowDefinition(
         stepOrder: s.stepOrder,
         name: s.name,
         approverRole: s.approverRole,
-        requiredApprovals: s.requiredApprovals ?? 1,
+        requiredApprovals: enforceFourEyesFloor(input.entityType, s.name, s.requiredApprovals ?? 1),
         conditionField: s.conditionField,
         conditionOperator: s.conditionOperator,
         conditionValue: s.conditionValue?.toString(),
@@ -143,7 +178,12 @@ export async function startApprovalWorkflow(
         stepDefinitionId: step.id,
         stepOrder: step.stepOrder,
         approverRole: step.approverRole,
-        requiredApprovals: step.requiredApprovals,
+        // Re-applies the four-eyes floor here too (not just at definition-
+        // create time above): a step definition stored before this floor
+        // existed, or edited directly, still gets it enforced at the one
+        // place that actually matters -- the real instance a human approves
+        // against.
+        requiredApprovals: enforceFourEyesFloor(params.entityType, step.name, step.requiredApprovals),
       }))
     )
 

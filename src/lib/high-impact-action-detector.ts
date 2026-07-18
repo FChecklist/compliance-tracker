@@ -15,7 +15,15 @@ export type HighImpactCategory =
   | "compliance_submission" | "access_changes" | "data_export" | "configuration_changes"
 
 const TRIGGERS: Record<HighImpactCategory, string[]> = {
-  delete: ["delete", "remove", "erase", "permanently delete"],
+  // "dispose"/"disposal" added for the Checks & Balances / Four-Eyes cross-
+  // wire (approval-workflow-service.ts): a fixed-asset disposal is a real
+  // permanent removal of an asset from the books, same category as any
+  // other delete, even though the entityType string itself is
+  // "erp_asset_disposal" not "erp_asset_delete". Additive -- widens every
+  // existing consumer of this detector (AI Team dispatch risk
+  // classification, task/chat high-impact confirmation), not just the
+  // approval workflow engine.
+  delete: ["delete", "remove", "erase", "permanently delete", "dispose", "disposal"],
   archive: ["archive"],
   payment: ["pay ", "payment", "make a payment", "release payment", "transfer funds", "disburse"],
   approval: ["approve", "approval", "sign off", "authorize", "authorise"],
