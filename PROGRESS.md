@@ -23,3 +23,15 @@ Monitoring & Forecasting (4 findings).
 ## Remaining
 
 - [ ] None of the 4 findings' recommended-scope work remains open — 3 closed with real code, 1 explicitly deferred above.
+
+## Rescue (task-20260718-195944-rescue-pr--424)
+
+- [x] Registered rescue claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+- [x] `gh pr checkout 424` (worktree conflict with original branch worked around via `git fetch origin <branch>:pr-424-local`).
+- [x] Merged `origin/main` (real conflicts: `PROGRESS.md` kept ours; `ai-os/boss/ACTIVE-CLAIMS.yaml` — additive, kept both blocks + this rescue entry).
+- [x] Confirmed no `drizzle/*.sql` or `src/lib/db/schema.ts` changes in this PR's diff vs main — TIER1.
+- [ ] `bun install --frozen-lockfile && bunx tsc --noEmit && bun run lint && bun test` on the merged branch.
+- [ ] Push rebased branch.
+- [ ] Post structured `AUDIT: PASS`/`FAIL` PR comment.
+- [ ] Wait for CI green.
+- [ ] Merge (squash + delete branch) if TIER1 and audit PASS.
