@@ -41,7 +41,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
+  - session_label: "claude-code (task-20260718-053002-ai-architecture--explainability---transp) -- VERIDIAN Review Framework: AI Architecture / Explainability & Transparency gap-closure (26 findings)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing all 26 findings under the "AI Architecture / Explainability &
+      Transparency" review-framework parameter in one coherent PR (per this
+      task's own instructions: shared module/area, not 26 separate PRs).
+      Reading the actual current implementation of each named module first
+      before assuming the gap descriptions (written against an earlier
+      snapshot) are still accurate -- will note in PROGRESS.md rather than
+      make an unnecessary change if a finding is already resolved.
+      Expected shared-infra file scope (subject to revision once each file
+      is actually read): src/lib/report-engine-service.ts (note/narrative
+      pattern -> shared component), src/lib/services/crm-service.ts
+      (aiRecommendedAction / explanation pattern -> generic decision-
+      explanation service + rejectedAlternatives), src/lib/llm-client.ts
+      (system-prompt user-context block), src/lib/errors/ServiceError (or
+      wherever that type lives -- friendlyMessage + remediationSteps +
+      plain-language 'why' field via an error-code lookup table),
+      src/lib/engines/* (shared EngineResult<T> type with explanation +
+      optional intermediate-steps), src/lib/orchestra-execution-logger.ts
+      (routingRationale field), HIGH_IMPACT_CATEGORY_GUIDANCE (wherever
+      defined -- broadened category list), a new business-terminology
+      glossary table + hover/inline explainer component, and a docs-
+      embedding index for the help chatbot.
+      Explicitly NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table structure (per this task's own instructions) --
+      will only add new keys additively if this area's work genuinely
+      needs a new permission-service entry, and has re-checked this file's
+      other active claims first to confirm no overlap with that file.
+      Will update this entry's outcome in recently_completed: once merged
+      or abandoned, per this file's own protocol.
     claimed_at: "2026-07-17T (this session)"
     claim: |
       CONTROLLER.yaml entry REVIEW-FRAMEWORK-WAVE4, Track 1 (this session's
