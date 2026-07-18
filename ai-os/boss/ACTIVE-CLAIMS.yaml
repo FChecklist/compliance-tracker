@@ -41,6 +41,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "Super Boss (Claude Desktop, interactive) -- AIROUTER-01 Mother Router Phase 1"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      CONTROLLER.yaml entry AIROUTER-01. Owner directive: build a real
+      unifying "Mother Router" (model/provider registry + versioned routing
+      policy + audit log) covering software_team/end_user_org/sales_marketing
+      scopes, plus Phase-1 subscription packages by org user-count, BYOB
+      explicitly kept PENDING. Originally dispatched as a server worker task
+      (task-20260718-114848-mother-router-phase-1--airouter-01) but that was
+      blocked on exhausted OpenRouter credits; Owner then asked Super Boss to
+      build it directly in this session instead. The server task was
+      stopped+disabled and its scheduled follow-up check-in deleted to avoid
+      two competing implementations.
+      Scope: new files only (src/lib/ai-router/mother-router.ts + .test.ts,
+      drizzle/0225_ai_router_mother_router.sql, schema.ts additions), plus
+      ONE additive fire-and-forget audit-log call in
+      src/app/api/ai/team/dispatch/route.ts. Does NOT modify
+      model-tier-eligibility.ts, orchestra-model-resolver.ts, roster.ts, or
+      llm-client.ts -- see mother-router.ts's own header and this PR's
+      PROGRESS_AIROUTER01.md for the full list of deliberate scope decisions
+      (BYOB reuses existing customer_model_config rather than duplicating it;
+      subscription packages reuse the existing, previously-unseeded
+      subscription_plans table).
+      branch: superboss/mother-router-phase-1. Migration NOT applied to any
+      live DB by this session -- tier2 (schema-touching), held for Owner
+      sign-off per this repo's own established rule, not auto-merged.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
