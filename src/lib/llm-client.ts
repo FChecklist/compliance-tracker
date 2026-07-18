@@ -187,6 +187,17 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   "z-ai/glm-5.2": { promptPer1k: 0.00042, completionPer1k: 0.00132 },
   "z-ai/glm-5v-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
   "z-ai/glm-5-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
+  // VERIDIAN Review Framework remediation (AI Failover, 2026-07-18):
+  // orchestra-model-resolver.ts's platformFallbackFor() now uses this model
+  // as the escalated tier's own same-quality-class failover target -- a new
+  // consumer outside ai-team/roster.ts's existing AI Dev Team usage, so
+  // without this row estimateCostUsd() would silently return null for every
+  // customer-facing call that lands on this fallback branch, the same class
+  // of gap SOURCE_TYPE_MODEL_OVERRIDES' groq entry closed above. Verified
+  // live via openrouter.ai/api/v1/models/deepseek/deepseek-v4-pro/endpoints
+  // 2026-07-18, DeepSeek provider: $0.435 / $0.87 per 1M prompt/completion
+  // tokens.
+  "deepseek/deepseek-v4-pro": { promptPer1k: 0.000435, completionPer1k: 0.00087 },
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
