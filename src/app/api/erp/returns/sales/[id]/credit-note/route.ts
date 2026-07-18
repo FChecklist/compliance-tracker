@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { linkSalesReturnCreditNote, ServiceError } from "@/lib/services/erp-returns-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -8,6 +9,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: just a link/association, no GL posting
+  const roleErr = requirePermissionForUser(dbUser, "erp.sales_credit_notes.link_return")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await context.params

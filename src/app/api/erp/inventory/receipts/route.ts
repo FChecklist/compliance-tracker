@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { recordStockReceipt, ServiceError } from "@/lib/services/erp-inventory-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function POST(request: Request) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: FIFO stock in, routine warehouse operation
+  const roleErr = requirePermissionForUser(dbUser, "erp.inventory.receipt")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()

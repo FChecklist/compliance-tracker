@@ -296,6 +296,41 @@ export async function createJournalEntry(
 }
 
 /**
+ * Automatic Rollback & Recovery (VERIDIAN Review Framework gap closure,
+ * 2026-07-18): compensating action for the "create a draft JE, THEN
+ * separately mark the source document done" pattern used by
+ * erp-fixed-assets-service.ts's runDepreciationBatch/finalizeAssetDisposal
+ * (and any future caller with the same shape). createJournalEntry commits
+ * its own transaction independently -- if the caller's own follow-up write
+ * then throws, the JE is already posted but the source row still reads
+ * "pending", so a naive retry would post a SECOND journal entry for the same
+ * event. This voids the orphaned one so a retry starts clean.
+ *
+ * Never deletes the row (financial records are never physically removed in
+ * this codebase) -- moves it to the existing 'cancelled' status
+ * (erpJournalEntryStatusEnum already had this value; nothing wrote it until
+ * now) and appends the reason to userRemark, so the void itself leaves a
+ * readable trail. Only ever acts on an entry still in 'draft': if it was
+ * somehow already submitted in the gap between the two writes (a human
+ * manually submitting it from the Journal Entries UI, the one known,
+ * documented edge case this can't close), this refuses to touch it rather
+ * than cancelling a live submitted entry.
+ */
+export async function voidDraftJournalEntry(ctx: { orgId: string; userId: string; dbUser: typeof users.$inferSelect }, journalEntryId: string, reason: string): Promise<{ voided: boolean }> {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const entry = await db.query.erpJournalEntries.findFirst({ where: and(eq(erpJournalEntries.id, journalEntryId), eq(erpJournalEntries.orgId, ctx.orgId)) })
+    if (!entry || entry.status !== "draft") return { voided: false }
+
+    await db.update(erpJournalEntries).set({
+      status: "cancelled",
+      userRemark: `${entry.userRemark ?? ""} [Auto-voided: ${reason}]`.trim(),
+    }).where(eq(erpJournalEntries.id, journalEntryId))
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.voided_compensating", entityType: "erp_journal_entry", entityId: journalEntryId, details: reason })
+    return { voided: true }
+  })
+}
+
+/**
  * Submits a draft journal entry: refuses to post into a closed accounting
  * period, then either posts immediately (no workflow configured for this
  * org/entityType) or starts an approval-workflow instance and leaves the
