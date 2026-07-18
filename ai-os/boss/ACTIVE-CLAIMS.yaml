@@ -1797,6 +1797,17 @@ active:
       officecli-client.ts, chat-service.ts, help/ask/route.ts and their
       tests), post required AUDIT comment, merge if TIER1 and green.
 
+  - session_label: "claude-code (task-20260718-195946-rescue-pr--422) -- Rescue and merge PR #422"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Rescuing PR #422 (branch worker/task-20260718-061005-ai-cost-
+      governance---finops--cost-contro, "AI cost governance / FinOps cost
+      controls"). CI currently failing on audit-check and/or Unit Tests
+      per task instructions. Scope: merge origin/main, renumber any
+      drizzle migration if present, fix real CI failures only (no
+      guardrail weakening), post required AUDIT comment, merge if TIER1
+      and green -- otherwise report TIER2 for Owner sign-off.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
