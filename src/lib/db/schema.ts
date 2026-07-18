@@ -3222,6 +3222,54 @@ export const fraudCases = complianceSchemaDB.table('fraud_cases', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Risk Anomaly Events (VERIDIAN Review Framework: "Checks & Balances /
+// Risk, Fraud & Anomaly Detection" gap-closure) ─────────────────────────────
+// Tier-1 (rule-engine, zero LLM calls -- see src/lib/risk-anomaly-detection.ts)
+// detection output + risk-based escalation state, for BUSINESS risk events
+// (bulk export, after-hours high-impact actions, repeated failed auth,
+// duplicate payment, round-number/threshold-avoidance, fraud confirmed, high
+// severity risk logged). Deliberately NOT monitor_agents/monitor_task_state
+// (PLATFORM_STRATEGY.md #29) -- that registry is AI-Ops dispatch-health
+// scoped (TASK_CREATED, APPROVAL_GRANTED, ...); this is a separate,
+// business-facing surface with a different owner concept (a named human via
+// departments.head_id, not a roster.ts AI role). Same reasoning,
+// escalation-ladder.ts's CSEO/COO/Super-Boss ladder is not reused here (see
+// docs/ESCALATION_MATRIX.md -- that ladder is AI-operational-failure-shaped
+// by design).
+export const riskAnomalyEvents = complianceSchemaDB.table('risk_anomaly_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  eventType: text('event_type').notNull(), // 'bulk_export'|'after_hours_high_impact'|'repeated_failed_auth'|'duplicate_payment'|'threshold_avoidance'|'fraud_confirmed'|'high_risk_logged'
+  severity: text('severity').notNull().default('medium'), // 'low'|'medium'|'high'|'critical'
+  sourceEntityType: text('source_entity_type').notNull(), // e.g. 'erp_payment_entry'|'framework_control'|'fraud_case'|'risk'|'user'|'compliance_item'
+  sourceEntityId: text('source_entity_id'),
+  actorUserId: text('actor_user_id'), // who performed the action that triggered detection, if known
+  reason: text('reason').notNull(), // human-readable rule verdict, e.g. "3 payments of ₹50,000 to the same supplier within 2 days"
+  detail: jsonb('detail').notNull().default({}),
+  status: text('status').notNull().default('open'), // 'open'|'escalated'|'dismissed'|'resolved'
+  escalatedToUserId: text('escalated_to_user_id'),
+  escalatedAt: timestamp('escalated_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Unified auth-failure log across every login method (password/oauth/sso/
+// passcode) -- feeds the repeated-failed-auth Tier-1 monitor. No org_id
+// column, matching passcode_login_attempts' own precedent exactly: a
+// pre-auth attempt has no org to resolve to until AFTER a successful match.
+// Deliberately a NEW table rather than overloading passcode_login_attempts
+// (that table's own name/column set is passcode-specific; password/OAuth/SSO
+// had zero failure logging before this at all -- see this gap's own
+// investigation notes in PROGRESS.md/ACTIVE-CLAIMS.yaml). passcode-login-
+// service.ts's recordAttempt additionally writes here on failure so the
+// unified monitor sees every method, not just the two new ones.
+export const authFailureEvents = complianceSchemaDB.table('auth_failure_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull(),
+  method: text('method').notNull(), // 'password'|'oauth'|'sso'|'passcode'
+  ipAddress: text('ip_address'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const itDrPlans = complianceSchemaDB.table('it_dr_plans', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),

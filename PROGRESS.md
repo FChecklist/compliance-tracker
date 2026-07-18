@@ -1,80 +1,106 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-091004-checks---balances--risk--fraud---anomaly
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: Checks & Balances / Risk, Fraud & Anomaly Detection.
+8 findings received = 4 distinct issues, each duplicated once. Investigated the real
+current state of each before writing any code -- all 4 were still real gaps, not
+already resolved (see "Findings re-verified" below).
+
+## Findings re-verified against current code (before writing anything)
+
+- **Anomaly Detection**: confirmed still real, but the "~30 event types, 1 wired"
+  framing in PLATFORM_STRATEGY.md #29 is entirely **AI-Ops scoped**
+  (TASK_CREATED, APPROVAL_GRANTED, DOCUMENT_APPROVED, etc. -- monitor_agents /
+  escalation-ladder.ts / monitor-protocol.ts govern AI Dev Team dispatch health,
+  not business risk). There is a **separate, real gap**: zero rule-engine
+  monitors existed for business-facing risk events. Built net-new, not extending #29.
+- **Fraud & Abuse Detection**: confirmed -- `fraud-case-service.ts` was pure CRUD,
+  zero detection logic, `detectionSource: 'system_alert'` existed in the enum but
+  nothing ever set it.
+- **Policy Compliance Verification**: confirmed -- `framework_controls.status`
+  PATCH route cycled state forward on a button click with zero evidence input.
+  No `get_advisors`/CI-gate integration exists anywhere in `src/` (confirmed by
+  grep -- correctly not fabricated). Real available evidence signal in-schema:
+  `audit_findings.retestResult`, reachable via `risks.linkedControlIds` ->
+  `audit_findings.linkedRiskId`.
+- **Risk-Based Escalation**: confirmed -- `escalation-ladder.ts` /
+  `docs/ESCALATION_MATRIX.md` are entirely AI-operational-failure-shaped
+  (CSEO/COO/Super Boss). No business-risk-event escalation path existed anywhere.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
+- [x] Read governance docs (ACTIVE-CLAIMS.yaml, AGENTS.md, CLAUDE.md, PLATFORM_STRATEGY.md #29)
+- [x] Registered active claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`, committed + pushed standalone
+- [x] Full codebase investigation (schema, services, routes) for all 4 findings
+- [x] Schema: `risk_anomaly_events` (org-scoped, FORCE RLS) + `auth_failure_events`
+      (pre-auth, no org, service_role-only -- mirrors `passcode_login_attempts`) --
+      `drizzle/0225_risk_anomaly_detection.sql`, both exempted in
+      `ai-os/registry/asset-registry-coverage.yaml` (append-only event logs, same
+      class as `monitor_execution_log`/`passcode_login_attempts`)
+- [x] `src/lib/risk-anomaly-detection.ts` -- pure Tier-1 rule functions (bulk export,
+      after-hours high-impact, repeated failed auth, duplicate payment,
+      round-number/threshold-avoidance) + full unit test coverage (19 tests)
+- [x] `src/lib/services/risk-escalation-service.ts` -- `recordAndEscalateAnomaly()` +
+      `resolveRiskEscalationOwner()` (department head via `departments.head_id`,
+      org-admin fallback, self-escalation explicitly excluded at both levels)
+- [x] `src/lib/services/auth-failure-service.ts` + `POST /api/auth/failure-event`
+      (public, pre-auth) + wired into `login-form.tsx` (password path) and
+      `passcode-login-service.ts`'s `recordAttempt` (unifies passcode failures
+      into the same monitor without touching its own internal rate-limit table)
+- [x] Fraud rule signals wired into `erp-payment-entries-service.ts::createPaymentEntry`
+      (duplicate-payment + round-number/threshold-avoidance) -> auto-creates a
+      `fraud_cases` row via new `createFraudCaseTx()` (tx-safe variant -- avoids a
+      nested `withTenantContext` deadlock against this app's single-connection
+      pool) with `detectionSource: 'system_alert'`, then escalates
+- [x] After-hours high-impact wiring: `erp-payment-entries-service.ts::decidePaymentEntry`
+      (approved branch), `frameworks/controls/[id]/route.ts` (verified transition)
+- [x] Policy compliance verification gate in `frameworks/controls/[id]/route.ts` PATCH:
+      blocks self-attested `'verified'` unless a linked risk has a passed
+      audit-finding retest as evidence (`hasVerificationEvidence()` in
+      `risk-register-service.ts`)
+- [x] Risk-based escalation wiring: `risk-register-service.ts::createRisk` (high
+      severity), `fraud-case-service.ts::updateFraudCaseStatus` (confirmed status --
+      the finding's own named example)
+- [x] Bulk export observability: `POST /api/compliance/export-event` + wired into
+      both compliance/page.tsx and reports/page.tsx CSV export buttons (previously
+      100% client-side, logged nothing)
+- [x] `bun test` (1440 pass, 0 fail), `tsc --noEmit` (clean), `eslint .` (0 errors),
+      `check-asset-registry-coverage.mjs` (433/433 tables accounted for),
+      `check-guardrail-presence.mjs` (88/88 markers present)
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+## Self-review pass (8-angle code-review before commit) -- caught and fixed 7 real issues
+- [x] **Critical**: `hasVerificationEvidence`'s evidence chain was permanently unsatisfiable --
+      nothing anywhere wrote `risks.linkedControlIds` past its `[]` default, so no framework
+      control could ever reach `'verified'`. Fixed: added `updateRiskLinkedControls()` +
+      `PATCH /api/risks/[id]/linked-controls` (the only writer of that column).
+- [x] Consolidated `erp-payment-entries-service.ts::createPaymentEntry`'s fraud check to create
+      at most ONE fraud case/escalation per payment (was creating 2 separate cases when a
+      payment tripped both the duplicate-payment and threshold-avoidance rules).
+- [x] Fixed an escalation storm: `auth-failure-service.ts` now escalates at most once per
+      rate-limit window per account (was re-escalating on every single failed attempt past
+      the threshold, paging the resolved owner repeatedly for one ongoing incident).
+- [x] Fixed idempotency regression in `frameworks/controls/[id]/route.ts`: a repeat PATCH on an
+      already-`'verified'` control (no real status change) now short-circuits before the
+      evidence gate/after-hours check, instead of re-running side effects on every re-click.
+- [x] Fixed `severityFromScore`'s fallback (risk-register-service.ts): a likelihood/impact score
+      outside every configured band now clamps to the nearest edge band instead of silently
+      defaulting to `'medium'` -- matters now that `createRisk`'s new high-severity escalation
+      depends on this function.
+- [x] `resolveRiskEscalationOwner` no longer does an unbounded `findMany` of every active org
+      user to pick one admin -- two targeted, actor-excluded, LIMIT-1 queries instead.
+- [x] Frontend: `frameworks/page.tsx`'s advance button now surfaces the new 409 "blocked"
+      response via toast instead of silently no-op'ing.
+- [x] Added a composite index on `erp_payment_entries` (org/party/type/date) and a GIN index on
+      `risks.linked_control_ids` for the two new query patterns this gap-closure introduces.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] Move ACTIVE-CLAIMS.yaml entry to `recently_completed` once this PR merges
+- [ ] Out of scope, noted for a future pass: Google OAuth / SSO login failures still
+      aren't logged (only password + passcode are wired) -- password is the primary
+      brute-force vector, SSO/OAuth failures are a smaller, separate surface
+- [ ] Out of scope: `DEFAULT_PAYMENT_APPROVAL_THRESHOLD` (₹100,000) is a fixed
+      constant, not yet an org-configurable value via `module-rules-resolver.ts` --
+      noted in the code as the natural extension point if a real org needs a
+      different threshold
+- [ ] Out of scope: `PATCH /api/risks/[id]/linked-controls` has no UI yet -- a real
+      user can call the API today but there's no risks-page control to pick which
+      framework controls a risk covers. Building that UI is a reasonable next step,
+      not done here to keep this already-large gap-closure bounded.
