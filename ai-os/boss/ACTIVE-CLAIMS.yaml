@@ -41,6 +41,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260718-055002-ai-architecture--performance---cost-effi) -- VERIDIAN Review Framework: AI Architecture / Performance & Cost Efficiency, 4 findings"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 4 related findings from the framework evaluation in one PR:
+      (1) [Medium] AI Latency -- no systematic latency tracking; instrumenting
+      callLLM()/callLLMJson()/callLLMVision() in src/lib/llm-client.ts to
+      compute durationMs centrally (start/end timestamps around the actual
+      provider call, including retries) with an SLA constant + console.warn
+      on breach, rather than relying on each of the ~30 call sites to track
+      its own timer (several, e.g. api/help/ask/route.ts, currently don't).
+      (2) [Low] Cache Strategy -- Anthropic provider is wired in llm-client.ts/
+      orchestra-model-resolver.ts but ANTHROPIC_API_KEY is unset; this is an
+      owner-funding decision, not a code gap -- documenting as such in
+      PROGRESS.md rather than making a unilateral change.
+      (3) [Low] AI Cost Optimization -- MODEL_PRICING (llm-client.ts) is a
+      manual, honest-limitation constant with no live billing API behind it;
+      adding a new standalone recurring audit (src/lib/loops/model-pricing-
+      audit.ts, piggybacked on the existing daily /api/internal/loops/run
+      cron, same non-canonical-loop pattern as capability-index-freshness-
+      audit.ts) that flags any model with real usage in orchestra_executions
+      but no MODEL_PRICING entry (a real cost blind spot, not merely a
+      staleness guess).
+      (4) [Low] AI Context Compression -- src/app/api/help/ask/route.ts calls
+      callLLM directly with none of chat-service.ts's generateAiReply()
+      pipeline (normalizeForLlm context-compression, ai-reply-gate,
+      pii-redaction, recordOrchestraExecution, prompt-cache compiler/
+      metrics) -- wiring the same pipeline in, additively, no behavior
+      change to the widget UI contract ({ answer: string }).
+      File scope: src/lib/llm-client.ts, src/lib/loops/model-pricing-
+      audit.ts (new), src/app/api/internal/loops/run/route.ts (piggyback
+      wiring only), src/app/api/help/ask/route.ts. Not touching
+      src/lib/services/permission-service.ts or any ERP/CRM/HR RBAC work
+      other active claims in this file own.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
