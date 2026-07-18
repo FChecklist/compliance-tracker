@@ -3476,3 +3476,64 @@ recently_completed:
       commit -- last real migration still 0223_force_rls_hr_attendance_
       holidays.sql; branch base == origin/main tip 13bddf6f at time of
       PR). PR opened against main, not merged, per instructions.
+  - session_label: "claude-code (task-20260718-202902-rescue-pr--415) -- Rescue PR #415"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "NOT MERGED -- TIER2 (touches drizzle/*.sql), awaiting Owner sign-off per task instructions; also blocked on a GitHub Actions infra issue, see below."
+    claim: |
+      Rescued PR #415 (branch worker/task-20260718-045009-ai-architecture--
+      ai-orchestration--routi, "AI Architecture/Orchestration: close 7
+      routing, failover & observability gaps"), opened by a now-stopped
+      autonomous worker dispatcher with CI failing (audit-check + Asset
+      Registry Coverage Check). Worked around a worktree collision (the
+      original worker's own task dir still had this branch checked out)
+      via `git fetch origin refs/pull/415/head:pr-415-rescue` instead of
+      `gh pr checkout`.
+
+      Merged origin/main: real conflict in vercel.json (both sides
+      independently added new cron entries -- combined both sets);
+      PROGRESS.md kept ours.
+
+      Found and fixed the actual CI failure: Asset Registry Coverage Check
+      was failing because this PR's 2 new tables (ai_team_role_overrides,
+      ai_reduction_snapshots) made no explicit registry decision. Registered
+      ai_team_role_overrides (real admin-editable config, drizzle/0227) and
+      exempted ai_reduction_snapshots (internal append-only trend log, same
+      class as monitor_execution_log) in
+      ai-os/registry/asset-registry-coverage.yaml. Confirmed migrations
+      0225/0226 don't collide with main's real highest (0224, which itself
+      already has a pre-existing unrelated duplicate on main -- not
+      introduced by this PR, not touched).
+
+      Verified clean after the fix: bunx tsc --noEmit, bun run lint (0
+      errors), bun test (1553 pass/0 fail), plus all 6 local CI guardrail
+      scripts (asset-registry-coverage, migration-collision,
+      guardrail-presence, doc-cross-references, doc-quarantine-banner,
+      metadata-index-coverage).
+
+      Read the full PR diff directly (38 files, ~2650 lines) before
+      auditing -- consistent requireAuth()/veridian_admin gating,
+      tenant-scoped traces via withTenantContext, a real KNOWN_MODELS
+      allowlist on the new AI Team roster-override feature, fail-open
+      posture on override resolution, and 2 legitimate pre-existing bugs
+      fixed in-scope by the original PR (escalatedPlatformConfig() never
+      populated `fallback`; tier-eligibility checks upgraded to check the
+      effective/override model, not a stale static one, at all 3 real
+      dispatch surfaces per AGENTS.md Rule 10). Posted a structured
+      `AUDIT: PASS` PR comment (all 8 required fields).
+
+      BLOCKED, not merged: after pushing the merge + fix (and, later, a
+      deliberate empty-commit retrigger), GitHub Actions never created a
+      check-suite for this branch at all across 3 separate pushes spanning
+      20+ minutes -- confirmed via the checks API (only third-party app
+      suites appeared, stuck "queued"; no GitHub Actions suite entry
+      whatsoever), while sibling PRs in the same repo got normal
+      pull_request-triggered CI runs in the same wall-clock window.
+      Confirmed this is NOT a config regression from this rescue's own
+      changes -- `git diff origin/main -- .github/workflows/` is empty.
+      This reads as a GitHub Actions-side reliability issue specific to
+      this one PR/branch (possibly a stuck check-suite association from
+      earlier in the PR's history), not something a further code change in
+      this repo can fix. Also separately TIER2 regardless (touches
+      drizzle/*.sql), so this PR would not have been merged by this session
+      even had CI gone green -- reported to the Owner for sign-off, with the
+      CI-trigger anomaly flagged as its own separate open item.
