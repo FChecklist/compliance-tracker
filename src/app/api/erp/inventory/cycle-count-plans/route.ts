@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listCycleCountPlans, createCycleCountPlan, ServiceError } from "@/lib/services/erp-inventory-planning-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET() {
   const { response, orgId } = await requireAuth()
@@ -21,6 +22,9 @@ export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: routine planning data entry
+  const roleErr = requirePermissionForUser(dbUser, "erp.inventory.cycle_count_plan")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()
