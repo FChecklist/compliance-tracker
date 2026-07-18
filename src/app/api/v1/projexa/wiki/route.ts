@@ -32,16 +32,12 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  // createWikiPage() attributes authorship via updatedById -- matches the
-  // same "requires a real user session" convention already used on every
-  // other actor-attribution write in this wave (timesheets, and the
-  // native /api/pms/wiki route this aliases).
-  if (!ctx.dbUser) return NextResponse.json({ error: "This action requires a real user session, not an API key" }, { status: 400 })
+  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
 
   try {
     const body = await request.json()
     if (!body.projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
-    const result = await createWikiPage({ orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }, body.projectId, body)
+    const result = await createWikiPage({ orgId: ctx.orgId, userId: actorId, isRealUser: Boolean(ctx.dbUser) }, body.projectId, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
