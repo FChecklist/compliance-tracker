@@ -1624,6 +1624,32 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
+    summary: |
+      Read-only analysis task, no collision risk with other in-flight tracks
+      (no service/route/schema files touched). Enumerated real module scope
+      (84 app/ areas, 878 API routes, 431 DB tables, 198-role AI roster),
+      found and used the real Token Usage Ledger + a real recorded
+      production load-test (docs/testing/PROJEXA_LOAD_TEST_RESULTS.md) to
+      ground per-interaction token-size and escalation-rate assumptions
+      instead of guessing. Independently re-verified current 2026-07-18
+      pricing for every wired AI provider/model (Groq, Cerebras, OpenRouter
+      GLM-5.2, Groq vision, Anthropic) plus Vercel/Supabase -- found and
+      flagged a real discrepancy: this repo's own llm-client.ts
+      MODEL_PRICING constant for Groq's floor-tier model
+      (openai/gpt-oss-120b) understates real current Groq pricing by
+      ~3.3-4x, meaning the platform's own Token Usage Ledger currently
+      under-reports real Groq spend. Used the corrected real pricing
+      throughout the estimate rather than silently keeping the repo's
+      stale constant. Final headline: combined infra+AI cost
+      ≈$1.42-$3.98/user/month (central ≈$2.54/user/month, ≈$127/month
+      total for 50 users), infra dominates (~97-99% of total) at every
+      scenario modeled, AI inference cost stays a few dollars/month total
+      even under a heavier premium-model-mix scenario. Full reasoning,
+      sources, and a stated confidence range (not a false-precision single
+      number) in the report itself.
   - session_label: "claude-code (sub-agent) -- VERIDIAN Review Framework implementation Wave A: security/bug quick fixes"
     completed_at: "2026-07-17T (this session)"
     merged_as: "compliance-tracker#385 (PR opened, NOT merged -- left for the supervising session's audit, per AGENTS.md Rule 7(c)/Rule 10)"
