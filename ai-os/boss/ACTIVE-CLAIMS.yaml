@@ -1620,6 +1620,43 @@ active:
       file live before claiming -- no other active entry touches
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
+  - session_label: "claude-code (worker task-20260718-100002-retry-0--ai-cost-governance---finops--c) -- VERIDIAN Review Framework: AI Cost Governance & FinOps (4 findings, cost visibility + attribution)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closes 4 related VERIDIAN Review Framework findings in one coherent PR
+      (same module/area: AI cost/FinOps). Findings: (L) per-tenant AI cost
+      visibility surfaced to a Finance-consuming UI (verify/build the page);
+      (M) cost attribution reconciles against real OpenRouter/provider invoices
+      (manual monthly reconciliation first); (M) cost-per-report and
+      cost-per-AI-action measurable not estimated (see row 79); (L) cross-repo
+      (compliance-tracker + projexa) AI spend visible as one combined figure
+      (documentation + a guardrail-presence-style CI check flagging any new
+      provider-API-key usage added to projexa).
+      Re-verified no collision live: read every active: entry in this file --
+      the only cost-area entry anywhere is the recently_completed "cost
+      guesstimate: 5 orgs x 10 users" task (analysis-only deliverable in
+      docs/analysis/, explicitly "no application code touched") -- no active
+      claim works AI Cost Governance, FinOps dashboards, invoice
+      reconciliation, cost-per-action attribution, or cross-repo spend
+      visibility. Clear to start.
+      Will read the ACTUAL current implementation of the relevant module(s)
+      first (per this task's own instruction, the codebase has moved since the
+      evaluation was written): the Token Usage Ledger table + its service,
+      llm-client.ts's MODEL_PRICING, cost-guard.ts, the existing
+      /token-usage and /d1-metrics routes, and any Finance/Admin UI that
+      already consumes cost data -- before deciding what's already resolved
+      vs. genuinely open. If a finding is already resolved or the described
+      gap doesn't match the code, will say so in PROGRESS.md rather than make
+      an unnecessary change.
+      Explicitly NOT touching src/lib/services/permission-service.ts's shared
+      ERP_ACTION_ROLES table structure (in-flight worker scope) -- if this area
+      genuinely needs a permission-service entry, will add additively (new keys
+      only). Expected file scope (subject to change after reading the real
+      code): llm-client.ts and/or a cost/attribution service, the Token Usage
+      Ledger read path, a Finance-facing cost dashboard page, a reconciliation
+      doc/runbook, and a guardrail-presence-style CI check script for
+      projexa provider-API-key usage. Branch:
+      worker/task-20260718-100002-retry-0--ai-cost-governance---finops--c.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
