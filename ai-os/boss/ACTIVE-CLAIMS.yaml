@@ -2132,7 +2132,7 @@ recently_completed:
       across 102 files (includes the 12 new pure-helper tests).
   - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
     completed_at: "2026-07-18T (this session)"
-    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
+    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0236_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
     claim: |
       Rescued PR #425 (branch worker/task-20260718-084006-checks---
       balances--audit-trail---immutab, "Audit trail: close immutability +
@@ -2141,7 +2141,7 @@ recently_completed:
       ahead of merge-base -- merged origin/main (real conflicts only in
       PROGRESS.md, kept ours, and this claims file, kept both sides
       additively). Confirmed the PR's own diff is exactly 2 files: new
-      drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql
+      drizzle/0236_audit_trail_immutability_and_backstop_triggers.sql
       (REVOKE UPDATE/DELETE on compliance.audit_logs from service_role,
       closing a gap silently reopened by 0008's blanket schema-wide GRANT;
       plus a generic AFTER-trigger audit-trail backstop on users/
