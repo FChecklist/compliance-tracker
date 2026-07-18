@@ -3809,6 +3809,71 @@ recently_completed:
       commit -- last real migration still 0223_force_rls_hr_attendance_
       holidays.sql; branch base == origin/main tip 13bddf6f at time of
       PR). PR opened against main, not merged, per instructions.
+
+  - session_label: "claude-code (this session) -- VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cache-Driven Savings"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing the single Medium finding "Prompt Cache Framework savings
+      reflected in the cost ledger" (gap: cache-driven savings not
+      reflected in token_usage_ledger). Confirmed live: recordPromptCacheMetric()
+      (src/lib/prompt-cache/metrics.ts), called from chat-service.ts's
+      generateAiReply() (VERI Chat's 1:1 AI thread, the same real call site
+      Prompt & Cache Framework Phase 1 wired), only ever wrote to
+      prompt_cache_metrics -- an observability table neither cost-guard.ts
+      nor getTokenUsageSummary() reads. token_usage_ledger (the table
+      Finance/cost-guard actually read) had ZERO rows for this call site,
+      cache-driven savings or otherwise (also true, as a pre-existing,
+      out-of-scope-for-this-claim gap: no scope='product_orchestra' row of
+      any kind existed anywhere in the codebase before this change).
+      Scope: added tokenUsageLedger.cacheSavingsUsd column (migration
+      drizzle/0225), estimateCacheSavingsUsd() in llm-client.ts (Anthropic's
+      documented 90% cache-read discount), logTokenUsage() now computes and
+      stores it, recordPromptCacheMetric() now also calls logTokenUsage()
+      (scope: product_orchestra) alongside its existing prompt_cache_metrics
+      write, getTokenUsageSummary() now surfaces totalCacheSavingsUsd +
+      per-group cacheSavingsUsd. Files: src/lib/llm-client.ts(+test),
+      src/lib/services/token-usage-service.ts, src/lib/prompt-cache/metrics.ts,
+      src/lib/services/chat-service.ts (one-line call-site change, passing
+      userId through), src/lib/db/schema.ts, drizzle/0225_*.sql. Did NOT
+      touch src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope. Full suite green (1328 pass/0 fail), tsc
+      --noEmit clean, eslint 0 errors, guardrail-presence check passed
+      (88/88 markers). Branch: see PR.
+
+      UPDATE (task-20260718-212532-rescue-pr--423, same-day rescue session):
+      PR #423 (this exact claim's branch) was opened by the now-stopped
+      autonomous worker dispatcher with CI red (audit-check had no verdict
+      comment yet) and stale against main. `gh pr checkout 423` collided
+      with the original worker's own still-live worktree holding this
+      branch name -- worked around via `gh pr checkout 423 -b
+      rescue-423-local`. Merged origin/main: 3 real conflicts (PROGRESS.md
+      kept ours; ACTIVE-CLAIMS.yaml itself, this append-only log, combined
+      both sides' new entries rather than picking one; token-usage-
+      service.ts, this PR's cacheSavingsUsd addition to the totals query
+      vs. main's concurrent getPlatformMonthlyForecast() 6th parallel query
+      -- combined both). Migration 0225 confirmed already correctly
+      next-sequential (main's real highest was 0224) -- no renumbering
+      needed. Verified clean post-merge: tsc --noEmit clean, lint 0 errors
+      (3 pre-existing unrelated warnings), bun test 1527 pass/0 fail, bun
+      run build succeeds, all 6 scripts/check-*.mjs guardrail/sync checks
+      pass. Read the full diff directly -- small, additive, well-scoped,
+      correct 90% cache-read-discount math, no auth/RBAC surface touched.
+      Posted structured AUDIT: PASS PR comment (all 8 fields); audit-check
+      initially failed on the same push (job ran before the comment landed
+      -- a real race, not a content defect) and was re-triggered via `gh
+      run rerun`, then passed. All 7 branch-protection-required checks
+      green (Lint, Type Check, Build, audit-check, Guardrail Presence
+      Check, Asset Registry Coverage Check, Unit Tests); Vercel preview
+      deploy failed separately on an unrelated external rate-limit
+      ("Deployment rate limited -- retry in 24 hours", not a required
+      check, not caused by this PR's code).
+
+      NOT MERGED: this PR's own diff touches src/lib/db/schema.ts
+      (tokenUsageLedger.cacheSavingsUsd) and drizzle/0225_*.sql, making it
+      TIER2 per this rescue task's own instructions -- schema/migration-
+      touching PRs are never self-merged by a rescue session regardless of
+      how green CI is. Reported to the Owner as CI-green, audited, ready
+      for sign-off.
   - session_label: "claude-code -- VERIDIAN Review Framework gap-closure: AI Architecture / AI Orchestration, Routing & Failover"
     claimed_at: "2026-07-18T (this session)"
     claim: |

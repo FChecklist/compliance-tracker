@@ -215,6 +215,24 @@ export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
   return (usage.promptTokens / 1000) * pricing.promptPer1k + (usage.completionTokens / 1000) * pricing.completionPer1k;
 }
 
+// Anthropic's documented cache-hit discount: a cache read is billed at 10%
+// of the base input price (a 90% saving on those tokens) -- see
+// callAnthropic's cache_control comment above for the write-side premium
+// (1.25x, a cost rather than a saving on the call that populates the
+// cache). Only the read-side discount is counted as "savings" here;
+// estimateCostUsd above already excludes cache tokens from promptTokens
+// entirely (Anthropic's input_tokens does not include them), so this is
+// additive, not a correction to an existing charge.
+const ANTHROPIC_CACHE_READ_DISCOUNT = 0.9;
+
+/** Real $ saved on this call from Anthropic prompt-cache reads. null when caching wasn't attempted or the model has no pricing row -- never 0 standing in for "not attempted", same LLMUsage contract as cacheReadTokens itself. */
+export function estimateCacheSavingsUsd(model: string, usage: LLMUsage): number | null {
+  if (usage.cacheReadTokens === undefined) return null;
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return null;
+  return (usage.cacheReadTokens / 1000) * pricing.promptPer1k * ANTHROPIC_CACHE_READ_DISCOUNT;
+}
+
 // Wave 45: OpenRouter recommends (not requires) HTTP-Referer/X-Title for
 // attribution and its own rate-limit/ranking purposes -- added only for the
 // openrouter baseUrl, harmless no-ops for Groq/OpenAI which ignore unknown headers.
