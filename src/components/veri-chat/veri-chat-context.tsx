@@ -90,15 +90,15 @@ type VeriChatState = {
   aiThreads: { id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[];
   switchAiThread: (id: string) => void;
   // Priority 5 item E1 (10-priority5-software-orchestrator-tracker.yaml):
-  // optional 3rd param threads a resolved Dynamic Chain selection through to
-  // POST /api/conversations/workflow-thread -> createWorkflowThread(), same
+  // 3rd param threads a resolved Dynamic Chain selection through to POST
+  // /api/conversations/workflow-thread -> createWorkflowThread(), same
   // plumbing task creation already has via VeriComposer's dispatchInstruction.
-  // No caller sends this yet -- offering the existing Chain Selector
-  // (VeriComposer's ChainRows) as a step before this call is a real UX
-  // change to a live surface, deliberately deferred (see this dispatch's PR
-  // description); this signature exists so that follow-on UI work has
-  // somewhere to plug in without a second service-layer change.
-  createNewAiThread: (title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }) => Promise<string | null>;
+  // Priority 6 item 1 wired this up for real (AiThreadSwitcher's
+  // ChainSelectorDialog). REVIEW-FRAMEWORK-WAVE4: 4th param is the caller's
+  // explicit "the Chain Selector ran and was declined" signal --
+  // createWorkflowThread() now requires either a resolved chainSelection or
+  // this set true (see that function's own header comment).
+  createNewAiThread: (title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }, skippedChainSelector?: boolean) => Promise<string | null>;
 };
 
 const VeriChatContext = createContext<VeriChatState | null>(null);
@@ -163,7 +163,7 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
   const switchAiThread = (id: string) => setActiveAiThreadId(id);
 
   const createNewAiThread = async (
-    title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }
+    title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }, skippedChainSelector?: boolean
   ): Promise<string | null> => {
     try {
       const res = await fetch("/api/conversations/workflow-thread", {
@@ -172,6 +172,7 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           title, workflowId,
           modePill: chainSelection?.modePill, pathKeys: chainSelection?.pathKeys,
+          skippedChainSelector,
         }),
       });
       if (!res.ok) return null;

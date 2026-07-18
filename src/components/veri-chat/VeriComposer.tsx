@@ -59,10 +59,13 @@ function PathBreadcrumb({ path, chainComplete }: { path: PathSegment[]; chainCom
 // dispatch already uses, so a new workflow thread can start with a
 // dynamicChainId already resolved -- exactly the plug-in point
 // createNewAiThread()'s 3rd param (chainSelection) was left unused for
-// (veri-chat-context.tsx:83-91). Picking "Skip" preserves the exact old
-// behavior (title-only thread, no chain). This does not touch
-// ensureAiThread() or the default singleton VERI AI thread at all -- only
-// this "start a NEW workflow thread" action changed.
+// (veri-chat-context.tsx). REVIEW-FRAMEWORK-WAVE4: picking "Skip" still
+// produces the exact same title-only, no-chain thread as before -- the only
+// change is that the dialog now tells the server it was explicitly declined
+// (result.skippedChainSelector) rather than the server inferring "declined"
+// from silence. This does not touch ensureAiThread() or the default
+// singleton VERI AI thread at all -- only this "start a NEW workflow
+// thread" action.
 function AiThreadSwitcher() {
   const { tree, aiThreads, activeAiThreadId, switchAiThread, createNewAiThread } = useVeriChat();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -72,7 +75,7 @@ function AiThreadSwitcher() {
     const chainSelection = result.modePill && result.pathKeys?.length
       ? { modePill: result.modePill, pathKeys: result.pathKeys }
       : undefined;
-    await createNewAiThread(result.title || undefined, undefined, chainSelection);
+    await createNewAiThread(result.title || undefined, undefined, chainSelection, result.skippedChainSelector);
   }
 
   if (aiThreads.length === 0) return null;
