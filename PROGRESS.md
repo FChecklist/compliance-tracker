@@ -25,12 +25,14 @@ CI was failing on audit-check and Unit Tests as of PR open. Rescuing to get gree
 ### Completed
 - [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no conflicting claim on this PR's file scope.
 - [x] Checked out real PR #420 head branch.
+- [x] Merged origin/main into PR branch. Conflicts: PROGRESS.md (kept ours), ai-os/boss/ACTIVE-CLAIMS.yaml (both sides additive list entries, kept both).
+- [x] Confirmed no drizzle/*.sql or src/lib/db/schema.ts changes anywhere in the merged diff -- TIER1.
+- [x] `bun install --frozen-lockfile`, `bunx tsc --noEmit` (clean), `bun run lint` (0 errors, 3 pre-existing unrelated warnings), `bun test` (1477 pass / 0 fail across 106 files). No real bugs found -- code was already correct.
+- [x] Root-caused original CI failures: audit-check failed only because no AUDIT comment existed yet; Unit Tests failed on a pre-existing documented flake (tenant-isolation.test.ts mock.module leak, CI-order-dependent) already fixed on main before this merge -- confirmed via 0 reproductions in the full local suite post-merge.
+- [x] Pushed merged branch to `worker/task-20260718-055002-ai-architecture--performance---cost-effi`.
+- [x] Read the full PR diff myself; posted a structured `AUDIT: PASS` comment (all 8 audit-protocol.ts fields).
+- [x] Watched CI on the pushed commit go green: all 7 required branch-protection checks pass (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests). Only non-required check to fail: Vercel preview (build-rate-limited).
+- [x] Moved this PR's ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`.
 
 ### Remaining
-- [ ] Merge origin/main into PR branch, resolve conflicts (PROGRESS.md -> keep ours).
-- [ ] Check for drizzle/*.sql migrations (none expected per file list -- TIER1 candidate).
-- [ ] Run bun install / tsc / lint / test locally, fix real failures.
-- [ ] Push rebased branch.
-- [ ] Read full diff, post AUDIT PASS/FAIL comment (required for merge per Rule 10).
-- [ ] Wait for CI green.
-- [ ] Classify tier and merge (TIER1) or stop (TIER2).
+- [ ] Merge PR #420 (`gh pr merge 420 --squash --delete-branch`) now that TIER1 + CI green + audit PASS are all confirmed.
