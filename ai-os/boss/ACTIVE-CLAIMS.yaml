@@ -1992,6 +1992,51 @@ active:
       live before claiming: no other active entry touches mdm-quality-
       service.ts, task-service.ts, capability-registry-service.ts, or
       task-execution-engine.ts's duplicate_invoice_detector case.
+  - session_label: "claude-code (worker task-20260718-084006-checks---balances--audit-trail---immutab) -- Checks & Balances / Audit Trail & Immutable Logging gap closure"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure task, 4 findings (2 duplicate
+      pairs): "Complete Audit Trail" (Medium -- no DB-level trigger backstop
+      on high-risk tables) and "Immutable Activity Logs" (High -- no DB-level
+      immutability guarantee). Read src/lib/audit.ts, schema.ts's auditLogs
+      table, and every drizzle/*.sql touching audit_logs before writing
+      anything.
+      Found the "Immutable Activity Logs" gap description is PARTLY stale:
+      `REVOKE UPDATE, DELETE ON compliance.audit_logs FROM app_runtime`
+      already exists (drizzle/0005_wave7_hierarchy_and_audit_foundation.sql,
+      2026-07-02) -- app_runtime has been append-only-enforced on this table
+      for weeks. But drizzle/0008_wave10_grant_service_role_compliance_schema.sql
+      (2026-07-03) did `GRANT ... UPDATE, DELETE ON ALL TABLES IN SCHEMA
+      compliance TO service_role` (+ matching ALTER DEFAULT PRIVILEGES) to
+      fix an unrelated MCP bug, and that blanket grant silently re-opened
+      exactly the hole 0005 had closed, for the `service_role` credential
+      specifically (used by /api/mcp, esignature-service.ts, and ~10 other
+      call sites per grep). Closing that reopened gap: a new migration
+      REVOKEs UPDATE/DELETE on compliance.audit_logs from service_role too.
+      Honest limitation documented in the migration + PROGRESS.md: the
+      `postgres` role (DATABASE_URL, used by src/lib/db/index.ts's plain
+      `db` export) owns the compliance schema/tables per orchestra_changes.md
+      entry #17, and table ownership privileges cannot be revoked by REVOKE
+      -- true full immutability needs the pre-existing, already-flagged
+      "retire DATABASE_URL's use of the postgres/service_role bypass"
+      infrastructure debt (orchestra_changes.md, end of entry #57) closed
+      first, which is out of scope here (needs owner sign-off + no live DB
+      access in this session).
+      For "Complete Audit Trail": adding a generic AFTER INSERT/UPDATE/DELETE
+      backstop trigger (writes its own `db_trigger.<op>`-prefixed row into
+      audit_logs, wrapped in EXCEPTION WHEN OTHERS so a backstop failure can
+      never break the primary write) on 4 curated highest-risk tables:
+      users (user/role), compliance_items (compliance), erp_journal_entries
+      + erp_payment_entries (financial) -- matching the finding's own
+      recommended scope, not applied schema-wide to avoid noise/duplication
+      risk on high-churn tables.
+      File scope: new drizzle/0225_*.sql migration file only (no live DB
+      access in this session -- same "author the file, supervising/live-
+      migration-capable session applies it" convention as several other
+      entries in this log), + a schema.ts comment update near auditLogs
+      documenting both fixes. No application code (routes/services) touched.
+      Not self-merged -- left for the supervising session's audit + the
+      live migration step, per AGENTS.md Rule 7(c)/Rule 10.
   - session_label: "claude-code (worker task-20260718-062002-ai-cost-governance---finops--cost-monito) -- AI Cost Governance & FinOps: anomaly detection, spend forecast, idle capacity"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -2137,7 +2182,7 @@ recently_completed:
       across 102 files (includes the 12 new pure-helper tests).
   - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
     completed_at: "2026-07-18T (this session)"
-    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
+    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0236_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
     claim: |
       Rescued PR #425 (branch worker/task-20260718-084006-checks---
       balances--audit-trail---immutab, "Audit trail: close immutability +
@@ -2146,7 +2191,7 @@ recently_completed:
       ahead of merge-base -- merged origin/main (real conflicts only in
       PROGRESS.md, kept ours, and this claims file, kept both sides
       additively). Confirmed the PR's own diff is exactly 2 files: new
-      drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql
+      drizzle/0236_audit_trail_immutability_and_backstop_triggers.sql
       (REVOKE UPDATE/DELETE on compliance.audit_logs from service_role,
       closing a gap silently reopened by 0008's blanket schema-wide GRANT;
       plus a generic AFTER-trigger audit-trail backstop on users/
