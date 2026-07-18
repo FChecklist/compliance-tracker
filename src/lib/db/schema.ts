@@ -8766,6 +8766,15 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   promptTokens: integer('prompt_tokens').notNull().default(0),
   completionTokens: integer('completion_tokens').notNull().default(0),
   estimatedCostUsd: numeric('estimated_cost_usd'),
+  // VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+  // 2026-07-18): prompt-cache reads (Prompt & Cache Management Framework
+  // Phase 1) were only ever reflected in prompt_cache_metrics, an
+  // observability table cost-guard.ts/getTokenUsageSummary never reads --
+  // Finance's real ledger had no idea caching was saving anything. Null
+  // when caching wasn't attempted on this call, same "absence means not
+  // attempted" contract as prompt_cache_metrics.cache_read_tokens -- see
+  // llm-client.ts's estimateCacheSavingsUsd for the computation.
+  cacheSavingsUsd: numeric('cache_savings_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
