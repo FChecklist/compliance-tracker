@@ -87,6 +87,9 @@ export type DispatchHandoverInput = {
   riskLevel: string
   lowConfidenceDetected: boolean
   lowConfidenceMatchedPhrase: string | null
+  /** GP-06 gap-closure (2026-07-18, knowledge-sufficiency-gate.ts): an explicit admission the executing role lacked the knowledge/access to do the task, distinct from generic hedging. */
+  knowledgeGapDetected: boolean
+  knowledgeGapMatchedPhrase: string | null
   /**
    * A real, factual descriptor of what was produced (e.g. character count
    * + role) -- deliberately NOT the raw LLM response text embedded
@@ -114,11 +117,15 @@ export type DispatchHandoverInput = {
  * distinctions.
  */
 export function buildDispatchSelfAssessment(input: DispatchHandoverInput): HandoverFields {
-  const { requiresAudit, riskLevel, lowConfidenceDetected, lowConfidenceMatchedPhrase, outputSummary } = input
+  const { requiresAudit, riskLevel, lowConfidenceDetected, lowConfidenceMatchedPhrase, knowledgeGapDetected, knowledgeGapMatchedPhrase, outputSummary } = input
 
   const validationPassed = requiresAudit ? "partial" : "yes"
-  const confidence = lowConfidenceDetected ? "low" : riskLevel === "high" || riskLevel === "critical" ? "medium" : "high"
-  const riskReason = lowConfidenceDetected ? `low-confidence output ("${lowConfidenceMatchedPhrase}")` : `risk level: ${riskLevel}`
+  const confidence = lowConfidenceDetected || knowledgeGapDetected ? "low" : riskLevel === "high" || riskLevel === "critical" ? "medium" : "high"
+  const riskReason = knowledgeGapDetected
+    ? `insufficient knowledge admitted ("${knowledgeGapMatchedPhrase}")`
+    : lowConfidenceDetected
+    ? `low-confidence output ("${lowConfidenceMatchedPhrase}")`
+    : `risk level: ${riskLevel}`
 
   return {
     taskStatus: requiresAudit
@@ -127,7 +134,9 @@ export function buildDispatchSelfAssessment(input: DispatchHandoverInput): Hando
     outputProduced: outputSummary,
     validationPassed,
     knownRisks: requiresAudit
-      ? lowConfidenceDetected
+      ? knowledgeGapDetected
+        ? `Executing role admitted insufficient knowledge ("${knowledgeGapMatchedPhrase}")`
+        : lowConfidenceDetected
         ? `Executing role's own output hedged ("${lowConfidenceMatchedPhrase}")`
         : `Classified risk level: ${riskLevel}`
       : "None identified -- guardrails, confidence, and risk checks all passed",

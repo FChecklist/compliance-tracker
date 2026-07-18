@@ -8,7 +8,7 @@
 // established pattern of not exercising that from a .test.ts file (see
 // task-service.test.ts's own comment on the same convention).
 import { describe, expect, test } from "bun:test"
-import { shouldResolveDynamicChain, detectVeriMention } from "./chat-service"
+import { shouldResolveDynamicChain, detectVeriMention, detectClarificationRequest } from "./chat-service"
 
 describe("shouldResolveDynamicChain -- Priority 5 item E1", () => {
   test("false when both modePill and pathKeys are absent (every existing caller today)", () => {
@@ -84,5 +84,31 @@ describe("detectVeriMention -- Priority 6 item 3 explicit-trigger gate", () => {
 
   test("false for an empty string", () => {
     expect(detectVeriMention("")).toBe(false)
+  })
+})
+
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "AI Clarification
+// Minimization"). generateAiReply()/generateVeriGroupReply() increment
+// conversations.clarificationRoundTrips whenever this fires -- tested here
+// as a pure predicate, matching this file's own established pattern.
+describe("detectClarificationRequest -- REVIEW-FRAMEWORK-WAVE4 clarification metric", () => {
+  test("false for an ordinary, direct answer", () => {
+    expect(detectClarificationRequest("Your GST filing for this quarter is due on the 20th.")).toBe(false)
+  })
+
+  test("true when VERI asks the user to clarify", () => {
+    expect(detectClarificationRequest("Could you clarify which invoice you mean?")).toBe(true)
+  })
+
+  test("true for 'can you specify'", () => {
+    expect(detectClarificationRequest("Can you specify which department this is for?")).toBe(true)
+  })
+
+  test("does not false-positive on an ordinary confirmatory question", () => {
+    expect(detectClarificationRequest("Should I go ahead and approve this?")).toBe(false)
+  })
+
+  test("empty reply does not fire", () => {
+    expect(detectClarificationRequest("")).toBe(false)
   })
 })

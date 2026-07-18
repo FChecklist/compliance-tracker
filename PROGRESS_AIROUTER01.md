@@ -12,7 +12,7 @@ Adds a real, unifying "Mother Router" -- a model/provider registry +
 versioned routing policy + audit log -- covering the 3 domain scopes the
 Owner named: `software_team`, `end_user_org`, `sales_marketing`.
 
-- `drizzle/0225_ai_router_mother_router.sql` + matching `schema.ts`
+- `drizzle/0231_ai_router_mother_router.sql` + matching `schema.ts`
   additions: 3 new tables (`ai_model_registry`, `ai_routing_policies`,
   `ai_routing_audit_log`), all additive.
 - `src/lib/ai-router/mother-router.ts`: `resolveModel(context)` is the

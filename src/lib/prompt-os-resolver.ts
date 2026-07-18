@@ -6,6 +6,7 @@
 // orchestra-model-resolver.ts's own precedent for platform-level reads.
 import { db, promptTemplates, promptVersions } from "@/lib/db"
 import { and, eq } from "drizzle-orm"
+import { isKnownAiResponseLocale, languageDirectiveFor } from "@/lib/ai-response-locale"
 
 // VERI persona directive, appended to every customer/product-facing prompt
 // so identity stays consistent across every AI surface in the product
@@ -34,8 +35,16 @@ function isVeriPersonaTemplate(templateKey: string): boolean {
  * hardcoded string would defeat the entire point of centralizing prompts
  * here, so a missing template/label is a real configuration error, not
  * something to paper over.
+ *
+ * `locale` (VERIDIAN Review Framework remediation, "Multi-Language AI
+ * Responses", 2026-07-18): optional and additive -- every pre-existing call
+ * site passes nothing and gets the exact same content as before. When a
+ * caller does pass a recognized locale (see ai-response-locale.ts), a
+ * language directive is appended the same way VERI_PERSONA_DIRECTIVE is
+ * below, so a template's own task instructions/output-format requirements
+ * stay authoritative either way.
  */
-export async function resolvePromptTemplate(templateKey: string, label: string = "production"): Promise<string> {
+export async function resolvePromptTemplate(templateKey: string, label: string = "production", locale?: string): Promise<string> {
   const template = await db.query.promptTemplates.findFirst({ where: eq(promptTemplates.templateKey, templateKey) })
   if (!template) throw new Error(`Unknown prompt template: ${templateKey}`)
 
@@ -45,5 +54,7 @@ export async function resolvePromptTemplate(templateKey: string, label: string =
   })
   if (!version) throw new Error(`No '${label}'-labeled version found for prompt template: ${templateKey}`)
 
-  return isVeriPersonaTemplate(templateKey) ? version.content + VERI_PERSONA_DIRECTIVE : version.content
+  let content = isVeriPersonaTemplate(templateKey) ? version.content + VERI_PERSONA_DIRECTIVE : version.content
+  if (isKnownAiResponseLocale(locale)) content += languageDirectiveFor(locale)
+  return content
 }
