@@ -65,6 +65,38 @@ active:
       opened against main (not merged, per instructions -- Rule 6 requires
       green CI first). tsc/lint/build clean; full suite 1397 pass/0 fail (9
       new tests). PR: https://github.com/FChecklist/compliance-tracker/pull/414
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Single Low-severity finding: "registry coverage/backfill completeness
+      not independently measured" -- recommended approach was to instrument
+      capability-backfill-service.ts to report a coverage percentage.
+      Re-verified against current code before implementing: the gap was
+      real -- backfillCapabilityIndex() only ever returned its own
+      attempted-count (source rows found and queued for indexing); each
+      indexCapability() call's failure is caught and console.error'd, not
+      surfaced, so a partially-failed run looked identical to a fully
+      successful one, and nothing read back compliance.embeddings to
+      confirm what actually landed.
+      Added measureCapabilityCoverage(ctx) to capability-backfill-service.ts
+      (re-derives ground truth from compliance.embeddings per entity type --
+      worker_agent/automation_rule/module/dynamic_chain -- plus an overall
+      rollup), wired additively into backfillCapabilityIndex()'s return
+      (existing agents/rules/modules/chains fields unchanged), a new
+      admin-gated GET /api/capability-registry/coverage route, and a
+      coverage card on the Capability Registry admin page. Distinct from
+      the pre-existing capability-index-freshness-audit.ts cron loop (that
+      self-heals worker_agent/module platform-wide on a schedule; this is an
+      org-scoped, on-demand coverage report covering all 4 backfill entity
+      types, added because the finding named the backfill service
+      specifically).
+      File scope: src/lib/services/capability-backfill-service.ts (+ its new
+      .test.ts), src/app/api/capability-registry/coverage/route.ts (new),
+      src/app/(app)/capability-registry/page.tsx. Did not touch
+      permission-service.ts or any other file outside this scope.
+      Verification: bunx tsc --noEmit clean, eslint clean (0 new
+      warnings/errors), bun test full suite 1392 pass / 0 fail. PROGRESS.md
+      updated in the task workspace.
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework: AI Architecture / Multi-Modal & Multi-Language Support gap closure"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -1858,21 +1890,70 @@ active:
       failures (src/lib/ai-response-locale.ts, document-extraction-service.ts,
       officecli-client.ts, chat-service.ts, help/ask/route.ts and their
       tests), post required AUDIT comment, merge if TIER1 and green.
-  - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
-    claimed_at: "2026-07-18T (this session)"
-    claim: |
-      Rescuing PR #424 (branch worker/task-20260718-062002-ai-cost-
-      governance---finops--cost-monito, "AI Cost Governance & FinOps:
-      anomaly detection, spend forecast, idle capacity" -- the same task
-      claimed just above by the original dispatcher). CI currently failing
-      on audit-check and Unit Tests. Scope: merge origin/main, renumber any
-      drizzle migration if present, fix real CI failures, post required
-      AUDIT comment, merge if TIER1 and green (report for Owner sign-off
-      if TIER2 -- touches drizzle/schema).
-
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-202151-rescue-pr--413) -- Rescue and merge PR #413"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #413 (tier1, self-merged after CI green), squash commit 3ea9aa38."
+    claim: |
+      Rescued PR #413 (branch worker/task-20260718-045005-ai-architecture--
+      ai-capability-registry, "AI Capability Registry: instrument backfill
+      with independent coverage measurement" -- opened by a now-stopped
+      autonomous worker dispatcher, CI failing on audit-check only).
+      Checked out via the pre-existing worktree at ai-os/tasks/task-
+      20260718-045005-ai-architecture--ai-capability-registry/workspace
+      (gh pr checkout can't create a second worktree for an already-
+      checked-out branch). Merged origin/main twice (main advanced again
+      mid-rescue) -- only real conflict both times was PROGRESS.md (kept
+      ours) plus one genuine ACTIVE-CLAIMS.yaml conflict on the first round
+      (two concurrent sessions' claim entries both kept, additive, not a
+      real collision). PR's own diff (git diff origin/main...43d5995b)
+      touches only capability-backfill-service.ts (+.test.ts), a new admin-
+      gated GET /api/capability-registry/coverage route, and the
+      Capability Registry admin page -- no drizzle/schema.ts, confirmed
+      TIER1. Verification: bunx tsc --noEmit clean, eslint 0 errors (3
+      pre-existing unrelated warnings), bun test 1523 pass/0 fail. Posted
+      the required 8-field AUDIT: PASS comment, watched CI green (audit-
+      check, CI, CodeQL all SUCCESS) on final commit 2294fd01, merged
+      squash + delete-branch.
+  - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #424 (tier1, self-merged after CI green), squash commit cc1af35d."
+    claim: |
+      Rescued PR #424 (branch worker/task-20260718-062002-ai-cost-
+      governance---finops--cost-monito, "AI Cost Governance & FinOps:
+      anomaly detection, spend forecast, idle capacity"), opened by a
+      now-stopped autonomous worker dispatcher with CI failing (audit-check
+      + Unit Tests). Worked around a worktree collision (the original
+      worker's own task dir still had that branch checked out) via
+      `git fetch origin <branch>:pr-424-local` instead of `gh pr checkout`.
+      Merged origin/main THREE times over the course of this rescue --
+      main kept advancing mid-flight from sibling rescue sessions: (1)
+      initial merge, conflicts in PROGRESS.md (kept ours) and this file's
+      active:/recently_completed: lists (additive, kept both); (2) after
+      PR #422 landed ("proactive AI cost-ceiling alert"), a real overlap
+      in src/lib/cost-guard.ts -- auto-merged cleanly with no conflict
+      markers since the two PRs added disjoint, non-overlapping pieces
+      (#422's checkCostCeilingBreaches/classifyCostBreach vs. this PR's
+      forecastedMonthEndSpendUsd) -- verified by reading the merged file in
+      full, not just trusting a clean auto-merge; (3) after PR #422's own
+      rescue-claim chore commit landed, another PROGRESS.md/ACTIVE-CLAIMS
+      content-only conflict (kept ours / kept both). No drizzle/*.sql or
+      schema.ts changes anywhere in the final diff -- TIER1 confirmed. Ran
+      bunx tsc --noEmit / bun run lint / bun test fresh after each of the
+      3 merges (final: 0 errors, 1519 pass/0 fail across 113 files). Read
+      the full diff by hand (14 files) before posting a structured
+      `AUDIT: PASS` PR comment with all 8 required fields. The first
+      audit-check CI run failed because it ran (on push) before the
+      comment existed -- re-ran that one job after posting, passed.
+      Waited for the full branch-protection-required check set (Lint/Type
+      Check/Build/audit-check/Guardrail Presence Check/Asset Registry
+      Coverage Check/Unit Tests/E2E Tests) to go green after the final
+      push, then squash-merged and deleted the remote branch. Vercel
+      preview check failed (build-rate-limited, not a required check,
+      matches prior rescue sessions' documented precedent) -- did not
+      block merge.
   - session_label: "claude-code (task-20260718-195946-rescue-pr--422) -- Rescue and merge PR #422"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #422 (tier1, self-merged after CI green), squash commit 097ae295."
