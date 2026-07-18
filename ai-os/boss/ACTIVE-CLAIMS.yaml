@@ -3958,11 +3958,48 @@ recently_completed:
       even had CI gone green -- reported to the Owner for sign-off, with the
       CI-trigger anomaly flagged as its own separate open item.
   - session_label: "claude-code (task-20260718-230826-rescue-pr--427) -- Rescue PR #427"
-    claimed_at: "2026-07-18T (this session)"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "NOT merged -- TIER2 (touches drizzle/0236 + schema.ts), CI blocked by a GitHub Actions check-suite anomaly, reported to Owner for sign-off"
     claim: |
       Rescue PR #427 (branch worker/task-20260718-084003-calculation-engine--
       calculation-governan), "Calculation Engine / Calculation Governance:
-      close 5 gap-analysis findings". CI failing on audit-check and Unit
-      Tests. Scope: checkout PR head, merge origin/main, fix real CI
-      failures, renumber any drizzle migration if needed, post AUDIT
-      comment, merge if TIER1+green or report for Owner sign-off if TIER2.
+      close 5 gap-analysis findings". CI was failing on audit-check and Unit
+      Tests when picked up. Merged origin/main (main had advanced
+      substantially since this PR opened -- mother router, ABAC,
+      audit-search, support sessions, etc), resolving PROGRESS.md (kept
+      PR's own) and ACTIVE-CLAIMS.yaml (both sides appended new active:
+      entries in the same region -- kept both) conflicts. Found and fixed a
+      real migration-number collision: PR's own drizzle/0225_calculation_
+      engine_governance.sql collided with main's real highest migration
+      (0235, several migrations landed after this PR opened) -- renumbered
+      to drizzle/0236 via git mv, matching this repo's established
+      renumber-commit precedent. Ran full local gate after the fix: tsc
+      clean, lint clean (0 errors), bun test 1631 pass/0 fail, plus this
+      repo's own CI-adjacent guard scripts (asset-registry-coverage,
+      guardrail-presence, metadata-index-coverage) all pass. Read the PR's
+      full diff (19 files) before auditing -- version-control columns on
+      computationEngines, a new FORCE-RLS org-scoped calculation_invocations
+      audit table + invokeEngine() wrapper, additive optional `breakdown`
+      field on 4 statutory engines (income tax/GST/gratuity/TDS) rendered
+      via a new "calculation" structured-message type, a 16-fixture
+      golden-value regression suite, and calculator-suggestion chips reusing
+      the existing capability tree -- no real defects found. Posted a
+      structured `AUDIT: PASS` PR comment (all 8 required fields):
+      https://github.com/FChecklist/compliance-tracker/pull/427#issuecomment-5013301358
+
+      BLOCKED, not merged: after pushing the merge + renumber fix, an
+      empty-commit retrigger, and a close+reopen of the PR (3 separate
+      attempts spanning ~10 minutes), GitHub Actions never created a
+      check-suite for this branch at all -- confirmed via the checks API
+      (only third-party app suites appeared, stuck "queued"; zero GitHub
+      Actions suite entry). Ruled out a config regression (`git diff
+      origin/main -- .github/workflows/` empty) and a repo-wide outage
+      (main and 2 sibling PR branches got normal fresh CI runs in the same
+      wall-clock window). This is the same isolated per-branch GitHub
+      Actions reliability anomaly already documented in this file's PR #415
+      rescue entry -- a second occurrence of the same symptom class, not
+      fixable by further code changes in this repo. Also separately TIER2
+      regardless (touches drizzle/0236 + schema.ts), so this PR would not
+      have been merged by this session even had CI gone green -- reported to
+      the Owner for sign-off, with the recurring CI-trigger anomaly flagged
+      as its own separate open item.
