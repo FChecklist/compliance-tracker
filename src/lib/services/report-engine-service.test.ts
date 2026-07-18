@@ -4,7 +4,7 @@
 // touch the DB and are deliberately left untested here, matching this
 // repo's established pattern (see delegation-service.test.ts's own note).
 import { describe, expect, test } from "bun:test"
-import { validateReportDefinitionInput, deriveReportDomainFromClassifications, type CreateReportDefinitionInput } from "./report-engine-service"
+import { validateReportDefinitionInput, deriveReportDomainFromClassifications, buildAggregationNote, type CreateReportDefinitionInput } from "./report-engine-service"
 
 const BASE: CreateReportDefinitionInput = {
   name: "Test Report",
@@ -75,5 +75,37 @@ describe("deriveReportDomainFromClassifications", () => {
   test("anything else falls through to custom", () => {
     expect(deriveReportDomainFromClassifications(["sales"])).toBe("custom")
     expect(deriveReportDomainFromClassifications([])).toBe("custom")
+  })
+})
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Reports & Dashboards" -- runAggregationFromConfig() now always
+// returns a generated note; this is its pure derivation logic.
+describe("buildAggregationNote", () => {
+  test("describes a grouped count with no filter", () => {
+    const note = buildAggregationNote({ tableKey: "crm_leads", groupByColumn: "status", aggregation: "count" })
+    expect(note).toContain("Count of records")
+    expect(note).toContain(`"crm_leads"`)
+    expect(note).toContain(`grouped by "status"`)
+  })
+
+  test("describes an ungrouped sum", () => {
+    const note = buildAggregationNote({ tableKey: "erp_sales_orders", aggregation: "sum", aggregationColumnKey: "grandTotal" })
+    expect(note).toContain(`Sum of "grandTotal"`)
+    expect(note).toContain("as a single ungrouped total")
+  })
+
+  test("includes an applied filter", () => {
+    const note = buildAggregationNote({
+      tableKey: "compliance_items", aggregation: "count",
+      filterEquals: { columnKey: "status", value: "overdue" },
+    })
+    expect(note).toContain("filtered to rows where")
+    expect(note).toContain("overdue")
+  })
+
+  test("includes a company scope when applied", () => {
+    const note = buildAggregationNote({ tableKey: "erp_sales_orders", aggregation: "count" }, { companyId: "co_1" })
+    expect(note).toContain("company = co_1")
   })
 })
