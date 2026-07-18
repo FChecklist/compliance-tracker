@@ -320,6 +320,66 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
   })
 })
 
+// ─── escalatedPlatformConfig / platformFallbackFor: escalated-tier failover
+// (VERIDIAN Review Framework remediation, AI Failover & High Availability,
+// 2026-07-18) ────────────────────────────────────────────────────────────
+describe("escalatedPlatformConfig", () => {
+  const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
+  afterEach(() => {
+    if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY
+    else process.env.OPENROUTER_API_KEY = originalOpenRouterKey
+  })
+
+  test("returns null when OPENROUTER_API_KEY isn't configured", async () => {
+    delete process.env.OPENROUTER_API_KEY
+    const { escalatedPlatformConfig } = await import("./orchestra-model-resolver")
+    expect(escalatedPlatformConfig()).toBeNull()
+  })
+
+  test("bug fix: the escalated config now carries a real fallback, not undefined", async () => {
+    // Before this fix, escalatedPlatformConfig() built its ResolvedModelConfig
+    // by hand and never called platformFallbackFor() -- `fallback` was always
+    // undefined, so chat-service.ts's escalated retry had zero failover.
+    process.env.OPENROUTER_API_KEY = "openrouter-test-key"
+    const { escalatedPlatformConfig } = await import("./orchestra-model-resolver")
+    const result = escalatedPlatformConfig()
+    expect(result?.provider).toBe("openrouter")
+    expect(result?.model).toBe("z-ai/glm-5.2")
+    expect(result?.fallback).toBeDefined()
+    // Same-quality-class failover, not the weak generic free model.
+    expect(result?.fallback?.provider).toBe("openrouter")
+    expect(result?.fallback?.model).toBe("deepseek/deepseek-v4-pro")
+    expect(result?.fallback?.apiKey).toBe("openrouter-test-key")
+  })
+})
+
+describe("platformFallbackFor via resolvePlatformModelConfig (escalated-tier primary)", () => {
+  const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
+  afterEach(() => {
+    mock.restore()
+    if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY
+    else process.env.OPENROUTER_API_KEY = originalOpenRouterKey
+  })
+
+  test("a layer whose own default_model_config already points at the escalated model gets the DeepSeek fallback, not the generic free one", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "some_layer", defaultModelConfig: { provider: "openrouter", model: "z-ai/glm-5.2" } })) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+
+    process.env.OPENROUTER_API_KEY = "openrouter-test-key"
+    const { resolvePlatformModelConfig } = await import("./orchestra-model-resolver")
+    const result = await resolvePlatformModelConfig("some_layer")
+    expect(result?.provider).toBe("openrouter")
+    expect(result?.model).toBe("z-ai/glm-5.2")
+    expect(result?.fallback?.model).toBe("deepseek/deepseek-v4-pro")
+  })
+})
+
 // ─── testProviderConnection: real connectivity check before saving ──────
 // Review Framework remediation, Wave B: previously POST /api/settings/
 // model-config only validated shape (provider in the enum, modelName

@@ -41,6 +41,130 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "Super Boss (Claude Desktop, interactive) -- AIROUTER-01 Mother Router Phase 1"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      CONTROLLER.yaml entry AIROUTER-01. Owner directive: build a real
+      unifying "Mother Router" (model/provider registry + versioned routing
+      policy + audit log) covering software_team/end_user_org/sales_marketing
+      scopes, plus Phase-1 subscription packages by org user-count, BYOB
+      explicitly kept PENDING. Originally dispatched as a server worker task
+      (task-20260718-114848-mother-router-phase-1--airouter-01) but that was
+      blocked on exhausted OpenRouter credits; Owner then asked Super Boss to
+      build it directly in this session instead. The server task was
+      stopped+disabled and its scheduled follow-up check-in deleted to avoid
+      two competing implementations.
+      Scope: new files only (src/lib/ai-router/mother-router.ts + .test.ts,
+      drizzle/0231_ai_router_mother_router.sql, schema.ts additions), plus
+      ONE additive fire-and-forget audit-log call in
+      src/app/api/ai/team/dispatch/route.ts. Does NOT modify
+      model-tier-eligibility.ts, orchestra-model-resolver.ts, roster.ts, or
+      llm-client.ts -- see mother-router.ts's own header and this PR's
+      PROGRESS_AIROUTER01.md for the full list of deliberate scope decisions
+      (BYOB reuses existing customer_model_config rather than duplicating it;
+      subscription packages reuse the existing, previously-unseeded
+      subscription_plans table).
+      branch: superboss/mother-router-phase-1. Migration NOT applied to any
+      live DB by this session -- tier2 (schema-touching), held for Owner
+      sign-off per this repo's own established rule, not auto-merged.
+  - session_label: "Super Boss (Claude Desktop, interactive) -- fix flaky Unit Tests CI check (createJournalEntry export leak)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Owner-requested follow-up to a spawn_task chip flagged earlier this
+      session (task_0bd44564): the repo's required "Unit Tests" branch-
+      protection check was failing on main itself (confirmed on main's own
+      CI run 29633305166, 06:02 UTC 2026-07-18, before any of this
+      session's PRs existed) with "SyntaxError: Export named
+      'createJournalEntry' not found in module
+      erp-accounting-service.ts" during erp-fixed-assets-service.test.ts.
+      Root cause found: src/lib/services/tenant-isolation.test.ts's
+      mock.module() calls replaced 5 ERP service modules with tiny
+      object-literal stubs (e.g. `{ listCostCenters, ServiceError }` for
+      erp-accounting-service) that dropped every OTHER real export
+      (including createJournalEntry). bun's mock.module() has no reliable
+      per-test restoration (mock.restore() in afterEach does not undo it,
+      confirmed against bun-types' own API surface) -- when this file
+      happened to run before erp-fixed-assets-service.test.ts in CI's
+      Linux file-discovery order (never reproduced locally on Windows,
+      even forcing the same 2-file order explicitly), the stale stub
+      leaked into that unrelated file's import and crashed it.
+      Fix (branch fix/tenant-isolation-mock-module-leak, off main, NOT
+      layered on the unrelated AIROUTER-01/superboss/mother-router-phase-1
+      branch): every mock.module() call in this file now spreads the real
+      module's captured exports before overriding the one function under
+      test (so a leak is at worst stale data, never a missing-export
+      crash), AND afterEach now explicitly restores all 8 mocked modules
+      back to their real, captured-at-load-time implementations (so
+      nothing leaks past this file's own suite at all, regardless of
+      execution order on any platform). Could not reproduce the original
+      failure locally to prove it via a red-then-green local test, given
+      the Linux/Windows file-order difference -- pushed to CI as the real
+      validation, per this repo's own established practice of not
+      overclaiming untested behavior. NOTE: this specific claim was already
+      merged as PR #434 (commit fe2bde84) by the time this Mother Router
+      branch merged main -- kept here as-is rather than hand-editing
+      through the conflict; a separate housekeeping PR (#435) moves it to
+      recently_completed on main directly.
+  - session_label: "claude-code (interactive session) -- VERIDIAN Review Framework gap-closure: AI Architecture / Governance & Audit"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Task task-20260718-053004-ai-architecture--governance---audit: closing
+      5 related findings from the review framework evaluation, all in the
+      AI governance/audit-infrastructure area (not ERP/CRM/PROJEXA):
+      (1) [High] Maintainability -- no consolidated maintainability score/
+      dashboard; wiring audit-role outputs into a scored dashboard surfaced
+      in ai-os/.
+      (2) [Medium] Audit Trail -- full prompt/response text not stored for
+      ALLOWED requests; extending src/lib/services/orchestra-execution-
+      logger.ts to persist full payloads with TTL-based purge.
+      (3) [Critical] ABAC / Fine-Grained Policies -- no attribute-based
+      access control, RBAC only; extending src/lib/services/approval-
+      workflow-service.ts's conditionField/conditionOperator pattern into a
+      general ABAC layer.
+      (4) [Medium] Audit Trail & Change History -- no unified cross-table
+      audit query/search interface; a compliance.audit_search view/
+      migration unioning key fields from log tables.
+      (5) [High] AI Governance & Auditability -- GP-06/GP-09/GP-26 remain
+      POLICY_ONLY in ai-os/CONSTITUTION.yaml; building enforcement code per
+      their documented gap fields.
+      File scope (expected, subject to change after reading current code):
+      src/lib/services/orchestra-execution-logger.ts, src/lib/services/
+      approval-workflow-service.ts (additive ABAC extension only -- NOT
+      touching src/lib/services/permission-service.ts's shared
+      ERP_ACTION_ROLES table per this task's own explicit instruction),
+      a new drizzle/ migration for compliance.audit_search, ai-os/
+      (dashboard artifact + CONSTITUTION.yaml GP-06/09/26 status updates),
+      new API route(s)/service code for GP enforcement. Explicitly NOT
+      touching any ERP/CRM/PROJEXA module or permission-service.ts's
+      existing keys (additive-only if a new key is genuinely needed).
+      Will re-verify each finding against current code before implementing
+      (task brief itself flags the evaluation may be stale) and will note
+      in PROGRESS.md if a finding is already resolved instead of making an
+      unnecessary change.
+  - session_label: "claude-code (this session, CLI) -- REVIEW-FRAMEWORK-WAVE4 AI Architecture / AI Interaction Efficiency gap closure (11 findings)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 11 related findings from the VERIDIAN Review Framework's AI
+      Architecture / AI Interaction Efficiency evaluation, one coherent PR
+      (they all touch chat-service.ts / floor-tier-escalation.ts / the
+      VERI Chat composer surface). File scope: src/lib/services/
+      chat-service.ts, src/lib/floor-tier-escalation.ts, src/lib/db/
+      schema.ts (additive columns on conversations/messages, one new
+      migration), src/components/veri-chat/ChainSelector.tsx +
+      veri-chat-context.tsx + VeriComposer.tsx, src/components/chat/
+      ThreadView.tsx, src/components/orchestra/RealAssistantColumn.tsx,
+      src/app/api/conversations/workflow-thread/route.ts. Re-read the
+      current code first per the dispatch's own instruction -- one finding
+      (dynamic_chains duplicate-detection scope) was already fully closed
+      by Wave 173/GAP-DYNAMIC-CHAIN-DEDUP and needed no change; see this
+      session's PROGRESS.md for the full per-finding disposition. Not
+      touching permission-service.ts's ERP_ACTION_ROLES table or any other
+      in-flight worker's declared scope.
+
+      UPDATE (2026-07-18, same session): implemented, verified, and PR
+      opened against main (not merged, per instructions -- Rule 6 requires
+      green CI first). tsc/lint/build clean; full suite 1397 pass/0 fail (9
+      new tests). PR: https://github.com/FChecklist/compliance-tracker/pull/414
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry"
     claimed_at: "2026-07-18T (this session)"
     claim: |
@@ -1916,6 +2040,51 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 2: audited support-session impersonation ('act on behalf of customer')"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "PR not yet opened as of this entry -- branch worker/task-20260717-194828-support-session-impersonation"
+    claim: |
+      Real, audited act-on-behalf-of-customer support-session capability,
+      built exactly per this claim's own original plan (no redesign):
+        - schema.ts: new supportSessions table (initiatedByUserId/Name,
+          targetOrgId, targetUserId/Name, reason, tokenHash, expiresAt,
+          endedAt/endedReason) + relations; 2 new nullable columns on the
+          EXISTING auditLogs table (supportSessionId,
+          actingOnBehalfOfUserId) -- did NOT create a second log table.
+        - drizzle/0224_support_sessions.sql: table + FORCE ROW LEVEL
+          SECURITY, 2-policy app_runtime_org_scoped (target_org_id =
+          compliance.current_org_id())/service_role_bypass shape matching
+          drizzle/0219's CRM precedent, plus the 2 additive audit_logs
+          columns. NOT applied to a live DB from this session (no
+          DATABASE_URL/Supabase MCP available here) -- committed for
+          deploy/db:push to pick up, same as this repo's other recent
+          migrations.
+        - src/lib/services/support-session-service.ts: startSupportSession/
+          endSupportSession/validateSupportSessionToken/
+          listSupportSessionsForOrg/getSupportSessionById, reusing
+          hashSHA256 from api-keys.ts. Writes (inherently cross-org: the
+          initiating veridian_admin's own org is never the target org) go
+          through the raw/service-role db client, same posture as
+          autoProvisionUser/provisionOrganisation; the target org's own
+          admin's read goes through withTenantContext/RLS.
+        - src/lib/audit.ts: logActivity() extended with an optional
+          `supportSession` param -- backward-compatible, every pre-existing
+          call site untouched.
+        - Routes: POST /api/support-sessions/start (veridian_admin only),
+          POST /api/support-sessions/[id]/end (veridian_admin OR the
+          target org's own admin), GET /api/support-sessions/whoami-target
+          (bearer ss_... token, proves a real tenant-scoped read + a real
+          audit-marked log row attributed to the real actor with
+          actingOnBehalfOfUserId set), GET /api/support-sessions/on-my-org
+          (target org's own admin, RLS-scoped).
+        - src/lib/services/support-session-service.test.ts: pure-helper
+          unit tests (evaluateSupportSessionStatus, isSupportSessionActive,
+          generateSupportSessionToken).
+      Did not touch src/lib/services/permission-service.ts or any ERP
+      module route, per the original claim's scope boundary.
+      Verified: tsc --noEmit 0 errors; eslint 0 errors (3 pre-existing
+      warnings, unrelated to this change); bun test 1389 pass / 0 fail
+      across 102 files (includes the 12 new pure-helper tests).
   - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
@@ -3610,6 +3779,48 @@ recently_completed:
       touching PRs are never self-merged by a rescue session regardless of
       how green CI is. Reported to the Owner as CI-green, audited, ready
       for sign-off.
+  - session_label: "claude-code -- VERIDIAN Review Framework gap-closure: AI Architecture / AI Orchestration, Routing & Failover"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closed all 7 findings from the VERIDIAN Review Framework's "AI
+      Architecture / AI Orchestration, Routing & Failover" area in one PR
+      (registered late -- after confirming scope by reading every named
+      module fresh, not before; no collision found via a full-file grep for
+      orchestra/routing/failover/roster/model-tier/model-resolver before
+      starting real edits).
+
+      File scope: src/lib/orchestra-model-resolver.ts + .test.ts,
+      src/lib/llm-client.ts (added deepseek-v4-pro MODEL_PRICING row),
+      src/lib/loops/byo-model-audit.ts + new .test.ts (Loop 14 extended, not
+      a new loop), src/lib/services/routing-accuracy-report-service.ts (new)
+      + .test.ts, src/lib/services/orchestra-trace-service.ts (new),
+      src/lib/services/ai-reduction-service.ts (new) + .test.ts,
+      src/lib/ai-team/roster-overrides.ts (new) + .test.ts,
+      src/lib/ai-team/team-service.ts, src/lib/ai-team/dispatch-repo.ts,
+      scripts/ai-workforce-agent.mjs, src/app/api/ai/team/dispatch/route.ts,
+      new src/app/api/ai/team/roster/overrides/route.ts, new
+      src/app/api/orchestra/{traces,traces/[id],routing-accuracy,
+      ai-reduction-trend}/route.ts, new
+      src/app/api/internal/{routing-accuracy-report,ai-reduction-snapshot}/run/route.ts,
+      new src/app/(app)/ai-observability/page.tsx, new
+      src/components/AiTeamRosterSection.tsx, src/app/(app)/settings/page.tsx,
+      src/components/AppSidebar.tsx, messages/{en,hi}.json,
+      src/lib/db/schema.ts, new drizzle/0233_ai_reduction_snapshots.sql +
+      0234_ai_team_role_overrides.sql, vercel.json (2 new cron entries).
+      Explicitly did NOT touch src/lib/services/permission-service.ts or
+      ERP_ACTION_ROLES, per this task's own instructions.
+
+      Two real pre-existing bugs found and fixed while implementing the
+      named findings (not scope creep -- both are the SAME
+      platformFallbackFor()/escalation-accuracy machinery the findings
+      already named): (1) escalatedPlatformConfig() never populated
+      `fallback` at all -- the escalated tier had ZERO failover before this
+      PR, not just a weak one. (2) Loop 14's missed-escalation sample is new
+      instrumentation, not a bug fix.
+
+      Full detail, per-finding notes on what was already resolved vs. a real
+      gap, and verification results (tsc/eslint/bun test: 1422 pass/0 fail)
+      are in this branch's PROGRESS.md. Not yet PR'd as of this claim entry.
   - session_label: "claude-code (task-20260718-202902-rescue-pr--415) -- Rescue PR #415"
     completed_at: "2026-07-18T (this session)"
     merged_as: "NOT MERGED -- TIER2 (touches drizzle/*.sql), awaiting Owner sign-off per task instructions; also blocked on a GitHub Actions infra issue, see below."

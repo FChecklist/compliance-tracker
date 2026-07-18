@@ -28,6 +28,7 @@ import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
+import AiTeamRosterSection from "@/components/AiTeamRosterSection";
 import ApiKeySection from "@/components/ApiKeySection";
 import WorkspaceMemorySection from "@/components/WorkspaceMemorySection";
 import MfaSection from "@/components/MfaSection";
@@ -60,6 +61,7 @@ const SETTINGS_NAV = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "ai-assistants", label: "AI Assistants", icon: Bot },
+  { id: "ai-team-roster", label: "AI Team Roster", icon: Bot },
   { id: "workspace-memory", label: "Workspace Memory", icon: Brain },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "pms", label: "Project Management", icon: Rocket },
@@ -345,6 +347,8 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           )}
+
+          {activeSection === "ai-team-roster" && <AiTeamRosterSection />}
 
           {activeSection === "workspace-memory" && (
             <Card className="rounded-xl shadow-card bg-white">
