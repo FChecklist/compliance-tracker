@@ -1277,6 +1277,20 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   completionTokens: integer('completion_tokens'),
   costUsd: numeric('cost_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail" finding
+  // (VERIDIAN_AI_CONSTITUTION.md #19 / SEC-03's own documented gap): full
+  // prompt/response text is now stored in `input`/`output` at most real call
+  // sites (Wave 144/146 -- chat-service.ts, fde-service.ts, etc. -- already
+  // write full, PII-redacted text, not the 500-char excerpt this column's
+  // Wave 23 header once implied was the only option). What was still
+  // missing is a TTL: full payload text has no expiry, an unbounded and
+  // growing store of every prompt/response ever sent. Null means "payload
+  // still live"; a timestamp means orchestra-log-purge (the new internal
+  // cron) has nulled out `input`/`output` on this row after the retention
+  // window -- every other column (status/model/cost/duration) is untouched
+  // and permanent, so the audit trail (WHO/WHEN/WHAT MODEL/WHAT IT COST)
+  // survives purge even after the raw text itself expires.
+  payloadPurgedAt: timestamp('payload_purged_at'),
 })
 
 // Prompt & Cache Management Framework, Phase 1 (2026-07-14): a NEW table
@@ -1374,13 +1388,22 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   // (Guardrail 10) and confidence-banding.ts's bandConfidence() output
   // (Guardrail 9), persisted so both are queryable/auditable rather than
   // computed-and-discarded. All 3 nullable/additive -- existing rows
-  // unaffected. riskLevel is computed at dispatch time (dispatch/route.ts);
-  // confidencePercentage/confidenceBand are computed at closure time
-  // (review/route.ts), when a numeric self-assessed confidence is supplied
-  // -- DEC-04's ruling that this is complementary to, not a replacement
-  // for, model-tier-eligibility.ts's tiers.
+  // unaffected. riskLevel is computed at dispatch time (dispatch/route.ts).
+  // confidencePercentage/confidenceBand were originally only ever set at
+  // closure time (review/route.ts), when a reviewer supplied their own
+  // numeric self-assessment -- DEC-04's ruling that this is complementary
+  // to, not a replacement for, model-tier-eligibility.ts's tiers. VERIDIAN
+  // Review Framework gap-closure (2026-07-18), GP-09: dispatch/route.ts now
+  // ALSO computes and persists a real, deterministic value at dispatch time
+  // (dispatch-confidence-scoring.ts::computeDispatchConfidencePercentage,
+  // derived from already-real signals: low-confidence/knowledge-gap
+  // detection + risk level -- never a model self-reported number). A
+  // reviewer's own closure-time value, when supplied, still overrides it
+  // (recordPeerReview only replaces when the caller passes one) -- this
+  // column now always has SOME real numeric value from dispatch onward,
+  // refined at closure rather than starting null.
   riskLevel: text('risk_level'), // 'low' | 'medium' | 'high' | 'critical'
-  confidencePercentage: numeric('confidence_percentage'), // 0-100, from the closure-time self-assessment when the reviewer supplied one
+  confidencePercentage: numeric('confidence_percentage'), // 0-100
   confidenceBand: text('confidence_band'), // 'auto_proceed' | 'self_review_required' | 'peer_review_required' | 'escalation_required'
   // GAP-MODEL-SCORECARD: model-tier-eligibility.ts's ComplexityTier
   // ('mechanical' | 'integrative' | 'judgment') that POST /api/ai/team/
@@ -6362,6 +6385,15 @@ export const approvalWorkflowStepDefinitions = complianceSchemaDB.table('approva
   conditionField: text('condition_field'), // nullable -- numeric field name on the entity payload, e.g. 'grandTotal'
   conditionOperator: erpWorkflowConditionOperatorEnum('condition_operator'),
   conditionValue: numeric('condition_value'),
+  // VERIDIAN Review Framework gap-closure (2026-07-18), ABAC finding: an
+  // additive, nullable array of AttributeCondition (src/lib/abac.ts) --
+  // AND-combined with each other AND with the single legacy condition
+  // above when both are present. Generalizes this step from "one numeric
+  // field" to "any combination of resource attributes", the real ABAC
+  // extension of this table's existing conditionField/conditionOperator
+  // pattern. Existing rows (null) are unaffected -- every step behaves
+  // exactly as before until an admin opts into the new multi-condition form.
+  conditions: jsonb('conditions'),
 })
 
 export const approvalWorkflowInstances = complianceSchemaDB.table('approval_workflow_instances', {
@@ -6418,6 +6450,34 @@ export const approvalWorkflowStepInstancesRelations = relations(approvalWorkflow
 export const approvalWorkflowStepApprovalsRelations = relations(approvalWorkflowStepApprovals, ({ one }) => ({
   step: one(approvalWorkflowStepInstances, { fields: [approvalWorkflowStepApprovals.stepInstanceId], references: [approvalWorkflowStepInstances.id] }),
 }))
+
+// VERIDIAN Review Framework gap-closure (2026-07-18), "ABAC / Fine-Grained
+// Policies" -- Critical finding: "No attribute-based access control exists;
+// RBAC only." abac-policy-service.ts's supplementary DENY-only overlay,
+// evaluated AFTER an action's own RBAC check has already passed (never a
+// replacement for RBAC, never an ALLOW grant on its own). Deny-only by
+// design: a policy engine that can only ever narrow access, never widen it,
+// cannot itself become a privilege-escalation bug -- the worst a
+// misconfigured row can do is block something that should have been
+// allowed, a fail-safe direction, not a fail-open one.
+export const abacEffectEnum = complianceSchemaDB.enum('abac_policy_effect', ['deny'])
+
+export const abacPolicies = complianceSchemaDB.table('abac_policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  resourceType: text('resource_type').notNull(), // e.g. 'approval_workflow', 'erp_payment_entry' -- caller-defined namespace, matches approvalWorkflowInstances.entityType's own free-text convention
+  action: text('action').notNull(), // e.g. 'approve', 'export', 'read'
+  effect: abacEffectEnum('effect').notNull().default('deny'),
+  // AttributeCondition[] (src/lib/abac.ts), AND-combined -- every condition
+  // must match for this policy to fire and deny the action.
+  conditions: jsonb('conditions').notNull().default([]),
+  description: text('description'),
+  priority: integer('priority').notNull().default(100), // lower evaluated first; informational ordering only, every active match still denies
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 // ─── VERI ERP Wave 52: Cost Centers, Cash Management, Credit Notes ────────
 // Per ERP_BENCHMARK_COMPARISON.md Tier 2 -- three of the ranked gaps,
