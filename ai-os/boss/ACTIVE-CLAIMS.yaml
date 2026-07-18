@@ -3740,8 +3740,8 @@ recently_completed:
       new src/app/(app)/ai-observability/page.tsx, new
       src/components/AiTeamRosterSection.tsx, src/app/(app)/settings/page.tsx,
       src/components/AppSidebar.tsx, messages/{en,hi}.json,
-      src/lib/db/schema.ts, new drizzle/0225_ai_reduction_snapshots.sql +
-      0226_ai_team_role_overrides.sql, vercel.json (2 new cron entries).
+      src/lib/db/schema.ts, new drizzle/0233_ai_reduction_snapshots.sql +
+      0234_ai_team_role_overrides.sql, vercel.json (2 new cron entries).
       Explicitly did NOT touch src/lib/services/permission-service.ts or
       ERP_ACTION_ROLES, per this task's own instructions.
 

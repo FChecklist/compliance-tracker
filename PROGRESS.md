@@ -9,8 +9,8 @@
       - vercel.json conflict: real conflict (both sides independently added
         new cron entries) -- combined both sets of cron lines, verified
         resulting JSON is valid
-- [x] Checked PR's own migrations: adds `drizzle/0225_ai_reduction_snapshots.sql`
-      and `drizzle/0226_ai_team_role_overrides.sql`. Confirmed via
+- [x] Checked PR's own migrations: adds `drizzle/0233_ai_reduction_snapshots.sql`
+      and `drizzle/0234_ai_team_role_overrides.sql`. Confirmed via
       `git ls-tree origin/main -- drizzle/` that main's real highest migration
       is 0224 (itself already has a pre-existing, unrelated duplicate:
       `0224_crm_accounts_contacts_actor_columns_no_fk.sql` AND
@@ -27,7 +27,7 @@
 - [x] Found and fixed a REAL CI-blocking bug: Asset Registry Coverage Check
       failed because the 2 new tables (`ai_team_role_overrides`,
       `ai_reduction_snapshots`) made no explicit registry decision. Added
-      `drizzle/0227_register_ai_team_role_overrides.sql` (registered, real
+      `drizzle/0235_register_ai_team_role_overrides.sql` (registered, real
       admin-editable config) and exempted `ai_reduction_snapshots` in
       `ai-os/registry/asset-registry-coverage.yaml` (internal append-only
       trend log, same class as monitor_execution_log). Re-verified locally:
