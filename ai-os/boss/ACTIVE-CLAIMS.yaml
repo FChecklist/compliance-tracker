@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-091004-checks---balances--risk--fraud---anomaly) -- VERIDIAN Review Framework gap-closure: Checks & Balances / Risk, Fraud & Anomaly Detection"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 4 distinct findings (8 rows, duplicated) from the review
+      framework's "Checks & Balances / Risk, Fraud & Anomaly Detection"
+      section: (1) Anomaly Detection -- Tier-1 rule-engine monitors for
+      bulk data export, after-hours high-impact actions, and repeated
+      failed auth (confirmed PLATFORM_STRATEGY.md #29's ~30-event-type gap
+      is real but AI-OPS-SCOPED ONLY -- this task's actual gap is a
+      SEPARATE, business-facing anomaly surface with zero overlap with
+      escalation-ladder.ts/monitor-protocol.ts/monitor_agents, so building
+      net-new rather than extending #29's registry); (2) Fraud & Abuse
+      Detection -- rule-based duplicate-payment/round-number/threshold-
+      avoidance signals in erp-payment-entries-service.ts auto-populating
+      fraud_cases.detectionSource='system_alert'; (3) Policy Compliance
+      Verification -- automated evidence gate (linked risk -> audit
+      finding retestResult='passed' chain) before framework_controls can
+      self-attest into 'verified'; (4) Risk-Based Escalation -- new
+      business-risk escalation path (high-severity risk logged / fraud
+      case confirmed / anomaly detected -> named human owner via
+      departments.head_id or org admin fallback), explicitly NOT reusing
+      escalation-ladder.ts's CSEO/COO/Super-Boss ladder (that ladder is
+      AI-operational-failure-shaped by design, confirmed via
+      docs/ESCALATION_MATRIX.md -- a different concern from a business
+      risk event needing a human owner).
+      Scope: new tables risk_anomaly_events + auth_failure_events
+      (additive migration), new src/lib/risk-anomaly-detection.ts +
+      src/lib/services/risk-escalation-service.ts +
+      src/lib/services/auth-failure-service.ts, hooks added to
+      erp-payment-entries-service.ts, fraud-case-service.ts,
+      risk-register-service.ts, frameworks/controls/[id]/route.ts,
+      login-form.tsx, passcode-login-service.ts, compliance/reports export
+      buttons. Does NOT touch permission-service.ts's ERP_ACTION_ROLES
+      structure (additive-only if any new key is genuinely needed) or any
+      other in-flight worker's declared scope -- checked this file in full
+      before starting, no other active entry overlaps this area.
   - session_label: "claude-code (task-20260718-053002-ai-architecture--explainability---transp) -- VERIDIAN Review Framework: AI Architecture / Explainability & Transparency gap-closure (26 findings)"
     claimed_at: "2026-07-18T (this session)"
     claim: |

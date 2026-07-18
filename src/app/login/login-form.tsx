@@ -64,6 +64,15 @@ export function LoginForm() {
 
     if (error) {
       toast.error(error.message);
+      // Fire-and-forget: feeds the repeated-failed-auth Tier-1 monitor
+      // (src/lib/services/auth-failure-service.ts). Never blocks the error
+      // toast on this, and never reveals anything beyond what the toast
+      // above already does.
+      fetch("/api/auth/failure-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, method: "password" }),
+      }).catch(() => {});
       setLoading(false);
       return;
     }

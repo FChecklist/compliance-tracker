@@ -11,12 +11,13 @@
 // service, then have the original routes call it too, so there is exactly
 // one implementation, not two.
 import { risks, auditEngagements, auditFindings, policies, approvalRequests, vendorRiskProfiles, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray } from "drizzle-orm"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { resolveModuleRule } from "@/lib/module-rules-resolver"
+import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 
 export type GrcActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
 
@@ -39,9 +40,23 @@ const DEFAULT_SEVERITY_BANDS: SeverityBand[] = [
   { min: 1, max: 6, label: "low" }, { min: 7, max: 15, label: "medium" }, { min: 16, max: 25, label: "high" },
 ]
 
+/**
+ * A score outside every configured band (e.g. a caller submitting
+ * likelihood/impact outside the 1-5 scale the default bands assume) now
+ * clamps to the nearest edge band rather than silently defaulting to
+ * 'medium' -- 'medium' previously hid a score of 100 (likelihood=10 x
+ * impact=10) behind the SAME label as a genuinely middling risk, which
+ * matters more now that createRisk's new high-severity escalation (VERIDIAN
+ * Review Framework gap-closure) depends on this function correctly
+ * recognizing the riskiest inputs as 'high', not silently as 'medium'.
+ */
 function severityFromScore(score: number, bands: SeverityBand[]): string {
   const match = bands.find((b) => score >= b.min && score <= b.max)
-  return match?.label ?? "medium"
+  if (match) return match.label
+  if (bands.length === 0) return "medium"
+  const highest = bands.reduce((a, b) => (b.max > a.max ? b : a))
+  const lowest = bands.reduce((a, b) => (b.min < a.min ? b : a))
+  return score > highest.max ? highest.label : lowest.label
 }
 
 export async function listRisks(ctx: { orgId: string; dbUser?: typeof users.$inferSelect | null }) {
@@ -74,14 +89,53 @@ export type RiskInput = { title: string; category?: string; likelihood?: number;
 
 export async function createRisk(ctx: GrcActorCtx, input: RiskInput) {
   if (!input.title?.trim()) throw new ServiceError("title is required", 400)
+  const likelihood = input.likelihood ? Number(input.likelihood) : 3
+  const impact = input.impact ? Number(input.impact) : 3
+  const resolvedMatrix = await resolveModuleRule("risks", "severity_matrix", { orgId: ctx.orgId })
+  const bands = (resolvedMatrix?.value as { bands?: SeverityBand[] } | undefined)?.bands ?? DEFAULT_SEVERITY_BANDS
+  const severity = severityFromScore(likelihood * impact, bands)
+
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [risk] = await db.insert(risks).values({
       title: input.title.trim(), category: (input.category as typeof risks.$inferInsert.category) || "operational",
-      likelihood: input.likelihood ? Number(input.likelihood) : 3, impact: input.impact ? Number(input.impact) : 3,
+      likelihood, impact,
       ownerId: ctx.dbUser?.id ?? null, ownerDept: ctx.dbUser?.departmentId ?? null, orgId: ctx.orgId,
     }).returning()
     await logActivity({ tx: db, action: "create", entityType: "Risk", entityId: risk.id, details: `Risk logged: ${risk.title}`, orgId: ctx.orgId, ...actorLogFields(ctx) })
+
+    // Risk-Based Escalation (VERIDIAN Review Framework gap-closure): a
+    // newly-logged HIGH severity risk needs a named human owner's attention
+    // immediately, not just visibility on the dashboard heatmap.
+    if (severity === "high") {
+      await recordAndEscalateAnomaly(db, {
+        orgId: ctx.orgId, eventType: "high_risk_logged", severity: "high",
+        sourceEntityType: "risk", sourceEntityId: risk.id, actorUserId: ctx.userId,
+        reason: `High-severity risk logged: ${risk.title} (likelihood ${likelihood} x impact ${impact})`,
+        detail: { likelihood, impact, category: risk.category },
+      })
+    }
     return risk
+  })
+}
+
+/**
+ * Attaches this risk to the framework control(s) it covers -- the ONLY
+ * writer of risks.linkedControlIds anywhere in this codebase (confirmed by
+ * grep before adding this: the column existed and was read by listRisks/
+ * hasVerificationEvidence, but nothing ever set it past its []-default,
+ * which would make hasVerificationEvidence's evidence chain permanently
+ * unsatisfiable -- no control could ever reach 'verified'). Replaces the
+ * full list rather than appending, matching risks' own linkedControlIds
+ * being a plain jsonb array with no dedicated add/remove endpoint history
+ * to be consistent with.
+ */
+export async function updateRiskLinkedControls(ctx: GrcActorCtx, riskId: string, controlIds: string[]) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.risks.findFirst({ where: and(eq(risks.id, riskId), eq(risks.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Risk not found", 404)
+    const [updated] = await db.update(risks).set({ linkedControlIds: controlIds, updatedAt: new Date() }).where(eq(risks.id, riskId)).returning()
+    await logActivity({ tx: db, action: "update", entityType: "Risk", entityId: riskId, details: `Linked controls updated for "${existing.title}"`, orgId: ctx.orgId, ...actorLogFields(ctx) })
+    return updated
   })
 }
 
@@ -97,6 +151,33 @@ export async function updateRiskStatus(ctx: GrcActorCtx, riskId: string, status:
     await logActivity({ tx: db, action: "status_change", entityType: "Risk", entityId: riskId, details: `Risk "${existing.title}" moved from ${existing.status} to ${status}`, orgId: ctx.orgId, ...actorLogFields(ctx) })
     return updated
   })
+}
+
+// ============================================================
+// Policy Compliance Verification (VERIDIAN Review Framework gap-closure)
+// ============================================================
+// framework_controls.status was a pure self-attestation before this --
+// PATCH /api/frameworks/controls/[id] cycled status forward on a manager's
+// button click with zero evidence input of any kind. No get_advisors/CI-
+// gate signal exists anywhere in this app to wire in (confirmed by grep
+// before writing this), but a real, already-modeled independent-verification
+// signal DOES exist in-schema: audit_findings.retestResult, reachable via
+// risks.linkedControlIds -> audit_findings.linkedRiskId. This is the one
+// real evidence chain this schema has for "an independent auditor actually
+// re-tested this control," so it gates the 'verified' transition
+// specifically (every earlier status stays a free manual transition --
+// 'verified' is the one claim strong enough to need real evidence).
+export async function hasVerificationEvidence(db: TenantDb, orgId: string, controlId: string): Promise<boolean> {
+  const linkedRisks = await db.query.risks.findMany({
+    where: and(eq(risks.orgId, orgId), sql`${risks.linkedControlIds} @> ${JSON.stringify([controlId])}::jsonb`),
+  })
+  if (linkedRisks.length === 0) return false
+
+  const riskIds = linkedRisks.map((r) => r.id)
+  const passedFinding = await db.query.auditFindings.findFirst({
+    where: and(eq(auditFindings.orgId, orgId), inArray(auditFindings.linkedRiskId, riskIds), eq(auditFindings.retestResult, "passed")),
+  })
+  return !!passedFinding
 }
 
 // ============================================================
