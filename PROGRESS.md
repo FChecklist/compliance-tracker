@@ -20,11 +20,25 @@ merge to current main, fix migration number collision, get CI green, audit, merg
       this PR itself adds `scripts/check-migration-collision.mjs`, a new CI guard for exactly
       this class of collision -- confirmed it would have caught this.
 
+- [x] `bunx tsc --noEmit` clean, `bun run lint` 0 errors (3 pre-existing warnings, unchanged),
+      `bun test` 1480 pass / 0 fail
+- [x] Ran all 6 governance/guardrail check scripts locally -- all pass (88/88 guardrail markers,
+      metadata index, doc cross-refs, asset registry, doc quarantine banner, migration collision)
+- [x] Investigated originally-failing "Promptfoo Evals" CI check: `Error: Cannot find module
+      'ajv/dist/compile/codegen'` from `ajv-formats` under bun's node_modules layout (bun hoists
+      ajv@6.14.0 for eslint, but ajv-formats needs ajv@8+). Verified independently (not just
+      trusting the PR's own claim) by running the identical `bun run test:prompts` in a fresh
+      `git worktree` of `origin/main` alone, no PR changes applied -- same exact error. Confirmed
+      pre-existing and unrelated to this PR. Also confirmed via `gh api .../branches/main/protection/required_status_checks`
+      that "Promptfoo Evals" is NOT in the required-checks list (only Lint, Type Check, Build,
+      audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests are) --
+      matches the workflow file's own header, which documents this as a deliberately
+      non-blocking check pending an Owner branch-protection decision. Does not block merge.
+- [x] Pushed merged branch to `worker/task-20260718-051002-ai-architecture--domain-accuracy---quali`
+      (`d653a947`)
+
 ## Remaining
-- [ ] Run `bun install --frozen-lockfile && bunx tsc --noEmit && bun run lint && bun test` on
-      merged branch, fix any real failures
-- [ ] Push merged/fixed branch
 - [ ] Read full PR diff, post structured AUDIT PASS/FAIL comment
-- [ ] Wait for CI green
-- [ ] Classify TIER (this PR touches drizzle/0225 migration + schema.ts -- likely TIER2)
+- [ ] Wait for required CI checks green
+- [ ] Classify TIER (this PR touches drizzle/0225 migration + schema.ts -- TIER2 -- do NOT merge)
 - [ ] Report final status
