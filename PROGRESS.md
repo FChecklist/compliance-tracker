@@ -1,126 +1,108 @@
-# PROGRESS -- task-20260718-053002-ai-architecture--explainability---transp
+# PROGRESS -- task-20260718-091004-checks---balances--risk--fraud---anomaly
 
-VERIDIAN Review Framework: AI Architecture / Explainability & Transparency (26 findings).
-Grounded every finding against the CURRENT codebase (2026-07-18) before writing code -- see
-"Ground-truth notes" at the bottom for where the original gap description no longer matched
-reality. One coherent PR: a new shared explainability layer + targeted application to the
-real call sites that already produce AI/engine/report output, not 26 separate changes.
+VERIDIAN Review Framework gap-closure: Checks & Balances / Risk, Fraud & Anomaly Detection.
+8 findings received = 4 distinct issues, each duplicated once. Investigated the real
+current state of each before writing any code -- all 4 were still real gaps, not
+already resolved (see "Findings re-verified" below).
+
+## Findings re-verified against current code (before writing anything)
+
+- **Anomaly Detection**: confirmed still real, but the "~30 event types, 1 wired"
+  framing in PLATFORM_STRATEGY.md #29 is entirely **AI-Ops scoped**
+  (TASK_CREATED, APPROVAL_GRANTED, DOCUMENT_APPROVED, etc. -- monitor_agents /
+  escalation-ladder.ts / monitor-protocol.ts govern AI Dev Team dispatch health,
+  not business risk). There is a **separate, real gap**: zero rule-engine
+  monitors existed for business-facing risk events. Built net-new, not extending #29.
+- **Fraud & Abuse Detection**: confirmed -- `fraud-case-service.ts` was pure CRUD,
+  zero detection logic, `detectionSource: 'system_alert'` existed in the enum but
+  nothing ever set it.
+- **Policy Compliance Verification**: confirmed -- `framework_controls.status`
+  PATCH route cycled state forward on a button click with zero evidence input.
+  No `get_advisors`/CI-gate integration exists anywhere in `src/` (confirmed by
+  grep -- correctly not fabricated). Real available evidence signal in-schema:
+  `audit_findings.retestResult`, reachable via `risks.linkedControlIds` ->
+  `audit_findings.linkedRiskId`.
+- **Risk-Based Escalation**: confirmed -- `escalation-ladder.ts` /
+  `docs/ESCALATION_MATRIX.md` are entirely AI-operational-failure-shaped
+  (CSEO/COO/Super Boss). No business-risk-event escalation path existed anywhere.
 
 ## Completed
-- [x] Read governance docs (ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml) and registered claim
-- [x] Ground-truthed all 26 findings against current code (report-engine-service.ts,
-      crm-service.ts, ServiceError, llm-client.ts/chat-service.ts, engines/*,
-      high-impact-action-detector.ts, orchestra-execution-logger.ts, help/ask route,
-      embeddings.ts, knowledge-base-service.ts, ai-reply-gate.ts, task-prediction-service.ts)
+- [x] Read governance docs (ACTIVE-CLAIMS.yaml, AGENTS.md, CLAUDE.md, PLATFORM_STRATEGY.md #29)
+- [x] Registered active claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`, committed + pushed standalone
+- [x] Full codebase investigation (schema, services, routes) for all 4 findings
+- [x] Schema: `risk_anomaly_events` (org-scoped, FORCE RLS) + `auth_failure_events`
+      (pre-auth, no org, service_role-only -- mirrors `passcode_login_attempts`) --
+      `drizzle/0240_risk_anomaly_detection.sql` (renumbered from 0225 during
+      main-merge rescue, since main's real highest had advanced to 0235),
+      both exempted in
+      `ai-os/registry/asset-registry-coverage.yaml` (append-only event logs, same
+      class as `monitor_execution_log`/`passcode_login_attempts`)
+- [x] `src/lib/risk-anomaly-detection.ts` -- pure Tier-1 rule functions (bulk export,
+      after-hours high-impact, repeated failed auth, duplicate payment,
+      round-number/threshold-avoidance) + full unit test coverage (19 tests)
+- [x] `src/lib/services/risk-escalation-service.ts` -- `recordAndEscalateAnomaly()` +
+      `resolveRiskEscalationOwner()` (department head via `departments.head_id`,
+      org-admin fallback, self-escalation explicitly excluded at both levels)
+- [x] `src/lib/services/auth-failure-service.ts` + `POST /api/auth/failure-event`
+      (public, pre-auth) + wired into `login-form.tsx` (password path) and
+      `passcode-login-service.ts`'s `recordAttempt` (unifies passcode failures
+      into the same monitor without touching its own internal rate-limit table)
+- [x] Fraud rule signals wired into `erp-payment-entries-service.ts::createPaymentEntry`
+      (duplicate-payment + round-number/threshold-avoidance) -> auto-creates a
+      `fraud_cases` row via new `createFraudCaseTx()` (tx-safe variant -- avoids a
+      nested `withTenantContext` deadlock against this app's single-connection
+      pool) with `detectionSource: 'system_alert'`, then escalates
+- [x] After-hours high-impact wiring: `erp-payment-entries-service.ts::decidePaymentEntry`
+      (approved branch), `frameworks/controls/[id]/route.ts` (verified transition)
+- [x] Policy compliance verification gate in `frameworks/controls/[id]/route.ts` PATCH:
+      blocks self-attested `'verified'` unless a linked risk has a passed
+      audit-finding retest as evidence (`hasVerificationEvidence()` in
+      `risk-register-service.ts`)
+- [x] Risk-based escalation wiring: `risk-register-service.ts::createRisk` (high
+      severity), `fraud-case-service.ts::updateFraudCaseStatus` (confirmed status --
+      the finding's own named example)
+- [x] Bulk export observability: `POST /api/compliance/export-event` + wired into
+      both compliance/page.tsx and reports/page.tsx CSV export buttons (previously
+      100% client-side, logged nothing)
+- [x] `bun test` (1440 pass, 0 fail), `tsc --noEmit` (clean), `eslint .` (0 errors),
+      `check-asset-registry-coverage.mjs` (433/433 tables accounted for),
+      `check-guardrail-presence.mjs` (88/88 markers present)
 
-### Shared infrastructure
-- [x] `src/lib/errors/error-catalog.ts` -- ERROR_CODES lookup table (friendlyMessage +
-      remediationSteps), `ServiceError` extended (compliance-service.ts) with optional
-      code/friendlyMessage/remediationSteps + `serviceErrorBody()` helper. Applied to
-      compliance-service.ts/crm-service.ts throw sites + compliance API routes as a real,
-      working sample (see ground-truth notes for why not all ~683 route catch blocks).
-- [x] `src/lib/explainability/ai-decision-explanation.ts` -- generic `AiDecisionExplanation`
-      type (summary/reasoning/confidence/recommendedAction/rejectedAlternatives/assumptions/
-      businessImpact) + converters (explainCrmLeadDecision/explainCrmOpportunityDecision/
-      explainTaskPrediction)
-- [x] `src/components/ai/AiDecisionExplanationCard.tsx` -- shared UI component (extracted
-      ReportDefinitionRunner.tsx's note/narrative rendering pattern, generalized); wired into
-      the CRM page via a "Why?" toggle + new `/api/crm/{leads,opportunities}/[id]/explain` routes
-- [x] `src/lib/engines/types.ts` -- shared `EngineResult<T>` type (explanation required,
-      assumptions + steps optional)
-
-### Applied
-- [x] crm-service.ts: scoreLead/analyzeOpportunity request + store
-      rejectedAlternatives/assumptions/confidence (migration 0225, prompt versions bumped)
-      and expose via `explainCrmAiDecision()`
-- [x] task-prediction-service.ts: `explainTaskPrediction()` converter, surfaced as an
-      additive `explanation` field on GET /api/tasks/[id]/prediction (tasks case of "apply to
-      approvals/tasks" -- see ground-truth notes for why approvals is not touched)
-- [x] accounting-engine.ts / analytics-engine.ts: additive `verifyBalancesNetToZeroExplained()`
-      / `analyzeTrendExplained()` returning `EngineResult<T>` with a real intermediate-steps
-      trace; task-execution-engine.ts's balance_verification_engine/trend_analysis_engine
-      dispatch cases wired to the explained variants (only real callers, confirmed via grep;
-      safe because that dispatch's output is only ever JSON.stringify'd + sanity-checked by
-      assertValidDispatchOutput, which tolerates any nested shape)
-- [x] report-engine-service.ts: `runAggregationFromConfig()` always returns a generated
-      `note` (`buildAggregationNote()`) describing table/grouping/aggregation/filters --
-      closes the 110/204 (54%) report rows that previously returned zero explanation
-- [x] purpose-bound-ai.ts: `buildUserContextBlock()` + chat-service.ts wired to prepend it to
-      the per-call message sent to the LLM (NOT the cached system prompt -- see ground-truth
-      note on why, to avoid silently defeating the Prompt & Cache Management Framework)
-- [x] high-impact-action-detector.ts: broadened HIGH_IMPACT_CATEGORY_GUIDANCE from 9 to 12
-      categories (bulk_operations/communication_send/financial_posting) + new
-      `logHighImpactClassification()` sample-audit logging (matched or not), wired into
-      task-service.ts's real createTask gate
-- [x] orchestra-execution-logger.ts: added optional `routingRationale` column (migration
-      0225), populated at chat-service.ts's escalation decision; surfaced on request via
-      `getOrchestraExecutionRationale()` + `GET /api/orchestra/executions/[id]`
-- [x] embeddings.ts pattern reused: knowledge-base-service.ts indexes KB pages on
-      create/update (storeEmbedding); help/ask/route.ts retrieves relevant chunks before
-      answering (retrieveRelevantKbPages, RAG), returns `sources` (rendered in HelpWidget.tsx);
-      `resolveLinkedKnowledgeBasePages()` resolves dynamic_chains.linkedKnowledgeBasePageIds
-      into readable content wherever a chain has them set
-- [x] Glossary: `business_terminology_glossary` table (migration 0225, seeded with 10 real
-      platform terms) + glossary-service.ts + `/api/glossary` (+`/[id]`, `/lookup`) routes +
-      `GlossaryTermTooltip` component, wired into the CRM page's "win" label
-- [x] Unit tests: error-catalog, ai-decision-explanation, accounting-engine/analytics-engine
-      explained variants, report-engine-service's buildAggregationNote, 4 new
-      high-impact-action-detector categories (46 new test assertions total, all passing)
-- [x] `bunx tsc --noEmit` clean, `bun run lint` clean (0 errors, 3 pre-existing unrelated
-      warnings), `bun test` -- **1452 pass, 0 fail**, 2871 expect() calls across 107 files
-- [x] Confirmed `src/lib/services/permission-service.ts` untouched, no overlap with other
-      ACTIVE-CLAIMS.yaml entries
+## Self-review pass (8-angle code-review before commit) -- caught and fixed 7 real issues
+- [x] **Critical**: `hasVerificationEvidence`'s evidence chain was permanently unsatisfiable --
+      nothing anywhere wrote `risks.linkedControlIds` past its `[]` default, so no framework
+      control could ever reach `'verified'`. Fixed: added `updateRiskLinkedControls()` +
+      `PATCH /api/risks/[id]/linked-controls` (the only writer of that column).
+- [x] Consolidated `erp-payment-entries-service.ts::createPaymentEntry`'s fraud check to create
+      at most ONE fraud case/escalation per payment (was creating 2 separate cases when a
+      payment tripped both the duplicate-payment and threshold-avoidance rules).
+- [x] Fixed an escalation storm: `auth-failure-service.ts` now escalates at most once per
+      rate-limit window per account (was re-escalating on every single failed attempt past
+      the threshold, paging the resolved owner repeatedly for one ongoing incident).
+- [x] Fixed idempotency regression in `frameworks/controls/[id]/route.ts`: a repeat PATCH on an
+      already-`'verified'` control (no real status change) now short-circuits before the
+      evidence gate/after-hours check, instead of re-running side effects on every re-click.
+- [x] Fixed `severityFromScore`'s fallback (risk-register-service.ts): a likelihood/impact score
+      outside every configured band now clamps to the nearest edge band instead of silently
+      defaulting to `'medium'` -- matters now that `createRisk`'s new high-severity escalation
+      depends on this function.
+- [x] `resolveRiskEscalationOwner` no longer does an unbounded `findMany` of every active org
+      user to pick one admin -- two targeted, actor-excluded, LIMIT-1 queries instead.
+- [x] Frontend: `frameworks/page.tsx`'s advance button now surfaces the new 409 "blocked"
+      response via toast instead of silently no-op'ing.
+- [x] Added a composite index on `erp_payment_entries` (org/party/type/date) and a GIN index on
+      `risks.linked_control_ids` for the two new query patterns this gap-closure introduces.
 
 ## Remaining
-- [ ] Move this session's ACTIVE-CLAIMS.yaml entry to `recently_completed:` once this PR
-      merges (left in `active:` until then, per that file's own protocol)
-- [ ] Not done, documented as deliberately out of scope this pass (see ground-truth notes):
-      full rollout of ServiceError's friendlyMessage/remediationSteps to the other ~670 API
-      route catch blocks beyond the representative sample touched here -- mechanical,
-      high-volume, high-collision-risk with other in-flight workers' route-file edits
-
-## Ground-truth notes (gap descriptions that didn't match current code, or scope decisions made while implementing)
-- CRM AI pattern already covers **both** leads and opportunities, not "confined to
-  opportunities" as one finding claimed (crm-service.ts scoreLead + analyzeOpportunity).
-- `llm-client.ts` is a pure provider-transport client with zero prompt-assembly logic --
-  the finding asking for a "system prompt assembly" personalization block in that file
-  doesn't match reality. Real assembly point is chat-service.ts (template + purpose
-  clause).
-- Personalization is deliberately NOT appended to chat-service.ts's `systemPrompt` string
-  itself -- that exact string is what the Prompt & Cache Management Framework (Phase 1,
-  prompt-cache/compiler.ts) treats as one static cache_control block shared across every
-  user in an org/domain (confirmed in llm-client.ts's callAnthropic: the whole system
-  string becomes one cacheable block). Personalizing it per-user would silently defeat
-  that caching for every call -- a real cost/latency regression. Instead
-  `buildUserContextBlock()` is prepended to the per-call user message (which already
-  varies every call), leaving the cached system prompt and the orchestra_executions
-  "what was actually asked" log (Wave 144's stated intent) both untouched.
-- General chat-level AI-reply confidence (`ai-reply-gate.ts`'s `aiReplyEnvelopeSchema.
-  confidence`) is dead/unused -- populating it requires the structured-JSON-reply rewrite
-  that Phase 3 (Phase3_Design_by_Claude.md) explicitly deferred as a large, separate,
-  documented decision ("OUT OF SCOPE for this pass... would risk breaking the one
-  AI-facing feature that's currently live"). Not reopened here; confidence is instead
-  wired through the new AiDecisionExplanation pattern (CRM, task prediction), which is
-  the finding's own stated remedy ("same as parameter 32/45").
-- No AI-driven approval-recommendation feature exists anywhere in the codebase today
-  (approval_workflow_* tables are pure human/RBAC workflow, no LLM call site touches
-  them) -- "apply [AiDecisionExplanation] to approvals/tasks" is only half-applicable;
-  applied it to tasks (task-prediction-service.ts) for real, documenting the approvals
-  half as nothing-to-extend rather than inventing a new AI feature just to check a box.
-- `dynamic_chains.linkedKnowledgeBasePageIds` is genuinely schema-only (confirmed no
-  write site populates it automatically) -- did not build automatic derivation (a
-  separate, larger routing feature); the new KB retrieval helper is reused so a chain's
-  linked pages *can* be resolved into readable content wherever `linkedKnowledgeBasePageIds`
-  is set, which is the realistic scope of "extend the same knowledge-explainability fix."
-- `ServiceError` friendlyMessage/remediationSteps: ~683 API route catch blocks currently
-  do `if (error instanceof ServiceError) return { error: error.message }`. Rewriting all
-  683 in one PR would be a huge, high-collision-risk mechanical change touching files many
-  other in-flight workers (per ACTIVE-CLAIMS.yaml) are actively editing. Shipped the
-  shared type + catalog + helper, applied it to a representative real sample (compliance
-  + CRM), and left full rollout as documented follow-up rather than a fabricated "done".
-- Engines: only 2 of ~100 engine functions across `src/lib/engines/*` got an `*Explained()`
-  variant (the 2 with a real, confirmed single caller in task-execution-engine.ts). Changing
-  every engine's own return shape was avoided as a much larger blast radius than this
-  gap-closure pass justifies -- `EngineResult<T>` (src/lib/engines/types.ts) is the
-  sanctioned shape for new engine work and additive `*Explained()` variants going forward,
-  not a claim that all engines were migrated.
+- [ ] Move ACTIVE-CLAIMS.yaml entry to `recently_completed` once this PR merges
+- [ ] Out of scope, noted for a future pass: Google OAuth / SSO login failures still
+      aren't logged (only password + passcode are wired) -- password is the primary
+      brute-force vector, SSO/OAuth failures are a smaller, separate surface
+- [ ] Out of scope: `DEFAULT_PAYMENT_APPROVAL_THRESHOLD` (₹100,000) is a fixed
+      constant, not yet an org-configurable value via `module-rules-resolver.ts` --
+      noted in the code as the natural extension point if a real org needs a
+      different threshold
+- [ ] Out of scope: `PATCH /api/risks/[id]/linked-controls` has no UI yet -- a real
+      user can call the API today but there's no risks-page control to pick which
+      framework controls a risk covers. Building that UI is a reasonable next step,
+      not done here to keep this already-large gap-closure bounded.
