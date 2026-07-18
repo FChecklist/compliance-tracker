@@ -11,6 +11,7 @@ import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLM } from "@/lib/llm-client";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale";
 import { normalizeForLlm } from "@/lib/prompt-normalizer";
 import { passesReplyGate } from "@/lib/ai-reply-gate";
 import { redactPii } from "@/lib/pii-redaction";
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
 
   let systemPromptTemplate: string;
   try {
-    systemPromptTemplate = await resolvePromptTemplate("help.ai_assistant_system");
+    const locale = await getPreferredAiResponseLocale();
+    systemPromptTemplate = await resolvePromptTemplate("help.ai_assistant_system", "production", locale);
   } catch {
     return NextResponse.json({
       answer:
