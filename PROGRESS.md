@@ -32,7 +32,7 @@ already resolved (see "Findings re-verified" below).
 - [x] Full codebase investigation (schema, services, routes) for all 4 findings
 - [x] Schema: `risk_anomaly_events` (org-scoped, FORCE RLS) + `auth_failure_events`
       (pre-auth, no org, service_role-only -- mirrors `passcode_login_attempts`) --
-      `drizzle/0236_risk_anomaly_detection.sql` (renumbered from 0225 during
+      `drizzle/0240_risk_anomaly_detection.sql` (renumbered from 0225 during
       main-merge rescue, since main's real highest had advanced to 0235),
       both exempted in
       `ai-os/registry/asset-registry-coverage.yaml` (append-only event logs, same
