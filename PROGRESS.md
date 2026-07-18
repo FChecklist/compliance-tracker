@@ -30,8 +30,8 @@ Monitoring & Forecasting (4 findings).
 - [x] `gh pr checkout 424` (worktree conflict with original branch worked around via `git fetch origin <branch>:pr-424-local`).
 - [x] Merged `origin/main` (real conflicts: `PROGRESS.md` kept ours; `ai-os/boss/ACTIVE-CLAIMS.yaml` — additive, kept both blocks + this rescue entry).
 - [x] Confirmed no `drizzle/*.sql` or `src/lib/db/schema.ts` changes in this PR's diff vs main — TIER1.
-- [ ] `bun install --frozen-lockfile && bunx tsc --noEmit && bun run lint && bun test` on the merged branch.
-- [ ] Push rebased branch.
-- [ ] Post structured `AUDIT: PASS`/`FAIL` PR comment.
-- [ ] Wait for CI green.
-- [ ] Merge (squash + delete branch) if TIER1 and audit PASS.
+- [x] `bun install --frozen-lockfile && bunx tsc --noEmit && bun run lint && bun test` — clean/clean/0 errors/1519 pass.
+- [x] Pushed merged branch; posted structured `AUDIT: PASS` PR comment (all 8 fields).
+- [x] Mandatory Audit Check job had run before the comment existed (failed); re-ran it after posting — passed.
+- [x] Main moved again mid-rescue (PR #422, "proactive AI cost-ceiling alerts", also touching `cost-guard.ts`) — merged a second time; `cost-guard.ts` auto-merged cleanly (additive, non-overlapping: PR #422 added `checkCostCeilingBreaches`/`classifyCostBreach`, this PR added `forecastedMonthEndSpendUsd` — both coexist). Re-ran full verification after this second merge — still 0 errors/1519 pass. Re-pushed, all CI green including audit-check.
+- [ ] Merge (squash + delete branch) — TIER1, CI green, audit PASS.
