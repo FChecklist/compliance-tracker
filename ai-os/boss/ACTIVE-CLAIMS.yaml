@@ -1752,6 +1752,45 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-185244-rescue-pr--420) -- Rescue and merge PR #420"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #420 (tier1, self-merged after CI green)."
+    claim: |
+      Rescued PR #420 (branch worker/task-20260718-055002-ai-architecture--
+      performance---cost-effi, "AI Architecture / Performance & Cost
+      Efficiency gap-closure, 4 findings": callLLM/callLLMJson/callLLMVision
+      centrally-measured durationMs + LLM_LATENCY_SLA_MS console.warn,
+      model-pricing-audit.ts piggybacked on the daily loops cron, and
+      api/help/ask/route.ts wired into the same normalizeForLlm/
+      passesReplyGate/redactPii/recordOrchestraExecution/prompt-cache
+      pipeline chat-service.ts already uses), opened by a now-stopped
+      autonomous worker dispatcher with CI failing (audit-check + Unit
+      Tests). Real work done: merged origin/main once (conflicts in
+      PROGRESS.md -- kept ours per protocol -- and this file's own
+      active: list -- both additive entries, no real logic conflict,
+      resolved by keeping both sides in list order). No drizzle/*.sql or
+      schema.ts changes anywhere in the final diff -- TIER1, confirmed by
+      diffing the full merged branch against origin/main, not just the
+      PR's original file list. Root-caused both original CI failures
+      instead of guessing: audit-check failed only because no AUDIT
+      comment had ever been posted (the stopped worker never reached that
+      step) -- posted one after reading the full diff myself. Unit Tests
+      failed on a pre-existing, already-documented flake in
+      tenant-isolation.test.ts (bun's mock.module() leaking an incomplete
+      stub across test files depending on CI-only, Linux-only file
+      execution order, self-described in that file's own top-of-file
+      comment) that was already fixed by an unrelated commit already on
+      main by the time this rescue ran -- confirmed by a full local
+      bun test run post-merge (1477 pass / 0 fail across 106 files) with
+      zero reproductions, not merely by assuming the merge fixed it.
+      Verification: bunx tsc --noEmit clean, bun run lint 0 errors (3
+      pre-existing unrelated warnings), bun test 1477 pass/0 fail.
+      Posted a structured AUDIT: PASS comment (all 8 audit-protocol.ts
+      fields) before merging, per AGENTS.md Rule 10. All 7 required
+      branch-protection checks (Lint, Type Check, Build, audit-check,
+      Guardrail Presence Check, Asset Registry Coverage Check, Unit
+      Tests) green; only non-required check to fail was Vercel preview
+      deploy (build-rate-limited, unrelated to code correctness).
   - session_label: "claude-code (task-20260718-180652-rescue-pr--430) -- Rescue and merge PR #430"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #430 (tier1, self-merged after CI green), squash commit 8902b86c."
