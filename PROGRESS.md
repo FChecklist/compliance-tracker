@@ -1,54 +1,44 @@
-# PROGRESS -- task-20260718-061005-ai-cost-governance---finops--cost-contro
+# PROGRESS -- task-20260718-195946-rescue-pr--422
 
-VERIDIAN Review Framework gap-closure: AI Cost Governance & FinOps / Cost Controls & Budgets.
-
-Read the actual current implementation first (cost-guard.ts, metric-alert-service.ts,
-org-provisioning-service.ts, organisations schema) before writing anything -- both gap
-descriptions still matched live code as of 2026-07-18. No conflicting active claim in
-ai-os/boss/ACTIVE-CLAIMS.yaml for this area.
+Rescue and merge PR #422 (AI Cost Governance & FinOps: proactive cost-ceiling
+alert + default free-tier spend cap), opened by a now-stopped autonomous
+worker dispatcher with CI failing (audit-check + Unit Tests).
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml -- no conflicting claim on cost-guard.ts,
-      metric-alert-service.ts, or org-provisioning-service.ts
-- [x] [Medium] Cost ceiling breach alert: added `checkCostCeilingBreaches()` +
-      pure `classifyCostBreach()` to `src/lib/cost-guard.ts`. Iterates orgs with
-      `costCapEnforcementEnabled=true` and `monthlyCostCapUsd` set, computes spend via
-      the existing `getCostStatus()`, and pushes a `notifications` row (type "system",
-      matching metric-alert-service.ts's own notify-on-breach shape) to that org's
-      admin/manager-role users on "near" (>=80%) or "over" limit -- same threshold
-      cost-guard.ts already defined, just never surfaced proactively before.
-      Wired in as a 5th consumer of the existing daily
-      `/api/internal/metric-alerts/run` cron (vercel.json: `0 5 * * *`), alongside
-      the already-established checkTicketSlaBreaches/checkTaskOverdue/
-      reprioritizeTasks/evaluateAllMetricAlertRules -- reuses that file's exact
-      alerting pattern (per the task's recommended approach) rather than building a
-      new cron/mechanism. Deliberately re-notifies every run while a breach persists,
-      matching checkTicketSlaBreaches/checkTaskOverdue's own existing no-dedup
-      precedent in this codebase (consistent daily cadence, not new spam).
-- [x] [High] Free-tier/trial AI spend cap: `src/lib/services/org-provisioning-service.ts`'s
-      `provisionOrganisation()` (the single shared org-creation path for both the
-      human-signup flow and the service-to-service `/api/v1/platform/provision-org`
-      flow -- confirmed by reading both call sites, neither passes a `plan`, every org
-      created today is "free") now sets a real `monthlyCostCapUsd` at creation time via
-      a new `defaultMonthlyCostCapUsdForPlan(plan)` helper ($20/mo for "free", null/
-      unenforced for any other plan value) plus `costCapEnforcementEnabled: true`.
-      Org-creation-time default keyed on plan/tier, not a blanket update to existing
-      organisations rows -- every pre-existing org's `monthlyCostCapUsd` (null,
-      unenforced) is untouched; only newly-created orgs get the default going forward.
-- [x] Added `src/lib/cost-guard.test.ts` (classifyCostBreach: over/near/none, over
-      takes priority) and `src/lib/services/org-provisioning-service.test.ts`
-      (defaultMonthlyCostCapUsdForPlan: free -> 20, pro/enterprise -> null) --
-      DB-free unit tests of the pure decision cores, matching this codebase's
-      established convention (task-service.test.ts's isTaskOverdue, etc.) of not
-      exercising the DB-touching cron-entry functions directly in .test.ts files.
-- [x] Verification: `bun test` (full suite) 1426 pass / 0 fail; `bunx tsc --noEmit`
-      clean; `bunx eslint` clean on every changed/new file; `bun run build` green;
-      `node scripts/check-guardrail-presence.mjs` passed (88/88 markers, unaffected).
-- [x] Did not touch `permission-service.ts`'s `ERP_ACTION_ROLES` table or any other
-      in-flight worker's declared scope -- this task's changes are entirely within
-      cost-guard.ts / org-provisioning-service.ts / the metric-alerts cron route.
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, registered active claim (PR #446,
+      doc-only, merged)
+- [x] `gh pr checkout 422` (worked around a worktree collision with the
+      original worker's own task directory, which still had that branch
+      checked out, by fetching into a local branch `pr-422-work` instead)
+- [x] Merged origin/main into the PR branch -- conflicts in PROGRESS.md
+      (kept ours) and ai-os/boss/ACTIVE-CLAIMS.yaml (both sides additive,
+      kept both entries)
+- [x] Confirmed no drizzle/*.sql or src/lib/db/schema.ts changes anywhere in
+      the final diff vs origin/main -- TIER1 (monthlyCostCapUsd/
+      costCapEnforcementEnabled columns already existed pre-PR)
+- [x] `bun install --frozen-lockfile` clean, `bunx tsc --noEmit` clean,
+      `bun run lint` 0 errors (3 pre-existing unrelated warnings), `bun test`
+      1497 pass / 0 fail across 110 files -- original CI failures
+      (audit-check: no verdict posted yet; Unit Tests: fixed upstream by an
+      unrelated main commit before this merge, reproduced 0 failures
+      locally post-merge) both resolved by the merge + a real audit comment,
+      no code bug needed fixing in this PR's own changes
+- [x] Pushed merged branch to
+      worker/task-20260718-061005-ai-cost-governance---finops--cost-contro
+- [x] Read the full diff by hand (7 files: cost-guard.ts +
+      classifyCostBreach/checkCostCeilingBreaches, metric-alerts/run/route.ts
+      wiring, org-provisioning-service.ts +
+      defaultMonthlyCostCapUsdForPlan, 2 new test files)
+- [x] Posted structured `AUDIT: PASS` PR comment (all 8 audit-protocol.ts
+      fields)
+- [x] Waited for CI: all required branch-protection checks green (audit-
+      check, Lint, Type Check, Build, Unit Tests, Guardrail Presence Check,
+      Asset Registry Coverage Check, E2E Tests). Only non-required "Vercel"
+      preview deploy was still pending at merge time (matches prior rescue
+      sessions' documented precedent -- not a required check).
+- [x] TIER1 confirmed -> squash-merged PR #422, deleted remote branch.
+      Merge commit 097ae295f7d817dd349c0dae978fd6f180b7ed62.
+- [x] Moved active claim to recently_completed in ai-os/boss/ACTIVE-CLAIMS.yaml
 
 ## Remaining
-- [ ] None -- both findings closed. Registering completion in
-      ai-os/boss/ACTIVE-CLAIMS.yaml is the one remaining housekeeping step, done
-      alongside this commit per that file's own protocol.
+- [ ] None -- PR #422 rescued and merged.
