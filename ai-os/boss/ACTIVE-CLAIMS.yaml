@@ -1578,6 +1578,48 @@ active:
       projexa/.claude/worktrees/priority17-currency-sweep. NOT merged by
       this session -- left for the supervising session's audit per standing
       dispatch instructions.
+  - session_label: "claude-code (this session) -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 1: live exchange-rate feed"
+    claimed_at: "2026-07-17T (this session)"
+    claim: |
+      REVIEW-FRAMEWORK-WAVE4 Track 1b item 1: build a live exchange-rate feed
+      (a prior session validated this exact plan, registered a claim, then
+      never implemented it -- following that plan precisely, not redesigning).
+      Confirmed gap: erp-accounting-service.ts's listExchangeRates/
+      createExchangeRate + src/app/api/erp/exchange-rates/** are manual-CRUD
+      only; nothing fetches a real rate. The hardcoded-currency UI half of
+      the same finding is ALREADY closed by merged PR #370 -- explicitly NOT
+      re-touching that.
+      Scope (all additive, no behavior change to manual CRUD): (1) new
+      src/lib/exchange-rate-feed-client.ts -- DB-free, no-key HTTP client for
+      open.er-api.com, mockable exactly like whisper-client.ts (pure fetch +
+      a pure buildLiveRatePairs() helper, both unit-tested with mocked
+      global.fetch). (2) erp-accounting-service.ts gains
+      refreshLiveExchangeRates(ctx) + refreshLiveExchangeRatesForAllOrgs()
+      alongside the existing listExchangeRates/createExchangeRate/
+      getLatestExchangeRate -- inserts source='live' rows, idempotent per
+      (org, rateDate) so a daily re-run replaces that day's live rows and
+      never touches manual rows or prior days. (3) additive
+      erp_exchange_rates.source column (default 'manual'), new migration
+      (number confirmed against `ls drizzle/*.sql | sort -V | tail`
+      immediately before final commit). (4) new POST
+      /api/erp/exchange-rates/refresh (requireAuth-gated, on-demand). (5) new
+      /api/internal/exchange-rate-refresh/run cron entry point (CRON_SECRET
+      isAuthorized() pattern copied verbatim from the existing internal /run
+      siblings). (6) one once-daily vercel.json cron line (Hobby-plan
+      once-daily-per-cron limit, PR #319).
+      File scope: src/lib/exchange-rate-feed-client.ts (+ .test.ts),
+      src/lib/services/erp-accounting-service.ts, src/lib/db/schema.ts
+      (erp_exchange_rates only), drizzle/ (new additive migration),
+      src/app/api/erp/exchange-rates/refresh/route.ts,
+      src/app/api/internal/exchange-rate-refresh/run/route.ts, vercel.json.
+      Explicitly NOT touching permission-service.ts, any RBAC/role-check
+      logic, or any GL/CoA/Fiscal Year/Journal Entries/AP/AR/Banking/Cash/
+      Cost Centers/Budgets/Financial Statements/Sales Invoices/POs/Purchase
+      Receipts/RFQs/Supplier Quotations/Sales Credit Notes/Inventory
+      route-level permission logic (other tracks own those). Checked this
+      file live before claiming -- no other active entry touches
+      exchange-rate-feed-client.ts, the exchange-rates routes, or the
+      exchange-rate area of erp-accounting-service.ts.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
