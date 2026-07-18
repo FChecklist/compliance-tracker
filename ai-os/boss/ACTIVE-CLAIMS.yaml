@@ -41,6 +41,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Single Low-severity finding: "registry coverage/backfill completeness
+      not independently measured" -- recommended approach was to instrument
+      capability-backfill-service.ts to report a coverage percentage.
+      Re-verified against current code before implementing: the gap was
+      real -- backfillCapabilityIndex() only ever returned its own
+      attempted-count (source rows found and queued for indexing); each
+      indexCapability() call's failure is caught and console.error'd, not
+      surfaced, so a partially-failed run looked identical to a fully
+      successful one, and nothing read back compliance.embeddings to
+      confirm what actually landed.
+      Added measureCapabilityCoverage(ctx) to capability-backfill-service.ts
+      (re-derives ground truth from compliance.embeddings per entity type --
+      worker_agent/automation_rule/module/dynamic_chain -- plus an overall
+      rollup), wired additively into backfillCapabilityIndex()'s return
+      (existing agents/rules/modules/chains fields unchanged), a new
+      admin-gated GET /api/capability-registry/coverage route, and a
+      coverage card on the Capability Registry admin page. Distinct from
+      the pre-existing capability-index-freshness-audit.ts cron loop (that
+      self-heals worker_agent/module platform-wide on a schedule; this is an
+      org-scoped, on-demand coverage report covering all 4 backfill entity
+      types, added because the finding named the backfill service
+      specifically).
+      File scope: src/lib/services/capability-backfill-service.ts (+ its new
+      .test.ts), src/app/api/capability-registry/coverage/route.ts (new),
+      src/app/(app)/capability-registry/page.tsx. Did not touch
+      permission-service.ts or any other file outside this scope.
+      Verification: bunx tsc --noEmit clean, eslint clean (0 new
+      warnings/errors), bun test full suite 1392 pass / 0 fail. PROGRESS.md
+      updated in the task workspace.
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework: AI Architecture / Multi-Modal & Multi-Language Support gap closure"
     claimed_at: "2026-07-18T (this session)"
     claim: |
