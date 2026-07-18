@@ -1,39 +1,57 @@
-# PROGRESS -- REVIEW-FRAMEWORK-WAVE4 Track 1b item 1: live exchange-rate feed
+# PROGRESS -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry
 
-Task: build a live exchange-rate feed. Following the prior-session-validated plan
-precisely (registered as a claim, never implemented). Hardcoded-currency UI bugs
-(the other half of the finding) are already closed by merged PR #370 -- not touched.
+Finding: [Low] AI Capability Registry -- "registry coverage/backfill
+completeness not independently measured". Recommended approach: instrument
+`capability-backfill-service.ts` to report a coverage percentage.
+
+Read the current code first (per task instructions) before changing anything.
+`backfillCapabilityIndex()` returned only the *attempted* source counts
+(agents/rules/modules/chains found and queued for indexing) -- each individual
+`indexCapability()` call is wrapped in `.catch(err => console.error(...))`, so
+a partially-failed run (e.g. one embedding call failing) would report an
+identical-looking success count to a fully successful one. There was no
+independent read-back confirming what's actually in `compliance.embeddings`.
+The gap was real and matched the finding description; not already resolved.
 
 ## Completed
-- [x] Read governance docs + registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
-- [x] Studied existing patterns: whisper-client.ts (mockable HTTP client),
-      erp-accounting-service.ts exchange-rate area, exchange-rates API routes,
-      internal /run cron routes (isAuthorized/CRON_SECRET), vercel.json crons,
-      erp_exchange_rates schema
-- [x] 1. src/lib/exchange-rate-feed-client.ts -- DB-free open.er-api.com client
-- [x] 1b. src/lib/exchange-rate-feed-client.test.ts -- mocked-fetch unit tests
-- [x] 2. erp-accounting-service.ts: refreshLiveExchangeRates(ctx) +
-      refreshLiveExchangeRatesForAllOrgs() (shared refreshOrgLiveRates core,
-      idempotent per org+rateDate on source='live' rows)
-- [x] 3. erp_exchange_rates.source column: schema.ts + additive migration
-      0224_erp_exchange_rates_source.sql (confirmed no collision -- it was
-      already the latest migration number when checked)
-- [x] 4. POST /api/erp/exchange-rates/refresh (requireAuth-gated)
-- [x] 5. /api/internal/exchange-rate-refresh/run (CRON_SECRET-gated, same
-      isAuthorized() pattern as metric-alerts/run etc.)
-- [x] 6. vercel.json: one once-daily cron line (30 9 * * *)
-
-- [x] Verify: `tsc --noEmit` -- 0 errors. `bun run lint` -- 0 errors, 3
-      pre-existing warnings in unrelated files (litigation route, data-table,
-      VeriComposer), none introduced by this change. `bun test` -- **1388
-      pass, 0 fail**, 2720 expect() calls across 102 files (includes the new
-      exchange-rate-feed-client.test.ts: 11 pass, 0 fail, 21 expect() calls).
-      Console noise during the full run (APP_RUNTIME_DATABASE_URL warnings,
-      "boom"/"db unreachable" errors) is expected fail-closed logging from
-      pre-existing unrelated tests exercising their own error paths, not
-      failures.
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml -- no conflicting in-flight claim on
+      capability-backfill-service.ts / capability-registry / embeddings
+- [x] Read capability-backfill-service.ts, capability-registry-service.ts,
+      embeddings.ts, the backfill API route + page, and the pre-existing
+      capability-index-freshness-audit.ts cron loop (a related but distinct
+      mechanism -- platform-wide self-heal for worker_agent/module only, not
+      an org-scoped coverage report, and doesn't cover automation_rule or
+      dynamic_chain)
+- [x] Added `measureCapabilityCoverage(ctx)` to capability-backfill-service.ts:
+      re-derives ground truth directly from `compliance.embeddings` (which
+      source entities actually have an indexed row) independently of the
+      backfill's own attempted-count, per entity type (worker_agent,
+      automation_rule, module, dynamic_chain) plus an overall rollup, each
+      with `{ total, indexed, coveragePercent }`
+- [x] Wired it into `backfillCapabilityIndex()`'s return value (additive
+      `coverage` field -- existing `agents`/`rules`/`modules`/`chains` counts
+      unchanged, so the existing route/page callers keep working)
+- [x] New GET route `/api/capability-registry/coverage` (admin-gated, same
+      requireAuth+requireRole("admin") pattern as the existing backfill
+      route) so coverage can be checked standalone, without running a
+      backfill first
+- [x] Updated the Capability Registry admin page: new "Index coverage" card
+      showing per-type coverage %, loaded on mount and refreshed after a
+      backfill run or manual "Refresh" click
+- [x] Unit tests for the pure `toCoverage()` math (capability-backfill-service.test.ts)
+      -- matches this repo's established convention of not exercising a live
+      DB from a .test.ts file; `measureCapabilityCoverage`/
+      `backfillCapabilityIndex` themselves are DB-touching and left untested,
+      same as their sibling functions in capability-registry-service.ts
+- [x] Verify: `bunx tsc --noEmit` -- 0 errors. `bunx eslint` on changed files
+      and full repo -- 0 errors (3 pre-existing unrelated warnings, none
+      introduced by this change). `bun test` -- full suite 1392 pass / 0 fail
+      (was 1392 including the 4 new coverage tests; console noise during the
+      run is pre-existing unrelated tests exercising their own fail-closed
+      error-logging paths, not failures)
+- [x] Did not touch permission-service.ts or any other in-flight worker's
+      declared scope (no permission-service change was needed for this gap)
 
 ## Remaining
-- [ ] None -- task complete. Not yet committed/pushed/PR'd (repo has no
-      human reviewer bottleneck, but Rule 6 still requires a branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] None -- gap closed. Not yet committed/pushed/PR'd from this session;
+      Rule 6 (branch + PR + green CI, no direct push to main) still applies.
