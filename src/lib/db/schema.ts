@@ -601,7 +601,18 @@ export const notifications = complianceSchemaDB.table('notifications', {
 // if a user is later renamed/deactivated, the historical log must still
 // show who they were AT THE TIME, not a live join that changes retroactively.
 // This table is append-only at the DB level: app_runtime has no UPDATE/
-// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql).
+// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql). Wave 10's
+// service_role grant (drizzle/0008_wave10_grant_service_role_compliance_
+// schema.sql) briefly re-opened this for the service_role credential --
+// closed again by drizzle/0225_audit_trail_immutability_and_backstop_
+// triggers.sql, which also adds a generic AFTER-trigger backstop
+// (`db_trigger.insert|update|delete`-prefixed rows written into this same
+// table) on the 4 highest-risk source tables (users, compliance_items,
+// erp_journal_entries, erp_payment_entries) so a write path that forgets
+// to call logActivity() still leaves a DB-level trace. See that migration's
+// header for the full design writeup and its one honest limitation
+// (the `postgres`/DATABASE_URL role still owns this table and can't be
+// REVOKEd from via ownership privileges alone).
 // `clientId` (not `clientEntityId`) to match the convention every other
 // domain table already established (complianceItems/challans/notices/
 // auditPoints/documents/tasks all scope by `clients.id`, not
