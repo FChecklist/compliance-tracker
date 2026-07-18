@@ -24,7 +24,8 @@
 import { describe, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun } from "docx"
-import { extractDocxRawText, OfficeCliError, parseQueryResultToText } from "./officecli-client"
+import PptxGenJS from "pptxgenjs"
+import { extractDocxRawText, extractPptxRawText, OfficeCliError, parseQueryResultToText } from "./officecli-client"
 
 describe("parseQueryResultToText -- pure JSON-to-text parsing (real captured fixtures)", () => {
   test("concatenates each result's top-level text field, newline-joined", () => {
@@ -149,4 +150,33 @@ describe("extractDocxRawText -- real end-to-end integration against the vendored
     expect(stat.isFile()).toBe(true)
     expect((stat.mode & 0o100) !== 0).toBe(true)
   })
+})
+
+describe("extractPptxRawText -- real end-to-end integration against the vendored Linux binary", () => {
+  // VERIDIAN Review Framework remediation ("Supports Multiple Input Types",
+  // 2026-07-18): same real, non-mocked integration posture as
+  // extractDocxRawText's own tests above -- a real .pptx built with
+  // `pptxgenjs` (already a dependency, used for pptx export elsewhere in
+  // this codebase -- pptxgenjs itself can run server-side and write a Node
+  // Buffer directly via `outputType: "nodebuffer"`, no browser needed for
+  // this test).
+  test.skipIf(process.platform !== "linux")("extracts slide text from a real .pptx buffer", async () => {
+    const pptx = new PptxGenJS()
+    const slide1 = pptx.addSlide()
+    slide1.addText("Integration test slide one.", { x: 1, y: 1 })
+    const slide2 = pptx.addSlide()
+    slide2.addText("Integration test slide two: 2026-08-01 deadline.", { x: 1, y: 1 })
+    const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer
+
+    const result = await extractPptxRawText(buffer)
+
+    expect(typeof result.value).toBe("string")
+    expect(result.value).toContain("Integration test slide one.")
+    expect(result.value).toContain("Integration test slide two: 2026-08-01 deadline.")
+  }, 30000)
+
+  test.skipIf(process.platform !== "linux")("throws OfficeCliError for a corrupt/non-pptx buffer instead of returning garbage text", async () => {
+    const notAPptx = Buffer.from("this is not a real pptx file, just plain bytes")
+    await expect(extractPptxRawText(notAPptx)).rejects.toThrow(OfficeCliError)
+  }, 30000)
 })
