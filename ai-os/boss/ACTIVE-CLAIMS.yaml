@@ -41,7 +41,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
+  - session_label: "claude-code (interactive session) -- VERIDIAN Review Framework gap-closure: AI Architecture / Governance & Audit"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Task task-20260718-053004-ai-architecture--governance---audit: closing
+      5 related findings from the review framework evaluation, all in the
+      AI governance/audit-infrastructure area (not ERP/CRM/PROJEXA):
+      (1) [High] Maintainability -- no consolidated maintainability score/
+      dashboard; wiring audit-role outputs into a scored dashboard surfaced
+      in ai-os/.
+      (2) [Medium] Audit Trail -- full prompt/response text not stored for
+      ALLOWED requests; extending src/lib/services/orchestra-execution-
+      logger.ts to persist full payloads with TTL-based purge.
+      (3) [Critical] ABAC / Fine-Grained Policies -- no attribute-based
+      access control, RBAC only; extending src/lib/services/approval-
+      workflow-service.ts's conditionField/conditionOperator pattern into a
+      general ABAC layer.
+      (4) [Medium] Audit Trail & Change History -- no unified cross-table
+      audit query/search interface; a compliance.audit_search view/
+      migration unioning key fields from log tables.
+      (5) [High] AI Governance & Auditability -- GP-06/GP-09/GP-26 remain
+      POLICY_ONLY in ai-os/CONSTITUTION.yaml; building enforcement code per
+      their documented gap fields.
+      File scope (expected, subject to change after reading current code):
+      src/lib/services/orchestra-execution-logger.ts, src/lib/services/
+      approval-workflow-service.ts (additive ABAC extension only -- NOT
+      touching src/lib/services/permission-service.ts's shared
+      ERP_ACTION_ROLES table per this task's own explicit instruction),
+      a new drizzle/ migration for compliance.audit_search, ai-os/
+      (dashboard artifact + CONSTITUTION.yaml GP-06/09/26 status updates),
+      new API route(s)/service code for GP enforcement. Explicitly NOT
+      touching any ERP/CRM/PROJEXA module or permission-service.ts's
+      existing keys (additive-only if a new key is genuinely needed).
+      Will re-verify each finding against current code before implementing
+      (task brief itself flags the evaluation may be stale) and will note
+      in PROGRESS.md if a finding is already resolved instead of making an
+      unnecessary change.
     claimed_at: "2026-07-17T (this session)"
     claim: |
       CONTROLLER.yaml entry REVIEW-FRAMEWORK-WAVE4, Track 1 (this session's
