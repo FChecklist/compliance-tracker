@@ -3441,6 +3441,23 @@ export const conversations = complianceSchemaDB.table('conversations', {
   // (see messages.senderId's own comment) -- so no reader of `messages`
   // needs to know this flag exists at all.
   veriParticipant: boolean('veri_participant').notNull().default(false),
+  // REVIEW-FRAMEWORK-WAVE4 AI Interaction Efficiency ("Uses Option Selectors
+  // Before AI Processing" / "Measures AI Reduction Over Time"): the Chain
+  // Selector (ChainSelectorDialog) existed but was purely optional with no
+  // signal a decision point was even offered -- a caller that omitted
+  // modePill/pathKeys silently got a chain-less thread. createWorkflowThread()
+  // now requires an explicit choice (resolve a chain, or set this true) --
+  // false by default so every pre-existing row (and createConversation()'s
+  // human-to-human threads, which never set this) reads as "not applicable",
+  // not "skipped".
+  chainSelectorSkipped: boolean('chain_selector_skipped').notNull().default(false),
+  // REVIEW-FRAMEWORK-WAVE4 ("AI Clarification Minimization"): incremented by
+  // chat-service.ts's generateAiReply()/generateVeriGroupReply() whenever a
+  // reply is clarification-shaped (detectClarificationRequest()) -- a real,
+  // queryable count for "did VERI have to ask this session to clarify",
+  // instead of the framework evaluation's prior "no metric proves this
+  // decreased" gap.
+  clarificationRoundTrips: integer('clarification_round_trips').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -3476,6 +3493,15 @@ export const messages = complianceSchemaDB.table('messages', {
   // "the AI replied" from "the external guest replied", so the existing
   // senderId-null-means-AI convention is never overloaded or broken.
   guestAccessId: text('guest_access_id'),
+  // REVIEW-FRAMEWORK-WAVE4 AI Interaction Efficiency ("AI Confidence Score" /
+  // "Personalized AI Responses"): 'high' | 'medium' | 'low', set ONLY on a
+  // real AI-generated reply (senderId null, gate passed) by chat-service.ts's
+  // deriveConfidenceLabel() call -- an honest, clearly-labeled heuristic
+  // proxy built from floor-tier-escalation.ts's existing hedging-detection
+  // signal, NOT a calibrated model confidence score (no provider in this
+  // codebase exposes one). Null for every other message (human, guest,
+  // gated/fallback/error replies, and every pre-existing row).
+  confidenceLabel: text('confidence_label'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { detectReaskOrCorrection, detectLowConfidenceResponse, checkPreCallEscalation } from "./floor-tier-escalation"
+import { detectReaskOrCorrection, detectLowConfidenceResponse, checkPreCallEscalation, deriveConfidenceLabel } from "./floor-tier-escalation"
 
 describe("detectReaskOrCorrection", () => {
   test("does not fire on a fresh conversation (no prior history), even with correction-shaped text", () => {
@@ -70,5 +70,24 @@ describe("checkPreCallEscalation", () => {
     expect(result.signals).toContain("high_impact")
     expect(result.signals).toContain("prior_task_failure")
     expect(result.signals.length).toBe(3)
+  })
+})
+
+describe("deriveConfidenceLabel -- REVIEW-FRAMEWORK-WAVE4 honest confidence proxy", () => {
+  test("high when the reply doesn't hedge and no pre-call signal fired", () => {
+    expect(deriveConfidenceLabel("Your GST filing for this quarter is due on the 20th.", [])).toBe("high")
+  })
+
+  test("low when the delivered reply itself hedges, regardless of pre-call signals", () => {
+    expect(deriveConfidenceLabel("I'm not sure what you mean by that.", [])).toBe("low")
+    expect(deriveConfidenceLabel("I'm not sure what you mean by that.", ["high_impact"])).toBe("low")
+  })
+
+  test("medium when the reply doesn't hedge but a pre-call signal fired", () => {
+    expect(deriveConfidenceLabel("Approving this payment now.", ["high_impact"])).toBe("medium")
+  })
+
+  test("hedging takes priority over pre-call signals -- checked first", () => {
+    expect(deriveConfidenceLabel("I cannot be certain from the data available.", ["prior_task_failure", "reask_correction"])).toBe("low")
   })
 })

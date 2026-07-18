@@ -41,6 +41,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (this session, CLI) -- REVIEW-FRAMEWORK-WAVE4 AI Architecture / AI Interaction Efficiency gap closure (11 findings)"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 11 related findings from the VERIDIAN Review Framework's AI
+      Architecture / AI Interaction Efficiency evaluation, one coherent PR
+      (they all touch chat-service.ts / floor-tier-escalation.ts / the
+      VERI Chat composer surface). File scope: src/lib/services/
+      chat-service.ts, src/lib/floor-tier-escalation.ts, src/lib/db/
+      schema.ts (additive columns on conversations/messages, one new
+      migration), src/components/veri-chat/ChainSelector.tsx +
+      veri-chat-context.tsx + VeriComposer.tsx, src/components/chat/
+      ThreadView.tsx, src/components/orchestra/RealAssistantColumn.tsx,
+      src/app/api/conversations/workflow-thread/route.ts. Re-read the
+      current code first per the dispatch's own instruction -- one finding
+      (dynamic_chains duplicate-detection scope) was already fully closed
+      by Wave 173/GAP-DYNAMIC-CHAIN-DEDUP and needed no change; see this
+      session's PROGRESS.md for the full per-finding disposition. Not
+      touching permission-service.ts's ERP_ACTION_ROLES table or any other
+      in-flight worker's declared scope.
+
+      UPDATE (2026-07-18, same session): implemented, verified, and PR
+      opened against main (not merged, per instructions -- Rule 6 requires
+      green CI first). tsc/lint/build clean; full suite 1397 pass/0 fail (9
+      new tests). PR: https://github.com/FChecklist/compliance-tracker/pull/414
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap closure: AI Architecture / AI Capability Registry"
     claimed_at: "2026-07-18T (this session)"
     claim: |
