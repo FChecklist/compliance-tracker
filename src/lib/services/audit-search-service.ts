@@ -1,6 +1,6 @@
 // VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail & Change
 // History" -- Medium: "No unified cross-table audit query/search interface."
-// Query layer over compliance.audit_search (drizzle/0227_audit_search_view.sql),
+// Query layer over compliance.audit_search (drizzle/0229_audit_search_view.sql),
 // the view unioning audit_logs/orchestra_executions/activity_log into one
 // common shape. Not modeled as a Drizzle schema table (this codebase has no
 // existing precedent for that -- attached_asset_triggers, the one other
