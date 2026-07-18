@@ -7,7 +7,7 @@
 // not a hardcoded taxonomy. Sending in a chain mode reuses the existing
 // POST /api/tasks (task-service.ts:createTask, which already dispatches the
 // real task-execution engine) -- no new task-creation logic was needed.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Send, Loader2, Paperclip, Plus, Link2 } from "lucide-react";
@@ -23,7 +23,7 @@ import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/hi
 // Priority 6 item 1: ChainRows and its path-display helpers now live in
 // ChainSelector.tsx (shared with the new ChainSelectorDialog used by
 // AiThreadSwitcher below) instead of being defined privately here.
-import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, type ChainSelectorResult } from "./ChainSelector";
+import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, findCalculatorSuggestions, type ChainSelectorResult } from "./ChainSelector";
 import { IntentCommandPalette } from "./IntentCommandPalette";
 import { saveIntent } from "@/lib/browser-intent-cache";
 
@@ -198,6 +198,16 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   const completedLeaf = chainComplete && tree.length ? resolveLeaf(tree, selectedPath) : null;
   const needsEngineInputs = Boolean(completedLeaf?.inputFields?.length);
   const engineInputsFilled = !needsEngineInputs || (completedLeaf!.inputFields!.every((f) => f.optional || engineInputValues[f.key]?.trim()));
+  // AI Suggested Calculations (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): proactively matches the in-progress chain-picker search
+  // text against every deterministic VCEL calculator leaf in the tree, not
+  // just the current row's options -- see ChainSelector.tsx's
+  // findCalculatorSuggestions() header for why this was previously low
+  // value (12.3% engine-wiring coverage) and isn't anymore.
+  const calculatorSuggestions = useMemo(
+    () => (chainComplete ? [] : findCalculatorSuggestions(tree, pickerSearch)),
+    [tree, pickerSearch, chainComplete]
+  );
 
   function toggleSingle(depth: number, key: string) {
     setSelectedPath((prev) => {
@@ -528,6 +538,22 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
                 aria-label="Search chain options"
                 className="mb-1.5 w-full rounded-full border border-ct-border2 bg-white px-3 py-1 text-xs text-ct-navy placeholder:text-ct-muted focus:outline-none focus:ring-1 focus:ring-ct-navy"
               />
+            )}
+            {calculatorSuggestions.length > 0 && (
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-ct-muted">⚡ Suggested calculators:</span>
+                {calculatorSuggestions.map((s) => (
+                  <button
+                    key={s.path.join("/")}
+                    type="button"
+                    onClick={() => { setSelectedPath(s.path); setPickerSearch(""); }}
+                    title={s.category}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             )}
             <ChainRows
               tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti}

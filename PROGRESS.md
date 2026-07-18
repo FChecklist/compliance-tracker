@@ -1,80 +1,157 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-084003-calculation-engine--calculation-governan
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+Task: VERIDIAN Review Framework gap closure for 5 findings scoped to the
+VCEL calculation-engine module: Calculation Explainability, Calculation
+Version Control, Calculation Auditability, Formula Testing Framework, AI
+Suggested Calculations. One coherent PR (they share the same module).
+
+## Pre-work fact-check (per task instructions: verify gaps against real code, not the finding descriptions)
+
+Read `ai-os/boss/ACTIVE-CLAIMS.yaml` (no overlapping claim), then did a full
+research pass over `src/lib/engines/**`, `src/lib/db/schema.ts`
+(`computationEngines`), `src/lib/task-execution-engine.ts`
+(`dispatchEngine`/`executeEngineDispatch`),
+`src/lib/services/capability-tree-service.ts`, the VERI Chat composer UI,
+and `docs/master/CAPABILITY_COVERAGE.md`/`CRITICAL_GAPS.md`/`MODULE_MAP.md`
+before writing any code. Findings:
+
+- **The "26 of 211 wired" / "12.3% coverage" figure the task's own finding
+  descriptions cite is a stale 2026-07-09/10 doc snapshot**, not current
+  code. `capability-tree-service.ts`'s `WIRED_ENGINE_INPUT_FIELDS` and
+  `task-execution-engine.ts`'s `dispatchEngine()` switch (last touched
+  2026-07-14, 5 days after the doc) actually wire ~160-170 distinct
+  engineKeys across ~22 categories -- later waves (167+) wired
+  Payroll/Inventory/HR/Accounting/Banking/Procurement/Security/Audit/
+  Compliance/Analytics/Logistics/Marketing/PM/CRM/Sales/Fixed
+  Asset/Data Quality/Costing and never came back to update
+  `CAPABILITY_COVERAGE.md`. Flagged this with a staleness banner at the top
+  of that doc rather than silently trusting or silently ignoring it.
+  `CRITICAL_GAPS.md`/`MODULE_MAP.md` repeat the same stale figure in their
+  own historical narrative entries -- left those two alone (editing a dated
+  audit-trail entry felt like the wrong fix; the banner on
+  `CAPABILITY_COVERAGE.md`, the actual source these numbers derive from,
+  is the one-place fix).
+- **None of the 5 findings were already resolved** -- confirmed real gaps
+  for all 5 (no version column, no dedicated audit table for engine
+  dispatch, zero test files under `src/lib/engines/**`, zero breakdown/
+  explainability data in any engine output, no calculator-suggestion UI).
+- The "185 unwired engines called directly from service code" framing
+  (Auditability finding) doesn't match what's actually in the codebase: a
+  repo-wide grep for direct imports of `src/lib/engines/**` outside
+  `task-execution-engine.ts` found only format/threshold validators
+  (`isValidGstinChecksum`, `isValidEmail`, `isValidPanFormat`,
+  `stateCodeFromGstin`, etc.) and 3 GRC read-derivation helpers
+  (`computeVendorRiskScore`, `computeSlaStatus`, `computePoshInquiryDeadline`)
+  used by routes that already call `logActivity()` for their own parent
+  record. None of these are catalogued `computationEngines` rows invoked
+  outside the dispatcher -- the real, current shape of the gap is "the
+  dispatcher itself has no guaranteed audit trail", which is what got
+  fixed (see below). Left the validator/GRC call sites untouched --
+  auditing a boolean format check or a read-only SLA-status derivation
+  the same way as a statutory tax calculation would be noise, not
+  governance.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
-
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, registered this session's claim
+      (calculation-engine module scope), committed + pushed it on its own
+      before starting real work, per that file's own protocol.
+- [x] **Calculation Version Control** (High): added `engineVersion` (text,
+      default `'1.0.0'`), `effectiveFrom`, `effectiveTo` to
+      `computationEngines` (`src/lib/db/schema.ts`,
+      `drizzle/0225_calculation_engine_governance.sql`). The row still
+      holds only the CURRENT version per `engineKey` (not a history
+      table) -- the actual "snapshot the version used at calculation time
+      on the calling record" requirement is satisfied by
+      `calculationInvocations.engineVersion`, written per-invocation (see
+      below), so a later version bump never rewrites what an
+      already-completed calculation says it used.
+- [x] **Calculation Auditability** (Medium): new `calculation_invocations`
+      table (org-scoped, FORCE RLS, same posture as
+      `crm_accounts`/other Wave-A tables) + `src/lib/engines/
+      engine-invocation.ts`'s `invokeEngine()` -- a thin wrapper that
+      snapshots the engine's current `engineVersion` and writes a
+      success/failure audit row regardless of call path. Wired into
+      `task-execution-engine.ts`'s `executeEngineDispatch()`, the single
+      real call path for every Chain-Selector-dispatched engine (now
+      ~160-170 engines, not the stale 26) -- this closes the audit gap at
+      the invocation-layer root, per the finding's own recommended
+      approach, rather than re-adding logging call-by-call at every
+      dispatch case. Registered the new table in
+      `ai-os/registry/asset-registry-coverage.yaml` as exempted (pure
+      operational/audit log, same class as the already-exempted
+      `prompt_cache_metrics` -- no display-name column, not a discoverable
+      platform asset).
+- [x] **Calculation Explainability** (Medium): added an optional
+      `breakdown: CalculationBreakdown` field (`src/lib/engines/
+      breakdown.ts` -- `{ steps: { label, formula?, value }[] }`) to 4
+      representative statutory engines spanning the domains the finding
+      itself names (income tax, GST, EPF/gratuity) plus TDS:
+      `calculateIncomeTax` (per-slab + rebate + cess steps),
+      `splitGst` (CGST/SGST vs IGST derivation),
+      `calculateGratuity` (Sec 4(2) rounding + formula + cap),
+      `computeTdsForSection` (threshold check + Sec 206AA override + amount).
+      Deliberately additive/optional -- every other engine's output is
+      unaffected. `executeEngineDispatch()` now emits a structured
+      `"calculation"` message (new type in `structured-message.ts`,
+      rendered by `StructuredMessageContent.tsx`) instead of a raw JSON
+      blob whenever the dispatched output carries a `breakdown`; every
+      other engine keeps the pre-existing plain `Result: {...}` message,
+      unchanged.
+- [x] **Formula Testing Framework** (Medium): `src/lib/engines/
+      golden-values.test.ts` -- a data-driven golden-value regression
+      suite (16 fixtures across Income Tax/GST/Gratuity/TDS/EPS), each a
+      real, hand-computed statutory result checked against the actual
+      engine function via `toMatchObject`. Adding coverage for another
+      engine is a new fixture entry, not new test boilerplate -- this is
+      the reusable "framework" the finding asked for, not a one-off
+      per-engine test retrofit (which would be a much larger, separately
+      scoped effort across all ~211 "implemented" engines; this PR
+      establishes the extensible mechanism and seeds it with the 3
+      statutory domains + TDS the findings explicitly named).
+- [x] **AI Suggested Calculations** (Low): the finding's own recommended
+      approach was "consider after Chain Selector wiring improves
+      discoverability generally; low value while only 12.3% of engines are
+      reachable" -- that premise no longer holds (see fact-check above,
+      ~75%+ of implemented engines are now wired). Implemented a minimal,
+      real version: `findCalculatorSuggestions()`
+      (`ChainSelector.tsx`) walks the already-fetched capability tree for
+      deterministic `engineKey` leaves matching the user's in-progress
+      chain-picker search text, and `VeriComposer.tsx` renders up to 4 as
+      clickable suggestion chips that jump straight to that calculator's
+      input form -- reuses the existing search box and tree data, no new
+      endpoint or second source of truth.
+- [x] Flagged `docs/master/CAPABILITY_COVERAGE.md`'s stale wiring numbers
+      with a banner pointing at the real current count (see fact-check
+      above) -- did not attempt a full re-count/regeneration of that doc
+      (needs a live DB query per its own header; out of scope for this PR).
+- [x] Verification: installed `bun` (not present in this environment) and
+      ran the full local gate: `bunx tsc --noEmit` (0 errors), `bun run
+      lint` (0 errors, same 3 pre-existing unrelated warnings), `bun test`
+      (1437 pass / 0 fail, includes the 16 new golden-value tests),
+      `bun run build` (succeeded), Guardrail Presence Check (88/88),
+      Migration Collision Check (clean), Asset Registry Coverage Check
+      (432/432 -- 138 registered, 295 exempted, including the new table),
+      Metadata Index Coverage Check (30/30), Doc Quarantine Banner Check
+      (44/44), Doc Cross-Reference Check (339/339).
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] Not committed/pushed/PR'd yet (Rule 6 requires branch + PR + green
+      CI before merge to main; this session has not opened that PR).
+- [ ] Live DB migration (`drizzle/0225_calculation_engine_governance.sql`)
+      has not been applied to any real Supabase instance by this session
+      -- per AGENTS.md, this worker session doesn't have Supabase MCP
+      access; the migration file is ready for whoever runs `db:push`/
+      applies migrations for this branch.
+- [ ] Formula Testing Framework currently covers 16 golden-value fixtures
+      across 4 engine files (Income Tax, GST, Gratuity, TDS/TCS, EPS) --
+      the other ~205 "implemented" engines have no golden-value coverage
+      yet. The framework itself (fixture array + data-driven runner) is
+      complete and extensible; expanding coverage engine-by-engine is
+      follow-on work, same scoping logic `GAP_CLOSURE_LOG.md` already used
+      for the Chain Selector wiring itself (explicitly rejected doing all
+      ~211 in one pass as unreviewable).
+  - [ ] Calculation Explainability breakdown is similarly seeded on 4
+      representative engines, not all ~160-170 dispatched ones -- the
+      mechanism (optional `breakdown` field + structured-message
+      rendering) is real and complete; extending it to more engines is
+      additive follow-on work per engine, not a blocker.
