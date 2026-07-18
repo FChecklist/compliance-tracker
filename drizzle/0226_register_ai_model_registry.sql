@@ -24,6 +24,11 @@ INSERT INTO compliance.asset_registration_config
 VALUES
   ('ai_model_registry', 'other', 'model', 'notes', NULL, NULL, NULL, NULL);
 
-CREATE TRIGGER auto_register_asset_trg
+-- CREATE OR REPLACE TRIGGER (not bare CREATE TRIGGER) -- matches this
+-- repo's own established idempotent-migration convention (see e.g.
+-- drizzle/0222_training_lms_module.sql's identical trigger attachments);
+-- a bare CREATE TRIGGER aborts a retried/partially-applied run with
+-- "trigger already exists."
+CREATE OR REPLACE TRIGGER auto_register_asset_trg
   AFTER INSERT OR UPDATE OR DELETE ON compliance.ai_model_registry
   FOR EACH ROW EXECUTE FUNCTION compliance.auto_register_asset();

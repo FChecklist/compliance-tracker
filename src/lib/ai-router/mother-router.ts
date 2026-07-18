@@ -25,19 +25,34 @@
  * team-service.ts). That is a different concept from this file's Mother
  * Router (model/provider resolution registry) -- do not conflate them.
  *
- * Hot-reload: the active policy per scope is cached in-process for
- * POLICY_CACHE_TTL_MS: change a row in ai_routing_policies and the change
- * is picked up on the next resolve() call once the TTL elapses, or
- * immediately if invalidateMotherRouterCache() is called -- no app restart
- * required either way. See mother-router.test.ts for both proven directly.
+ * Hot-reload: the active policy per scope is cached IN-PROCESS (a plain
+ * module-level Map) for POLICY_CACHE_TTL_MS: change a row in
+ * ai_routing_policies and the change is picked up on that PROCESS's next
+ * resolve() call once the TTL elapses, or immediately within that process
+ * if invalidateMotherRouterCache() is called -- no app restart required
+ * either way. Honest limitation: in a multi-instance/serverless deployment
+ * (this app runs on Vercel), invalidateMotherRouterCache() only clears the
+ * calling instance's own cache -- other running instances keep serving the
+ * pre-change policy for up to POLICY_CACHE_TTL_MS regardless. "No restart
+ * required" is true; "instant everywhere" is not, for Phase 1. See
+ * mother-router.test.ts for the resolution-logic proof (pure functions,
+ * not the cache/DB plumbing itself -- see this PR's PROGRESS.md for why).
  *
  * Rollback: ai_routing_policies is versioned per scope with a partial
  * unique index enforcing only one active version at a time (see the
- * migration). rollbackPolicy() flips is_active back to an older version;
- * the very next resolveModel() call for that scope reflects it.
+ * migration). rollbackPolicy() flips is_active back to an older version
+ * inside one DB transaction (atomic -- never leaves 0 or 2 active rows for
+ * a scope); the very next resolveModel() call on the SAME process reflects
+ * it (immediate cache invalidation there), same multi-instance caveat as
+ * above for other processes. Known, accepted gap for Phase 1: two
+ * concurrent rollbackPolicy() calls for the same scope aren't mutually
+ * ordered by an optimistic-lock check -- whichever transaction commits
+ * last wins with no error to the other caller. Low real risk (an
+ * infrequent, human-triggered admin action) but not engineered around
+ * here -- see PROGRESS.md.
  */
 import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users } from "@/lib/db"
-import { and, eq } from "drizzle-orm"
+import { and, count, eq } from "drizzle-orm"
 import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-tier-eligibility"
 import { resolveModelConfig, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
 import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
@@ -141,33 +156,50 @@ export function computeSoftwareTeamResolution(
 ): MotherRouterResolution {
   const override = policy?.rule.preferredModelByRole?.[roleKey] ?? policy?.rule.preferredModelByTier?.[complexityTier]
 
-  if (override && override !== baselineModel) {
-    const overrideEligibility = checkTierEligibility(override, complexityTier)
-    if (overrideEligibility.eligible) {
-      return {
-        provider: ROSTER_PROVIDER,
-        model: override,
-        reason: `ai_routing_policies v${policy!.version} override for ${roleKey} (${complexityTier})`,
-        policyVersion: policy!.version,
-        tierEligibility: overrideEligibility,
-      }
-    }
-    // Named override isn't eligible for this tier -- never silently grant
-    // it anyway. Fall back to the baseline and say exactly why.
-    const baselineEligibility = checkTierEligibility(baselineModel, complexityTier)
+  // No policy, or its rule has no entry for this role/tier at all -- the
+  // only case that's genuinely "no active policy" for audit purposes.
+  if (!override) {
     return {
       provider: ROSTER_PROVIDER,
       model: baselineModel,
-      reason: `ai_routing_policies v${policy!.version} named "${override}" for ${roleKey} but it is not eligible for "${complexityTier}" tier -- falling back to roster.ts baseline`,
-      policyVersion: policy!.version,
-      tierEligibility: baselineEligibility,
+      reason: "no active routing policy override -- roster.ts baseline assignment",
+      tierEligibility: checkTierEligibility(baselineModel, complexityTier),
     }
   }
 
+  // A policy exists and names a model -- even when it happens to match the
+  // baseline, the audit log must say a policy was actually consulted here
+  // (an independent review correctly flagged the prior version silently
+  // mislabeling this case as "no active policy," which would mislead an
+  // auditor reading ai_routing_audit_log later).
+  if (override === baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: `ai_routing_policies v${policy!.version} names the same model as the roster.ts baseline for ${roleKey} -- no change`,
+      policyVersion: policy!.version,
+      tierEligibility: checkTierEligibility(baselineModel, complexityTier),
+    }
+  }
+
+  const overrideEligibility = checkTierEligibility(override, complexityTier)
+  if (overrideEligibility.eligible) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: override,
+      reason: `ai_routing_policies v${policy!.version} override for ${roleKey} (${complexityTier})`,
+      policyVersion: policy!.version,
+      tierEligibility: overrideEligibility,
+    }
+  }
+
+  // Named override isn't eligible for this tier -- never silently grant it
+  // anyway. Fall back to the baseline and say exactly why.
   return {
     provider: ROSTER_PROVIDER,
     model: baselineModel,
-    reason: "no active routing policy override -- roster.ts baseline assignment",
+    reason: `ai_routing_policies v${policy!.version} named "${override}" for ${roleKey} but it is not eligible for "${complexityTier}" tier -- falling back to roster.ts baseline`,
+    policyVersion: policy!.version,
     tierEligibility: checkTierEligibility(baselineModel, complexityTier),
   }
 }
@@ -234,19 +266,27 @@ export function computeSalesMarketingResolution(
   }
 
   const override = policy?.rule.preferredModelByRole?.[roleKey]
-  if (override && override !== baselineModel) {
+  if (!override) {
     return {
       provider: ROSTER_PROVIDER,
-      model: override,
-      reason: `ai_routing_policies v${policy!.version} override for ${roleKey}`,
+      model: baselineModel,
+      reason: "no active routing policy override -- roster.ts baseline assignment",
+    }
+  }
+  if (override === baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: `ai_routing_policies v${policy!.version} names the same model as the roster.ts baseline for ${roleKey} -- no change`,
       policyVersion: policy!.version,
     }
   }
 
   return {
     provider: ROSTER_PROVIDER,
-    model: baselineModel,
-    reason: "no active routing policy override -- roster.ts baseline assignment",
+    model: override,
+    reason: `ai_routing_policies v${policy!.version} override for ${roleKey}`,
+    policyVersion: policy!.version,
   }
 }
 
@@ -271,13 +311,16 @@ export async function getOrgAiPackage(orgId: string): Promise<string | null> {
     if (features?.aiPackage) return features.aiPackage
   }
 
-  const orgUsers = await db.select({ id: users.id }).from(users).where(eq(users.orgId, orgId))
-  const userCount = orgUsers.length
-
-  const plans = await db.query.subscriptionPlans.findMany({
-    where: eq(subscriptionPlans.isActive, true),
-    orderBy: (t, { asc }) => asc(t.userPackSize),
-  })
+  // Independent queries -- run concurrently rather than paying their sum in
+  // sequence. A real `count(*)` (not a full row/id fetch) so this stays
+  // cheap for a large org's user table.
+  const [[{ value: userCount }], plans] = await Promise.all([
+    db.select({ value: count() }).from(users).where(eq(users.orgId, orgId)),
+    db.query.subscriptionPlans.findMany({
+      where: eq(subscriptionPlans.isActive, true),
+      orderBy: (t, { asc }) => asc(t.userPackSize),
+    }),
+  ])
   if (plans.length === 0) return null
 
   const fit = plans.find((p) => userCount <= p.userPackSize) ?? plans[plans.length - 1]
@@ -288,13 +331,19 @@ export async function getOrgAiPackage(orgId: string): Promise<string | null> {
 // ─── Main entry point ──────────────────────────────────────────────────
 
 export async function resolveModel(context: MotherRouterContext): Promise<MotherRouterResolution> {
-  const policy = await getActivePolicy(context.scope)
   let resolution: MotherRouterResolution
 
   if (context.scope === "software_team") {
+    const policy = await getActivePolicy(context.scope)
     resolution = computeSoftwareTeamResolution(context.model, context.complexityTier, context.roleKey, policy)
   } else if (context.scope === "end_user_org") {
-    const baseline = await resolveModelConfig(context.orgId, context.layerKey, context.sourceType)
+    // 3 mutually independent fetches -- none consumes another's result --
+    // run concurrently instead of paying their summed latency in sequence.
+    const [policy, baseline, aiPackage] = await Promise.all([
+      getActivePolicy(context.scope),
+      resolveModelConfig(context.orgId, context.layerKey, context.sourceType),
+      getOrgAiPackage(context.orgId),
+    ])
     if (!baseline) {
       resolution = {
         provider: "groq",
@@ -304,9 +353,9 @@ export async function resolveModel(context: MotherRouterContext): Promise<Mother
       await logRoutingDecision(context.scope, context, resolution)
       return resolution
     }
-    const aiPackage = await getOrgAiPackage(context.orgId)
     resolution = computeEndUserOrgResolution(baseline, aiPackage, policy)
   } else {
+    const policy = await getActivePolicy(context.scope)
     const role = AI_TEAM_ROSTER.find((r) => r.roleKey === context.roleKey)
     resolution = computeSalesMarketingResolution(context.roleKey, role?.model ?? null, policy)
   }

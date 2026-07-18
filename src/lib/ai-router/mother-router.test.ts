@@ -51,6 +51,19 @@ describe("computeSoftwareTeamResolution -- software_team scope", () => {
     expect(result.policyVersion).toBe(3)
   })
 
+  // Audit-trail correctness: an active policy that happens to name the SAME
+  // model as the baseline must still be attributed to the policy (not
+  // silently reported as "no active policy") -- otherwise an auditor
+  // reading ai_routing_audit_log later can't tell a policy was governing
+  // this dispatch at all.
+  test("active policy names the same model as baseline: still attributed to the policy in the audit reason, not misreported as no-policy", () => {
+    const policy: ActivePolicy = { version: 4, rule: { preferredModelByRole: { chief_audit_officer: "z-ai/glm-5.2" } } }
+    const result = computeSoftwareTeamResolution("z-ai/glm-5.2", "judgment", "chief_audit_officer", policy)
+    expect(result.model).toBe("z-ai/glm-5.2")
+    expect(result.policyVersion).toBe(4)
+    expect(result.reason).not.toContain("no active routing policy")
+  })
+
   // Rollback simulation: v2's override existed, then got rolled back
   // (policy argument becomes null again, as rollbackPolicy() would cause
   // the next real DB fetch to return) -- resolution reverts to baseline.
@@ -123,6 +136,14 @@ describe("computeSalesMarketingResolution -- sales_marketing scope (new)", () =>
     const result = computeSalesMarketingResolution("chief_revenue_officer", "z-ai/glm-5.2", policy)
     expect(result.model).toBe("deepseek/deepseek-v4-pro")
     expect(result.policyVersion).toBe(1)
+  })
+
+  test("active policy names the same model as baseline: still attributed to the policy, not misreported as no-policy", () => {
+    const policy: ActivePolicy = { version: 2, rule: { preferredModelByRole: { chief_revenue_officer: "z-ai/glm-5.2" } } }
+    const result = computeSalesMarketingResolution("chief_revenue_officer", "z-ai/glm-5.2", policy)
+    expect(result.model).toBe("z-ai/glm-5.2")
+    expect(result.policyVersion).toBe(2)
+    expect(result.reason).not.toContain("no active routing policy")
   })
 
   test("roleKey has no baseline model (not in roster.ts, or human/code-only): honest empty resolution, never invents one", () => {

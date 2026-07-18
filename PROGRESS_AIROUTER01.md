@@ -90,6 +90,60 @@ resolution registry) -- not conflated anywhere in this code, called out
 explicitly in `mother-router.ts`'s header so a future reader doesn't
 confuse the two.
 
+## Independent audit (before requesting Owner sign-off)
+
+Since Super Boss both wrote this code AND would otherwise be the one
+certifying it, an independent review was run instead of self-certifying
+(matching AGENTS.md Rule 7c's "doer != auditor" principle) -- 2 fresh
+sub-agents with no memory of writing this code reviewed the diff cold
+across correctness/reuse/simplification/efficiency angles. Real findings,
+fixed before this PR was finalized:
+
+1. **Migration idempotency**: the 3 new `CREATE TYPE` statements and the
+   `CREATE TRIGGER` in 0226 were bare, not wrapped in this repo's own
+   established idempotent-retry pattern (`DO $$ ... EXCEPTION WHEN
+   duplicate_object ...` / `CREATE OR REPLACE TRIGGER`) -- fixed to match
+   convention (see `drizzle/0222_training_lms_module.sql` precedent).
+2. **`ai_model_registry` shipped permanently empty**: the migration's own
+   header claimed to migrate llm-client.ts/model-tier-eligibility.ts's
+   existing model truth into the registry, but no INSERT actually did that
+   -- fixed by seeding the real models/tiers/pricing from those 2 files
+   (pricing left NULL for the 2 models neither file prices, not guessed).
+3. **Audit-log mislabeling**: when an active policy named the SAME model
+   as the roster.ts baseline, `computeSoftwareTeamResolution`/
+   `computeSalesMarketingResolution` fell through to the "no active
+   policy" branch and logged that -- misleading for anyone auditing
+   `ai_routing_audit_log` later. Fixed: that case now correctly attributes
+   the resolution to the policy version. 2 new regression tests added
+   (13 total, up from 11).
+4. **Efficiency**: `getOrgAiPackage()`'s user-count check fetched every
+   user row just to take `.length` -- switched to a real `count(*)`.
+   3 mutually-independent DB fetches in `resolveModel()`'s `end_user_org`
+   branch (and 2 inside `getOrgAiPackage()`) ran sequentially -- switched
+   to `Promise.all`.
+5. **Multi-instance cache honesty**: the header comment overclaimed that
+   hot-reload/rollback take effect "immediately... no restart required
+   either way" -- true per-process, not true across Vercel's multiple
+   serverless instances (each has its own 60s-TTL in-memory cache). Comment
+   corrected to state this limitation plainly rather than imply instant
+   global propagation.
+6. **Not fixed, disclosed instead**: `rollbackPolicy()`'s two-step
+   deactivate-then-activate (though atomic as one DB transaction) has no
+   optimistic-lock check across concurrent callers -- last commit wins
+   silently. Low real risk (infrequent, human-triggered admin action);
+   documented in the function's own header rather than engineered around,
+   given Phase-1 scope.
+
+Findings judged NOT worth fixing now (noted, not silently dropped): the 3
+near-identical `compute*Resolution` functions could share a helper (each
+resolves a genuinely different context shape; premature to abstract at 3
+call sites); the in-process policy cache lacks in-flight-request dedup
+(irrelevant at this table's real size -- at most 3 rows, checked at most
+once/minute); `logRoutingDecision` doesn't reuse
+`orchestra-execution-logger.ts`/`activity-log-service.ts`'s insert
+patterns (neither fits schema-wise, and `ai_routing_audit_log` has no
+`orgId` to scope through `withTenantContext` the way those two do).
+
 ## Follow-ups (not done here, listed honestly)
 
 - Wire `dispatch-repo.ts` / `ai-workforce-agent.mjs` the same way as

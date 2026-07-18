@@ -11,9 +11,21 @@
 -- PR's PROGRESS.md for why a full rewrite of all ~23+3 existing call sites
 -- was not attempted in one pass).
 
-CREATE TYPE compliance.ai_router_scope AS ENUM ('software_team', 'end_user_org', 'sales_marketing');
-CREATE TYPE compliance.ai_model_status AS ENUM ('active', 'disabled', 'deprecated');
-CREATE TYPE compliance.ai_model_health AS ENUM ('healthy', 'degraded', 'down');
+-- Idempotent CREATE TYPE (this repo's own established convention -- see
+-- e.g. drizzle/0222_training_lms_module.sql) so a retried/partially-applied
+-- run of this migration doesn't abort on "type already exists" the way a
+-- bare CREATE TYPE would.
+DO $$ BEGIN
+  CREATE TYPE compliance.ai_router_scope AS ENUM ('software_team', 'end_user_org', 'sales_marketing');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE compliance.ai_model_status AS ENUM ('active', 'disabled', 'deprecated');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE compliance.ai_model_health AS ENUM ('healthy', 'degraded', 'down');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- One row per (provider, model) pair already hardcoded across llm-client.ts's
 -- MODEL_PRICING / model-tier-eligibility.ts's JUDGMENT_ELIGIBLE+INTEGRATIVE_ELIGIBLE
@@ -73,6 +85,33 @@ CREATE TABLE IF NOT EXISTS compliance.ai_routing_audit_log (
 
 CREATE INDEX IF NOT EXISTS ai_routing_audit_log_created_at_idx ON compliance.ai_routing_audit_log (created_at);
 CREATE INDEX IF NOT EXISTS ai_routing_audit_log_scope_idx ON compliance.ai_routing_audit_log (scope);
+
+-- Seeds the real, already-hardcoded model truth from llm-client.ts's
+-- MODEL_PRICING and model-tier-eligibility.ts's JUDGMENT_ELIGIBLE/
+-- INTEGRATIVE_ELIGIBLE sets (as of 2026-07-18) into the new registry -- an
+-- independent review of this PR correctly flagged that without this,
+-- ai_model_registry ships as a permanently empty table despite its own
+-- header comment claiming to be "a migration of that EXISTING truth ...
+-- into a queryable, hot-editable registry." `tier` mirrors those TS sets
+-- exactly (mechanical is every model not explicitly in the other two,
+-- matching model-tier-eligibility.ts's own "default posture: most
+-- restrictive" rule). Pricing columns left NULL for the 2 models
+-- (deepseek/deepseek-v4-pro, google/gemini-2.5-pro) that MODEL_PRICING
+-- itself has no row for -- not guessed, matching estimateCostUsd()'s own
+-- "returns null for any unrecognized model rather than guessing" contract.
+INSERT INTO compliance.ai_model_registry (provider, model, tier, cost_per_1k_input, cost_per_1k_output, notes)
+VALUES
+  ('groq', 'openai/gpt-oss-120b', 'mechanical', 0.000036, 0.00018, 'Platform-default floor tier (orchestra-model-resolver.ts PLATFORM_DEFAULT_MODEL)'),
+  ('cerebras', 'gpt-oss-120b', 'mechanical', 0.00035, 0.00075, 'Same-model paid failover host for the Groq floor tier above'),
+  ('groq', 'meta-llama/llama-4-scout-17b-16e-instruct', 'mechanical', 0.00011, 0.00034, 'Vision-capable override for vision_document_extraction source type'),
+  ('openrouter', 'meta-llama/llama-3.3-70b-instruct:free', 'mechanical', 0, 0, 'Platform fallback model (free tier)'),
+  ('openrouter', 'z-ai/glm-5.2', 'judgment', 0.00042, 0.00132, 'Sole judgment-tier-eligible model (model-tier-eligibility.ts)'),
+  ('openrouter', 'z-ai/glm-5v-turbo', 'integrative', 0.0012, 0.004, 'Vision-capable AI Dev Team role model'),
+  ('openrouter', 'z-ai/glm-5-turbo', 'integrative', 0.0012, 0.004, 'High-volume/low-stakes AI Dev Team role model'),
+  ('openrouter', 'deepseek/deepseek-v4-pro', 'integrative', NULL, NULL, 'Integrative-eligible; no pricing row exists yet in llm-client.ts MODEL_PRICING'),
+  ('openrouter', 'google/gemini-2.5-pro', 'integrative', NULL, NULL, 'Integrative-eligible (Research Analyst role); no pricing row exists yet in llm-client.ts MODEL_PRICING'),
+  ('anthropic', 'claude-sonnet-5', 'mechanical', 0.003, 0.015, 'Super Boss / Claude Desktop -- not in JUDGMENT_ELIGIBLE or INTEGRATIVE_ELIGIBLE sets, most-restrictive default applies')
+ON CONFLICT (provider, model) DO NOTHING;
 
 -- Owner directive 2026-07-18: "In 1st phase we will give number of user
 -- based subscription packages." compliance.subscription_plans ALREADY
