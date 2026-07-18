@@ -47,6 +47,28 @@ export type ProvisionOrganisationResult = {
   defaultDepartmentId: string
 }
 
+// Gap-closure (VERIDIAN Review Framework, AI Cost Governance & FinOps,
+// 2026-07-18): cost-guard.ts's monthlyCostCapUsd/costCapEnforcementEnabled
+// mechanism was real but opt-in per org (both null/false-equivalent for
+// every org until an admin visited /api/settings/org-limits and turned it
+// on) -- so free/trial orgs, the exact population most exposed to abuse,
+// had zero AI spend cap by default. Every org this function creates today
+// is plan "free" (there is no paid-signup path yet -- see this table's own
+// comment in schema.ts), so this is keyed on `plan` rather than hardcoded,
+// the same way a future paid tier would just add its own branch returning
+// null (unenforced) here without touching call sites. $20/mo is generous
+// enough for genuine trial usage on the platform-default floor-tier model
+// (see orchestra-model-resolver.ts's PLATFORM_DEFAULT_MODEL / llm-client.ts's
+// MODEL_PRICING for openai/gpt-oss-120b: tens of millions of tokens at that
+// price) while bounding worst-case abuse of an unattended free org. Does
+// NOT touch any pre-existing organisations row -- opt-in-at-creation only,
+// same posture licensedSeats/monthlyCostCapUsd have always had; an existing
+// free-plan org stays uncapped until an admin (or a future backfill,
+// explicitly not this change) sets one.
+export function defaultMonthlyCostCapUsdForPlan(plan: string): number | null {
+  return plan === "free" ? 20 : null
+}
+
 /**
  * Creates a brand-new organisation + its default "General" department +
  * the 2 free/on-by-default product-branch enablements every org gets
@@ -66,11 +88,14 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
     if (attempt > 20) break // pathological collision case, give up gracefully
   }
 
+  const plan = "free"
   const [org] = await db.insert(organisations).values({
     name: orgName,
     slug,
-    plan: "free",
+    plan,
     primaryProductBranchId: input.primaryProductBranchId ?? null,
+    monthlyCostCapUsd: defaultMonthlyCostCapUsdForPlan(plan)?.toString() ?? null,
+    costCapEnforcementEnabled: true,
   }).returning()
 
   // Wave 113 (VERI Treasure): free/on-by-default for every org, unlike

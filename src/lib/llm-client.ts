@@ -74,6 +74,15 @@ export type LLMUsage = {
 export type LLMResult = {
   content: string;
   usage: LLMUsage;
+  // AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18,
+  // "No systematic latency tracking or SLA enforcement"): wall-clock time
+  // from the first provider attempt through any retries/fallback, measured
+  // centrally in callLLM/callLLMJson/callLLMVision -- see LLM_LATENCY_SLA_MS
+  // below. Previously each call site tracked its own Date.now() before/after
+  // (or, e.g. the pre-fix api/help/ask/route.ts, didn't track it at all), so
+  // there was no guaranteed source of latency data; this field is populated
+  // for every call, no caller opt-in required.
+  durationMs: number;
 };
 
 // Wave 72 (AI_OS_CERTIFICATION.md §2.5, "Model Switching / Fallback -- NOT_BUILT"):
@@ -247,7 +256,7 @@ async function callOpenAICompatible(
   systemPrompt: string,
   userMessage: string,
   options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const body: Record<string, unknown> = {
     model,
     messages: [
@@ -296,7 +305,7 @@ async function callAnthropic(
   systemPrompt: string,
   userMessage: string,
   options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   // Anthropic's Messages API has no response_format=json_object equivalent --
   // ask for JSON-only output in the system prompt instead, same as every
   // other provider does when jsonMode is requested but not natively supported.
@@ -362,7 +371,7 @@ async function callGoogle(
   systemPrompt: string,
   userMessage: string,
   options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const prompt = options?.jsonMode
     ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.\n\n${userMessage}`
     : `${systemPrompt}\n\n${userMessage}`;
@@ -396,7 +405,7 @@ async function callGoogle(
   };
 }
 
-function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, systemPrompt: string, userMessage: string, options?: CallLLMOptions): Promise<LLMResult> {
+function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, systemPrompt: string, userMessage: string, options?: CallLLMOptions): Promise<{ content: string; usage: LLMUsage }> {
   switch (provider) {
     case "groq":
       return callOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
@@ -411,6 +420,29 @@ function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, syste
     case "google":
       return callGoogle(apiKey, model, systemPrompt, userMessage, options);
   }
+}
+
+// AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18):
+// no live SLA target existed anywhere in this codebase for an LLM call --
+// picked as a conservative ceiling for an interactive chat/help reply (the
+// two heaviest real callers), above what even a retried call should
+// normally take. A breach only warns; it never fails or truncates the
+// call -- the reply the user is waiting on has already been paid for, so
+// discarding it would waste the exact cost this gap-closure wave is about
+// managing, not save it.
+const LLM_LATENCY_SLA_MS = 8000;
+
+function attachLatency<T extends { content: string; usage: LLMUsage }>(
+  result: T,
+  startedAt: number,
+  provider: LLMProvider,
+  model: string
+): T & { durationMs: number } {
+  const durationMs = Date.now() - startedAt;
+  if (durationMs > LLM_LATENCY_SLA_MS) {
+    console.warn(`[llm-client] SLA breach: ${provider}/${model} took ${durationMs}ms (SLA ${LLM_LATENCY_SLA_MS}ms)`);
+  }
+  return { ...result, durationMs };
 }
 
 /**
@@ -431,11 +463,14 @@ export async function callLLM(
   options?: CallLLMOptions,
   fallback?: LLMFallback
 ): Promise<LLMResult> {
+  const startedAt = Date.now();
   try {
-    return await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));
+    const result = await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));
+    return attachLatency(result, startedAt, provider, model);
   } catch (primaryError) {
     if (!fallback) throw primaryError;
-    return withRetry(() => dispatchLLM(fallback.provider, fallback.model, fallback.apiKey, systemPrompt, userMessage, options));
+    const result = await withRetry(() => dispatchLLM(fallback.provider, fallback.model, fallback.apiKey, systemPrompt, userMessage, options));
+    return attachLatency(result, startedAt, fallback.provider, fallback.model);
   }
 }
 
@@ -452,7 +487,7 @@ export async function callLLM(
 async function callVisionOpenAICompatible(
   baseUrl: string, apiKey: string, model: string, systemPrompt: string,
   imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const body: Record<string, unknown> = {
     model,
     messages: [
@@ -485,7 +520,7 @@ async function callVisionOpenAICompatible(
 async function callVisionAnthropic(
   apiKey: string, model: string, systemPrompt: string,
   imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const system = options?.jsonMode ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.` : systemPrompt;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -512,7 +547,7 @@ async function callVisionAnthropic(
 async function callVisionGoogle(
   apiKey: string, model: string, systemPrompt: string,
   imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const prompt = options?.jsonMode
     ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.\n\n${instructionText}`
     : `${systemPrompt}\n\n${instructionText}`;
@@ -535,17 +570,10 @@ async function callVisionGoogle(
   };
 }
 
-/** Vision-capable counterpart to callLLM -- imageBase64 has no data: prefix, mimeType is e.g. "image/jpeg". */
-export async function callLLMVision(
-  provider: LLMProvider,
-  model: string,
-  apiKey: string,
-  systemPrompt: string,
-  imageBase64: string,
-  mimeType: string,
-  instructionText: string,
-  options?: CallLLMOptions
-): Promise<LLMResult> {
+function dispatchVisionLLM(
+  provider: LLMProvider, apiKey: string, model: string, systemPrompt: string,
+  imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
+): Promise<{ content: string; usage: LLMUsage }> {
   switch (provider) {
     case "groq":
       return callVisionOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
@@ -560,6 +588,22 @@ export async function callLLMVision(
     case "google":
       return callVisionGoogle(apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
   }
+}
+
+/** Vision-capable counterpart to callLLM -- imageBase64 has no data: prefix, mimeType is e.g. "image/jpeg". */
+export async function callLLMVision(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  imageBase64: string,
+  mimeType: string,
+  instructionText: string,
+  options?: CallLLMOptions
+): Promise<LLMResult> {
+  const startedAt = Date.now();
+  const result = await dispatchVisionLLM(provider, apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+  return attachLatency(result, startedAt, provider, model);
 }
 
 // Wave 46 testing pass: some models routed through OpenRouter (confirmed
@@ -584,8 +628,8 @@ export async function callLLMJson<T>(
   userMessage: string,
   options?: CallLLMOptions,
   fallback?: LLMFallback
-): Promise<{ data: T; usage: LLMUsage }> {
-  const { content, usage } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
+): Promise<{ data: T; usage: LLMUsage; durationMs: number }> {
+  const { content, usage, durationMs } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
   const data = JSON.parse(stripJsonFence(content)) as T;
 
   if (options?.expectedKeys?.length) {
@@ -593,5 +637,5 @@ export async function callLLMJson<T>(
     if (missing.length > 0) throw new LLMVerificationError(missing);
   }
 
-  return { data, usage };
+  return { data, usage, durationMs };
 }

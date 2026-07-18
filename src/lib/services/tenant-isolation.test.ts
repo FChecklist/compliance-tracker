@@ -28,6 +28,61 @@ const mockWithTenantContext = mock(async (_ctx: { orgId: string }, fn: (db: unkn
 const mockRequireErpEnabled = mock(async () => {})
 const mockLogActivity = mock(async () => {})
 
+// Real (unmocked) modules, captured ONCE at file-load time, before this
+// file's own tests ever call mock.module() on any of them. Two real,
+// confirmed problems this closes together (found live in CI, Linux `bun
+// test` only -- not reproducible on Windows even running the same 2 files
+// in the same order, so this is defense-in-depth against an
+// environment/order-dependent leak, not a locally-provable fix on its own):
+//
+// 1. `mock.module(id, factory)` replaces a module's exports with EXACTLY
+//    what `factory()` returns -- any real export `factory` doesn't
+//    re-list disappears for every future importer, in this or any other
+//    file, for the rest of this bun test PROCESS. `mock.restore()` in
+//    afterEach below does NOT undo mock.module() (it only restores
+//    mock()/spyOn() call state) -- bun has no built-in "un-mock this
+//    module" API.
+// 2. A prior version of this file's mock.module() factories returned a
+//    tiny 2-3-key object literal for each of these 5 ERP service modules
+//    -- e.g. `{ listCostCenters, ServiceError }` for
+//    erp-accounting-service, silently dropping every other real export
+//    including `createJournalEntry`. When this file happened to run
+//    before erp-fixed-assets-service.test.ts in CI's file-discovery
+//    order (never observed locally), that other, unrelated file crashed
+//    with "Export named 'createJournalEntry' not found" -- the real
+//    erp-fixed-assets-service.ts module still had its own top-level
+//    `import { createJournalEntry } from "./erp-accounting-service"`,
+//    which bun's module resolver now satisfied from THIS file's stale,
+//    incomplete stub instead of the real file.
+//
+// Fix, two layers: (a) every mock.module() call below now spreads the
+// REAL module's exports first, only overriding the one function under
+// test -- so even if a mock does leak to another file, that file gets
+// stale/wrong test data at worst, never a hard crash from a missing
+// export. (b) afterEach below now explicitly restores every mocked
+// module back to ITS REAL, CAPTURED implementation -- so nothing leaks
+// past this file's own test suite at all, regardless of bun's file
+// execution order on any platform.
+const realErpCashService = await import("@/lib/services/erp-cash-service")
+const realErpAccountingService = await import("@/lib/services/erp-accounting-service")
+const realErpProcurementWorkflowService = await import("@/lib/services/erp-procurement-workflow-service")
+const realErpInvoicingService = await import("@/lib/services/erp-invoicing-service")
+const realErpBuyingService = await import("@/lib/services/erp-buying-service")
+const realTenantScoped = await import("@/lib/db/tenant-scoped")
+const realErpEnablementService = await import("@/lib/services/erp-enablement-service")
+const realAudit = await import("@/lib/audit")
+
+async function restoreRealModules(): Promise<void> {
+  await mock.module("@/lib/services/erp-cash-service", () => realErpCashService)
+  await mock.module("@/lib/services/erp-accounting-service", () => realErpAccountingService)
+  await mock.module("@/lib/services/erp-procurement-workflow-service", () => realErpProcurementWorkflowService)
+  await mock.module("@/lib/services/erp-invoicing-service", () => realErpInvoicingService)
+  await mock.module("@/lib/services/erp-buying-service", () => realErpBuyingService)
+  await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+  await mock.module("@/lib/services/erp-enablement-service", () => realErpEnablementService)
+  await mock.module("@/lib/audit", () => realAudit)
+}
+
 beforeEach(() => {
   capturedOrgIds = []
   mockWithTenantContext.mockClear()
@@ -35,8 +90,9 @@ beforeEach(() => {
   mockLogActivity.mockClear()
 })
 
-afterEach(() => {
+afterEach(async () => {
   mock.restore()
+  await restoreRealModules()
 })
 
 describe("Tenant isolation: org-scoping through service functions", () => {
@@ -48,10 +104,12 @@ describe("Tenant isolation: org-scoping through service functions", () => {
       return []
     })
 
+    // Spreads the real module's other exports before overriding the one
+    // function under test -- see the file-header comment above for why.
     await mock.module("@/lib/services/erp-cash-service", () => ({
+      ...realErpCashService,
       listCashAccounts,
       createCashAccount: mock(async () => ({})),
-      ServiceError: class extends Error { status = 500 },
     }))
     await mock.module("@/lib/db/tenant-scoped", () => ({
       withTenantContext: mockWithTenantContext,
@@ -78,9 +136,13 @@ describe("Tenant isolation: org-scoping through service functions", () => {
       return []
     })
 
+    // Spreads the real module's other exports -- see the file-header
+    // comment above. This is the specific module/export pair
+    // (createJournalEntry) actually observed crashing another test file
+    // in CI before this fix.
     await mock.module("@/lib/services/erp-accounting-service", () => ({
+      ...realErpAccountingService,
       listCostCenters,
-      ServiceError: class extends Error { status = 500 },
     }))
     await mock.module("@/lib/db/tenant-scoped", () => ({
       withTenantContext: mockWithTenantContext,
@@ -106,9 +168,11 @@ describe("Tenant isolation: org-scoping through service functions", () => {
       return { id: "rfq-1" }
     })
 
+    // Spreads the real module's other exports -- see the file-header
+    // comment above.
     await mock.module("@/lib/services/erp-procurement-workflow-service", () => ({
+      ...realErpProcurementWorkflowService,
       createRfq,
-      ServiceError: class extends Error { status = 500 },
     }))
     await mock.module("@/lib/db/tenant-scoped", () => ({
       withTenantContext: mockWithTenantContext,
@@ -134,9 +198,11 @@ describe("Tenant isolation: org-scoping through service functions", () => {
       return { id: "inv-1" }
     })
 
+    // Spreads the real module's other exports -- see the file-header
+    // comment above.
     await mock.module("@/lib/services/erp-invoicing-service", () => ({
+      ...realErpInvoicingService,
       createSalesInvoice,
-      ServiceError: class extends Error { status = 500 },
     }))
     await mock.module("@/lib/db/tenant-scoped", () => ({
       withTenantContext: mockWithTenantContext,
@@ -162,9 +228,11 @@ describe("Tenant isolation: org-scoping through service functions", () => {
       return { id: "po-1" }
     })
 
+    // Spreads the real module's other exports -- see the file-header
+    // comment above.
     await mock.module("@/lib/services/erp-buying-service", () => ({
+      ...realErpBuyingService,
       createPurchaseOrder,
-      ServiceError: class extends Error { status = 500 },
     }))
     await mock.module("@/lib/db/tenant-scoped", () => ({
       withTenantContext: mockWithTenantContext,
