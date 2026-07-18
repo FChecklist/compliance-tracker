@@ -6,6 +6,7 @@ import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-en
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
 import { detectKnowledgeGap } from "@/lib/knowledge-sufficiency-gate"
 import { recordActivity } from "@/lib/activity-log-service"
@@ -133,6 +134,20 @@ export async function POST(request: NextRequest) {
         blockedBy: { reason: tierCheck.reason, guidance: tierCheck.guidance },
       }, { status: 422 })
     }
+
+    // AIROUTER-01 (Mother Router, Owner directive 2026-07-18): fire-and-
+    // forget audit log of this dispatch's resolved model into
+    // ai_routing_audit_log. Deliberately NOT awaited and NOT consumed --
+    // this route's own tierCheck/targetRole.model above remain the actual
+    // gate and dispatch model, unchanged. See mother-router.ts's own header
+    // for why this route wasn't rewired to consume a policy override in
+    // this pass (a disclosed, deliberate scope decision, not an oversight).
+    void resolveMotherRouterModel({
+      scope: "software_team",
+      model: targetRole.model,
+      complexityTier: complexityTier!,
+      roleKey: classification.role,
+    }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
 
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
