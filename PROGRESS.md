@@ -17,8 +17,7 @@
       `0224_erp_exchange_rates_source.sql`, both already merged to main --
       not introduced by this PR, not touched). 0225/0226 do not collide with
       anything on main -- no renumbering needed. Verified with the repo's own
-      (currently unwired) `scripts/check-migration-collision.mjs`: "OK: 2
-      new/changed migration files checked, no number collisions."
+      (currently unwired) `scripts/check-migration-collision.mjs`.
 - [x] TIER classification: this PR touches drizzle/*.sql (0225, 0226) ->
       **TIER2**. Per task constraints, will NOT merge this PR myself even if
       CI goes green.
@@ -31,12 +30,11 @@
       `drizzle/0227_register_ai_team_role_overrides.sql` (registered, real
       admin-editable config) and exempted `ai_reduction_snapshots` in
       `ai-os/registry/asset-registry-coverage.yaml` (internal append-only
-      trend log, same class as monitor_execution_log). Re-verified: check
-      script passes (433 tables accounted for), tsc/lint/test all still
-      clean after this fix.
+      trend log, same class as monitor_execution_log). Re-verified locally:
+      check script passes (433 tables accounted for), tsc/lint/test all
+      still clean after this fix.
 - [x] Pushed merged + fixed branch to PR #415's real head ref (origin
-      worker/task-20260718-045009-ai-architecture--ai-orchestration--routi,
-      new head 79f1b10e).
+      worker/task-20260718-045009-ai-architecture--ai-orchestration--routi).
 - [x] Read the PR's full diff myself (38 files, ~2650 lines via `gh pr diff
       415`) before auditing -- consistent requireAuth()/veridian_admin gating,
       tenant-scoped traces via withTenantContext, KNOWN_MODELS allowlist on
@@ -45,18 +43,31 @@
       never populated `fallback`; tier-eligibility checks now use the
       effective/override model, not the stale static one, at all 3 real
       dispatch surfaces per AGENTS.md Rule 10).
-- [x] Posted structured `AUDIT: PASS` PR comment (all 8 required fields).
+- [x] Posted structured `AUDIT: PASS` PR comment (all 8 required fields):
+      https://github.com/FChecklist/compliance-tracker/pull/415#issuecomment-5012854568
+- [x] Investigated why CI never went green: GitHub Actions never even
+      created a check-suite for this branch across 3 separate pushes
+      (79f1b10e, 681966d3, and a deliberate empty-commit retrigger 4f773a61)
+      spanning ~20+ minutes. Confirmed via `gh api .../check-suites` --
+      only third-party app suites (Vercel, Supabase, Cursor, Fly.io, Claude)
+      appear, all stuck "queued", with NO GitHub Actions suite at all.
+      Ruled out a config-level cause: `git diff origin/main -- .github/workflows/`
+      is empty (byte-identical workflow files to what's currently running
+      fine for sibling PRs in the same repo, in the same time window --
+      e.g. worker/task-20260718-045007-... and worker/task-20260718-205406-
+      rescue-pr--412 both got fresh pull_request-triggered runs during this
+      exact wait). This is a GitHub Actions-side reliability issue specific
+      to this one PR/branch (most likely a stuck check-suite association
+      from earlier in this PR's history), not something fixable by further
+      code changes in this repo.
 
 ## Remaining
-- [ ] Waiting for CI to actually trigger/complete on the new commit
-      (79f1b10e) -- as of this checkpoint, `gh run list` shows ZERO workflow
-      runs for this branch/sha since the push (unusual -- sibling PRs on
-      this repo ARE getting fresh pull_request-triggered runs at the same
-      wall-clock time, so this isn't a repo-wide outage). Only a Vercel
-      preview-deploy status context has fired so far (FAILURE: "Deployment
-      rate limited -- retry in 24 hours", a shared-account Vercel quota
-      issue, not something this rescue can fix and not one of the 2
-      required merge-gate checks). A background Monitor is watching for
-      GitHub Actions runs to appear on this sha; will report once resolved.
-- [ ] Once CI completes: since this PR touches drizzle/*.sql, it is TIER2 --
-      do NOT merge regardless of CI outcome. Final report to Owner instead.
+- [ ] CI has not gone green because GitHub Actions has not run at all on
+      this branch since the rescue's fixes were pushed -- this is an
+      infrastructure-side blocker, not a code defect. Re-triggering (a
+      normal push + a deliberate empty-commit push) did not resolve it
+      within this session. Needs either: GitHub-side investigation (Owner
+      or repo admin), or simply time/retry outside this session's window.
+- [ ] Because of the above, CI cannot be confirmed green in this session,
+      and per task constraints this PR (TIER2 -- touches drizzle/*.sql)
+      must not be merged regardless. No merge action taken.
