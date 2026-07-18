@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { submitSalesInvoice, ServiceError } from "@/lib/services/erp-invoicing-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: posts to GL, fires webhook, moves money
+  const roleErr = requirePermissionForUser(dbUser, "erp.sales_invoices.submit")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params
