@@ -9,6 +9,8 @@ import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
 import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
+import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
+import { crossVerifyEmi, crossVerifyGratuity, assertCalculationVerified } from "@/lib/calculation-cross-verification";
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
 import { logActivity } from "@/lib/audit";
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
@@ -77,6 +79,7 @@ registerAllGuardrails();
  */
 
 export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+  assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
@@ -370,6 +373,7 @@ function parseNumberList(v: unknown): number[] {
 }
 
 async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+  assertBusinessRulesBeforeExecution(engineKey, inputs);
   // Zero typed fields -- validates a real GST return period's own confirmed
   // sales invoices, never a human-typed line-items list. Completes the GST
   // Engine category (16/16).
@@ -779,10 +783,13 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   switch (engineKey) {
     case "gratuity_calculator": {
       const { calculateGratuity } = await import("@/lib/engines/payroll-engine");
-      return calculateGratuity({
+      const gratuityInput = {
         lastDrawnMonthlySalary: Number(inputs.lastDrawnMonthlySalary), yearsOfService: Number(inputs.yearsOfService),
         isCoveredUnderAct: inputs.isCoveredUnderAct === undefined ? true : truthy(inputs.isCoveredUnderAct),
-      });
+      };
+      const gratuityResult = calculateGratuity(gratuityInput);
+      assertCalculationVerified(crossVerifyGratuity(gratuityInput, gratuityResult), "Gratuity calculation");
+      return gratuityResult;
     }
     case "eps_calculator": {
       const { calculateEps } = await import("@/lib/engines/payroll-engine");
@@ -998,7 +1005,10 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     case "loan_schedule_generator":
     case "amortization_engine": {
       const { calculateEmi } = await import("@/lib/engines/banking-engine");
-      return calculateEmi({ principal: Number(inputs.principal), annualRatePercent: Number(inputs.annualRatePercent), tenureMonths: Number(inputs.tenureMonths) });
+      const emiInput = { principal: Number(inputs.principal), annualRatePercent: Number(inputs.annualRatePercent), tenureMonths: Number(inputs.tenureMonths) };
+      const emiResult = calculateEmi(emiInput);
+      assertCalculationVerified(crossVerifyEmi(emiInput, emiResult), "EMI/amortization calculation");
+      return emiResult;
     }
     case "banking_interest_calculator": {
       const { calculateBankingInterest } = await import("@/lib/engines/banking-engine");

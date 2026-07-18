@@ -505,17 +505,29 @@ const HR_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
 Object.assign(WIRED_ENGINE_INPUT_FIELDS, HR_WIRED_ENGINE_INPUT_FIELDS)
 
 // Banking Engine (tree4-unified/50-completion-plan area 8, Wave 168) --
-// UI fields for 5 of 8 wired engines. cash_flow_projection/
+// UI fields for 6 of 9 registered engines. cash_flow_projection/
 // outstanding_cheque_engine take array inputs -- dispatchable, no
-// chat-composer form yet.
+// chat-composer form yet. bank_reconciliation_engine is deferred (real
+// ERP service, see task-execution-engine.ts).
+// Gap closure (CAPABILITY_COVERAGE.md review, 2026-07-18): loan_schedule_
+// generator/amortization_engine are 2 more registered engine_key rows for
+// the exact same calculateEmi() computation as emi_calculator (see
+// dispatchEngine()'s shared case block) -- dispatchable since Wave 168 but
+// never given a Chain Selector leaf of their own, unlike every other
+// deferral in this file, which is deliberate and array/real-service based.
+// Reusing the identical field set closes that oversight.
 const BANKING_INTEREST_METHOD_OPTIONS = [{ value: "simple", label: "Simple" }, { value: "compound_daily", label: "Compound (daily)" }]
 
+const EMI_FIELDS: CapabilityInputField[] = [
+  { key: "principal", label: "Loan principal (₹)", type: "number" },
+  { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },
+  { key: "tenureMonths", label: "Tenure (months)", type: "number" },
+]
+
 const BANKING_WIRED_ENGINE_INPUT_FIELDS: Record<string, CapabilityInputField[]> = {
-  emi_calculator: [
-    { key: "principal", label: "Loan principal (₹)", type: "number" },
-    { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },
-    { key: "tenureMonths", label: "Tenure (months)", type: "number" },
-  ],
+  emi_calculator: EMI_FIELDS,
+  loan_schedule_generator: EMI_FIELDS,
+  amortization_engine: EMI_FIELDS,
   banking_interest_calculator: [
     { key: "principal", label: "Principal (₹)", type: "number" },
     { key: "annualRatePercent", label: "Annual interest rate (%)", type: "number" },

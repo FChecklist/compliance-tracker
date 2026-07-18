@@ -12,6 +12,27 @@ import { callLLM } from "@/lib/llm-client";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { retrieveRelevantKbPages } from "@/lib/services/knowledge-base-service";
+import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale";
+import { normalizeForLlm } from "@/lib/prompt-normalizer";
+import { passesReplyGate } from "@/lib/ai-reply-gate";
+import { redactPii } from "@/lib/pii-redaction";
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
+import { compileStaticPrefix } from "@/lib/prompt-cache/compiler";
+import { recordPromptCacheMetric } from "@/lib/prompt-cache/metrics";
+
+// AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18,
+// "AI Context Compression" finding): this route used to call callLLM
+// directly with none of chat-service.ts's generateAiReply() pipeline --
+// no normalizeForLlm (the actual context-compression mechanism in this
+// codebase, stripping conversational filler before tokens leave the
+// tenant), no ai-reply-gate check against a hallucinated action claim, no
+// PII redaction before logging, and no orchestra_executions/prompt-cache
+// observability at all, so a Help AI call was invisible to every cost/
+// latency dashboard built on those tables. Wired in additively below --
+// the widget's request/response contract ({ question, currentPath } ->
+// { answer }) is unchanged.
+const FALLBACK_ANSWER =
+  "I wasn't able to give a reliable answer to that. Please rephrase, or check the relevant page directly.";
 
 export async function POST(request: NextRequest) {
   const { user, dbUser, orgId, response } = await requireAuth();
@@ -20,9 +41,10 @@ export async function POST(request: NextRequest) {
 
   const { question, currentPath } = await request.json();
 
-  let systemPrompt: string;
+  let systemPromptTemplate: string;
   try {
-    systemPrompt = await resolvePromptTemplate("help.ai_assistant_system");
+    const locale = await getPreferredAiResponseLocale();
+    systemPromptTemplate = await resolvePromptTemplate("help.ai_assistant_system", "production", locale);
   } catch {
     return NextResponse.json({
       answer:
@@ -46,6 +68,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No AI model configured" }, { status: 400 });
   }
 
+  const systemPrompt = systemPromptTemplate + "\n\nCurrent page: " + currentPath;
+  // Same static-prefix caching signal chat-service.ts uses -- the resolved
+  // template + current page is identical across every question asked from
+  // that page, regardless of which user/org sent it. The KB grounding block
+  // below is per-question and deliberately kept OUT of this string (appended
+  // to the message instead) so it doesn't fragment the cache fingerprint --
+  // same reasoning chat-service.ts's generateAiReply() uses for
+  // userContextBlock (see its own comment on that pattern).
+  const { fingerprint: promptCacheFingerprint } = compileStaticPrefix(systemPrompt);
+  const normalizedQuestion = normalizeForLlm(question ?? "");
+
   // AI Architecture / Explainability & Transparency gap-closure
   // (2026-07-18): "Explain Software Functionality" -- ground the answer in
   // the org's own knowledge base pages instead of pure freeform generation,
@@ -57,21 +90,56 @@ export async function POST(request: NextRequest) {
     ? "\n\nRelevant knowledge base content (use this if it answers the question; say so honestly if it doesn't):\n" +
       relevantPages.map((p) => `--- ${p.title} ---\n${(p.content ?? "").slice(0, 1500)}`).join("\n\n")
     : "";
+  const messageForLlm = normalizedQuestion + groundingBlock;
 
-  const result = await callLLM(
-    modelConfig.provider,
-    modelConfig.model,
-    modelConfig.apiKey,
-    systemPrompt + "\n\nCurrent page: " + currentPath + groundingBlock,
-    question,
-    undefined,
-    modelConfig.fallback,
-  );
+  const startedAt = Date.now();
+  try {
+    const { content: reply, usage } = await callLLM(
+      modelConfig.provider,
+      modelConfig.model,
+      modelConfig.apiKey,
+      systemPrompt,
+      messageForLlm,
+      { enablePromptCache: true },
+      modelConfig.fallback
+    );
 
-  return NextResponse.json({
-    answer: result.content,
+    // Same software-first gate as chat-service.ts's generateAiReply() -- a
+    // raw LLM claim of completed action must never reach the user
+    // unfiltered, same reasoning even though Help AI has no tool-calling
+    // surface either.
+    const gateResult = passesReplyGate(reply);
+    recordOrchestraExecution({
+      orgId, userId: dbUser?.id, layerKey: "user_assistant_oa", eventType: "help.ask",
+      input: { currentPath, systemPrompt: redactPii(systemPrompt), question: redactPii(normalizedQuestion) },
+      output: gateResult.passed
+        ? { reply: redactPii(reply), replyLength: reply.length }
+        : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
+      status: gateResult.passed ? "completed" : "gated",
+      durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    });
+    recordPromptCacheMetric({
+      orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
+      provider: modelConfig.provider, model: modelConfig.model, usage,
+    });
+
+    if (!gateResult.passed) {
+      return NextResponse.json({ answer: FALLBACK_ANSWER });
+    }
     // Explicit "grounded or not" signal + sources -- the finding's own
     // recommended approach ("retrieve relevant chunks before answering").
-    sources: relevantPages.map((p) => ({ id: p.id, title: p.title, slug: p.slug })),
-  });
+    return NextResponse.json({
+      answer: reply,
+      sources: relevantPages.map((p) => ({ id: p.id, title: p.title, slug: p.slug })),
+    });
+  } catch (err) {
+    console.error("Help AI reply failed:", err);
+    recordOrchestraExecution({
+      orgId, userId: dbUser?.id, layerKey: "user_assistant_oa", eventType: "help.ask",
+      input: { currentPath }, status: "failed", durationMs: Date.now() - startedAt,
+      output: { error: err instanceof Error ? err.message : String(err) },
+    });
+    return NextResponse.json({ answer: "Something went wrong generating a reply. Please try again in a moment." });
+  }
 }

@@ -72,8 +72,17 @@ export async function getKbPageBySlug(ctx: { orgId: string }, slug: string) {
   })
 }
 
+// ctx.userId is the caller's real user id when authenticated via session,
+// but PROJEXA's own server calls VERIDIAN via a per-org API key -- in that
+// path ctx.userId is the *key's* id (api_keys.id), not a row in `users`.
+// knowledgeBasePages.updatedById has a real FK to users.id, so this takes
+// isRealUser (rather than the full KbContext/dbUser) to know whether it's
+// safe to attribute authorship, same pattern as construction-dashboard-
+// service.ts's createProject(). Caught live: the PROJEXA-facing route used
+// to hard-block API-key callers entirely rather than risk this FK 500,
+// which meant PROJEXA could never create a Knowledge Base page at all.
 export async function createKbPage(
-  ctx: KbContext,
+  ctx: { orgId: string; userId: string; isRealUser?: boolean },
   input: { title: string; content?: string; parentPageId?: string }
 ) {
   const title = input.title?.trim()
@@ -91,7 +100,7 @@ export async function createKbPage(
 
     const [page] = await db.insert(knowledgeBasePages).values({
       orgId: ctx.orgId, parentPageId: input.parentPageId || null,
-      slug, title, content: input.content || null, updatedById: ctx.userId,
+      slug, title, content: input.content || null, updatedById: ctx.isRealUser ? ctx.userId : null,
     }).returning()
     // Best-effort, fire-and-forget -- same posture as every other
     // storeEmbedding() call site in this codebase (indexAssetForSearch()

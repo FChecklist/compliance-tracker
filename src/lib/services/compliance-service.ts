@@ -39,21 +39,54 @@ export type ListComplianceFilters = {
 // technical string every current `instanceof ServiceError` catch block
 // already reads -- this never changes existing behavior, only adds fields a
 // caller can opt into surfacing.
+//
+// Exception Handling Framework (VERIDIAN Review Framework gap closure,
+// Checks & Balances / Exception Handling & Recovery track, 2026-07-18):
+// every service function in this codebase already threw a real, meaningful
+// ServiceError -- what didn't exist was a single NAMED taxonomy classifying
+// those errors so callers could make automatic decisions (retry it, or
+// surface it to the user as their own mistake) without special-casing every
+// message string. Two axes:
+//   - "business" exception: the request itself is invalid or violates a
+//     domain rule (e.g. "asOfDate is required", "period is closed").
+//     Retrying the identical input fails identically -- terminal.
+//   - "system" exception: an unexpected failure in infrastructure the
+//     caller doesn't control (DB blip, timeout). Often transient -- worth
+//     one automatic retry (see exception-taxonomy.ts::withAutomaticRecovery)
+//     before giving up.
+// `kind`/`retryable` default from the existing `status` so every one of the
+// ~137 files that already do `throw new ServiceError(msg, 400)` classifies
+// itself correctly with ZERO changes required (>=500 -> system/retryable,
+// <500 -> business/non-retryable). Pass the third arg only to override that
+// default (e.g. a 409 conflict from a transient advisory-lock contention,
+// which IS worth retrying once despite being a 4xx).
+export type ExceptionKind = "business" | "system"
+
 export class ServiceError extends Error {
   public code?: ErrorCode | string
   public friendlyMessage?: string
   public remediationSteps?: string[]
+  public readonly kind: ExceptionKind
+  public readonly retryable: boolean
 
   constructor(
     message: string,
     public status: number,
-    opts?: { code?: ErrorCode | string; friendlyMessage?: string; remediationSteps?: string[] }
+    opts?: {
+      code?: ErrorCode | string
+      friendlyMessage?: string
+      remediationSteps?: string[]
+      kind?: ExceptionKind
+      retryable?: boolean
+    }
   ) {
     super(message)
     this.code = opts?.code
     const catalogEntry = lookupErrorCode(opts?.code)
     this.friendlyMessage = opts?.friendlyMessage ?? catalogEntry?.friendlyMessage
     this.remediationSteps = opts?.remediationSteps ?? catalogEntry?.remediationSteps
+    this.kind = opts?.kind ?? (status >= 500 ? "system" : "business")
+    this.retryable = opts?.retryable ?? this.kind === "system"
   }
 }
 

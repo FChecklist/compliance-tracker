@@ -4,7 +4,7 @@
 // this wave, not a full backfill of detectHighImpactAction's own coverage.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { HIGH_IMPACT_CATEGORY_LABELS, HIGH_IMPACT_CATEGORY_GUIDANCE, detectHighImpactAction, type HighImpactCategory } from "./high-impact-action-detector"
+import { HIGH_IMPACT_CATEGORY_LABELS, HIGH_IMPACT_CATEGORY_GUIDANCE, detectHighImpactAction, checkHighImpactConfirmation, type HighImpactCategory } from "./high-impact-action-detector"
 
 describe("HIGH_IMPACT_CATEGORY_GUIDANCE", () => {
   const categories = Object.keys(HIGH_IMPACT_CATEGORY_LABELS) as HighImpactCategory[]
@@ -55,5 +55,33 @@ describe("detectHighImpactAction -- new categories", () => {
     const result = detectHighImpactAction("show me last month's compliance summary")
     expect(result.isHighImpact).toBe(false)
     expect(result.category).toBeNull()
+  })
+})
+
+// Human Override & Approval (HAB-02 gap closure, 2026-07-18): checkHighImpactConfirmation
+// is the extracted, reusable gate task-service.ts's createTask now calls
+// instead of reimplementing detectHighImpactAction + response-shaping
+// inline. Covering it here (not just via task-service's own tests) so any
+// future adopter can trust this contract directly.
+describe("checkHighImpactConfirmation", () => {
+  test("no high-impact phrase -> needsConfirmation: false", () => {
+    const result = checkHighImpactConfirmation({ text: "Write the quarterly summary" })
+    expect(result).toEqual({ needsConfirmation: false })
+  })
+
+  test("a high-impact phrase with confirmed: true skips detection entirely", () => {
+    const result = checkHighImpactConfirmation({ text: "Delete the old vendor records", confirmed: true })
+    expect(result).toEqual({ needsConfirmation: false })
+  })
+
+  test("a high-impact phrase with no confirmation returns the category/label/phrase/guidance", () => {
+    const result = checkHighImpactConfirmation({ text: "Please approve this expense report" })
+    expect(result.needsConfirmation).toBe(true)
+    if (result.needsConfirmation) {
+      expect(result.category).toBe("approval")
+      expect(result.categoryLabel).toBe(HIGH_IMPACT_CATEGORY_LABELS.approval)
+      expect(result.guidance).toBe(HIGH_IMPACT_CATEGORY_GUIDANCE.approval)
+      expect(result.matchedPhrase.length).toBeGreaterThan(0)
+    }
   })
 })

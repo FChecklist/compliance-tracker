@@ -14,6 +14,7 @@ import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-mod
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
 import { buildPurposeClause, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { compileStaticPrefix } from "@/lib/prompt-cache/compiler"
 import { recordPromptCacheMetric } from "@/lib/prompt-cache/metrics"
@@ -495,7 +496,8 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   }
   const startedAt = Date.now()
   try {
-    const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system")
+    const locale = await getPreferredAiResponseLocale()
+    const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system", "production", locale)
     const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
     // Prompt & Cache Management Framework, Phase 1 (2026-07-14): systemPrompt
     // above is already the real static-prefix boundary for this call site --
@@ -714,7 +716,8 @@ async function generateVeriGroupReply(orgId: string, userId: string, conversatio
 
   const startedAt = Date.now()
   try {
-    const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant")
+    const locale = await getPreferredAiResponseLocale()
+    const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant", "production", locale)
     const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
     const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
     const normalizedMessage = normalizeForLlm(userMessage)

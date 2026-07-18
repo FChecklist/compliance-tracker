@@ -8,7 +8,7 @@ import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
-import { detectHighImpactAction, logHighImpactClassification, HIGH_IMPACT_CATEGORY_LABELS } from "@/lib/high-impact-action-detector"
+import { detectHighImpactAction, logHighImpactClassification, checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
@@ -176,16 +176,26 @@ export async function createTask(ctx: ServiceContext, input: {
   // actually created from. Returns early with NO task row inserted and NO
   // execution triggered until the caller resubmits with confirmed: true.
   if (!input.confirmed) {
-    const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
     // AI Architecture / Explainability & Transparency gap-closure
     // (2026-07-18): "Explain Risks Before Actions" -- logs every
     // classification (matched or not) for later sample audit of misses,
     // not just the ones that already trip the confirmation gate below.
+    // detectHighImpactAction stays a pure, side-effect-free function (per
+    // its own doc comment) so it's safe to call here purely for the audit
+    // trail, separately from the real gating decision below.
+    const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
     logHighImpactClassification({
       orgId, userId: dbUser.id, layerKey: "task_oa", eventType: "task.create",
       text: `${title} ${description ?? ""}`, detection,
     })
-    if (detection.isHighImpact && detection.category) {
+    // Human Override & Approval (HAB-02 gap closure, 2026-07-18): the
+    // detect-and-shape logic itself now lives in checkHighImpactConfirmation
+    // (high-impact-action-detector.ts), the one shared, reusable gate, not
+    // reimplemented inline here. What stays here is the part that IS
+    // genuinely task/chat-specific: the saved always-approve/always-reject
+    // preference lookup below.
+    const confirmationCheck = checkHighImpactConfirmation({ text: `${title} ${description ?? ""}` })
+    if (confirmationCheck.needsConfirmation) {
       // Wave 161 (VERI_CHAT_GOVERNANCE.md, "VERI-Assisted Communication
       // Protocol"): a user who already said "always approve"/"always
       // reject" for this action category shouldn't be asked again every
@@ -194,7 +204,7 @@ export async function createTask(ctx: ServiceContext, input: {
       // #20's "deferred" note), so only the simplest, highest-value scope
       // is checked here.
       const preference = await withTenantContext({ orgId, userId: dbUser.id }, (db) =>
-        checkApprovalPreference(db, orgId, dbUser.id, detection.category!, "communication_type")
+        checkApprovalPreference(db, orgId, dbUser.id, confirmationCheck.category, "communication_type")
       )
       if (preference === "always_reject") {
         throw new ServiceError(`This action type is set to always-reject per your saved preference. Change it in Settings if that's no longer right.`, 403)
@@ -202,9 +212,9 @@ export async function createTask(ctx: ServiceContext, input: {
       if (preference !== "always_approve") {
         return {
           needsConfirmation: true as const,
-          category: detection.category,
-          categoryLabel: HIGH_IMPACT_CATEGORY_LABELS[detection.category],
-          matchedPhrase: detection.matchedPhrase,
+          category: confirmationCheck.category,
+          categoryLabel: confirmationCheck.categoryLabel,
+          matchedPhrase: confirmationCheck.matchedPhrase,
         }
       }
       // preference === "always_approve": fall through exactly as if the

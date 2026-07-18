@@ -19,7 +19,15 @@ export type HighImpactCategory =
   | "bulk_operations" | "communication_send" | "financial_posting"
 
 const TRIGGERS: Record<HighImpactCategory, string[]> = {
-  delete: ["delete", "remove", "erase", "permanently delete"],
+  // "dispose"/"disposal" added for the Checks & Balances / Four-Eyes cross-
+  // wire (approval-workflow-service.ts): a fixed-asset disposal is a real
+  // permanent removal of an asset from the books, same category as any
+  // other delete, even though the entityType string itself is
+  // "erp_asset_disposal" not "erp_asset_delete". Additive -- widens every
+  // existing consumer of this detector (AI Team dispatch risk
+  // classification, task/chat high-impact confirmation), not just the
+  // approval workflow engine.
+  delete: ["delete", "remove", "erase", "permanently delete", "dispose", "disposal"],
   archive: ["archive"],
   payment: ["pay ", "payment", "make a payment", "release payment", "transfer funds", "disburse"],
   approval: ["approve", "approval", "sign off", "authorize", "authorise"],
@@ -83,6 +91,44 @@ export const HIGH_IMPACT_CATEGORY_LABELS: Record<HighImpactCategory, string> = {
 // content. Kept here (not in the UI component) so the message stays
 // co-located with the category it explains, same file organization
 // principle as HIGH_IMPACT_CATEGORY_LABELS above.
+// Human Override & Approval (VERIDIAN Review Framework gap closure,
+// 2026-07-18, HAB-02's own stated gap: "each module implements its own
+// confirmation/authorization independently -- not a single unified generic
+// gate"). Before this, the one real "confirmed boolean -> block execution"
+// implementation in the codebase was inlined directly inside
+// task-service.ts's createTask (detectHighImpactAction + response-shaping,
+// duplicated logic any future module would otherwise have had to copy
+// rather than call). This is that logic, extracted once so it's a real
+// reusable function -- task-service.ts now calls it instead of
+// reimplementing it (see that file for the one adjustment layered on top:
+// a per-user saved always-approve/always-reject preference, which is a
+// task/chat-specific persistence concern, not part of this generic gate).
+//
+// Honestly scoped: this closes the "each module reimplements the check"
+// half of the gap for its first real adopter. It is not yet wired as
+// unconditional middleware across every route -- that would require a
+// broader Intent Engine (this file's own header already flags that as a
+// deferred Phase 3 item) or auditing every high-impact route individually,
+// neither of which this pass attempts. Future modules that need the same
+// gate should call this function rather than re-inlining the check.
+export type ConfirmationCheckInput = { text: string; confirmed?: boolean }
+export type ConfirmationCheckResult =
+  | { needsConfirmation: false }
+  | { needsConfirmation: true; category: HighImpactCategory; categoryLabel: string; matchedPhrase: string; guidance: string }
+
+export function checkHighImpactConfirmation(input: ConfirmationCheckInput): ConfirmationCheckResult {
+  if (input.confirmed) return { needsConfirmation: false }
+  const detection = detectHighImpactAction(input.text)
+  if (!detection.isHighImpact || !detection.category) return { needsConfirmation: false }
+  return {
+    needsConfirmation: true,
+    category: detection.category,
+    categoryLabel: HIGH_IMPACT_CATEGORY_LABELS[detection.category],
+    matchedPhrase: detection.matchedPhrase ?? "",
+    guidance: HIGH_IMPACT_CATEGORY_GUIDANCE[detection.category],
+  }
+}
+
 export const HIGH_IMPACT_CATEGORY_GUIDANCE: Record<HighImpactCategory, string> = {
   delete: "Deletions can't be undone. If you're sure, confirm below — otherwise cancel and double-check what you're removing.",
   archive: "Archiving hides this from active views but keeps the record. Confirm to proceed, or cancel if you meant something else.",
