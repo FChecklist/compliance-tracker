@@ -1,0 +1,57 @@
+name: AI Prompt Evals
+
+# VERIDIAN Review Framework gap-closure (2026-07-18, AI Tests finding: "AI
+# output quality tests are narrow and not automated in CI"). promptfooconfig.yaml
+# genuinely calls a real LLM for every test case -- unlike every other CI job
+# in ci.yml, so this is its own workflow, path-filtered to only the files
+# whose prompt content it actually regression-tests, rather than running (and
+# spending LLM budget) on every PR the way lint/typecheck/build do.
+#
+# Uses GROQ_API_KEY, not OPENAI_API_KEY: promptfooconfig.yaml's provider is
+# the platform's own real default model (openai/gpt-oss-120b via Groq's free
+# tier, orchestra-model-resolver.ts's PLATFORM_DEFAULT_MODEL) -- GROQ_API_KEY
+# is already a real, provisioned GitHub secret (see browser-ux-test.yml /
+# ai-team-workforce.yml for other real call sites using it). OPENAI_API_KEY
+# has never been configured anywhere in this repo's secrets (confirmed live
+# in whisper-client.ts's own header comment) -- a provider this job can't
+# reach isn't a real gate, so this deliberately does not use OpenAI.
+#
+# Honest limitation, same class as every other CI gate in this repo
+# (guardrail-presence-check.mjs's own header states this precedent, and
+# mandatory-audit-check.yml's header restates it): this job runs and can
+# fail the check, but making it a REQUIRED status check that actually
+# blocks merge is a branch-protection setting, which is a repo
+# access-control change deliberately left for the Owner to make (same
+# posture mandatory-audit-check.yml's own header already documents for
+# itself).
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'promptfooconfig.yaml'
+      - 'src/lib/policy-enforcement-engine.ts'
+      - 'src/lib/services/chat-service.ts'
+      - 'src/lib/services/report-engine-service.ts'
+      - 'src/lib/services/ai-report-builder-service.ts'
+      - 'src/lib/services/capability-audit-service.ts'
+      - 'src/lib/ai-team/roster.ts'
+      - 'src/lib/ai-team/team-service.ts'
+      - 'src/lib/prompt-os-resolver.ts'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prompt-evals:
+    name: Promptfoo Evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Run promptfoo evals
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: bun run test:prompts

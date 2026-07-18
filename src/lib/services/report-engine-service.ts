@@ -70,6 +70,8 @@ import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson, stripJsonFence } from "@/lib/llm-client"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy-enforcement-engine"
+import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
@@ -1248,6 +1250,37 @@ Respond with ONLY a JSON object of this exact shape, no markdown, no extra text:
 
 async function runAiRecipe(ctx: { orgId: string; userId?: string }, config: AiRecipeConfig, groundingData: unknown): Promise<ReportDefinitionResult> {
   const startedAt = Date.now()
+
+  // Gap closure (VERIDIAN Review Framework, Domain Accuracy finding): this
+  // was the one free-text LLM call site in the codebase with zero
+  // enforcePolicy() gate -- POST /api/reports/definitions lets any
+  // authenticated org user set an ai_recipe definition's promptKey/
+  // groundingNote to arbitrary text, which flows straight into this
+  // function's user message below. Every other free-text call site
+  // (chat-service.ts, crm-service.ts, construction-ai-service.ts, etc.)
+  // already runs this same gate; report_definitions was the one gap.
+  const policyDecision = enforcePolicy(
+    { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "customer_account_oa", eventType: "reports.ai_recipe_execute" },
+    `${config.promptKey}\n${config.groundingNote}`
+  )
+  if (!policyDecision.allowed) {
+    return { columns: ["Note"], rows: [{ Note: refusalMessageFor(policyDecision) }] }
+  }
+
+  // Gap closure (same finding): the system prompt below TELLS the model to
+  // stay grounded in the provided data, but nothing enforced that a real
+  // grounding data set actually existed -- groundingData defaults to `{}`
+  // (see this function's only caller, executeReportDefinition()) whenever
+  // neither the caller nor the definition's groundingQuery supplied
+  // anything. An LLM asked to analyze `{}` has no way to produce a grounded
+  // answer; whatever it writes is invented regardless of how firmly the
+  // prompt forbids that. Refusing before the call (not after) means this
+  // never burns a real LLM call on a request that was always going to fail
+  // its own stated rule.
+  if (!hasGroundingData(groundingData)) {
+    return { columns: ["Note"], rows: [{ Note: "No real data was available to ground this analysis in -- refusing to generate an AI narrative from nothing. Configure a groundingQuery for this report, or pass groundingData when running it." }] }
+  }
+
   const modelConfig = await resolveModelConfig(ctx.orgId, "customer_account_oa")
   if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation. Configure one in Settings -> AI Configuration.", 503)
 

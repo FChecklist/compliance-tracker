@@ -134,6 +134,7 @@ meta:
   amendment_log:
     - { date: "2026-07-14", change: "v2.0 -- full rewrite as sole authority, absorbing all 9 prose docs' rules, fixing DEBT-01 through DEBT-07 above.", by: "Super Boss (Claude Desktop)" }
     - { date: "2026-07-14", change: "Added prompt_cache_framework section (CACHE-01 through CACHE-04), Phase 1 of the Prompt & Cache Management Framework (control/CONTROLLER.yaml CACHE-01) -- wired into chat-service.ts's generateAiReply only.", by: "Super Boss (Claude Desktop)" }
+    - { date: "2026-07-18", change: "Review Framework gap-closure (AI Architecture / Domain Accuracy & Quality): added DMP-02A (embeddings.ts/whisper-client.ts as approved capability-tree/policy-gate exceptions, additive documentation only -- narrows nothing); updated GP-08's mechanism/gap to reflect policy-enforcement-engine.ts::hasGroundingData(), a new deterministic pre-call grounding-presence gate wired into report-engine-service.ts's ai_recipe executor and (via enforcePolicy()) ai-report-builder-service.ts's upload-to-report flow -- the two remaining free-text LLM call sites in the codebase that had zero policy gate (every other call site already had one).", by: "claude-code (background sub-agent)" }
 
 # ============================================================================
 # 1. IDENTITY AND PURPOSE
@@ -301,6 +302,16 @@ navigation_and_intent:
       mechanism: "dispatchInstruction() resolves selected path to a leaf, re-verified server-side in task-service.ts::createTask()"
       gap: "true only for tasks/conversations created through the Chain Selector -- NOT true for chats generally, reports, or workflows (zero capability-tree lookup in sendMessage()/generateAiReply())"
       source: "VERIDIAN_DMP_DCF_CONSTITUTION.md #1-3"
+    - id: DMP-02A
+      rule: "Two call sites are APPROVED, documented exceptions to DMP-02's capability-tree/Dynamic Chain classification requirement and to policy-enforcement-engine.ts's enforcePolicy() gate -- named here explicitly (2026-07-18, Review Framework Cognitive AI OS consistency gap-closure) because until this entry, neither was written down as intentional anywhere; both predate this entry and were unchanged by it."
+      status: ENFORCED
+      exceptions:
+        - mechanism: "src/lib/embeddings.ts"
+          reason: "generates a numeric vector (OpenRouter/Groq embeddings endpoint, or a deterministic hash-based pseudo-vector fallback) for semantic search -- it never returns free text to a user and has no 'opinion' or claim that could be out-of-domain, hallucinated, or need Dynamic Chain classification. A capability-tree lookup or policy gate on a vector has nothing to check."
+        - mechanism: "src/lib/whisper-client.ts"
+          reason: "transcribes a user's own uploaded audio (OpenAI Whisper) back into the text they themselves spoke -- it is not an AI-generated answer, opinion, or action, so business-purpose/prompt-injection/domain gating (which exist to police what the ASSISTANT says or does) and Dynamic Chain classification (which exists to route what the assistant will DO next) don't apply to a pure speech-to-text pass-through. Downstream, whatever the transcript is used for (e.g. Voice Tickets) goes through its own normal gates same as if the user had typed it."
+      gap: "this documents the 2 exceptions that exist; it does not close DMP-02's own broader gap (reports/workflows/chats generally still have zero capability-tree lookup) -- that remains open, tracked under DMP-02 above, not resolved by this entry."
+      source: "VERIDIAN Review Framework evaluation, 2026-07-18 gap-closure PR"
     - id: DMP-03
       rule: "A Dynamic Chain identity is persisted on the activity it classifies (Dynamic Chain ID), so permissions/approvals/notifications/audit/KPIs can eventually all derive from one chain reference."
       status: PARTIALLY_ENFORCED
@@ -416,7 +427,7 @@ task_lifecycle:
       - { id: GP-05, name: Instruction Validation, status: ENFORCED, mechanism: "task-tightening.ts + guardrail-engine.ts" }
       - { id: GP-06, name: Knowledge, status: POLICY_ONLY, gap: "no 'do I have sufficient knowledge' self-check exists" }
       - { id: GP-07, name: Evidence, status: PARTIALLY_ENFORCED, mechanism: "orchestraExecutions/audit_logs capture evidence", gap: "no rule blocks a claim lacking it" }
-      - { id: GP-08, name: Hallucination Prevention, status: PARTIALLY_ENFORCED, mechanism: "policy-enforcement-engine.ts" }
+      - { id: GP-08, name: Hallucination Prevention, status: PARTIALLY_ENFORCED, mechanism: "policy-enforcement-engine.ts::hasGroundingData() -- deterministic pre-call gate for report-engine-service.ts's ai_recipe executor: refuses to call the LLM at all when no real grounding data was supplied (added 2026-07-18, Review Framework Domain Accuracy gap-closure, closing the concrete case where that call site previously ran with `groundingData ?? {}`); ai-reply-gate.ts::passesReplyGate() -- narrow post-call check for one specific hallucination shape (a claimed completed action nothing in the system performed), chat-service.ts only", gap: "neither mechanism inspects a non-empty reply's actual factual content against its grounding data (e.g. numeric substring-matching) -- deliberately not attempted, see hasGroundingData()'s own header for why that would be a false-positive machine (a model correctly computing \"42% of 120 rows\" produces a number that legitimately never appears verbatim in the source). What's covered: was there any real data to ground an answer in, and did the reply avoid a specific known-bad phrasing pattern -- not a semantic fact-check of the content itself." }
       - { id: GP-09, name: Confidence, status: POLICY_ONLY, gap: "no numeric confidence-score pipeline with tiered thresholds exists" }
       - { id: GP-10, name: Risk Classification, status: PARTIALLY_ENFORCED, mechanism: "detectHighImpactAction()'s 9 categories -- real for that surface only" }
       - { id: GP-11, name: Human Override, status: ENFORCED, mechanism: "AGENTS.md hierarchy, owner > Super Boss, no agent may override" }
