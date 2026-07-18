@@ -1869,6 +1869,30 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-202151-rescue-pr--413) -- Rescue and merge PR #413"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #413 (tier1, self-merged after CI green), squash commit 3ea9aa38."
+    claim: |
+      Rescued PR #413 (branch worker/task-20260718-045005-ai-architecture--
+      ai-capability-registry, "AI Capability Registry: instrument backfill
+      with independent coverage measurement" -- opened by a now-stopped
+      autonomous worker dispatcher, CI failing on audit-check only).
+      Checked out via the pre-existing worktree at ai-os/tasks/task-
+      20260718-045005-ai-architecture--ai-capability-registry/workspace
+      (gh pr checkout can't create a second worktree for an already-
+      checked-out branch). Merged origin/main twice (main advanced again
+      mid-rescue) -- only real conflict both times was PROGRESS.md (kept
+      ours) plus one genuine ACTIVE-CLAIMS.yaml conflict on the first round
+      (two concurrent sessions' claim entries both kept, additive, not a
+      real collision). PR's own diff (git diff origin/main...43d5995b)
+      touches only capability-backfill-service.ts (+.test.ts), a new admin-
+      gated GET /api/capability-registry/coverage route, and the
+      Capability Registry admin page -- no drizzle/schema.ts, confirmed
+      TIER1. Verification: bunx tsc --noEmit clean, eslint 0 errors (3
+      pre-existing unrelated warnings), bun test 1523 pass/0 fail. Posted
+      the required 8-field AUDIT: PASS comment, watched CI green (audit-
+      check, CI, CodeQL all SUCCESS) on final commit 2294fd01, merged
+      squash + delete-branch.
   - session_label: "claude-code (task-20260718-195944-rescue-pr--424) -- Rescue and merge PR #424"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #424 (tier1, self-merged after CI green), squash commit cc1af35d."
