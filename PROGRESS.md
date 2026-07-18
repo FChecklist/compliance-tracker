@@ -39,9 +39,39 @@
       (requireAuth + requireRole("manager")), new /task-duplicates page, nav entry. Verified
       requireAuth()/role gating present on the new route, no Prisma imports, no
       permission-service.ts ERP_ACTION_ROLES changes.
+- [x] Posted structured `AUDIT: PASS` PR comment (all 8 required fields):
+      https://github.com/FChecklist/compliance-tracker/pull/429#issuecomment-5013298816
+- [x] main kept moving fast (multiple concurrent rescue sessions merging PRs #425/#423/
+      #421/#432 mid-rescue) -- had to re-merge origin/main into the PR branch 4 more times
+      (5 total) over ~20 minutes to reach a real MERGEABLE state, each time re-running
+      tsc/lint/test clean and re-pushing. Caught and fixed the same stray
+      `<<<<<<< HEAD` marker mistake a second time on one of these re-merges (again by
+      re-parsing ACTIVE-CLAIMS.yaml as YAML before pushing).
+- [x] Independently confirmed the GitHub Actions check-suite stall other rescue sessions in
+      this log had already documented: zero `github-actions` check-suite created on any push
+      while `mergeStateStatus` stayed `DIRTY`/`CONFLICTING`; the moment the branch reached a
+      genuine `MERGEABLE` state (not just a push), Actions started creating suites again and
+      both CI and Mandatory Audit Check ran and passed within minutes.
+- [x] TIER1 + CI green (Lint/Type Check/Unit Tests/Build/E2E/Guardrail Presence/Asset
+      Registry/Metadata Index/Doc Quarantine/Doc Cross-Reference/CodeQL/Sentinel/audit-check
+      all SUCCESS) + AUDIT: PASS -> merged via `gh pr merge 429 --squash --delete-branch`.
+      Merge commit 0208c702.
+- [x] Moved this session's ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`,
+      via a small separate follow-up PR (#456, same convention prior rescue sessions used) --
+      posted its own AUDIT: PASS comment, got CI green, merged.
+- [x] Fixed a task-level quality gate failure (`quality-gate-0.json` at the task root, not a
+      GitHub CI check): `lint` and `build` both failed with exit 127 ("eslint: not found",
+      "next: not found"). Root cause: this task's own workspace
+      (`task-20260718-230824-rescue-pr--429/workspace`, the harness's designated worktree for
+      this task) never had `node_modules` installed -- all the actual rescue work (steps
+      above) was correctly done in PR #429's real head-branch worktree
+      (`task-20260718-090002-checks---balances--duplicate---data-qual/workspace`, per the
+      task instructions' own note that the PR's real head branch may differ from this task's
+      own branch), but that left this workspace's own deps never installed. Fixed by running
+      `bun install --frozen-lockfile` here; re-ran `bun run lint` (exit 0, 0 errors, same 3
+      pre-existing warnings) and `bun run build` (exit 0, `/task-duplicates` present in the
+      route manifest, confirming the merged PR's changes are live on main). No checker was
+      silenced -- the actual missing dependency was installed.
 
 ## Remaining
-- [ ] Post structured `AUDIT: PASS`/`AUDIT: FAIL` PR comment (all 8 required fields).
-- [ ] Watch CI to green on the final pushed commit (`gh run watch <id> --exit-status`).
-- [ ] If TIER1 + CI green + AUDIT: PASS -> merge via `gh pr merge 429 --squash --delete-branch`.
-- [ ] Move this session's ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`.
+- [ ] None -- PR #429 merged (TIER1), rescue complete, quality gate fixed.
