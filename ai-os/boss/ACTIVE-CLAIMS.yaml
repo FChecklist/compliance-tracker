@@ -96,6 +96,42 @@ active:
       ERP_ACTION_ROLES table (per this task's own instructions) or any
       other in-flight worker's declared file scope -- cross-checked against
       every other active: entry above before starting, no overlap found.
+  - session_label: "claude-code (this session, CLI) -- VERIDIAN Review Framework gap-closure: Checks & Balances / Business Rule & Calculation Verification"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Task task-20260718-085003-checks---balances--business-rule---calcu:
+      closing 3 distinct findings (each listed twice in the source
+      framework export -- 6 rows, 3 unique gaps) -- "Business Rule
+      Validation Before Execution", "Calculation Cross-Verification", "AI
+      Output Validation by Business Rules". Re-read the current codebase
+      before planning (per this task's own instructions) rather than
+      trusting the finding text as still-accurate:
+      guardrail-engine.ts (Wave 157, "the row-4 rule engine" the first two
+      findings refer to) already exists but had never been wired as a
+      pre-execution gate for VCEL calculation dispatch (task-execution-
+      engine.ts's dispatchEngine()/dispatchTool()) -- only task-governance
+      "input"-phase leaves were registered. GST already has real
+      Calculation Cross-Verification (gst/validation-engine.ts's
+      checkTaxCalculation(), independently recomputes via splitGst() and
+      compares to the entered amount) -- NOT duplicating that; adding the
+      same discipline to payroll (gratuity) and banking (EMI), the two
+      named domains that didn't have it. AI Output Validation target:
+      /api/documents/extract/route.ts's callLLMJson-based extraction
+      (demandAmount/gstin/pan/complianceType feeding a human-reviewed but
+      otherwise unvalidated compliance-item draft) -- reusing existing
+      isValidGstinFormat/isValidGstinChecksum/isValidPanFormat
+      (data-quality-engine.ts) and VALID_TYPES (compliance-service.ts)
+      through a new guardrail-engine "output"-phase leaf.
+      File scope: guardrail-registrations.ts (additive leaves/checks only,
+      NOT touching any existing registration), new
+      src/lib/business-rule-validator.ts, new
+      src/lib/calculation-cross-verification.ts, task-execution-engine.ts
+      (dispatchEngine/dispatchTool gate wiring + gratuity/EMI case
+      cross-verification calls), src/app/api/documents/extract/route.ts,
+      src/components/DocumentUploadSection.tsx (surfacing the warning).
+      Explicitly NOT touching permission-service.ts's ERP_ACTION_ROLES
+      table or any other in-flight worker's declared scope, per this
+      task's own instructions.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |

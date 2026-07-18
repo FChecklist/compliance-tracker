@@ -1,44 +1,85 @@
-# PROGRESS -- task-20260718-092002-checks---balances--separation-of-duties
+# PROGRESS -- task-20260718-085003-checks---balances--business-rule---calcu
 
-VERIDIAN Review Framework gap-closure: Checks & Balances / Separation of
-Duties & Approval Controls. The task listed 8 findings, but they are 4
-distinct findings duplicated twice each in the source list -- this PR
-closes all 4 in one coherent change, matching the task's own instruction
-to keep related findings in one PR.
+VERIDIAN Review Framework gap-closure: Checks & Balances / Business Rule &
+Calculation Verification. The 6 findings in this task's brief are 3 unique
+gaps, each listed twice.
 
 ## Completed
 
-### 1. Separation of Duties (SoD) -- hard requesterId != approverId check
-- [x] Read the shared Approval Workflow Engine (`approval-workflow-service.ts`) first: it already has a real, tested `isSelfApproval()` hard check (added in a prior wave, commit `52bc3aa7`) -- the finding's premise that "only role-based gating" exists there is now out of date. Not re-adding it there, reused it everywhere below instead.
-- [x] Audited every other approve/reject/decide call site in the codebase (via a dedicated research pass across ~30 candidate files/routes) for a hard requester-vs-approver equality check, not just role-rank.
-- [x] Fixed real, confirmed gaps (role-rank check only, no self-check before this PR):
-  - `src/app/api/approvals/[id]/route.ts` (PATCH) -- the older single-purpose `approvalRequests` maker-checker table/route. Any admin-rank user who created a `policy_publish`/`worker_agent_proposal`/`code_change_request` row could approve/reject it themselves.
-  - `src/lib/services/erp-selling-service.ts:updateQuotationStatus` -- a manager-rank sales rep could approve their own quotation (`erpQuotations.createdById`).
-  - `src/lib/services/hr-service.ts:decideLeaveRequest` -- a manager could approve/reject their own leave request (`leaveRequests.userId`).
-  - `src/lib/services/construction-boq-service.ts:approveBoq` -- a manager could approve a BOQ they created (`constructionBoqs.createdById`).
-  - `src/lib/services/erp-returns-service.ts` -- `approveSalesReturn`, `rejectSalesReturn`, `approvePurchaseReturn`, `rejectPurchaseReturn` (`requestedById` on both `erpSalesReturns`/`erpPurchaseReturns`).
-  - `src/lib/services/construction-field-workflow-service.ts:verifyPunchListItemClosed` -- the function's own existing comment already stated the "don't let the person who did the work sign off their own fix" intent but never enforced it (`assignedToId`); now enforced.
-  - `src/lib/services/construction-field-workflow-service.ts:reviewSubmittal` -- a reviewer could review their own submittal (`submittedById`).
-  - `src/lib/services/access-review-service.ts:reviewCertification` -- a self-certification variant: an admin could certify/revoke their OWN continued-access row (`accessReviewCertifications.userId` is the subject, not a requester, but the same self-attestation hole applies).
-  - `src/lib/services/erp-contract-service.ts:approveAmendment` -- confirmed dead code (no route currently calls it), fixed defensively for when it's eventually wired up.
-- [x] Confirmed already-fixed, left untouched: `erp-payment-entries-service.ts:canDecidePaymentEntry` (explicit `isSelfApproval` check) and `construction-kpi-service.ts:approveKpiEntry` (explicit inline check).
-- [x] `bun test` (full suite): 1428 pass / 0 fail. `bunx tsc --noEmit`: clean. `bunx eslint` on every changed file: clean.
-
-### 2. Four-Eyes Principle for Critical Actions
-- [x] Read `high-impact-action-detector.ts` (9 categories: delete/archive/payment/approval/rejection/compliance_submission/access_changes/data_export/configuration_changes) and every existing consumer (AI Team dispatch risk classification, task/chat confirmation gate) before changing anything.
-- [x] Cross-wired the same detector into `approval-workflow-service.ts`: a step whose `entityType`/`name` text matches one of the 9 categories now gets `requiredApprovals` **floored at 2** (not just defaulted) -- enforced at `createWorkflowDefinition` (so new definitions are correct from the start) AND again at `startApprovalWorkflow`'s step-instance creation (so a stored definition from before this change, or edited directly, still gets the floor at the real gating chokepoint -- no data migration needed, the floor is live-enforced where it actually matters).
-- [x] Extended `delete`'s trigger phrases with "dispose"/"disposal" (additive) so fixed-asset disposal -- a real permanent removal, just not literally named "delete" -- is correctly caught; this benefits every existing consumer of the detector, not just this PR.
-- [x] New pure, exported, directly-testable functions: `detectCriticalActionCategory()`, `enforceFourEyesFloor()`. 7 new unit tests added to `approval-workflow-service.test.ts`.
-
-### 3. Role-Based Approval Matrix
-- [x] Confirmed no aggregate view existed: `GET /api/approval-workflows` already returns every workflow definition + steps across all entity types when `entityType` is omitted (this was already true), but nothing in the UI rendered that holistically -- the only admin-facing "who approves what" view was the unrelated, manually-entered `src/app/(app)/doa` (Delegation of Authority) table.
-- [x] Annotated `listWorkflowDefinitions()`'s response with each step's inferred `highImpactCategory` and `fourEyesSatisfied` flag (derived from the same four-eyes cross-wire above), so the matrix view can show, at a glance, any step that names a critical action but doesn't yet meet the four-eyes floor (e.g. a definition created before this PR).
-- [x] New `ApprovalMatrixSection` component (`src/components/home/ApprovalMatrixSection.tsx`), added to the existing `/approvals` page alongside `ApprovalTab` and `WorkflowApprovalsSection` -- one table, every entity type's workflow steps, approver role, required approvals, four-eyes badge, and critical-category badge.
-
-### 4. Conflict of Interest Detection -- correctly deferred, not built
-- [x] Audited `entity_relationships` real usage before assuming the finding's premise was still accurate. Every `relationshipType` value actually written today (`triggers_approval`, `depends_on`, `owned_by`, `sourced_from`, `supersedes`, `executed_by`) is a system/asset/chain graph edge -- **zero personal or vendor relationship edges exist**.
-- [x] Checked for any other pre-existing COI mechanism (`related_party_transactions` table) -- confirmed it's a manually-entered board/audit-committee disclosure log, not a queryable approver-vs-requester relationship check, and not applicable here.
-- [x] Conclusion: the finding's own recommended approach ("scope a COI-flagging feature once entity_relationships has real relationship data to query") is still exactly the right call as of this session -- there is no real relationship data to query yet, so building a detector now would be a feature that can never actually fire. Not building it. When a future wave adds real personal/vendor `entity_relationships` edges (e.g. `reports_to`, `related_to`, `vendor_contact_of`), the natural next step is a `checkConflictOfInterest(orgId, requesterId, approverId)` query against those edges, callable from the same approval decision paths this PR just hardened with `isSelfApproval()` checks.
+- [x] Re-read the current codebase before planning (per this task's own
+      instructions) rather than trusting the finding text as still-accurate.
+      Confirmed: `guardrail-engine.ts` (Wave 157) is real, existing generic
+      rule-engine infrastructure -- it just had zero "process"/"output"
+      phase consumers wired to real calculation dispatch or AI output, and
+      GST already has genuine Calculation Cross-Verification
+      (`gst/validation-engine.ts`'s `checkTaxCalculation()`), which this PR
+      does **not** duplicate.
+- [x] **Business Rule Validation Before Execution** -- new
+      `src/lib/business-rule-validator.ts` wires `guardrail-engine.ts`'s
+      `evaluateGuardrails()` as a genuine PRE-EXECUTION gate
+      (`assertBusinessRulesBeforeExecution()`), called at the top of
+      `dispatchTool()` and `dispatchEngine()` in `task-execution-engine.ts`,
+      alongside the existing POST-execution `assertValidDispatchOutput()`
+      (`dispatch-output-validator.ts`). Registered real "process"-phase
+      rules in `guardrail-registrations.ts` for the financially material
+      engines: GST rate-split engines (0-40% sanity bound), EMI/loan
+      engines (principal/tenure/rate sanity bounds), gratuity calculator
+      (salary/years-of-service sanity bounds), commission calculator (rate
+      bound). Unregistered engine keys are unaffected (guardrail-engine's
+      own "not rigid" guarantee).
+- [x] **Calculation Cross-Verification** -- new
+      `src/lib/calculation-cross-verification.ts`. GST already had this
+      (not duplicated). Added the same discipline to the two named domains
+      that didn't: `crossVerifyEmi()` independently re-derives
+      principal/interest/final-balance from the amortization SCHEDULE
+      itself (summation), a different route than the closed-form EMI
+      formula that produced it; `crossVerifyGratuity()` checks the
+      statutory "gratuity <= one month's salary per year of service" bound
+      independently of the 15/26 or 15/30 formula. Wired into
+      `dispatchEngine()`'s `gratuity_calculator` and
+      `emi_calculator`/`loan_schedule_generator`/`amortization_engine`
+      cases -- a verification failure throws
+      `CalculationVerificationError` instead of returning a possibly-wrong
+      result, matching `dispatch-output-validator.ts`'s own posture.
+- [x] **AI Output Validation by Business Rules** -- found a concrete,
+      previously-unvalidated target:
+      `src/app/api/documents/extract/route.ts`'s AI document extraction
+      (`demandAmount`/`gstin`/`pan`/`complianceType`/`dueDate`) feeds a
+      human-reviewable compliance-item draft
+      (`DocumentUploadSection.tsx`) with zero validation against business
+      rules. Added a new "output"-phase guardrail
+      (`AI_DOCUMENT_EXTRACTION_LEAF`) reusing existing deterministic
+      validators (`isValidGstinFormat`/`isValidGstinChecksum`/
+      `isValidPanFormat` from `data-quality-engine.ts`,
+      `VALID_TYPES` from `compliance-service.ts`) plus new amount/date
+      plausibility bounds. A violation is recorded via
+      `recordGuardrailViolation()` (audit trail) and surfaced as a
+      `validationWarning` in the API response and a visible banner in
+      `DocumentUploadSection.tsx` -- non-blocking (a human still
+      reviews/edits every field before a compliance item is created), so
+      this is a second, independent check layered on the existing human
+      review, not a replacement for it.
+- [x] Added real unit tests: `business-rule-validator.test.ts`,
+      `calculation-cross-verification.test.ts`, plus new describe blocks in
+      `guardrail-registrations.test.ts` covering every new leaf/check
+      (positive and negative cases, including deliberately-corrupted
+      EMI/gratuity results to prove the cross-verification actually
+      detects a broken calculation, not just restate the primary formula).
+- [x] Verification: `bun install` (node_modules wasn't present in this
+      workspace checkout), `bunx tsc --noEmit` clean (0 errors),
+      `bunx eslint` clean on every changed/new file, `bun test` full suite
+      1457 pass / 0 fail, `bun run build` succeeds.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      per that file's protocol before starting real work. Did not touch
+      `permission-service.ts`'s `ERP_ACTION_ROLES` table or any other
+      in-flight worker's declared scope.
 
 ## Remaining
-- [ ] None for this task's 4 findings. COI detection (finding 4) is intentionally deferred per its own recommended approach -- see note above, not a TODO for this PR.
+
+- [ ] None known. Everything scoped to this task's 3 unique findings is
+      closed. Not attempted (explicitly out of scope / no live target
+      found in this pass): retrofitting a "process"/"output" guardrail
+      through every other `computation_engines.key` beyond the
+      GST/EMI/payroll ones the review named -- guardrail-engine.ts's
+      registry is additive, so extending coverage to more engines later is
+      safe and doesn't require touching this PR's code.
