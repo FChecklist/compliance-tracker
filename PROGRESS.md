@@ -1,20 +1,17 @@
-# PROGRESS -- task-20260718-205406-rescue-pr--412
+# PROGRESS -- task-20260718-212530-rescue-pr--425
 
 ## Completed
-- [x] Read ACTIVE-CLAIMS.yaml -- no conflicting active claim for PR #412; found a `recently_completed` entry describing the original build (confirmed it touches drizzle/schema.ts -> TIER2)
-- [x] Checked out real PR #412 head branch (worker/task-20260717-194828-support-session-impersonation) as local `pr-412-rescue`
-- [x] Registered active claim for this rescue in ai-os/boss/ACTIVE-CLAIMS.yaml -- opened as its own PR #450, audited, CI green, merged
-- [x] Merged origin/main into pr-412-rescue (twice -- main advanced again mid-rescue) -- conflicts in PROGRESS.md (kept ours), ai-os/boss/ACTIVE-CLAIMS.yaml (kept both sides' distinct entries), src/lib/db/schema.ts (auto-merged cleanly, no markers)
-- [x] Found real migration-number collision: drizzle/0224_support_sessions.sql collided with two migrations already merged to main in the interim (0224_crm_accounts_contacts_actor_columns_no_fk.sql, 0224_erp_exchange_rates_source.sql). Renamed to drizzle/0225_support_sessions.sql (no internal filename self-references to update).
-- [x] Found real Asset Registry Coverage Check failure: new `support_sessions` table wasn't registered/exempted. Added it to ai-os/registry/asset-registry-coverage.yaml's `exempted` list (internal auth/security-infrastructure state with a security-sensitive token_hash column, same class as the existing user_active_sessions/api_keys exemptions).
-- [x] Verified both scripts pass locally (check-migration-collision.mjs, check-asset-registry-coverage.mjs)
-- [x] Ran full local verification: bunx tsc --noEmit (0 errors), bun run lint (0 errors, 3 pre-existing unrelated warnings), bun test (1535 pass / 0 fail across 115 files)
-- [x] Pushed rebased branch to worker/task-20260717-194828-support-session-impersonation
-- [x] Read the PR's full diff (all 11 changed files) and posted a structured AUDIT: PASS comment with all 8 required fields on PR #412
-- [x] Re-triggered audit-check jobs (both PR #450's and PR #412's had run before the audit comment landed)
-- [x] Confirmed full CI green on the final rebased commit (0451bf05): all required checks pass (Lint/Type Check/Unit Tests/Build/E2E/CodeQL/Sentinel governance checks/Asset Registry Coverage/Migration Collision/audit-check). Only the non-required Vercel preview is pending/rate-limited.
-- [x] Classified tier: TIER2 (touches drizzle/0225_support_sessions.sql and src/lib/db/schema.ts) -- did NOT self-merge, per task instructions
-- [x] Moved this session's ACTIVE-CLAIMS.yaml entry from active to recently_completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, registered + pushed a claim for rescuing PR #425
+- [x] `gh pr checkout 425` failed (branch already checked out in another worktree) -- worked around via `git fetch origin pull/425/head:pr-425-rescue`
+- [x] Merged origin/main into the PR branch (31 commits behind); resolved PROGRESS.md (`--ours`) and a real-but-additive conflict in `ai-os/boss/ACTIVE-CLAIMS.yaml` (kept both sides)
+- [x] Confirmed PR #425's own diff is exactly `drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql` (new) + a comment-only change in `src/lib/db/schema.ts` -- no application code
+- [x] Checked `git ls-tree origin/main -- drizzle/`: highest existing is 0224, no 0225 on main yet -- this PR's 0225 filename needed no renumbering, though PR #412 and #414 independently also claim 0225 for their own still-open migrations (flagged for whoever applies these live -- first to merge keeps the number)
+- [x] `bun install --frozen-lockfile && bunx tsc --noEmit && bun run lint && bun test`: 0 tsc errors, 0 lint errors (3 pre-existing unrelated warnings), 1523 tests pass / 0 fail -- confirms the PR's original CI failures (audit-check, Unit Tests) were staleness against main, not real defects
+- [x] Pushed the merged branch to `worker/task-20260718-084006-checks---balances--audit-trail---immutab`
+- [x] Read the full PR diff personally, posted a structured `AUDIT: PASS` comment with all 8 required fields (https://github.com/FChecklist/compliance-tracker/pull/425#issuecomment-5012997648)
+- [x] Watched CI to green: Lint, Type Check, Unit Tests, Build, E2E Tests, Analyze/CodeQL, audit-check, all Sentinel/coverage checks all `pass`. Only non-required Vercel preview failed (rate-limited, documented precedent from every sibling rescue this session)
+- [x] Classified TIER2 (touches `drizzle/0225_*.sql` + `src/lib/db/schema.ts`) -- did NOT self-merge
+- [x] Moved the claim from `active:` to `recently_completed:` in `ai-os/boss/ACTIVE-CLAIMS.yaml`
 
 ## Remaining
-- [ ] None -- rescue complete. PR #412 is TIER2, CI green, audited (AUDIT: PASS posted), awaiting Owner sign-off to merge.
+- [ ] None from this session. PR #425 is TIER2, CI fully green, `AUDIT: PASS` posted -- reported to Owner as ready for sign-off. Live migration application + merge needs a supervising/DB-access-capable session, which must re-check `git ls-tree origin/main -- drizzle/` immediately before applying (PR #412/#414 both also independently used migration number 0225).

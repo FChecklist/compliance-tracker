@@ -1913,21 +1913,47 @@ active:
       TIER2 (touches drizzle/0225 + schema.ts) -- NOT self-merged. Reported
       to Owner as ready for sign-off.
 
-  - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue and merge PR #425"
-    claimed_at: "2026-07-18T21:25:30Z"
-    claim: |
-      Rescuing PR #425 (branch worker/task-20260718-084006-checks---
-      balances--audit-trail---immutab) per the standard rescue protocol:
-      checkout real PR head, merge origin/main, renumber any drizzle
-      migration if present, run tsc/lint/test locally, push, post
-      structured AUDIT comment, wait for CI, merge if TIER1+green or
-      report TIER2 for Owner sign-off if it touches drizzle/*.sql or
-      schema.ts. File scope: whatever PR #425's own diff touches, plus
-      this task's own PROGRESS.md and this claim entry.
-
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (task-20260718-212530-rescue-pr--425) -- Rescue PR #425"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #425 -- NOT merged by this session. TIER2 (touches drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
+    claim: |
+      Rescued PR #425 (branch worker/task-20260718-084006-checks---
+      balances--audit-trail---immutab, "Audit trail: close immutability +
+      complete-coverage gaps", opened by a now-stopped autonomous worker
+      dispatcher). Branch was 31 commits behind main, only 1 real commit
+      ahead of merge-base -- merged origin/main (real conflicts only in
+      PROGRESS.md, kept ours, and this claims file, kept both sides
+      additively). Confirmed the PR's own diff is exactly 2 files: new
+      drizzle/0225_audit_trail_immutability_and_backstop_triggers.sql
+      (REVOKE UPDATE/DELETE on compliance.audit_logs from service_role,
+      closing a gap silently reopened by 0008's blanket schema-wide GRANT;
+      plus a generic AFTER-trigger audit-trail backstop on users/
+      compliance_items/erp_journal_entries/erp_payment_entries) and a
+      comment-only addition to schema.ts's auditLogs doc comment -- no
+      application code touched. Checked git ls-tree origin/main --
+      drizzle/ : highest existing is 0224 (two files share that number),
+      no 0225 exists on main yet, so this PR's 0225 filename needed no
+      renumbering *at check time* -- but flagging a real three-way
+      collision risk: PR #412 (0225_support_sessions.sql) and PR #414
+      (0225_ai_interaction_efficiency_gap_closure.sql), both also open/
+      TIER2 right now, independently claim the same number for their own
+      migrations. Whichever of these three merges/applies first keeps
+      0225; the other two need renumbering by whoever handles them next --
+      documented in this PR's own PROGRESS.md so a future session doesn't
+      miss it. Locally: bunx tsc --noEmit 0 errors, bun run lint 0 errors
+      (3 pre-existing unrelated warnings), bun test 1523 pass/0 fail --
+      confirms the PR's original CI failures (audit-check, Unit Tests)
+      were staleness against main, not real defects in this PR's 2-file
+      diff. Posted structured AUDIT: PASS comment (8 fields). Full CI
+      green (Lint/Type Check/Unit Tests/Build/E2E/CodeQL/Sentinel/
+      audit-check) except Vercel preview (rate-limited, non-required, same
+      as prior rescue sessions' precedent). TIER2 (touches drizzle/0225 +
+      schema.ts) -- NOT self-merged. Reported to Owner as ready for
+      sign-off, with the 0225-collision risk flagged for whoever applies
+      it live.
   - session_label: "claude-code (task-20260718-205406-rescue-pr--412) -- Rescue PR #412"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #412 -- NOT merged by this session. TIER2 (touches drizzle/0225_support_sessions.sql + schema.ts), CI fully green, AUDIT: PASS posted -- left for Owner sign-off per task instructions' TIER2 no-self-merge rule."
