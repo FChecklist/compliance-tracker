@@ -15,6 +15,7 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { isSelfApproval } from "./approval-workflow-service"
 
 export type ErpContractContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -151,6 +152,13 @@ export async function approveAmendment(ctx: ErpContractContext, amendmentId: str
     const contract = await db.query.erpContracts.findFirst({ where: and(eq(erpContracts.id, amendment.contractId), eq(erpContracts.orgId, ctx.orgId)) })
     if (!contract) throw new ServiceError("Amendment not found", 404)
     if (amendment.status === "approved") throw new ServiceError("Amendment is already approved", 409)
+    // No route currently calls this function (it's dead code as of this
+    // wave), but adding the same self-approval guard defensively so it's
+    // safe by construction the day it's wired up, rather than relying on
+    // whoever adds the route to remember.
+    if (isSelfApproval(amendment.createdById, ctx.userId)) {
+      throw new ServiceError("You cannot approve an amendment you created yourself -- an independent approver is required", 403)
+    }
 
     const updates: { status: "approved"; contractValue?: string } = { status: "approved" }
     const [updated] = await db.update(erpContractAmendments).set(updates).where(eq(erpContractAmendments.id, amendmentId)).returning()

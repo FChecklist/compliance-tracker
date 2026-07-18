@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const result = await createKbPage({ orgId, userId: dbUser.id, dbUser }, body)
+    const result = await createKbPage({ orgId, userId: dbUser.id, isRealUser: true }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

@@ -21,7 +21,7 @@ import {
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
   erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders,
-  users,
+  users, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, or, isNull, lte, gte, sql, inArray } from "drizzle-orm"
@@ -291,7 +291,7 @@ export async function listSalesInvoicesPaged(ctx: { orgId: string }, filters: Sa
 // a real dbUser unchanged.
 export async function createSalesInvoice(
   ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
-  input: { customerId: string; salesOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
+  input: { customerId: string; salesOrderId?: string; projectId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: SalesInvoiceItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
@@ -308,6 +308,18 @@ export async function createSalesInvoice(
     if (input.salesOrderId) {
       const salesOrder = await db.query.erpSalesOrders.findFirst({ where: and(eq(erpSalesOrders.id, input.salesOrderId), eq(erpSalesOrders.orgId, ctx.orgId)) })
       if (!salesOrder) throw new ServiceError("Sales order not found", 404)
+    }
+    // Wave 120 (PROJEXA Revenue Report) added this column specifically so a
+    // sales invoice could be attributed to a construction project, but
+    // nothing ever actually set it -- caught live while seeding real demo
+    // data: construction-dashboard-service.ts's getOrgDashboard() filters
+    // its revenue-by-project query to `inArray(projectId, ids)`, so every
+    // invoice created through this endpoint was silently excluded from both
+    // per-project AND org-wide Total Revenue, regardless of how many real
+    // invoices existed.
+    if (input.projectId) {
+      const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
+      if (!project) throw new ServiceError("Project not found", 404)
     }
     const { currencyId, exchangeRate } = await resolveInvoiceCurrency(db, ctx.orgId, input.currencyId, input.exchangeRate)
     const companyId = await resolveInvoiceCompany(db, ctx.orgId, input.companyId)
@@ -329,7 +341,7 @@ export async function createSalesInvoice(
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpSalesInvoices.invoiceNumber}), 0)` }).from(erpSalesInvoices).where(eq(erpSalesInvoices.orgId, ctx.orgId))
 
     const [invoice] = await db.insert(erpSalesInvoices).values({
-      orgId: ctx.orgId, customerId: input.customerId, salesOrderId: input.salesOrderId ?? null, invoiceNumber: Number(maxNumber) + 1,
+      orgId: ctx.orgId, customerId: input.customerId, salesOrderId: input.salesOrderId ?? null, projectId: input.projectId ?? null, invoiceNumber: Number(maxNumber) + 1,
       postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(), companyId,
       subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
       createdById: ctx.userId,
