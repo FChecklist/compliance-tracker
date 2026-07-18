@@ -1,17 +1,44 @@
-# PROGRESS -- task-20260718-053006-ai-architecture--multi-modal---multi-lan
+# PROGRESS -- task-20260718-195946-rescue-pr--422
+
+Rescue and merge PR #422 (AI Cost Governance & FinOps: proactive cost-ceiling
+alert + default free-tier spend cap), opened by a now-stopped autonomous
+worker dispatcher with CI failing (audit-check + Unit Tests).
 
 ## Completed
-- [x] Read governance docs, registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml, checked 4 sibling AI-Architecture branches for file-level overlap (none on the files this task touches)
-- [x] Confirmed both findings were still real gaps by reading the current code (not the review framework's original snapshot): llm-client.ts/prompt-os-resolver.ts had zero locale/language wiring anywhere; document-extraction-service.ts's SUPPORTED_MIME_TYPES was still image-only (jpeg/png/webp)
-- [x] Multi-Language AI Responses: new `src/lib/ai-response-locale.ts` (20-language directive table + `getPreferredAiResponseLocale()` cookie reader, deliberately decoupled from `src/i18n/locales.ts`'s UI-catalog-constrained en/hi list -- an LLM needs no message catalog to reply in another language, so this doesn't require translating the UI itself)
-- [x] Added optional `locale` param to `prompt-os-resolver.ts`'s `resolvePromptTemplate()` (additive, every pre-existing 1-arg call site unaffected) that appends a language directive the same way the existing VERI_PERSONA_DIRECTIVE does
-- [x] Wired locale through the real conversational "AI response" surfaces: `chat-service.ts`'s `generateAiReply()` + `generateVeriGroupReply()` (covers VERI Chat 1:1 and group replies, and `regenerateAiReply()` which calls the former), and `help/ask/route.ts` (Help AI)
-- [x] Supports Multiple Input Types: extended `document-extraction-service.ts` with a text-extraction path (PDF via `pdf-parse`, Word `.docx` + new PowerPoint `.pptx` via `officecli-client.ts`, best-effort `.eml` email header+body) alongside the existing image-vision path -- `isVisionExtractable()` kept image-only (other services depend on that exact meaning), new `isTextExtractable()` / `isDocumentExtractable()` added
-- [x] Added `extractPptxRawText()` to `officecli-client.ts` (refactored the shared tmp-file/query/close logic out of `extractDocxRawText()`) -- verified live against the vendored `bin/officecli-linux-x64` binary (real create/add-slide/add-shape/close/query round-trip) before writing any code depending on it
-- [x] Updated `src/app/api/documents/route.ts`'s upload-extraction trigger from `isVisionExtractable` to `isDocumentExtractable`, renamed the `imageBase64` ctx field to `fileBase64` (and the one other caller, `scripts/veridian-full-load-test.ts`) since it now carries non-image file bytes too
-- [x] Video explicitly NOT added -- no rasterization/frame-extraction library exists in this codebase or its dependencies, and no provider wired into llm-client.ts accepts raw video over its existing simple-HTTP-JSON vision endpoints; documented in document-extraction-service.ts's header rather than faked
-- [x] Tests: `src/lib/ai-response-locale.test.ts` (new), `src/lib/officecli-client.test.ts` (new real .pptx round-trip test using `pptxgenjs`), `src/lib/services/document-extraction-service.test.ts` (new -- mime-type gates, `.eml` parsing, real PDF round-trip via `jspdf` + `pdf-parse`)
-- [x] `bunx tsc --noEmit` clean, `bunx eslint` clean on all changed files, `bun test` full suite 1436 pass / 0 fail (2854 expect calls), `bun run build` compiles successfully
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, registered active claim (PR #446,
+      doc-only, merged)
+- [x] `gh pr checkout 422` (worked around a worktree collision with the
+      original worker's own task directory, which still had that branch
+      checked out, by fetching into a local branch `pr-422-work` instead)
+- [x] Merged origin/main into the PR branch -- conflicts in PROGRESS.md
+      (kept ours) and ai-os/boss/ACTIVE-CLAIMS.yaml (both sides additive,
+      kept both entries)
+- [x] Confirmed no drizzle/*.sql or src/lib/db/schema.ts changes anywhere in
+      the final diff vs origin/main -- TIER1 (monthlyCostCapUsd/
+      costCapEnforcementEnabled columns already existed pre-PR)
+- [x] `bun install --frozen-lockfile` clean, `bunx tsc --noEmit` clean,
+      `bun run lint` 0 errors (3 pre-existing unrelated warnings), `bun test`
+      1497 pass / 0 fail across 110 files -- original CI failures
+      (audit-check: no verdict posted yet; Unit Tests: fixed upstream by an
+      unrelated main commit before this merge, reproduced 0 failures
+      locally post-merge) both resolved by the merge + a real audit comment,
+      no code bug needed fixing in this PR's own changes
+- [x] Pushed merged branch to
+      worker/task-20260718-061005-ai-cost-governance---finops--cost-contro
+- [x] Read the full diff by hand (7 files: cost-guard.ts +
+      classifyCostBreach/checkCostCeilingBreaches, metric-alerts/run/route.ts
+      wiring, org-provisioning-service.ts +
+      defaultMonthlyCostCapUsdForPlan, 2 new test files)
+- [x] Posted structured `AUDIT: PASS` PR comment (all 8 audit-protocol.ts
+      fields)
+- [x] Waited for CI: all required branch-protection checks green (audit-
+      check, Lint, Type Check, Build, Unit Tests, Guardrail Presence Check,
+      Asset Registry Coverage Check, E2E Tests). Only non-required "Vercel"
+      preview deploy was still pending at merge time (matches prior rescue
+      sessions' documented precedent -- not a required check).
+- [x] TIER1 confirmed -> squash-merged PR #422, deleted remote branch.
+      Merge commit 097ae295f7d817dd349c0dae978fd6f180b7ed62.
+- [x] Moved active claim to recently_completed in ai-os/boss/ACTIVE-CLAIMS.yaml
 
 ## Remaining
-- [x] Open PR against main -- https://github.com/FChecklist/compliance-tracker/pull/418 (not self-merged, per Rule 6)
+- [ ] None -- PR #422 rescued and merged.
