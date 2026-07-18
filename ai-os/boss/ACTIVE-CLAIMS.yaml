@@ -1688,6 +1688,56 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop, interactive) -- Home-page merge panel fix + veridian-ui-kit adoption"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #436 (tier1, self-merged after CI green), commit 3d3f6aef. Sibling repos: FChecklist/veridian-ui-kit (new shared package), FChecklist/projexa PR #38 (adoption, awaiting Owner review -- no CI/branch-protection in that repo)."
+    claim: |
+      Owner directive: colors/fonts/navigation across VERIDIAN AI OS,
+      PROJEXA, and future products must exactly match
+      compliance-tracker/veridian-scope-selector-in-home.html (the agreed
+      reference mockup). Built a new shared repo,
+      FChecklist/veridian-ui-kit (design tokens + AppShellFrame/VeriComposer/
+      PanelShell primitives + createVeriChatContext factory), scoped to the
+      mockup's shell behavior only -- deliberately NOT VERIDIAN's more
+      advanced real features (FDE fallback, high-impact confirmation,
+      multi-thread AI, Meetings/Approvals/Voice tabs), which stay
+      product-side per the package's own README scope boundary.
+      This branch (feat/home-page-merge-panel-fix): confirmed VERIDIAN's
+      own globals.css tokens already match the mockup exactly (no change
+      needed) -- found and fixed the one REAL, confirmed drift: AppShell.tsx's
+      veriChatV2Enabled branch never actually hid VeriChatPanel on /home
+      despite the mockup calling for the merge. Fixed with a
+      pathname==="/home" branch (2-panel split vs single full-width panel,
+      same VeriComposer either way). Live-verified against the real demo_org
+      (veri_chat_v2 enabled, confirmed via direct DB query) on a local dev
+      server: /home now renders 1 <aside> (sidebar only, panel genuinely
+      gone) vs /dashboard's unchanged 2 <aside> (sidebar + panel) -- real
+      DOM check, not just a visual guess.
+      Deliberately NOT done in this same pass: a full swap of VERIDIAN's
+      real AppShell/VeriComposer/VeriChatPanel for the shared package's
+      generic components -- those real components have substantially more
+      live functionality than the mockup or the shared package cover, and a
+      wholesale replacement would be a real regression to a live product.
+      Flagged as a separate, larger follow-on decision, not silently
+      skipped.
+  - session_label: "Super Boss (Claude Desktop, interactive) -- fix flaky Unit Tests CI check (createJournalEntry export leak)"
+    completed_at: "2026-07-18T (this session)"
+    merged_as: "compliance-tracker PR #434 (tier1, self-merged after CI green + structured audit comment), commit fe2bde84"
+    summary: |
+      Repo's required "Unit Tests" branch-protection check was failing on
+      main itself (confirmed on main's own CI run 29633305166, before any
+      of this session's PRs existed), blocking every open PR. Root cause:
+      tenant-isolation.test.ts's mock.module() calls replaced 5 ERP
+      service modules with tiny object-literal stubs that dropped every
+      other real export (including createJournalEntry); bun's
+      mock.restore() doesn't undo mock.module(), so the stale stub leaked
+      into erp-fixed-assets-service.test.ts on CI's Linux file-discovery
+      order (never reproduced locally on Windows, even forcing the same
+      file order explicitly). Fixed by spreading real exports before
+      overriding + explicitly restoring all 8 mocked modules in afterEach.
+      Verified: PR #434's own Unit Tests job went green (was previously
+      failing 3/3 times), tier1 by risk-tier.py (test-file-only), merged
+      autonomously per this repo's established trust model.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
