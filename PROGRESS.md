@@ -15,3 +15,22 @@ VERIDIAN Review Framework gap-closure: AI Architecture / Performance & Cost Effi
 ## Remaining
 
 - [ ] Owner decision on Cache Strategy finding (fund `ANTHROPIC_API_KEY` or accept the current honest limitation) -- not actionable by an agent, see note above.
+
+---
+
+## RESCUE TASK (task-20260718-185244-rescue-pr--420)
+
+CI was failing on audit-check and Unit Tests as of PR open. Rescuing to get green + merged.
+
+### Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no conflicting claim on this PR's file scope.
+- [x] Checked out real PR #420 head branch.
+
+### Remaining
+- [ ] Merge origin/main into PR branch, resolve conflicts (PROGRESS.md -> keep ours).
+- [ ] Check for drizzle/*.sql migrations (none expected per file list -- TIER1 candidate).
+- [ ] Run bun install / tsc / lint / test locally, fix real failures.
+- [ ] Push rebased branch.
+- [ ] Read full diff, post AUDIT PASS/FAIL comment (required for merge per Rule 10).
+- [ ] Wait for CI green.
+- [ ] Classify tier and merge (TIER1) or stop (TIER2).
