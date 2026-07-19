@@ -166,6 +166,41 @@ active:
       /opt/veridian/repos/compliance-tracker, which has pre-existing
       uncommitted work from another session that this task must not
       disturb (same precaution Phase 1 itself took).
+  - session_label: "claude-code (task-20260719-061256-projexa-e2e-phase-1--architecture-discov) -- PROJEXA E2E Testing Program, Phase 1: architecture discovery + realistic seed data for a new clean test org (1 CEO + 10 employees)"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Owner directive 2026-07-19, Phase 1 of a 5-phase PROJEXA E2E testing
+      program (see PROJEXA-E2E-TESTING-PROGRAM-2026-07-19 in
+      claude-control/CONTROLLER.yaml for the full 5-phase sequencing).
+      Registering here (not a separate projexa-repo claims file -- FChecklist/
+      projexa has no ai-os/boss/ directory at all; this file's own header
+      already covers "veda-advisors / projexa" work, so this is the correct
+      single registry for this cross-system task).
+
+      Scope: READ-ONLY across compliance-tracker's real code (product-branch-
+      service.ts, /api/v1/projexa/* route surface, schema.ts) to document the
+      real PROJEXA<->VERIDIAN auth/data-bridge and confirm which of PROJEXA's
+      40 modules have real backing today. WRITE scope is narrow and additive
+      only: (1) new rows in a brand-new compliance.organisations tenant (NOT
+      projexa_demo_org/demo_org -- a fresh, clearly-labeled test org, e.g.
+      "Meridian Construction Group (E2E Test Org)") plus its own new users/
+      projects/RFIs/submittals/etc rows scoped to that new orgId, seeded via a
+      new script following src/db/seed.ts's + scripts/gen-wave111-seed-sql.ts's
+      existing conventions; (2) 11 new Supabase Auth users on PROJEXA's own
+      Supabase project (evpckeuxgvahguwsaeul), following the exact provisioning
+      pattern already used for democeo@projexa-ai.com (see PROJEXA-DEMO-01 in
+      CONTROLLER.yaml: real signup flow for the org owner, direct auth.users/
+      auth.identities inserts + a manual memberships row for the other 10,
+      since PROJEXA has no self-serve team-invite flow). No existing row in
+      any table is modified or deleted. No schema/migration change planned.
+      Deliverable is docs + a seed script, committed as a small PR against
+      FChecklist/projexa (PHASE1_SEED_REPORT.md), not against this repo.
+
+      Re-checked this file fresh before starting: no other active entry
+      claims product-branch-service.ts, the /api/v1/projexa/* route surface,
+      or any new-test-org seeding work. Does NOT touch projexa_demo_org,
+      demo_org, or any existing load-test org's data.
+
   - session_label: "claude-code (task-20260719-050016-ai-router--registry-backed-model-resolut) -- AI Router: registry-backed model resolution (close 2 model-agnosticism gaps + new model + new scope)"
     claimed_at: "2026-07-19T (this session)"
     claim: |
