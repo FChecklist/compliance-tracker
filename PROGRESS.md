@@ -42,7 +42,7 @@ authenticated dbUser/TenantDb context -- no invented call sites/rules.
 - [x] webhook-delivery-outcome-monitor.ts wired at webhook-deliver.ts's
       deliverWebhook (per-webhook final attempt success/failure, synthetic
       system apiKey actor since this call site has no human dbUser)
-- [x] drizzle/0242_narrow_monitor_agents_phase1.sql seeding the 5 new
+- [x] drizzle/0244_narrow_monitor_agents_phase1.sql seeding the 5 new
       monitor_agents registry rows (highest real migration on origin/main
       re-checked immediately before creating this file: 0241)
 - [x] Unit tests for the shared executor + all 5 new monitors (happy path +
@@ -76,6 +76,6 @@ authenticated dbUser/TenantDb context -- no invented call sites/rules.
 
 ## Remaining
 - [ ] NONE for this session -- TIER2 (diff includes
-      drizzle/0242_narrow_monitor_agents_phase1.sql, which touches
+      drizzle/0244_narrow_monitor_agents_phase1.sql, which touches
       drizzle/*.sql per this task's own Step 11 tier rule): NOT
       self-merged, PR #461 is ready and waiting for Owner sign-off.
