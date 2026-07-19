@@ -40,6 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-034948-migrate-projexa-to-consume-veridian-ui-k) -- migrate FChecklist/projexa to consume veridian-ui-kit's real shell/composer/panel/header components"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Bumping projexa's @fchecklist/veridian-ui-kit dependency to v0.2.0
+      (adds AppHeader) and swapping projexa's own src/app/(app)/layout.tsx,
+      src/components/AppSidebar.tsx, src/components/AppTopbar.tsx,
+      src/components/veri-chat/VeriComposer.tsx, VeriChatPanel.tsx,
+      veri-chat-context.tsx to actually consume the shared package's real
+      AppShellFrame/AppSidebar/AppHeader/VeriComposer/PanelShell/ThreadView/
+      createVeriChatContext() components, instead of only the design tokens
+      projexa already consumes today. Using compliance-tracker's now-merged
+      PR #471 (FChecklist/compliance-tracker, merged 2026-07-19) as the
+      proven precedent for how to wrap AppHeader/AppSidebar with projexa's
+      own real data/behavior. Unlike compliance-tracker, this migration is
+      unconditional (no feature-flag gate) since projexa is a newer, smaller
+      product with less blast radius. File scope (projexa repo only):
+      package.json (dependency bump), src/app/(app)/layout.tsx,
+      src/components/AppSidebar.tsx, src/components/AppTopbar.tsx,
+      src/components/veri-chat/VeriComposer.tsx, VeriChatPanel.tsx,
+      veri-chat-context.tsx. Read the shared package (README + every file
+      under src/shell/, src/composer/, src/panel/, src/context/) and this
+      repo's real current implementations in full first, per this task's own
+      instruction. Checked this file for collisions: none found scoped to
+      the projexa repo itself (the compliance-tracker-side migration above
+      is a separate repo/file scope, already merged as PR #471).
   - session_label: "claude-code (task-20260719-025216-migrate-compliance-tracker-to-consume-ve) -- migrate compliance-tracker to consume veridian-ui-kit's real shell/composer/panel/header components"
     claimed_at: "2026-07-19T (this session)"
     claim: |
