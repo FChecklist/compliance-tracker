@@ -680,6 +680,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: installed_products
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: a customer-service/field-service record (serialNumber, warrantyExpiresAt), not an Access/Identity/Platform-surface asset -- belongs to a future CS-domain dispatch's own review, not guessed here"
+  - table: instruction_execution_cache
+    reason: "UMR-03 gap closure (2026-07-19): an instruction-text -> resolved-execution-path cache (instruction-execution-cache-service.ts, wired into fde-service.ts::submitFdeRequest), same internal-caching-mechanism class as the already-exempted compliance.embedding_cache/compliance.embeddings/compliance.llm_response_cache directly around it in this file -- not a discoverable, named business object a user would browse in the UMR sense."
   - table: instruction_mismatch_detections
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: instruction_packages
