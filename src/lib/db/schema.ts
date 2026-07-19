@@ -10567,7 +10567,13 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
 // rationale (including why compliance.subscription_plans below is SEEDED
 // here rather than a new table being invented, and why BYOB gets no new
 // columns -- customer_model_config above already implements it).
-export const aiRouterScopeEnum = platformSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing'])
+// "customer_success" (AI Router registry-backed model resolution follow-up,
+// 2026-07-19): a 4th scope, no real dispatch call site wired to it yet in
+// this codebase -- same "registry exists, not every call site adopted yet"
+// posture mother-router.ts's own header already documents for its other 3
+// scopes (see that file's DELIBERATE SCOPE DECISION comment). Added so the
+// scope/resolution-function plumbing is ready for a future real integration.
+export const aiRouterScopeEnum = platformSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing', 'customer_success'])
 export const aiModelStatusEnum = platformSchemaDB.enum('ai_model_status', ['active', 'disabled', 'deprecated'])
 export const aiModelHealthEnum = platformSchemaDB.enum('ai_model_health', ['healthy', 'degraded', 'down'])
 
