@@ -29,6 +29,7 @@ import { logActivity } from "@/lib/audit"
 import { evaluateAttributeConditions, type AttributeCondition } from "@/lib/abac"
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
 import { detectHighImpactAction, type HighImpactCategory } from "@/lib/high-impact-action-detector"
+import { runWorkflowCompletionMonitor } from "@/lib/monitors/workflow-completion-monitor"
 
 export type WorkflowContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -357,9 +358,11 @@ export async function decideApprovalStep(
     await db.insert(approvalWorkflowStepApprovals).values({ stepInstanceId, approvedById: ctx.userId, decision, comment })
 
     let instanceStatus: "pending" | "approved" | "rejected" = "pending"
+    let completedAt: Date | null = null
     if (decision === "rejected") {
+      completedAt = new Date()
       await db.update(approvalWorkflowStepInstances).set({ status: "rejected" }).where(eq(approvalWorkflowStepInstances.id, stepInstanceId))
-      await db.update(approvalWorkflowInstances).set({ status: "rejected", completedAt: new Date() }).where(eq(approvalWorkflowInstances.id, step.workflowInstanceId))
+      await db.update(approvalWorkflowInstances).set({ status: "rejected", completedAt }).where(eq(approvalWorkflowInstances.id, step.workflowInstanceId))
       instanceStatus = "rejected"
     } else {
       const newCount = step.approvalsReceived + 1
@@ -368,12 +371,31 @@ export async function decideApprovalStep(
         await advanceWorkflow(db, step.workflowInstanceId)
         const refreshed = await db.query.approvalWorkflowInstances.findFirst({ where: eq(approvalWorkflowInstances.id, step.workflowInstanceId) })
         instanceStatus = (refreshed?.status ?? "pending") as typeof instanceStatus
+        completedAt = refreshed?.completedAt ?? null
       } else {
         await db.update(approvalWorkflowStepInstances).set({ approvalsReceived: newCount }).where(eq(approvalWorkflowStepInstances.id, stepInstanceId))
       }
     }
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: `approval_workflow.step_${decision}`, entityType: step.instance.entityType, entityId: step.instance.entityId })
+
+    // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): the instance only truly
+    // completes here (either branch above), never at start -- see
+    // workflow-completion-monitor.ts's own header for why WORKFLOW_STARTED
+    // has no separate runtime check. Same transaction, never blocks the
+    // decision above -- mirrors approval-decision-monitor.ts's own real
+    // call site (src/app/api/approvals/[id]/route.ts) exactly, including
+    // its plain-await (no extra try/catch) posture.
+    if (instanceStatus !== "pending" && completedAt) {
+      await runWorkflowCompletionMonitor(
+        db, ctx.orgId, { dbUser: ctx.dbUser },
+        {
+          instanceId: step.workflowInstanceId, entityType: step.instance.entityType, entityId: step.instance.entityId,
+          status: instanceStatus, createdAt: step.instance.createdAt, completedAt,
+        }
+      )
+    }
+
     return { ok: true, entityType: step.instance.entityType, entityId: step.instance.entityId, instanceStatus }
   })
 }

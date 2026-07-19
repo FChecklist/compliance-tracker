@@ -24,32 +24,48 @@ authenticated dbUser/TenantDb context -- no invented call sites/rules.
       real call sites with real dbUser/TenantDb context + genuine
       deterministic rules (no fabricated business logic)
 
-## Remaining
-- [ ] Build shared src/lib/monitors/rule-engine-monitor.ts (factors out
+- [x] Built shared src/lib/monitors/rule-engine-monitor.ts (factors out
       approval-decision-monitor.ts's own registry-lookup + validate +
       escalate + log pattern for reuse -- that file itself untouched)
-- [ ] workflow-completion-monitor.ts wired at approval-workflow-service.ts's
+- [x] workflow-completion-monitor.ts wired at approval-workflow-service.ts's
       decideApprovalStep (approvalWorkflowInstances.createdAt vs
       completedAt <= SLA)
-- [ ] task-completion-monitor.ts wired at task-service.ts's updateTask
+- [x] task-completion-monitor.ts wired at task-service.ts's updateTask
       (tasks.dueDate vs updatedAt-at-completion)
-- [ ] board-meeting-hold-monitor.ts wired at
+- [x] board-meeting-hold-monitor.ts wired at
       src/app/api/board/[id]/route.ts's "hold" action
       (boardMeetings.meetingDate vs updatedAt-at-hold <= SLA)
-- [ ] meeting-intelligence-generation-monitor.ts wired at
-      veri-meeting-service.ts's generateMeetingIntelligence (success/failure)
-- [ ] webhook-delivery-outcome-monitor.ts wired at webhook-deliver.ts's
-      deliverWebhook (per-webhook final attempt success/failure)
-- [ ] New drizzle migration seeding the 5 new monitor_agents registry rows
-- [ ] Unit tests for the shared executor + all 5 new monitors (happy path +
-      escalate path + invalid-report path, mirroring
-      dispatch-completion-monitor.test.ts's structure)
-- [ ] Update ai-os/CONSTITUTION.yaml RES-02 entry + MASTER-TRACKER.yaml's
-      GAP-NARROW-MONITOR-ESCALATION entry to reflect the new real coverage
-      count and honestly document which remaining event categories were
-      investigated and found to have no real hookable call site (or no
-      dbUser/TenantDb context) without inventing new architecture
-- [ ] `bunx tsc --noEmit`, `bun run lint`, `bun test` all clean
+- [x] meeting-intelligence-generation-monitor.ts wired at
+      veri-meeting-service.ts's generateMeetingIntelligence (success/failure,
+      split into a validation-read + a generation-attempt transaction so a
+      404/400 input error never triggers a COO escalation)
+- [x] webhook-delivery-outcome-monitor.ts wired at webhook-deliver.ts's
+      deliverWebhook (per-webhook final attempt success/failure, synthetic
+      system apiKey actor since this call site has no human dbUser)
+- [x] drizzle/0242_narrow_monitor_agents_phase1.sql seeding the 5 new
+      monitor_agents registry rows (highest real migration on origin/main
+      re-checked immediately before creating this file: 0241)
+- [x] Unit tests for the shared executor + all 5 new monitors (happy path +
+      escalate path + invalid-report path + single-owner-lock-rejected path
+      + synthetic-system-actor path, mirroring
+      dispatch-completion-monitor.test.ts's structure) -- 29 new tests
+- [x] Updated ai-os/CONSTITUTION.yaml RES-02 entry + MASTER-TRACKER.yaml's
+      GAP-NARROW-MONITOR-ESCALATION entry: new coverage count (11 of ~30,
+      up from 2) plus an honest 3-reason breakdown of exactly why each of
+      the ~19 remaining event types is genuinely blocked (no real call site;
+      cron call site with no TenantDb/dbUser; or zero rule-discriminating
+      power) rather than simply not-yet-done
+- [x] `bunx tsc --noEmit` clean, `bun run lint` clean (0 errors, 3
+      pre-existing unrelated warnings), `bun test` 1708 pass / 0 fail across
+      137 files. Also re-ran all 6 local CI guardrail scripts
+      (asset-registry-coverage, migration-collision, guardrail-presence,
+      doc-cross-references, doc-quarantine-banner, metadata-index-coverage)
+      -- all pass, both before and after the CONSTITUTION.yaml/
+      MASTER-TRACKER.yaml doc edits
+
+## Remaining
 - [ ] Push branch, open PR against main
 - [ ] Post AUDIT: PASS PR comment
-- [ ] CI green, self-merge or report tier for sign-off
+- [ ] CI green -- TIER2 (diff includes drizzle/0242_narrow_monitor_agents_
+      phase1.sql, which touches drizzle/*.sql per this task's own Step 11
+      tier rule): do NOT self-merge, report ready for Owner sign-off instead

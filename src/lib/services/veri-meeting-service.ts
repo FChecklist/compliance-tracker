@@ -27,6 +27,7 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
+import { runMeetingIntelligenceGenerationMonitor } from "@/lib/monitors/meeting-intelligence-generation-monitor"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -187,53 +188,80 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
 // explicitly promotes via the existing addMeetingActionItem(), never
 // auto-created as real `tasks` rows.
 export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meetingId: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
-    if (!meeting) throw new ServiceError("Meeting not found", 404)
-    if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
+  // Split from the generation attempt itself (RES-02 Phase 1,
+  // PLATFORM_STRATEGY.md 29.3): "meeting not found"/"no minutes to analyze"
+  // are input-validation failures, never a real generation attempt, so they
+  // must never trigger meeting-intelligence-generation-monitor.ts's
+  // COO escalation -- only a genuine attempt (model config resolved, LLM
+  // call made) that then fails counts as a MOM_GENERATED rule violation.
+  const meeting = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+  )
+  if (!meeting) throw new ServiceError("Meeting not found", 404)
+  if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
 
-    const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+  try {
+    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+      const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+      if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
 
-    const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
-    const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
+      const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
+      const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
 
-    // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
-    // minutes are human-typed free text, the same risk shape as any chat
-    // surface -- this call had no Constitution gate despite that.
-    const policyDecision = enforcePolicy(
-      { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
-      userMessage
+      // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+      // minutes are human-typed free text, the same risk shape as any chat
+      // surface -- this call had no Constitution gate despite that.
+      const policyDecision = enforcePolicy(
+        { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
+        userMessage
+      )
+      if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
+
+      const startedAt = Date.now()
+      const { data: result, usage } = await callLLMJson<{
+        summary: string
+        keyDecisions: string[]
+        suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
+      }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
+
+      recordOrchestraExecution({
+        orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
+        input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
+        status: "completed", durationMs: Date.now() - startedAt,
+        provider: modelConfig.provider, model: modelConfig.model, usage,
+      })
+
+      const [updated] = await db.update(veriMeetings).set({
+        aiSummary: result.summary,
+        aiKeyDecisions: result.keyDecisions ?? [],
+        aiSuggestedActionItems: result.suggestedActionItems ?? [],
+        aiGeneratedAt: new Date(),
+      }).where(eq(veriMeetings.id, meetingId)).returning()
+
+      await logActivity({
+        tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
+        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      })
+
+      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, { dbUser: ctx.dbUser }, {
+        meetingId, title: meeting.title, succeeded: true,
+      })
+
+      return updated
+    })
+  } catch (err) {
+    // The transaction above rolled back on throw, so a monitor row logged
+    // inside it would have rolled back too -- a fresh transaction is the
+    // only way the escalate report actually persists, same "separate
+    // read/write transactions" posture dispatch-completion-monitor.ts's own
+    // runDispatchCompletionSweep already uses.
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, { dbUser: ctx.dbUser }, {
+        meetingId, title: meeting.title, succeeded: false, failureReason: err instanceof Error ? err.message : String(err),
+      })
     )
-    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
-
-    const startedAt = Date.now()
-    const { data: result, usage } = await callLLMJson<{
-      summary: string
-      keyDecisions: string[]
-      suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
-    }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
-
-    recordOrchestraExecution({
-      orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
-      input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
-      status: "completed", durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
-
-    const [updated] = await db.update(veriMeetings).set({
-      aiSummary: result.summary,
-      aiKeyDecisions: result.keyDecisions ?? [],
-      aiSuggestedActionItems: result.suggestedActionItems ?? [],
-      aiGeneratedAt: new Date(),
-    }).where(eq(veriMeetings.id, meetingId)).returning()
-
-    await logActivity({
-      tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
-      details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, dbUser: ctx.dbUser,
-    })
-    return updated
-  })
+    throw err
+  }
 }
 
 // Action item becomes a real `tasks` row -- VERI To Do's listVeriTodos()

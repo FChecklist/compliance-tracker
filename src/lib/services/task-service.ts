@@ -12,6 +12,7 @@ import { detectHighImpactAction, checkHighImpactConfirmation } from "@/lib/high-
 import { logHighImpactClassification } from "@/lib/high-impact-classification-logger"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { runTaskCompletionMonitor } from "@/lib/monitors/task-completion-monitor"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
 // CapabilityEntityType -- indexed at the one real creation point
 // (resolveDynamicChainId below), same "index at creation" pattern
@@ -381,6 +382,14 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
         tx: db, event: "feature_completed", entityType: "task", entityId: updated.id, orgId,
         ...actor, details: `Task "${updated.title}" marked completed.`,
       }).catch((err) => console.error(`[audit-trigger] failed to record feature_completed for task ${updated.id}:`, err))
+
+      // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): the same real
+      // transition as feature_completed above, fed into the Narrow Monitor
+      // registry instead of the audit-trigger one. Best-effort, same
+      // posture as the recordAuditTrigger call above.
+      await runTaskCompletionMonitor(db, orgId, actor, {
+        taskId: updated.id, title: updated.title, dueDate: updated.dueDate, completedAt: updated.updatedAt,
+      }).catch((err) => console.error(`[task-completion-monitor] failed for task ${updated.id}:`, err))
     }
 
     return { ok: true as const, updated }
