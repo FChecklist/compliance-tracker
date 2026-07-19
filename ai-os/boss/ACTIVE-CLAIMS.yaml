@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-004413-gap-closure--res-02-phase1) -- RES-02 / GAP-NARROW-MONITOR-ESCALATION Phase 1"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      PLATFORM_STRATEGY.md 29.3 Phase 1: expand Tier-1 rule-engine Narrow
+      Monitor coverage beyond APPROVAL_GRANTED/APPROVAL_REJECTED (the only 2
+      of ~30 documented event types wired by Phase 0) to as many of the
+      remaining ~28 as have a REAL, locatable call site with a genuine
+      deterministic rule and an authenticated dbUser/TenantDb transaction
+      context available -- no invented call sites, no fabricated rules.
+      Confirmed via ai-os/boss/ACTIVE-CLAIMS.yaml + `gh pr list` before
+      starting: no other session/PR currently claims this gap (the only
+      prior related entry, below in recently_completed, is Phase 0, already
+      merged). File scope: new src/lib/monitors/rule-engine-monitor.ts
+      (shared Tier-1 executor factoring out approval-decision-monitor.ts's
+      own registry-lookup+validate+escalate+log pattern for reuse, that file
+      itself left untouched), new per-event monitor files under
+      src/lib/monitors/ + their real call-site wiring in
+      approval-workflow-service.ts, task-service.ts,
+      src/app/api/board/[id]/route.ts, veri-meeting-service.ts,
+      webhook-deliver.ts, a new drizzle/02xx migration seeding their
+      monitor_agents registry rows, plus tests. This session has no other
+      active claims.
   - session_label: "claude-code (worker task-20260718-084003-calculation-engine--calculation-governan) -- Calculation Engine / Calculation Governance gap closure (5 findings)"
     claimed_at: "2026-07-18T (this session)"
     claim: |
