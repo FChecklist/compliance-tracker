@@ -1,37 +1,30 @@
-# PROGRESS -- task-20260719-025216-migrate-compliance-tracker-to-consume-ve
+# PROGRESS -- task-20260719-050016-ai-router--registry-backed-model-resolut
 
 ## Completed
-- [x] Read ai-os/CONSTITUTION.yaml navigation_and_intent context, ACTIVE-CLAIMS.yaml, `gh pr list` -- no collision (closest prior entry, PR #436, explicitly scoped this exact swap OUT as a "separate, larger follow-on" -- confirmed this task IS that follow-on)
+- [x] Read task spec, reset PROGRESS.md
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, checked `gh pr list` for collisions -- none found
+- [x] Read src/lib/ai-team/roster-overrides.ts, roster.ts in full
+- [x] Read src/lib/orchestra-model-resolver.ts in full (526 lines)
+- [x] Read src/lib/ai-router/mother-router.ts in full
+- [x] Read src/lib/model-tier-eligibility.ts (read-only, confirmed untouched)
+- [x] Read schema.ts's ai_model_registry/ai_routing_policies definitions + drizzle/0231/0232/0245 headers (confirmed tables now live in `platform` schema)
 - [x] Registered claim in ACTIVE-CLAIMS.yaml, pushed as branch's first commit
-- [x] Read veridian-ui-kit README + every file under src/shell/, src/composer/, src/panel/, src/context/ at the v0.2.0 tag, in full
-- [x] Read this repo's real AppShell.tsx, AppSidebar.tsx, AppTopbar.tsx, VeriComposer.tsx, VeriChatPanel.tsx, veri-chat-context.tsx, home/page.tsx in full
-- [x] Bumped package.json to veridian-ui-kit (ended at v0.2.2, see below for why not v0.2.0), bun install clean
-- [x] globals.css + layout.tsx: `@import "@fchecklist/veridian-ui-kit/tokens/globals.css"` + `veridianHeadingFont`/`veridianSansFont`, removed locally-duplicated core tokens/fonts, kept this repo's real extra tokens (semantic/pendency colors, shadcn mappings)
-- [x] veri-chat-context.tsx rewritten as a thin wrapper around `createVeriChatContext()`, layering this repo's own multi-thread-AI state (aiThreadId/activeAiThreadId/aiThreads/switchAiThread/createNewAiThread) as a composed inner context, `rightPanelView`/`setRightPanelView` aliasing the factory's `activeView`/`setActiveView` for zero call-site churn
-- [x] AppShell.tsx rewritten to use `AppShellFrame` for the veriChatV2Enabled branch (sidebar/header/composer/panel/homeThreadSlot/homeRoute="/home"); legacy branch untouched (AppShellFrame doesn't apply there). Every widget preserved: HealthRibbon, TrialBanner, OnboardingChecklist, GlobalChatDock(+isDockHiddenForPath, legacy branch only), HelpWidget, TaskVisibilityPanel, stage_0 redirect, BYOB CSS vars, unread chat/AI/connector polling
-- [x] New src/components/veri-chat/HomeThreadSlot.tsx: wires AppShellFrame's `homeThreadSlot` to the shared `ThreadView`, reading the real active AI thread's messages (6s resilient poll) -- closes a real, confirmed gap (before this migration, /home for veriChatV2Enabled orgs showed zero thread content, just a composer)
-- [x] AppSidebar.tsx rewritten to use the shared `AppSidebar` -- top-pinned Home/Dashboard/Chat/Connectors/FDE links folded into an unlabeled first section, all module sections converted to shared NavSection/NavItem shape, desktop wrapped in `hidden lg:flex`, mobile Sheet preserved (and its unreadable text-white-on-light-header contrast bug fixed while touching this code)
-- [x] AppTopbar.tsx rewritten to use the shared `AppHeader` -- searchSlot/notificationSlot/userMenuSlot/extraActions (invite button + ThemeToggle + LanguageSwitcher, relocated from the sidebar footer) wired through real logic unchanged
-- [x] VeriChatPanel.tsx rewritten to use the shared `PanelShell` for the outer header+tabs shell (all 7 tabs incl. real Meetings/Approvals/Voice via the generic View type param) -- every real list/thread component (TaskList/ChatList/MeetingsList/ApprovalsList/VoiceList/TodoList/Overview/TaskThread/ConvoThread/MeetingThread/EmailThread) unchanged, rendered as children
-- [x] VeriComposer.tsx: investigated fully, confirmed real feature loss (VCEL calculator structured inputs, FDE fallback leaf, calculator-suggestion chips, chain-picker search box all have zero representation in the shared VeriComposer's props) -- kept local render per this task's own "report the blocker, don't paper over it" instruction; no direct package import needed since types already flow through transitively via veri-chat-context.tsx
-- [x] Found and fixed 3 real, confirmed bugs in the shared package itself (upstream PRs, not papered over locally):
-  - FChecklist/veridian-ui-kit#3 (v0.2.1): `AppShellFrame` hardcoded `h-screen` on its own sidebar+main+panel row instead of the true outer wrapper -- composing it with `AppHeader` as designed would silently clip the bottom of the sidebar/panel by exactly the header's height. Added an optional `header` prop, moved `h-screen` to the real outer wrapper, backward compatible.
-  - FChecklist/veridian-ui-kit#4 (v0.2.2): shared `AppSidebar` keyed nav items by `href` alone -- a real React duplicate-key warning for this repo's own nav (multiple distinct items legitimately pointing at `/compliance`). Fixed to key by `href+label+index`.
-  - next.config.ts: added `transpilePackages: ["@fchecklist/veridian-ui-kit"]` -- the package ships raw `.ts`/`.tsx` from a git dependency, Turbopack doesn't transpile TS inside node_modules by default (`bun run build` failed with "Unknown module type" before this).
-  - globals.css: fixed a `*/`-inside-a-comment self-inflicted CSS syntax error in my own new header comment (caught by `bun run build`, not by tsc/lint).
-- [x] `bunx tsc --noEmit` clean, `bun run lint` clean (pre-existing warnings only, unrelated to this diff), `bun run build` succeeds (every route in the app compiles, confirms no import/bundle regressions since AppShell wraps every authenticated route), `bun test`: 1754 pass / 0 fail
-- [x] Visual verification: built a temporary, unprotected `/preview-appshell` route (deleted before finalizing) mirroring AppShell's real veriChatV2Enabled composition with mock data (dev server has no real DB/Supabase credentials in this environment), screenshotted with a locally-extracted Chromium (Playwright + manually `apt-get download`'d shared libs, no root available) at desktop (both home and non-home routes) and mobile viewports. Confirmed: header+sidebar+composer+panel compose with zero clipping, sidebar footer renders correctly below the nav, panel tabs/badges/empty-states render correctly, mobile Sheet trigger works and its contrast bug is fixed. Found and fixed the 2 real upstream bugs above via this process.
-- [x] Confirmed, disclosed (not silently accepted) tradeoffs found during implementation/visual verification:
-  - Panel resize width no longer persists across a hard reload (AppShellFrame's own `useResizableWidth` is in-memory only, no prop surface for injected persistence) -- still drags/resizes correctly within a session.
-  - AppShellFrame's panel is a fixed-pixel width (420px, min 320px), not responsive -- on narrow mobile viewports, non-home pages with the panel open get very cramped (confirmed via mobile screenshot). The sidebar already needed its own mobile Sheet workaround for the same underlying reason (neither shared component has a responsive breakpoint), so this isn't a wholly new class of gap, but adopting the panel's fixed-pixel width (vs the old percentage-based ResizablePanelGroup split) makes it more severe on very narrow screens specifically.
-  - A few nav items route via query string (e.g. `/compliance?status=overdue`); the shared AppSidebar's active-state check has no query-string awareness, so those links still navigate correctly but won't visually highlight as active on that exact view.
-  - BYOB white-label logo header accent underline has no equivalent slot in the shared AppSidebar's fixed logo-row template (logo image itself stays real-org-aware and links to "/").
-  - Print stylesheet: AppShellFrame's internal row doesn't carry this repo's `print:*` classes, so print layout for veriChatV2Enabled orgs isn't guaranteed pixel-correct (untested; disclosed, not verified either way).
+- [x] Found real highest migration number from origin/main: 0245 -> used 0246/0247/0248
+- [x] Gap 1: registry-backed isKnownModel()/knownModels() in roster-overrides.ts (async, DB-backed, fails open to roster.ts static list on error) -- commit e92a28e2
+- [x] Gap 2: `role` column on ai_model_registry (drizzle/0246, backfills the 4 existing seed rows + partial unique index) + getRoleModel() TTL-cached lookup consulted by platformFallbackFor()/escalatedPlatformConfig()/resolveModelConfig()/resolvePlatformModelConfig(), safe-fallback-with-warning on any DB error or missing row; escalatedPlatformConfig() made async, 6 downstream call sites (task-execution-engine.ts x3, chat-service.ts x2, fde-service.ts x1) updated to await it -- commit e5f234aa
+- [x] New model row: openai/gpt-oss-20b via groq, tier=mechanical, real pricing verified live via groq.com/pricing (drizzle/0247) -- commit c9759436
+- [x] New scope: customer_success enum value (drizzle/0248) + AiRouterScope union + computeCustomerSuccessResolution() mirroring computeSalesMarketingResolution() + wired into resolveModel() -- commit 3e0ae672
+- [x] Tests: isKnownModel()/knownModels() registry-hit + unregistered + fail-open-on-DB-error (roster-overrides.test.ts, DB mocked); orchestra-model-resolver's registry-lookup-with-fallback path incl. a forced lookup failure proving the safe fallback fires (orchestra-model-resolver.test.ts, +3 new tests, plus a global afterEach added to reset the module's in-process role-registry cache between tests since the module body only evaluates once per test file); computeCustomerSuccessResolution() mirroring the sales_marketing test shapes (mother-router.test.ts, +4 tests)
+- [x] `bunx tsc --noEmit` clean, `bun run lint` clean (pre-existing warnings only, unrelated to this diff), `bun test`: 1763 pass / 0 fail (net +12 new tests across the 3 touched test files)
+- [x] Ran CI-mirroring local checks: check-migration-collision.mjs (OK, no collisions), check-guardrail-presence.mjs (all 88 markers present), check-asset-registry-coverage.mjs (all 421 tables accounted for -- no new table added, only a column, so no registry change needed)
+- [x] 4 logically separate commits on one branch (git add -p used to split schema.ts's two independent hunks across the Gap 2 and new-scope commits)
+- [x] Pushed branch
 
 ## Remaining
-- [ ] Push branch, open PR
-- [ ] Post structured `AUDIT: PASS` comment
-- [ ] `gh run watch --exit-status` until all required checks green
-- [ ] Self-merge (TIER1 -- no schema/migration touched) if green, squash + delete branch
-- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed
-- [ ] Final report to Owner: PR number, tier, CI result, merged status, preserved-behavior checklist
+- [x] Open PR -- #475
+- [x] Post structured `AUDIT: PASS` comment
+- [x] CodeQL flagged a real new tainted-format-string alert (js/tainted-format-string) introduced by this PR's own isKnownModel() error-log line -- fixed in a follow-up commit (moved `model` out of the console.error template literal into its own argument); re-ran `audit-check` after the fix (comment fetch is PR-scoped, not commit-scoped, so no need to re-post)
+- [x] All 7 required status checks green: Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests. Non-required checks: Vercel fails on a pre-existing, unrelated infra rate limit (nothing to do with this PR's diff); CodeQL shows 0 alerts on this PR's own diff (1 pre-existing high-severity alert, #24, on the SAME rule at a different line in this same file predates this PR entirely -- introduced on main before this branch existed, not fixed here as it's out of this task's scope, flagged in the final report below instead)
+- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed -- NOT done yet per that file's own protocol ("WHEN your work merges... move your entry") -- this PR is TIER2 and held for Owner sign-off, not yet merged
+- [x] TIER2 (touches drizzle/*.sql + schema.ts new column/enum/seed row) -- did NOT self-merge, reporting as ready for Owner sign-off
+- [x] Final report to Owner: PR number, CI result, plain-English registry-backed-vs-hardcoded summary

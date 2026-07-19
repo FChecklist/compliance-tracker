@@ -10567,7 +10567,13 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
 // rationale (including why compliance.subscription_plans below is SEEDED
 // here rather than a new table being invented, and why BYOB gets no new
 // columns -- customer_model_config above already implements it).
-export const aiRouterScopeEnum = platformSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing'])
+// "customer_success" (AI Router registry-backed model resolution follow-up,
+// 2026-07-19): a 4th scope, no real dispatch call site wired to it yet in
+// this codebase -- same "registry exists, not every call site adopted yet"
+// posture mother-router.ts's own header already documents for its other 3
+// scopes (see that file's DELIBERATE SCOPE DECISION comment). Added so the
+// scope/resolution-function plumbing is ready for a future real integration.
+export const aiRouterScopeEnum = platformSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing', 'customer_success'])
 export const aiModelStatusEnum = platformSchemaDB.enum('ai_model_status', ['active', 'disabled', 'deprecated'])
 export const aiModelHealthEnum = platformSchemaDB.enum('ai_model_health', ['healthy', 'degraded', 'down'])
 
@@ -10581,6 +10587,17 @@ export const aiModelRegistry = platformSchemaDB.table('ai_model_registry', {
   costPer1kOutput: numeric('cost_per_1k_output', { precision: 10, scale: 6 }),
   healthStatus: aiModelHealthEnum('health_status').notNull().default('healthy'),
   notes: text('notes'),
+  // AI Router registry-backed model resolution follow-up (2026-07-19):
+  // names this row's slot in orchestra-model-resolver.ts's hardcoded
+  // failover chain (e.g. 'platform_default', 'platform_fallback',
+  // 'cerebras_failover', 'escalated_default') -- NULL for every row that
+  // isn't one of those 4 named roles (the vast majority: roster.ts role
+  // assignments, vision overrides, etc. have no "role" in this sense).
+  // Enforced to at most one ACTIVE row per role by the partial unique index
+  // in the migration (same pattern ai_routing_policies_one_active_per_scope
+  // already uses) -- this column only names WHICH model/provider fills a
+  // role; the failover SEQUENCE/DECISION LOGIC itself stays in code.
+  role: text('role'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

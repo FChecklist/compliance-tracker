@@ -59,7 +59,7 @@ import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
 import type { LLMProvider } from "@/lib/llm-client"
 import type { ComplexityTier } from "@/lib/task-tightening"
 
-export type AiRouterScope = "software_team" | "end_user_org" | "sales_marketing"
+export type AiRouterScope = "software_team" | "end_user_org" | "sales_marketing" | "customer_success"
 
 // Roster.ts's own header: "Every model here is called via OpenRouter" -- see
 // team-service.ts's runRole()/classifyTask(), both hardcode provider
@@ -74,7 +74,7 @@ const ROSTER_PROVIDER: LLMProvider = "openrouter"
  * for that axis," never an error.
  */
 export type PolicyRule = {
-  /** software_team: override model for a specific AI Dev Team role. */
+  /** software_team / sales_marketing / customer_success: override model for a specific role. */
   preferredModelByRole?: Record<string, string>
   /** software_team: override model for an entire complexity tier. Checked when preferredModelByRole has no entry for the role. */
   preferredModelByTier?: Partial<Record<ComplexityTier, string>>
@@ -97,6 +97,12 @@ export type MotherRouterContext =
   | { scope: "software_team"; model: string; complexityTier: ComplexityTier; roleKey: string }
   | { scope: "end_user_org"; orgId: string; layerKey: string; sourceType?: string }
   | { scope: "sales_marketing"; roleKey: string }
+  // AI Router registry-backed model resolution follow-up (2026-07-19): 4th
+  // scope, no real dispatch call site wired to it yet -- see this file's own
+  // DELIBERATE SCOPE DECISION header and computeCustomerSuccessResolution()
+  // below for the "registry exists, not every call site adopted yet" posture
+  // this already applies to the other 3 scopes.
+  | { scope: "customer_success"; roleKey: string }
 
 // ─── Hot-reload cache ───────────────────────────────────────────────────
 const POLICY_CACHE_TTL_MS = 60_000
@@ -290,6 +296,55 @@ export function computeSalesMarketingResolution(
   }
 }
 
+/**
+ * customer_success scope (AI Router registry-backed model resolution
+ * follow-up, 2026-07-19) -- new scope, no pre-existing resolver and no real
+ * dispatch call site wired to it yet (see this file's own DELIBERATE SCOPE
+ * DECISION header and MotherRouterContext's own comment on this variant).
+ * Identical resolution shape to computeSalesMarketingResolution() above:
+ * strictly resolves from roster.ts's own existing role->model assignment as
+ * the baseline (never invents a role or a model roster.ts doesn't already
+ * have); a policy may only override to a DIFFERENT model for that same
+ * role, never introduce a role that isn't in roster.ts.
+ */
+export function computeCustomerSuccessResolution(
+  roleKey: string,
+  baselineModel: string | null,
+  policy: ActivePolicy | null
+): MotherRouterResolution {
+  if (!baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: "",
+      reason: `roleKey "${roleKey}" was not found in roster.ts, or has no model assigned (human/code-only role) -- nothing to resolve`,
+    }
+  }
+
+  const override = policy?.rule.preferredModelByRole?.[roleKey]
+  if (!override) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: "no active routing policy override -- roster.ts baseline assignment",
+    }
+  }
+  if (override === baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: `ai_routing_policies v${policy!.version} names the same model as the roster.ts baseline for ${roleKey} -- no change`,
+      policyVersion: policy!.version,
+    }
+  }
+
+  return {
+    provider: ROSTER_PROVIDER,
+    model: override,
+    reason: `ai_routing_policies v${policy!.version} override for ${roleKey}`,
+    policyVersion: policy!.version,
+  }
+}
+
 // ─── Subscription package resolution (Owner Phase 1: user-count-based) ────
 
 /**
@@ -354,10 +409,14 @@ export async function resolveModel(context: MotherRouterContext): Promise<Mother
       return resolution
     }
     resolution = computeEndUserOrgResolution(baseline, aiPackage, policy)
-  } else {
+  } else if (context.scope === "sales_marketing") {
     const policy = await getActivePolicy(context.scope)
     const role = AI_TEAM_ROSTER.find((r) => r.roleKey === context.roleKey)
     resolution = computeSalesMarketingResolution(context.roleKey, role?.model ?? null, policy)
+  } else {
+    const policy = await getActivePolicy(context.scope)
+    const role = AI_TEAM_ROSTER.find((r) => r.roleKey === context.roleKey)
+    resolution = computeCustomerSuccessResolution(context.roleKey, role?.model ?? null, policy)
   }
 
   await logRoutingDecision(context.scope, context, resolution)

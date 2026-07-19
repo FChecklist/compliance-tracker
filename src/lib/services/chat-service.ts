@@ -642,7 +642,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       })
       preCallSignalsForLabel = preCall.signals
       if (preCall.shouldEscalate) {
-        const escalated = escalatedPlatformConfig()
+        const escalated = await escalatedPlatformConfig()
         if (escalated) {
           effectiveConfig = escalated
           escalation = { escalated: true, signals: preCall.signals, matchedPhrase: preCall.matchedPhrase, originalModel: modelConfig.model }
@@ -665,7 +665,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(reply)
       if (lowConfidence.detected) {
-        const escalated = escalatedPlatformConfig()
+        const escalated = await escalatedPlatformConfig()
         if (escalated) {
           const retried = await callLLM(
             escalated.provider, escalated.model, escalated.apiKey,

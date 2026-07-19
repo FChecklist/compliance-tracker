@@ -1963,7 +1963,7 @@ async function executePackageDispatch(
       if (!modelConfig.isCustomerConfigured) {
         const lowConfidence = detectLowConfidenceResponse(data.result ?? "");
         if (lowConfidence.detected) {
-          const escalated = escalatedPlatformConfig();
+          const escalated = await escalatedPlatformConfig();
           if (escalated) {
             effectiveConfig = escalated;
             ({ data, usage } = await callPackage());
@@ -2305,7 +2305,7 @@ export async function executeTask(
       // above (the PACKAGE_AVAILABLE path), which runs the floor tier by
       // design and only escalates reactively if a package execution itself
       // hedges mid-flight.
-      const escalated = escalatedPlatformConfig();
+      const escalated = await escalatedPlatformConfig();
       if (escalated) {
         effectiveConfig = escalated;
         escalation = {
@@ -2374,7 +2374,7 @@ export async function executeTask(
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(result.summary ?? "");
       if (lowConfidence.detected) {
-        const escalated = escalatedPlatformConfig();
+        const escalated = await escalatedPlatformConfig();
         if (escalated) {
           const retried = await callLLMJson<{ summary: string; steps: { agentName: string | null; description: string }[] }>(
             escalated.provider, escalated.model, escalated.apiKey, systemPrompt, userMessage,

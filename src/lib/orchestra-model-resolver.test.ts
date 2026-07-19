@@ -19,6 +19,20 @@
 import { describe, test, expect, mock, afterEach } from "bun:test"
 import type { ResolvedModelConfig } from "./orchestra-model-resolver"
 
+// AI Router registry-backed model resolution follow-up (2026-07-19):
+// orchestra-model-resolver.ts's module body (and therefore its module-level
+// roleRegistryCache Map, used by getRoleModel()'s named-role lookups) only
+// evaluates ONCE for this whole test file, even across repeated dynamic
+// import() calls in different tests -- only the mocked "@/lib/db" binding is
+// live/fresh per mock.module() call. Without this, a registry-hit result
+// cached by one test (within ROLE_REGISTRY_CACHE_TTL_MS) would silently leak
+// into a LATER test expecting different (or no) registry data. Global, not
+// per-describe-block, so it protects every test in this file uniformly.
+afterEach(async () => {
+  const { invalidateRoleRegistryCache } = await import("./orchestra-model-resolver")
+  invalidateRoleRegistryCache()
+})
+
 function config(overrides: Partial<ResolvedModelConfig> = {}): ResolvedModelConfig {
   return { provider: "groq", model: "openai/gpt-oss-120b", apiKey: "key-1", isCustomerConfigured: false, ...overrides }
 }
@@ -121,11 +135,12 @@ describe("resolveModelConfig with sourceType (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
           customerModelConfig: { findFirst: mock(async () => undefined) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -147,11 +162,12 @@ describe("resolveModelConfig with sourceType (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
           customerModelConfig: { findFirst: mock(async () => undefined) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -188,6 +204,7 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           customerModelConfig: {
             findFirst: mock(async () => ({
@@ -199,7 +216,7 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
         },
         update: mockDbUpdateChain(),
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => `decrypted:${c}`) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -216,6 +233,7 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           // The route-level query already filters on isActive = true, so a
           // disabled row (or none at all) both surface here as undefined --
@@ -224,7 +242,7 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
           customerModelConfig: { findFirst: mock(async () => undefined) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -247,6 +265,7 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           // isActive: true, but no encryptedApiKey yet (an admin who filled
           // in provider/model and hasn't added a key -- the route's own
@@ -254,7 +273,7 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
           customerModelConfig: { findFirst: mock(async () => ({ id: "cfg-2", orgId: "org-1", orchestraLayerId: "layer-1", provider: "openai", modelName: "gpt-4o", encryptedApiKey: null, isActive: true })) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -276,12 +295,13 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           customerModelConfig: { findFirst: mock(async () => ({ id: "cfg-1", orgId: "org-1", orchestraLayerId: "layer-1", provider: "anthropic", modelName: "claude-sonnet-5", encryptedApiKey: "enc", isActive: true })) },
         },
         update: mockDbUpdateChain(),
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: false, reason: "org spend cap reached" })) }))
@@ -295,12 +315,13 @@ describe("resolveModelConfig BYO branching (integration, DB mocked)", () => {
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           customerModelConfig: { findFirst: mock(async () => ({ id: "cfg-1", orgId: "org-1", orchestraLayerId: "layer-1", provider: "anthropic", modelName: "claude-sonnet-5", encryptedApiKey: "enc", isActive: true })) },
         },
         update: mockDbUpdateChain(),
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -333,7 +354,7 @@ describe("escalatedPlatformConfig", () => {
   test("returns null when OPENROUTER_API_KEY isn't configured", async () => {
     delete process.env.OPENROUTER_API_KEY
     const { escalatedPlatformConfig } = await import("./orchestra-model-resolver")
-    expect(escalatedPlatformConfig()).toBeNull()
+    expect(await escalatedPlatformConfig()).toBeNull()
   })
 
   test("bug fix: the escalated config now carries a real fallback, not undefined", async () => {
@@ -342,7 +363,7 @@ describe("escalatedPlatformConfig", () => {
     // undefined, so chat-service.ts's escalated retry had zero failover.
     process.env.OPENROUTER_API_KEY = "openrouter-test-key"
     const { escalatedPlatformConfig } = await import("./orchestra-model-resolver")
-    const result = escalatedPlatformConfig()
+    const result = await escalatedPlatformConfig()
     expect(result?.provider).toBe("openrouter")
     expect(result?.model).toBe("z-ai/glm-5.2")
     expect(result?.fallback).toBeDefined()
@@ -350,6 +371,116 @@ describe("escalatedPlatformConfig", () => {
     expect(result?.fallback?.provider).toBe("openrouter")
     expect(result?.fallback?.model).toBe("deepseek/deepseek-v4-pro")
     expect(result?.fallback?.apiKey).toBe("openrouter-test-key")
+  })
+})
+
+// ─── Registry-backed named-role resolution (AI Router follow-up, 2026-07-19)
+// PLATFORM_DEFAULT_PROVIDER/PLATFORM_DEFAULT_MODEL, PLATFORM_FALLBACK_MODEL,
+// CEREBRAS_GPT_OSS_MODEL, ESCALATED_PROVIDER/ESCALATED_MODEL are no longer
+// the live values -- getRoleModel() (private) looks each up by a named
+// `role` in ai_model_registry first, exercised here through its two public
+// callers (resolveModelConfig for 'platform_default', escalatedPlatformConfig
+// for 'escalated_default') -- proves both the registry-hit override path and
+// the safe-fallback-on-lookup-failure path the dispatch brief asked for.
+// Each mocked findFirst below returns the SAME row regardless of which named
+// role is actually being queried (drizzle's `where` is an opaque SQL AST
+// object, not practical to introspect in a mock) -- fine here since these
+// tests only assert on the PRIMARY resolution, not every one of
+// platformFallbackFor()'s internal role lookups; the "no active row"/
+// "lookup throws" fallback behavior is already proven uniformly (it doesn't
+// depend on which role was requested) by the tests above and below this one.
+describe("registry-backed named-role lookup (platform_default / escalated_default)", () => {
+  afterEach(() => {
+    mock.restore()
+  })
+
+  test("an active ai_model_registry row for role='platform_default' overrides the hardcoded literal", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          aiModelRegistry: {
+            findFirst: mock(async () => ({ id: "reg-1", provider: "openai", model: "gpt-oss-20b-hosted", role: "platform_default", status: "active" })),
+          },
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "some_layer", defaultModelConfig: {} })) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
+    }))
+    const originalOpenAiKey = process.env.OPENAI_API_KEY
+    process.env.OPENAI_API_KEY = "openai-test-key"
+    try {
+      const { resolvePlatformModelConfig, invalidateRoleRegistryCache } = await import("./orchestra-model-resolver")
+      // orchestra-model-resolver.ts's own module body (and therefore its
+      // module-level roleRegistryCache Map) only evaluates ONCE for this
+      // whole test file, even across repeated dynamic import() calls -- only
+      // the mocked "@/lib/db" binding is fresh per mock.module() call. An
+      // earlier test in this file already populated the cache (a "no active
+      // row" null, within ROLE_REGISTRY_CACHE_TTL_MS) for the same role
+      // keys this test needs, so it must be explicitly invalidated here or
+      // this test would silently observe stale state instead of its own
+      // fresh mock.
+      invalidateRoleRegistryCache()
+      const result = await resolvePlatformModelConfig("some_layer")
+      expect(result?.provider).toBe("openai")
+      expect(result?.model).toBe("gpt-oss-20b-hosted") // the registry row, not the hardcoded "openai/gpt-oss-120b" literal
+    } finally {
+      if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY
+      else process.env.OPENAI_API_KEY = originalOpenAiKey
+    }
+  })
+
+  test("a registry lookup failure (simulated DB error) safely falls back to the hardcoded literal, never breaks the platform-default path", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          aiModelRegistry: { findFirst: mock(async () => { throw new Error("connection refused") }) },
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "some_layer", defaultModelConfig: {} })) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
+    }))
+    const originalGroqKey = process.env.GROQ_API_KEY
+    process.env.GROQ_API_KEY = "groq-test-key"
+    try {
+      const { resolvePlatformModelConfig, invalidateRoleRegistryCache } = await import("./orchestra-model-resolver")
+      invalidateRoleRegistryCache() // see the previous test's comment -- forces this test's own mock to actually be consulted
+      const result = await resolvePlatformModelConfig("some_layer")
+      // The registry read threw -- resolution must still succeed via the
+      // hardcoded last-resort literal, not throw or return null.
+      expect(result?.provider).toBe("groq")
+      expect(result?.model).toBe("openai/gpt-oss-120b")
+    } finally {
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY
+      else process.env.GROQ_API_KEY = originalGroqKey
+    }
+  })
+
+  test("escalatedPlatformConfig honors an active registry override for role='escalated_default'", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          aiModelRegistry: {
+            findFirst: mock(async ({ where }: { where?: unknown } = {}) => {
+              void where
+              return { id: "reg-2", provider: "openrouter", model: "z-ai/glm-5.3-preview", role: "escalated_default", status: "active" }
+            }),
+          },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
+    }))
+    const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
+    process.env.OPENROUTER_API_KEY = "openrouter-test-key"
+    try {
+      const { escalatedPlatformConfig, invalidateRoleRegistryCache } = await import("./orchestra-model-resolver")
+      invalidateRoleRegistryCache() // see the first test's comment -- forces this test's own mock to actually be consulted
+      const result = await escalatedPlatformConfig()
+      expect(result?.provider).toBe("openrouter")
+      expect(result?.model).toBe("z-ai/glm-5.3-preview") // the registry override, not the hardcoded "z-ai/glm-5.2" literal
+    } finally {
+      if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY
+      else process.env.OPENROUTER_API_KEY = originalOpenRouterKey
+    }
   })
 })
 
@@ -365,10 +496,11 @@ describe("platformFallbackFor via resolvePlatformModelConfig (escalated-tier pri
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "some_layer", defaultModelConfig: { provider: "openrouter", model: "z-ai/glm-5.2" } })) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
 
     process.env.OPENROUTER_API_KEY = "openrouter-test-key"
@@ -467,6 +599,7 @@ describe("BYO failure -> platform-default fallback (end-to-end, resolver + llm-c
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           customerModelConfig: { findFirst: mock(async () => ({
             id: "cfg-1", orgId: "org-1", orchestraLayerId: "layer-1",
@@ -476,7 +609,7 @@ describe("BYO failure -> platform-default fallback (end-to-end, resolver + llm-c
         },
         update: mockDbUpdateChain(),
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async () => "expired-anthropic-key") }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -519,6 +652,7 @@ describe("BYO failure -> platform-default fallback (end-to-end, resolver + llm-c
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           customerModelConfig: { findFirst: mock(async () => ({
             id: "cfg-1", orgId: "org-1", orchestraLayerId: "layer-1",
@@ -528,7 +662,7 @@ describe("BYO failure -> platform-default fallback (end-to-end, resolver + llm-c
         },
         update: mockDbUpdateChain(),
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async () => "expired-anthropic-key") }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
