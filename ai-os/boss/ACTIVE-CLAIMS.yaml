@@ -40,7 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260719-025216-migrate-compliance-tracker-to-consume-ve) -- migrate compliance-tracker to consume veridian-ui-kit's real shell/composer/panel/header components"
+  - session_label: "claude-code (task-20260719-050016-ai-router--registry-backed-model-resolut) -- AI Router: registry-backed model resolution (close 2 model-agnosticism gaps + new model + new scope)"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Follow-up evaluation (by a DB-access-capable session, not this one) of
+      the already-merged Mother Router (AIROUTER-01, mother-router.ts,
+      platform.ai_model_registry/ai_routing_policies/ai_routing_audit_log --
+      see the "Super Boss ... AIROUTER-01 Mother Router Phase 1" entry
+      elsewhere in this file, confirmed already merged into main, that entry
+      itself stale/not yet moved to recently_completed) found the platform's
+      "every AI router is model-agnostic" claim true for role-level model
+      ASSIGNMENT (roster-overrides.ts's resolveEffectiveModel(), DB-backed)
+      but NOT for "is this a real/known model at all" -- isKnownModel()/
+      knownModels() in roster-overrides.ts still source from roster.ts's own
+      static AI_TEAM_ROSTER array, so introducing a genuinely new model
+      still requires a code change. This task closes that gap plus a
+      parallel one in orchestra-model-resolver.ts's 4 hardcoded
+      platform-default/fallback/escalated model constants, registers a real
+      new model (openai/gpt-oss-20b via Groq) in ai_model_registry, and adds
+      a 4th ai_router_scope value ("customer_success") to mother-router.ts
+      following computeSalesMarketingResolution()'s exact pattern.
+      File scope: src/lib/ai-team/roster-overrides.ts (+.test.ts),
+      src/lib/orchestra-model-resolver.ts (+.test.ts),
+      src/lib/ai-router/mother-router.ts (+.test.ts), schema.ts (new `role`
+      column on ai_model_registry, new enum value on ai_router_scope, no
+      change to model-tier-eligibility.ts -- deliberately left untouched,
+      see this task's own explicit instruction), new drizzle/02NN migration.
+      Checked `gh pr list` (no open PR touches these files) and this file
+      for collisions before starting: none found -- the one related entry
+      (AIROUTER-01 Mother Router Phase 1, above) already merged and built
+      the very registry/scope infrastructure this task extends, it does not
+      conflict with extending it.
+
     claimed_at: "2026-07-19T (this session)"
     claim: |
       Bumping @fchecklist/veridian-ui-kit to v0.2.0 and swapping
