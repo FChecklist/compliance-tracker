@@ -20,9 +20,10 @@
 // glance-and-act surface, not a rebuild of /veri-meetings or /approvals.
 import { useEffect, useState } from "react";
 import { Loader2, MessageSquare, CheckCircle2 } from "lucide-react";
+import { PanelShell } from "@fchecklist/veridian-ui-kit/panel";
 import { MessageContent } from "@/components/chat/MessageContent";
 import { toast } from "sonner";
-import { useVeriChat } from "./veri-chat-context";
+import { useVeriChat, type RightPanelView } from "./veri-chat-context";
 
 type TaskSummary = { id: string; title: string; description: string | null; status: string; createdAt: string };
 type TaskDetail = TaskSummary & { chat: { id: string; role: string; content: string; createdAt: string }[] };
@@ -194,71 +195,60 @@ export default function VeriChatPanel() {
   const activeTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : null;
   const activeConvo = activeConversationId ? conversations.find((c) => c.id === activeConversationId) : null;
   const activeEmail = activeEmailId ? emails.find((e) => e.id === activeEmailId) : null;
+  // PanelShell's own isThreadOpen only needs to know "is some thread open,
+  // regardless of which kind" -- unlike veri-chat-context's isThreadOpen
+  // (task/conversation only), this also covers the meeting/email thread
+  // views, which are local-only state here (see the header comment above).
+  const anyThreadOpen = Boolean(activeTaskId || activeConversationId || activeMeetingId || activeEmailId);
+
+  const tabs = [
+    { key: "overview" as const, label: "Overview", badge: 0 },
+    { key: "tasks" as const, label: "Tasks", badge: waitingCount },
+    { key: "chats" as const, label: "Chats", badge: unreadChatCount },
+    { key: "meetings" as const, label: "Meetings", badge: meetingsAttentionCount },
+    { key: "approvals" as const, label: "Approvals", badge: approvals.length },
+    { key: "voice" as const, label: "Voice", badge: 0 },
+    { key: "todo" as const, label: "To Do", badge: todoCount },
+  ];
 
   return (
-    <aside className="border-l border-ct-border bg-white flex flex-col h-full">
-      <div className="border-b border-ct-border px-4 py-3">
-        <div className="flex items-center gap-2 mb-2.5">
-          <MessageSquare className="size-4 text-ct-saffron" />
-          <span className="font-heading text-[15px] text-ct-navy">VERI Chat</span>
-        </div>
-        <div className="flex items-center gap-1 flex-wrap">
-          {([
-            { key: "overview", label: "Overview", count: 0 },
-            { key: "tasks", label: "Tasks", count: waitingCount },
-            { key: "chats", label: "Chats", count: unreadChatCount },
-            { key: "meetings", label: "Meetings", count: meetingsAttentionCount },
-            { key: "approvals", label: "Approvals", count: approvals.length },
-            { key: "voice", label: "Voice", count: 0 },
-            { key: "todo", label: "To Do", count: todoCount },
-          ] as const).map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => { closeAllThreads(); setRightPanelView(v.key); }}
-              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg ${
-                rightPanelView === v.key && !activeTaskId && !activeConversationId && !activeMeetingId && !activeEmailId ? "bg-amber-50 text-amber-800 border border-amber-200" : "text-ct-muted hover:bg-ct-cloud"
-              }`}
-            >
-              {v.label}
-              {v.count > 0 && <span className="inline-flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full bg-red-500 text-white text-[9.5px] font-bold">{v.count}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {loading ? (
-          <div className="grid place-items-center h-32"><Loader2 className="size-5 animate-spin text-ct-muted" /></div>
-        ) : activeTask ? (
-          <TaskThread task={activeTask} detail={taskDetail} onBack={closeAllThreads} onMarkDone={markTaskDone} />
-        ) : activeConvo ? (
-          <ConvoThread convo={activeConvo} messages={convoMessages} onBack={closeAllThreads} />
-        ) : activeMeetingId ? (
-          <MeetingThread meetingId={activeMeetingId} detail={meetingDetail} onBack={closeAllThreads} onChanged={bumpRefresh} />
-        ) : activeEmail ? (
-          <EmailThread item={activeEmail} onBack={closeAllThreads} onChanged={bumpRefresh} />
-        ) : rightPanelView === "tasks" ? (
-          <TaskList tasks={tasks} onOpen={openTaskHere} onMarkDone={markTaskDone} />
-        ) : rightPanelView === "chats" ? (
-          <ChatList conversations={conversations} onOpen={openConvoHere} />
-        ) : rightPanelView === "meetings" ? (
-          <MeetingsList meetings={meetings} actionItems={meetingActionItems} onOpen={openMeetingHere} />
-        ) : rightPanelView === "approvals" ? (
-          <ApprovalsList approvals={approvals} onDecide={decideApproval} />
-        ) : rightPanelView === "voice" ? (
-          <VoiceList voiceMemos={voiceMemos} />
-        ) : rightPanelView === "todo" ? (
-          <TodoList todos={todos} />
-        ) : (
-          <Overview
-            tasks={tasks} conversations={conversations} todos={todos} emails={emails}
-            onOpenTask={openTaskHere} onOpenConvo={openConvoHere} onOpenEmail={openEmailHere}
-            onGoToTodo={() => { closeAllThreads(); setRightPanelView("todo"); }}
-          />
-        )}
-      </div>
-    </aside>
+    <PanelShell<RightPanelView>
+      title="VERI Chat"
+      tabs={tabs}
+      activeView={rightPanelView}
+      isThreadOpen={anyThreadOpen}
+      onSelectTab={(v) => { closeAllThreads(); setRightPanelView(v); }}
+    >
+      {loading ? (
+        <div className="grid place-items-center h-32"><Loader2 className="size-5 animate-spin text-ct-muted" /></div>
+      ) : activeTask ? (
+        <TaskThread task={activeTask} detail={taskDetail} onBack={closeAllThreads} onMarkDone={markTaskDone} />
+      ) : activeConvo ? (
+        <ConvoThread convo={activeConvo} messages={convoMessages} onBack={closeAllThreads} />
+      ) : activeMeetingId ? (
+        <MeetingThread meetingId={activeMeetingId} detail={meetingDetail} onBack={closeAllThreads} onChanged={bumpRefresh} />
+      ) : activeEmail ? (
+        <EmailThread item={activeEmail} onBack={closeAllThreads} onChanged={bumpRefresh} />
+      ) : rightPanelView === "tasks" ? (
+        <TaskList tasks={tasks} onOpen={openTaskHere} onMarkDone={markTaskDone} />
+      ) : rightPanelView === "chats" ? (
+        <ChatList conversations={conversations} onOpen={openConvoHere} />
+      ) : rightPanelView === "meetings" ? (
+        <MeetingsList meetings={meetings} actionItems={meetingActionItems} onOpen={openMeetingHere} />
+      ) : rightPanelView === "approvals" ? (
+        <ApprovalsList approvals={approvals} onDecide={decideApproval} />
+      ) : rightPanelView === "voice" ? (
+        <VoiceList voiceMemos={voiceMemos} />
+      ) : rightPanelView === "todo" ? (
+        <TodoList todos={todos} />
+      ) : (
+        <Overview
+          tasks={tasks} conversations={conversations} todos={todos} emails={emails}
+          onOpenTask={openTaskHere} onOpenConvo={openConvoHere} onOpenEmail={openEmailHere}
+          onGoToTodo={() => { closeAllThreads(); setRightPanelView("todo"); }}
+        />
+      )}
+    </PanelShell>
   );
 }
 

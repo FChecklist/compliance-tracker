@@ -1,5 +1,6 @@
 "use client";
 
+import { AppShellFrame } from "@fchecklist/veridian-ui-kit/shell";
 import { AppSidebar } from "@/components/AppSidebar";
 import { AppTopbar } from "@/components/AppTopbar";
 import { HealthRibbon } from "@/components/HealthRibbon";
@@ -14,14 +15,15 @@ import TaskVisibilityPanel from "@/components/TaskVisibilityPanel";
 import { VeriChatProvider } from "@/components/veri-chat/veri-chat-context";
 import VeriComposer from "@/components/veri-chat/VeriComposer";
 import VeriChatPanel from "@/components/veri-chat/VeriChatPanel";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle, ssrSafeLocalStorage } from "@/components/ui/resizable";
-import { useDefaultLayout } from "react-resizable-panels";
+import HomeThreadSlot from "@/components/veri-chat/HomeThreadSlot";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useResilientPoll } from "@/lib/use-resilient-poll";
 import { useMe } from "@/lib/queries/use-me";
 import { useComplianceStats } from "@/lib/queries/use-compliance-stats";
+
+const HOME_ROUTE = "/home";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -32,11 +34,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [connectedConnectorsCount, setConnectedConnectorsCount] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // react-resizable-panels v4 dropped Group's `autoSaveId` prop in favor of
-  // this hook (see resizable.tsx's own header comment for the rest of the
-  // v3->v4 migration) -- same persisted layout key as before, just wired
-  // through the officially documented replacement API instead of a prop.
-  const { defaultLayout: veriChatPanelLayout, onLayoutChange: onVeriChatPanelLayoutChange } = useDefaultLayout({ id: "veridian-shell-panels", storage: ssrSafeLocalStorage });
+  // veridian-ui-kit migration (2026-07-19): AppShellFrame owns the right
+  // panel's resize handle internally (useResizableWidth, in-memory only) --
+  // it has no prop surface for an externally-persisted width, so the
+  // previous react-resizable-panels + useDefaultLayout/ssrSafeLocalStorage
+  // persistence (the "veridian-shell-panels" key) is a disclosed, deliberate
+  // regression of this migration: the panel still resizes by dragging within
+  // a session exactly as before, it just no longer survives a hard reload
+  // (resets to AppShellFrame's own 420px default). Confirmed via the shared
+  // package's own source that there is no clean way to inject a persisted
+  // initial width without forking AppShellFrame itself, which is out of this
+  // repo's scope -- reported, not silently dropped.
 
   // Shared react-query cache -- previously each of these was its own
   // fetch-on-mount effect here, duplicating the same /api/me and
@@ -126,10 +134,59 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // veriChatV2Enabled orgs get the persistent composer + independent VERI
   // Chat panel (product branch 'veri_chat_v2', gated per-org, reversible
-  // without a redeploy -- see veri-chat-v2-enablement-service.ts). Every
-  // other org renders exactly as before: this whole branch is additive,
-  // not a rewrite of the existing flow.
-  const body = (
+  // without a redeploy -- see veri-chat-v2-enablement-service.ts) -- built
+  // on the shared package's AppShellFrame, which owns the sidebar/main/
+  // composer/panel/homeRoute merge mechanics generically. Every other org
+  // renders exactly as before via its own hand-rolled layout below: this
+  // whole branch is additive, not a rewrite of the legacy flow.
+  const sidebarNode = sidebarCollapsed ? null : (
+    <div className="print:hidden">
+      <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
+    </div>
+  );
+
+  const body = veriChatV2Enabled ? (
+    <VeriChatProvider>
+      <AppShellFrame
+        homeRoute={HOME_ROUTE}
+        header={
+          <div className="print:hidden shrink-0">
+            <AppTopbar sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed((v) => !v)} />
+            <HealthRibbon />
+            <TaskVisibilityPanel />
+          </div>
+        }
+        sidebar={sidebarNode}
+        composer={
+          <div className="print:hidden">
+            <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
+          </div>
+        }
+        panel={
+          <div className="print:hidden h-full">
+            <VeriChatPanel />
+          </div>
+        }
+        homeThreadSlot={<HomeThreadSlot />}
+      >
+        <div className="p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
+          {/* /home leads with the assistant (first-minute experience) -- the
+              Get Started checklist would sit above it speaking old
+              compliance language, so it stays on every page except Home. */}
+          <div className="print:hidden">
+            {pathname !== HOME_ROUTE && <OnboardingChecklist />}
+            {pathname !== HOME_ROUTE && <TrialBanner />}
+          </div>
+          {children}
+        </div>
+      </AppShellFrame>
+      {/* HelpWidget: floating help-chat button/panel, fixed-position, rendered
+          once per authenticated session alongside other global overlays. */}
+      <div className="print:hidden">
+        <HelpWidget />
+      </div>
+    </VeriChatProvider>
+  ) : (
     <>
       {/* print:hidden -- every element in this persistent chrome group is
           app navigation/interactive overlay, not page content. Hidden here
@@ -141,92 +198,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           @page margins, .print-only / .no-print utilities for content that
           needs finer control than this file's chrome-vs-content split). */}
       <div className="print:hidden">
-        <AppTopbar
-          sidebarCollapsed={veriChatV2Enabled ? sidebarCollapsed : undefined}
-          onToggleSidebar={veriChatV2Enabled ? () => setSidebarCollapsed((v) => !v) : undefined}
-        />
+        <AppTopbar />
         <HealthRibbon />
       </div>
-      {/* D5.B6: rendered here (in the shared `body` markup, above the
-          veriChatV2/legacy branch split below) so it's always present in the
-          authenticated chrome regardless of which org branch renders --
-          TaskVisibilityPanel itself uses useVeriChatOptional() to stay safe
-          when VeriChatProvider isn't mounted (legacy branch). */}
       <div className="print:hidden">
         <TaskVisibilityPanel />
       </div>
       <div className="flex flex-1 overflow-hidden print:block print:overflow-visible">
-        {/* Collapsing conditionally renders AppSidebar rather than toggling a
-            CSS width -- AppSidebar sets its own min-width internally, which
-            would otherwise fight a wrapper's width:0. Only ever collapsible
-            on the veriChatV2 branch; sidebarCollapsed stays false for every
-            other org since the toggle button isn't rendered for them. */}
-        {!(veriChatV2Enabled && sidebarCollapsed) && (
+        {sidebarNode}
+        <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
           <div className="print:hidden">
-            <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
+            {pathname !== HOME_ROUTE && <OnboardingChecklist />}
+            <TrialBanner />
           </div>
-        )}
-        {veriChatV2Enabled ? (
-          // Merged-Home-page pattern (compliance-tracker/veridian-scope-selector-in-home.html,
-          // the Owner's agreed UI/UX reference, confirmed 2026-07-18): on
-          // /home, VeriChatPanel merges into the main content area instead
-          // of sitting in its own side panel -- VeriChatPanel itself reads
-          // the same shared veri-chat-context state either way, so nothing
-          // it shows changes, only where it's mounted. Real, confirmed drift
-          // fixed here: this branch previously always rendered the 2-panel
-          // split, including on /home, despite the reference mockup calling
-          // for the panel to disappear there.
-          pathname === "/home" ? (
-            <div className="flex-1 flex flex-col overflow-hidden print:block print:overflow-visible print:h-auto">
-              <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
-                {children}
-              </main>
-              <div className="print:hidden">
-                <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
-              </div>
-            </div>
-          ) : (
-            <ResizablePanelGroup orientation="horizontal" defaultLayout={veriChatPanelLayout} onLayoutChange={onVeriChatPanelLayoutChange} className="flex-1 overflow-hidden print:block print:overflow-visible">
-              <ResizablePanel defaultSize={72} minSize={50}>
-                <div className="h-full flex flex-col overflow-hidden print:block print:overflow-visible print:h-auto">
-                  <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
-                    <div className="print:hidden">
-                      <OnboardingChecklist />
-                      <TrialBanner />
-                    </div>
-                    {children}
-                  </main>
-                  <div className="print:hidden">
-                    <VeriComposer connectedConnectorsCount={connectedConnectorsCount} />
-                  </div>
-                </div>
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={28} minSize={18} maxSize={40} className="print:hidden">
-                <VeriChatPanel />
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          )
-        ) : (
-          <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
-            {/* /home leads with the assistant (first-minute experience) -- the
-                legacy Get Started checklist would sit above it speaking old
-                compliance language, so it stays on every page except Home. */}
-            <div className="print:hidden">
-              {pathname !== "/home" && <OnboardingChecklist />}
-              <TrialBanner />
-            </div>
-            {children}
-          </main>
-        )}
+          {children}
+        </main>
       </div>
-      {!veriChatV2Enabled && (
-        <div className="print:hidden">
-          <GlobalChatDock />
-        </div>
-      )}
-      {/* HelpWidget: floating help-chat button/panel, fixed-position, rendered
-          once per authenticated session alongside other global overlays. */}
+      <div className="print:hidden">
+        <GlobalChatDock />
+      </div>
       <div className="print:hidden">
         <HelpWidget />
       </div>
@@ -241,7 +231,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         "--org-brand-accent": orgBrandAccentColor,
       } as React.CSSProperties}
     >
-      {veriChatV2Enabled ? <VeriChatProvider>{body}</VeriChatProvider> : body}
+      {body}
     </div>
   );
 }

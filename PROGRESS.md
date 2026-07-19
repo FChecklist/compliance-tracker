@@ -1,22 +1,37 @@
-# PROGRESS -- task-20260719-021229-gap-closure--gp-08-09-hallucination-conf
+# PROGRESS -- task-20260719-025216-migrate-compliance-tracker-to-consume-ve
 
 ## Completed
-- [x] Read ai-os/CONSTITUTION.yaml guardrail_protocols GP-08/GP-09 in full
-- [x] Read policy-enforcement-engine.ts, dispatch-confidence-scoring.ts, confidence-banding.ts, orchestra-execution-logger.ts, ai-team/roster.ts, ai-team/team-service.ts, ai-team/dispatch-repo.ts, api/ai/team/dispatch/route.ts, activity-log-service.ts
-- [x] Fresh grep for "confidence" across src/lib -- confirmed dispatch-confidence-scoring.ts already exists (2026-07-18) but is a deterministic proxy, NOT a fact-check of claims against real codebase state -- that specific gap is real
-- [x] Checked ai-os/boss/ACTIVE-CLAIMS.yaml + `gh pr list` -- no genuine duplicate claim on this narrow slice
-- [x] Registered claim in ACTIVE-CLAIMS.yaml, committed as its own first commit
-- [x] Implemented src/lib/claim-verification.ts (extraction + grep-verification of backtick-quoted file-path/function-name claims, capped, lazy-cached scan under src/lib+src/app+src/components, test files excluded from the scan)
-- [x] Wired confidenceScore/lowConfidenceFlagged into orchestra-execution-logger.ts's recordOrchestraExecution() (attached into existing output jsonb, no schema/migration change)
-- [x] Added tests: real function/file claim (high confidence, score 1) + nonexistent claim (low confidence, score 0, flagged) + mixed case + no-claims case -- 13 tests, all passing
-- [x] Updated CONSTITUTION.yaml GP-08/GP-09 status text
-- [x] bunx tsc --noEmit clean, bun run lint clean (pre-existing warnings only, unrelated), bun test: 1735+ pass / 0 fail
-- [x] Pushed, opened PR #463
-- [x] Posted structured AUDIT: PASS comment (8 fields, no markdown bold on labels -- validate-audit-verdict.ts requires the label at literal line start)
-- [x] CI green: Mandatory Audit Check, CI (Lint/Type Check/Build/Unit/E2E/Asset Registry/Metadata Index/Guardrail Presence/Doc checks), Sentinel Governance Checks, CodeQL all pass -- only Vercel failed (known rate-limited, non-required)
-- [x] Merged origin/main into branch multiple times (main moving fast -- PR #462, #464, GP-20 loop-prevention, etc. landing concurrently) to resolve repeated CONFLICTING mergeStateStatus, each time only PROGRESS.md (per-task-instance file) conflicting, ACTIVE-CLAIMS.yaml/CONSTITUTION.yaml auto-merging cleanly
+- [x] Read ai-os/CONSTITUTION.yaml navigation_and_intent context, ACTIVE-CLAIMS.yaml, `gh pr list` -- no collision (closest prior entry, PR #436, explicitly scoped this exact swap OUT as a "separate, larger follow-on" -- confirmed this task IS that follow-on)
+- [x] Registered claim in ACTIVE-CLAIMS.yaml, pushed as branch's first commit
+- [x] Read veridian-ui-kit README + every file under src/shell/, src/composer/, src/panel/, src/context/ at the v0.2.0 tag, in full
+- [x] Read this repo's real AppShell.tsx, AppSidebar.tsx, AppTopbar.tsx, VeriComposer.tsx, VeriChatPanel.tsx, veri-chat-context.tsx, home/page.tsx in full
+- [x] Bumped package.json to veridian-ui-kit (ended at v0.2.2, see below for why not v0.2.0), bun install clean
+- [x] globals.css + layout.tsx: `@import "@fchecklist/veridian-ui-kit/tokens/globals.css"` + `veridianHeadingFont`/`veridianSansFont`, removed locally-duplicated core tokens/fonts, kept this repo's real extra tokens (semantic/pendency colors, shadcn mappings)
+- [x] veri-chat-context.tsx rewritten as a thin wrapper around `createVeriChatContext()`, layering this repo's own multi-thread-AI state (aiThreadId/activeAiThreadId/aiThreads/switchAiThread/createNewAiThread) as a composed inner context, `rightPanelView`/`setRightPanelView` aliasing the factory's `activeView`/`setActiveView` for zero call-site churn
+- [x] AppShell.tsx rewritten to use `AppShellFrame` for the veriChatV2Enabled branch (sidebar/header/composer/panel/homeThreadSlot/homeRoute="/home"); legacy branch untouched (AppShellFrame doesn't apply there). Every widget preserved: HealthRibbon, TrialBanner, OnboardingChecklist, GlobalChatDock(+isDockHiddenForPath, legacy branch only), HelpWidget, TaskVisibilityPanel, stage_0 redirect, BYOB CSS vars, unread chat/AI/connector polling
+- [x] New src/components/veri-chat/HomeThreadSlot.tsx: wires AppShellFrame's `homeThreadSlot` to the shared `ThreadView`, reading the real active AI thread's messages (6s resilient poll) -- closes a real, confirmed gap (before this migration, /home for veriChatV2Enabled orgs showed zero thread content, just a composer)
+- [x] AppSidebar.tsx rewritten to use the shared `AppSidebar` -- top-pinned Home/Dashboard/Chat/Connectors/FDE links folded into an unlabeled first section, all module sections converted to shared NavSection/NavItem shape, desktop wrapped in `hidden lg:flex`, mobile Sheet preserved (and its unreadable text-white-on-light-header contrast bug fixed while touching this code)
+- [x] AppTopbar.tsx rewritten to use the shared `AppHeader` -- searchSlot/notificationSlot/userMenuSlot/extraActions (invite button + ThemeToggle + LanguageSwitcher, relocated from the sidebar footer) wired through real logic unchanged
+- [x] VeriChatPanel.tsx rewritten to use the shared `PanelShell` for the outer header+tabs shell (all 7 tabs incl. real Meetings/Approvals/Voice via the generic View type param) -- every real list/thread component (TaskList/ChatList/MeetingsList/ApprovalsList/VoiceList/TodoList/Overview/TaskThread/ConvoThread/MeetingThread/EmailThread) unchanged, rendered as children
+- [x] VeriComposer.tsx: investigated fully, confirmed real feature loss (VCEL calculator structured inputs, FDE fallback leaf, calculator-suggestion chips, chain-picker search box all have zero representation in the shared VeriComposer's props) -- kept local render per this task's own "report the blocker, don't paper over it" instruction; no direct package import needed since types already flow through transitively via veri-chat-context.tsx
+- [x] Found and fixed 3 real, confirmed bugs in the shared package itself (upstream PRs, not papered over locally):
+  - FChecklist/veridian-ui-kit#3 (v0.2.1): `AppShellFrame` hardcoded `h-screen` on its own sidebar+main+panel row instead of the true outer wrapper -- composing it with `AppHeader` as designed would silently clip the bottom of the sidebar/panel by exactly the header's height. Added an optional `header` prop, moved `h-screen` to the real outer wrapper, backward compatible.
+  - FChecklist/veridian-ui-kit#4 (v0.2.2): shared `AppSidebar` keyed nav items by `href` alone -- a real React duplicate-key warning for this repo's own nav (multiple distinct items legitimately pointing at `/compliance`). Fixed to key by `href+label+index`.
+  - next.config.ts: added `transpilePackages: ["@fchecklist/veridian-ui-kit"]` -- the package ships raw `.ts`/`.tsx` from a git dependency, Turbopack doesn't transpile TS inside node_modules by default (`bun run build` failed with "Unknown module type" before this).
+  - globals.css: fixed a `*/`-inside-a-comment self-inflicted CSS syntax error in my own new header comment (caught by `bun run build`, not by tsc/lint).
+- [x] `bunx tsc --noEmit` clean, `bun run lint` clean (pre-existing warnings only, unrelated to this diff), `bun run build` succeeds (every route in the app compiles, confirms no import/bundle regressions since AppShell wraps every authenticated route), `bun test`: 1754 pass / 0 fail
+- [x] Visual verification: built a temporary, unprotected `/preview-appshell` route (deleted before finalizing) mirroring AppShell's real veriChatV2Enabled composition with mock data (dev server has no real DB/Supabase credentials in this environment), screenshotted with a locally-extracted Chromium (Playwright + manually `apt-get download`'d shared libs, no root available) at desktop (both home and non-home routes) and mobile viewports. Confirmed: header+sidebar+composer+panel compose with zero clipping, sidebar footer renders correctly below the nav, panel tabs/badges/empty-states render correctly, mobile Sheet trigger works and its contrast bug is fixed. Found and fixed the 2 real upstream bugs above via this process.
+- [x] Confirmed, disclosed (not silently accepted) tradeoffs found during implementation/visual verification:
+  - Panel resize width no longer persists across a hard reload (AppShellFrame's own `useResizableWidth` is in-memory only, no prop surface for injected persistence) -- still drags/resizes correctly within a session.
+  - AppShellFrame's panel is a fixed-pixel width (420px, min 320px), not responsive -- on narrow mobile viewports, non-home pages with the panel open get very cramped (confirmed via mobile screenshot). The sidebar already needed its own mobile Sheet workaround for the same underlying reason (neither shared component has a responsive breakpoint), so this isn't a wholly new class of gap, but adopting the panel's fixed-pixel width (vs the old percentage-based ResizablePanelGroup split) makes it more severe on very narrow screens specifically.
+  - A few nav items route via query string (e.g. `/compliance?status=overdue`); the shared AppSidebar's active-state check has no query-string awareness, so those links still navigate correctly but won't visually highlight as active on that exact view.
+  - BYOB white-label logo header accent underline has no equivalent slot in the shared AppSidebar's fixed logo-row template (logo image itself stays real-org-aware and links to "/").
+  - Print stylesheet: AppShellFrame's internal row doesn't carry this repo's `print:*` classes, so print layout for veriChatV2Enabled orgs isn't guaranteed pixel-correct (untested; disclosed, not verified either way).
 
 ## Remaining
-- [ ] Push latest merge commit, re-verify CI green
-- [ ] Classify tier (TIER1 -- no schema/migration touched) and self-merge if green
-- [ ] Final report
+- [ ] Push branch, open PR
+- [ ] Post structured `AUDIT: PASS` comment
+- [ ] `gh run watch --exit-status` until all required checks green
+- [ ] Self-merge (TIER1 -- no schema/migration touched) if green, squash + delete branch
+- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed
+- [ ] Final report to Owner: PR number, tier, CI result, merged status, preserved-behavior checklist
