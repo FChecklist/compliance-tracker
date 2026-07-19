@@ -10581,6 +10581,17 @@ export const aiModelRegistry = platformSchemaDB.table('ai_model_registry', {
   costPer1kOutput: numeric('cost_per_1k_output', { precision: 10, scale: 6 }),
   healthStatus: aiModelHealthEnum('health_status').notNull().default('healthy'),
   notes: text('notes'),
+  // AI Router registry-backed model resolution follow-up (2026-07-19):
+  // names this row's slot in orchestra-model-resolver.ts's hardcoded
+  // failover chain (e.g. 'platform_default', 'platform_fallback',
+  // 'cerebras_failover', 'escalated_default') -- NULL for every row that
+  // isn't one of those 4 named roles (the vast majority: roster.ts role
+  // assignments, vision overrides, etc. have no "role" in this sense).
+  // Enforced to at most one ACTIVE row per role by the partial unique index
+  // in the migration (same pattern ai_routing_policies_one_active_per_scope
+  // already uses) -- this column only names WHICH model/provider fills a
+  // role; the failover SEQUENCE/DECISION LOGIC itself stays in code.
+  role: text('role'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

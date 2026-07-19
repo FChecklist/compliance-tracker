@@ -228,7 +228,7 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
   // overrides an org's own BYO choice -- falls straight through to
   // `modelConfig` if escalatedPlatformConfig() has nothing configured
   // (no OPENROUTER_API_KEY) rather than failing the request.
-  const effectiveConfig = modelConfig.isCustomerConfigured ? modelConfig : (escalatedPlatformConfig() ?? modelConfig)
+  const effectiveConfig = modelConfig.isCustomerConfigured ? modelConfig : ((await escalatedPlatformConfig()) ?? modelConfig)
 
   const startedAt = Date.now()
   try {
