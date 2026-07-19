@@ -2403,6 +2403,35 @@ active:
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
 recently_completed:
+  - session_label: "claude-code (task-20260719-031532-schema-ts--reflect-live-platform-schema) -- schema.ts platform-schema migration (code-only, no live DB change)"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "PR #469 squash-merged, commit bb8bfbe5"
+    claim: |
+      Updated src/lib/db/schema.ts to match the live `platform` Postgres
+      schema move (same database as `compliance`, 22 tables + 3 enum
+      types) already applied via ALTER TABLE/TYPE ... SET SCHEMA by a
+      separate DB-access-capable session: added platformSchemaDB =
+      pgSchema('platform'), repointed the 22 tables' .table(...) and 3
+      enums' .enum(...) calls to it (dynamic_chains, entity_relationships,
+      worker_agents + 5 worker_agent_* satellites, module_registry,
+      product_branches, product_branch_modules, module_rule_configs,
+      instruction_execution_cache, capability_improvement_proposals,
+      task_capabilities, fde_requests, automation_rules,
+      automation_rule_runs, ai_model_registry, ai_routing_policies,
+      ai_routing_audit_log, ai_team_role_overrides; ai_router_scope,
+      ai_model_status, ai_model_health). Also fixed 4 hardcoded
+      compliance.<table> references (raw SQL in
+      instruction-execution-cache-service.ts, comments in mcp/route.ts and
+      capability-learning-service.ts, a live LLM-context string in
+      capability-audit-service.ts). No migration file for the move itself
+      -- PR #468 (merged just before this PR, by the Owner's own session)
+      already carried the hand-authored drizzle/0245 SQL for it, exactly
+      as anticipated; verified its table list matched this PR's schema.ts
+      changes exactly before merging main into this branch. platform_assets/
+      platform_applications correctly left in compliance. Verified clean:
+      bunx tsc --noEmit (0 errors), bun run lint (0 errors), bun test
+      (1754 pass/0 fail). TIER1, self-merged after all required CI green
+      (Vercel non-required, known rate-limited).
   - session_label: "claude-code (task-20260719-021227-gap-closure--gp-20-loop-prevention) -- GP-20 Loop Prevention Phase 2"
     completed_at: "2026-07-19T (this session)"
     merged_as: "PR #465 squash-merged, commit 4cffe82d"

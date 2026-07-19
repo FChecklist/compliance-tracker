@@ -81,7 +81,7 @@ export async function findPriorExecutionPath(
   const rows = (await db.execute(sql`
     SELECT id, resolved_capability_type, resolved_capability_id, resolved_label, resolved_params_shape,
            1 - (embedding <=> ${vectorStr}::vector) as score
-    FROM compliance.instruction_execution_cache
+    FROM platform.instruction_execution_cache
     WHERE (org_id = ${orgId} OR org_id IS NULL) AND resolved_capability_id IS NOT NULL
     ORDER BY embedding <=> ${vectorStr}::vector
     LIMIT 1
@@ -96,7 +96,7 @@ export async function findPriorExecutionPath(
   // getCachedEmbedding(): freshness/count tracking must never block or fail
   // the caller's actual response.
   db.execute(sql`
-    UPDATE compliance.instruction_execution_cache
+    UPDATE platform.instruction_execution_cache
     SET success_count = success_count + 1, last_used_at = NOW()
     WHERE id = ${row.id}
   `).catch(() => {})
@@ -134,13 +134,13 @@ export async function recordExecutionPath(
   const contentHash = createHash("sha256").update(trimmed).digest("hex")
 
   const existing = (await db.execute(sql`
-    SELECT id FROM compliance.instruction_execution_cache
+    SELECT id FROM platform.instruction_execution_cache
     WHERE org_id = ${orgId} AND content_hash = ${contentHash} AND resolved_capability_id = ${resolved.capabilityId}
   `)) as { id: string }[]
 
   if (existing.length > 0) {
     await db.execute(sql`
-      UPDATE compliance.instruction_execution_cache
+      UPDATE platform.instruction_execution_cache
       SET success_count = success_count + 1, last_used_at = NOW()
       WHERE id = ${existing[0].id}
     `)
@@ -152,7 +152,7 @@ export async function recordExecutionPath(
   const paramsShapeJson = resolved.paramsShape ? JSON.stringify(resolved.paramsShape) : null
 
   await db.execute(sql`
-    INSERT INTO compliance.instruction_execution_cache
+    INSERT INTO platform.instruction_execution_cache
       (id, org_id, instruction_text, content_hash, resolved_capability_type, resolved_capability_id, resolved_label, resolved_params_shape, embedding, success_count, last_used_at, created_at)
     VALUES (
       gen_random_uuid()::text, ${orgId}, ${trimmed}, ${contentHash},
