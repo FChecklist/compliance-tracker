@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId, expectedSteps: callerExpectedSteps, capabilityCategory: callerCapabilityCategory, filesCreated, filesModified, testsPassed, testsFailed } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, knownContext, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId, expectedSteps: callerExpectedSteps, capabilityCategory: callerCapabilityCategory, filesCreated, filesModified, testsPassed, testsFailed } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
@@ -119,7 +119,16 @@ export async function POST(request: NextRequest) {
     // is token-usage-ledger-only. Fire-and-forget, never blocks dispatch.
     if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "requested", objective, complexityTier })
 
-    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints })
+    // Audit round 3 (GLM-5.2 audit prep, discovered while wiring the L4/
+    // judgment-tier test): this route never destructured OR forwarded
+    // `knownContext` anywhere, even though TightTask/task-tightening.ts's
+    // own validateTightTask() requires it for integrative/judgment tier
+    // (mandatory per that module's own header). Any real judgment-tier
+    // dispatch through this route -- including every L4 dispatch this PR
+    // adds -- was unconditionally rejected with "Known context is missing"
+    // regardless of what a caller sent. Fixed here since it directly
+    // blocks the L4 ladder level this task adds, not a cosmetic gap.
+    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, knownContext })
     if (!tightness.passed) {
       void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
       // No role resolved yet -- rejected before classification even runs.
@@ -173,7 +182,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, complexityTier: complexityTier!, expectedOutput: expectedOutput!, constraints })
+    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, complexityTier: complexityTier!, expectedOutput: expectedOutput!, constraints, knownContext })
 
     const classification = forcedRole
       ? { role: forcedRole, reasoning: "Caller-specified role, classification skipped.", confidence: 1 }
@@ -331,7 +340,12 @@ export async function POST(request: NextRequest) {
     // only the FINAL retry attempt's usage -- a step that retried once
     // silently dropped its first attempt's real token spend from the
     // Execution Report. Accumulated across every attempt for this step.
-    let stepTokensUsed = execution.usage.promptTokens + execution.usage.completionTokens
+    // Audit round 3 (GLM-5.2, m12-NEW finding): nullish-guarded -- an
+    // `execution.usage` missing a field (e.g. a provider error path)
+    // must never poison the accumulated total into NaN, which would
+    // otherwise pass validateExecutionReport's own `typeof === "number"`
+    // check silently (typeof NaN is "number").
+    let stepTokensUsed = (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0)
 
     // AIROUTER-01 Phase 2 (Owner's Universal Tightened Instruction
     // Template, Retry Policy: "1 retry for L1-L3"): bounded, automatic
@@ -356,7 +370,7 @@ export async function POST(request: NextRequest) {
       retryCount++
       const retryTask = `${task}\n\n[RETRY ${retryCount}/${maxAutomaticRetries}] Your previous attempt was flagged for: "${failureSignal}". Address this directly in this attempt -- do not repeat it, and do not hedge if you have sufficient information to answer confidently.`
       execution = await runRole(classification.role, retryTask)
-      stepTokensUsed += execution.usage.promptTokens + execution.usage.completionTokens
+      stepTokensUsed += (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0)
     }
 
     // VERIDIAN_AUDIT_ORGANIZATION.md, "L1 Real-Time Audit": the source
@@ -502,6 +516,7 @@ export async function POST(request: NextRequest) {
     // single-step view.
     let executionReport: ExecutionReport | null = null
     let taskRegisterStatus: string | null = null
+    let reportPersistenceFailed = false
     if (softwareTeamLevel && taskId) {
       const stepNo = priorStepCount + 1
       const stepStatus: ExecutionStepStatus = qaGate.passed ? "PASS" : requiresAudit ? "PARTIAL" : "FAIL"
@@ -533,7 +548,29 @@ export async function POST(request: NextRequest) {
         missing: knowledgeGap.insufficientKnowledge && knowledgeGap.matchedPhrase ? [knowledgeGap.matchedPhrase] : [],
         warnings: lowConfidence.detected && lowConfidence.matchedPhrase ? [lowConfidence.matchedPhrase] : [],
         errors: stepStatus === "FAIL" ? [`Step ${stepNo} ("${objective}") did not pass QA pre-completion gate.`] : [],
-        escalation: { required: escalationRequired, reason: escalationRequired ? (!qaGate.passed ? qaGate.reason : `overall_confidence ${confidencePercentage}% below the ${WORKER_ESCALATION_CONFIDENCE_THRESHOLD}% worker escalation threshold`) : "" },
+        // Audit round 3 (GLM-5.2, M9-NEW finding): `required` was already
+        // correct, but the REASON fell through to the confidence message
+        // even when `requiresAudit` (not low confidence) was the actual
+        // cause -- e.g. every PASSING L3 dispatch (mandatory-audit tier)
+        // got a false "confidence below threshold" reason despite high
+        // confidence. Reason now names the real cause, checked in the same
+        // priority order `requiresAudit` itself is computed from.
+        escalation: {
+          required: escalationRequired,
+          reason: !escalationRequired
+            ? ""
+            : !qaGate.passed
+              ? qaGate.reason
+              : lowConfidence.detected
+                ? `low-confidence signal detected: "${lowConfidence.matchedPhrase}"`
+                : knowledgeGap.insufficientKnowledge
+                  ? `knowledge-gap signal detected: "${knowledgeGap.matchedPhrase}"`
+                  : riskLevel === "high" || riskLevel === "critical"
+                    ? `risk level "${riskLevel}" requires review`
+                    : requiresAudit
+                      ? "mandatory audit required for this tier/response shape"
+                      : `overall_confidence ${confidencePercentage}% below the ${WORKER_ESCALATION_CONFIDENCE_THRESHOLD}% worker escalation threshold`,
+        },
         execution_summary: {
           duration_seconds: Math.round((Date.now() - dispatchStartedAt) / 1000),
           tokens_used: stepTokensUsed,
@@ -548,6 +585,13 @@ export async function POST(request: NextRequest) {
       const recorded = await recordExecutionReport(taskId, stepReport, expectedSteps)
       executionReport = recorded.mergedReport
       taskRegisterStatus = recorded.status
+      // Audit round 3 (GLM-5.2, M10-NEW finding): M6's fix (round 2) made
+      // a lost report DETECTABLE and LOGGED at the service layer, but this
+      // route still silently returned status:"completed" with
+      // executionReport:null and no way for a caller to tell "no report
+      // because no level was declared" apart from "report was lost to a
+      // DB failure." Surfaced explicitly below.
+      if (!recorded.ok) reportPersistenceFailed = true
     }
 
     return NextResponse.json({
@@ -583,6 +627,13 @@ export async function POST(request: NextRequest) {
       retryCount,
       taskRegisterStatus,
       executionReport,
+      // Audit round 3 (GLM-5.2, M10-NEW finding): explicit, always-present
+      // (for a softwareTeamLevel dispatch) signal distinguishing "no report
+      // because no level was declared" (reportPersisted stays true, but
+      // taskId/executionReport are simply null) from "a level WAS declared
+      // but the report was lost to a DB failure" (reportPersisted: false,
+      // executionReport: null) -- a caller must not have to infer this.
+      reportPersisted: !reportPersistenceFailed,
     })
   } catch (error) {
     if (error instanceof RoleNotCallableError) {

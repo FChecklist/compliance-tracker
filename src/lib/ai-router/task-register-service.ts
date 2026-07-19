@@ -26,7 +26,11 @@ import { eq } from "drizzle-orm"
 import type { SoftwareTeamLevel } from "./software-team-ladder"
 import { taskTypeForStepCount, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "./instruction-contract"
 
-export type TaskRegisterStatus = "pending" | "in_progress" | "completed" | "failed" | "escalated"
+// Audit round 3 (GLM-5.2, m14-NEW finding): "pending" removed -- no code
+// path ever sets it (registerInstructionContract always inserts
+// "in_progress" directly; nothing represents a pre-registration state as
+// a real row). Dead enum value, removed rather than left unreachable.
+export type TaskRegisterStatus = "in_progress" | "completed" | "failed" | "escalated"
 
 /**
  * Registers a task's Instruction Contract BEFORE execution starts. Returns

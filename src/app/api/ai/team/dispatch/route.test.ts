@@ -24,8 +24,15 @@ process.env.APP_RUNTIME_DATABASE_URL ??= "postgresql://app_runtime:placeholder@l
 
 type TaskRegisterRow = { taskId: string; status: string; executionReport: unknown; instructionContract: unknown }
 
-async function setupMocks() {
+// Audit round 3 (GLM-5.2, m10-NEW finding): the mock previously always
+// returned a confident response, so the retry loop (M1 fix) never fired in
+// any route-level test. `runRoleResponses` lets a test supply a queue of
+// contents `runRole` returns in sequence (e.g. a hedged first reply, a
+// confident second reply), so the retry path is actually exercisable.
+async function setupMocks(runRoleResponses?: string[]) {
   const rows = new Map<string, TaskRegisterRow>()
+  const responseQueue = runRoleResponses ? [...runRoleResponses] : []
+  const promptsSeen: string[] = []
 
   mock.module("@/lib/supabase/auth-guard", () => ({
     requireAuth: mock(async () => ({
@@ -47,11 +54,15 @@ async function setupMocks() {
     RoleNotCallableError,
     classifyTask: mock(async () => ({ role: "fullstack_developer", reasoning: "test", confidence: 1 })),
     getRole: mock((roleKey: string) => ({ roleKey, team: "ENGINEERING", title: "Full Stack Developer", model: "z-ai/glm-5.2", promptKey: "ai_team.fullstack_developer" })),
-    runRole: mock(async (roleKey: string) => ({
-      content: "Confident, complete response with no hedging.",
-      usage: { promptTokens: 300, completionTokens: 200 },
-      role: { roleKey, team: "ENGINEERING", title: "Full Stack Developer", model: "z-ai/glm-5.2", promptKey: "ai_team.fullstack_developer" },
-    })),
+    runRole: mock(async (roleKey: string, prompt: string) => {
+      promptsSeen.push(prompt)
+      const content = responseQueue.length > 0 ? responseQueue.shift()! : "Confident, complete response with no hedging."
+      return {
+        content,
+        usage: { promptTokens: 300, completionTokens: 200 },
+        role: { roleKey, team: "ENGINEERING", title: "Full Stack Developer", model: "z-ai/glm-5.2", promptKey: "ai_team.fullstack_developer" },
+      }
+    }),
     runGuardrailLevel: mock(async () => []),
   }))
 
@@ -114,6 +125,8 @@ async function setupMocks() {
       })),
     },
   }))
+
+  return { promptsSeen }
 }
 
 afterEach(() => {
@@ -181,5 +194,70 @@ describe("POST /api/ai/team/dispatch -- softwareTeamLevel end-to-end (audit roun
     expect(body2.executionReport.objective).toBe("Step 1: create the schema migration")
     // B2: execution_summary aggregates across both steps
     expect(body2.executionReport.execution_summary.tokens_used).toBe(1000) // 500 (step1) + 500 (step2)
+  })
+
+  // Audit round 3 (GLM-5.2, m10-NEW finding): the retry loop (M1 fix) was
+  // never actually exercised by a route-level test.
+  test("retry loop (M1 fix): a hedged first attempt triggers exactly 1 retry, injecting the matched failure signal into the retried prompt", async () => {
+    const { promptsSeen } = await setupMocks([
+      "I'm not sure this is correct, but here is an attempt.", // hedged -- triggers retry
+      "This is definitely correct and complete.", // confident -- retry succeeds
+    ])
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ ...BASE_BODY, taskId: "T-RETRY" }) as any)
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.retryCount).toBe(1)
+    expect(body.executionReport.steps[0].retry_count).toBe(1)
+    expect(promptsSeen.length).toBe(2)
+    expect(promptsSeen[1]).toContain("i'm not sure") // the matched low-confidence phrase, injected into the retried prompt
+  })
+
+  // Audit round 3 (GLM-5.2, m10-NEW finding): the capabilityCategory
+  // override (M3, M8 fixes) was never exercised through the actual route.
+  test("capabilityCategory override: a matching category/tier pair is accepted; a mismatched pair is rejected (M8 fix)", async () => {
+    await setupMocks()
+    const { POST } = await import("./route")
+
+    const matching = await POST(makeRequest({
+      ...BASE_BODY, taskId: "T-CAT-OK", softwareTeamLevel: "L4", complexityTier: "judgment",
+      knownContext: "Read the existing login route and its tests before reviewing.",
+      capabilityCategory: "planning_governance_oversight", // resolves to "judgment" -- matches
+    }) as any)
+    expect(matching.status).not.toBe(422)
+
+    const mismatched = await POST(makeRequest({
+      ...BASE_BODY, taskId: "T-CAT-MISMATCH", softwareTeamLevel: "L4", complexityTier: "judgment",
+      knownContext: "Read the existing login route and its tests before reviewing.",
+      capabilityCategory: "single_file_mechanical", // resolves to "mechanical", contradicts "judgment"
+    }) as any)
+    const mismatchedBody = await mismatched.json()
+    expect(mismatched.status).toBe(422)
+    expect(mismatchedBody.status).toBe("blocked")
+    expect(mismatchedBody.blockedBy.reason).toContain("capabilityCategory")
+  })
+
+  // Audit round 3 (GLM-5.2, m11-NEW finding): filesCreated/testsPassed/etc.
+  // (B2-NEW fix) were never verified to actually flow into the response.
+  test("caller-supplied filesCreated/testsPassed flow through to execution_summary (B2-NEW fix)", async () => {
+    await setupMocks()
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ ...BASE_BODY, taskId: "T-FILES", filesCreated: 2, testsPassed: 5, testsFailed: 0 }) as any)
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.executionReport.execution_summary.files_created).toBe(2)
+    expect(body.executionReport.execution_summary.tests_passed).toBe(5)
+    expect(body.executionReport.execution_summary.tests_failed).toBe(0)
+  })
+
+  // Audit round 3 (GLM-5.2, M10-NEW finding): reportPersisted must be a
+  // real, checkable signal -- true for the ordinary case tested elsewhere
+  // in this file, asserted explicitly here.
+  test("reportPersisted is true when the report was actually written", async () => {
+    await setupMocks()
+    const { POST } = await import("./route")
+    const res = await POST(makeRequest({ ...BASE_BODY, taskId: "T-PERSISTED" }) as any)
+    const body = await res.json()
+    expect(body.reportPersisted).toBe(true)
   })
 })

@@ -12,7 +12,7 @@
 -- change per task.
 
 DO $$ BEGIN
-  CREATE TYPE platform.task_register_status AS ENUM ('pending', 'in_progress', 'completed', 'failed', 'escalated');
+  CREATE TYPE platform.task_register_status AS ENUM ('in_progress', 'completed', 'failed', 'escalated');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS platform.task_register (
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS platform.task_register (
   level text NOT NULL,
   scope platform.ai_router_scope NOT NULL DEFAULT 'software_team',
   role_key text,
-  status platform.task_register_status NOT NULL DEFAULT 'pending',
+  status platform.task_register_status NOT NULL DEFAULT 'in_progress',
   instruction_contract jsonb NOT NULL,
   execution_report jsonb,
   created_at timestamp NOT NULL DEFAULT now(),

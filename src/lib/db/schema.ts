@@ -10635,7 +10635,7 @@ export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', 
 // data must conform to (validated at the application layer, same
 // deterministic-no-LLM-call posture as task-tightening.ts -- not enforced
 // by a DB-level JSON schema constraint).
-export const taskRegisterStatusEnum = platformSchemaDB.enum('task_register_status', ['pending', 'in_progress', 'completed', 'failed', 'escalated'])
+export const taskRegisterStatusEnum = platformSchemaDB.enum('task_register_status', ['in_progress', 'completed', 'failed', 'escalated'])
 
 export const taskRegister = platformSchemaDB.table('task_register', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -10643,7 +10643,7 @@ export const taskRegister = platformSchemaDB.table('task_register', {
   level: text('level').notNull(), // "L0"-"L5", see software-team-ladder.ts's SoftwareTeamLevel
   scope: aiRouterScopeEnum('scope').notNull().default('software_team'),
   roleKey: text('role_key'), // roster.ts roleKey that executed this, null for L0 (no AI)
-  status: taskRegisterStatusEnum('status').notNull().default('pending'),
+  status: taskRegisterStatusEnum('status').notNull().default('in_progress'),
   instructionContract: jsonb('instruction_contract').notNull(),
   executionReport: jsonb('execution_report'), // null until at least one step has run
   createdAt: timestamp('created_at').notNull().defaultNow(),

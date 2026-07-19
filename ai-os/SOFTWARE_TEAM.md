@@ -200,10 +200,51 @@ established.
 ## 6. Independent audit summary (GLM-5.2, 3 rounds)
 
 Full verbatim findings and fixes: `ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md`.
+Called directly via the OpenRouter API (`z-ai/glm-5.2`) -- an independent
+model, never the one that wrote the code, matching AGENTS.md Rule 7(c).
 
-*(This section is updated after each round completes -- filled in fully
-once all 3 rounds are done; see the audit log for the authoritative,
-append-only record in the meantime.)*
+**3 complete rounds ran.** Round 3 needed 3 physical API attempts to get one
+complete answer (attempt 1: client-side timeout, a genuine reachability
+issue; attempts 2-3: reachable but needed a larger token budget before the
+model finished its own reasoning and produced a final answer) -- disclosed
+in full in the audit log rather than presented as one clean call.
+
+**Totals across all 3 rounds**: 6 blockers, 10 major, 14 minor findings.
+All but one were fixed:
+- The 4 round-1 blockers (multi-step Execution Report status/confidence/
+  objective/execution_summary all reflecting only the LATEST step instead
+  of a real workflow-level aggregate) were the most serious real bugs
+  found -- they meant every L2/L3 multi-step workflow's Execution Report
+  was silently wrong.
+- Round 2's most serious finding (B5-NEW) was that round 1's own audit log
+  had FALSELY claimed a route-level integration test existed -- it did
+  not. This was corrected both in the log and in the code (a real
+  end-to-end test, `src/app/api/ai/team/dispatch/route.test.ts`, was
+  added).
+- Round 3 caught a wrong escalation REASON text (the `required` flag was
+  right, the human-readable reason was not) and a silent DB-loss signal
+  that round 2's fix made detectable at the service layer but never
+  surfaced to the route's caller.
+- One finding (round 2's m5-NEW) was investigated and found FALSE -- an
+  artifact of this session's own prompt-building script, not a real bug in
+  the committed file. Disclosed rather than silently dropped.
+- One finding (round 3's m13-NEW, a test-mock fragility around drizzle
+  `where`-clause evaluation) was left unfixed as a disclosed, low-priority
+  gap -- every real test in this file already uses distinct/sequential
+  taskIds, so it has no practical effect on this phase's coverage.
+- While building round 3's L4 (judgment-tier) test coverage, this session
+  independently found (not a GLM-5.2 finding) that `/api/ai/team/dispatch`
+  never forwarded `knownContext` anywhere at all -- meaning every real
+  judgment-tier dispatch through this route, including every L4 dispatch
+  this task adds, was unconditionally rejected regardless of what a caller
+  sent. Fixed, since it directly blocked the L4 ladder level itself.
+
+Guardrail safety (no capability-category/tier override can ever bypass
+`checkTierEligibility()`) and cost-bias verification (a real executable
+test proves L1-L3 resolves to the cheap/mid tier, not GLM-5.2, even for
+roles whose own roster.ts baseline IS GLM-5.2) were independently
+re-checked and confirmed clean in every round -- no round ever found a
+guardrail bypass or a fabricated cost-bias claim.
 
 ---
 
@@ -231,3 +272,8 @@ append-only record in the meantime.)*
 - **The migration was NOT applied to any live database.** Per this repo's
   own tier2 rule (schema/architecture changes held for explicit Owner
   sign-off), `drizzle/0249`/`0250` exist as reviewed SQL files only.
+- **The route test's DB mock ignores its `where` clause argument** (audit
+  round 3, m13-NEW) -- every test in this file uses a distinct/sequential
+  `taskId` so this has no practical effect on this phase's coverage, but a
+  route bug that queried the wrong `taskId` would not be caught by this
+  mock. Left unfixed as disproportionate to build for this phase.

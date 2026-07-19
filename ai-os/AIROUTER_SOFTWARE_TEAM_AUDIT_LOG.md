@@ -277,3 +277,124 @@ Cost: $0.0110, 51,258 tokens.
 Re-ran `bunx tsc --noEmit` / `bun run lint` / `bun test` (1810 pass) /
 `bun run build` after these fixes -- all clean. All 6 local CI guardrail
 scripts pass.
+
+---
+
+## Round 3 -- 2026-07-19
+
+**Method:** `z-ai/glm-5.2` via OpenRouter, same mechanism as rounds 1-2,
+given the updated diff plus rounds 1-2's own findings/fixes as context,
+asked to verify round 2's fixes and look for new gaps. **Honest disclosure
+per the task's own instructions**: this round needed 3 real API attempts,
+not 1 -- attempt 1 timed out client-side after 240s with a truncated
+response (curl exit 28, genuine network/latency issue, logged here rather
+than silently retried and forgotten); attempt 2 (retry, 480s timeout)
+returned HTTP 200 but `finish_reason: "length"` with `content: ""` -- the
+16,000-token budget was entirely consumed by the model's own reasoning
+before it reached a final answer, not a connectivity failure; attempt 3
+(same request, `max_tokens` raised to 24,000) returned a complete answer,
+`finish_reason: "stop"`. This is disclosed plainly rather than presented as
+one clean call -- the task's own instruction is "if unreachable... retry
+once... note it plainly," and while attempt 1 was a genuine reachability
+failure, attempts 2-3 were a token-budget-tuning problem on an otherwise
+-reachable endpoint; both are logged here rather than smoothed into "it
+just worked." Total cost across all 3 attempts: $0.0057 (r1's aborted
+partial, byte-metered) + $0.1224 (r2, reasoning-only) + $0.0781 (r3,
+complete) = ~$0.206 for this round.
+
+### Findings (verbatim, GLM-5.2's own severity labels)
+
+**MAJOR**
+- **M9-NEW**: round 2's M7 fix made the escalation `required` flag
+  level-aware, but the escalation `reason` TEXT still fell through to the
+  confidence-threshold message even when `requiresAudit` (not low
+  confidence) was the real cause -- every PASSING L3 dispatch (mandatory-
+  audit tier) got a false "confidence below threshold" reason despite high
+  confidence. `required` was correct; `reason` lied. Not an edge case --
+  affects every passing L3 dispatch.
+- **M10-NEW**: round 2's M6 fix made a lost Execution Report DETECTABLE
+  and LOGGED at the service layer (`.returning()` + empty-check), but the
+  route itself still silently returned `status:"completed"` with
+  `executionReport:null` and no way for a caller to distinguish "no report
+  because no level was declared" from "report lost to a DB failure."
+
+**MINOR**
+- **m10-NEW**: no route-level test exercised the retry loop (round 1's M1
+  fix) or the `capabilityCategory` override (round 1's M3/round 2's M8
+  fixes) -- the integration test's `runRole` mock always returned a
+  confident response, so the retry path never fired in any test.
+- **m11-NEW**: no route-level test verified `filesCreated`/`testsPassed`/
+  etc. (round 2's B2-NEW fix) actually flow through to the response --
+  present in the route code but unverified end-to-end.
+- **m12-NEW**: `stepTokensUsed` accumulation used bare `+` with no nullish
+  guards -- a missing `execution.usage` field would silently produce `NaN`,
+  which passes `validateExecutionReport`'s `typeof === "number"` check
+  (`typeof NaN === "number"`).
+- **m13-NEW**: the route test's DB mock ignores its `where` clause argument
+  entirely (works today because each test uses distinct/sequential taskIds,
+  but doesn't prove the route passes the correct taskId to the query).
+- **m14-NEW**: the `task_register_status` enum's `'pending'` value is dead
+  -- no code path ever sets it (every insert uses `'in_progress'`
+  directly).
+
+### Fixes applied this round
+
+- **M9-NEW**: escalation `reason` now checks causes in the same priority
+  order `requiresAudit` itself is computed from (QA-gate failure ->
+  low-confidence signal -> knowledge-gap signal -> risk level -> mandatory
+  audit for tier/response-shape -> confidence threshold), so the reported
+  reason always names the REAL cause instead of defaulting to the
+  confidence message whenever the QA gate happened to pass.
+- **M10-NEW**: added a `reportPersisted: boolean` field to the response,
+  explicit and always present for a `softwareTeamLevel` dispatch --
+  `false` only when `recordExecutionReport` itself reported `{ok:false}`
+  (the DB-loss case round 2's M6 fix made detectable), distinguishing it
+  from the ordinary "no level declared" case.
+- **m10-NEW**: `setupMocks()` now accepts an optional queue of `runRole`
+  response contents, letting a test supply a hedged-then-confident sequence
+  to actually exercise the retry loop. Added 2 new route-level tests: one
+  proving the retry fires exactly once and the retried prompt contains the
+  matched failure signal, one proving a matching/mismatched
+  `capabilityCategory` + `complexityTier` pair is accepted/rejected through
+  the real route (not just the pure function in isolation).
+- **m11-NEW**: added a route-level test asserting caller-supplied
+  `filesCreated`/`testsPassed`/`testsFailed` appear correctly in
+  `executionReport.execution_summary`.
+- **m12-NEW**: both `stepTokensUsed` accumulation sites now use
+  `(x.usage.promptTokens ?? 0) + (x.usage.completionTokens ?? 0)`.
+- **m13-NEW**: NOT fixed -- noted as a real, low-priority test fragility
+  rather than engineered around; every test in this file already uses a
+  distinct/sequential `taskId` so the gap has no practical effect on this
+  round's coverage, and building a full drizzle `where`-expression evaluator
+  into a test mock was judged disproportionate to the risk for this phase.
+- **m14-NEW**: removed `'pending'` from `task_register_status` (schema.ts,
+  `drizzle/0249`, and the `TaskRegisterStatus` TS type) -- the migration
+  hasn't been applied to any live database yet (tier2, held for Owner
+  sign-off per this repo's own rule), so editing it directly in place was
+  safe rather than requiring a follow-up migration.
+- **Also fixed in passing, discovered while building this round's L4/
+  judgment-tier test (not a GLM-5.2 finding, a real pre-existing bug this
+  session found independently while wiring test coverage)**: this route
+  never destructured or forwarded `knownContext` anywhere, even though
+  `task-tightening.ts`'s own `validateTightTask()` requires it for
+  integrative/judgment-tier tasks -- meaning every real judgment-tier
+  dispatch through this route, including every L4 (Coding Supervisor)
+  dispatch this task adds, was unconditionally rejected with "Known context
+  is missing" regardless of what a caller sent. Fixed since it directly
+  blocks the L4 ladder level this PR adds -- not a cosmetic adjacent gap.
+
+Re-ran `bunx tsc --noEmit` / `bun run lint` / `bun test` (1814 pass) /
+`bun run build` after these fixes -- all clean. All 6 local CI guardrail
+scripts pass.
+
+### Overall summary after 3 rounds
+
+3 real, complete GLM-5.2 audit rounds ran (round 3 took 3 physical API
+attempts to get one complete answer, disclosed above -- not hidden).
+Combined: 6 blockers, 10 major, 14 minor findings raised across all 3
+rounds; all but one (m13-NEW, disclosed as an accepted low-priority test
+gap) were fixed, and one raised finding (round 3's m5-NEW-equivalent from
+round 2, actually round 2's own m5-NEW) was investigated and confirmed
+FALSE rather than silently accepted or silently dismissed. See
+`ai-os/SOFTWARE_TEAM.md` §6-7 for the plain-language summary and the
+honestly-disclosed gaps that remain after all 3 rounds.
