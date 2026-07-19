@@ -9,7 +9,8 @@
 - [x] Re-examined all 75 deferred rows (42 Needs-Owner-Decision + 33 Unable-to-Verify) under granted decision authority; classified each into (a) needs-real-money → stays deferred / (b) decision-only → decide now / (c) code-closable
 - [x] Registered claim in compliance-tracker ai-os/boss/ACTIVE-CLAIMS.yaml (projexa has no ai-os/ tree — cross-registered per existing precedent; documented in plan)
 - [x] Wrote ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (extended v1, not duplicated): real gap count + 75-row decision log + prioritized L1-L4 task units
-- [x] Committed + opened tier1 docs-only PR
+- [x] Registered v2 plan in ai-os/OS.yaml index (per v1 precedent, commit 95e537cf)
+- [x] Committed + pushed branch + opened tier1 docs-only PR #487 (https://github.com/FChecklist/compliance-tracker/pull/487)
 
 ## Remaining
 - [ ] (Downstream execution, not this task) Dispatch the v2 plan's ready L1-L4 tasks through the Mother Router's software_team scope → GLM-5.2 via OpenRouter, per the plan's DONE CRITERIA, ahead of the 0800 IST 2026-07-20 deadline
