@@ -63,9 +63,19 @@ authenticated dbUser/TenantDb context -- no invented call sites/rules.
       -- all pass, both before and after the CONSTITUTION.yaml/
       MASTER-TRACKER.yaml doc edits
 
+- [x] Pushed branch, opened PR #461 against main
+- [x] Posted AUDIT: PASS PR comment (had to repost once -- the CI
+      validator's regex requires plain "Label: value" lines, not
+      markdown-bold; fixed and retriggered via an empty commit)
+- [x] CI green: all required checks pass (audit-check, Lint, Type Check,
+      Build, Unit Tests, E2E Tests, Asset Registry Coverage Check,
+      Guardrail Presence Check, Doc Cross-Reference/Quarantine-Banner/
+      Metadata-Index-Coverage Checks, Analyze, Security Pattern Check,
+      Secret Scanning, Documentation Sentinel Check). Only Vercel fails
+      (known rate-limited, non-required, per this task's own instructions).
+
 ## Remaining
-- [ ] Push branch, open PR against main
-- [ ] Post AUDIT: PASS PR comment
-- [ ] CI green -- TIER2 (diff includes drizzle/0242_narrow_monitor_agents_
-      phase1.sql, which touches drizzle/*.sql per this task's own Step 11
-      tier rule): do NOT self-merge, report ready for Owner sign-off instead
+- [ ] NONE for this session -- TIER2 (diff includes
+      drizzle/0242_narrow_monitor_agents_phase1.sql, which touches
+      drizzle/*.sql per this task's own Step 11 tier rule): NOT
+      self-merged, PR #461 is ready and waiting for Owner sign-off.
