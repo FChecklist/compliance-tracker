@@ -40,45 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260719-021227-gap-closure--gp-20-loop-prevention) -- GP-20 Loop Prevention Phase 2"
-    claimed_at: "2026-07-19T (this session)"
-    claim: |
-      CONSTITUTION.yaml guardrail_protocols GP-20 (Loop Prevention, currently
-      PARTIALLY_ENFORCED): checkLoopBudget() (src/lib/loop-prevention.ts)
-      already enforces a real single-task iteration budget -- left untouched.
-      Missing half: recursive-delegation/deadlock detection ACROSS a
-      task-dependency graph (two DIFFERENT task records escalating back to
-      each other), which loop-prevention.ts's own header honestly says
-      "doesn't exist yet." Confirmed via ACTIVE-CLAIMS.yaml + `gh pr list`
-      before starting: no other session/PR currently claims this gap.
-
-      Read task-execution-engine.ts's full dispatch/escalation call chain
-      (dispatchTool, executeStructuredDispatch, executeEngineDispatch,
-      nextEscalationRung() call sites, checkTaskEscalationContext()) --
-      confirmed by direct grep that none of these create an edge between two
-      DISTINCT existing `tasks` rows (escalation there is same-task,
-      role-ladder only; CSEO->COO->Super Boss, structurally acyclic).
-      Confirmed the one real place in this codebase where one task's
-      processing creates AND EXECUTES a second, distinct `tasks` row is
-      crm-service.ts's createChainedTask() (Wave 78 "Multi-Agent Chaining").
-      Building the task-dependency-graph cycle detector there: a pure
-      wouldCreateCycle() DFS (src/lib/loop-prevention.ts, unit-tested
-      directly per this repo's own established convention -- see
-      escalation-ladder.ts's doc comment on why the pure predicate is what
-      gets tested, not the withTenantContext wrapper) plus a DB-touching
-      recordTaskEscalationEdge() wrapper (new file,
-      src/lib/task-dependency-graph.ts) that stores edges in the existing
-      entity_relationships table (sourceType/targetType 'task',
-      relationshipType 'escalates_to') -- the same generic graph substrate
-      task-execution-engine.ts's own recordChainWorkerAgentEdges() already
-      writes to, no new table/migration needed.
-      File scope: src/lib/loop-prevention.ts, new
-      src/lib/task-dependency-graph.ts, src/lib/services/crm-service.ts
-      (createChainedTask/createFollowUpTaskFromLead/
-      createFollowUpTaskFromOpportunity threaded with an optional
-      fromTaskId), the 2 follow-up-task API routes, loop-prevention.test.ts,
-      ai-os/CONSTITUTION.yaml's GP-20 entry. No schema.ts/drizzle changes --
-      TIER1.
   - session_label: "claude-code (task-20260719-004413-gap-closure--res-02-phase1) -- RES-02 / GAP-NARROW-MONITOR-ESCALATION Phase 1"
     claimed_at: "2026-07-19T (this session)"
     claim: |
@@ -2374,6 +2335,61 @@ active:
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
 recently_completed:
+  - session_label: "claude-code (task-20260719-021227-gap-closure--gp-20-loop-prevention) -- GP-20 Loop Prevention Phase 2"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "PR #465 squash-merged, commit 4cffe82d"
+    claim: |
+      Closed CONSTITUTION.yaml's GP-20 gap: checkLoopBudget()
+      (src/lib/loop-prevention.ts) already enforced a real single-task
+      iteration budget; the missing half was recursive-delegation/deadlock
+      detection ACROSS a task-dependency graph (two DIFFERENT task records
+      escalating back to each other), which that file's own header honestly
+      said "doesn't exist yet."
+
+      Read task-execution-engine.ts's full dispatch/escalation call chain
+      (dispatchTool, executeStructuredDispatch, executeEngineDispatch,
+      every nextEscalationRung() call site, checkTaskEscalationContext())
+      before writing any code -- confirmed none of these create an edge
+      between two DISTINCT existing `tasks` rows (escalation there is
+      same-task, role-ladder only; CSEO->COO->Super Boss, structurally
+      acyclic by construction). The one real place in this codebase where
+      one task's processing creates AND EXECUTES a second, distinct `tasks`
+      row is crm-service.ts's createChainedTask() (Wave 78 "Multi-Agent
+      Chaining").
+
+      Added wouldCreateCycle() (pure DFS reachability check,
+      src/lib/loop-prevention.ts, unit-tested directly per this repo's
+      established convention -- see escalation-ladder.ts's own doc comment
+      on why the pure predicate, not the DB wrapper, gets tested) and
+      recordTaskEscalationEdge() (new src/lib/task-dependency-graph.ts,
+      entity_relationships-backed -- the same generic graph substrate
+      task-execution-engine.ts's own recordChainWorkerAgentEdges() already
+      writes to, no new table/migration). Refuses via ServiceError (409,
+      TASK_ESCALATION_CYCLE) before persisting an edge that would close a
+      cycle back to an ancestor task. Wired into createChainedTask();
+      threaded an optional fromTaskId through
+      createFollowUpTaskFromLead/createFollowUpTaskFromOpportunity and their
+      2 API routes, additive with zero behavior change for existing
+      callers.
+
+      Honest limitation recorded in CONSTITUTION.yaml's GP-20 entry itself:
+      createChainedTask() always inserts a brand-new task as its edge
+      target, so this one live caller structurally cannot itself land in
+      the cycle-refusal branch yet -- the check is real and general-purpose
+      (recordTaskEscalationEdge takes arbitrary (fromTaskId, toTaskId)
+      pairs, not just fresh inserts), ready for the next dispatch surface
+      that can target an existing task.
+
+      Tests: 2-task cycle (A->B, B back to A), 3-task cycle (A->B->C, C
+      back to A, and B back to A one hop earlier), longer non-cyclic chains
+      (A->B->C->D at every step), independent chains, a diamond-shaped
+      dependency, self-loop, determinism -- all pass without false
+      positives. bunx tsc --noEmit clean, bun run lint 0 errors, bun test
+      1741 pass/0 fail, all 6 local CI guardrail scripts pass. No
+      schema.ts/drizzle changes -- TIER1, self-merged after all required CI
+      checks (Lint, Type Check, Build, Unit Tests, E2E Tests, Asset
+      Registry Coverage Check, Guardrail Presence Check, audit-check) went
+      green.
   - session_label: "claude-code (task-20260719-021225-gap-closure--dmp-06) -- DMP-06 Dynamic Chain Master Directory"
     completed_at: "2026-07-19T (this session)"
     merged_as: "PR #462 squash-merged"
