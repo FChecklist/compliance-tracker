@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-132247-cost-incident-rca--api-called--11000-tim) -- Cost Incident RCA: 'an API called 11000 times' -- forensics + prevention"
+    claimed_at: "2026-07-19T13:22:48Z (this session)"
+    claim: |
+      Owner-reported: in an earlier session "an api called 11000 times" --
+      genuine root-cause analysis (not a guess) across GitHub Actions
+      (compliance-tracker/projexa/claude-control), OpenRouter's real
+      activity API, Groq, and this VERIDIAN-DEV box's own cron/systemd/
+      Claude Code session history, plus real prevention.
+      Scope: read-only forensics across external APIs/logs (no collision
+      risk with other active entries); ai-os/INCIDENT_11K_API_CALLS_RCA.md
+      (new doc); AI_TEAM_LOG_SECRET rotated + synced to GitHub Secret
+      (compliance-tracker) + Vercel prod env (real gap, confirmed missing
+      via `vercel env ls production` -- token_usage_ledger scope=
+      ai_team_internal has been silently failing to write since 2026-07-08);
+      /opt/veridian/scripts/worker-entrypoint.sh (server-side, NOT git-
+      tracked by any repo -- no PR applies, full diff embedded in the RCA
+      doc instead) gets a real --max-budget-usd per-invocation cap.
+      Explicitly NOT touching src/lib/ai-router/** or drizzle/0249/0250
+      (AIROUTER-01 Phase 2, separate in-flight task per this file).
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     claim: |
