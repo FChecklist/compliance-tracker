@@ -8,8 +8,8 @@ import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } 
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
-import { validateLevelDispatch, capabilityCategoryForLevel, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
-import { validateInstructionContract, taskTypeForStepCount, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
+import { validateLevelDispatch, capabilityCategoryForLevel, levelEscalatesOnConfidenceThreshold, COMPLEXITY_TIER_FOR_CATEGORY, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
+import { validateInstructionContract, taskTypeForStepCount, WORKER_ESCALATION_CONFIDENCE_THRESHOLD, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
 import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
 import { createId } from "@paralleldrive/cuid2"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId, expectedSteps: callerExpectedSteps, capabilityCategory: callerCapabilityCategory } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId, expectedSteps: callerExpectedSteps, capabilityCategory: callerCapabilityCategory, filesCreated, filesModified, testsPassed, testsFailed } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
@@ -98,6 +98,18 @@ export async function POST(request: NextRequest) {
       // DEFAULT category maps to it (see software-team-ladder.ts's L4
       // comment for why). Only meaningful alongside softwareTeamLevel.
       capabilityCategory?: CapabilityCategory
+      // Audit round 2 (GLM-5.2, B2-NEW finding): this route has no
+      // deterministic way to derive real file/test counts from an LLM's
+      // free-text reply -- the Owner's Multi Step example's
+      // execution_summary fields (files_created/files_modified/
+      // tests_passed/tests_failed) are populated ONLY when the caller
+      // (who actually orchestrated the underlying tool calls and knows
+      // the real counts) supplies them. Omitted -> left unset, exactly as
+      // before this fix (never fabricated).
+      filesCreated?: number
+      filesModified?: number
+      testsPassed?: number
+      testsFailed?: number
     }
 
     // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): AI Dev Team
@@ -142,6 +154,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           status: "blocked",
           blockedBy: { reason: levelCheck.reason, guidance: levelCheck.guidance },
+        }, { status: 422 })
+      }
+      // Audit round 2 (GLM-5.2, M8 finding): a caller-supplied
+      // capabilityCategory override (M3, round 1) must itself agree with
+      // the declared complexityTier -- otherwise a caller could combine a
+      // judgment-tier level/tier with a mechanical-tier category, which
+      // would resolve to a mechanical-tier model then get silently
+      // rejected/downgraded by checkTierEligibility further downstream
+      // instead of being caught here with a clear reason.
+      if (callerCapabilityCategory && COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory] !== complexityTier) {
+        const reason = `capabilityCategory "${callerCapabilityCategory}" resolves to complexityTier "${COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory]}", but "${complexityTier}" was declared.`
+        if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, complexityTier, errorReason: reason, durationMs: Date.now() - dispatchStartedAt })
+        return NextResponse.json({
+          status: "blocked",
+          blockedBy: { reason, guidance: `Set complexityTier to "${COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory]}" to match the declared capabilityCategory, or choose a category whose tier matches "${complexityTier}".` },
         }, { status: 422 })
       }
     }
@@ -300,6 +327,11 @@ export async function POST(request: NextRequest) {
 
     let execution = await runRole(classification.role, task)
     let retryCount = 0
+    // Audit round 2 (GLM-5.2, m7 finding): tokens_used previously reflected
+    // only the FINAL retry attempt's usage -- a step that retried once
+    // silently dropped its first attempt's real token spend from the
+    // Execution Report. Accumulated across every attempt for this step.
+    let stepTokensUsed = execution.usage.promptTokens + execution.usage.completionTokens
 
     // AIROUTER-01 Phase 2 (Owner's Universal Tightened Instruction
     // Template, Retry Policy: "1 retry for L1-L3"): bounded, automatic
@@ -324,6 +356,7 @@ export async function POST(request: NextRequest) {
       retryCount++
       const retryTask = `${task}\n\n[RETRY ${retryCount}/${maxAutomaticRetries}] Your previous attempt was flagged for: "${failureSignal}". Address this directly in this attempt -- do not repeat it, and do not hedge if you have sufficient information to answer confidently.`
       execution = await runRole(classification.role, retryTask)
+      stepTokensUsed += execution.usage.promptTokens + execution.usage.completionTokens
     }
 
     // VERIDIAN_AUDIT_ORGANIZATION.md, "L1 Real-Time Audit": the source
@@ -472,10 +505,19 @@ export async function POST(request: NextRequest) {
     if (softwareTeamLevel && taskId) {
       const stepNo = priorStepCount + 1
       const stepStatus: ExecutionStepStatus = qaGate.passed ? "PASS" : requiresAudit ? "PARTIAL" : "FAIL"
-      const escalationRequired = requiresAudit || confidencePercentage < 95
+      // Audit round 2 (GLM-5.2, M7 finding): the numeric confidence
+      // threshold is an L1-L3 escalation rule specifically (the Owner's
+      // Part A: L4 escalates on "business conflict," never on confidence
+      // alone) -- was previously applied to every level, including L4.
+      const escalationRequired = requiresAudit || (levelEscalatesOnConfidenceThreshold(softwareTeamLevel) && confidencePercentage < WORKER_ESCALATION_CONFIDENCE_THRESHOLD)
       const stepReport: ExecutionReport = {
         task_id: taskId,
-        task_type: taskTypeForStepCount(stepNo),
+        // Audit round 2 (GLM-5.2, m8 finding): reflects the WORKFLOW's
+        // intended shape (expectedSteps) even on the very first call, not
+        // merely how many steps have run so far -- otherwise step 1 of an
+        // expected 8-step workflow reports "Single Step" until every step
+        // has accumulated.
+        task_type: taskTypeForStepCount(expectedSteps),
         objective: objective!,
         status: stepStatus,
         overall_confidence: confidencePercentage,
@@ -491,10 +533,16 @@ export async function POST(request: NextRequest) {
         missing: knowledgeGap.insufficientKnowledge && knowledgeGap.matchedPhrase ? [knowledgeGap.matchedPhrase] : [],
         warnings: lowConfidence.detected && lowConfidence.matchedPhrase ? [lowConfidence.matchedPhrase] : [],
         errors: stepStatus === "FAIL" ? [`Step ${stepNo} ("${objective}") did not pass QA pre-completion gate.`] : [],
-        escalation: { required: escalationRequired, reason: escalationRequired ? (!qaGate.passed ? qaGate.reason : `overall_confidence ${confidencePercentage}% below the 95% worker escalation threshold`) : "" },
+        escalation: { required: escalationRequired, reason: escalationRequired ? (!qaGate.passed ? qaGate.reason : `overall_confidence ${confidencePercentage}% below the ${WORKER_ESCALATION_CONFIDENCE_THRESHOLD}% worker escalation threshold`) : "" },
         execution_summary: {
           duration_seconds: Math.round((Date.now() - dispatchStartedAt) / 1000),
-          tokens_used: (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0),
+          tokens_used: stepTokensUsed,
+          // Audit round 2 (GLM-5.2, B2-NEW finding): only populated when
+          // the caller supplied a real count -- never fabricated.
+          files_created: filesCreated,
+          files_modified: filesModified,
+          tests_passed: testsPassed,
+          tests_failed: testsFailed,
         },
       }
       const recorded = await recordExecutionReport(taskId, stepReport, expectedSteps)
@@ -503,6 +551,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
+      // Audit round 2 (GLM-5.2, m6 finding): this `status` is per-DISPATCH-CALL
+      // (did THIS step complete without requiring audit) -- for a
+      // softwareTeamLevel dispatch it is NOT the same thing as
+      // `taskRegisterStatus`/`executionReport.status` below, which describe
+      // the WHOLE workflow across every accumulated step. A caller must
+      // check `taskRegisterStatus`, not this field, to know whether a
+      // multi-step L2/L3 workflow is actually finished.
       status: requiresAudit ? "pending_review" : "completed",
       classification,
       executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },

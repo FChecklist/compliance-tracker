@@ -82,7 +82,12 @@ function aggregateExecutionReport(priorReport: ExecutionReport | null | undefine
 
   return {
     task_id: newStepReport.task_id,
-    task_type: taskTypeForStepCount(steps.length),
+    // Audit round 2 (GLM-5.2, m8 finding): task_type must reflect the
+    // workflow's INTENDED shape (expectedSteps), not merely how many steps
+    // have run so far -- otherwise step 1 of an expected 8-step workflow
+    // reports "Single Step" instead of "Multi Step" until every step has
+    // accumulated.
+    task_type: taskTypeForStepCount(expected),
     objective: priorReport.objective, // FIRST step's objective wins -- the workflow's own initiating objective, never overwritten by a later, narrower step
     status: aggregatedStatus,
     overall_confidence: overallConfidence,
@@ -141,7 +146,14 @@ export async function recordExecutionReport(taskId: string, stepReport: Executio
           ? "completed"
           : "in_progress"
 
-    await db
+    // Audit round 2 (GLM-5.2, M6 finding): `.returning()` makes a 0-row
+    // update DETECTABLE -- previously, if registerInstructionContract()
+    // had silently failed (its own try/catch swallows a DB error and
+    // returns false, which the route did not check), this UPDATE would
+    // affect 0 rows with no signal anywhere: the Execution Report was
+    // simply lost. Now surfaced as a loud, explicit error and an honest
+    // {ok:false} result distinguishable from a generic DB exception.
+    const updated = await db
       .update(taskRegister)
       .set({
         executionReport: mergedReport as unknown as Record<string, unknown>,
@@ -150,6 +162,11 @@ export async function recordExecutionReport(taskId: string, stepReport: Executio
         completedAt: status === "completed" || status === "failed" ? new Date() : undefined,
       })
       .where(eq(taskRegister.taskId, taskId))
+      .returning({ id: taskRegister.id })
+    if (updated.length === 0) {
+      console.error(`[task-register] recordExecutionReport: no task_register row exists for task_id="${taskId}" -- registerInstructionContract() likely failed earlier and was not checked by the caller. Execution Report NOT persisted.`)
+      return { ok: false, mergedReport: null, status: null }
+    }
     return { ok: true, mergedReport, status }
   } catch (error) {
     console.error(`[task-register] failed to record Execution Report for task_id="${taskId}" (non-fatal):`, error)

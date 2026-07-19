@@ -154,3 +154,126 @@ matches those examples (that's exactly B1-B4).
 
 Re-ran `bunx tsc --noEmit` / `bun run lint` / `bun test` / `bun run build`
 after these fixes -- see PROGRESS.md for the result.
+
+---
+
+## Round 2 -- 2026-07-19
+
+**Method:** `z-ai/glm-5.2` via OpenRouter, same mechanism as round 1, given
+the updated diff (`git diff origin/main..HEAD`, now including round 1's
+fixes) plus round 1's own findings/fixes as context and asked explicitly to
+verify the round 1 fixes actually landed, not just look for new issues.
+Cost: $0.0110, 51,258 tokens.
+
+### Findings (verbatim, GLM-5.2's own severity labels)
+
+**BLOCKERS**
+- **B2-NEW**: round 1's B2 fix corrected the AGGREGATION logic (sums
+  `execution_summary` fields across steps), but the per-step report built
+  in the route never actually POPULATED `files_created`/`files_modified`/
+  `tests_passed`/`tests_failed` in the first place -- `undefined + undefined
+  = undefined` forever, so the Owner's Multi Step example (which has real
+  values for all 4) could never be reproduced by this code path.
+- **B5-NEW**: round 1's own audit log entry CLAIMED a route-level
+  integration test (`dispatch-level-ladder.test.ts`) was added. It was not
+  -- only the service-layer `task-register-service.test.ts` existed, which
+  never exercises the route itself (contract registration, the retry loop,
+  `validateLevelDispatch`, the `capabilityCategory` override, or the
+  response shape). The audit log's own M2 claim was materially inaccurate.
+
+**MAJOR**
+- **M6-NEW**: `recordExecutionReport`'s `UPDATE` can silently affect 0 rows
+  if `registerInstructionContract` failed earlier (its return value was
+  never checked by the route) -- the Execution Report is lost with no
+  error, no log, no signal to the caller.
+- **M7-NEW**: the escalation confidence threshold (`< 95`) was applied to
+  EVERY level, including L4 -- contradicting the Owner's own Part A rule
+  that L4 escalates on "business conflict" only, never on confidence.
+- **M8-NEW**: a caller-supplied `capabilityCategory` override (round 1's M3
+  fix) was never checked for consistency against the declared
+  `complexityTier` -- a caller could combine a judgment-tier level/tier
+  with a mechanical-tier category, resolving to a model that then fails
+  `checkTierEligibility` downstream instead of being rejected up front with
+  a clear reason.
+
+**MINOR**
+- **m5-NEW**: claimed the audit log's first entry was mislabeled "Round 2"
+  instead of "Round 1" -- **investigated and found FALSE**: the committed
+  file correctly says "Round 1"; the auditor was confused by a label
+  substitution this session's own prompt-building script applied to the
+  OUTGOING round-2 request text (for display purposes only), not the
+  actual committed log file. Verified via direct `grep` of the file on
+  disk. No fix needed; disclosed here for the record since a finding was
+  raised even though it didn't survive verification.
+- **m6-NEW**: the response's top-level `status` field (per-dispatch-call)
+  and `taskRegisterStatus`/`executionReport.status` (per-workflow) can
+  legitimately differ for a multi-step task, with nothing in the response
+  shape making that distinction explicit.
+- **m7-NEW**: `tokens_used` only reflected the FINAL retry attempt's usage,
+  silently dropping the token spend of any earlier attempt(s) within the
+  same step.
+- **m8-NEW**: the merged report's `task_type` was computed from
+  `steps.length` (progress so far) rather than `expectedSteps` (the
+  workflow's intended shape) -- said "Single Step" for step 1 of an
+  expected 8-step workflow until every step had accumulated.
+- **m9-NEW**: `validateInstructionContract`'s round 1 fix (m4) validated
+  `level` against the full `SoftwareTeamLevel` set (L0-L5), but L0 and L5
+  are never real dispatch targets -- a contract naming either passed shape
+  validation while being something the route would always reject.
+
+### Fixes applied this round
+
+- **B2-NEW**: the route now accepts optional caller-supplied `filesCreated`/
+  `filesModified`/`testsPassed`/`testsFailed` fields (the caller who
+  actually orchestrated the underlying work is the only one who can supply
+  real counts -- never fabricated/parsed from free text) and populates them
+  on the step report, so the Owner's Multi Step example is reproducible
+  when a caller supplies these values.
+- **B5-NEW**: added the real route-level integration test,
+  `src/app/api/ai/team/dispatch/route.test.ts` -- mocks `requireAuth`,
+  `team-service`, `roster-overrides`, `mother-router`, and
+  `activity-log-service` as whole modules, and mocks `@/lib/db` only for
+  the `taskRegister` table (via importing the real db module for every
+  other table's shape and overriding just the `db` client), so
+  `task-register-service.ts` runs FOR REAL, unmocked. Dispatches twice with
+  the same `taskId` and asserts the merged report is correct end-to-end
+  (this is the actual, working fix for round 1's false M2 claim).
+- **M6-NEW**: `recordExecutionReport`'s `UPDATE` now chains `.returning()`
+  and explicitly checks for an empty result, logging a loud, specific error
+  ("no task_register row exists... registerInstructionContract() likely
+  failed earlier") and returning `{ok:false}` instead of silently
+  succeeding-but-doing-nothing.
+- **M7-NEW**: added `levelEscalatesOnConfidenceThreshold(level)` to
+  `software-team-ladder.ts` (true only for L1-L3); the route's escalation
+  decision now applies the numeric confidence threshold only for those
+  levels, matching the Owner's own per-level escalation rules. Also
+  replaced the magic number `95` with the exported
+  `WORKER_ESCALATION_CONFIDENCE_THRESHOLD` constant.
+- **M8-NEW**: the route now validates
+  `COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory] === complexityTier`
+  when a caller supplies an explicit `capabilityCategory`, rejecting a
+  mismatch (422, with guidance) before any model is resolved or called --
+  same fail-closed posture as `validateLevelDispatch`.
+- **m5-NEW**: no code change (verified false, see above) -- this entry
+  itself is the disclosure.
+- **m6-NEW**: added a doc comment on the response's `status` field
+  clarifying it is per-dispatch-call, distinct from
+  `taskRegisterStatus`/`executionReport.status` (per-workflow) -- no field
+  rename, to avoid a breaking change for existing non-ladder callers of
+  this same route.
+- **m7-NEW**: the retry loop now accumulates `stepTokensUsed` across every
+  attempt (initial + each retry) instead of only reading the final
+  attempt's `execution.usage`.
+- **m8-NEW**: both the route's first-call step report and
+  `aggregateExecutionReport`'s merge now compute `task_type` from
+  `expectedSteps` (the workflow's intended shape), not `steps.length`
+  (progress so far).
+- **m9-NEW**: added `DISPATCHABLE_SOFTWARE_TEAM_LEVELS` (`L1`-`L4`) to
+  `software-team-ladder.ts`; `validateInstructionContract` now validates
+  against this narrower set instead of the full `SoftwareTeamLevel` union,
+  so a contract naming `L0`/`L5` is rejected as a shape violation, not just
+  caught later by the route's own dispatch gate.
+
+Re-ran `bunx tsc --noEmit` / `bun run lint` / `bun test` (1810 pass) /
+`bun run build` after these fixes -- all clean. All 6 local CI guardrail
+scripts pass.

@@ -63,6 +63,14 @@ describe("validateInstructionContract", () => {
     expect(result.valid).toBe(false)
   })
 
+  // Audit round 2 (GLM-5.2, m9): L0/L5 are real SoftwareTeamLevel values
+  // but never dispatchable -- a contract naming either must be rejected
+  // too, not just genuinely-unrecognized strings.
+  test("L0 (no AI) and L5 (the router itself) are rejected -- neither is ever a dispatchable contract recipient", () => {
+    expect(validateInstructionContract(validContract({ level: "L0" })).valid).toBe(false)
+    expect(validateInstructionContract(validContract({ level: "L5" })).valid).toBe(false)
+  })
+
   // Audit round 1 (GLM-5.2, B1): expectedSteps backs the "don't mark a
   // multi-step workflow completed after step 1" fix -- must itself be a
   // real positive integer, never omitted/invented.

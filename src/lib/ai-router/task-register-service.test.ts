@@ -33,15 +33,18 @@ function mockTaskRegisterTable() {
       })),
       update: mock(() => ({
         set: mock((v: Record<string, unknown>) => ({
-          where: mock(async () => {
-            // Tests exercise recordExecutionReport() directly, without a
-            // prior registerInstructionContract() insert -- initialize the
-            // row on first update rather than silently no-op'ing when none
-            // exists yet (mirrors production only in that a row always
-            // ends up present; production always inserts first via the
-            // route, this mock just tolerates being called standalone).
-            row = { taskId: row?.taskId ?? "unknown", status: "pending", executionReport: null, instructionContract: null, ...row, ...v } as StoredRow
-          }),
+          where: mock(() => ({
+            returning: mock(async () => {
+              // Tests exercise recordExecutionReport() directly, without a
+              // prior registerInstructionContract() insert -- initialize the
+              // row on first update rather than silently no-op'ing when none
+              // exists yet (mirrors production only in that a row always
+              // ends up present; production always inserts first via the
+              // route, this mock just tolerates being called standalone).
+              row = { taskId: row?.taskId ?? "unknown", status: "pending", executionReport: null, instructionContract: null, ...row, ...v } as StoredRow
+              return [{ id: row.taskId }]
+            }),
+          })),
         })),
       })),
     },

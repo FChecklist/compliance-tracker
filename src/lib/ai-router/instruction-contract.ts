@@ -25,7 +25,7 @@
 // good idea.
 
 import type { ComplexityTier } from "../task-tightening"
-import { SOFTWARE_TEAM_LEVELS, type SoftwareTeamLevel } from "./software-team-ladder"
+import { DISPATCHABLE_SOFTWARE_TEAM_LEVELS, type SoftwareTeamLevel } from "./software-team-ladder"
 
 export type InstructionContract = {
   taskId: string
@@ -101,12 +101,15 @@ export function validateInstructionContract(contract: Partial<InstructionContrac
   }
 
   // Audit round 1 (GLM-5.2, m4 finding): was a bare truthiness check --
-  // "L9"/"garbage" passed. Now validated against the real level set, since
-  // this validator is a public export other call sites may use directly
-  // (validateLevelDispatch in the route only catches this for ITS OWN
-  // caller, not for every future consumer of this function).
-  if (!contract.level || !SOFTWARE_TEAM_LEVELS.includes(contract.level)) {
-    return { valid: false, reason: `InstructionContract.level "${contract.level}" is not a real level.`, guidance: `Set level to one of ${SOFTWARE_TEAM_LEVELS.join(", ")} (see software-team-ladder.ts's SoftwareTeamLevel).` }
+  // "L9"/"garbage" passed. Audit round 2 (GLM-5.2, m9 finding): tightened
+  // further from "any real level" to "any DISPATCHABLE level" -- L0 has no
+  // AI dispatch (nothing to contract) and L5 IS the Mother Router itself
+  // (issues contracts, never receives one), so a contract naming either
+  // was validating as "shape-valid" while being something the route's own
+  // validateLevelDispatch() would always reject -- misleading for any
+  // OTHER consumer of this public export, not just the route.
+  if (!contract.level || !DISPATCHABLE_SOFTWARE_TEAM_LEVELS.includes(contract.level)) {
+    return { valid: false, reason: `InstructionContract.level "${contract.level}" is not a dispatchable level.`, guidance: `Set level to one of ${DISPATCHABLE_SOFTWARE_TEAM_LEVELS.join(", ")} -- L0 (no AI) and L5 (the router itself) never receive an Instruction Contract (see software-team-ladder.ts's SoftwareTeamLevel).` }
   }
 
   if (!Number.isInteger(contract.expectedSteps) || (contract.expectedSteps as number) < 1) {

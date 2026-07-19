@@ -28,6 +28,21 @@ export type SoftwareTeamLevel = "L0" | "L1" | "L2" | "L3" | "L4" | "L5"
 export const SOFTWARE_TEAM_LEVELS: SoftwareTeamLevel[] = ["L0", "L1", "L2", "L3", "L4", "L5"]
 
 /**
+ * Audit round 2 (GLM-5.2, finding m9): the levels an Instruction Contract
+ * can genuinely be issued for -- L0 has no AI dispatch (nothing to
+ * contract), L5 IS the Mother Router itself (issues contracts, never
+ * receives one). Distinct from SOFTWARE_TEAM_LEVELS above (every level,
+ * used where the full ladder is being described/documented, not where a
+ * dispatchable contract's own `level` field is being validated).
+ */
+export const DISPATCHABLE_SOFTWARE_TEAM_LEVELS: SoftwareTeamLevel[] = ["L1", "L2", "L3", "L4"]
+
+/** Audit round 2 (GLM-5.2, finding M7): only L1-L3 escalate on the numeric confidence threshold -- L4 escalates on business conflict only (requiresAudit), per the Owner's own per-level escalation rules (Part A). */
+export function levelEscalatesOnConfidenceThreshold(level: SoftwareTeamLevel): boolean {
+  return level === "L1" || level === "L2" || level === "L3"
+}
+
+/**
  * The Owner's 4-category Software Development Task Routing Matrix (Part C)
  * -- a DIFFERENT, finer axis than task-tightening.ts's 3-value
  * ComplexityTier (mechanical/integrative/judgment). Every category still
