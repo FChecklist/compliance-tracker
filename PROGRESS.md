@@ -17,6 +17,18 @@
 - [x] GLM-5.2 audit round 3 (final) -- needed 3 physical API attempts to get one complete answer (disclosed honestly in the audit log, not hidden); 2 major, 5 minor found; all fixed except one disclosed low-priority test-mock gap; also independently fixed a pre-existing `knownContext` wiring bug in the route (blocked every real L4/judgment-tier dispatch); re-tested clean (1814 pass)
 - [x] Documentation: extended `ai-os/CONSTITUTION.yaml` section 11 (`ai_orchestra_tiers.software_team_l0_l5_implementation`) with amendment_log entry, added pointer in `CLAUDE.md`'s "Read Before Starting Work" list, wrote `ai-os/SOFTWARE_TEAM.md` (mirrors `ai-os/BRAIN.md`'s style, includes the full 3-round audit summary + honestly-disclosed remaining gaps), indexed both new docs in `ai-os/OS.yaml`
 - [x] Committed + pushed incrementally (6 commits: claim registration, initial implementation, round 1/2/3 fixes, this final doc-sync commit)
+- [x] PR #483 opened against `main` (not self-merged), ACTIVE-CLAIMS.yaml updated with `completed_at` + PR number -- original task DONE
+
+## Completed (REBASE-PR483-FOR-MERGE follow-up)
+- [x] Fetched origin, merged origin/main into this branch (real conflicts against the concurrently-merged Cost Incident RCA PR #482, 4 commits on main ahead)
+- [x] Resolved 2 conflicts (both governance/tracking files, no code conflicts): PROGRESS.md (kept this task's content, updated to reflect the rebase follow-up; main's RCA content lives in that task's own PROGRESS.md) and ai-os/boss/ACTIVE-CLAIMS.yaml `recently_completed:` (kept BOTH sessions' entries per the repo's established pattern -- this task's PR #483 entry + the RCA task's PR #482 entry)
+- [x] Verified the merge introduced no schema.ts / mother-router.ts / migration-number collisions (only auto-merged cleanly: ai-os/OS.yaml picked up the RCA doc's new index entry; new file ai-os/INCIDENT_11K_API_CALLS_RCA.md added cleanly)
 
 ## Remaining
-- [ ] Open PR against `main` (not self-merged), update `ACTIVE-CLAIMS.yaml` with `completed_at` + PR number
+- [ ] Run bunx tsc --noEmit, bun run lint, bun test, bun run build on the merged tree; fix anything the merge broke for real
+- [ ] Commit the merge resolution, push to the SAME branch (updates existing PR #483)
+- [ ] Confirm `gh pr view 483 --json mergeStateStatus` reports something other than DIRTY/CONFLICTING
+- [ ] Confirm required checks green (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests); re-trigger audit-check if it ran before the merge-commit push landed
+- [ ] Merge PR #483 (`gh pr merge 483 --merge --delete-branch`) -- explicitly authorized by Owner
+- [ ] Verify `gh pr view 483 --json state,mergedAt` reports MERGED
+- [ ] Final note in ACTIVE-CLAIMS.yaml if needed
