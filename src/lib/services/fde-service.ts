@@ -22,7 +22,12 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 import { redactPii } from "@/lib/pii-redaction"
 import { hasRole } from "@/lib/supabase/auth-guard"
 import { proposeWorkerAgent } from "./worker-agent-service"
-import { findSimilarCapabilities } from "./capability-registry-service"
+import { findSimilarCapabilities, type CapabilityEntityType } from "./capability-registry-service"
+// UMR-03 gap closure: instruction-text -> resolved-execution-path cache,
+// checked before the embedding-over-capabilities search below ever runs
+// again for a similarly-worded instruction -- see that file's own header
+// for why this is a genuinely different cache than findSimilarCapabilities().
+import { findPriorExecutionPath, recordExecutionPath } from "./instruction-execution-cache-service"
 // Priority 12 (OPEN-07 point 1): the FDE -> Dynamic-Chain/Chat side of the
 // cross-catalog bridge -- see capability-bridge-service.ts's own header.
 import { findTaskCapabilityForDynamicChainMatch } from "./capability-bridge-service"
@@ -71,8 +76,34 @@ export async function listFdeRequests(ctx: { orgId: string }) {
 // A capability's embedded content is "name | domain | description | Input:
 // {...} | Output: {...}" (buildCapabilityContent) -- the name is always
 // the first segment, cheap to recover for a label without a second query.
-function labelFromContent(content: string): string {
+export function labelFromContent(content: string): string {
   return content.split(" | ")[0] || content.slice(0, 60)
+}
+
+// Pure (unit tested) -- kept separate from respondToResolvedCapability()'s
+// DB round-trips so the actual message wording is exercisable without a
+// live database, mirroring capability-registry-service.ts's own convention
+// of testing pure formatting/decision helpers rather than DB-touching ones.
+export function buildResolvedCapabilityResponseText(label: string, score: number, fromCache: boolean): string {
+  const matchPercent = Math.round(score * 100)
+  return fromCache
+    ? `This looks like an instruction VERI has already learned how to handle: "${label}" (${matchPercent}% match) -- reusing that resolution instead of re-deriving it.`
+    : `This looks like it's already covered by "${label}" (${matchPercent}% match) -- no new capability needed.`
+}
+
+// UMR-03: only an evaluation.matchType of "existing_agent" carries a real,
+// resolvable ID in this codebase's FdeEvaluation schema -- existing_module/
+// existing_rule matches only ever get a matchedLabel string here, nothing
+// to key a future instruction-cache dispatch off. Pure (unit tested);
+// separated from submitFdeRequest()'s DB write so this decision doesn't
+// require a live database to exercise.
+export function cacheableResolutionFromEvaluation(
+  evaluation: Pick<FdeEvaluation, "matchType" | "matchedId" | "matchedLabel">
+): { capabilityType: "worker_agent"; capabilityId: string; label: string | null } | null {
+  if (evaluation.matchType === "existing_agent" && evaluation.matchedId) {
+    return { capabilityType: "worker_agent", capabilityId: evaluation.matchedId, label: evaluation.matchedLabel }
+  }
+  return null
 }
 
 // Wave 144: shared shape for the top-K candidates persisted alongside every
@@ -122,70 +153,40 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     })
   }
 
+  // UMR-03 gap closure (ai-os/CONSTITUTION.yaml, learning_and_umr): before
+  // ever re-running the embedding-over-capabilities search below (let alone
+  // falling through to a full LLM call), check whether an instruction this
+  // similar has already been resolved before. This is deliberately checked
+  // BEFORE findSimilarCapabilities() -- a hit here skips capability-catalog
+  // resolution entirely, which is the actual "not re-derived from scratch"
+  // behavior the gap asks for, not just a faster path to the same search.
+  const learnedPath = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    findPriorExecutionPath(db, ctx.orgId, requestText)
+  )
+  if (learnedPath) {
+    return respondToResolvedCapability(
+      ctx,
+      requestText,
+      {
+        entityType: learnedPath.resolvedCapabilityType,
+        entityId: learnedPath.resolvedCapabilityId,
+        label: learnedPath.resolvedLabel ?? learnedPath.resolvedCapabilityId,
+        score: learnedPath.score,
+      },
+      { fromCache: true }
+    )
+  }
+
   const candidates = await findSimilarCapabilities(requestText, ctx.orgId, CANDIDATE_LIMIT)
   const topMatch = candidates[0]
 
   if (topMatch && topMatch.score >= HIGH_CONFIDENCE_THRESHOLD) {
-    const label = labelFromContent(topMatch.content)
-    let responseText = `This looks like it's already covered by "${label}" (${Math.round(topMatch.score * 100)}% match) -- no new capability needed.`
-
-    // Phase 1 of Worker Agent Dispatch (READ-ONLY actions only): when the
-    // high-confidence match is a worker agent that qualifies for the exact
-    // same read-only auto-dispatch task-execution-engine.ts already
-    // enforces (global tier + codeReference + isToolAllowedForDomain),
-    // actually run it and surface its real JSON output. This reuses the
-    // existing dispatchTool() -- it only ever executes the 3 read-only
-    // global agents hardcoded there, so no write action can ever slip
-    // through. Any failure falls back to the static message above.
-    if (topMatch.entityType === "worker_agent") {
-      try {
-        const agent = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
-          db.query.workerAgents.findFirst({
-            where: eq(workerAgents.id, topMatch.entityId),
-            columns: { id: true, tier: true, codeReference: true, domain: true },
-          })
-        )
-        const codeReference = agent?.tier === "global" ? agent.codeReference : null
-        if (codeReference && isToolAllowedForDomain(agent?.domain, codeReference)) {
-          await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-            const output = await dispatchTool(db, ctx.orgId, ctx.userId, codeReference)
-            responseText += ` Result: ${JSON.stringify(output)}`
-          })
-        }
-      } catch {
-        // Dispatch failure -- fall back to the existing static message
-        // rather than surfacing an error to the user.
-      }
-    }
-
-    // Priority 12 (OPEN-07 point 1, GAP-FDE-CHAIN-INTAKE-SPLIT): the
-    // worker_agent branch above has always had a real special case; a
-    // dynamic_chain match never did -- FDE would report "already covered"
-    // using nothing but the embedded label, with zero visibility into
-    // whether Dynamic-Chain/Chat has actually learned anything about that
-    // chain. capability-bridge-service.ts's findTaskCapabilityForDynamicChainMatch()
-    // resolves the SAME (modePill, pathKeys) pair back to its
-    // taskCapabilities row (if the chain has ever really been executed
-    // through the Dynamic-Chain/Chat path), so the response can state real,
-    // persisted coverage history instead of just the FDE similarity score.
-    // Best-effort and additive only -- a null/failed lookup falls back to
-    // the exact same generic message every other match type already gets.
-    if (topMatch.entityType === "dynamic_chain") {
-      const linkedCapability = await findTaskCapabilityForDynamicChainMatch(topMatch)
-      if (linkedCapability && linkedCapability.occurrenceCount > 0) {
-        const stats = computeCoverageStats(linkedCapability.fullSoftwareCount, linkedCapability.packageAvailableCount, linkedCapability.novelCount)
-        responseText += ` This exact Dynamic Chain has been run ${stats.total} time(s) before: ${stats.fullSoftwarePercent}% required zero AI reasoning, ${stats.packageAvailablePercent}% used an approved instruction package, ${stats.novelPercent}% needed fresh judgment.`
-      }
-    }
-
-    return recordFdeRequest(ctx, requestText, {
-      status: "matched_existing",
-      matchedWorkerAgentId: topMatch.entityType === "worker_agent" ? topMatch.entityId : null,
-      matchedLabel: label,
-      responseText,
-      reuseLevel: "exact_match",
-      topCandidates: toTopCandidates(candidates),
-    })
+    return respondToResolvedCapability(
+      ctx,
+      requestText,
+      { entityType: topMatch.entityType, entityId: topMatch.entityId, label: labelFromContent(topMatch.content), score: topMatch.score },
+      { fromCache: false, topCandidates: toTopCandidates(candidates) }
+    )
   }
 
   // See SubmitFdeRequestOptions.passive: a passive (background) caller
@@ -248,6 +249,18 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     })
 
     if (evaluation.matchType !== "no_match" || !evaluation.proposal) {
+      // UMR-03: this resolution just cost a real LLM call -- worth caching
+      // so a similarly-worded future instruction skips straight to
+      // learnedPath above next time. Only worker-agent matches carry a
+      // real resolvable ID here (existing_module/existing_rule matches only
+      // ever get a matchedLabel string in this codebase's schema, nothing
+      // to key a future dispatch off), so that's the only case cached.
+      const cacheable = cacheableResolutionFromEvaluation(evaluation)
+      if (cacheable) {
+        await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+          recordExecutionPath(db, ctx.orgId, requestText, cacheable)
+        )
+      }
       return recordFdeRequest(ctx, requestText, {
         status: "matched_existing",
         matchedWorkerAgentId: evaluation.matchType === "existing_agent" ? evaluation.matchedId : null,
@@ -276,6 +289,17 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       outputSchema: evaluation.proposal.outputSchema,
     })
 
+    // UMR-03: cache instruction -> newly-created-capability too, so a future
+    // similarly-worded request finds the agent this request just created,
+    // instead of proposing a second, near-duplicate agent for it.
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      recordExecutionPath(db, ctx.orgId, requestText, {
+        capabilityType: "worker_agent",
+        capabilityId: proposed.id,
+        label: evaluation.proposal!.name,
+      })
+    )
+
     return recordFdeRequest(ctx, requestText, {
       status: "proposed_agent",
       createdWorkerAgentId: proposed.id,
@@ -299,6 +323,86 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       responseText: "Something went wrong evaluating this request. Please try again in a moment.",
     })
   }
+}
+
+// Shared by both resolution paths that stop VERI FDE at "no LLM reasoning
+// needed at all" -- the embedding-over-capabilities HIGH_CONFIDENCE_THRESHOLD
+// match, and (UMR-03) an instruction-execution-cache hit. Both end up
+// wanting the exact same follow-through: a real worker-agent auto-dispatch
+// (Phase 1, read-only global agents only) when the match is a worker agent,
+// real Dynamic-Chain/Chat coverage stats when it's a dynamic chain, and a
+// persisted fdeRequests row. Kept as one function so that follow-through
+// logic has a single owner instead of drifting between the two call sites.
+async function respondToResolvedCapability(
+  ctx: FdeContext,
+  requestText: string,
+  match: { entityType: CapabilityEntityType; entityId: string; label: string; score: number },
+  options: { fromCache: boolean; topCandidates?: TopCandidate[] }
+) {
+  let responseText = buildResolvedCapabilityResponseText(match.label, match.score, options.fromCache)
+
+  // Phase 1 of Worker Agent Dispatch (READ-ONLY actions only): when the
+  // match is a worker agent that qualifies for the exact same read-only
+  // auto-dispatch task-execution-engine.ts already enforces (global tier +
+  // codeReference + isToolAllowedForDomain), actually run it and surface
+  // its real JSON output. This reuses the existing dispatchTool() -- it
+  // only ever executes the 3 read-only global agents hardcoded there, so no
+  // write action can ever slip through. Any failure falls back to the
+  // static message above.
+  if (match.entityType === "worker_agent") {
+    try {
+      const agent = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+        db.query.workerAgents.findFirst({
+          where: eq(workerAgents.id, match.entityId),
+          columns: { id: true, tier: true, codeReference: true, domain: true },
+        })
+      )
+      const codeReference = agent?.tier === "global" ? agent.codeReference : null
+      if (codeReference && isToolAllowedForDomain(agent?.domain, codeReference)) {
+        await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+          const output = await dispatchTool(db, ctx.orgId, ctx.userId, codeReference)
+          responseText += ` Result: ${JSON.stringify(output)}`
+        })
+      }
+    } catch {
+      // Dispatch failure -- fall back to the existing static message rather
+      // than surfacing an error to the user.
+    }
+  }
+
+  // Priority 12 (OPEN-07 point 1, GAP-FDE-CHAIN-INTAKE-SPLIT): a
+  // dynamic_chain match gets real, persisted Dynamic-Chain/Chat coverage
+  // history via capability-bridge-service.ts's
+  // findTaskCapabilityForDynamicChainMatch(), instead of just the bare
+  // embedded label. Best-effort and additive only -- a null/failed lookup
+  // falls back to the exact same generic message every other match type
+  // already gets.
+  if (match.entityType === "dynamic_chain") {
+    const linkedCapability = await findTaskCapabilityForDynamicChainMatch(match)
+    if (linkedCapability && linkedCapability.occurrenceCount > 0) {
+      const stats = computeCoverageStats(linkedCapability.fullSoftwareCount, linkedCapability.packageAvailableCount, linkedCapability.novelCount)
+      responseText += ` This exact Dynamic Chain has been run ${stats.total} time(s) before: ${stats.fullSoftwarePercent}% required zero AI reasoning, ${stats.packageAvailablePercent}% used an approved instruction package, ${stats.novelPercent}% needed fresh judgment.`
+    }
+  }
+
+  // UMR-03: only cache a resolution this call itself derived -- a
+  // fromCache hit already had its own success_count bumped inside
+  // findPriorExecutionPath(), so recording it again here would just
+  // double-count the same reuse instead of teaching the cache anything new.
+  if (!options.fromCache) {
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      recordExecutionPath(db, ctx.orgId, requestText, { capabilityType: match.entityType, capabilityId: match.entityId, label: match.label })
+    )
+  }
+
+  return recordFdeRequest(ctx, requestText, {
+    status: "matched_existing",
+    matchedWorkerAgentId: match.entityType === "worker_agent" ? match.entityId : null,
+    matchedLabel: match.label,
+    responseText,
+    reuseLevel: "exact_match",
+    topCandidates: options.topCandidates,
+  })
 }
 
 async function recordFdeRequest(
