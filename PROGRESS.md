@@ -10,13 +10,13 @@
 - [x] Wired confidenceScore/lowConfidenceFlagged into orchestra-execution-logger.ts's recordOrchestraExecution() (attached into existing output jsonb, no schema/migration change)
 - [x] Added tests: real function/file claim (high confidence, score 1) + nonexistent claim (low confidence, score 0, flagged) + mixed case + no-claims case -- 13 tests, all passing
 - [x] Updated CONSTITUTION.yaml GP-08/GP-09 status text
-- [x] bunx tsc --noEmit clean, bun run lint clean (pre-existing warnings only, unrelated), bun test: 1735 pass / 0 fail
+- [x] bunx tsc --noEmit clean, bun run lint clean (pre-existing warnings only, unrelated), bun test: 1735+ pass / 0 fail
 - [x] Pushed, opened PR #463
 - [x] Posted structured AUDIT: PASS comment (8 fields, no markdown bold on labels -- validate-audit-verdict.ts requires the label at literal line start)
 - [x] CI green: Mandatory Audit Check, CI (Lint/Type Check/Build/Unit/E2E/Asset Registry/Metadata Index/Guardrail Presence/Doc checks), Sentinel Governance Checks, CodeQL all pass -- only Vercel failed (known rate-limited, non-required)
-- [x] Merged origin/main into branch to resolve a CONFLICTING mergeStateStatus caused by PR #462 landing concurrently
+- [x] Merged origin/main into branch multiple times (main moving fast -- PR #462, #464, GP-20 loop-prevention, etc. landing concurrently) to resolve repeated CONFLICTING mergeStateStatus, each time only PROGRESS.md (per-task-instance file) conflicting, ACTIVE-CLAIMS.yaml/CONSTITUTION.yaml auto-merging cleanly
 
 ## Remaining
-- [ ] Push merge commit, re-verify CI green on the merged branch
+- [ ] Push latest merge commit, re-verify CI green
 - [ ] Classify tier (TIER1 -- no schema/migration touched) and self-merge if green
 - [ ] Final report
