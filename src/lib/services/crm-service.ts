@@ -13,6 +13,7 @@ import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
+import { recordTaskEscalationEdge } from "@/lib/task-dependency-graph"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
 import { ServiceError, serviceErrorBody } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
@@ -428,33 +429,47 @@ export async function explainCrmAiDecision(ctx: { orgId: string }, entityType: "
 // pass (worker-agent dispatch + Wave 77 memory read-back) -- rather than a
 // generic event bus. Still human-gated by the explicit call here, matching
 // task-execution-engine's own "no unattended write action" doctrine.
-async function createChainedTask(ctx: CrmContext, title: string, description: string) {
+//
+// GP-20 Phase 2 (CONSTITUTION.yaml, task-dependency-graph cycle detection):
+// this is the one real place in this codebase where one task's processing
+// spawns AND dispatches (executes) a second, distinct `tasks` row -- so it's
+// the real call site the new escalation-edge guard hooks into. `fromTaskId`,
+// when the caller knows this follow-up was itself raised while working an
+// existing task, is recorded as a real entity_relationships edge
+// (task -> task, 'escalates_to') via recordTaskEscalationEdge(), which
+// refuses (ServiceError) before this insert ever runs if the edge would
+// close a cycle back to an ancestor task. Optional and additive -- omitting
+// it (every caller before this change) behaves exactly as before.
+async function createChainedTask(ctx: CrmContext, title: string, description: string, fromTaskId?: string | null) {
   const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [task] = await db.insert(tasks).values({
       orgId: ctx.orgId, userId: ctx.userId, assignedById: ctx.userId, title, description, status: "in_progress",
     }).returning()
+    if (fromTaskId) {
+      await recordTaskEscalationEdge(db, { orgId: ctx.orgId, fromTaskId, toTaskId: task.id, reason: "chained_follow_up_task" })
+    }
     return task
   })
   await executeTask(ctx.orgId, ctx.userId, created.id, created.title, created.description, null, null)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, created.id) }))
 }
 
-export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string) {
+export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string, fromTaskId?: string | null) {
   await requireSalesEnabled(ctx.orgId)
   const lead = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
   )
   if (!lead) throw new ServiceError("Lead not found", 404)
   if (!lead.aiRecommendedAction) throw new ServiceError("Score this lead first to get an AI-recommended action", 400)
-  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction)
+  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction, fromTaskId)
 }
 
-export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string) {
+export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string, fromTaskId?: string | null) {
   await requireSalesEnabled(ctx.orgId)
   const opp = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
   )
   if (!opp) throw new ServiceError("Opportunity not found", 404)
   if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
-  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction)
+  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction, fromTaskId)
 }

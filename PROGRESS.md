@@ -1,24 +1,32 @@
-# PROGRESS -- task-20260719-021225-gap-closure--dmp-06
+# PROGRESS -- task-20260719-021227-gap-closure--gp-20-loop-prevention
 
 ## Completed
-- [x] Read CONSTITUTION.yaml DMP-06 section, dynamic-chain-directory-service.ts,
-      capability-registry-service.ts, entity_relationships schema in full
-- [x] Checked ACTIVE-CLAIMS.yaml + `gh pr list` -- no duplicate claim
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
-
-- [x] Added findSimilarDynamicChains() in capability-registry-service.ts
-- [x] Wired proposeDynamicChain() to check for duplicates before creating
-      (selectDuplicateChainMatch(), threshold 0.92)
-- [x] Wired proposeDynamicChain() to write dynamic_chain->module entity_relationships
-      edges (buildChainModuleEdges())
-- [x] Updated fde-service.ts call site for new discriminated-union return shape
-- [x] Added/extended unit tests (11 new tests, all pure/DB-free)
-- [x] bunx tsc --noEmit clean, bun run lint 0 errors, bun test 1731 pass/0 fail
-- [x] All 6 local CI guardrail scripts pass
+- [x] Read CONSTITUTION.yaml GP-20 section in full
+- [x] Read src/lib/loop-prevention.ts (checkLoopBudget, shouldPromptSelfCheck) in full
+- [x] Checked ACTIVE-CLAIMS.yaml + `gh pr list` for duplicate claims -- none found
+- [x] Read src/lib/task-execution-engine.ts's dispatch/escalation call chain -- confirmed no
+      existing code creates an edge between two DISTINCT `tasks` rows (escalation there is
+      same-task, role-ladder only via nextEscalationRung, structurally acyclic CSEO->COO->
+      Super Boss). The one real "task spawns + executes another task" call chain in this
+      codebase is crm-service.ts's createChainedTask() (Wave 78 Multi-Agent Chaining), which
+      calls task-execution-engine.ts's own executeTask() on a freshly created task.
+- [x] Registered claim in ACTIVE-CLAIMS.yaml, committed as its own first commit
+- [x] Implemented pure wouldCreateCycle() DFS in src/lib/loop-prevention.ts
+- [x] Implemented DB-touching recordTaskEscalationEdge() in new src/lib/task-dependency-graph.ts
+      (entity_relationships-backed, ServiceError refusal on cycle)
+- [x] Wired into crm-service.ts's createChainedTask()/createFollowUpTaskFromLead/
+      createFollowUpTaskFromOpportunity (optional fromTaskId) + the 2 follow-up-task API routes
+- [x] Updated CONSTITUTION.yaml's GP-20 entry to reflect the real, honest new state
+- [x] Added unit tests: 2-task cycle, 3-task cycle, non-cyclic chains, independent chains,
+      diamond dependency, self-loop, determinism
+- [x] bunx tsc --noEmit clean, bun run lint 0 errors, bun test 1732 pass/0 fail
+- [x] All 6 local CI guardrail scripts pass (asset-registry-coverage, migration-collision,
+      guardrail-presence, doc-cross-references, doc-quarantine-banner, metadata-index-coverage)
+- [x] Merged origin/main (DMP-06 landed concurrently) -- only conflict was this PROGRESS.md
 
 ## Remaining
-- [ ] Push branch, open PR
-- [ ] Post AUDIT: PASS comment
-- [ ] Wait for CI (gh run watch)
-- [ ] Classify tier (TIER1, no schema/migration changes) and self-merge if green
-- [ ] Final report
+- [ ] Push, open PR against main
+- [ ] Post structured AUDIT: PASS PR comment (8 fields)
+- [ ] Wait for CI via gh run watch
+- [ ] Classify tier (expect TIER1 -- no schema.ts/drizzle changes) and self-merge if green
+- [ ] Report final status

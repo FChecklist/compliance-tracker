@@ -6,14 +6,17 @@
 // "logic" phase, instead of every pipeline reinventing its own iteration
 // cap and its own ad-hoc "stopped after N iterations" message.
 //
-// Deliberately scoped to iteration/retry budgets only -- the Constitution's
-// broader Infinite Loop Prevention section also names duplicate-task
-// detection and circular-dependency detection, which need a real task
-// graph to check against. That graph doesn't exist yet (see the deferred
-// "universal Task wrapper" design work); adding a fake detector with
-// nothing real to detect against would be worse than naming the gap
-// honestly. This module covers the one form of loop prevention this
-// codebase already has real, working precedent for.
+// Originally scoped to iteration/retry budgets only -- the Constitution's
+// broader Infinite Loop Prevention section also named duplicate-task
+// detection and circular-dependency detection, which needed a real task
+// graph to check against that didn't exist yet (see the deferred "universal
+// Task wrapper" design work). GP-20 Phase 2 (below, wouldCreateCycle())
+// closes that half: a real task-dependency-graph cycle detector, wired into
+// the one real call site in this codebase where one task's processing
+// spawns and dispatches a second, distinct task record
+// (crm-service.ts's createChainedTask()) via task-dependency-graph.ts's
+// recordTaskEscalationEdge(). See wouldCreateCycle()'s own doc comment for
+// the full reasoning and its honest scope limitation.
 //
 // GAP-UNIFIED-SOT-REMAINDER (c), 2026-07-13: `shouldPromptSelfCheck()`
 // below is an additive sibling, not a loop-prevention check -- it answers
@@ -69,4 +72,67 @@ export function checkLoopBudget(context: LoopBudgetContext): LoopBudgetResult {
 export function shouldPromptSelfCheck(iteration: number, everyN: number): boolean {
   if (everyN <= 0) return false
   return iteration > 0 && iteration % everyN === 0
+}
+
+// GP-20 Phase 2 (CONSTITUTION.yaml guardrail_protocols): the gap this
+// file's own header named above -- "duplicate-task detection and
+// circular-dependency detection, which need a real task graph to check
+// against. That graph doesn't exist yet" -- is closed by this function plus
+// task-dependency-graph.ts's recordTaskEscalationEdge() (the DB-touching
+// wrapper that stores edges in entity_relationships and calls this pure
+// check before persisting a new one).
+//
+// Real edge source: crm-service.ts's createChainedTask() (Wave 78,
+// "Multi-Agent Chaining") is the one place in this codebase where one
+// task's processing (a lead/opportunity's AI-recommended follow-up) creates
+// AND EXECUTES a second, distinct `tasks` row via this file's sibling
+// module task-execution-engine.ts's own executeTask() -- the literal
+// "Task A dispatches to Task B" the Constitution's gap note describes.
+// Honest limitation: that one caller always inserts a brand-new task row as
+// its `toTaskId`, so a fresh id can never already have outbound edges back
+// to an ancestor -- this specific caller structurally cannot itself land in
+// the cycle-refusal branch. wouldCreateCycle() is still the correct,
+// general chokepoint: it takes arbitrary (fromTaskId, toTaskId) pairs, not
+// just fresh inserts, so any future dispatch surface that CAN target an
+// existing task (not just insert a new one) reuses the exact same check
+// rather than every caller reinventing its own graph walk -- matching this
+// file's own established "reusable, registerable check any pipeline can
+// adopt" design for checkLoopBudget above.
+//
+// Same testing posture as escalation-ladder.ts's evaluateEscalationClaim():
+// this pure predicate is unit-tested directly; the DB wrapper around it is
+// not (see that file's own doc comment for why).
+export type TaskEscalationEdge = {
+  fromTaskId: string
+  toTaskId: string
+}
+
+/**
+ * Pure DFS reachability check: would adding a new fromTaskId -> toTaskId
+ * edge to the given existing edge set create a cycle? True exactly when
+ * toTaskId can already (directly or transitively) reach fromTaskId -- i.e.
+ * fromTaskId is already a descendant of toTaskId, so the new edge would
+ * close a loop back to it. A self-loop (fromTaskId === toTaskId) is always
+ * a cycle, checked without walking the graph.
+ */
+export function wouldCreateCycle(edges: readonly TaskEscalationEdge[], fromTaskId: string, toTaskId: string): boolean {
+  if (fromTaskId === toTaskId) return true
+
+  const adjacency = new Map<string, string[]>()
+  for (const edge of edges) {
+    const targets = adjacency.get(edge.fromTaskId)
+    if (targets) targets.push(edge.toTaskId)
+    else adjacency.set(edge.fromTaskId, [edge.toTaskId])
+  }
+
+  const visited = new Set<string>()
+  const stack = [toTaskId]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    if (current === fromTaskId) return true
+    if (visited.has(current)) continue
+    visited.add(current)
+    for (const next of adjacency.get(current) ?? []) stack.push(next)
+  }
+  return false
 }
