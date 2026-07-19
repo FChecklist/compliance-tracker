@@ -8,9 +8,11 @@
 // Deterministic only, no LLM call -- matches this codebase's guardrail
 // design discipline everywhere else (see ai-reply-gate.ts's header for why
 // no LLM self-certification exists anywhere in this codebase).
-import { dynamicChains, entityRelationships } from "@/lib/db"
+import { after } from "next/server"
+import { dynamicChains, entityRelationships, approvalRequests } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
+import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
 
 export type ChainSearchResult = {
   id: string
@@ -214,5 +216,163 @@ export async function getChainVersionHistory(orgId: string, chainId: string) {
       currentId = row.previousVersionId
     }
     return history
+  })
+}
+
+// DMP-04 gap closure (CONSTITUTION.yaml): "FDE proposes a single
+// workerAgents row, not a full Dynamic Chain bundle (module/rules/
+// permissions/workflow/KPIs)". fde-service.ts's submitFdeRequest() already
+// drafts a new Worker Agent via proposeWorkerAgent() on a genuine no-match --
+// this is the second half of that same proposal: a dynamicChains row that
+// actually carries the module/rules/permissions/workflow/KPI scaffolding
+// Wave 171/173 already added columns for (linkedModuleRefs/businessRules/
+// permissions/workflowStepsConfig/reportsKpisSlas) but no real proposal path
+// had ever populated. Pure builder, extracted the same way
+// resolveDomainGroupKey()/validateChainDepth()/markDeterministic() are
+// elsewhere in this codebase -- directly unit-testable without a DB.
+export type DynamicChainProposalInput = {
+  moduleRef?: string | null
+  domain?: string | null
+  businessRules?: string[]
+  permissions?: string[]
+  workflowSteps?: string[]
+  kpis?: { label: string; target?: string }[]
+  // Used only when the LLM/caller supplied no permissions at all -- a
+  // proposed chain never ships with zero permission gate, it falls back to
+  // the same tier-derived role fde-service.ts already computes for the
+  // sibling worker-agent proposal (see proposeWorkerAgent's own
+  // customer/client-requires-admin gating).
+  fallbackPermissionRole: string
+}
+
+export type DynamicChainProposalFields = {
+  linkedModuleRefs: string[]
+  businessRules: { rules: string[] } | null
+  permissions: { requiredRoles: string[] }
+  workflowStepsConfig: { steps: string[] } | null
+  reportsKpisSlas: { kpis: { label: string; target?: string }[] } | null
+  classification: { domain: string | null }
+}
+
+export function buildDynamicChainProposalFields(input: DynamicChainProposalInput): DynamicChainProposalFields {
+  const linkedModuleRefs = input.moduleRef?.trim() ? [input.moduleRef.trim()] : []
+  const rules = (input.businessRules ?? []).map((r) => r.trim()).filter(Boolean)
+  const roles = (input.permissions ?? []).map((r) => r.trim()).filter(Boolean)
+  const steps = (input.workflowSteps ?? []).map((s) => s.trim()).filter(Boolean)
+  const kpis = (input.kpis ?? []).filter((k) => k?.label?.trim())
+
+  return {
+    linkedModuleRefs,
+    businessRules: rules.length ? { rules } : null,
+    permissions: { requiredRoles: roles.length ? roles : [input.fallbackPermissionRole] },
+    workflowStepsConfig: steps.length ? { steps } : null,
+    reportsKpisSlas: kpis.length ? { kpis } : null,
+    classification: { domain: input.domain?.trim() || null },
+  }
+}
+
+/**
+ * Creates the proposed Dynamic Chain bundle for a VERI FDE no-match
+ * request, alongside (never instead of) the existing proposeWorkerAgent()
+ * proposal -- called from fde-service.ts's submitFdeRequest() with the
+ * newly-created workerAgentId already in hand. Status is 'proposed', the
+ * same non-'approved' state createChainVersion()/task-service.ts's
+ * resolveDynamicChainId() reserve for rows that must not be
+ * discoverable/dispatchable yet -- searchChains()/detectMissingChain() both
+ * filter on status='approved', so this bundle stays invisible to normal
+ * chain-selector traversal until a human approves it via the same
+ * approvalRequests maker-checker gate worker_agent_proposal already uses
+ * (see src/app/api/approvals/[id]/route.ts). This is additive scaffolding,
+ * not a bypass of AUTH-02/HAB-01 -- nothing here ever sets status to
+ * 'approved' itself.
+ */
+export async function proposeDynamicChain(
+  ctx: { orgId: string; userId: string },
+  input: {
+    workerAgentId: string
+    name: string
+    domain?: string | null
+    description?: string | null
+    moduleRef?: string | null
+    businessRules?: string[]
+    permissions?: string[]
+    workflowSteps?: string[]
+    kpis?: { label: string; target?: string }[]
+    fallbackPermissionRole: string
+  }
+) {
+  const modePill = input.name
+  const pathLabels = [input.domain, input.name].filter((v): v is string => Boolean(v?.trim()))
+  const pathKeys = pathLabels.map((l) => l.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""))
+  const fields = buildDynamicChainProposalFields({
+    moduleRef: input.moduleRef,
+    domain: pathLabels.join(" > ") || null,
+    businessRules: input.businessRules,
+    permissions: input.permissions,
+    workflowSteps: input.workflowSteps,
+    kpis: input.kpis,
+    fallbackPermissionRole: input.fallbackPermissionRole,
+  })
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [chain] = await db.insert(dynamicChains).values({
+      orgId: ctx.orgId,
+      modePill,
+      pathKeys,
+      pathLabels,
+      moduleRef: input.moduleRef?.trim() || null,
+      description: input.description?.trim() || null,
+      createdById: ctx.userId,
+      status: "proposed",
+      linkedModuleRefs: fields.linkedModuleRefs,
+      businessRules: fields.businessRules,
+      permissions: fields.permissions,
+      workflowStepsConfig: fields.workflowStepsConfig,
+      reportsKpisSlas: fields.reportsKpisSlas,
+      classification: fields.classification,
+    }).returning()
+
+    // Indexed immediately (same fire-and-forget-via-after() posture as
+    // proposeWorkerAgent()/resolveDynamicChainId()) so VERI FDE's own
+    // dedup search sees this pending proposal and doesn't suggest a
+    // duplicate of something already awaiting approval.
+    after(() => indexCapability(
+      "dynamic_chain", chain!.id,
+      buildCapabilityContent({ name: modePill, domain: fields.classification.domain, description: input.description }),
+      ctx.orgId
+    ).catch((err) => console.error(`Failed to index proposed dynamic chain ${chain!.id}:`, err)))
+
+    const [approval] = await db.insert(approvalRequests).values({
+      requestType: "dynamic_chain_proposal",
+      entityType: "dynamic_chains",
+      entityId: chain!.id,
+      description: `Propose full Dynamic Chain bundle for "${modePill}" (module + rules + permissions + workflow + KPIs)`,
+      requestedById: ctx.userId,
+      orgId: ctx.orgId,
+    }).returning()
+
+    // Best-effort graph edge linking this proposal back to its sibling
+    // worker-agent proposal -- same non-blocking posture as
+    // createChainVersion()'s own entity_relationships write below.
+    try {
+      await db.insert(entityRelationships).values({
+        orgId: ctx.orgId,
+        sourceType: "dynamic_chain",
+        sourceId: chain!.id,
+        targetType: "worker_agent",
+        targetId: input.workerAgentId,
+        relationshipType: "proposed_with",
+        metadata: { approvalRequestId: approval!.id },
+      })
+    } catch (err) {
+      console.error(`[dynamic-chain-directory-service] Failed to record dynamic_chain->worker_agent proposal edge for chain ${chain!.id} -> agent ${input.workerAgentId}:`, err)
+    }
+
+    return {
+      id: chain!.id,
+      status: chain!.status,
+      approvalRequestId: approval!.id,
+      createdAt: chain!.createdAt.toISOString(),
+    }
   })
 }

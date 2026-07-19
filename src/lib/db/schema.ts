@@ -902,6 +902,37 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Instruction Execution Cache (UMR-03 gap closure) ──────────────────────
+// CONSTITUTION.yaml's UMR-03 asks for chat instructions to be "stored
+// word-wise... so a similar future instruction can be answered from what was
+// already learned, not re-derived from scratch." The two real analogs this
+// codebase already had before this table -- embeddings.ts's embedding_cache
+// (caches embedding VECTORS for exact-text reuse) and capability-registry-
+// service.ts's findSimilarCapabilities() (matches a CAPABILITY's own
+// description against a query) -- both stop short of this: neither one
+// remembers "this exact instruction text was resolved to THIS capability
+// with THESE params, and it worked." This table is that missing mapping.
+// `embedding vector(1536)` intentionally omitted here, same reason as
+// `embeddings`/`assistant_memories` above -- managed via raw SQL, see
+// instruction-execution-cache-service.ts.
+export const instructionExecutionCache = complianceSchemaDB.table('instruction_execution_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  // Nullable = platform-wide entry, same convention as embeddings.orgId --
+  // no real caller passes null today (fde-service.ts always has a concrete
+  // org), but the column stays open for a future platform-wide learned
+  // instruction the way embeddings' own org_id already is.
+  orgId: text('org_id'),
+  instructionText: text('instruction_text').notNull(),
+  contentHash: text('content_hash').notNull(),
+  resolvedCapabilityType: text('resolved_capability_type'), // CapabilityEntityType -- 'worker_agent' | 'automation_rule' | 'module' | 'prompt_pattern' | 'dynamic_chain'
+  resolvedCapabilityId: text('resolved_capability_id'),
+  resolvedLabel: text('resolved_label'),
+  resolvedParamsShape: jsonb('resolved_params_shape'),
+  successCount: integer('success_count').notNull().default(1),
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Entity Relationships (Phase 3 graph store, Phase3_Design_by_Claude.md) ──
 // Generic typed-edge table -- the substrate every "Enterprise * Graph"
 // proposal in both VERIDIAN.docx studies needs and none of them has today.
@@ -4551,6 +4582,14 @@ export const fdeRequests = complianceSchemaDB.table('fde_requests', {
   matchedWorkerAgentId: text('matched_worker_agent_id'),
   matchedLabel: text('matched_label'), // free text -- e.g. a matched module/automation-rule name, when the match isn't a worker agent row
   createdWorkerAgentId: text('created_worker_agent_id'), // set when a new proposal was drafted
+  // DMP-04 gap closure (CONSTITUTION.yaml): a genuine no-match proposal now
+  // also drafts the full Dynamic Chain bundle (module/rules/permissions/
+  // workflow/KPIs) alongside the worker agent above, via
+  // dynamic-chain-directory-service.ts's proposeDynamicChain(). Nullable --
+  // set only when that best-effort second proposal succeeded; a failure
+  // there never blocks the worker-agent proposal itself from being
+  // recorded (see fde-service.ts's submitFdeRequest()).
+  createdDynamicChainId: text('created_dynamic_chain_id'),
   responseText: text('response_text').notNull(),
   // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 items 5-6):
   // both independent studies flagged that FDE discarded every candidate but
