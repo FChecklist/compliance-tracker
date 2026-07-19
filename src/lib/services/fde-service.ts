@@ -23,6 +23,10 @@ import { redactPii } from "@/lib/pii-redaction"
 import { hasRole } from "@/lib/supabase/auth-guard"
 import { proposeWorkerAgent } from "./worker-agent-service"
 import { findSimilarCapabilities } from "./capability-registry-service"
+// DMP-04 gap closure (CONSTITUTION.yaml): the second half of a genuine
+// no-match proposal -- see proposeDynamicChain()'s own header for why this
+// is additive scaffolding, not a bypass of the human-approval gate.
+import { proposeDynamicChain } from "./dynamic-chain-directory-service"
 // Priority 12 (OPEN-07 point 1): the FDE -> Dynamic-Chain/Chat side of the
 // cross-catalog bridge -- see capability-bridge-service.ts's own header.
 import { findTaskCapabilityForDynamicChainMatch } from "./capability-bridge-service"
@@ -58,7 +62,20 @@ type FdeEvaluation = {
   matchType: "existing_agent" | "existing_module" | "existing_rule" | "no_match"
   matchedId: string | null
   matchedLabel: string | null
-  proposal: { name: string; domain: string; description: string; promptTemplate: string; inputSchema?: Record<string, unknown>; outputSchema?: Record<string, unknown> } | null
+  proposal: {
+    name: string; domain: string; description: string; promptTemplate: string
+    inputSchema?: Record<string, unknown>; outputSchema?: Record<string, unknown>
+    // DMP-04 gap closure (fde.evaluate_request prompt v3): the Dynamic
+    // Chain bundle fields -- all optional/best-effort from the LLM, same
+    // "genuine first-pass contract, not exhaustive" posture the prompt
+    // already asks for on inputSchema/outputSchema. proposeDynamicChain()
+    // supplies safe defaults for anything the model omits.
+    moduleRef?: string
+    businessRules?: string[]
+    permissions?: string[]
+    workflowSteps?: string[]
+    kpis?: { label: string; target?: string }[]
+  } | null
   responseToUser: string
 }
 
@@ -276,9 +293,38 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
       outputSchema: evaluation.proposal.outputSchema,
     })
 
+    // DMP-04 gap closure: a genuine no-match proposal is now the FULL
+    // Dynamic Chain bundle (module/rules/permissions/workflow/KPIs), not
+    // just the one workerAgents row above -- proposeDynamicChain() creates
+    // its own separately-reviewable approvalRequests row (see that
+    // function's own header for why status stays 'proposed', never
+    // 'approved', here). Never lets a failure here take down the
+    // worker-agent proposal that already succeeded -- same "best-effort,
+    // additive" posture capability-bridge-service.ts's lookup already uses
+    // elsewhere in this function.
+    let proposedChainId: string | null = null
+    try {
+      const proposedChain = await proposeDynamicChain(ctx, {
+        workerAgentId: proposed.id,
+        name: evaluation.proposal.name,
+        domain: evaluation.proposal.domain,
+        description: evaluation.proposal.description,
+        moduleRef: evaluation.proposal.moduleRef ?? evaluation.proposal.domain,
+        businessRules: evaluation.proposal.businessRules,
+        permissions: evaluation.proposal.permissions,
+        workflowSteps: evaluation.proposal.workflowSteps,
+        kpis: evaluation.proposal.kpis,
+        fallbackPermissionRole: tier === "user" ? "user" : "admin",
+      })
+      proposedChainId = proposedChain.id
+    } catch (err) {
+      console.error("VERI FDE: failed to propose Dynamic Chain bundle alongside worker agent proposal:", err)
+    }
+
     return recordFdeRequest(ctx, requestText, {
       status: "proposed_agent",
       createdWorkerAgentId: proposed.id,
+      createdDynamicChainId: proposedChainId,
       responseText: evaluation.responseToUser,
       reuseLevel: "new_proposal",
       topCandidates: toTopCandidates(candidates),
@@ -305,7 +351,8 @@ async function recordFdeRequest(
   ctx: { orgId: string; userId: string },
   requestText: string,
   fields: {
-    status: string; matchedWorkerAgentId?: string | null; matchedLabel?: string | null; createdWorkerAgentId?: string | null; responseText: string
+    status: string; matchedWorkerAgentId?: string | null; matchedLabel?: string | null; createdWorkerAgentId?: string | null
+    createdDynamicChainId?: string | null; responseText: string
     reuseLevel?: "exact_match" | "llm_assisted_match" | "new_proposal"; topCandidates?: TopCandidate[]
   }
 ) {
@@ -314,6 +361,7 @@ async function recordFdeRequest(
       orgId: ctx.orgId, userId: ctx.userId, requestText,
       status: fields.status, matchedWorkerAgentId: fields.matchedWorkerAgentId || null,
       matchedLabel: fields.matchedLabel || null, createdWorkerAgentId: fields.createdWorkerAgentId || null,
+      createdDynamicChainId: fields.createdDynamicChainId || null,
       responseText: fields.responseText,
       reuseLevel: fields.reuseLevel ?? null,
       topCandidates: fields.topCandidates ?? null,

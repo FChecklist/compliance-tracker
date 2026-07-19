@@ -4551,6 +4551,14 @@ export const fdeRequests = complianceSchemaDB.table('fde_requests', {
   matchedWorkerAgentId: text('matched_worker_agent_id'),
   matchedLabel: text('matched_label'), // free text -- e.g. a matched module/automation-rule name, when the match isn't a worker agent row
   createdWorkerAgentId: text('created_worker_agent_id'), // set when a new proposal was drafted
+  // DMP-04 gap closure (CONSTITUTION.yaml): a genuine no-match proposal now
+  // also drafts the full Dynamic Chain bundle (module/rules/permissions/
+  // workflow/KPIs) alongside the worker agent above, via
+  // dynamic-chain-directory-service.ts's proposeDynamicChain(). Nullable --
+  // set only when that best-effort second proposal succeeded; a failure
+  // there never blocks the worker-agent proposal itself from being
+  // recorded (see fde-service.ts's submitFdeRequest()).
+  createdDynamicChainId: text('created_dynamic_chain_id'),
   responseText: text('response_text').notNull(),
   // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 items 5-6):
   // both independent studies flagged that FDE discarded every candidate but
