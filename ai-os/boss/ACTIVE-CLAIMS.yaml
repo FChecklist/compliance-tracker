@@ -40,6 +40,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-122711-airouter-01-phase-2--software-team-l0-l5) -- AIROUTER-01 Phase 2: Software Team L0-L5 execution ladder + Instruction Contract/Execution Report schema + capability routing matrix"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Builds ON TOP of the already-merged Mother Router (PR #433,
+      src/lib/ai-router/mother-router.ts) and the AI Orchestra Hierarchy doc
+      (PR #476, ai-os/AI_ORCHESTRA_HIERARCHY.md's Table 1 -- Software
+      Development) -- this task makes Table 1's L0-L5 real: (a) a genuinely
+      new Instruction Contract (pre-execution JSON)/Execution Report
+      (post-execution JSON, the Owner's 4 example payloads verbatim) schema
+      + task register, distinct from ai_routing_audit_log (which logs
+      routing DECISIONS, not task input/output); (b) wiring each L0-L5
+      level's dispatch to carry the Owner's Universal Tightened Instruction
+      Template fields; (c) seeding ai_routing_policies/ai_model_registry
+      with the Owner's capability-based Software Development routing matrix
+      as swappable policy data (cost-biased toward GPT-OSS-20B/120B/DeepSeek
+      V4 Pro, GLM-5.2 reserved for planning/supervision/audit).
+      Scope: src/lib/ai-router/** (extends mother-router.ts, does not
+      rewrite), a new task-register module/table, drizzle migration(s)
+      seeding ai_routing_policies for scope="software_team", documentation
+      (ai-os/CONSTITUTION.yaml section 11, ai-os/SOFTWARE_TEAM.md,
+      ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md). Explicitly does NOT touch
+      model-tier-eligibility.ts/orchestra-model-resolver.ts/roster.ts/
+      llm-client.ts's existing logic (extends/calls into them only, same
+      discipline PR #433 established), and explicitly OUT of scope: Tables
+      2-4 (End User/Sales/Customer Success) from the same Owner spec.
+      Checked this file for collisions before starting: the only other
+      ai-router-area entry ("AI Router: registry-backed model resolution...")
+      further down this active: list is a DIFFERENT, already-merged task
+      (PR #475, a19e4c3c) whose claim entry appears stale (not yet moved to
+      recently_completed by that session) -- no live work overlaps this
+      task's software_team L0-L5 scope.
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     claim: |
