@@ -49,7 +49,12 @@ export async function isKnownModel(model: string): Promise<boolean> {
     const registryModels = await activeRegistryModels()
     return registryModels.includes(model)
   } catch (err) {
-    console.error(`[roster-overrides] failed to read ai_model_registry, falling back to roster.ts's static models for isKnownModel('${model}'):`, err)
+    // `model` is externally controlled (passed through from setRoleOverride's
+    // API caller) -- kept OUT of the template literal and passed as its own
+    // console.error argument instead, so it's never part of the first
+    // argument util.format() parses for %-style format specifiers (CodeQL
+    // js/tainted-format-string).
+    console.error("[roster-overrides] failed to read ai_model_registry, falling back to roster.ts's static models for isKnownModel():", model, err)
     return AI_TEAM_ROSTER.some((r) => r.model === model)
   }
 }
