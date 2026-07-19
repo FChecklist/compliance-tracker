@@ -317,6 +317,11 @@ export async function submitFdeRequest(ctx: FdeContext, input: { requestText: st
     // elsewhere in this function.
     let proposedChainId: string | null = null
     try {
+      // DMP-06: proposeDynamicChain() now checks findSimilarDynamicChains()
+      // before creating anything -- `proposedChain.id` is either a freshly
+      // created chain (matchedExisting: false) or an existing near-duplicate
+      // chain it found instead (matchedExisting: true). Either way it's a
+      // real, usable dynamic chain id for this FDE request to reference.
       const proposedChain = await proposeDynamicChain(ctx, {
         workerAgentId: proposed.id,
         name: evaluation.proposal.name,
