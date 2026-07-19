@@ -2561,6 +2561,43 @@ active:
       guardrail-presence; doc-cross-references; doc-quarantine-banner;
       metadata-index-coverage).
 
+  - session_label: "Super Boss (Claude, interactive) -- SUPERBOSS-EVALUATE-AND-PLAN: evaluate all genuinely pending work + produce implementation plan (evaluation+planning ONLY, no implementation)"
+    claimed_at: "2026-07-19T14:35:00Z (this session)"
+    claim: |
+      Owner-directed evaluation + planning task (NOT implementation). Scope:
+      read ai-os/boss/ACTIVE-CLAIMS.yaml (full), ai-os/MASTER-TRACKER.yaml
+      (full), /opt/veridian/repos/claude-control/CONTROLLER.yaml (full cross-
+      project catalog), gh pr list for compliance-tracker + projexa, and this
+      server's systemctl/task state; then produce a real, grounded inventory
+      of every genuinely pending actionable item with an explicit collision/
+      duplication check against every active: entry + open PR, and a
+      prioritized implementation plan sized into real task-shaped units.
+
+      File scope (the ONLY files this task touches): a NEW
+      ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md, and THIS
+      ACTIVE-CLAIMS.yaml claim entry. No other file modified. No code, no
+      schema, no migration -- read-only investigation except the plan file +
+      this claim.
+
+      The plan explicitly FLAGS (does not dispatch into) the 9-workstream
+      "VERIDIAN Review Framework implementation wave" as BLOCKED -- real
+      partial work exists uncommitted on the Owner's laptop (not this
+      server, not GitHub, not visible here) for: security/bug fixes,
+      marketing/docs fixes, CRM Accounts & Contacts, HR Attendance &
+      Manpower, Fixed Assets wiring, Payment Entries approval flow, BYOB
+      white-label branding, BYOB bring-your-own-AI-model, Training LMS
+      module, plus a groq-vision-model sibling-file fix. A server-side task
+      must not touch those scopes until the Owner pushes or abandons the
+      laptop work. It also excludes AIROUTER-01 Phase 2 (PR #483, tier2,
+      awaiting sign-off), PROJEXA E2E Phase 2 (3 active batch claims), and
+      all awaiting-owner-decision CONTROLLER entries.
+
+      Checked this file's active: section in full before adding this entry:
+      no other active claim is an "evaluate + plan all pending work" task
+      (every other active entry is a specific implementation/test gap), so
+      no scope collision. Will move this entry to recently_completed once
+      the plan's PR is merged.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 # Restored 2026-07-19 (this session): this key had gone missing on main --
