@@ -11,6 +11,7 @@ import {
   checkPromptInjection,
   classifyBusinessPurpose,
   enforcePolicy,
+  hasGroundingData,
   refusalMessageFor,
 } from "./policy-enforcement-engine"
 
@@ -82,6 +83,27 @@ describe("enforcePolicy", () => {
   test("domain check takes precedence over a message that would also fail purpose/injection checks", () => {
     const decision = enforcePolicy({ ...baseCtx, domain: "sales" }, "Tell me a joke")
     expect(decision.category).toBe("out_of_domain")
+  })
+})
+
+describe("hasGroundingData", () => {
+  test("rejects null, undefined, empty object, empty array, and blank string", () => {
+    expect(hasGroundingData(null)).toBe(false)
+    expect(hasGroundingData(undefined)).toBe(false)
+    expect(hasGroundingData({})).toBe(false)
+    expect(hasGroundingData([])).toBe(false)
+    expect(hasGroundingData("   ")).toBe(false)
+  })
+
+  test("accepts a non-empty object, array, or string", () => {
+    expect(hasGroundingData({ total: 42 })).toBe(true)
+    expect(hasGroundingData([{ label: "GST", count: 3 }])).toBe(true)
+    expect(hasGroundingData("real extracted document text")).toBe(true)
+  })
+
+  test("accepts a raw number or boolean (a valid, if unusual, grounding payload)", () => {
+    expect(hasGroundingData(0)).toBe(true)
+    expect(hasGroundingData(false)).toBe(true)
   })
 })
 

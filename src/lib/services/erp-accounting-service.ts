@@ -455,7 +455,7 @@ export type LiveRefreshResult = { baseCode: string; rateDate: string; refreshed:
 // Shared core for both the single-org on-demand refresh and the all-orgs
 // cron sweep below. Idempotent per (orgId, rateDate): re-running on the same
 // day deletes and re-inserts only that day's source='live' rows (see
-// drizzle/0224_erp_exchange_rates_source.sql), so a manual on-demand refresh
+// drizzle/0225_erp_exchange_rates_source.sql), so a manual on-demand refresh
 // and the nightly cron never duplicate or conflict with each other, and
 // neither ever touches a 'manual' rate an admin typed in by hand.
 async function refreshOrgLiveRates(

@@ -2192,6 +2192,53 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap-closure: AI Architecture / Domain Accuracy & Quality"
+    claimed_at: "2026-07-18T (this session)"
+    claim: |
+      Closing 4 related findings from the review framework evaluation in one
+      PR: (Medium) Domain Accuracy -- "no systematic grounding/validation of
+      free-text AI answers"; (Medium) AI Tests -- "AI output quality tests
+      are narrow and not automated in CI"; (Low) AI Innovation -- "market
+      the software-first/AI-second architecture as a differentiator";
+      (Medium) Cognitive AI OS consistency -- "two known bypass points plus
+      inconsistent capability-tree application."
+
+      Re-read the actual current code before assuming the gap descriptions
+      still held (task's own instruction). Findings 1 confirmed genuinely
+      real but narrower than described: enforcePolicy() (policy-enforcement-
+      engine.ts) is ALREADY wired into ~12 free-text LLM call sites (chat,
+      CRM, construction AI, communication drafting, tickets, voice tickets,
+      email intelligence, FDE, asset routing, task-execution-engine) -- the
+      two genuinely missing call sites are report-engine-service.ts's
+      runAiRecipe() and ai-report-builder-service.ts's
+      proposeReportFromUpload(), the latter a real, confirmed gap: any
+      authenticated org user can POST an arbitrary ai_recipe promptKey/
+      groundingNote via POST /api/reports/definitions with zero policy gate
+      before it reaches an LLM. Also confirmed runAiRecipe() can call the
+      LLM with literally empty grounding data ({} when no groundingQuery/
+      caller-supplied data exists) -- no check anywhere validates the model
+      actually had real data before writing a "grounded" narrative.
+
+      Finding 4's "two known bypass points": confirmed as src/lib/
+      embeddings.ts (embedding generation, OpenRouter/Groq) and
+      src/lib/whisper-client.ts (OpenAI Whisper transcription) -- neither
+      goes through policy-enforcement-engine.ts or the capability tree by
+      design (embeddings never return free text to a user; transcription
+      returns the user's OWN speech back as text, not an AI opinion) but
+      this was never written down as an intentional exception anywhere.
+
+      File scope: src/lib/policy-enforcement-engine.ts (+.test.ts),
+      src/lib/services/report-engine-service.ts (+.test.ts),
+      src/lib/services/ai-report-builder-service.ts, promptfooconfig.yaml,
+      new .github/workflows/ai-prompt-evals.yml, ai-os/CONSTITUTION.yaml
+      (additive entries only, documenting the embeddings/audio exceptions +
+      cross-referencing the existing DMP-02 gap -- not narrowing any
+      existing rule, per Rule 9's own carve-out for extending guardrail
+      coverage), src/app/page.tsx (marketing copy, additive "research
+      direction" card for the software-first architecture). NOT touching
+      src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope. Checked this file live before claiming -- no
+      other active entry touches any of the above.
   - session_label: "claude-code -- task-20260718-090002: Checks & Balances / Duplicate Work + Duplicate Data Detection gap closure"
     claimed_at: "2026-07-18T (this session)"
     claim: |
