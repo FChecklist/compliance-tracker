@@ -12,7 +12,7 @@ import { after } from "next/server"
 import { dynamicChains, entityRelationships, approvalRequests } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
-import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
+import { indexCapability, buildCapabilityContent, findSimilarDynamicChains, type CapabilityMatch } from "./capability-registry-service"
 
 export type ChainSearchResult = {
   id: string
@@ -271,6 +271,50 @@ export function buildDynamicChainProposalFields(input: DynamicChainProposalInput
   }
 }
 
+// DMP-06 gap closure (CONSTITUTION.yaml): the same "is this actually the
+// same thing" bar auditDuplicateCapabilities() already uses for its own
+// admin-facing duplicate audit (0.92), reused here rather than inventing a
+// third threshold value. Deliberately looser than fde-service.ts's
+// HIGH_CONFIDENCE_THRESHOLD (0.95) -- that one gates a different, higher-
+// stakes question (skip the LLM and auto-dispatch a worker agent), this one
+// only gates "reuse an existing chain instead of proposing a new one".
+const DYNAMIC_CHAIN_DUPLICATE_THRESHOLD = 0.92
+
+/** Pure decision function, unit-testable without a DB: the top candidate if it clears the duplicate bar, else null. */
+export function selectDuplicateChainMatch(candidates: CapabilityMatch[], threshold = DYNAMIC_CHAIN_DUPLICATE_THRESHOLD): CapabilityMatch | null {
+  const top = candidates[0]
+  return top && top.score >= threshold ? top : null
+}
+
+export type ChainModuleEdge = {
+  orgId: string
+  sourceType: "dynamic_chain"
+  sourceId: string
+  targetType: "module"
+  targetId: string
+  relationshipType: "requires_module"
+}
+
+/**
+ * Pure builder, unit-testable without a DB: one dynamic_chain->module
+ * entity_relationships row per distinct linkedModuleRefs entry. moduleRef/
+ * linkedModuleRefs are "FK-shaped ref, unenforced" (same posture as
+ * ownerDepartmentId) -- this writes the edge against whatever value is
+ * already there, it does not validate the ref against module_registry
+ * itself, matching every other best-effort edge writer in this file.
+ */
+export function buildChainModuleEdges(orgId: string, chainId: string, moduleRefs: string[]): ChainModuleEdge[] {
+  const unique = Array.from(new Set(moduleRefs.map((ref) => ref?.trim()).filter((ref): ref is string => Boolean(ref))))
+  return unique.map((moduleKey) => ({
+    orgId,
+    sourceType: "dynamic_chain" as const,
+    sourceId: chainId,
+    targetType: "module" as const,
+    targetId: moduleKey,
+    relationshipType: "requires_module" as const,
+  }))
+}
+
 /**
  * Creates the proposed Dynamic Chain bundle for a VERI FDE no-match
  * request, alongside (never instead of) the existing proposeWorkerAgent()
@@ -285,7 +329,20 @@ export function buildDynamicChainProposalFields(input: DynamicChainProposalInput
  * (see src/app/api/approvals/[id]/route.ts). This is additive scaffolding,
  * not a bypass of AUTH-02/HAB-01 -- nothing here ever sets status to
  * 'approved' itself.
+ *
+ * DMP-06 gap closure (CONSTITUTION.yaml, "Dynamic Chain Master Directory"):
+ * BEFORE creating anything, checks findSimilarDynamicChains() for a
+ * high-confidence near-duplicate -- the same zero-duplication question
+ * findSimilarCapabilities() already answers for worker agents/modules/
+ * automation rules, now asked for dynamic chains specifically. A duplicate
+ * hit short-circuits with the existing chain's id and writes nothing new
+ * (no chain, no approval request, no graph edges) -- there's nothing to
+ * link, the caller should reuse what's already there.
  */
+export type ProposeDynamicChainResult =
+  | { created: true; id: string; status: string; approvalRequestId: string; createdAt: string; matchedExisting: false }
+  | { created: false; id: string; status: string; matchedExisting: true; score: number }
+
 export async function proposeDynamicChain(
   ctx: { orgId: string; userId: string },
   input: {
@@ -300,19 +357,26 @@ export async function proposeDynamicChain(
     kpis?: { label: string; target?: string }[]
     fallbackPermissionRole: string
   }
-) {
+): Promise<ProposeDynamicChainResult> {
   const modePill = input.name
   const pathLabels = [input.domain, input.name].filter((v): v is string => Boolean(v?.trim()))
   const pathKeys = pathLabels.map((l) => l.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""))
+  const domainLabel = pathLabels.join(" > ") || null
   const fields = buildDynamicChainProposalFields({
     moduleRef: input.moduleRef,
-    domain: pathLabels.join(" > ") || null,
+    domain: domainLabel,
     businessRules: input.businessRules,
     permissions: input.permissions,
     workflowSteps: input.workflowSteps,
     kpis: input.kpis,
     fallbackPermissionRole: input.fallbackPermissionRole,
   })
+
+  const candidates = await findSimilarDynamicChains(ctx.orgId, input.description ?? modePill, domainLabel)
+  const duplicate = selectDuplicateChainMatch(candidates)
+  if (duplicate) {
+    return { created: false as const, id: duplicate.entityId, status: "existing", matchedExisting: true as const, score: duplicate.score }
+  }
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [chain] = await db.insert(dynamicChains).values({
@@ -368,11 +432,30 @@ export async function proposeDynamicChain(
       console.error(`[dynamic-chain-directory-service] Failed to record dynamic_chain->worker_agent proposal edge for chain ${chain!.id} -> agent ${input.workerAgentId}:`, err)
     }
 
+    // DMP-06 gap closure: the module half of the DCMD graph -- one
+    // dynamic_chain->module edge per linkedModuleRefs entry, same
+    // best-effort/non-blocking posture as the worker-agent edge above.
+    // Permission-set edges are deliberately NOT written -- there is no
+    // permission_sets entity anywhere in schema.ts to point at; this
+    // chain's required roles live only in its own `permissions` jsonb
+    // column, same posture as businessRules/workflowStepsConfig never
+    // getting a graph edge either.
+    const moduleEdges = buildChainModuleEdges(ctx.orgId, chain!.id, fields.linkedModuleRefs)
+    if (moduleEdges.length > 0) {
+      try {
+        await db.insert(entityRelationships).values(moduleEdges)
+      } catch (err) {
+        console.error(`[dynamic-chain-directory-service] Failed to record dynamic_chain->module graph edge(s) for chain ${chain!.id}:`, err)
+      }
+    }
+
     return {
+      created: true as const,
       id: chain!.id,
       status: chain!.status,
       approvalRequestId: approval!.id,
       createdAt: chain!.createdAt.toISOString(),
+      matchedExisting: false as const,
     }
   })
 }
