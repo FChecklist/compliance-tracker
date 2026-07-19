@@ -26,6 +26,7 @@ function validContract(overrides: Partial<InstructionContract> = {}): Instructio
     documentationRequirements: "inline comments only where non-obvious",
     evidenceRequired: "the diff + test run output",
     handoverRequirements: "Execution Report handed to L4",
+    expectedSteps: 1,
     ...overrides,
   }
 }
@@ -54,6 +55,20 @@ describe("validateInstructionContract", () => {
   test("placeholder-length field (below MIN_FIELD_LENGTH) is rejected", () => {
     const result = validateInstructionContract(validContract({ retryPolicy: "ok" }))
     expect(result.valid).toBe(false)
+  })
+
+  // Audit round 1 (GLM-5.2, m4): level was only truthiness-checked before.
+  test("an unrecognized level value ('L9') is rejected, not just checked for truthiness", () => {
+    const result = validateInstructionContract(validContract({ level: "L9" as unknown as InstructionContract["level"] }))
+    expect(result.valid).toBe(false)
+  })
+
+  // Audit round 1 (GLM-5.2, B1): expectedSteps backs the "don't mark a
+  // multi-step workflow completed after step 1" fix -- must itself be a
+  // real positive integer, never omitted/invented.
+  test("expectedSteps=0 or non-integer is rejected", () => {
+    expect(validateInstructionContract(validContract({ expectedSteps: 0 })).valid).toBe(false)
+    expect(validateInstructionContract(validContract({ expectedSteps: 1.5 })).valid).toBe(false)
   })
 })
 

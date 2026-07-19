@@ -8,11 +8,23 @@
 // Same "audit logging must never break a real dispatch" posture already
 // established by mother-router.ts's logRoutingDecision(): every write here
 // is best-effort and must never throw back into a dispatch call site.
+//
+// Known, accepted Phase-1 limitation (audit round 1, GLM-5.2 finding M4,
+// not engineered around): recordExecutionReport()'s read-merge-write below
+// is NOT atomic. Two concurrent dispatch calls sharing the same taskId can
+// both read the same prior report and the second write can silently drop
+// the first call's step. L2 (Sequential Worker) and L3 (Feature Worker)
+// are SEQUENTIAL by the Owner's own ladder contract (software-team-ladder.ts)
+// -- genuine concurrent writes to the same taskId are outside this phase's
+// real usage pattern, not a scenario this dispatch surface is designed to
+// support. Same disclosure class as mother-router.ts's own rollbackPolicy()
+// concurrent-caller gap -- noted plainly rather than silently ignored or
+// over-engineered with a transaction/row lock this phase doesn't need yet.
 
 import { db, taskRegister } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import type { SoftwareTeamLevel } from "./software-team-ladder"
-import type { InstructionContract, ExecutionReport } from "./instruction-contract"
+import { taskTypeForStepCount, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "./instruction-contract"
 
 export type TaskRegisterStatus = "pending" | "in_progress" | "completed" | "failed" | "escalated"
 
@@ -42,32 +54,92 @@ export async function registerInstructionContract(
   }
 }
 
+function sumSummaryField(a: number | undefined, b: number | undefined): number | undefined {
+  if (a === undefined && b === undefined) return undefined
+  return (a ?? 0) + (b ?? 0)
+}
+
+/**
+ * Audit round 1 (GLM-5.2, B1/B2/B3/B4 findings): computes a genuine
+ * workflow-level Execution Report from every step accumulated so far, NOT
+ * "the latest step's report with steps appended" (the original bug --
+ * status/overall_confidence/completion/objective all silently reflected
+ * only the most recent call). A workflow is only as done as its weakest
+ * step, only as confident as its weakest step, and keeps the FIRST step's
+ * objective (the workflow's own initiating objective, per the Owner's own
+ * worked examples), never a later narrower step's objective.
+ */
+function aggregateExecutionReport(priorReport: ExecutionReport | null | undefined, newStepReport: ExecutionReport): ExecutionReport {
+  if (!priorReport) return newStepReport
+
+  const steps = [...priorReport.steps, ...newStepReport.steps]
+  const anyFail = steps.some((s) => s.status === "FAIL")
+  const anyPartial = steps.some((s) => s.status === "PARTIAL")
+  const aggregatedStatus: ExecutionStepStatus = anyFail ? "FAIL" : anyPartial ? "PARTIAL" : "PASS"
+  const overallConfidence = Math.min(priorReport.overall_confidence, newStepReport.overall_confidence)
+  const completedCount = steps.filter((s) => s.status === "PASS").length
+  const expected = Math.max(priorReport.completion.expected, newStepReport.completion.expected, steps.length)
+
+  return {
+    task_id: newStepReport.task_id,
+    task_type: taskTypeForStepCount(steps.length),
+    objective: priorReport.objective, // FIRST step's objective wins -- the workflow's own initiating objective, never overwritten by a later, narrower step
+    status: aggregatedStatus,
+    overall_confidence: overallConfidence,
+    completion: { completed: completedCount, expected, percentage: expected > 0 ? Math.round((completedCount / expected) * 100) : 0 },
+    steps,
+    missing: [...new Set([...priorReport.missing, ...newStepReport.missing])],
+    warnings: [...new Set([...priorReport.warnings, ...newStepReport.warnings])],
+    errors: [...new Set([...priorReport.errors, ...newStepReport.errors])],
+    escalation: {
+      required: priorReport.escalation.required || newStepReport.escalation.required,
+      reason: [priorReport.escalation.reason, newStepReport.escalation.reason].filter(Boolean).join("; "),
+    },
+    execution_summary: {
+      duration_seconds: (priorReport.execution_summary.duration_seconds ?? 0) + (newStepReport.execution_summary.duration_seconds ?? 0),
+      tokens_used: (priorReport.execution_summary.tokens_used ?? 0) + (newStepReport.execution_summary.tokens_used ?? 0),
+      files_created: sumSummaryField(priorReport.execution_summary.files_created, newStepReport.execution_summary.files_created),
+      files_modified: sumSummaryField(priorReport.execution_summary.files_modified, newStepReport.execution_summary.files_modified),
+      tests_passed: sumSummaryField(priorReport.execution_summary.tests_passed, newStepReport.execution_summary.tests_passed),
+      tests_failed: sumSummaryField(priorReport.execution_summary.tests_failed, newStepReport.execution_summary.tests_failed),
+    },
+  }
+}
+
+export type RecordExecutionReportResult = {
+  ok: boolean
+  mergedReport: ExecutionReport | null
+  status: TaskRegisterStatus | null
+}
+
 /**
  * Records (or accumulates onto) a task's Execution Report AFTER a dispatch
- * step runs. When a row for this task_id already carries steps (an L2/L3
- * multi-step workflow's earlier sequential dispatch calls), the new
- * report's steps are appended to the existing ones rather than replacing
- * them -- so a task_id reused across several dispatch calls accumulates
- * one growing Execution Report, matching the Owner's Two/Three/Multi Step
- * examples (each a single report covering every step performed so far).
+ * step runs, and derives the task_register row's own status internally --
+ * audit round 1 (GLM-5.2, B1 finding) removed the caller-supplied `status`
+ * param entirely: a caller has no reliable way to know whether ITS step is
+ * the workflow's LAST step, so trusting an externally-passed status caused
+ * a multi-step task_id to be marked "completed" after its first passing
+ * step. Status is now: "escalated" if escalation.required; else "failed"
+ * if any accumulated step FAILed; else "completed" once the accumulated
+ * step count reaches expectedSteps (declared once on the Instruction
+ * Contract's FIRST dispatch call, see instruction-contract.ts); else
+ * "in_progress".
  */
-export async function recordExecutionReport(
-  taskId: string,
-  report: ExecutionReport,
-  status: TaskRegisterStatus
-): Promise<boolean> {
+export async function recordExecutionReport(taskId: string, stepReport: ExecutionReport, expectedSteps: number): Promise<RecordExecutionReportResult> {
   try {
     const existing = await db.query.taskRegister.findFirst({ where: eq(taskRegister.taskId, taskId) })
     const priorReport = existing?.executionReport as ExecutionReport | null | undefined
-    const mergedReport: ExecutionReport = priorReport
-      ? {
-          ...report,
-          steps: [...priorReport.steps, ...report.steps],
-          missing: [...new Set([...priorReport.missing, ...report.missing])],
-          warnings: [...new Set([...priorReport.warnings, ...report.warnings])],
-          errors: [...new Set([...priorReport.errors, ...report.errors])],
-        }
-      : report
+    const mergedReport = aggregateExecutionReport(priorReport, stepReport)
+
+    const anyFail = mergedReport.steps.some((s) => s.status === "FAIL")
+    const allStepsRan = mergedReport.steps.length >= expectedSteps
+    const status: TaskRegisterStatus = mergedReport.escalation.required
+      ? "escalated"
+      : anyFail
+        ? "failed"
+        : allStepsRan
+          ? "completed"
+          : "in_progress"
 
     await db
       .update(taskRegister)
@@ -78,10 +150,10 @@ export async function recordExecutionReport(
         completedAt: status === "completed" || status === "failed" ? new Date() : undefined,
       })
       .where(eq(taskRegister.taskId, taskId))
-    return true
+    return { ok: true, mergedReport, status }
   } catch (error) {
     console.error(`[task-register] failed to record Execution Report for task_id="${taskId}" (non-fatal):`, error)
-    return false
+    return { ok: false, mergedReport: null, status: null }
   }
 }
 

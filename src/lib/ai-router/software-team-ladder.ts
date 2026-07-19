@@ -24,6 +24,9 @@ import type { ComplexityTier } from "../task-tightening"
 
 export type SoftwareTeamLevel = "L0" | "L1" | "L2" | "L3" | "L4" | "L5"
 
+/** Runtime companion to the SoftwareTeamLevel type -- needed wherever a value (not just a type) must validate an arbitrary string against the real level set (see instruction-contract.ts's validateInstructionContract, audit round 1 finding m4). */
+export const SOFTWARE_TEAM_LEVELS: SoftwareTeamLevel[] = ["L0", "L1", "L2", "L3", "L4", "L5"]
+
 /**
  * The Owner's 4-category Software Development Task Routing Matrix (Part C)
  * -- a DIFFERENT, finer axis than task-tightening.ts's 3-value
@@ -64,6 +67,15 @@ export type LevelContract = {
   documentationRequirements: string
   evidenceRequired: string
   handoverRequirements: string
+  /**
+   * Audit round 1 (GLM-5.2, m2 finding): a real, non-empty base process a
+   * dispatch's Instruction Contract derives from -- previously the route
+   * built `process` from the caller's free-text `scope` alone, which
+   * passed shape validation but carried no actual structured steps (the
+   * agent had to invent its own process, exactly what the Owner's template
+   * forbids). Empty for L0/L5 (not worker-level dispatches).
+   */
+  baseProcessSteps: string[]
 }
 
 // The Owner's own "Universal Tightened Instruction Template," applied
@@ -89,6 +101,15 @@ export const SOFTWARE_TEAM_LADDER: Record<SoftwareTeamLevel, LevelContract> = {
     documentationRequirements: "CI/build/test logs are the documentation -- no separate narrative required.",
     evidenceRequired: "The tool's own exit code + log output.",
     handoverRequirements: "None -- fully automatic, nothing to hand over.",
+    // Audit round 1 (GLM-5.2, m1 finding): stated explicitly, not left
+    // implicit -- L0 has NO AI-dispatch path in this PR.
+    // validateLevelDispatch() rejects L0 from /api/ai/team/dispatch by
+    // design; its real execution path is this codebase's existing,
+    // unchanged CI/build/test/migration tooling (task-execution-engine.ts's
+    // software-first branch, package.json scripts, CI workflows) -- there
+    // is nothing new to wire here, L0 is documented for completeness of
+    // the ladder, not implemented as a dispatchable target.
+    baseProcessSteps: [],
   },
   L1: {
     level: "L1",
@@ -105,6 +126,11 @@ export const SOFTWARE_TEAM_LADDER: Record<SoftwareTeamLevel, LevelContract> = {
     documentationRequirements: TEMPLATE_BASE,
     evidenceRequired: "The Execution Report for this task_id (see instruction-contract.ts), plus the actual diff/output produced.",
     handoverRequirements: "Execution Report handed back to the dispatching L4/L5 (or its Supervisor); task_register row updated with status.",
+    baseProcessSteps: [
+      "Implement the one deliverable named in scope (one API/SQL/UI/test) -- nothing broader.",
+      "Self-check the output against successCriteria before reporting.",
+      "Report the Execution Report step for this task_id.",
+    ],
   },
   L2: {
     level: "L2",
@@ -121,6 +147,12 @@ export const SOFTWARE_TEAM_LADDER: Record<SoftwareTeamLevel, LevelContract> = {
     documentationRequirements: TEMPLATE_BASE,
     evidenceRequired: "One Execution Report step per workflow step, accumulated under the same task_id.",
     handoverRequirements: "Execution Report (multi-step) handed back to the dispatching L4/L5; task_register row updated with status.",
+    baseProcessSteps: [
+      "Execute each approved workflow step (API+SQL+tests+docs) in the order given by scope.",
+      "Validate every step before proceeding to the next.",
+      "On a step failure, roll back only that step -- never the whole workflow.",
+      "Report one Execution Report step per workflow step, accumulated under the same task_id.",
+    ],
   },
   L3: {
     level: "L3",
@@ -137,6 +169,12 @@ export const SOFTWARE_TEAM_LADDER: Record<SoftwareTeamLevel, LevelContract> = {
     documentationRequirements: TEMPLATE_BASE,
     evidenceRequired: "Compile/test output plus the Execution Report for this task_id.",
     handoverRequirements: "Execution Report handed back to the dispatching L4 (Coding Supervisor); mandatory audit per model-tier-eligibility.ts's requiresMandatoryAudit() (no model at this tier is judgment-eligible).",
+    baseProcessSteps: [
+      "Implement the approved feature across the files named in scope (multi-file, incl. refactor/bug-fix).",
+      "Compile.",
+      "Run tests.",
+      "Report the Execution Report for this task_id.",
+    ],
   },
   L4: {
     level: "L4",
@@ -170,6 +208,12 @@ export const SOFTWARE_TEAM_LADDER: Record<SoftwareTeamLevel, LevelContract> = {
     documentationRequirements: TEMPLATE_BASE,
     evidenceRequired: "Architecture/review artifact plus the Execution Report for this task_id.",
     handoverRequirements: "Execution Report + reviewed artifact handed back to L5 (Mother Router / Super Boss).",
+    baseProcessSteps: [
+      "Analyze the objective and its business requirement.",
+      "Plan the technical approach.",
+      "Review/implement the technical decision (architecture, debugging, optimization).",
+      "Report findings + the Execution Report for this task_id.",
+    ],
   },
   L5: {
     level: "L5",
@@ -186,6 +230,7 @@ export const SOFTWARE_TEAM_LADDER: Record<SoftwareTeamLevel, LevelContract> = {
     documentationRequirements: "Every routing decision is logged to platform.ai_routing_audit_log (mother-router.ts); every task contract/report is logged to platform.task_register.",
     evidenceRequired: "ai_routing_audit_log + task_register rows for the full task tree this level assigned.",
     handoverRequirements: "None owed upward -- L5 reports only to the repository owner (AGENTS.md authority_hierarchy).",
+    baseProcessSteps: [],
   },
 }
 

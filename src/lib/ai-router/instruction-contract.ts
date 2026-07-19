@@ -25,7 +25,7 @@
 // good idea.
 
 import type { ComplexityTier } from "../task-tightening"
-import type { SoftwareTeamLevel } from "./software-team-ladder"
+import { SOFTWARE_TEAM_LEVELS, type SoftwareTeamLevel } from "./software-team-ladder"
 
 export type InstructionContract = {
   taskId: string
@@ -45,6 +45,16 @@ export type InstructionContract = {
   documentationRequirements: string
   evidenceRequired: string
   handoverRequirements: string
+  /**
+   * Audit round 1 (GLM-5.2, B1 finding) fix: how many sequential dispatch
+   * calls this task_id's Execution Report expects to accumulate before the
+   * task register row may be marked "completed" -- an L2 (sequential
+   * workflow) or L3 (multi-file feature) task declares this once, on its
+   * FIRST dispatch call, so a single passing step is never mistaken for a
+   * finished multi-step workflow. Defaults to 1 for an ordinary single-step
+   * L1/L4 dispatch (existing behavior, unchanged).
+   */
+  expectedSteps: number
 }
 
 export type InstructionContractValidation =
@@ -90,8 +100,17 @@ export function validateInstructionContract(contract: Partial<InstructionContrac
     }
   }
 
-  if (!contract.level) {
-    return { valid: false, reason: "InstructionContract.level is required.", guidance: "Set level to one of L0-L5 (see software-team-ladder.ts's SoftwareTeamLevel)." }
+  // Audit round 1 (GLM-5.2, m4 finding): was a bare truthiness check --
+  // "L9"/"garbage" passed. Now validated against the real level set, since
+  // this validator is a public export other call sites may use directly
+  // (validateLevelDispatch in the route only catches this for ITS OWN
+  // caller, not for every future consumer of this function).
+  if (!contract.level || !SOFTWARE_TEAM_LEVELS.includes(contract.level)) {
+    return { valid: false, reason: `InstructionContract.level "${contract.level}" is not a real level.`, guidance: `Set level to one of ${SOFTWARE_TEAM_LEVELS.join(", ")} (see software-team-ladder.ts's SoftwareTeamLevel).` }
+  }
+
+  if (!Number.isInteger(contract.expectedSteps) || (contract.expectedSteps as number) < 1) {
+    return { valid: false, reason: "InstructionContract.expectedSteps must be a positive integer.", guidance: "Declare the real total step count this task_id's workflow expects (1 for an ordinary single-step dispatch) -- never assume or omit it." }
   }
 
   if (!Array.isArray(contract.preconditions) || contract.preconditions.length === 0) {

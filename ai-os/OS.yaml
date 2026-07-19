@@ -121,6 +121,10 @@ index:
       covers: "Confirmed status of the separate veridian-brain repo -- empty scaffold, not yet extracted from this codebase. Read this before assuming 'the Brain' is a working system anywhere."
     - path: ai-os/AI_ORCHESTRA_HIERARCHY.md
       covers: "Owner spec (2026-07-19): formal 4-domain x L0-L5 operational hierarchy (Software Development / End User Work Management / Sales & Marketing / Customer Success), mapped to the real AiRouterScope values and registry-backed model resolution. Model names in it are live snapshots, not hardcoded bindings -- see ai_orchestra_tiers.domain_hierarchy_ref in CONSTITUTION.yaml for how this document's axis (role/domain escalation) differs from that section's axis (model-trust tier)."
+    - path: ai-os/SOFTWARE_TEAM.md
+      covers: "AIROUTER-01 Phase 2 (2026-07-19): plain-language explainer of the real, BUILT implementation behind AI_ORCHESTRA_HIERARCHY.md's Table 1 (Software Development) -- the L0-L5 dispatch wiring (software-team-ladder.ts), the Instruction Contract/Execution Report task register (instruction-contract.ts, task-register-service.ts, platform.task_register), and the capability-based routing matrix seeded into ai_routing_policies (drizzle/0250). Mirrors ai-os/BRAIN.md's style; includes the 3-round GLM-5.2 audit summary and disclosed remaining gaps."
+    - path: ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md
+      covers: "Append-only log of all 3 mandatory GLM-5.2 independent-audit rounds for AIROUTER-01 Phase 2 (Software Team L0-L5) -- real findings, real fixes applied per round, verbatim. Read this for the honest 'what did an independent reviewer actually find, and what stayed unfixed' record, not just the PR description's own summary."
 
   monitoring_health_check:
     - path: /api/ai/team/governance-health

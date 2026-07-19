@@ -55,6 +55,17 @@ describe("SOFTWARE_TEAM_LADDER -- static data integrity", () => {
   test("capabilityCategoryForLevel(L5) is planning_governance_oversight (Mother Router's own category)", () => {
     expect(capabilityCategoryForLevel("L5")).toBe("planning_governance_oversight")
   })
+
+  // Audit round 1 (GLM-5.2, m2 finding): worker levels must carry a real,
+  // non-empty base process -- previously the route derived `process` from
+  // free-text `scope` alone.
+  test("L1-L4 (worker-level dispatches) each carry a non-empty baseProcessSteps; L0/L5 (no worker dispatch) are empty", () => {
+    for (const level of ["L1", "L2", "L3", "L4"] as const) {
+      expect(SOFTWARE_TEAM_LADDER[level].baseProcessSteps.length).toBeGreaterThan(0)
+    }
+    expect(SOFTWARE_TEAM_LADDER.L0.baseProcessSteps).toEqual([])
+    expect(SOFTWARE_TEAM_LADDER.L5.baseProcessSteps).toEqual([])
+  })
 })
 
 describe("validateLevelDispatch -- fail-closed on level/tier mismatch", () => {

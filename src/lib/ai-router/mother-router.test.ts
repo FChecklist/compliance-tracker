@@ -122,12 +122,15 @@ describe("computeSoftwareTeamResolution -- capability-category axis (Part C)", (
   })
 
   test("Part C's actual seeded matrix (drizzle/0250): single-file mechanical resolves to the cheap floor tier, not GLM-5.2, even when the role's own roster.ts baseline IS GLM-5.2", () => {
+    // Mirrors drizzle/0250 EXACTLY (audit round 1, M5 fix: "multi_file_integrative"
+    // deliberately absent from preferredModelByCapabilityCategory -- it falls
+    // through to preferredModelByTier.integrative below, same resolved model,
+    // zero divergence to disclose for that key).
     const seededPolicy: ActivePolicy = {
       version: 1,
       rule: {
         preferredModelByCapabilityCategory: {
           single_file_mechanical: "openai/gpt-oss-20b",
-          multi_file_integrative: "deepseek/deepseek-v4-pro",
           architecture_design_analysis: "deepseek/deepseek-v4-pro",
           planning_governance_oversight: "z-ai/glm-5.2",
         },
@@ -141,6 +144,10 @@ describe("computeSoftwareTeamResolution -- capability-category axis (Part C)", (
     const mechanicalResult = computeSoftwareTeamResolution("z-ai/glm-5.2", "mechanical", "fullstack_developer", seededPolicy, "single_file_mechanical")
     expect(mechanicalResult.model).toBe("openai/gpt-oss-20b")
 
+    // No preferredModelByCapabilityCategory entry for "multi_file_integrative"
+    // -- falls through to preferredModelByTier.integrative, proving the
+    // fallback chain (not a hardcoded per-category value) is what actually
+    // resolves this category to the cheap/mid tier.
     const integrativeResult = computeSoftwareTeamResolution("z-ai/glm-5.2", "integrative", "fullstack_developer", seededPolicy, "multi_file_integrative")
     expect(integrativeResult.model).toBe("deepseek/deepseek-v4-pro")
 

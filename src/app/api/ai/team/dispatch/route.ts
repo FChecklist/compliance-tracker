@@ -8,7 +8,7 @@ import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } 
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
-import { validateLevelDispatch, capabilityCategoryForLevel, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel } from "@/lib/ai-router/software-team-ladder"
+import { validateLevelDispatch, capabilityCategoryForLevel, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
 import { validateInstructionContract, taskTypeForStepCount, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
 import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
 import { createId } from "@paralleldrive/cuid2"
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId, expectedSteps: callerExpectedSteps, capabilityCategory: callerCapabilityCategory } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
@@ -83,6 +83,21 @@ export async function POST(request: NextRequest) {
       // row. Generated when omitted (a single-step L1/L4 dispatch has no
       // reason to require the caller to invent one).
       taskId?: string
+      // Audit round 1 (GLM-5.2, B1 finding): declared ONCE, on the first
+      // dispatch call for a given taskId -- how many sequential steps this
+      // workflow expects before it may be marked "completed". Ignored on
+      // any later call reusing the same taskId (the FIRST call's value,
+      // persisted on the Instruction Contract, is authoritative). Defaults
+      // to 1 (an ordinary single-step L1/L4 dispatch), unchanged behavior
+      // for every caller that doesn't declare it.
+      expectedSteps?: number
+      // Audit round 1 (GLM-5.2, M3 finding): overrides
+      // capabilityCategoryForLevel(softwareTeamLevel) for THIS dispatch --
+      // lets an L4 (or any level) select "architecture_design_analysis"
+      // explicitly for an analysis-shaped sub-task, since no level's
+      // DEFAULT category maps to it (see software-team-ladder.ts's L4
+      // comment for why). Only meaningful alongside softwareTeamLevel.
+      capabilityCategory?: CapabilityCategory
     }
 
     // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): AI Dev Team
@@ -186,6 +201,12 @@ export async function POST(request: NextRequest) {
     // gate and dispatch model, unchanged. See mother-router.ts's own header
     // for why this route wasn't rewired to consume a policy override in
     // this pass (a disclosed, deliberate scope decision, not an oversight).
+    // Audit round 1 (GLM-5.2, M3 finding): a caller-supplied capabilityCategory
+    // overrides the level's own default -- lets e.g. an L4 dispatch select
+    // "architecture_design_analysis" explicitly, since no level defaults to
+    // it (see software-team-ladder.ts's L4 comment).
+    const resolvedCapabilityCategory = softwareTeamLevel ? (callerCapabilityCategory ?? capabilityCategoryForLevel(softwareTeamLevel) ?? undefined) : undefined
+
     void resolveMotherRouterModel({
       scope: "software_team",
       model: targetRole.model,
@@ -194,52 +215,71 @@ export async function POST(request: NextRequest) {
       // AIROUTER-01 Phase 2 (Part C, capability routing matrix): only
       // present when the caller declared a level -- an ordinary dispatch
       // with no level keeps resolving purely by tier, unchanged.
-      capabilityCategory: softwareTeamLevel ? (capabilityCategoryForLevel(softwareTeamLevel) ?? undefined) : undefined,
+      capabilityCategory: resolvedCapabilityCategory,
     }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
 
     // AIROUTER-01 Phase 2 (Part B): register the Instruction Contract
     // BEFORE execution, matching the Owner's "genuinely PRE-execution"
-    // requirement. taskId is generated once per NEW task_id (an L2/L3
-    // multi-step workflow's caller passes the SAME taskId across sequential
+    // requirement, ONLY on the first dispatch call for a given taskId --
+    // taskRegister.taskId is unique, so a second registerInstructionContract()
+    // call for a REUSED taskId (an L2/L3 multi-step workflow's later
+    // sequential calls) would fail its insert every time; audit round 1
+    // fixed this by reading any existing row first and skipping
+    // re-registration when one is already present. taskId is generated once
+    // per NEW task_id (a caller reuses the SAME taskId across sequential
     // calls to accumulate one Execution Report -- see
     // task-register-service.ts's recordExecutionReport()). Best-effort:
     // registerInstructionContract() never throws, matching every other
     // fire-and-forget audit write in this route.
     const taskId = softwareTeamLevel ? (callerTaskId ?? createId()) : null
     let priorStepCount = 0
+    let expectedSteps = callerExpectedSteps && callerExpectedSteps >= 1 ? Math.floor(callerExpectedSteps) : 1
     if (softwareTeamLevel && taskId) {
       const priorRecord = await getTaskRecord(taskId).catch(() => null)
+      const priorContract = priorRecord?.instructionContract as InstructionContract | undefined
       priorStepCount = ((priorRecord?.executionReport as ExecutionReport | null)?.steps.length) ?? 0
 
-      const contract: InstructionContract = {
-        taskId,
-        level: softwareTeamLevel,
-        roleKey: classification.role,
-        objective: objective!,
-        preconditions: [`complexityTier="${complexityTier}"`, constraints ? `constraints: ${constraints}` : "none stated beyond scope/successCriteria"],
-        input: task,
-        process: [scope!],
-        constraints,
-        expectedOutputFormat: expectedOutput!,
-        validationCriteria: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
-        successCriteria: successCriteria!,
-        failureCriteria: `Output does not satisfy: ${successCriteria}`,
-        retryPolicy: SOFTWARE_TEAM_LADDER[softwareTeamLevel].retryPolicy,
-        escalationRule: SOFTWARE_TEAM_LADDER[softwareTeamLevel].escalationRules,
-        documentationRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].documentationRequirements,
-        evidenceRequired: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
-        handoverRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].handoverRequirements,
+      if (priorContract) {
+        // Audit round 1 (GLM-5.2, B1 finding): the FIRST call's declared
+        // expectedSteps is authoritative for the whole workflow -- a later
+        // call's own (possibly absent or wrong) value is ignored.
+        expectedSteps = priorContract.expectedSteps
+      } else {
+        const contract: InstructionContract = {
+          taskId,
+          level: softwareTeamLevel,
+          roleKey: classification.role,
+          objective: objective!,
+          preconditions: [`complexityTier="${complexityTier}"`, constraints ? `constraints: ${constraints}` : "none stated beyond scope/successCriteria"],
+          input: task,
+          // Audit round 1 (GLM-5.2, m2 finding): derived from the level's
+          // own real base process, not just the caller's free-text scope
+          // alone (which passed shape validation but carried no actual
+          // structured steps).
+          process: [...SOFTWARE_TEAM_LADDER[softwareTeamLevel].baseProcessSteps, `Task-specific scope: ${scope}`],
+          constraints,
+          expectedOutputFormat: expectedOutput!,
+          validationCriteria: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
+          successCriteria: successCriteria!,
+          failureCriteria: `Output does not satisfy: ${successCriteria}`,
+          retryPolicy: SOFTWARE_TEAM_LADDER[softwareTeamLevel].retryPolicy,
+          escalationRule: SOFTWARE_TEAM_LADDER[softwareTeamLevel].escalationRules,
+          documentationRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].documentationRequirements,
+          evidenceRequired: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
+          handoverRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].handoverRequirements,
+          expectedSteps,
+        }
+        const contractValidation = validateInstructionContract(contract)
+        if (!contractValidation.valid) {
+          if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: contractValidation.reason, durationMs: Date.now() - dispatchStartedAt })
+          return NextResponse.json({
+            status: "blocked",
+            classification,
+            blockedBy: { reason: contractValidation.reason, guidance: contractValidation.guidance },
+          }, { status: 422 })
+        }
+        await registerInstructionContract(contract, softwareTeamLevel, classification.role)
       }
-      const contractValidation = validateInstructionContract(contract)
-      if (!contractValidation.valid) {
-        if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: contractValidation.reason, durationMs: Date.now() - dispatchStartedAt })
-        return NextResponse.json({
-          status: "blocked",
-          classification,
-          blockedBy: { reason: contractValidation.reason, guidance: contractValidation.guidance },
-        }, { status: 422 })
-      }
-      await registerInstructionContract(contract, softwareTeamLevel, classification.role)
     }
 
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
@@ -270,12 +310,20 @@ export async function POST(request: NextRequest) {
     // them). An ordinary dispatch with no softwareTeamLevel is completely
     // unaffected -- this loop never runs for it.
     const maxAutomaticRetries = softwareTeamLevel ? SOFTWARE_TEAM_LADDER[softwareTeamLevel].maxAutomaticRetries : 0
-    while (
-      retryCount < maxAutomaticRetries &&
-      (detectLowConfidenceResponse(execution.content).detected || detectKnowledgeGap(execution.content).insufficientKnowledge)
-    ) {
+    while (retryCount < maxAutomaticRetries) {
+      const lc = detectLowConfidenceResponse(execution.content)
+      const kg = detectKnowledgeGap(execution.content)
+      if (!lc.detected && !kg.insufficientKnowledge) break
+      // Audit round 1 (GLM-5.2, M1 finding): a retry that resends the
+      // IDENTICAL prompt is structurally a bare re-roll, not a genuine
+      // second attempt. Inject the specific matched failure signal back
+      // into the prompt so the retried attempt has something concrete to
+      // address, rather than an unchanged input an LLM is unlikely to
+      // answer differently.
+      const failureSignal = lc.detected ? lc.matchedPhrase : kg.matchedPhrase
       retryCount++
-      execution = await runRole(classification.role, task)
+      const retryTask = `${task}\n\n[RETRY ${retryCount}/${maxAutomaticRetries}] Your previous attempt was flagged for: "${failureSignal}". Address this directly in this attempt -- do not repeat it, and do not hedge if you have sufficient information to answer confidently.`
+      execution = await runRole(classification.role, retryTask)
     }
 
     // VERIDIAN_AUDIT_ORGANIZATION.md, "L1 Real-Time Audit": the source
@@ -413,22 +461,25 @@ export async function POST(request: NextRequest) {
     // matching the Owner's own literal schema (4 worked examples) exactly.
     // This route dispatches exactly ONE step per call from its own
     // perspective -- step_no continues from whatever this task_id already
-    // accumulated (priorStepCount, read above before execution), so an
-    // L2/L3 caller reusing the same taskId across sequential calls builds
-    // one growing, correctly-numbered Execution Report rather than N
-    // separate step-1 reports.
+    // accumulated (priorStepCount, read above before execution). The RAW
+    // per-call report below covers only THIS step; task-register-service.ts's
+    // recordExecutionReport() aggregates it against any prior steps into a
+    // real workflow-level Execution Report (audit round 1, B1-B4 fixes) --
+    // this route uses THAT returned aggregate for its response, not its own
+    // single-step view.
     let executionReport: ExecutionReport | null = null
+    let taskRegisterStatus: string | null = null
     if (softwareTeamLevel && taskId) {
       const stepNo = priorStepCount + 1
       const stepStatus: ExecutionStepStatus = qaGate.passed ? "PASS" : requiresAudit ? "PARTIAL" : "FAIL"
       const escalationRequired = requiresAudit || confidencePercentage < 95
-      executionReport = {
+      const stepReport: ExecutionReport = {
         task_id: taskId,
         task_type: taskTypeForStepCount(stepNo),
         objective: objective!,
         status: stepStatus,
         overall_confidence: confidencePercentage,
-        completion: { completed: stepStatus === "PASS" ? stepNo : stepNo - 1, expected: stepNo, percentage: stepStatus === "PASS" ? 100 : Math.round(((stepNo - 1) / stepNo) * 100) },
+        completion: { completed: stepStatus === "PASS" ? 1 : 0, expected: expectedSteps, percentage: expectedSteps > 0 ? Math.round((stepNo / expectedSteps) * 100) : 0 },
         steps: [{
           step_no: stepNo,
           name: objective!.slice(0, 120),
@@ -446,7 +497,9 @@ export async function POST(request: NextRequest) {
           tokens_used: (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0),
         },
       }
-      await recordExecutionReport(taskId, executionReport, escalationRequired ? "escalated" : stepStatus === "PASS" ? "completed" : "failed")
+      const recorded = await recordExecutionReport(taskId, stepReport, expectedSteps)
+      executionReport = recorded.mergedReport
+      taskRegisterStatus = recorded.status
     }
 
     return NextResponse.json({
@@ -473,6 +526,7 @@ export async function POST(request: NextRequest) {
       softwareTeamLevel: softwareTeamLevel ?? null,
       taskId,
       retryCount,
+      taskRegisterStatus,
       executionReport,
     })
   } catch (error) {

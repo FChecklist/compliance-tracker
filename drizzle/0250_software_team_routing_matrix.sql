@@ -36,23 +36,30 @@
 -- MOST expensive model in the fleet. Seeding the Owner's literal choice
 -- here would therefore silently defeat the cost-bias goal for exactly the
 -- category it was supposed to help, while looking correct on a superficial
--- read of this file. Seeded instead: deepseek/deepseek-v4-pro (already
--- INTEGRATIVE_ELIGIBLE, already this codebase's "middle" tier per
--- ai-os/CONSTITUTION.yaml's ai_orchestra_tiers TIER-2, and the same model
--- ai-os/AI_ORCHESTRA_HIERARCHY.md's own Table 1 already names for L3
--- Feature Worker) -- real, verified, cost-conscious, and actually takes
--- effect. If GPT-OSS-120B is wanted here for real, that requires first
--- reopening the INTEGRATIVE_ELIGIBLE decision itself (which has real
+-- read of this file. If GPT-OSS-120B is wanted here for real, that requires
+-- first reopening the INTEGRATIVE_ELIGIBLE decision itself (which has real
 -- evidence behind it), a separate, explicit, owner-level call -- not
 -- something this migration does unilaterally. See
 -- ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md / ai-os/SOFTWARE_TEAM.md for
 -- the same disclosure in narrative form.
 --
+-- Audit round 1 (GLM-5.2, finding M5): the first draft of this migration
+-- ALSO named "multi_file_integrative": "deepseek/deepseek-v4-pro" under
+-- preferredModelByCapabilityCategory -- genuinely redundant, since
+-- preferredModelByTier.integrative already resolves to the identical model
+-- via mother-router.ts's own fallback chain whenever no
+-- preferredModelByCapabilityCategory entry exists for the dispatch's
+-- category. Removed: "multi_file_integrative" is deliberately UNMAPPED
+-- below, so it falls through to the tier axis with zero divergence to
+-- disclose for that key specifically (the ONLY real, still-necessary
+-- divergence is the one documented above: NOT naming GPT-OSS-120B anywhere
+-- for integrative-tier work, tier axis included).
+--
 -- preferredModelByCapabilityCategory is the finer Part-C axis
 -- (software-team-ladder.ts's CapabilityCategory); preferredModelByTier is
 -- the coarser fallback axis (task-tightening.ts's ComplexityTier, used
--- when a dispatch declares no capability category at all) -- both point at
--- the same real models for consistency.
+-- when a dispatch declares no capability category, or one with no entry
+-- in preferredModelByCapabilityCategory).
 
 INSERT INTO platform.ai_routing_policies (scope, version, is_active, rule, created_by)
 VALUES (
@@ -62,7 +69,6 @@ VALUES (
   '{
     "preferredModelByCapabilityCategory": {
       "single_file_mechanical": "openai/gpt-oss-20b",
-      "multi_file_integrative": "deepseek/deepseek-v4-pro",
       "architecture_design_analysis": "deepseek/deepseek-v4-pro",
       "planning_governance_oversight": "z-ai/glm-5.2"
     },
