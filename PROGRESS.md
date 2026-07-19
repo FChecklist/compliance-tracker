@@ -64,11 +64,15 @@
 - [x] Wrote `ai-os/INCIDENT_11K_API_CALLS_RCA.md` with full cited evidence, confidence level,
       and what remains unexplained (OpenRouter's 07-08 data gap).
 
+- [x] Final gates: `tsc --noEmit` clean, `bun run lint` 0 errors (3 pre-existing warnings),
+      `bun test` 1766 pass/0 fail, `bun run build` clean. Added a new `ai-os/OS.yaml` index
+      entry for the RCA doc to keep `check-metadata-index-coverage.mjs` green; all 6
+      guardrail-check scripts pass.
+- [x] Opened PR #482 against `main` (not self-merged), holding for Owner sign-off per this
+      task's own constraints (touches cost-guard/budget-adjacent infra).
+- [x] Updated `ai-os/boss/ACTIVE-CLAIMS.yaml`: moved this session's claim to
+      `recently_completed` with `completed_at` + `merged_as: "PR #482 ... NOT MERGED, held
+      for Owner sign-off"`.
+
 ## Remaining
-- [ ] Final tsc/lint/test/build pass on the compliance-tracker repo itself (no TS/JS source
-      touched by this task, but running the gates anyway before opening the PR).
-- [ ] Update this session's ACTIVE-CLAIMS.yaml entry with completed_at + PR number.
-- [ ] Commit + push the RCA doc and ACTIVE-CLAIMS.yaml update; open the PR against main
-      (tier2 -- touches nothing schema/migration, but the AI_TEAM_LOG_SECRET rotation +
-      worker-entrypoint.sh budget-cap change are cost-guard-adjacent; holding for Owner
-      sign-off per task constraints regardless of CI outcome).
+- [ ] None -- all task deliverables complete. PR #482 awaiting Owner review/merge.
