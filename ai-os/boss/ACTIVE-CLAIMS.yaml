@@ -40,31 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260719-034948-migrate-projexa-to-consume-veridian-ui-k) -- migrate FChecklist/projexa to consume veridian-ui-kit's real shell/composer/panel/header components"
-    claimed_at: "2026-07-19T (this session)"
-    claim: |
-      Bumping projexa's @fchecklist/veridian-ui-kit dependency to v0.2.0
-      (adds AppHeader) and swapping projexa's own src/app/(app)/layout.tsx,
-      src/components/AppSidebar.tsx, src/components/AppTopbar.tsx,
-      src/components/veri-chat/VeriComposer.tsx, VeriChatPanel.tsx,
-      veri-chat-context.tsx to actually consume the shared package's real
-      AppShellFrame/AppSidebar/AppHeader/VeriComposer/PanelShell/ThreadView/
-      createVeriChatContext() components, instead of only the design tokens
-      projexa already consumes today. Using compliance-tracker's now-merged
-      PR #471 (FChecklist/compliance-tracker, merged 2026-07-19) as the
-      proven precedent for how to wrap AppHeader/AppSidebar with projexa's
-      own real data/behavior. Unlike compliance-tracker, this migration is
-      unconditional (no feature-flag gate) since projexa is a newer, smaller
-      product with less blast radius. File scope (projexa repo only):
-      package.json (dependency bump), src/app/(app)/layout.tsx,
-      src/components/AppSidebar.tsx, src/components/AppTopbar.tsx,
-      src/components/veri-chat/VeriComposer.tsx, VeriChatPanel.tsx,
-      veri-chat-context.tsx. Read the shared package (README + every file
-      under src/shell/, src/composer/, src/panel/, src/context/) and this
-      repo's real current implementations in full first, per this task's own
-      instruction. Checked this file for collisions: none found scoped to
-      the projexa repo itself (the compliance-tracker-side migration above
-      is a separate repo/file scope, already merged as PR #471).
   - session_label: "claude-code (task-20260719-025216-migrate-compliance-tracker-to-consume-ve) -- migrate compliance-tracker to consume veridian-ui-kit's real shell/composer/panel/header components"
     claimed_at: "2026-07-19T (this session)"
     claim: |
@@ -2428,6 +2403,40 @@ active:
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
 recently_completed:
+  - session_label: "claude-code (task-20260719-034948-migrate-projexa-to-consume-veridian-ui-k) -- migrate FChecklist/projexa to consume veridian-ui-kit's real shell/composer/panel/header components"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "FChecklist/projexa PR #42, squash-merged (TIER1, no schema/migration touched), commit 341435a3"
+    claim: |
+      Bumped projexa's @fchecklist/veridian-ui-kit to v0.2.2 (v0.2.0 +
+      2 upstream bugfixes compliance-tracker's own migration, PR #471,
+      found and fixed: AppShellFrame h-screen clipping under a header,
+      AppSidebar duplicate-key). Swapped projexa's own layout.tsx,
+      AppSidebar.tsx, AppTopbar.tsx, VeriChatPanel.tsx, veri-chat-context.tsx
+      to consume the shared package's real AppShellFrame/AppSidebar/
+      AppHeader/PanelShell components, unconditionally (no feature-flag
+      gate, unlike compliance-tracker's veriChatV2Enabled branch -- projexa
+      is a newer, smaller product with less blast radius). Closed real,
+      confirmed AppHeader gaps: user-menu (real Supabase sign-out), org
+      context label, and a working right-panel toggle -- none existed
+      before. searchSlot/notificationSlot explicitly passed `false` (not
+      omitted) to suppress AppHeader's own decorative-button fallback --
+      grepped first and confirmed projexa has no real search mechanism or
+      notifications system anywhere. VeriComposer.tsx kept local: the
+      shared VeriComposer's onDispatch(path, text) requires non-empty free
+      text before a completed chain is sendable, but projexa's real
+      dispatch is deterministic (codeReference+fixedInputs, zero required
+      text) -- same class of conflict compliance-tracker found for its own
+      VCEL calculator inputs, reported rather than papered over. Also
+      simplified away sidebar-context.tsx (left with exactly one real
+      consumer once AppSidebar/AppTopbar stopped needing it independently)
+      in favor of plain useState. bunx tsc --noEmit: 0 errors. bun run
+      lint: 0 errors (1 pre-existing unrelated warning). bun run build:
+      succeeds, every route compiles. bun test: this repo has zero test
+      files / no test script (pre-existing, confirmed via grep). This
+      repo's own ci.yml only defines Lint/Type Check/Build (no Unit/E2E
+      Tests jobs exist), and the repo has no branch protection configured
+      -- all 3 real CI jobs + Vercel preview deploy passed before
+      self-merge.
   - session_label: "claude-code (task-20260719-031532-schema-ts--reflect-live-platform-schema) -- schema.ts platform-schema migration (code-only, no live DB change)"
     completed_at: "2026-07-19T (this session)"
     merged_as: "PR #469 squash-merged, commit bb8bfbe5"
