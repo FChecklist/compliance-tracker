@@ -1,4 +1,4 @@
-import { approvalRequests, policies, workerAgents, codeChangeRequests } from "@/lib/db"
+import { approvalRequests, policies, workerAgents, codeChangeRequests, dynamicChains } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
@@ -49,7 +49,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       // Layer 1 may approve" -- veridian_admin is the stricter, in-app
       // stand-in for that authority, above the blanket 'admin' gate every
       // other approval type uses.
-      if (req_.requestType === "worker_agent_proposal" && requireRole(dbUser, "veridian_admin")) {
+      //
+      // DMP-04 gap closure: a dynamic_chain_proposal is the sibling of a
+      // worker_agent_proposal (VERI FDE always proposes both together on a
+      // genuine no-match, see fde-service.ts) and carries its own
+      // permissions/workflow scaffolding -- held to the exact same bar, not
+      // the weaker blanket 'admin' gate.
+      if ((req_.requestType === "worker_agent_proposal" || req_.requestType === "dynamic_chain_proposal") && requireRole(dbUser, "veridian_admin")) {
         return { kind: "forbidden" }
       }
 
@@ -59,6 +65,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           // Keep the denormalized status field honest -- see this table's
           // schema.ts comment ("mirrors approval_requests.status").
           await db.update(codeChangeRequests).set({ status: "rejected" }).where(eq(codeChangeRequests.id, req_.entityId))
+        }
+        // DMP-04 gap closure: a rejected Dynamic Chain bundle proposal
+        // moves straight to 'retired' (the existing status enum's own
+        // terminal-not-in-use value, same one createChainVersion() already
+        // uses for a superseded chain) rather than lingering at 'proposed'
+        // forever -- deprecationReason records the real rejection reason
+        // instead of a synthetic placeholder.
+        if (req_.requestType === "dynamic_chain_proposal") {
+          await db.update(dynamicChains).set({ status: "retired", deprecationReason: rejectionReason.trim(), updatedAt: new Date() }).where(eq(dynamicChains.id, req_.entityId))
         }
         const [updated] = await db.update(approvalRequests).set({ status: "rejected", approvedById: dbUser.id, rejectionReason: rejectionReason.trim(), resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
         await logActivity({ tx: db, action: "reject", entityType: "ApprovalRequest", entityId: id, details: `Rejected — ${req_.requestType}: "${req_.description}" (${rejectionReason.trim()})`, orgId, dbUser, request })
@@ -102,6 +117,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         // remains a human directing a coding session outside this app (see
         // code-change-request-service.ts's header note).
         await db.update(codeChangeRequests).set({ status: "approved" }).where(eq(codeChangeRequests.id, req_.entityId))
+      }
+      if (req_.requestType === "dynamic_chain_proposal") {
+        // Approve moves proposed -> approved -- the exact same verb
+        // worker_agent_proposal uses just above, and the same status value
+        // searchChains()/detectMissingChain() already filter on, so
+        // approving here is what actually makes the chain discoverable and
+        // dispatchable, not a second separate "publish" step (a Dynamic
+        // Chain has no distinct publish verb the way a worker agent does).
+        await db.update(dynamicChains).set({ status: "approved", updatedAt: new Date() }).where(eq(dynamicChains.id, req_.entityId))
       }
       const [updated] = await db.update(approvalRequests).set({ status: "approved", approvedById: dbUser.id, resolvedAt: new Date() }).where(eq(approvalRequests.id, id)).returning()
       await logActivity({ tx: db, action: "approve", entityType: "ApprovalRequest", entityId: id, details: `Approved — ${req_.requestType}: "${req_.description}"`, orgId, dbUser, request })

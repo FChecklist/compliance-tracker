@@ -1,32 +1,20 @@
-# PROGRESS -- task-20260719-004409-gap-closure--umr-03
-
-Closing UMR-03 (ai-os/CONSTITUTION.yaml section 14, learning_and_umr):
-instruction-execution-cache so a similar future chat instruction can be
-answered from what was already learned, not re-derived from scratch.
+# PROGRESS -- task-20260719-004411-gap-closure--dmp-04-enhancement
 
 ## Completed
-- [x] Read CONSTITUTION.yaml section 14 (learning_and_umr) in full
-- [x] Read embeddings.ts, capability-registry-service.ts, fde-service.ts, chat-service.ts, task-execution-engine.ts
-- [x] Checked ai-os/boss/ACTIVE-CLAIMS.yaml + `gh pr list` for a duplicate claim -- none found
-- [x] Registered claim in ACTIVE-CLAIMS.yaml
-- [x] Added `instructionExecutionCache` table to src/lib/db/schema.ts
-- [x] Added drizzle/0242_umr03_instruction_execution_cache.sql (re-checked highest migration on origin/main immediately before writing: 0241)
-- [x] Added src/lib/services/instruction-execution-cache-service.ts (findPriorExecutionPath/recordExecutionPath)
-- [x] Wired into src/lib/services/fde-service.ts::submitFdeRequest (checked before findSimilarCapabilities; recorded after embedding match, LLM-assisted match, and new proposal)
-- [x] Added ai-os/registry/asset-registry-coverage.yaml exemption entry for the new table
-- [x] Added tests: instruction-execution-cache-service.test.ts, fde-service.test.ts (10 new tests)
-- [x] bunx tsc --noEmit -- 0 errors
-- [x] bun run lint -- 0 errors
-- [x] bun test -- 1698 pass / 0 fail
-- [x] All 6 local CI guardrail scripts pass (asset-registry-coverage, migration-collision, guardrail-presence, doc-cross-references, doc-quarantine-banner, metadata-index-coverage)
-- [x] Committed claim registration as its own first commit
+- [x] Read CONSTITUTION.yaml DMP-04 entry in full
+- [x] Checked ACTIVE-CLAIMS.yaml + `gh pr list` for duplicate work (none found)
+- [x] Read src/lib/services/fde-service.ts, worker-agent-service.ts (proposeWorkerAgent), dynamic-chain-directory-service.ts, capability-tree-service.ts, dynamicChains schema, approvals/[id]/route.ts
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (this commit)
 
-- [x] Committed implementation
-- [x] Pushed branch, opened PR #460 against main
-- [x] Posted structured `AUDIT: PASS` PR comment (8 fields, plain `Label: value` lines per validate-audit-verdict.ts's parser)
-- [x] Watched CI to green: Lint, Type Check, Build, Unit Tests, E2E Tests, Asset Registry Coverage Check, Guardrail Presence Check, audit-check all pass (Vercel fails -- known rate-limited, non-required, ignored per task instructions)
-- [x] Classified tier: TIER2 (touches drizzle/0242_umr03_instruction_execution_cache.sql + src/lib/db/schema.ts) -- NOT self-merged
-- [x] Reported final status to Owner for sign-off
+- [x] Implemented proposeDynamicChain() + buildDynamicChainProposalFields() (pure builder) in dynamic-chain-directory-service.ts
+- [x] Wired submitFdeRequest()'s no_match branch to call proposeDynamicChain() alongside proposeWorkerAgent() (best-effort, non-blocking)
+- [x] Extended FdeEvaluation.proposal type + bumped fde.evaluate_request prompt template to v3 (moduleRef/businessRules/permissions/workflowSteps/kpis)
+- [x] Added fdeRequests.createdDynamicChainId column (schema.ts + drizzle/0243_dmp04_fde_dynamic_chain_bundle.sql)
+- [x] Extended approvals/[id]/route.ts to handle requestType 'dynamic_chain_proposal' (approve -> status 'approved', reject -> status 'retired' + deprecationReason; gated at veridian_admin like worker_agent_proposal)
+- [x] Added unit tests for buildDynamicChainProposalFields (dynamic-chain-directory-service.test.ts, 4 tests)
+- [x] bunx tsc --noEmit clean, bun run lint clean (0 errors), bun test 1692 pass / 0 fail
 
 ## Remaining
-- [ ] Owner sign-off + merge (TIER2 -- this session does not merge)
+- [ ] Push, open PR, post AUDIT: PASS comment
+- [ ] Watch CI
+- [ ] Classify tier (touches schema.ts/migration -> TIER2, report for Owner sign-off, do not self-merge)

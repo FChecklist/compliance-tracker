@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260719-004411-gap-closure--dmp-04-enhancement) -- DMP-04 FDE full Dynamic Chain bundle"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Closing DMP-04's own gap note (CONSTITUTION.yaml): VERI FDE's "My
+      Option Is Not Available" no-match path (src/lib/services/
+      fde-service.ts::submitFdeRequest()) currently proposes only a single
+      new workerAgents row via proposeWorkerAgent()
+      (worker-agent-service.ts). Extending this so a genuine no-match FDE
+      submission also proposes the full Dynamic Chain bundle DMP-04 asks
+      for (module ref + business rules + permissions + workflow steps +
+      KPIs), via a new proposeDynamicChain() in dynamic-chain-directory-
+      service.ts, reusing the already-rich dynamicChains schema columns
+      (linkedModuleRefs/businessRules/permissions/workflowStepsConfig/
+      reportsKpisSlas) Wave 171/173 already added but left mostly
+      unpopulated by any real proposal path. New chain row is created with
+      status:'proposed' (invisible to searchChains/detectMissingChain/
+      dispatch until approved -- same "not just registered" review gate
+      worker_agent_proposal already enforces), plus its own
+      approvalRequests row (requestType 'dynamic_chain_proposal') gated at
+      the same veridian_admin bar as worker_agent_proposal in
+      src/app/api/approvals/[id]/route.ts. Bumps fde.evaluate_request
+      prompt template to v3 (additive fields only) and adds
+      fdeRequests.createdDynamicChainId (new column, new drizzle
+      migration -- TIER2, will not self-merge).
+
+      File scope: src/lib/services/fde-service.ts,
+      src/lib/services/dynamic-chain-directory-service.ts,
+      src/app/api/approvals/[id]/route.ts, src/lib/db/schema.ts (1 new
+      column), new drizzle/02xx migration (prompt v3 + column), plus new
+      .test.ts coverage for the new pure builder function. NOT touching
+      capability-tree-service.ts's buildCapabilityTree() itself (read-only
+      reference for understanding the existing chain shape, not in scope
+      for edits) or proposeWorkerAgent()'s own tier/RLS gating logic.
   - session_label: "claude-code (worker task-20260718-084003-calculation-engine--calculation-governan) -- Calculation Engine / Calculation Governance gap closure (5 findings)"
     claimed_at: "2026-07-18T (this session)"
     claim: |
