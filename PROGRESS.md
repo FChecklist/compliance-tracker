@@ -21,10 +21,12 @@ answered from what was already learned, not re-derived from scratch.
 - [x] All 6 local CI guardrail scripts pass (asset-registry-coverage, migration-collision, guardrail-presence, doc-cross-references, doc-quarantine-banner, metadata-index-coverage)
 - [x] Committed claim registration as its own first commit
 
+- [x] Committed implementation
+- [x] Pushed branch, opened PR #460 against main
+- [x] Posted structured `AUDIT: PASS` PR comment (8 fields, plain `Label: value` lines per validate-audit-verdict.ts's parser)
+- [x] Watched CI to green: Lint, Type Check, Build, Unit Tests, E2E Tests, Asset Registry Coverage Check, Guardrail Presence Check, audit-check all pass (Vercel fails -- known rate-limited, non-required, ignored per task instructions)
+- [x] Classified tier: TIER2 (touches drizzle/0242_umr03_instruction_execution_cache.sql + src/lib/db/schema.ts) -- NOT self-merged
+- [x] Reported final status to Owner for sign-off
+
 ## Remaining
-- [ ] Commit implementation
-- [ ] Push branch, open PR against main
-- [ ] Post structured `AUDIT: PASS` PR comment (8 fields)
-- [ ] Watch CI to green
-- [ ] Classify tier (touches drizzle/*.sql + schema.ts -> TIER2, do NOT self-merge)
-- [ ] Report final status to Owner for sign-off
+- [ ] Owner sign-off + merge (TIER2 -- this session does not merge)
