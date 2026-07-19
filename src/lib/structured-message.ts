@@ -41,15 +41,41 @@ const confirmationMessageSchema = z.object({
   actionLabel: z.string(),
 })
 
+// VCEL Calculation Explainability (VERIDIAN Review Framework gap closure,
+// 2026-07-18): a third structured type, emitted by
+// task-execution-engine.ts's executeEngineDispatch() only when the
+// dispatched engine's output carries a `breakdown` (see
+// src/lib/engines/breakdown.ts) -- an engine with no breakdown still posts
+// the pre-existing plain "Result: {...}" string, unaffected by this
+// addition. `result` is the flat key/value view of the engine's own
+// output fields (already-formatted strings, matching summaryMessageSchema's
+// own item.value convention); `steps` is the optional step-by-step
+// derivation.
+const calculationStepSchema = z.object({
+  label: z.string(),
+  formula: z.string().optional(),
+  value: z.union([z.string(), z.number()]),
+})
+
+const calculationMessageSchema = z.object({
+  type: z.literal("calculation"),
+  engineName: z.string(),
+  engineVersion: z.string().optional(),
+  result: z.array(summaryItemSchema),
+  steps: z.array(calculationStepSchema).optional(),
+})
+
 export const structuredMessageSchema = z.discriminatedUnion("type", [
   summaryMessageSchema,
   confirmationMessageSchema,
+  calculationMessageSchema,
 ])
 
 export type StructuredMessage = z.infer<typeof structuredMessageSchema>
 
 export type SummaryMessage = z.infer<typeof summaryMessageSchema>
 export type ConfirmationMessage = z.infer<typeof confirmationMessageSchema>
+export type CalculationMessage = z.infer<typeof calculationMessageSchema>
 
 // --- Parser ----------------------------------------------------------------
 

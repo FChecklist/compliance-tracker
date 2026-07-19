@@ -1,5 +1,19 @@
 # VERIDIAN — Capability Coverage (Mode Pills + Chain Selector deterministic dispatch)
 
+> **⚠️ Numbers below are a stale 2026-07-09/10 snapshot.** VERIDIAN Review
+> Framework gap-closure (2026-07-18, "Calculation Auditability") re-read
+> `capability-tree-service.ts`'s `WIRED_ENGINE_INPUT_FIELDS` and
+> `task-execution-engine.ts`'s `dispatchEngine()` switch directly (this
+> doc's own advice, below) and found ~160-170 distinct engineKeys wired
+> across ~22 categories today, not the "26 of 211" this page still states
+> -- several waves (167+) wired Payroll/Inventory/HR/Accounting/Banking/etc.
+> after this page was last regenerated and never came back to update it.
+> Re-run this doc's own SQL query before trusting any specific number
+> below; treat the category-by-category table as directionally outdated,
+> not current state. See PROGRESS.md in the repo root (task
+> `task-20260718-084003-calculation-engine--calculation-governan`) for the
+> full re-verification trail.
+
 **Purpose:** the honest, always-verifiable answer to "how much of what a user can click is guaranteed to run as real software, not an AI guess." Every number here is a live query against production, re-run each time coverage changes — not an estimate. Started 2026-07-10, per Boss directive: *"Options selected via Mode Pills and Chain Selector is very important for the completion of the work... the worker agent should just execute it like a software."*
 
 ## How dispatch actually works today (confirmed by reading the real code, not assumed)

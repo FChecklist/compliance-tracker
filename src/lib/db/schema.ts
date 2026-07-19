@@ -8901,8 +8901,61 @@ export const computationEngines = complianceSchemaDB.table('computation_engines'
   inputSchema: jsonb('input_schema').notNull().default({}),
   outputSchema: jsonb('output_schema').notNull().default({}),
   notes: text('notes'), // honest caveats, e.g. "conflicts with prior Wave 35 decision to use LLM Vision over OCR libs"
+  // Calculation Version Control (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): a statutory-formula change (e.g. a new GST slab from a
+  // fresh Finance Act) used to silently overwrite this row's
+  // implementationRef with no record of what the prior formula was.
+  // engineVersion is a free-form label (semver-ish by convention, e.g.
+  // "1.0.0") bumped by whoever edits the engine's formula; effectiveFrom/
+  // effectiveTo bound the period this specific version is authoritative
+  // for. This table still holds only the CURRENT version per engineKey
+  // (effectiveTo null = still current) -- it is not itself a history
+  // table. The history is captured downstream, per-invocation, by
+  // calculationInvocations.engineVersion (see engine-invocation.ts):
+  // every dispatched calculation snapshots the engineVersion that was
+  // current at the moment it ran, onto the calling record, so a later
+  // version bump never rewrites what an already-completed calculation
+  // says it used.
+  engineVersion: text('engine_version').notNull().default('1.0.0'),
+  effectiveFrom: timestamp('effective_from').notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Calculation Invocation Audit Log ────────────────────────────────────
+// Built 2026-07-18 (VERIDIAN Review Framework gap closure, "Calculation
+// Auditability"). Prior to this, audit coverage for a VCEL calculation
+// existed only as a side effect of task-execution-engine.ts's
+// executeEngineDispatch() writing a human-readable JSON blob into
+// taskChatMessages -- no dedicated, queryable record of which engine ran,
+// which engineVersion was authoritative at the time, or its structured
+// input/output existed anywhere, and any future direct (non-dispatch)
+// service-code call to an engine function got no audit trail at all.
+// This table + engine-invocation.ts's invokeEngine() wrapper move the
+// guarantee into the invocation layer itself: any caller that routes a
+// calculation through invokeEngine() gets a row here regardless of
+// whether it arrived via the Chain Selector dispatcher or a direct
+// service-code call, closing the "guaranteed for 26 wired engines but not
+// the rest" gap at its root rather than re-adding logging call-by-call at
+// every existing/future call site.
+export const calculationInvocations = complianceSchemaDB.table('calculation_invocations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  engineKey: text('engine_key').notNull(),
+  // Snapshotted from computationEngines.engineVersion at the moment this
+  // invocation ran -- "unknown" only for an engineKey with no matching
+  // computationEngines row (should not happen for a catalogued engine,
+  // but never blocks a calculation from completing just because the
+  // catalog lookup came back empty).
+  engineVersion: text('engine_version').notNull(),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'), // null for system/unattended invocations
+  taskId: text('task_id'), // null when invoked outside a task (e.g. future direct service-code adoption)
+  status: text('status').notNull(), // 'success' | 'failed'
+  input: jsonb('input').notNull().default({}),
+  output: jsonb('output'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // ─── GST Verification & Reconciliation Engine ────────────────────────────

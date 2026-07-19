@@ -1,47 +1,90 @@
-# PROGRESS -- task-20260718-230824-rescue-pr--429 (Rescue PR #429)
+# PROGRESS -- rescue PR #427 (worker/task-20260718-084003-calculation-engine--calculation-governan)
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml -- no conflicting active claim for PR #429; registered this session's own claim.
-- [x] `gh pr checkout 429` failed (branch already checked out in another worktree at
-      `task-20260718-090002-checks---balances--duplicate---data-qual/workspace`) -- worked directly
-      in that existing worktree instead of creating a duplicate checkout.
-- [x] `git fetch origin main && git merge origin/main --no-edit`. 3 conflicts:
-      - PROGRESS.md: kept ours (`git checkout --ours`)
-      - ai-os/boss/ACTIVE-CLAIMS.yaml: additive-only rolling log, kept both sides' new entries
-      - src/components/AppSidebar.tsx: both sides added a new lucide-react icon import
-        (`Copy` vs `Activity`) -- kept both, both are used elsewhere in the file
-- [x] Found and fixed a real bug introduced by my own conflict resolution: a stray
-      `<<<<<<< HEAD` marker line left behind in ACTIVE-CLAIMS.yaml (the `=======`/`>>>>>>>`
-      lines were removed but the opening marker, further up the same conflict block, was
-      missed). Caught it by re-reading `gh pr diff 429` after pushing. Fixed, validated the
-      file parses as YAML, re-pushed.
-- [x] Checked PR's migrations: PR adds none. `git diff origin/main...HEAD -- drizzle/` is
-      empty. `src/lib/db/schema.ts`'s only change is widening a comment on the existing
-      `mdmDuplicateCandidates.entityType`/`matchReason` free-text columns (new value
-      `erp_purchase_invoice` / `invoice_number_match`) -- no new column, no migration needed,
-      matches the PR's own description.
-- [x] TIER classification: no drizzle/*.sql, no real schema.ts structural change -> **TIER1**.
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml -- no conflicting active claim for PR #427 rescue; registered claim & pushed (on this task's own branch, separate small chore commit)
+- [x] Checked out PR #427 head (branch already in use by another worktree on
+      this host, fetched as local branch `pr-427-rescue` from `refs/pull/427/head`)
+- [x] Merged origin/main into the PR branch (merge, not rebase). Main had
+      advanced substantially (mother router, ABAC, audit-search, support
+      sessions, etc all landed since this PR opened). Conflicts:
+      - PROGRESS.md: kept PR's own (--ours)
+      - ai-os/boss/ACTIVE-CLAIMS.yaml: both sides independently appended new
+        `active:` entries in the same region -- kept both (append-only log,
+        not a real conflict, just adjacent inserts)
+      - All other files auto-merged cleanly (schema.ts, task-execution-engine.ts,
+        ChainSelector.tsx, VeriComposer.tsx, asset-registry-coverage.yaml, etc)
+- [x] Checked PR's own migration: adds `drizzle/0225_calculation_engine_governance.sql`.
+      Confirmed via `git ls-tree origin/main -- drizzle/` that main's real
+      highest migration is now 0235 (support_sessions through
+      register_ai_team_role_overrides, all merged after this PR opened) --
+      real collision. Renamed to `drizzle/0241_calculation_engine_governance.sql`
+      (git mv, precedent-matching prior rescue sessions' renumber commits).
+      No internal filename references elsewhere in the codebase (grepped
+      clean). schema.ts's calculationInvocations table / computationEngines
+      version columns are independent of the migration filename -- unaffected.
+      `scripts/check-migration-collision.mjs` (confirmed NOT wired into any
+      CI workflow -- grepped `.github/`, zero hits) flagged a false-positive
+      collision at 0225 when run locally, traced to this worktree's local
+      `main` git ref being 40 commits stale vs `origin/main` (a known
+      artifact of the multi-worktree host setup, not a real problem) --
+      verified the real check (`git diff --name-only origin/main HEAD --
+      drizzle/` for duplicate number prefixes) comes back clean.
 - [x] Ran `bun install --frozen-lockfile && bunx tsc --noEmit && bun run lint && bun test`
-      locally (post-merge): tsc 0 errors, lint 0 errors (3 pre-existing unrelated warnings),
-      bun test 1616 pass / 0 fail across 125 files. (Original CI's "Unit Tests" failure was
-      the tenant-isolation.test.ts mock.module() leak already fixed on main by another
-      session -- merging main pulled that fix in, which is why the count now matches main's
-      current total rather than the PR's original 1424.)
-- [x] Pushed merged + fixed branch to PR #429's real head ref
-      (worker/task-20260718-090002-checks---balances--duplicate---data-qual).
-- [x] Read the PR's full diff myself (`gh pr diff 429`, recomputed clean against current main
-      after the merge push -- 13 real files + PROGRESS.md + ACTIVE-CLAIMS.yaml, ~950 lines):
-      task-dedup-service.ts (new, sibling to capability-registry-service.ts, own 'task'
-      entityType, 0.92 threshold, org+optional-projectId scoped, fire-and-forget indexing
-      from task-service.ts), mdm-quality-service.ts extended with 'erp_purchase_invoice' as a
-      3rd MdmEntityType (exact supplierId+invoiceNumber match, mergeDuplicates() explicitly
-      refuses to auto-merge this type), new GET /api/tasks/duplicates route
-      (requireAuth + requireRole("manager")), new /task-duplicates page, nav entry. Verified
-      requireAuth()/role gating present on the new route, no Prisma imports, no
-      permission-service.ts ERP_ACTION_ROLES changes.
+      locally -- tsc clean (0 errors), lint clean (0 errors, 3 pre-existing
+      unrelated warnings), bun test 1631 pass / 0 fail across 125 files
+      (3205 expect() calls). Also spot-ran the PR's own new test files
+      (golden-values.test.ts, structured-message.test.ts) individually: 23
+      pass / 0 fail. Also ran the repo's own CI-adjacent guard scripts
+      locally: asset-registry-coverage (439 tables accounted for), guardrail
+      presence (88 markers), metadata-index-coverage (31 items) -- all pass.
+- [x] Pushed merged + renumbered branch to PR #427's real head ref (origin
+      worker/task-20260718-084003-calculation-engine--calculation-governan).
+- [x] Read the PR's full diff myself (19 files via `gh pr diff 427`) before
+      auditing -- schema/version-control additions (engineVersion,
+      effectiveFrom/To on computationEngines), new FORCE-RLS org-scoped
+      calculation_invocations audit table + invokeEngine() wrapper (writes
+      an audit row on both success and failure paths), optional additive
+      `breakdown` field on 4 statutory engines (income tax, GST, gratuity,
+      TDS) rendered via a new "calculation" structured-message type, a
+      16-fixture golden-value regression suite, and calculator-suggestion
+      chips reusing the existing capability tree. No new API routes (so
+      requireAuth() is N/A). id-generation convention matches existing
+      tables. No real defects found.
+- [x] Posted structured `AUDIT: PASS` PR comment (all 8 required fields):
+      https://github.com/FChecklist/compliance-tracker/pull/427#issuecomment-5013301358
+- [x] Investigated why CI never went green: GitHub Actions never created a
+      check-suite for this branch at all across 3 separate remediation
+      attempts (merge+renumber push 88b678ba, an empty-commit retrigger
+      f80d687d, and a close+reopen of the PR) spanning ~10 minutes.
+      Confirmed via `gh api .../check-suites` on both commits -- only
+      third-party app suites (Vercel, Supabase, Cursor, Fly.io, Claude)
+      appear, all stuck "queued", zero GitHub Actions suite entry at any
+      point. Ruled out a config-level cause: `git diff origin/main --
+      .github/workflows/` is empty (byte-identical to what's currently
+      running fine elsewhere). Ruled out a repo-wide outage: `gh run list`
+      in the same wall-clock window shows main and 2 sibling PR branches
+      (worker/task-20260718-090002-... and worker/task-20260718-053002-...)
+      all getting fresh, normally-completing pull_request-triggered CI runs.
+      This is the same isolated per-branch GitHub Actions reliability
+      anomaly documented in this session's ACTIVE-CLAIMS.yaml for PR #415's
+      rescue (same symptom: stuck check-suite association, not fixable by
+      further code changes in this repo).
+- [x] TIER classification: this PR touches `drizzle/0241_calculation_engine_governance.sql`
+      + `src/lib/db/schema.ts` -> **TIER2**. Per task constraints, will NOT
+      merge this PR myself even if CI had gone green.
 
 ## Remaining
-- [ ] Post structured `AUDIT: PASS`/`AUDIT: FAIL` PR comment (all 8 required fields).
-- [ ] Watch CI to green on the final pushed commit (`gh run watch <id> --exit-status`).
-- [ ] If TIER1 + CI green + AUDIT: PASS -> merge via `gh pr merge 429 --squash --delete-branch`.
-- [ ] Move this session's ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`.
+- [ ] CI has not gone green on PR #427 because GitHub Actions has not
+      created a check-suite at all on this branch since the rescue's fixes
+      were pushed -- confirmed infrastructure-side blocker (isolated to
+      this one PR/branch, not a code defect, not a repo-wide outage), not
+      something fixable by further pushes from this session. Needs
+      GitHub-side investigation (Owner or a repo admin with dashboard/
+      support access) or simply time.
+- [ ] Because of the above, CI cannot be confirmed green in this session,
+      and per task constraints this PR (TIER2 -- touches drizzle/*.sql +
+      schema.ts) must not be merged regardless. No merge action taken on
+      PR #427 itself. Reported to the Owner for sign-off, with the
+      CI-trigger anomaly flagged as its own separate open item (now a
+      second occurrence of the same symptom class as PR #415 -- may be
+      worth a GitHub-side/support ticket if it recurs on future PRs too).
