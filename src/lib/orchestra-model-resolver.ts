@@ -1,4 +1,4 @@
-import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPoolAllocations } from "@/lib/db";
+import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPoolAllocations, aiModelRegistry } from "@/lib/db";
 import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
 import { canIncurCost } from "@/lib/cost-guard";
@@ -18,7 +18,21 @@ export type ResolvedModelConfig = {
   fallback?: LLMFallback;
 };
 
-const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+// VERIDIAN Review Framework remediation (AI Router registry-backed model
+// resolution, 2026-07-19): the 4 constants below (PLATFORM_DEFAULT_*,
+// PLATFORM_FALLBACK_MODEL, CEREBRAS_GPT_OSS_MODEL, ESCALATED_*) used to be
+// the live values this resolver dispatched against directly -- swapping any
+// of them required a code deploy, contradicting the platform's own
+// "model-agnostic, swappable without a deploy" principle. They are now the
+// LAST-RESORT fallback literals only: getRoleModel() below looks each one
+// up by a named `role` in platform.ai_model_registry first (a DB insert
+// changes it live), and only falls back to these hardcoded pairs when the
+// registry has no active row for that role or the lookup itself errors --
+// logging a warning either way so a silent registry gap is visible in logs.
+// The FAILOVER SEQUENCE/DECISION LOGIC itself (platformFallbackFor() below)
+// stays entirely in code, unchanged -- only WHICH model/provider fills each
+// named slot moved to data.
+const PLATFORM_FALLBACK_MODEL_FALLBACK = "meta-llama/llama-3.3-70b-instruct:free"
 
 // Wave (2026-07-10, founder directive): platform-default floor for text
 // orchestration, replacing the OpenRouter llama-3.3-70b-instruct default
@@ -30,8 +44,8 @@ const PLATFORM_FALLBACK_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 // for anything needing real reasoning, per the founder's explicit 90-day
 // "don't cut corners on cost" directive. Verified live against
 // api.groq.com/openai/v1/models 2026-07-10 as "openai/gpt-oss-120b".
-const PLATFORM_DEFAULT_PROVIDER: LLMProvider = "groq"
-const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
+const PLATFORM_DEFAULT_PROVIDER_FALLBACK: LLMProvider = "groq"
+const PLATFORM_DEFAULT_MODEL_FALLBACK = "openai/gpt-oss-120b";
 // PROJEXA load test finding (2026-07-10, PROJEXA_LOAD_TEST_RESULTS.md §5
 // Incident 4): Groq's free tier for openai/gpt-oss-120b has a 200,000
 // tokens/day (TPD) cap, on top of its 30 RPM / 8,000 TPM limits --
@@ -54,7 +68,7 @@ const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
 // named constant rather than inlined so platformFallbackFor() below reads
 // as an obvious one-line policy: same model, different (paid) infra, only
 // when the free primary is actually down.
-const CEREBRAS_GPT_OSS_MODEL = "gpt-oss-120b"
+const CEREBRAS_GPT_OSS_MODEL_FALLBACK = "gpt-oss-120b"
 
 // Wave (2026-07-10, founder directive): the model a floor-tier call escalates
 // TO when src/lib/floor-tier-escalation.ts's deterministic signals fire.
@@ -64,8 +78,61 @@ const CEREBRAS_GPT_OSS_MODEL = "gpt-oss-120b"
 // overrides an org's own BYO model choice. Declared here (moved up from
 // beside escalatedPlatformConfig() below) so platformFallbackFor() can
 // reference it directly instead of forward-referencing a later const.
-const ESCALATED_PROVIDER: LLMProvider = "openrouter"
-const ESCALATED_MODEL = "z-ai/glm-5.2"
+const ESCALATED_PROVIDER_FALLBACK: LLMProvider = "openrouter"
+const ESCALATED_MODEL_FALLBACK = "z-ai/glm-5.2"
+
+// ─── Registry-backed named-role lookup (AI Router follow-up, 2026-07-19) ──
+// Short in-process TTL cache, same pattern as mother-router.ts's own
+// policyCache -- a registry row change is picked up on this process's next
+// lookup once the TTL elapses (or immediately via
+// invalidateRoleRegistryCache()), no app restart required. Per-instance
+// only in a multi-instance deployment, same honest limitation mother-
+// router.ts's own cache documents.
+const ROLE_REGISTRY_CACHE_TTL_MS = 60_000
+type RoleModel = { provider: LLMProvider; model: string }
+const roleRegistryCache = new Map<string, { fetchedAt: number; value: RoleModel | null }>()
+
+/** Forces the next getRoleModel() lookup for every named role to re-fetch from ai_model_registry instead of waiting out ROLE_REGISTRY_CACHE_TTL_MS. Call after writing/activating a new role row if the change needs to take effect immediately in this process. */
+export function invalidateRoleRegistryCache(): void {
+  roleRegistryCache.clear()
+}
+
+/**
+ * Resolves a named failover-chain role ('platform_default' | 'platform_fallback'
+ * | 'cerebras_failover' | 'escalated_default') from platform.ai_model_registry's
+ * `role` column. Fails safe to `fallback` (today's hardcoded literal) on any
+ * DB error OR when no active row is registered for that role -- a registry
+ * gap or hiccup must never be the reason the platform-default AI path
+ * breaks. Logs a warning whenever the fallback path is actually hit, so a
+ * silent registry gap is still visible in logs even though it doesn't break
+ * anything.
+ */
+async function getRoleModel(role: string, fallback: RoleModel): Promise<RoleModel> {
+  const cached = roleRegistryCache.get(role)
+  if (cached && Date.now() - cached.fetchedAt < ROLE_REGISTRY_CACHE_TTL_MS) {
+    return cached.value ?? fallback
+  }
+
+  try {
+    const row = await db.query.aiModelRegistry.findFirst({
+      where: and(eq(aiModelRegistry.role, role), eq(aiModelRegistry.status, "active")),
+    })
+    const value: RoleModel | null = row ? { provider: row.provider as LLMProvider, model: row.model } : null
+    roleRegistryCache.set(role, { fetchedAt: Date.now(), value })
+    if (!value) {
+      console.warn(`[orchestra-model-resolver] no active ai_model_registry row for role='${role}' -- falling back to hardcoded literal ${fallback.provider}/${fallback.model}`)
+    }
+    return value ?? fallback
+  } catch (err) {
+    console.warn(`[orchestra-model-resolver] ai_model_registry lookup failed for role='${role}', falling back to hardcoded literal ${fallback.provider}/${fallback.model}:`, err)
+    return fallback
+  }
+}
+
+const getPlatformDefault = () => getRoleModel("platform_default", { provider: PLATFORM_DEFAULT_PROVIDER_FALLBACK, model: PLATFORM_DEFAULT_MODEL_FALLBACK })
+const getPlatformFallback = () => getRoleModel("platform_fallback", { provider: "openrouter", model: PLATFORM_FALLBACK_MODEL_FALLBACK })
+const getCerebrasFailover = () => getRoleModel("cerebras_failover", { provider: "cerebras", model: CEREBRAS_GPT_OSS_MODEL_FALLBACK })
+const getEscalatedDefault = () => getRoleModel("escalated_default", { provider: ESCALATED_PROVIDER_FALLBACK, model: ESCALATED_MODEL_FALLBACK })
 
 // VERIDIAN Review Framework remediation (AI Failover & High Availability
 // gap, 2026-07-18): before this, ONLY the floor tier (below) had a
@@ -90,31 +157,35 @@ const ESCALATED_MODEL = "z-ai/glm-5.2"
 // OpenRouter fallback below (the only universally-safe default).
 const ESCALATED_FALLBACK_MODEL = "deepseek/deepseek-v4-pro"
 
-function platformFallbackFor(primary: { provider: LLMProvider; model: string }): LLMFallback | undefined {
+async function platformFallbackFor(primary: { provider: LLMProvider; model: string }): Promise<LLMFallback | undefined> {
   // Same-model failover for the floor tier specifically: if Groq's
   // gpt-oss-120b is the primary and it fails, retry the SAME model on
   // Cerebras rather than dropping to a weaker free OpenRouter model --
   // preserves quality on failover, not just uptime. Falls through to the
   // generic OpenRouter fallback below for every other primary (including
   // when CEREBRAS_API_KEY isn't configured).
-  if (primary.provider === PLATFORM_DEFAULT_PROVIDER && primary.model === PLATFORM_DEFAULT_MODEL) {
-    const cerebrasKey = platformApiKeyFor("cerebras")
-    if (cerebrasKey) return { provider: "cerebras", model: CEREBRAS_GPT_OSS_MODEL, apiKey: cerebrasKey }
+  const platformDefault = await getPlatformDefault()
+  if (primary.provider === platformDefault.provider && primary.model === platformDefault.model) {
+    const cerebrasFailover = await getCerebrasFailover()
+    const cerebrasKey = platformApiKeyFor(cerebrasFailover.provider)
+    if (cerebrasKey) return { provider: cerebrasFailover.provider, model: cerebrasFailover.model, apiKey: cerebrasKey }
   }
 
   // Escalated-tier failover -- see ESCALATED_FALLBACK_MODEL's own comment
   // above. Checked before the generic fallback below so it takes priority
   // whenever OPENROUTER_API_KEY is configured (the same key both the
   // primary escalated call and this fallback use).
-  if (primary.provider === ESCALATED_PROVIDER && primary.model === ESCALATED_MODEL) {
+  const escalatedDefault = await getEscalatedDefault()
+  if (primary.provider === escalatedDefault.provider && primary.model === escalatedDefault.model) {
     const openrouterKey = process.env.OPENROUTER_API_KEY
     if (openrouterKey) return { provider: "openrouter", model: ESCALATED_FALLBACK_MODEL, apiKey: openrouterKey }
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return undefined;
-  if (primary.provider === "openrouter" && primary.model === PLATFORM_FALLBACK_MODEL) return undefined;
-  return { provider: "openrouter", model: PLATFORM_FALLBACK_MODEL, apiKey };
+  const platformFallback = await getPlatformFallback()
+  if (primary.provider === platformFallback.provider && primary.model === platformFallback.model) return undefined;
+  return { provider: platformFallback.provider, model: platformFallback.model, apiKey };
 }
 
 // Wave 45: the platform-default path previously hardcoded process.env.GROQ_API_KEY
@@ -149,12 +220,13 @@ export function platformApiKeyFor(provider: LLMProvider): string | undefined {
  * resolves this specific primary to the new DeepSeek V4 Pro same-tier
  * failover.
  */
-export function escalatedPlatformConfig(): ResolvedModelConfig | null {
-  const apiKey = platformApiKeyFor(ESCALATED_PROVIDER)
+export async function escalatedPlatformConfig(): Promise<ResolvedModelConfig | null> {
+  const escalatedDefault = await getEscalatedDefault()
+  const apiKey = platformApiKeyFor(escalatedDefault.provider)
   if (!apiKey) return null
   return {
-    provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL, apiKey, isCustomerConfigured: false,
-    fallback: platformFallbackFor({ provider: ESCALATED_PROVIDER, model: ESCALATED_MODEL }),
+    provider: escalatedDefault.provider, model: escalatedDefault.model, apiKey, isCustomerConfigured: false,
+    fallback: await platformFallbackFor({ provider: escalatedDefault.provider, model: escalatedDefault.model }),
   }
 }
 
@@ -391,18 +463,23 @@ export async function resolveModelConfig(orgId: string, layerKey: string, source
       model,
       apiKey,
       isCustomerConfigured: true,
-      fallback: platformFallbackFor({ provider, model }),
+      fallback: await platformFallbackFor({ provider, model }),
     }, sourceType);
   }
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  const provider = (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
-  const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
+  let provider = defaultConfig.provider as LLMProvider | undefined;
+  let model = defaultConfig.model;
+  if (!provider || !model) {
+    const platformDefault = await getPlatformDefault();
+    provider = provider ?? platformDefault.provider;
+    model = model ?? platformDefault.model;
+  }
   const apiKey = platformApiKeyFor(provider);
   if (!apiKey) return null;
 
   return applySourceTypeOverride(
-    { provider, model, apiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) },
+    { provider, model, apiKey, isCustomerConfigured: false, fallback: await platformFallbackFor({ provider, model }) },
     sourceType
   );
 }
@@ -440,7 +517,7 @@ export async function resolveClientModelConfig(clientId: string, orgId: string, 
       model,
       apiKey,
       isCustomerConfigured: true,
-      fallback: platformFallbackFor({ provider, model }),
+      fallback: await platformFallbackFor({ provider, model }),
     };
   }
 
@@ -472,12 +549,17 @@ export async function resolvePlatformModelConfig(layerKey: string, sourceType?: 
   if (!layer) return null;
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  const provider = (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
-  const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
+  let provider = defaultConfig.provider as LLMProvider | undefined;
+  let model = defaultConfig.model;
+  if (!provider || !model) {
+    const platformDefault = await getPlatformDefault();
+    provider = provider ?? platformDefault.provider;
+    model = model ?? platformDefault.model;
+  }
   const platformApiKey = platformApiKeyFor(provider);
   if (platformApiKey) {
     return applySourceTypeOverride(
-      { provider, model, apiKey: platformApiKey, isCustomerConfigured: false, fallback: platformFallbackFor({ provider, model }) },
+      { provider, model, apiKey: platformApiKey, isCustomerConfigured: false, fallback: await platformFallbackFor({ provider, model }) },
       sourceType
     );
   }
@@ -520,6 +602,6 @@ async function borrowFromSharedPool(layerKey: string, orchestraLayerId: string, 
     model,
     apiKey,
     isCustomerConfigured: true,
-    fallback: platformFallbackFor({ provider, model }),
+    fallback: await platformFallbackFor({ provider, model }),
   }, sourceType);
 }

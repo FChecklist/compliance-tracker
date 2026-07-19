@@ -18,6 +18,7 @@ import {
   computeSoftwareTeamResolution,
   computeEndUserOrgResolution,
   computeSalesMarketingResolution,
+  computeCustomerSuccessResolution,
   type ActivePolicy,
 } from "./mother-router"
 import type { ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
@@ -148,6 +149,36 @@ describe("computeSalesMarketingResolution -- sales_marketing scope (new)", () =>
 
   test("roleKey has no baseline model (not in roster.ts, or human/code-only): honest empty resolution, never invents one", () => {
     const result = computeSalesMarketingResolution("linkedin_content_writer", null, null)
+    expect(result.model).toBe("")
+    expect(result.reason).toContain("not found in roster.ts")
+  })
+})
+
+describe("computeCustomerSuccessResolution -- customer_success scope (new)", () => {
+  test("role exists in roster.ts, no policy override: returns roster.ts baseline", () => {
+    const result = computeCustomerSuccessResolution("l2_technical_support", "z-ai/glm-5.2", null)
+    expect(result.model).toBe("z-ai/glm-5.2")
+    expect(result.provider).toBe("openrouter")
+    expect(result.reason).toContain("no active routing policy override")
+  })
+
+  test("role exists, active policy overrides it: switches model", () => {
+    const policy: ActivePolicy = { version: 1, rule: { preferredModelByRole: { l2_technical_support: "deepseek/deepseek-v4-pro" } } }
+    const result = computeCustomerSuccessResolution("l2_technical_support", "z-ai/glm-5.2", policy)
+    expect(result.model).toBe("deepseek/deepseek-v4-pro")
+    expect(result.policyVersion).toBe(1)
+  })
+
+  test("active policy names the same model as baseline: still attributed to the policy, not misreported as no-policy", () => {
+    const policy: ActivePolicy = { version: 2, rule: { preferredModelByRole: { l2_technical_support: "z-ai/glm-5.2" } } }
+    const result = computeCustomerSuccessResolution("l2_technical_support", "z-ai/glm-5.2", policy)
+    expect(result.model).toBe("z-ai/glm-5.2")
+    expect(result.policyVersion).toBe(2)
+    expect(result.reason).not.toContain("no active routing policy")
+  })
+
+  test("roleKey has no baseline model (not in roster.ts, or human/code-only): honest empty resolution, never invents one", () => {
+    const result = computeCustomerSuccessResolution("not_a_real_customer_success_role", null, null)
     expect(result.model).toBe("")
     expect(result.reason).toContain("not found in roster.ts")
   })

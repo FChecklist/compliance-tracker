@@ -119,6 +119,8 @@ index:
       covers: "PLATFORM_STRATEGY.md Sec31.4 Phase A item (2): the single plain-language 'what VERIDIAN AI OS is and how it works end-to-end' document that did not exist before 2026-07-13 -- traces a real request flow (VeriComposer -> POST /api/tasks -> resolveModelConfig -> callLLM) and an AI Dev Team dispatch flow, then names the 5 real separate systems (roster.ts, orchestra-model-resolver.ts+model-tier-eligibility.ts, embeddings.ts, activity_log, escalation-ladder.ts+monitor-protocol.ts) that compose into something brain-like without being one. Every claim cites a real file it was read from; start here before system-tree/ or OS.yaml itself."
     - path: ai-os/system-tree/40-veridian-brain.yaml
       covers: "Confirmed status of the separate veridian-brain repo -- empty scaffold, not yet extracted from this codebase. Read this before assuming 'the Brain' is a working system anywhere."
+    - path: ai-os/AI_ORCHESTRA_HIERARCHY.md
+      covers: "Owner spec (2026-07-19): formal 4-domain x L0-L5 operational hierarchy (Software Development / End User Work Management / Sales & Marketing / Customer Success), mapped to the real AiRouterScope values and registry-backed model resolution. Model names in it are live snapshots, not hardcoded bindings -- see ai_orchestra_tiers.domain_hierarchy_ref in CONSTITUTION.yaml for how this document's axis (role/domain escalation) differs from that section's axis (model-trust tier)."
 
   monitoring_health_check:
     - path: /api/ai/team/governance-health

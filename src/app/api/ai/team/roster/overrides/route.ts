@@ -15,6 +15,6 @@ export async function GET() {
     return NextResponse.json({ error: "veridian_admin-only" }, { status: 403 })
   }
 
-  const roster = await listRosterWithOverrides()
-  return NextResponse.json({ roster, knownModels: knownModels() })
+  const [roster, models] = await Promise.all([listRosterWithOverrides(), knownModels()])
+  return NextResponse.json({ roster, knownModels: models })
 }
