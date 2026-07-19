@@ -108,31 +108,6 @@ active:
       Checked this file for collisions before starting: none found (no
       other active entry touches projexa E2E test files or this org's
       seeded rows).
-  - session_label: "claude-code (task-20260719-070242-projexa-e2e-phase-2-batch-c--finance-sal) -- PROJEXA E2E Phase 2 Batch C: Finance/Sales/HR modules + copilot chat-command testing"
-    claimed_at: "2026-07-19T (this session)"
-    claim: |
-      Phase 2 of the 5-phase PROJEXA E2E testing program (Phase 1: PR #45 on
-      FChecklist/projexa, merged -- architecture discovery + seed data for
-      "Meridian Construction Group (E2E Test Org)", 1,007 rows). This task
-      writes and runs real Playwright E2E tests against the live
-      projexa-ai.com site (repo: FChecklist/projexa, NOT this repo) for 16
-      modules -- accounting, budgets, invoices, quotations, sales-orders,
-      sales, customers, employees, payroll, recruitment, hr, kpis, reports,
-      wiki, knowledge-base, grc -- plus real natural-language chat-command
-      testing against the copilot's confirmed 7-tool dispatcher
-      (dispatchTool() in this repo's task-execution-engine.ts, reached via
-      POST /api/v1/projexa/assistant). This is a read-only + additive-write
-      task against this repo (compliance-tracker) -- no compliance-tracker
-      source files are modified, only this claims-file entry. All actual PR
-      work lands in FChecklist/projexa. Two sibling tasks run concurrently
-      on disjoint PROJEXA module scopes: Batch A (execution/field modules,
-      claim above, its own PR #480 already merged) and Batch B
-      (resources/design modules) -- no overlap with this task's
-      Finance/Sales/HR/copilot scope. Verified via a fresh clone (not the
-      shared /opt/veridian/repos/compliance-tracker checkout, which has
-      unrelated pre-existing uncommitted work from another session) that
-      no other active: entry below claims this same projexa-e2e-phase-2
-      scope before adding this one.
   - session_label: "claude-code (task-20260719-070238-projexa-e2e-phase-2-batch-a--execution-f) -- PROJEXA E2E Phase 2 Batch A: Playwright tests for Core Execution & Field modules"
     claimed_at: "2026-07-19T (this session)"
     claim: |
@@ -2763,6 +2738,29 @@ recently_completed:
       clean; all 6 guardrail-check scripts pass (added a new OS.yaml index
       entry for the new RCA doc to keep check-metadata-index-coverage.mjs
       green).
+  - session_label: "claude-code (task-20260719-070242-projexa-e2e-phase-2-batch-c--finance-sal) -- PROJEXA E2E Phase 2 Batch C: Finance/Sales/HR modules + copilot chat-command testing"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "FChecklist/projexa PR #46, squash-merged (TIER1, test files + devDependency only, no schema/migration touched)"
+    claim: |
+      Wrote and ran a real Playwright E2E suite (7 spec files, 72 tests, 71
+      passed / 0 failed / 1 skipped) against the live projexa-ai.com site
+      for 16 Finance/Sales/HR modules (accounting, budgets, invoices,
+      quotations, sales-orders, sales, customers, employees, payroll,
+      recruitment, hr, kpis, reports, wiki, knowledge-base, grc), plus 12
+      real natural-language chat-command tests against the copilot's
+      confirmed 7-tool construction-only dispatcher and free-text Discuss
+      chat. Full results + every real gap found in FChecklist/projexa's
+      PHASE2_BATCH_C_FINDINGS.md. Most significant findings: every
+      HR/Payroll/Leave write is permanently broken for every PROJEXA user
+      (including the org owner) via a ctx.dbUser requirement this repo's
+      own routes enforce that PROJEXA's shared-API-key bridge can never
+      satisfy (src/app/api/v1/projexa/{hr/departments,leave/*,employees,
+      payroll/*}/route.ts); GET /api/hr/departments 500s on a relational
+      query bug; GRC's policies/[id] PATCH request_publish action 500s
+      (risk-register-service.ts's updatePolicy). Read this repo via a
+      fresh scratch clone (this file) throughout, no compliance-tracker
+      source files modified.
+
   - session_label: "claude-code (task-20260719-034948-migrate-projexa-to-consume-veridian-ui-k) -- migrate FChecklist/projexa to consume veridian-ui-kit's real shell/composer/panel/header components"
     completed_at: "2026-07-19T (this session)"
     merged_as: "FChecklist/projexa PR #42, squash-merged (TIER1, no schema/migration touched), commit 341435a3"
