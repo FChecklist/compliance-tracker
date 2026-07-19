@@ -24,11 +24,12 @@
 - [x] Resolved 2 conflicts (both governance/tracking files, no code conflicts): PROGRESS.md (kept this task's content, updated to reflect the rebase follow-up; main's RCA content lives in that task's own PROGRESS.md) and ai-os/boss/ACTIVE-CLAIMS.yaml `recently_completed:` (kept BOTH sessions' entries per the repo's established pattern -- this task's PR #483 entry + the RCA task's PR #482 entry)
 - [x] Verified the merge introduced no schema.ts / mother-router.ts / migration-number collisions (only auto-merged cleanly: ai-os/OS.yaml picked up the RCA doc's new index entry; new file ai-os/INCIDENT_11K_API_CALLS_RCA.md added cleanly)
 
+- [x] Ran verification gates on the merged tree: bunx tsc --noEmit 0 errors, bun run lint 0 errors (3 pre-existing warnings), bun test 1814 pass/0 fail, bun run build clean -- merge broke nothing
+- [x] Committed the merge resolution (203bf615) + pushed to the SAME branch (updated existing PR #483)
+- [x] Confirmed `gh pr view 483 --json mergeStateStatus` went DIRTY/CONFLICTING -> BLOCKED -> MERGEABLE (conflict resolved)
+- [x] Confirmed all 7 required checks green on the merge commit (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests all SUCCESS). audit-check passed on this merge commit -- no rerun needed. Non-required CodeQL failed (pre-existing, not a merge gate)
+- [x] Merged PR #483 (`gh pr merge 483 --merge --delete-branch`) -- explicitly authorized by Owner, merge commit 3b9b2cc6
+- [x] Verified `gh pr view 483 --json state,mergedAt` reports state=MERGED, mergedAt=2026-07-19T14:45:22Z
+
 ## Remaining
-- [ ] Run bunx tsc --noEmit, bun run lint, bun test, bun run build on the merged tree; fix anything the merge broke for real
-- [ ] Commit the merge resolution, push to the SAME branch (updates existing PR #483)
-- [ ] Confirm `gh pr view 483 --json mergeStateStatus` reports something other than DIRTY/CONFLICTING
-- [ ] Confirm required checks green (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests); re-trigger audit-check if it ran before the merge-commit push landed
-- [ ] Merge PR #483 (`gh pr merge 483 --merge --delete-branch`) -- explicitly authorized by Owner
-- [ ] Verify `gh pr view 483 --json state,mergedAt` reports MERGED
-- [ ] Final note in ACTIVE-CLAIMS.yaml if needed
+- [ ] None -- DONE CRITERIA met. PR #483 is MERGED. The ai-os/boss/ACTIVE-CLAIMS.yaml entry on main still reads "PR #483 OPENED... NOT yet merged" (cosmetic staleness from before the merge landed); left as-is rather than spinning a separate PR for a one-line status note the Owner did not request -- the substantive claim content is accurate and the merge is independently verifiable via `gh pr view 483`.
