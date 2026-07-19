@@ -2608,6 +2608,48 @@ active:
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
 recently_completed:
+  - session_label: "claude-code (task-20260719-122711-airouter-01-phase-2--software-team-l0-l5) -- AIROUTER-01 Phase 2: Software Team L0-L5 execution ladder + Instruction Contract/Execution Report schema + capability routing matrix"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "PR #483 OPENED against main, NOT yet merged -- tier2 (schema/architecture), held for Owner sign-off per this repo's own rule, not self-merged. Update this entry with the merge commit once it lands."
+    claim: |
+      Made ai-os/AI_ORCHESTRA_HIERARCHY.md's Table 1 (Software Development)
+      a real, built implementation on top of the already-merged Mother
+      Router (PR #433): (a) src/lib/ai-router/software-team-ladder.ts --
+      L0-L5 ladder data + the Owner's Universal Tightened Instruction
+      Template fields per level; (b) src/lib/ai-router/instruction-contract.ts
+      + platform.task_register (drizzle/0249) + task-register-service.ts --
+      genuinely new Instruction Contract/Execution Report schema + task
+      register, distinct from ai_routing_audit_log; (c) mother-router.ts's
+      additive preferredModelByCapabilityCategory policy axis + drizzle/0250
+      seeding the first-ever active software_team routing policy (cost-bias
+      verified with a real executable test). /api/ai/team/dispatch's new
+      softwareTeamLevel field is fully opt-in -- every existing caller is
+      unaffected. Did NOT touch model-tier-eligibility.ts/
+      orchestra-model-resolver.ts/roster.ts/llm-client.ts's existing logic.
+      One disclosed divergence from the Owner's literal Part C text (see
+      drizzle/0250's header + ai-os/SOFTWARE_TEAM.md §4): multi_file_integrative
+      falls through to the tier axis (deepseek-v4-pro) rather than being
+      mapped to GPT-OSS-120B, since that model isn't INTEGRATIVE_ELIGIBLE
+      and naming it would silently defeat the cost-bias goal.
+
+      3 complete, independent GLM-5.2 audit rounds ran (direct OpenRouter
+      API calls, never self-review) -- 6 blockers/10 major/14 minor found
+      total across all 3 rounds, all fixed except 1 disclosed low-priority
+      test-mock gap; 1 reported finding investigated and confirmed FALSE.
+      Round 3 needed 3 physical API attempts to get one complete answer
+      (disclosed honestly, not hidden). Full verbatim log:
+      ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md.
+
+      bunx tsc --noEmit 0 errors, bun run lint 0 errors, bun test 1814
+      pass/0 fail, bun run build clean, all 6 local CI guardrail scripts
+      pass. Migration NOT applied to any live database.
+
+      Documentation: ai-os/SOFTWARE_TEAM.md (new, mirrors BRAIN.md's
+      style), ai-os/CONSTITUTION.yaml section 11 extended + amendment_log
+      entry, CLAUDE.md pointer added, both new docs indexed in ai-os/OS.yaml.
+
+      Out of scope (per task instruction): Tables 2-4 (End User/Sales/
+      Customer Success) from the same Owner spec.
   - session_label: "claude-code (task-20260719-132247-cost-incident-rca--api-called--11000-tim) -- Cost Incident RCA: 'an API called 11000 times' -- forensics + prevention"
     completed_at: "2026-07-19T (this session)"
     merged_as: "PR #482 (compliance-tracker) -- NOT MERGED, held for Owner sign-off per this task's own constraints (touches cost-guard/budget-adjacent infra)"

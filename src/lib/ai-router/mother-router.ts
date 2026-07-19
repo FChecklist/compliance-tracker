@@ -58,6 +58,7 @@ import { resolveModelConfig, type ResolvedModelConfig } from "@/lib/orchestra-mo
 import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
 import type { LLMProvider } from "@/lib/llm-client"
 import type { ComplexityTier } from "@/lib/task-tightening"
+import type { CapabilityCategory } from "./software-team-ladder"
 
 export type AiRouterScope = "software_team" | "end_user_org" | "sales_marketing" | "customer_success"
 
@@ -76,7 +77,22 @@ const ROSTER_PROVIDER: LLMProvider = "openrouter"
 export type PolicyRule = {
   /** software_team / sales_marketing / customer_success: override model for a specific role. */
   preferredModelByRole?: Record<string, string>
-  /** software_team: override model for an entire complexity tier. Checked when preferredModelByRole has no entry for the role. */
+  /**
+   * software_team, AIROUTER-01 Phase 2 (Owner's Software Development Task
+   * Routing Matrix, Part C): override model for one of the 4 capability
+   * categories named in software-team-ladder.ts's CapabilityCategory --a
+   * FINER axis than preferredModelByTier below (e.g. distinguishes
+   * "single-file mechanical" from "architecture/design/analysis" even
+   * though task-tightening.ts's own ComplexityTier only has 3 values).
+   * Checked BEFORE preferredModelByTier when a capabilityCategory is
+   * supplied; always still run through checkTierEligibility() exactly like
+   * every other override here -- naming a model here can never bypass the
+   * tier-eligibility guardrail, only get silently downgraded to the
+   * tier-eligible baseline with the reason logged (see
+   * computeSoftwareTeamResolution() below).
+   */
+  preferredModelByCapabilityCategory?: Partial<Record<CapabilityCategory, string>>
+  /** software_team: override model for an entire complexity tier. Checked when preferredModelByRole/preferredModelByCapabilityCategory have no entry. */
   preferredModelByTier?: Partial<Record<ComplexityTier, string>>
   /** end_user_org: default provider/model for orgs on a given subscription aiPackage, used ONLY when the org has no active customer_model_config (BYO) of its own. */
   preferredModelByPackage?: Record<string, { provider: LLMProvider; model: string }>
@@ -94,7 +110,7 @@ export type MotherRouterResolution = {
 }
 
 export type MotherRouterContext =
-  | { scope: "software_team"; model: string; complexityTier: ComplexityTier; roleKey: string }
+  | { scope: "software_team"; model: string; complexityTier: ComplexityTier; roleKey: string; capabilityCategory?: CapabilityCategory }
   | { scope: "end_user_org"; orgId: string; layerKey: string; sourceType?: string }
   | { scope: "sales_marketing"; roleKey: string }
   // AI Router registry-backed model resolution follow-up (2026-07-19): 4th
@@ -158,9 +174,13 @@ export function computeSoftwareTeamResolution(
   baselineModel: string,
   complexityTier: ComplexityTier,
   roleKey: string,
-  policy: ActivePolicy | null
+  policy: ActivePolicy | null,
+  capabilityCategory?: CapabilityCategory
 ): MotherRouterResolution {
-  const override = policy?.rule.preferredModelByRole?.[roleKey] ?? policy?.rule.preferredModelByTier?.[complexityTier]
+  const override =
+    policy?.rule.preferredModelByRole?.[roleKey] ??
+    (capabilityCategory && policy?.rule.preferredModelByCapabilityCategory?.[capabilityCategory]) ??
+    policy?.rule.preferredModelByTier?.[complexityTier]
 
   // No policy, or its rule has no entry for this role/tier at all -- the
   // only case that's genuinely "no active policy" for audit purposes.
@@ -390,7 +410,7 @@ export async function resolveModel(context: MotherRouterContext): Promise<Mother
 
   if (context.scope === "software_team") {
     const policy = await getActivePolicy(context.scope)
-    resolution = computeSoftwareTeamResolution(context.model, context.complexityTier, context.roleKey, policy)
+    resolution = computeSoftwareTeamResolution(context.model, context.complexityTier, context.roleKey, policy, context.capabilityCategory)
   } else if (context.scope === "end_user_org") {
     // 3 mutually independent fetches -- none consumes another's result --
     // run concurrently instead of paying their summed latency in sequence.
