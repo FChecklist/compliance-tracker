@@ -33,7 +33,7 @@ import {
   auditLogs, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, desc, sql, inArray } from "drizzle-orm"
+import { and, eq, desc, gte, lte, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
@@ -42,6 +42,23 @@ import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { findControlAccount } from "./erp-invoicing-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { isSelfApproval } from "./approval-workflow-service"
+import { createFraudCaseTx } from "./fraud-case-service"
+import { recordAndEscalateAnomaly } from "./risk-escalation-service"
+import {
+  evaluateDuplicatePayment, evaluateRoundNumberThresholdAvoidance, evaluateAfterHoursHighImpactAction,
+  DUPLICATE_PAYMENT_WINDOW_DAYS,
+} from "@/lib/risk-anomaly-detection"
+
+// VERIDIAN Review Framework gap-closure (Fraud & Abuse Detection): the
+// review's own recommended threshold-avoidance signal needs a real
+// mandatory-approval amount to compare against. No such org-configurable
+// threshold exists anywhere in this schema yet -- rather than invent a new
+// per-org settings surface for this one rule (out of scope for this gap-
+// closure), this reuses a fixed, documented default matching a typical
+// statutory/internal-control approval limit. A future org-level override
+// would live in module-rules-resolver.ts's resolveModuleRule() alongside
+// risks' own severity_matrix, the same pattern already established.
+const DEFAULT_PAYMENT_APPROVAL_THRESHOLD = 100_000
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -222,6 +239,25 @@ export async function createPaymentEntry(ctx: ErpContext, input: CreatePaymentEn
       await validateInvoiceLink(db, ctx.orgId, input, input.invoiceId)
     }
 
+    // Fraud & Abuse Detection (VERIDIAN Review Framework gap-closure):
+    // gather same-party recent payments BEFORE inserting this one, so the
+    // duplicate check compares against genuinely prior entries, not itself.
+    const windowMs = DUPLICATE_PAYMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    const postingTime = new Date(input.postingDate).getTime()
+    const windowStart = new Date(postingTime - windowMs).toISOString().slice(0, 10)
+    const windowEnd = new Date(postingTime + windowMs).toISOString().slice(0, 10)
+    const recentSameParty = await db.query.erpPaymentEntries.findMany({
+      where: and(
+        eq(erpPaymentEntries.orgId, ctx.orgId),
+        eq(erpPaymentEntries.partyId, input.partyId),
+        eq(erpPaymentEntries.partyType, input.partyType),
+        eq(erpPaymentEntries.paymentType, input.paymentType),
+        sql`${erpPaymentEntries.status} not in ('cancelled', 'rejected')`,
+        gte(erpPaymentEntries.postingDate, windowStart),
+        lte(erpPaymentEntries.postingDate, windowEnd),
+      ),
+    })
+
     const [entry] = await db.insert(erpPaymentEntries).values({
       orgId: ctx.orgId, paymentType: input.paymentType, partyType: input.partyType, partyId: input.partyId,
       paidAmount: input.paymentType === "pay" ? input.amount.toString() : "0",
@@ -232,6 +268,48 @@ export async function createPaymentEntry(ctx: ErpContext, input: CreatePaymentEn
     }).returning()
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_payment_entry.created", entityType: "erp_payment_entry", entityId: entry.id })
+
+    // Consolidated into at most ONE fraud case / escalation per payment --
+    // a payment that trips more than one rule (e.g. duplicate AND
+    // threshold-avoidance) is one incident to investigate, not two separate
+    // cases paging the same owner twice.
+    const firedVerdicts = [
+      evaluateDuplicatePayment(
+        { amount: input.amount, postingDate: input.postingDate },
+        recentSameParty.map((r) => ({ amount: amountOf(r), postingDate: r.postingDate }))
+      ),
+      evaluateRoundNumberThresholdAvoidance(input.amount, DEFAULT_PAYMENT_APPROVAL_THRESHOLD),
+    ].filter((v): v is Extract<typeof v, { anomaly: true }> => v.anomaly)
+
+    if (firedVerdicts.length > 0) {
+      const severityRank: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 }
+      const worst = firedVerdicts.reduce((a, b) => (severityRank[b.severity] > severityRank[a.severity] ? b : a))
+      const combinedReason = firedVerdicts.map((v) => v.reason).join("; ")
+
+      const fraudCase = await createFraudCaseTx(
+        db,
+        { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser },
+        {
+          title: `System-detected: ${combinedReason}`,
+          fraudType: "financial",
+          detectionSource: "system_alert",
+          description: combinedReason,
+          financialExposure: input.amount,
+          reportedDate: new Date().toISOString().slice(0, 10),
+        }
+      )
+      await recordAndEscalateAnomaly(db, {
+        orgId: ctx.orgId,
+        eventType: worst.eventType,
+        severity: worst.severity,
+        sourceEntityType: "erp_payment_entry",
+        sourceEntityId: entry.id,
+        actorUserId: ctx.userId,
+        reason: combinedReason,
+        detail: { fraudCaseId: fraudCase.id, amount: input.amount, partyId: input.partyId, matchedRules: firedVerdicts.map((v) => v.eventType) },
+      })
+    }
+
     return entry
   })
 }
@@ -357,6 +435,18 @@ export async function decidePaymentEntry(ctx: ErpContext, id: string, decision: 
       .where(eq(erpPaymentEntries.id, id)).returning()
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_payment_entry.approved", entityType: "erp_payment_entry", entityId: id, details: JSON.stringify({ amount, journalEntryId: je.id }) })
+
+    // Anomaly Detection (VERIDIAN Review Framework gap-closure): approving a
+    // real money movement is exactly the "high-impact action" shape the
+    // finding named -- flag it when it happens outside business hours.
+    const afterHoursVerdict = evaluateAfterHoursHighImpactAction("erp_payment_entry.approved", new Date())
+    if (afterHoursVerdict.anomaly) {
+      await recordAndEscalateAnomaly(db, {
+        orgId: ctx.orgId, eventType: afterHoursVerdict.eventType, severity: afterHoursVerdict.severity,
+        sourceEntityType: "erp_payment_entry", sourceEntityId: id, actorUserId: ctx.userId,
+        reason: afterHoursVerdict.reason, detail: { amount, journalEntryId: je.id },
+      })
+    }
     return updated
   })
 }

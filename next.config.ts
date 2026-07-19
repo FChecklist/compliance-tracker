@@ -5,6 +5,15 @@ import createNextIntlPlugin from "next-intl/plugin";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
+  // veridian-ui-kit migration (2026-07-19): @fchecklist/veridian-ui-kit
+  // ships raw .ts/.tsx source directly from its package.json `exports`
+  // (a git dependency, not a published/pre-compiled npm package) --
+  // Turbopack/webpack don't transpile TypeScript found inside node_modules
+  // by default (every other node_modules package ships pre-built JS), so
+  // without this the build fails with "Unknown module type" on every one
+  // of the package's entry points. transpilePackages opts this one
+  // dependency into the same TS/JSX transform this repo's own source gets.
+  transpilePackages: ["@fchecklist/veridian-ui-kit"],
   // Priority 21, Layer 2 Workspace Memory
   // (ai-os/priority21_workspace_memory_design.md §2.3/§3.6): @memvid/sdk is
   // a native N-API binding with unconditional top-level requires of its own

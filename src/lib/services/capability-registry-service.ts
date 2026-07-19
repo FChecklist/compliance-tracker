@@ -100,6 +100,23 @@ export async function indexPromptPattern(entityId: string, content: string, orgI
   await storeEmbedding("prompt_pattern", entityId, content, orgId ?? undefined)
 }
 
+// DMP-06 gap closure (CONSTITUTION.yaml, "Dynamic Chain Master Directory"):
+// mirrors findSimilarPromptPatterns() above -- scoped to the single
+// 'dynamic_chain' entity type instead of all capability types, so
+// dynamic-chain-directory-service.ts's proposeDynamicChain() can check for
+// a near-duplicate chain before ever creating a new one, the same way VERI
+// FDE already checks findSimilarCapabilities() before proposing a new
+// worker agent. Same over-fetch-then-filter-then-slice shape as its
+// sibling, and the same RELEVANCE_THRESHOLD floor.
+export async function findSimilarDynamicChains(orgId: string, description: string, domain?: string | null, limit = 5): Promise<CapabilityMatch[]> {
+  const query = [domain, description].filter((v): v is string => Boolean(v?.trim())).join(" | ")
+  if (!query.trim()) return []
+  const results = await findSimilar(query, orgId, limit * 3)
+  return results
+    .filter((r): r is CapabilityMatch => r.entityType === "dynamic_chain" && r.score > RELEVANCE_THRESHOLD)
+    .slice(0, limit)
+}
+
 export type DuplicateCandidate = { a: CapabilityMatch; b: CapabilityMatch; score: number }
 
 // On-demand audit, not a background job -- each row costs one real

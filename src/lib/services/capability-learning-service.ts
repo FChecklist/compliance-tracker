@@ -1,6 +1,6 @@
 // Priority 5 (10-priority5-software-orchestrator-tracker.yaml): the
 // Software Orchestrator's capability-memory CRUD layer. Owns
-// compliance.task_capabilities / instruction_packages -- the persisted
+// platform.task_capabilities / instruction_packages -- the persisted
 // state that makes "next time either software or the cheap model can do
 // this" real instead of aspirational.
 //

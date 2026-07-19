@@ -196,12 +196,41 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   "z-ai/glm-5.2": { promptPer1k: 0.00042, completionPer1k: 0.00132 },
   "z-ai/glm-5v-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
   "z-ai/glm-5-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
+  // VERIDIAN Review Framework remediation (AI Failover, 2026-07-18):
+  // orchestra-model-resolver.ts's platformFallbackFor() now uses this model
+  // as the escalated tier's own same-quality-class failover target -- a new
+  // consumer outside ai-team/roster.ts's existing AI Dev Team usage, so
+  // without this row estimateCostUsd() would silently return null for every
+  // customer-facing call that lands on this fallback branch, the same class
+  // of gap SOURCE_TYPE_MODEL_OVERRIDES' groq entry closed above. Verified
+  // live via openrouter.ai/api/v1/models/deepseek/deepseek-v4-pro/endpoints
+  // 2026-07-18, DeepSeek provider: $0.435 / $0.87 per 1M prompt/completion
+  // tokens.
+  "deepseek/deepseek-v4-pro": { promptPer1k: 0.000435, completionPer1k: 0.00087 },
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
   const pricing = MODEL_PRICING[model];
   if (!pricing) return null;
   return (usage.promptTokens / 1000) * pricing.promptPer1k + (usage.completionTokens / 1000) * pricing.completionPer1k;
+}
+
+// Anthropic's documented cache-hit discount: a cache read is billed at 10%
+// of the base input price (a 90% saving on those tokens) -- see
+// callAnthropic's cache_control comment above for the write-side premium
+// (1.25x, a cost rather than a saving on the call that populates the
+// cache). Only the read-side discount is counted as "savings" here;
+// estimateCostUsd above already excludes cache tokens from promptTokens
+// entirely (Anthropic's input_tokens does not include them), so this is
+// additive, not a correction to an existing charge.
+const ANTHROPIC_CACHE_READ_DISCOUNT = 0.9;
+
+/** Real $ saved on this call from Anthropic prompt-cache reads. null when caching wasn't attempted or the model has no pricing row -- never 0 standing in for "not attempted", same LLMUsage contract as cacheReadTokens itself. */
+export function estimateCacheSavingsUsd(model: string, usage: LLMUsage): number | null {
+  if (usage.cacheReadTokens === undefined) return null;
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return null;
+  return (usage.cacheReadTokens / 1000) * pricing.promptPer1k * ANTHROPIC_CACHE_READ_DISCOUNT;
 }
 
 // Wave 45: OpenRouter recommends (not requires) HTTP-Referer/X-Title for

@@ -5,6 +5,7 @@
 // Do NOT treat the rates below as permanently current -- verify against the
 // latest Finance Act before relying on this for a live filing.
 import Decimal from "decimal.js"
+import type { CalculationBreakdown } from "@/lib/engines/breakdown"
 
 // New tax regime slabs (default regime from FY 2023-24 onward), as of Budget 2026.
 const TAX_SLABS_NEW_REGIME: { upTo: number; rate: number }[] = [
@@ -20,7 +21,14 @@ const HEALTH_EDUCATION_CESS_PERCENT = 4
 const SECTION_87A_REBATE_LIMIT_INCOME = 1200000 // full rebate up to this income under new regime
 const SECTION_87A_MAX_REBATE = 60000
 
-export type IncomeTaxResult = { grossTax: number; rebate87A: number; taxAfterRebate: number; cess: number; totalTaxPayable: number }
+export type IncomeTaxResult = {
+  grossTax: number; rebate87A: number; taxAfterRebate: number; cess: number; totalTaxPayable: number
+  // Calculation Explainability (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): optional so every existing caller checking only the
+  // fields above is unaffected. Populated with the real per-slab
+  // computation plus the rebate/cess steps, not a re-derivation.
+  breakdown?: CalculationBreakdown
+}
 
 // 1. Income Tax Calculator
 export function calculateIncomeTax(taxableIncome: number, slabs: { upTo: number; rate: number }[] = TAX_SLABS_NEW_REGIME): IncomeTaxResult {
@@ -28,10 +36,18 @@ export function calculateIncomeTax(taxableIncome: number, slabs: { upTo: number;
 
   let tax = new Decimal(0)
   let lowerBound = 0
+  const slabSteps: { label: string; formula?: string; value: number }[] = []
   for (const slab of slabs) {
     if (taxableIncome <= lowerBound) break
     const slabIncome = Math.min(taxableIncome, slab.upTo) - lowerBound
-    tax = tax.plus(new Decimal(slabIncome).mul(slab.rate).div(100))
+    const slabTax = new Decimal(slabIncome).mul(slab.rate).div(100)
+    tax = tax.plus(slabTax)
+    const upper = slab.upTo === Infinity ? "and above" : slab.upTo.toLocaleString("en-IN")
+    slabSteps.push({
+      label: `Slab ${lowerBound.toLocaleString("en-IN")}-${upper} @ ${slab.rate}%`,
+      formula: `${slabIncome.toLocaleString("en-IN")} x ${slab.rate}%`,
+      value: round2(slabTax),
+    })
     lowerBound = slab.upTo
   }
 
@@ -42,6 +58,16 @@ export function calculateIncomeTax(taxableIncome: number, slabs: { upTo: number;
   return {
     grossTax: round2(tax), rebate87A: round2(rebate), taxAfterRebate: round2(afterRebate),
     cess: round2(cess), totalTaxPayable: round2(afterRebate.plus(cess)),
+    breakdown: {
+      steps: [
+        ...slabSteps,
+        { label: "Gross tax (sum of slabs)", value: round2(tax) },
+        { label: "Section 87A rebate", value: round2(rebate) },
+        { label: "Tax after rebate", formula: `${round2(tax)} - ${round2(rebate)}`, value: round2(afterRebate) },
+        { label: `Health & Education Cess @ ${HEALTH_EDUCATION_CESS_PERCENT}%`, value: round2(cess) },
+        { label: "Total tax payable", formula: `${round2(afterRebate)} + ${round2(cess)}`, value: round2(afterRebate.plus(cess)) },
+      ],
+    },
   }
 }
 

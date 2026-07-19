@@ -3,6 +3,7 @@
 // per project convention instead of hand-rolled stats.
 import Decimal from "decimal.js"
 import * as ss from "simple-statistics"
+import type { EngineResult } from "./types"
 
 // 1. Trend Analysis -- linear regression slope/direction over a time-ordered series
 export function analyzeTrend(values: number[]): { slope: number; direction: "increasing" | "decreasing" | "flat" } {
@@ -10,6 +11,22 @@ export function analyzeTrend(values: number[]): { slope: number; direction: "inc
   const points: [number, number][] = values.map((v, i) => [i, v])
   const model = ss.linearRegression(points)
   return { slope: round2(new Decimal(model.m)), direction: model.m > 0.001 ? "increasing" : model.m < -0.001 ? "decreasing" : "flat" }
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// additive EngineResult-shaped variant alongside (not replacing) analyzeTrend()
+// above -- see engines/types.ts's header and accounting-engine.ts's
+// verifyBalancesNetToZeroExplained() for the same pattern applied here.
+// Wired into task-execution-engine.ts's trend_analysis_engine case, the
+// only real caller (confirmed via grep).
+export function analyzeTrendExplained(values: number[]): EngineResult<{ slope: number; direction: "increasing" | "decreasing" | "flat" }> {
+  const result = analyzeTrend(values)
+  const directionLabel = result.direction === "increasing" ? "trending upward" : result.direction === "decreasing" ? "trending downward" : "roughly flat"
+  return {
+    value: result,
+    explanation: `Fitting a straight line through the ${values.length} data points (in the order given) gives a slope of ${result.slope} per step, so the series is ${directionLabel}. A slope between -0.001 and 0.001 is treated as flat rather than a real trend.`,
+    assumptions: ["Treats the input as evenly time-spaced (index 0, 1, 2, ...), not real calendar dates -- gaps or uneven intervals between data points are not accounted for."],
+  }
 }
 
 // 2. Variance Analysis (Analytics) -- same shape as costing-engine's analyzeVariance, kept separate since it's a distinct registry entry per the source taxonomy

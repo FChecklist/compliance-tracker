@@ -66,6 +66,7 @@
 import { db, users, passcodeLoginAttempts } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import bcrypt from "bcryptjs"
+import { recordAuthFailureAndCheckAnomaly } from "./services/auth-failure-service"
 
 export const PASSCODE_LENGTH = 4
 const BCRYPT_COST = 10
@@ -150,9 +151,19 @@ export async function checkPasscodeRateLimit(email: string, ipAddress: string): 
   return { limited: false }
 }
 
-/** Fire-and-forget, matches org-join-code-service.ts's recordAttempt -- never blocks the caller's response on this write. */
+/**
+ * Fire-and-forget, matches org-join-code-service.ts's recordAttempt -- never
+ * blocks the caller's response on this write. A failure additionally feeds
+ * auth-failure-service.ts's unified repeated-failed-auth monitor (Checks &
+ * Balances / Risk, Fraud & Anomaly Detection gap-closure) -- this table
+ * stays exactly as it was for passcode's own internal rate limiting, this
+ * is purely additive.
+ */
 async function recordAttempt(email: string, ipAddress: string, wasSuccessful: boolean): Promise<void> {
   db.insert(passcodeLoginAttempts).values({ email, ipAddress, wasSuccessful }).then(() => {})
+  if (!wasSuccessful) {
+    recordAuthFailureAndCheckAnomaly({ email, method: "passcode", ipAddress }).catch(() => {})
+  }
 }
 
 export type VerifyPasscodeLoginResult =

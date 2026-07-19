@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { runBoardMeetingHoldMonitor } from "@/lib/monitors/board-meeting-hold-monitor"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -31,6 +32,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           status: "held", minutes: minutes || null, attendees: Array.isArray(attendees) ? attendees : [], updatedAt: new Date(),
         }).where(eq(boardMeetings.id, id)).returning()
         await logActivity({ tx: db, action: "status_change", entityType: "BoardMeeting", entityId: id, details: `"${existing.title}" recorded as held`, orgId, dbUser, request })
+
+        // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): the real transition
+        // into 'held', same chokepoint as the logActivity call above. Same
+        // transaction, never blocks the decision above -- mirrors
+        // approval-decision-monitor.ts's own plain-await call-site posture.
+        await runBoardMeetingHoldMonitor(db, orgId, { dbUser }, {
+          meetingId: id, title: existing.title, meetingDate: existing.meetingDate, heldAt: updated.updatedAt,
+        }, request)
+
         return updated
       }
 

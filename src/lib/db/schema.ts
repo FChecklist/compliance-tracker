@@ -3,6 +3,10 @@ import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
 export const complianceSchemaDB = pgSchema('compliance')
+// Same database as compliance, not a second DB (Supabase free tier caps DBs at 2) --
+// a same-database compartment for tables that don't belong to the compliance domain proper,
+// designed for an easy future split. See ai-os/CONSTITUTION.yaml / PROGRESS.md for the move history.
+export const platformSchemaDB = pgSchema('platform')
 
 // ─── Enums ───────────────────────────────────────────────────────────────
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
@@ -601,7 +605,18 @@ export const notifications = complianceSchemaDB.table('notifications', {
 // if a user is later renamed/deactivated, the historical log must still
 // show who they were AT THE TIME, not a live join that changes retroactively.
 // This table is append-only at the DB level: app_runtime has no UPDATE/
-// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql).
+// DELETE grant on it (see drizzle/0005_audit_log_upgrade.sql). Wave 10's
+// service_role grant (drizzle/0008_wave10_grant_service_role_compliance_
+// schema.sql) briefly re-opened this for the service_role credential --
+// closed again by drizzle/0225_audit_trail_immutability_and_backstop_
+// triggers.sql, which also adds a generic AFTER-trigger backstop
+// (`db_trigger.insert|update|delete`-prefixed rows written into this same
+// table) on the 4 highest-risk source tables (users, compliance_items,
+// erp_journal_entries, erp_payment_entries) so a write path that forgets
+// to call logActivity() still leaves a DB-level trace. See that migration's
+// header for the full design writeup and its one honest limitation
+// (the `postgres`/DATABASE_URL role still owns this table and can't be
+// REVOKEd from via ownership privileges alone).
 // `clientId` (not `clientEntityId`) to match the convention every other
 // domain table already established (complianceItems/challans/notices/
 // auditPoints/documents/tasks all scope by `clients.id`, not
@@ -626,6 +641,19 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   details: text('details'),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
+  // Support Sessions (VERIDIAN Review Framework Wave 4, Track 1b item 2):
+  // both nullable additive columns -- every pre-existing row and every
+  // pre-existing logActivity() call site is completely unaffected (null =
+  // "not performed under a support session," the overwhelming majority of
+  // rows). Set together, only by logActivity()'s new optional
+  // `supportSession` param: supportSessionId names which support_sessions
+  // row was active, actingOnBehalfOfUserId is the impersonated target user
+  // at the time of the write -- kept as its own column (not inferred by
+  // joining supportSessionId -> support_sessions.targetUserId) so this row
+  // stays a true point-in-time snapshot even if that session record were
+  // ever amended.
+  supportSessionId: text('support_session_id'),
+  actingOnBehalfOfUserId: text('acting_on_behalf_of_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -878,6 +906,37 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Instruction Execution Cache (UMR-03 gap closure) ──────────────────────
+// CONSTITUTION.yaml's UMR-03 asks for chat instructions to be "stored
+// word-wise... so a similar future instruction can be answered from what was
+// already learned, not re-derived from scratch." The two real analogs this
+// codebase already had before this table -- embeddings.ts's embedding_cache
+// (caches embedding VECTORS for exact-text reuse) and capability-registry-
+// service.ts's findSimilarCapabilities() (matches a CAPABILITY's own
+// description against a query) -- both stop short of this: neither one
+// remembers "this exact instruction text was resolved to THIS capability
+// with THESE params, and it worked." This table is that missing mapping.
+// `embedding vector(1536)` intentionally omitted here, same reason as
+// `embeddings`/`assistant_memories` above -- managed via raw SQL, see
+// instruction-execution-cache-service.ts.
+export const instructionExecutionCache = platformSchemaDB.table('instruction_execution_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  // Nullable = platform-wide entry, same convention as embeddings.orgId --
+  // no real caller passes null today (fde-service.ts always has a concrete
+  // org), but the column stays open for a future platform-wide learned
+  // instruction the way embeddings' own org_id already is.
+  orgId: text('org_id'),
+  instructionText: text('instruction_text').notNull(),
+  contentHash: text('content_hash').notNull(),
+  resolvedCapabilityType: text('resolved_capability_type'), // CapabilityEntityType -- 'worker_agent' | 'automation_rule' | 'module' | 'prompt_pattern' | 'dynamic_chain'
+  resolvedCapabilityId: text('resolved_capability_id'),
+  resolvedLabel: text('resolved_label'),
+  resolvedParamsShape: jsonb('resolved_params_shape'),
+  successCount: integer('success_count').notNull().default(1),
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Entity Relationships (Phase 3 graph store, Phase3_Design_by_Claude.md) ──
 // Generic typed-edge table -- the substrate every "Enterprise * Graph"
 // proposal in both VERIDIAN.docx studies needs and none of them has today.
@@ -889,7 +948,7 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
 // relationship this table is meant to express links two entities that
 // belong to a specific tenant; there is no platform-level use case for this
 // table the way there is for global-tier embeddings.
-export const entityRelationships = complianceSchemaDB.table('entity_relationships', {
+export const entityRelationships = platformSchemaDB.table('entity_relationships', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   sourceType: text('source_type').notNull(),
@@ -1008,7 +1067,7 @@ export const assistantMetricsDaily = complianceSchemaDB.table('assistant_metrics
 // CHECK constraint and by RLS (app_runtime can never write tier='global').
 // capability_embedding / knowledge_embedding vector(1536) columns deliberately
 // omitted, same as assistant_memories -- managed via raw SQL.
-export const workerAgents = complianceSchemaDB.table('worker_agents', {
+export const workerAgents = platformSchemaDB.table('worker_agents', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   tier: text('tier').notNull(), // 'global' | 'customer' | 'client' | 'user'
   name: text('name').notNull(),
@@ -1065,7 +1124,7 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workerAgentVersions = complianceSchemaDB.table('worker_agent_versions', {
+export const workerAgentVersions = platformSchemaDB.table('worker_agent_versions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   version: integer('version').notNull(),
@@ -1076,7 +1135,7 @@ export const workerAgentVersions = complianceSchemaDB.table('worker_agent_versio
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const workerAgentUsageLog = complianceSchemaDB.table('worker_agent_usage_log', {
+export const workerAgentUsageLog = platformSchemaDB.table('worker_agent_usage_log', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   orgId: text('org_id'),
@@ -1089,7 +1148,7 @@ export const workerAgentUsageLog = complianceSchemaDB.table('worker_agent_usage_
 })
 
 // embedding vector(1536) column omitted, see note above.
-export const workerAgentLearnings = complianceSchemaDB.table('worker_agent_learnings', {
+export const workerAgentLearnings = platformSchemaDB.table('worker_agent_learnings', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   content: text('content').notNull(),
@@ -1097,7 +1156,7 @@ export const workerAgentLearnings = complianceSchemaDB.table('worker_agent_learn
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_domain_index', {
+export const workerAgentDomainIndex = platformSchemaDB.table('worker_agent_domain_index', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   domainPath: text('domain_path').notNull(),
@@ -1111,7 +1170,7 @@ export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_dom
 // app_runtime only has SELECT on this table at the DB level (RLS), so a
 // genuinely new top-level category always falls back to 'general' until a
 // human adds a real row here via a reviewed migration.
-export const workerAgentDomainGroups = complianceSchemaDB.table('worker_agent_domain_groups', {
+export const workerAgentDomainGroups = platformSchemaDB.table('worker_agent_domain_groups', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   key: text('key').notNull(),
   name: text('name').notNull(),
@@ -1231,6 +1290,32 @@ export const taskChatMessages = complianceSchemaDB.table('task_chat_messages', {
 // Seeded with the 5 layers from the master spec: Task OA, User Assistant OA,
 // Customer Account OA, Global Intelligence OA, Meta OA. Global read (no
 // org scoping), same as subscription_plans.
+// VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+// 2026-07-18): "internal AI Team roster is static, not admin-editable."
+// roster.ts's AI_TEAM_ROSTER array (~180 roles) stays the single source of
+// truth for role metadata (team/title/promptKey/isHuman/isCodeOnly) --
+// rewriting that as DB rows would be a much larger, riskier migration for
+// no real benefit (an admin doesn't need to invent new roles at runtime).
+// What genuinely needed to be admin-editable was narrower: WHICH model a
+// role calls. This table is an additive OVERRIDE layer on top of roster.ts,
+// not a replacement -- roster-overrides.ts's resolveEffectiveModel() checks
+// this table first, falling back to roster.ts's own static `model` field
+// when no override row exists (or the DB read fails) for a roleKey. One row
+// per role_key (unique) -- an override is a standing "use THIS model
+// instead," not a history log (updated_at/updated_by_user_id capture the
+// most recent change for audit purposes; a full change-history table is a
+// straightforward additive follow-up if ever needed, not blocked by this
+// shape).
+export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_overrides', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull().unique(),
+  model: text('model').notNull(),
+  reason: text('reason'),
+  updatedByUserId: text('updated_by_user_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const orchestraLayers = complianceSchemaDB.table('orchestra_layers', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   layerKey: text('layer_key').notNull(),
@@ -1263,7 +1348,29 @@ export const orchestraExecutions = complianceSchemaDB.table('orchestra_execution
   promptTokens: integer('prompt_tokens'),
   completionTokens: integer('completion_tokens'),
   costUsd: numeric('cost_usd'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): "Explains Workflow Decisions" -- no workflow/routing
+  // decision was ever explained anywhere; this row already records WHICH
+  // model/provider ran, but never WHY that one (vs. the org's own default,
+  // e.g. an escalation/fallback/floor-tier decision). Nullable/additive,
+  // same posture as the Wave 22/23 columns above -- only populated by call
+  // sites that actually have a routing decision to explain.
+  routingRationale: text('routing_rationale'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap-closure (2026-07-18), "Audit Trail" finding
+  // (VERIDIAN_AI_CONSTITUTION.md #19 / SEC-03's own documented gap): full
+  // prompt/response text is now stored in `input`/`output` at most real call
+  // sites (Wave 144/146 -- chat-service.ts, fde-service.ts, etc. -- already
+  // write full, PII-redacted text, not the 500-char excerpt this column's
+  // Wave 23 header once implied was the only option). What was still
+  // missing is a TTL: full payload text has no expiry, an unbounded and
+  // growing store of every prompt/response ever sent. Null means "payload
+  // still live"; a timestamp means orchestra-log-purge (the new internal
+  // cron) has nulled out `input`/`output` on this row after the retention
+  // window -- every other column (status/model/cost/duration) is untouched
+  // and permanent, so the audit trail (WHO/WHEN/WHAT MODEL/WHAT IT COST)
+  // survives purge even after the raw text itself expires.
+  payloadPurgedAt: timestamp('payload_purged_at'),
 })
 
 // Prompt & Cache Management Framework, Phase 1 (2026-07-14): a NEW table
@@ -1361,13 +1468,22 @@ export const activityLog = complianceSchemaDB.table('activity_log', {
   // (Guardrail 10) and confidence-banding.ts's bandConfidence() output
   // (Guardrail 9), persisted so both are queryable/auditable rather than
   // computed-and-discarded. All 3 nullable/additive -- existing rows
-  // unaffected. riskLevel is computed at dispatch time (dispatch/route.ts);
-  // confidencePercentage/confidenceBand are computed at closure time
-  // (review/route.ts), when a numeric self-assessed confidence is supplied
-  // -- DEC-04's ruling that this is complementary to, not a replacement
-  // for, model-tier-eligibility.ts's tiers.
+  // unaffected. riskLevel is computed at dispatch time (dispatch/route.ts).
+  // confidencePercentage/confidenceBand were originally only ever set at
+  // closure time (review/route.ts), when a reviewer supplied their own
+  // numeric self-assessment -- DEC-04's ruling that this is complementary
+  // to, not a replacement for, model-tier-eligibility.ts's tiers. VERIDIAN
+  // Review Framework gap-closure (2026-07-18), GP-09: dispatch/route.ts now
+  // ALSO computes and persists a real, deterministic value at dispatch time
+  // (dispatch-confidence-scoring.ts::computeDispatchConfidencePercentage,
+  // derived from already-real signals: low-confidence/knowledge-gap
+  // detection + risk level -- never a model self-reported number). A
+  // reviewer's own closure-time value, when supplied, still overrides it
+  // (recordPeerReview only replaces when the caller passes one) -- this
+  // column now always has SOME real numeric value from dispatch onward,
+  // refined at closure rather than starting null.
   riskLevel: text('risk_level'), // 'low' | 'medium' | 'high' | 'critical'
-  confidencePercentage: numeric('confidence_percentage'), // 0-100, from the closure-time self-assessment when the reviewer supplied one
+  confidencePercentage: numeric('confidence_percentage'), // 0-100
   confidenceBand: text('confidence_band'), // 'auto_proceed' | 'self_review_required' | 'peer_review_required' | 'escalation_required'
   // GAP-MODEL-SCORECARD: model-tier-eligibility.ts's ComplexityTier
   // ('mechanical' | 'integrative' | 'judgment') that POST /api/ai/team/
@@ -1608,7 +1724,7 @@ export const agentReviewRecords = complianceSchemaDB.table('agent_review_records
 // (business/AI/workflow/governance/knowledge definitions per chain) -- that
 // richer schema is deliberately deferred, see the constitution doc's
 // "Rollout scope" section for why.
-export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
+export const dynamicChains = platformSchemaDB.table('dynamic_chains', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   modePill: text('mode_pill').notNull(),
@@ -1821,7 +1937,7 @@ export const sharedPoolAllocations = complianceSchemaDB.table('shared_pool_alloc
 // (single-domain platform today, see purpose-bound-ai.ts's own honesty
 // note); promoting this to a real foreign-keyed table is the natural next
 // step once a second real domain (Sales/HR/SCM) actually exists.
-export const moduleRegistry = complianceSchemaDB.table('module_registry', {
+export const moduleRegistry = platformSchemaDB.table('module_registry', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   moduleKey: text('module_key').notNull().unique(), // matches the underlying table name 1:1 today; kept distinct from tableName since a future module's key and table COULD diverge (rename/versioning)
   displayName: text('display_name').notNull(),
@@ -1857,7 +1973,7 @@ export const moduleRegistry = complianceSchemaDB.table('module_registry', {
 // than that living only in a separate doc that will drift. See
 // MASTER_AI_OS_ARCHITECTURE.md for the full rules this table's columns
 // encode.
-export const productBranches = complianceSchemaDB.table('product_branches', {
+export const productBranches = platformSchemaDB.table('product_branches', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   branchKey: text('branch_key').notNull().unique(), // 'grc' today; 'sales' | 'hr' | 'scm' | ... in future Phase D branches
   displayName: text('display_name').notNull(),
@@ -1881,7 +1997,7 @@ export const productBranches = complianceSchemaDB.table('product_branches', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const productBranchModules = complianceSchemaDB.table('product_branch_modules', {
+export const productBranchModules = platformSchemaDB.table('product_branch_modules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   productBranchId: text('product_branch_id').notNull(),
   moduleKey: text('module_key').notNull(), // FK-by-convention on module_registry.module_key (the stable natural key), not module_registry.id
@@ -1905,7 +2021,7 @@ export const productBranchModules = complianceSchemaDB.table('product_branch_mod
 // completeness but has no rule-setting API/UI yet and no seeded rule uses
 // it -- most GRC rules are organizational, not personal; wiring real
 // per-user overrides is deferred, not built blind.
-export const moduleRuleConfigs = complianceSchemaDB.table('module_rule_configs', {
+export const moduleRuleConfigs = platformSchemaDB.table('module_rule_configs', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   moduleKey: text('module_key').notNull(), // FK-by-convention on module_registry.module_key
   ruleKey: text('rule_key').notNull(),
@@ -3222,6 +3338,54 @@ export const fraudCases = complianceSchemaDB.table('fraud_cases', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── Risk Anomaly Events (VERIDIAN Review Framework: "Checks & Balances /
+// Risk, Fraud & Anomaly Detection" gap-closure) ─────────────────────────────
+// Tier-1 (rule-engine, zero LLM calls -- see src/lib/risk-anomaly-detection.ts)
+// detection output + risk-based escalation state, for BUSINESS risk events
+// (bulk export, after-hours high-impact actions, repeated failed auth,
+// duplicate payment, round-number/threshold-avoidance, fraud confirmed, high
+// severity risk logged). Deliberately NOT monitor_agents/monitor_task_state
+// (PLATFORM_STRATEGY.md #29) -- that registry is AI-Ops dispatch-health
+// scoped (TASK_CREATED, APPROVAL_GRANTED, ...); this is a separate,
+// business-facing surface with a different owner concept (a named human via
+// departments.head_id, not a roster.ts AI role). Same reasoning,
+// escalation-ladder.ts's CSEO/COO/Super-Boss ladder is not reused here (see
+// docs/ESCALATION_MATRIX.md -- that ladder is AI-operational-failure-shaped
+// by design).
+export const riskAnomalyEvents = complianceSchemaDB.table('risk_anomaly_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  eventType: text('event_type').notNull(), // 'bulk_export'|'after_hours_high_impact'|'repeated_failed_auth'|'duplicate_payment'|'threshold_avoidance'|'fraud_confirmed'|'high_risk_logged'
+  severity: text('severity').notNull().default('medium'), // 'low'|'medium'|'high'|'critical'
+  sourceEntityType: text('source_entity_type').notNull(), // e.g. 'erp_payment_entry'|'framework_control'|'fraud_case'|'risk'|'user'|'compliance_item'
+  sourceEntityId: text('source_entity_id'),
+  actorUserId: text('actor_user_id'), // who performed the action that triggered detection, if known
+  reason: text('reason').notNull(), // human-readable rule verdict, e.g. "3 payments of ₹50,000 to the same supplier within 2 days"
+  detail: jsonb('detail').notNull().default({}),
+  status: text('status').notNull().default('open'), // 'open'|'escalated'|'dismissed'|'resolved'
+  escalatedToUserId: text('escalated_to_user_id'),
+  escalatedAt: timestamp('escalated_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Unified auth-failure log across every login method (password/oauth/sso/
+// passcode) -- feeds the repeated-failed-auth Tier-1 monitor. No org_id
+// column, matching passcode_login_attempts' own precedent exactly: a
+// pre-auth attempt has no org to resolve to until AFTER a successful match.
+// Deliberately a NEW table rather than overloading passcode_login_attempts
+// (that table's own name/column set is passcode-specific; password/OAuth/SSO
+// had zero failure logging before this at all -- see this gap's own
+// investigation notes in PROGRESS.md/ACTIVE-CLAIMS.yaml). passcode-login-
+// service.ts's recordAttempt additionally writes here on failure so the
+// unified monitor sees every method, not just the two new ones.
+export const authFailureEvents = complianceSchemaDB.table('auth_failure_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull(),
+  method: text('method').notNull(), // 'password'|'oauth'|'sso'|'passcode'
+  ipAddress: text('ip_address'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const itDrPlans = complianceSchemaDB.table('it_dr_plans', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -3286,11 +3450,17 @@ export const itDrFailoverTestsRelations = relations(itDrFailoverTests, ({ one })
 export const mdmDuplicateCandidates = complianceSchemaDB.table('mdm_duplicate_candidates', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
-  entityType: text('entity_type').notNull(), // 'erp_customer'|'erp_supplier'
+  // Gap closure, 2026-07-18 (VERIDIAN Review Framework, "Duplicate Data
+  // Detection"): 'erp_purchase_invoice' added as a 3rd entity type reusing
+  // this same table (free text column, no migration needed) -- see
+  // mdm-quality-service.ts's file header for why invoices reuse this
+  // workflow instead of a second parallel system, and why mergeDuplicates()
+  // explicitly refuses to auto-merge that entity type.
+  entityType: text('entity_type').notNull(), // 'erp_customer'|'erp_supplier'|'erp_purchase_invoice'
   entityIdA: text('entity_id_a').notNull(),
   entityIdB: text('entity_id_b').notNull(),
   matchScore: numeric('match_score').notNull(), // 0..1
-  matchReason: text('match_reason').notNull(), // 'name_similarity'|'gstin_match'|'pan_match'|'combined'
+  matchReason: text('match_reason').notNull(), // 'name_similarity'|'gstin_match'|'pan_match'|'combined'|'invoice_number_match'
   status: text('status').notNull().default('pending'), // 'pending'|'confirmed_duplicate'|'not_duplicate'|'merged'
   reviewedById: text('reviewed_by_id'),
   reviewedAt: timestamp('reviewed_at'),
@@ -3428,6 +3598,23 @@ export const conversations = complianceSchemaDB.table('conversations', {
   // (see messages.senderId's own comment) -- so no reader of `messages`
   // needs to know this flag exists at all.
   veriParticipant: boolean('veri_participant').notNull().default(false),
+  // REVIEW-FRAMEWORK-WAVE4 AI Interaction Efficiency ("Uses Option Selectors
+  // Before AI Processing" / "Measures AI Reduction Over Time"): the Chain
+  // Selector (ChainSelectorDialog) existed but was purely optional with no
+  // signal a decision point was even offered -- a caller that omitted
+  // modePill/pathKeys silently got a chain-less thread. createWorkflowThread()
+  // now requires an explicit choice (resolve a chain, or set this true) --
+  // false by default so every pre-existing row (and createConversation()'s
+  // human-to-human threads, which never set this) reads as "not applicable",
+  // not "skipped".
+  chainSelectorSkipped: boolean('chain_selector_skipped').notNull().default(false),
+  // REVIEW-FRAMEWORK-WAVE4 ("AI Clarification Minimization"): incremented by
+  // chat-service.ts's generateAiReply()/generateVeriGroupReply() whenever a
+  // reply is clarification-shaped (detectClarificationRequest()) -- a real,
+  // queryable count for "did VERI have to ask this session to clarify",
+  // instead of the framework evaluation's prior "no metric proves this
+  // decreased" gap.
+  clarificationRoundTrips: integer('clarification_round_trips').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -3463,6 +3650,15 @@ export const messages = complianceSchemaDB.table('messages', {
   // "the AI replied" from "the external guest replied", so the existing
   // senderId-null-means-AI convention is never overloaded or broken.
   guestAccessId: text('guest_access_id'),
+  // REVIEW-FRAMEWORK-WAVE4 AI Interaction Efficiency ("AI Confidence Score" /
+  // "Personalized AI Responses"): 'high' | 'medium' | 'low', set ONLY on a
+  // real AI-generated reply (senderId null, gate passed) by chat-service.ts's
+  // deriveConfidenceLabel() call -- an honest, clearly-labeled heuristic
+  // proxy built from floor-tier-escalation.ts's existing hedging-detection
+  // signal, NOT a calibrated model confidence score (no provider in this
+  // codebase exposes one). Null for every other message (human, guest,
+  // gated/fallback/error replies, and every pre-existing row).
+  confidenceLabel: text('confidence_label'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -4149,6 +4345,23 @@ export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one 
   parentPage: one(knowledgeBasePages, { fields: [knowledgeBasePages.parentPageId], references: [knowledgeBasePages.id] }),
 }))
 
+// ─── Business Terminology Glossary (AI Architecture / Explainability &
+// Transparency gap-closure, 2026-07-18, migration 0225) ───────────────────
+// "Explain Business Terminology" finding: no structured glossary/explainer
+// existed anywhere. orgId nullable = platform-wide, same convention as
+// report_definitions.orgId (a platform row an org sees by default, plus
+// room for an org to define its own terms later without a schema change).
+export const businessTerminologyGlossary = complianceSchemaDB.table('business_terminology_glossary', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // nullable = platform-wide
+  term: text('term').notNull(),
+  definition: text('definition').notNull(),
+  category: text('category'), // free text, e.g. 'finance' | 'compliance' | 'construction' | 'crm'
+  aliases: jsonb('aliases').notNull().default([]), // string[] alternate names/abbreviations
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Automation Rules (Wave 30, n8n-inspired trigger→condition→action) ──
 // Deliberately much smaller than n8n itself: single-condition rules, no
 // node-graph, no chained multi-step workflows, no AI/code-execution action
@@ -4156,7 +4369,7 @@ export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one 
 // post-Wave-4 convention for values still likely to grow, e.g.
 // tasks.status), not a pg enum. triggerConditions is a simple {field,
 // operator, value} jsonb match, not an expression language.
-export const automationRules = complianceSchemaDB.table('automation_rules', {
+export const automationRules = platformSchemaDB.table('automation_rules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
@@ -4173,7 +4386,7 @@ export const automationRules = complianceSchemaDB.table('automation_rules', {
 
 // Run log -- mirrors orchestra_executions/worker_agent_usage_log's existing
 // "log every automated action" convention rather than inventing a new one.
-export const automationRuleRuns = complianceSchemaDB.table('automation_rule_runs', {
+export const automationRuleRuns = platformSchemaDB.table('automation_rule_runs', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   ruleId: text('rule_id').notNull(),
   triggeredAt: timestamp('triggered_at').notNull().defaultNow(),
@@ -4364,7 +4577,7 @@ export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
 // layer may create a new Worker Agent Proposal" (refinement #4) and "an
 // actual autonomous L2/L3 AI actor... natural next step... not yet
 // scoped or started" (the Wave 19 status note).
-export const fdeRequests = complianceSchemaDB.table('fde_requests', {
+export const fdeRequests = platformSchemaDB.table('fde_requests', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
@@ -4373,6 +4586,14 @@ export const fdeRequests = complianceSchemaDB.table('fde_requests', {
   matchedWorkerAgentId: text('matched_worker_agent_id'),
   matchedLabel: text('matched_label'), // free text -- e.g. a matched module/automation-rule name, when the match isn't a worker agent row
   createdWorkerAgentId: text('created_worker_agent_id'), // set when a new proposal was drafted
+  // DMP-04 gap closure (CONSTITUTION.yaml): a genuine no-match proposal now
+  // also drafts the full Dynamic Chain bundle (module/rules/permissions/
+  // workflow/KPIs) alongside the worker agent above, via
+  // dynamic-chain-directory-service.ts's proposeDynamicChain(). Nullable --
+  // set only when that best-effort second proposal succeeded; a failure
+  // there never blocks the worker-agent proposal itself from being
+  // recorded (see fde-service.ts's submitFdeRequest()).
+  createdDynamicChainId: text('created_dynamic_chain_id'),
   responseText: text('response_text').notNull(),
   // Wave 144 (VERIDIAN.docx joint implementation plan, Phase 1 items 5-6):
   // both independent studies flagged that FDE discarded every candidate but
@@ -4437,6 +4658,15 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   aiScoreReasoning: text('ai_score_reasoning'),
   aiRecommendedAction: text('ai_recommended_action'),
   aiScoredAt: timestamp('ai_scored_at'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): additive -- rows scored before this wave simply have
+  // all three null/empty, same "never scored just shows nothing" convention
+  // as the Wave 75 columns above. aiRejectedAlternatives closes the "Explain
+  // 'Why Not' for Rejected Options" finding; aiAssumptions/aiConfidence back
+  // the shared AiDecisionExplanation shape (src/lib/explainability/).
+  aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
+  aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
+  aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4457,6 +4687,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]), // string[]
   aiRecommendedAction: text('ai_recommended_action'),
   aiAnalyzedAt: timestamp('ai_analyzed_at'),
+  // AI Architecture / Explainability & Transparency gap-closure (2026-07-18,
+  // migration 0225): same additive columns/rationale as crmLeads above.
+  aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
+  aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
+  aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
   // Priority 15 (Sales & CRM depth wave): next scheduled follow-up, same
   // rationale as crmLeads.nextActionDate above.
   nextActionDate: date('next_action_date', { mode: 'string' }),
@@ -6323,6 +6558,15 @@ export const approvalWorkflowStepDefinitions = complianceSchemaDB.table('approva
   conditionField: text('condition_field'), // nullable -- numeric field name on the entity payload, e.g. 'grandTotal'
   conditionOperator: erpWorkflowConditionOperatorEnum('condition_operator'),
   conditionValue: numeric('condition_value'),
+  // VERIDIAN Review Framework gap-closure (2026-07-18), ABAC finding: an
+  // additive, nullable array of AttributeCondition (src/lib/abac.ts) --
+  // AND-combined with each other AND with the single legacy condition
+  // above when both are present. Generalizes this step from "one numeric
+  // field" to "any combination of resource attributes", the real ABAC
+  // extension of this table's existing conditionField/conditionOperator
+  // pattern. Existing rows (null) are unaffected -- every step behaves
+  // exactly as before until an admin opts into the new multi-condition form.
+  conditions: jsonb('conditions'),
 })
 
 export const approvalWorkflowInstances = complianceSchemaDB.table('approval_workflow_instances', {
@@ -6379,6 +6623,34 @@ export const approvalWorkflowStepInstancesRelations = relations(approvalWorkflow
 export const approvalWorkflowStepApprovalsRelations = relations(approvalWorkflowStepApprovals, ({ one }) => ({
   step: one(approvalWorkflowStepInstances, { fields: [approvalWorkflowStepApprovals.stepInstanceId], references: [approvalWorkflowStepInstances.id] }),
 }))
+
+// VERIDIAN Review Framework gap-closure (2026-07-18), "ABAC / Fine-Grained
+// Policies" -- Critical finding: "No attribute-based access control exists;
+// RBAC only." abac-policy-service.ts's supplementary DENY-only overlay,
+// evaluated AFTER an action's own RBAC check has already passed (never a
+// replacement for RBAC, never an ALLOW grant on its own). Deny-only by
+// design: a policy engine that can only ever narrow access, never widen it,
+// cannot itself become a privilege-escalation bug -- the worst a
+// misconfigured row can do is block something that should have been
+// allowed, a fail-safe direction, not a fail-open one.
+export const abacEffectEnum = complianceSchemaDB.enum('abac_policy_effect', ['deny'])
+
+export const abacPolicies = complianceSchemaDB.table('abac_policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  resourceType: text('resource_type').notNull(), // e.g. 'approval_workflow', 'erp_payment_entry' -- caller-defined namespace, matches approvalWorkflowInstances.entityType's own free-text convention
+  action: text('action').notNull(), // e.g. 'approve', 'export', 'read'
+  effect: abacEffectEnum('effect').notNull().default('deny'),
+  // AttributeCondition[] (src/lib/abac.ts), AND-combined -- every condition
+  // must match for this policy to fire and deny the action.
+  conditions: jsonb('conditions').notNull().default([]),
+  description: text('description'),
+  priority: integer('priority').notNull().default(100), // lower evaluated first; informational ordering only, every active match still denies
+  isActive: boolean('is_active').notNull().default(true),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 // ─── VERI ERP Wave 52: Cost Centers, Cash Management, Credit Notes ────────
 // Per ERP_BENCHMARK_COMPARISON.md Tier 2 -- three of the ranked gaps,
@@ -8630,6 +8902,15 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   promptTokens: integer('prompt_tokens').notNull().default(0),
   completionTokens: integer('completion_tokens').notNull().default(0),
   estimatedCostUsd: numeric('estimated_cost_usd'),
+  // VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+  // 2026-07-18): prompt-cache reads (Prompt & Cache Management Framework
+  // Phase 1) were only ever reflected in prompt_cache_metrics, an
+  // observability table cost-guard.ts/getTokenUsageSummary never reads --
+  // Finance's real ledger had no idea caching was saving anything. Null
+  // when caching wasn't attempted on this call, same "absence means not
+  // attempted" contract as prompt_cache_metrics.cache_read_tokens -- see
+  // llm-client.ts's estimateCacheSavingsUsd for the computation.
+  cacheSavingsUsd: numeric('cache_savings_usd'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -8663,8 +8944,61 @@ export const computationEngines = complianceSchemaDB.table('computation_engines'
   inputSchema: jsonb('input_schema').notNull().default({}),
   outputSchema: jsonb('output_schema').notNull().default({}),
   notes: text('notes'), // honest caveats, e.g. "conflicts with prior Wave 35 decision to use LLM Vision over OCR libs"
+  // Calculation Version Control (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): a statutory-formula change (e.g. a new GST slab from a
+  // fresh Finance Act) used to silently overwrite this row's
+  // implementationRef with no record of what the prior formula was.
+  // engineVersion is a free-form label (semver-ish by convention, e.g.
+  // "1.0.0") bumped by whoever edits the engine's formula; effectiveFrom/
+  // effectiveTo bound the period this specific version is authoritative
+  // for. This table still holds only the CURRENT version per engineKey
+  // (effectiveTo null = still current) -- it is not itself a history
+  // table. The history is captured downstream, per-invocation, by
+  // calculationInvocations.engineVersion (see engine-invocation.ts):
+  // every dispatched calculation snapshots the engineVersion that was
+  // current at the moment it ran, onto the calling record, so a later
+  // version bump never rewrites what an already-completed calculation
+  // says it used.
+  engineVersion: text('engine_version').notNull().default('1.0.0'),
+  effectiveFrom: timestamp('effective_from').notNull().defaultNow(),
+  effectiveTo: timestamp('effective_to'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── Calculation Invocation Audit Log ────────────────────────────────────
+// Built 2026-07-18 (VERIDIAN Review Framework gap closure, "Calculation
+// Auditability"). Prior to this, audit coverage for a VCEL calculation
+// existed only as a side effect of task-execution-engine.ts's
+// executeEngineDispatch() writing a human-readable JSON blob into
+// taskChatMessages -- no dedicated, queryable record of which engine ran,
+// which engineVersion was authoritative at the time, or its structured
+// input/output existed anywhere, and any future direct (non-dispatch)
+// service-code call to an engine function got no audit trail at all.
+// This table + engine-invocation.ts's invokeEngine() wrapper move the
+// guarantee into the invocation layer itself: any caller that routes a
+// calculation through invokeEngine() gets a row here regardless of
+// whether it arrived via the Chain Selector dispatcher or a direct
+// service-code call, closing the "guaranteed for 26 wired engines but not
+// the rest" gap at its root rather than re-adding logging call-by-call at
+// every existing/future call site.
+export const calculationInvocations = complianceSchemaDB.table('calculation_invocations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  engineKey: text('engine_key').notNull(),
+  // Snapshotted from computationEngines.engineVersion at the moment this
+  // invocation ran -- "unknown" only for an engineKey with no matching
+  // computationEngines row (should not happen for a catalogued engine,
+  // but never blocks a calculation from completing just because the
+  // catalog lookup came back empty).
+  engineVersion: text('engine_version').notNull(),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'), // null for system/unattended invocations
+  taskId: text('task_id'), // null when invoked outside a task (e.g. future direct service-code adoption)
+  status: text('status').notNull(), // 'success' | 'failed'
+  input: jsonb('input').notNull().default({}),
+  output: jsonb('output'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // ─── GST Verification & Reconciliation Engine ────────────────────────────
@@ -9613,7 +9947,7 @@ export const assetRegistrationConfig = complianceSchemaDB.table('asset_registrat
 // fractional coverage number -- true per-request decomposition is a much
 // harder planning problem, out of scope for this pass (see tracker's
 // scope_decision).
-export const taskCapabilities = complianceSchemaDB.table('task_capabilities', {
+export const taskCapabilities = platformSchemaDB.table('task_capabilities', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   capabilityKey: text('capability_key').notNull().unique(),
   modePill: text('mode_pill'),
@@ -9631,6 +9965,33 @@ export const taskCapabilities = complianceSchemaDB.table('task_capabilities', {
   orgId: text('org_id'), // nullable = platform-wide, deliberate (see header)
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// VERIDIAN Review Framework remediation (Predictive AI Model Selection gap,
+// 2026-07-18): "No metric tracks whether AI usage/dependence decreases over
+// time." taskCapabilities above only stores CUMULATIVE fullSoftwareCount/
+// packageAvailableCount/novelCount counters (recordExecutionOutcome() in
+// capability-learning-service.ts increments them, never resets or
+// timestamps an individual increment) -- there was no way to answer "did
+// the platform's software-vs-AI mix improve THIS month" from that table
+// alone, only "what is the mix right now, cumulative since forever." This
+// table is a monthly, platform-wide SNAPSHOT of the summed cumulative
+// counters (ai-reduction-service.ts's takeAiReductionSnapshot()) -- diffing
+// two consecutive rows gives that specific month's real bucket
+// distribution, since the underlying counters only ever increase. No
+// orgId: taskCapabilities' own counters are already mostly platform-wide
+// (see that table's own orgId comment), and a single platform-wide trend is
+// what "is AI usage/dependence decreasing over time" asks for; a per-org
+// breakdown is a straightforward additive column later if ever needed, not
+// blocked by this shape.
+export const aiReductionSnapshots = complianceSchemaDB.table('ai_reduction_snapshots', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  snapshotDate: date('snapshot_date', { mode: 'string' }).notNull(),
+  fullSoftwareCount: integer('full_software_count').notNull(),
+  packageAvailableCount: integer('package_available_count').notNull(),
+  novelCount: integer('novel_count').notNull(),
+  totalCount: integer('total_count').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
 // Priority 5: the "Approved Lower AI Instruction Package" -- what makes the
@@ -9663,7 +10024,7 @@ export const instructionPackages = complianceSchemaDB.table('instruction_package
 // capabilityVersion) at the DB level (migration) means a repeat finding
 // against the same capability+version increments occurrenceCount instead
 // of creating a duplicate row.
-export const capabilityImprovementProposals = complianceSchemaDB.table('capability_improvement_proposals', {
+export const capabilityImprovementProposals = platformSchemaDB.table('capability_improvement_proposals', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   capabilityId: text('capability_id').notNull(),
   capabilityVersion: integer('capability_version').notNull(),
@@ -10194,3 +10555,108 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
   assignedAt: timestamp('assigned_at').notNull().defaultNow(),
   dueDate: date('due_date', { mode: 'string' }),
 })
+
+// ─── AI Router "Mother Router" (AIROUTER-01, CONTROLLER.yaml, Owner ────────
+// directive 2026-07-18) ──────────────────────────────────────────────────
+// A real, unifying model/provider registry + versioned routing policy +
+// audit log, layered ADDITIVELY on top of the 3 existing resolution
+// mechanisms (orchestra-model-resolver.ts / model-tier-eligibility.ts /
+// roster.ts) -- none of those files are modified for this. See
+// src/lib/ai-router/mother-router.ts for the resolution logic and
+// drizzle/0231_ai_router_mother_router.sql for the full migration
+// rationale (including why compliance.subscription_plans below is SEEDED
+// here rather than a new table being invented, and why BYOB gets no new
+// columns -- customer_model_config above already implements it).
+export const aiRouterScopeEnum = platformSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing'])
+export const aiModelStatusEnum = platformSchemaDB.enum('ai_model_status', ['active', 'disabled', 'deprecated'])
+export const aiModelHealthEnum = platformSchemaDB.enum('ai_model_health', ['healthy', 'degraded', 'down'])
+
+export const aiModelRegistry = platformSchemaDB.table('ai_model_registry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').notNull(), // free text, not aiProviderEnum -- see migration header (cerebras deliberately excluded from that enum)
+  model: text('model').notNull(),
+  tier: text('tier').notNull(), // mirrors task-tightening.ts's ComplexityTier, descriptive metadata only -- not the enforcement mechanism (that stays model-tier-eligibility.ts, untouched)
+  status: aiModelStatusEnum('status').notNull().default('active'),
+  costPer1kInput: numeric('cost_per_1k_input', { precision: 10, scale: 6 }),
+  costPer1kOutput: numeric('cost_per_1k_output', { precision: 10, scale: 6 }),
+  healthStatus: aiModelHealthEnum('health_status').notNull().default('healthy'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const aiRoutingPolicies = platformSchemaDB.table('ai_routing_policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: aiRouterScopeEnum('scope').notNull(),
+  version: integer('version').notNull(),
+  isActive: boolean('is_active').notNull().default(false),
+  rule: jsonb('rule').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdBy: text('created_by'),
+})
+
+export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: aiRouterScopeEnum('scope').notNull(),
+  context: jsonb('context').notNull().default({}),
+  resolvedProvider: text('resolved_provider').notNull(),
+  resolvedModel: text('resolved_model').notNull(),
+  policyVersion: integer('policy_version'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+// ─── Support Sessions (VERIDIAN Review Framework Wave 4, Track 1b item 2)
+// ─────────────────────────────────────────────────────────────────────────
+// Real, audited "act on behalf of customer" capability -- confirmed via a
+// fresh grep of src/ immediately before this table was added: zero "act on
+// behalf"/"impersonat"/"support session" concept existed anywhere in this
+// codebase. A veridian_admin (support staff, ROLE_RANK 6, the platform's own
+// top role -- see auth-guard.ts) starts a time-limited (1 hour, fixed) session
+// against one target org + one target user there; every read/write performed
+// under that session is expected to carry supportSessionId/
+// actingOnBehalfOfUserId on its audit_logs row (see the two nullable columns
+// added to auditLogs below), so the impersonated org can see exactly who
+// accessed them, when, why, and what they did -- without a cross-org join
+// (initiatedByName/targetUserName are denormalized snapshots, same
+// "don't force a join to see who acted" rationale as audit.ts's own
+// actorName on auditLogs).
+//
+// tokenHash follows the exact hashSHA256()/never-persist-the-raw-token
+// convention as apiKeys.keyHash and orgInviteLinks.tokenHash (see
+// api-keys.ts, invite-link-service.ts) -- the raw token is handed back to
+// the caller exactly once, at start time, and is what whoami-target's
+// caller presents to prove it's operating inside a real, still-active
+// session.
+//
+// This table is inherently cross-org (a support agent's own org is never
+// the target org), so writes go through the raw/service-role db client, not
+// withTenantContext -- the same posture autoProvisionUser/
+// provisionOrganisation already document for platform-level operations that
+// predate or cross tenant boundaries. Reads for the IMPERSONATED org's own
+// admin (GET /api/support-sessions/on-my-org) go through the normal
+// app_runtime RLS path instead, scoped by targetOrgId = current_org_id() --
+// see the migration for the exact 2-policy app_runtime/service_role_bypass
+// shape every other tenant table in this schema uses.
+export const supportSessions = complianceSchemaDB.table('support_sessions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  initiatedByUserId: text('initiated_by_user_id').notNull(),
+  // Denormalized snapshot at start time, not a live join -- same rationale
+  // as audit.ts's actorName: the target org must keep seeing who accessed
+  // them even if that support user is later renamed/deactivated.
+  initiatedByName: text('initiated_by_name').notNull(),
+  targetOrgId: text('target_org_id').notNull(),
+  targetUserId: text('target_user_id').notNull(),
+  targetUserName: text('target_user_name').notNull(),
+  reason: text('reason').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  endedReason: text('ended_reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const supportSessionsRelations = relations(supportSessions, ({ one }) => ({
+  initiatedBy: one(users, { fields: [supportSessions.initiatedByUserId], references: [users.id] }),
+  targetOrg: one(organisations, { fields: [supportSessions.targetOrgId], references: [organisations.id] }),
+  targetUser: one(users, { fields: [supportSessions.targetUserId], references: [users.id] }),
+}))

@@ -36,6 +36,44 @@ export function pathDisplayString(path: PathSegment[]): string {
   return path.map(pathSegmentDisplay).join("-");
 }
 
+// AI Suggested Calculations (VERIDIAN Review Framework gap closure,
+// 2026-07-18): proactively surface a matching VCEL calculator leaf while
+// the user is still typing in the existing chain-picker search box
+// (VeriComposer's `pickerSearch`), instead of requiring them to already
+// know which category/sub-category a calculator lives under. Deliberately
+// reuses the same real capability tree the picker itself renders from
+// (buildCapabilityTree() -> capability-tree-service.ts) -- this is a
+// client-side filter over already-fetched data, not a new endpoint or a
+// second source of truth for "which calculators exist."
+export type CalculatorSuggestion = { path: string[]; label: string; category: string };
+
+function collectCalculatorLeaves(
+  nodes: CapabilityNode[], keyPath: string[], labelPath: string[], out: CalculatorSuggestion[]
+): void {
+  for (const node of nodes) {
+    const nextKeyPath = [...keyPath, node.key];
+    if (node.engineKey && node.deterministic) {
+      out.push({ path: nextKeyPath, label: node.label, category: labelPath.join(" › ") || node.label });
+    }
+    if (node.children?.length) {
+      collectCalculatorLeaves(node.children, nextKeyPath, [...labelPath, node.label], out);
+    }
+  }
+}
+
+// Requires >= 2 characters before matching (mirrors ChainRows' own
+// filterQuery convention) so this never fires on an empty/near-empty
+// search and dumps every calculator in the tree as a "suggestion."
+export function findCalculatorSuggestions(tree: CapabilityNode[], query: string, limit = 4): CalculatorSuggestion[] {
+  const trimmed = query.trim().toLowerCase();
+  if (trimmed.length < 2) return [];
+  const all: CalculatorSuggestion[] = [];
+  collectCalculatorLeaves(tree, [], [], all);
+  return all
+    .filter((c) => c.label.toLowerCase().includes(trimmed) || c.category.toLowerCase().includes(trimmed))
+    .slice(0, limit);
+}
+
 // Walk the tree following `path`; returns the node list for the NEXT row,
 // or null once a leaf has been reached (path complete).
 export function nodeChildrenAt(tree: CapabilityNode[], path: PathSegment[], depth: number): { children: CapabilityNode[] | null; isMulti: boolean } {
@@ -190,7 +228,12 @@ export function ChainRows({
   );
 }
 
-export type ChainSelectorResult = { title: string; modePill?: string; pathKeys?: string[] };
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "Measures AI Reduction
+// Over Time" / "Uses Option Selectors Before AI Processing"): skippedChainSelector
+// makes the skip/resolve decision explicit and recorded (chat-service.ts's
+// createWorkflowThread() now requires one or the other) instead of a caller
+// silently omitting modePill/pathKeys with no trace this dialog ever ran.
+export type ChainSelectorResult = { title: string; modePill?: string; pathKeys?: string[]; skippedChainSelector: boolean };
 
 // The new component this wave actually adds: a pre-conversation step that
 // offers the same ChainRows picker used everywhere else, then hands back
@@ -252,7 +295,7 @@ export function ChainSelectorDialog({
   function confirmWithChain() {
     const resolvedTitle = title.trim() || "New workflow";
     if (!chainComplete) {
-      onConfirm({ title: resolvedTitle });
+      onConfirm({ title: resolvedTitle, skippedChainSelector: true });
       reset();
       return;
     }
@@ -266,12 +309,13 @@ export function ChainSelectorDialog({
       title: resolvedTitle,
       modePill: concrete.length ? pathSegmentDisplay(concrete[0]) : undefined,
       pathKeys: concrete.length ? concrete.map((s) => (typeof s === "string" ? s : s.values.join("+"))) : undefined,
+      skippedChainSelector: false,
     });
     reset();
   }
 
   function skip() {
-    onConfirm({ title: title.trim() || "New workflow" });
+    onConfirm({ title: title.trim() || "New workflow", skippedChainSelector: true });
     reset();
   }
 

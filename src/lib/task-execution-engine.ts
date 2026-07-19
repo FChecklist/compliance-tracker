@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
@@ -46,6 +46,14 @@ import { resolvePackageVariablesOrThrow, MissingInformationError } from "@/lib/s
 // specific to how task-execution-engine.ts phrases a planning-prompt hint,
 // not a generic UMR query concern.
 import { queryByKeywords, type PlatformAsset } from "@/lib/services/asset-query-service";
+// VCEL Calculation Auditability + Version Control (VERIDIAN Review
+// Framework gap closure, 2026-07-18): invokeEngine() is the thin
+// invoke-and-audit wrapper every engine dispatch now goes through (see
+// engine-invocation.ts's own header); CalculationBreakdown is the optional
+// step-by-step shape an engine's output may carry (breakdown.ts).
+import { invokeEngine } from "@/lib/engines/engine-invocation";
+import type { CalculationBreakdown } from "@/lib/engines/breakdown";
+import type { CalculationMessage } from "@/lib/structured-message";
 
 registerAllGuardrails();
 
@@ -710,10 +718,17 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
       return { closingBalance: computeClosingBalance(Number(inputs.openingBalance), Number(inputs.totalDebits), Number(inputs.totalCredits), truthy(inputs.isDebitNormal)) };
     }
     case "balance_verification_engine": {
-      const { verifyBalancesNetToZero } = await import("@/lib/engines/accounting-engine");
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): the *Explained() variant -- see accounting-engine.ts's
+      // header comment. Safe here specifically because this dispatch's
+      // return value is only ever JSON.stringify'd into a task chat message
+      // (executeEngineDispatch, below) and sanity-checked by
+      // assertValidDispatchOutput (tolerates any nested shape, only rejects
+      // NaN/Infinity numbers) -- adding fields doesn't break either.
+      const { verifyBalancesNetToZeroExplained } = await import("@/lib/engines/accounting-engine");
       const balances = inputs.balances as { accountId: string; debit: number; credit: number }[];
       if (!Array.isArray(balances)) throw new Error("balances must be an array");
-      return verifyBalancesNetToZero(balances);
+      return verifyBalancesNetToZeroExplained(balances);
     }
     case "consolidation_engine": {
       const { consolidateBalances } = await import("@/lib/engines/accounting-engine");
@@ -1218,10 +1233,13 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // the registry's own recommended default, and IQR) via a `method` input.
   switch (engineKey) {
     case "trend_analysis_engine": {
-      const { analyzeTrend } = await import("@/lib/engines/analytics-engine");
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): same *Explained() wiring rationale as
+      // balance_verification_engine above.
+      const { analyzeTrendExplained } = await import("@/lib/engines/analytics-engine");
       const values = inputs.values as number[];
       if (!Array.isArray(values)) throw new Error("values must be an array of numbers");
-      return analyzeTrend(values.map(Number));
+      return analyzeTrendExplained(values.map(Number));
     }
     case "analytics_variance_engine": {
       const { analyzeAnalyticsVariance } = await import("@/lib/engines/analytics-engine");
@@ -1750,12 +1768,52 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
   });
 }
 
+// Calculation Explainability (VERIDIAN Review Framework gap closure,
+// 2026-07-18): true only for the representative statutory engines that
+// were given a real `breakdown` field (income tax, GST split, gratuity,
+// TDS -- see breakdown.ts's own header for which). Every other engine's
+// output is untouched by this check and falls through to the pre-existing
+// plain "Result: {...}" chat message, exactly as before this gap closure.
+function extractBreakdown(output: unknown): CalculationBreakdown | null {
+  if (!output || typeof output !== "object" || !("breakdown" in output)) return null;
+  const breakdown = (output as { breakdown?: unknown }).breakdown;
+  if (!breakdown || typeof breakdown !== "object" || !Array.isArray((breakdown as { steps?: unknown }).steps)) return null;
+  return breakdown as CalculationBreakdown;
+}
+
+// camelCase engine-result key -> "Title Case" label, e.g. "grossTax" ->
+// "Gross Tax". Pure string formatting, no engine-specific knowledge.
+function humanizeResultKey(key: string): string {
+  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 async function executeEngineDispatch(orgId: string, userId: string, taskId: string, engineKey: string, engineInputs: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     try {
-      const output = await dispatchEngine(db, orgId, engineKey, engineInputs);
+      const output = await invokeEngine(
+        db, { orgId, userId, taskId }, engineKey,
+        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, engineKey, inputs),
+        engineInputs
+      );
       assertValidDispatchOutput(output);
-      await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      const breakdown = extractBreakdown(output);
+      if (breakdown) {
+        const engineRow = await db.query.computationEngines.findFirst({
+          where: eq(computationEngines.engineKey, engineKey),
+          columns: { name: true, engineVersion: true },
+        });
+        const result = Object.entries(output as Record<string, unknown>)
+          .filter(([key]) => key !== "breakdown")
+          .map(([key, value]) => ({ label: humanizeResultKey(key), value: String(value) }));
+        const structured: CalculationMessage = {
+          type: "calculation", engineName: engineRow?.name ?? engineKey, engineVersion: engineRow?.engineVersion,
+          result, steps: breakdown.steps,
+        };
+        await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: JSON.stringify(structured) });
+      } else {
+        await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      }
       await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";

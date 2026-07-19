@@ -13,10 +13,12 @@ import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
+import { recordTaskEscalationEdge } from "@/lib/task-dependency-graph"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
-import { ServiceError } from "./compliance-service"
+import { ServiceError, serviceErrorBody } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
-export { ServiceError }
+import { explainCrmLeadDecision, explainCrmOpportunityDecision } from "@/lib/explainability/ai-decision-explanation"
+export { ServiceError, serviceErrorBody }
 
 export type CrmContext = { orgId: string; userId: string }
 
@@ -300,7 +302,7 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
-    if (!lead) throw new ServiceError("Lead not found", 404)
+    if (!lead) throw new ServiceError("Lead not found", 404, { code: "NOT_FOUND" })
 
     // VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md §3/#6: lead.name is the one
     // genuinely user-authored field reaching the model here (everything
@@ -312,17 +314,28 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead" },
       lead.name
     )
-    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
     const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503, { code: "AI_NOT_CONFIGURED" })
 
     const systemPrompt = await resolvePromptTemplate("crm_intelligence.score_lead")
     const userMessage = `Lead: "${lead.name}"\nSource: ${lead.source ?? "unknown"}\nStatus: ${lead.status}\nHas email: ${!!lead.contactEmail}\nHas phone: ${!!lead.contactPhone}\nDays since created: ${daysSince(lead.createdAt)}\nDays since last update: ${daysSince(lead.updatedAt)}`
 
     const startedAt = Date.now()
-    const { data: result, usage } = await callLLMJson<{ score: number; reasoning: string; recommendedAction: string }>(
-      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 300 }, modelConfig.fallback
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18, migration 0225): confidence/assumptions/rejectedAlternatives
+    // are requested by the bumped prompt version (see that migration) but
+    // stay optional on the response type -- an org whose model config still
+    // resolves an older cached/BYO prompt (or a model that ignores part of
+    // the schema) shouldn't 500 on missing fields, just fall back to no
+    // explanation extras, same honesty posture as every other AI call site.
+    const { data: result, usage } = await callLLMJson<{
+      score: number; reasoning: string; recommendedAction: string
+      confidence?: "low" | "medium" | "high"; assumptions?: string[]
+      rejectedAlternatives?: { option: string; reason: string }[]
+    }>(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 500 }, modelConfig.fallback
     )
 
     recordOrchestraExecution({
@@ -335,6 +348,9 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     const [updated] = await db.update(crmLeads).set({
       aiScore: Math.round(result.score), aiScoreReasoning: result.reasoning,
       aiRecommendedAction: result.recommendedAction, aiScoredAt: new Date(),
+      aiConfidence: result.confidence ?? null,
+      aiAssumptions: result.assumptions ?? [],
+      aiRejectedAlternatives: result.rejectedAlternatives ?? [],
     }).where(eq(crmLeads.id, leadId)).returning()
     return updated
   })
@@ -344,7 +360,7 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
-    if (!opp) throw new ServiceError("Opportunity not found", 404)
+    if (!opp) throw new ServiceError("Opportunity not found", 404, { code: "NOT_FOUND" })
 
     // Same reasoning as scoreLead() above -- opp.name is the only
     // user-authored text reaching the model here.
@@ -352,17 +368,22 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity" },
       opp.name
     )
-    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
     const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503, { code: "AI_NOT_CONFIGURED" })
 
     const systemPrompt = await resolvePromptTemplate("crm_intelligence.analyze_opportunity")
     const userMessage = `Opportunity: "${opp.name}"\nStage: ${opp.stage}\nEstimated value: ${opp.estimatedValue ?? "unknown"}\nExpected close date: ${opp.expectedCloseDate ?? "unknown"}\nDays since created: ${daysSince(opp.createdAt)}\nDays since last update: ${daysSince(opp.updatedAt)}`
 
     const startedAt = Date.now()
-    const { data: result, usage } = await callLLMJson<{ winProbability: number; riskFactors: string[]; recommendedAction: string }>(
-      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 400 }, modelConfig.fallback
+    // Same optional-extras posture as scoreLead() above.
+    const { data: result, usage } = await callLLMJson<{
+      winProbability: number; riskFactors: string[]; recommendedAction: string
+      confidence?: "low" | "medium" | "high"; assumptions?: string[]
+      rejectedAlternatives?: { option: string; reason: string }[]
+    }>(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 600 }, modelConfig.fallback
     )
 
     recordOrchestraExecution({
@@ -375,8 +396,29 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
     const [updated] = await db.update(crmOpportunities).set({
       aiWinProbability: Math.round(result.winProbability), aiRiskFactors: result.riskFactors ?? [],
       aiRecommendedAction: result.recommendedAction, aiAnalyzedAt: new Date(),
+      aiConfidence: result.confidence ?? null,
+      aiAssumptions: result.assumptions ?? [],
+      aiRejectedAlternatives: result.rejectedAlternatives ?? [],
     }).where(eq(crmOpportunities.id, opportunityId)).returning()
     return updated
+  })
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain AI Decisions"/"Explains Why a Decision Was Made" -- a
+// general-purpose way to fetch the AiDecisionExplanation for a scored
+// lead/analyzed opportunity, for a shared UI ("explain this AI decision")
+// surface to call instead of each caller re-deriving the shape by hand.
+export async function explainCrmAiDecision(ctx: { orgId: string }, entityType: "lead" | "opportunity", entityId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    if (entityType === "lead") {
+      const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, entityId), eq(crmLeads.orgId, ctx.orgId)) })
+      if (!lead) throw new ServiceError("Lead not found", 404, { code: "NOT_FOUND" })
+      return explainCrmLeadDecision(lead)
+    }
+    const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, entityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+    if (!opp) throw new ServiceError("Opportunity not found", 404, { code: "NOT_FOUND" })
+    return explainCrmOpportunityDecision(opp)
   })
 }
 
@@ -387,33 +429,47 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
 // pass (worker-agent dispatch + Wave 77 memory read-back) -- rather than a
 // generic event bus. Still human-gated by the explicit call here, matching
 // task-execution-engine's own "no unattended write action" doctrine.
-async function createChainedTask(ctx: CrmContext, title: string, description: string) {
+//
+// GP-20 Phase 2 (CONSTITUTION.yaml, task-dependency-graph cycle detection):
+// this is the one real place in this codebase where one task's processing
+// spawns AND dispatches (executes) a second, distinct `tasks` row -- so it's
+// the real call site the new escalation-edge guard hooks into. `fromTaskId`,
+// when the caller knows this follow-up was itself raised while working an
+// existing task, is recorded as a real entity_relationships edge
+// (task -> task, 'escalates_to') via recordTaskEscalationEdge(), which
+// refuses (ServiceError) before this insert ever runs if the edge would
+// close a cycle back to an ancestor task. Optional and additive -- omitting
+// it (every caller before this change) behaves exactly as before.
+async function createChainedTask(ctx: CrmContext, title: string, description: string, fromTaskId?: string | null) {
   const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [task] = await db.insert(tasks).values({
       orgId: ctx.orgId, userId: ctx.userId, assignedById: ctx.userId, title, description, status: "in_progress",
     }).returning()
+    if (fromTaskId) {
+      await recordTaskEscalationEdge(db, { orgId: ctx.orgId, fromTaskId, toTaskId: task.id, reason: "chained_follow_up_task" })
+    }
     return task
   })
   await executeTask(ctx.orgId, ctx.userId, created.id, created.title, created.description, null, null)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, created.id) }))
 }
 
-export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string) {
+export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string, fromTaskId?: string | null) {
   await requireSalesEnabled(ctx.orgId)
   const lead = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
   )
   if (!lead) throw new ServiceError("Lead not found", 404)
   if (!lead.aiRecommendedAction) throw new ServiceError("Score this lead first to get an AI-recommended action", 400)
-  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction)
+  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction, fromTaskId)
 }
 
-export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string) {
+export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string, fromTaskId?: string | null) {
   await requireSalesEnabled(ctx.orgId)
   const opp = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
   )
   if (!opp) throw new ServiceError("Opportunity not found", 404)
   if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
-  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction)
+  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction, fromTaskId)
 }

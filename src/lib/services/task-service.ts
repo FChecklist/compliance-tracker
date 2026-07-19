@@ -8,15 +8,24 @@ import { taskExecutionPlan, taskChatMessages } from "@/lib/db"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { ServiceContext, ReadContext } from "./context"
-import { checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
+import { detectHighImpactAction, checkHighImpactConfirmation } from "@/lib/high-impact-action-detector"
+import { logHighImpactClassification } from "@/lib/high-impact-classification-logger"
 import { checkApprovalPreference, saveApprovalPreference } from "@/lib/approval-preference-service"
 import { didFeatureComplete, recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { runTaskCompletionMonitor } from "@/lib/monitors/task-completion-monitor"
 // Wave 173 (GAP-DYNAMIC-CHAIN-DEDUP): dynamic_chain is now a 5th
 // CapabilityEntityType -- indexed at the one real creation point
 // (resolveDynamicChainId below), same "index at creation" pattern
 // worker-agent-service.ts/automation-rule-service.ts already follow for
 // their own entity types.
 import { indexCapability, buildCapabilityContent } from "./capability-registry-service"
+// VERIDIAN Review Framework gap closure, 2026-07-18 ("Duplicate Work
+// Detection"): index every task at creation/edit so
+// task-dedup-service.ts's on-demand audit has something real to compare
+// against -- deliberately a separate 'task' entityType from the capability
+// registry's own indexCapability() above (see that file's own header for
+// why business tasks are a different concept from capabilities).
+import { indexTaskForDedup } from "./task-dedup-service"
 // Wave 173 (GAP-DCMD graph edge): best-effort -- when a chain-originated
 // task's org has configured a real approval_workflow_definitions row for
 // entityType 'tasks', starting a workflow instance here is what makes
@@ -176,6 +185,18 @@ export async function createTask(ctx: ServiceContext, input: {
   // actually created from. Returns early with NO task row inserted and NO
   // execution triggered until the caller resubmits with confirmed: true.
   if (!input.confirmed) {
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18): "Explain Risks Before Actions" -- logs every
+    // classification (matched or not) for later sample audit of misses,
+    // not just the ones that already trip the confirmation gate below.
+    // detectHighImpactAction stays a pure, side-effect-free function (per
+    // its own doc comment) so it's safe to call here purely for the audit
+    // trail, separately from the real gating decision below.
+    const detection = detectHighImpactAction(`${title} ${description ?? ""}`)
+    logHighImpactClassification({
+      orgId, userId: dbUser.id, layerKey: "task_oa", eventType: "task.create",
+      text: `${title} ${description ?? ""}`, detection,
+    })
     // Human Override & Approval (HAB-02 gap closure, 2026-07-18): the
     // detect-and-shape logic itself now lives in checkHighImpactConfirmation
     // (high-impact-action-detector.ts), the one shared, reusable gate, not
@@ -256,6 +277,11 @@ export async function createTask(ctx: ServiceContext, input: {
   })
 
   if (!result) throw new ServiceError("Assistant not found", 404)
+
+  // Best-effort, additive -- never blocks task creation on a failed
+  // embedding call, same contract as the dynamic-chain indexing below.
+  indexTaskForDedup(orgId, result.id, result.title, result.description)
+    .catch((err) => console.error(`Failed to index task ${result.id} for duplicate detection:`, err))
 
   // Wave 173 (GAP-DCMD, "a chain's task creates an approval"): best-effort,
   // additive -- only fires when this task actually resolved a dynamicChainId
@@ -356,6 +382,14 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
         tx: db, event: "feature_completed", entityType: "task", entityId: updated.id, orgId,
         ...actor, details: `Task "${updated.title}" marked completed.`,
       }).catch((err) => console.error(`[audit-trigger] failed to record feature_completed for task ${updated.id}:`, err))
+
+      // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): the same real
+      // transition as feature_completed above, fed into the Narrow Monitor
+      // registry instead of the audit-trigger one. Best-effort, same
+      // posture as the recordAuditTrigger call above.
+      await runTaskCompletionMonitor(db, orgId, actor, {
+        taskId: updated.id, title: updated.title, dueDate: updated.dueDate, completedAt: updated.updatedAt,
+      }).catch((err) => console.error(`[task-completion-monitor] failed for task ${updated.id}:`, err))
     }
 
     return { ok: true as const, updated }
@@ -364,6 +398,12 @@ export async function updateTask(ctx: ServiceContext, id: string, input: { statu
   if (!result) throw new ServiceError("Task not found", 404)
   if (!result.ok) throw new ServiceError(result.error, 400)
   const { updated } = result
+
+  if (input.title !== undefined || input.description !== undefined) {
+    indexTaskForDedup(orgId, updated.id, updated.title, updated.description)
+      .catch((err) => console.error(`Failed to re-index task ${updated.id} for duplicate detection:`, err))
+  }
+
   return { id: updated.id, title: updated.title, description: updated.description, status: updated.status, priority: updated.priority, updatedAt: updated.updatedAt.toISOString() }
 }
 

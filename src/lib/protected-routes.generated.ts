@@ -6,6 +6,7 @@
 // the old hand-maintained array being updated).
 export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/access-review",
+  "/ai-observability",
   "/approvals",
   "/audit",
   "/audit-engagements",
@@ -76,6 +77,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/secretarial-audit",
   "/settings",
   "/statutory-registers",
+  "/task-duplicates",
   "/tasks",
   "/tds-returns",
   "/team",
