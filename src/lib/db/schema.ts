@@ -10622,6 +10622,35 @@ export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', 
   reason: text('reason'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Task Register (AIROUTER-01 Phase 2, Software Team L0-L5, 2026-07-19)
+// ─────────────────────────────────────────────────────────────────────────
+// Genuinely distinct from ai_routing_audit_log above: that table logs
+// ROUTING DECISIONS (which model got picked and why); this table logs the
+// actual TASK CONTRACT -- the pre-execution Instruction Contract a Mother
+// Router (L5) or Supervisor (L4) sends to a worker (L1-L3), and the
+// post-execution Execution Report the worker returns, as a matched pair
+// reusable per task (schema fixed, variables change per task). See
+// src/lib/ai-router/instruction-contract.ts for the TS shapes this jsonb
+// data must conform to (validated at the application layer, same
+// deterministic-no-LLM-call posture as task-tightening.ts -- not enforced
+// by a DB-level JSON schema constraint).
+export const taskRegisterStatusEnum = platformSchemaDB.enum('task_register_status', ['in_progress', 'completed', 'failed', 'escalated'])
+
+export const taskRegister = platformSchemaDB.table('task_register', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  taskId: text('task_id').notNull().unique(), // caller-supplied, stable across a multi-step L2/L3 workflow's sequential dispatch calls so steps accumulate under one Execution Report
+  level: text('level').notNull(), // "L0"-"L5", see software-team-ladder.ts's SoftwareTeamLevel
+  scope: aiRouterScopeEnum('scope').notNull().default('software_team'),
+  roleKey: text('role_key'), // roster.ts roleKey that executed this, null for L0 (no AI)
+  status: taskRegisterStatusEnum('status').notNull().default('in_progress'),
+  instructionContract: jsonb('instruction_contract').notNull(),
+  executionReport: jsonb('execution_report'), // null until at least one step has run
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
 // ─── Support Sessions (VERIDIAN Review Framework Wave 4, Track 1b item 2)
 // ─────────────────────────────────────────────────────────────────────────
 // Real, audited "act on behalf of customer" capability -- confirmed via a

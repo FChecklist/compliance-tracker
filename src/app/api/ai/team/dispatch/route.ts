@@ -8,6 +8,10 @@ import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } 
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
+import { validateLevelDispatch, capabilityCategoryForLevel, levelEscalatesOnConfidenceThreshold, COMPLEXITY_TIER_FOR_CATEGORY, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
+import { validateInstructionContract, taskTypeForStepCount, WORKER_ESCALATION_CONFIDENCE_THRESHOLD, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
+import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
+import { createId } from "@paralleldrive/cuid2"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
 import { detectKnowledgeGap } from "@/lib/knowledge-sufficiency-gate"
 import { recordActivity } from "@/lib/activity-log-service"
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, knownContext, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId, expectedSteps: callerExpectedSteps, capabilityCategory: callerCapabilityCategory, filesCreated, filesModified, testsPassed, testsFailed } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
@@ -64,6 +68,48 @@ export async function POST(request: NextRequest) {
       // response-vocabulary-gate.ts). Omitted on every dispatch that
       // doesn't declare it -- ordinary free-form reply, unchanged.
       responseVocabulary?: VocabularyDispatchType
+      // AIROUTER-01 Phase 2 (Software Team L0-L5): opt-in. Omitted ->
+      // this route behaves exactly as before (no Instruction Contract/
+      // Execution Report, no capability-category routing, no automatic
+      // retry loop) -- existing callers need no changes. Declared -> this
+      // dispatch is treated as one L1-L4 worker-level step against the
+      // Owner's ladder (software-team-ladder.ts), carries a persisted
+      // Instruction Contract/Execution Report pair (task-register-service.ts),
+      // and is routed through the capability-category axis of Mother
+      // Router's policy (Part C).
+      softwareTeamLevel?: SoftwareTeamLevel
+      // Stable across a multi-step L2/L3 workflow's sequential calls so
+      // their Execution Report steps accumulate under one task_register
+      // row. Generated when omitted (a single-step L1/L4 dispatch has no
+      // reason to require the caller to invent one).
+      taskId?: string
+      // Audit round 1 (GLM-5.2, B1 finding): declared ONCE, on the first
+      // dispatch call for a given taskId -- how many sequential steps this
+      // workflow expects before it may be marked "completed". Ignored on
+      // any later call reusing the same taskId (the FIRST call's value,
+      // persisted on the Instruction Contract, is authoritative). Defaults
+      // to 1 (an ordinary single-step L1/L4 dispatch), unchanged behavior
+      // for every caller that doesn't declare it.
+      expectedSteps?: number
+      // Audit round 1 (GLM-5.2, M3 finding): overrides
+      // capabilityCategoryForLevel(softwareTeamLevel) for THIS dispatch --
+      // lets an L4 (or any level) select "architecture_design_analysis"
+      // explicitly for an analysis-shaped sub-task, since no level's
+      // DEFAULT category maps to it (see software-team-ladder.ts's L4
+      // comment for why). Only meaningful alongside softwareTeamLevel.
+      capabilityCategory?: CapabilityCategory
+      // Audit round 2 (GLM-5.2, B2-NEW finding): this route has no
+      // deterministic way to derive real file/test counts from an LLM's
+      // free-text reply -- the Owner's Multi Step example's
+      // execution_summary fields (files_created/files_modified/
+      // tests_passed/tests_failed) are populated ONLY when the caller
+      // (who actually orchestrated the underlying tool calls and knows
+      // the real counts) supplies them. Omitted -> left unset, exactly as
+      // before this fix (never fabricated).
+      filesCreated?: number
+      filesModified?: number
+      testsPassed?: number
+      testsFailed?: number
     }
 
     // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): AI Dev Team
@@ -73,7 +119,16 @@ export async function POST(request: NextRequest) {
     // is token-usage-ledger-only. Fire-and-forget, never blocks dispatch.
     if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "requested", objective, complexityTier })
 
-    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints })
+    // Audit round 3 (GLM-5.2 audit prep, discovered while wiring the L4/
+    // judgment-tier test): this route never destructured OR forwarded
+    // `knownContext` anywhere, even though TightTask/task-tightening.ts's
+    // own validateTightTask() requires it for integrative/judgment tier
+    // (mandatory per that module's own header). Any real judgment-tier
+    // dispatch through this route -- including every L4 dispatch this PR
+    // adds -- was unconditionally rejected with "Known context is missing"
+    // regardless of what a caller sent. Fixed here since it directly
+    // blocks the L4 ladder level this task adds, not a cosmetic gap.
+    const tightness = evaluateGuardrails(AI_TEAM_DISPATCH_LEAF, "input", { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, knownContext })
     if (!tightness.passed) {
       void recordGuardrailViolation("ai_team_dispatch", AI_TEAM_DISPATCH_LEAF, "input", tightness)
       // No role resolved yet -- rejected before classification even runs.
@@ -97,7 +152,37 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, complexityTier: complexityTier!, expectedOutput: expectedOutput!, constraints })
+    // AIROUTER-01 Phase 2 (Software Team L0-L5): fail closed on an
+    // inconsistent (level, complexityTier) pairing BEFORE classification
+    // or any model call -- same "reject before spending anything" posture
+    // as the tightness/vocabulary checks just above.
+    if (softwareTeamLevel) {
+      const levelCheck = validateLevelDispatch(softwareTeamLevel, complexityTier!)
+      if (!levelCheck.valid) {
+        if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, complexityTier, errorReason: levelCheck.reason, durationMs: Date.now() - dispatchStartedAt })
+        return NextResponse.json({
+          status: "blocked",
+          blockedBy: { reason: levelCheck.reason, guidance: levelCheck.guidance },
+        }, { status: 422 })
+      }
+      // Audit round 2 (GLM-5.2, M8 finding): a caller-supplied
+      // capabilityCategory override (M3, round 1) must itself agree with
+      // the declared complexityTier -- otherwise a caller could combine a
+      // judgment-tier level/tier with a mechanical-tier category, which
+      // would resolve to a mechanical-tier model then get silently
+      // rejected/downgraded by checkTierEligibility further downstream
+      // instead of being caught here with a clear reason.
+      if (callerCapabilityCategory && COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory] !== complexityTier) {
+        const reason = `capabilityCategory "${callerCapabilityCategory}" resolves to complexityTier "${COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory]}", but "${complexityTier}" was declared.`
+        if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, complexityTier, errorReason: reason, durationMs: Date.now() - dispatchStartedAt })
+        return NextResponse.json({
+          status: "blocked",
+          blockedBy: { reason, guidance: `Set complexityTier to "${COMPLEXITY_TIER_FOR_CATEGORY[callerCapabilityCategory]}" to match the declared capabilityCategory, or choose a category whose tier matches "${complexityTier}".` },
+        }, { status: 422 })
+      }
+    }
+
+    const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, complexityTier: complexityTier!, expectedOutput: expectedOutput!, constraints, knownContext })
 
     const classification = forcedRole
       ? { role: forcedRole, reasoning: "Caller-specified role, classification skipped.", confidence: 1 }
@@ -152,12 +237,86 @@ export async function POST(request: NextRequest) {
     // gate and dispatch model, unchanged. See mother-router.ts's own header
     // for why this route wasn't rewired to consume a policy override in
     // this pass (a disclosed, deliberate scope decision, not an oversight).
+    // Audit round 1 (GLM-5.2, M3 finding): a caller-supplied capabilityCategory
+    // overrides the level's own default -- lets e.g. an L4 dispatch select
+    // "architecture_design_analysis" explicitly, since no level defaults to
+    // it (see software-team-ladder.ts's L4 comment).
+    const resolvedCapabilityCategory = softwareTeamLevel ? (callerCapabilityCategory ?? capabilityCategoryForLevel(softwareTeamLevel) ?? undefined) : undefined
+
     void resolveMotherRouterModel({
       scope: "software_team",
       model: targetRole.model,
       complexityTier: complexityTier!,
       roleKey: classification.role,
+      // AIROUTER-01 Phase 2 (Part C, capability routing matrix): only
+      // present when the caller declared a level -- an ordinary dispatch
+      // with no level keeps resolving purely by tier, unchanged.
+      capabilityCategory: resolvedCapabilityCategory,
     }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
+
+    // AIROUTER-01 Phase 2 (Part B): register the Instruction Contract
+    // BEFORE execution, matching the Owner's "genuinely PRE-execution"
+    // requirement, ONLY on the first dispatch call for a given taskId --
+    // taskRegister.taskId is unique, so a second registerInstructionContract()
+    // call for a REUSED taskId (an L2/L3 multi-step workflow's later
+    // sequential calls) would fail its insert every time; audit round 1
+    // fixed this by reading any existing row first and skipping
+    // re-registration when one is already present. taskId is generated once
+    // per NEW task_id (a caller reuses the SAME taskId across sequential
+    // calls to accumulate one Execution Report -- see
+    // task-register-service.ts's recordExecutionReport()). Best-effort:
+    // registerInstructionContract() never throws, matching every other
+    // fire-and-forget audit write in this route.
+    const taskId = softwareTeamLevel ? (callerTaskId ?? createId()) : null
+    let priorStepCount = 0
+    let expectedSteps = callerExpectedSteps && callerExpectedSteps >= 1 ? Math.floor(callerExpectedSteps) : 1
+    if (softwareTeamLevel && taskId) {
+      const priorRecord = await getTaskRecord(taskId).catch(() => null)
+      const priorContract = priorRecord?.instructionContract as InstructionContract | undefined
+      priorStepCount = ((priorRecord?.executionReport as ExecutionReport | null)?.steps.length) ?? 0
+
+      if (priorContract) {
+        // Audit round 1 (GLM-5.2, B1 finding): the FIRST call's declared
+        // expectedSteps is authoritative for the whole workflow -- a later
+        // call's own (possibly absent or wrong) value is ignored.
+        expectedSteps = priorContract.expectedSteps
+      } else {
+        const contract: InstructionContract = {
+          taskId,
+          level: softwareTeamLevel,
+          roleKey: classification.role,
+          objective: objective!,
+          preconditions: [`complexityTier="${complexityTier}"`, constraints ? `constraints: ${constraints}` : "none stated beyond scope/successCriteria"],
+          input: task,
+          // Audit round 1 (GLM-5.2, m2 finding): derived from the level's
+          // own real base process, not just the caller's free-text scope
+          // alone (which passed shape validation but carried no actual
+          // structured steps).
+          process: [...SOFTWARE_TEAM_LADDER[softwareTeamLevel].baseProcessSteps, `Task-specific scope: ${scope}`],
+          constraints,
+          expectedOutputFormat: expectedOutput!,
+          validationCriteria: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
+          successCriteria: successCriteria!,
+          failureCriteria: `Output does not satisfy: ${successCriteria}`,
+          retryPolicy: SOFTWARE_TEAM_LADDER[softwareTeamLevel].retryPolicy,
+          escalationRule: SOFTWARE_TEAM_LADDER[softwareTeamLevel].escalationRules,
+          documentationRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].documentationRequirements,
+          evidenceRequired: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
+          handoverRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].handoverRequirements,
+          expectedSteps,
+        }
+        const contractValidation = validateInstructionContract(contract)
+        if (!contractValidation.valid) {
+          if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: contractValidation.reason, durationMs: Date.now() - dispatchStartedAt })
+          return NextResponse.json({
+            status: "blocked",
+            classification,
+            blockedBy: { reason: contractValidation.reason, guidance: contractValidation.guidance },
+          }, { status: 422 })
+        }
+        await registerInstructionContract(contract, softwareTeamLevel, classification.role)
+      }
+    }
 
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
@@ -175,7 +334,44 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    const execution = await runRole(classification.role, task)
+    let execution = await runRole(classification.role, task)
+    let retryCount = 0
+    // Audit round 2 (GLM-5.2, m7 finding): tokens_used previously reflected
+    // only the FINAL retry attempt's usage -- a step that retried once
+    // silently dropped its first attempt's real token spend from the
+    // Execution Report. Accumulated across every attempt for this step.
+    // Audit round 3 (GLM-5.2, m12-NEW finding): nullish-guarded -- an
+    // `execution.usage` missing a field (e.g. a provider error path)
+    // must never poison the accumulated total into NaN, which would
+    // otherwise pass validateExecutionReport's own `typeof === "number"`
+    // check silently (typeof NaN is "number").
+    let stepTokensUsed = (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0)
+
+    // AIROUTER-01 Phase 2 (Owner's Universal Tightened Instruction
+    // Template, Retry Policy: "1 retry for L1-L3"): bounded, automatic
+    // retry on a hedged/knowledge-gap first attempt -- only when the
+    // caller declared a level whose ladder contract names >0 automatic
+    // retries (L1-L3 today; L4's "as needed" / L0/L5's own policies are
+    // deliberately NOT automatic loops here, maxAutomaticRetries is 0 for
+    // them). An ordinary dispatch with no softwareTeamLevel is completely
+    // unaffected -- this loop never runs for it.
+    const maxAutomaticRetries = softwareTeamLevel ? SOFTWARE_TEAM_LADDER[softwareTeamLevel].maxAutomaticRetries : 0
+    while (retryCount < maxAutomaticRetries) {
+      const lc = detectLowConfidenceResponse(execution.content)
+      const kg = detectKnowledgeGap(execution.content)
+      if (!lc.detected && !kg.insufficientKnowledge) break
+      // Audit round 1 (GLM-5.2, M1 finding): a retry that resends the
+      // IDENTICAL prompt is structurally a bare re-roll, not a genuine
+      // second attempt. Inject the specific matched failure signal back
+      // into the prompt so the retried attempt has something concrete to
+      // address, rather than an unchanged input an LLM is unlikely to
+      // answer differently.
+      const failureSignal = lc.detected ? lc.matchedPhrase : kg.matchedPhrase
+      retryCount++
+      const retryTask = `${task}\n\n[RETRY ${retryCount}/${maxAutomaticRetries}] Your previous attempt was flagged for: "${failureSignal}". Address this directly in this attempt -- do not repeat it, and do not hedge if you have sufficient information to answer confidently.`
+      execution = await runRole(classification.role, retryTask)
+      stepTokensUsed += (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0)
+    }
 
     // VERIDIAN_AUDIT_ORGANIZATION.md, "L1 Real-Time Audit": the source
     // document requires audit before completion whenever confidence is
@@ -308,7 +504,104 @@ export async function POST(request: NextRequest) {
         })
       : null
 
+    // AIROUTER-01 Phase 2 (Part B): build + persist the Execution Report,
+    // matching the Owner's own literal schema (4 worked examples) exactly.
+    // This route dispatches exactly ONE step per call from its own
+    // perspective -- step_no continues from whatever this task_id already
+    // accumulated (priorStepCount, read above before execution). The RAW
+    // per-call report below covers only THIS step; task-register-service.ts's
+    // recordExecutionReport() aggregates it against any prior steps into a
+    // real workflow-level Execution Report (audit round 1, B1-B4 fixes) --
+    // this route uses THAT returned aggregate for its response, not its own
+    // single-step view.
+    let executionReport: ExecutionReport | null = null
+    let taskRegisterStatus: string | null = null
+    let reportPersistenceFailed = false
+    if (softwareTeamLevel && taskId) {
+      const stepNo = priorStepCount + 1
+      const stepStatus: ExecutionStepStatus = qaGate.passed ? "PASS" : requiresAudit ? "PARTIAL" : "FAIL"
+      // Audit round 2 (GLM-5.2, M7 finding): the numeric confidence
+      // threshold is an L1-L3 escalation rule specifically (the Owner's
+      // Part A: L4 escalates on "business conflict," never on confidence
+      // alone) -- was previously applied to every level, including L4.
+      const escalationRequired = requiresAudit || (levelEscalatesOnConfidenceThreshold(softwareTeamLevel) && confidencePercentage < WORKER_ESCALATION_CONFIDENCE_THRESHOLD)
+      const stepReport: ExecutionReport = {
+        task_id: taskId,
+        // Audit round 2 (GLM-5.2, m8 finding): reflects the WORKFLOW's
+        // intended shape (expectedSteps) even on the very first call, not
+        // merely how many steps have run so far -- otherwise step 1 of an
+        // expected 8-step workflow reports "Single Step" until every step
+        // has accumulated.
+        task_type: taskTypeForStepCount(expectedSteps),
+        objective: objective!,
+        status: stepStatus,
+        overall_confidence: confidencePercentage,
+        completion: { completed: stepStatus === "PASS" ? 1 : 0, expected: expectedSteps, percentage: expectedSteps > 0 ? Math.round((stepNo / expectedSteps) * 100) : 0 },
+        steps: [{
+          step_no: stepNo,
+          name: objective!.slice(0, 120),
+          status: stepStatus,
+          confidence: confidencePercentage,
+          retry_count: retryCount,
+          validation: qaGate.passed ? "PASS" : "FAIL",
+        }],
+        missing: knowledgeGap.insufficientKnowledge && knowledgeGap.matchedPhrase ? [knowledgeGap.matchedPhrase] : [],
+        warnings: lowConfidence.detected && lowConfidence.matchedPhrase ? [lowConfidence.matchedPhrase] : [],
+        errors: stepStatus === "FAIL" ? [`Step ${stepNo} ("${objective}") did not pass QA pre-completion gate.`] : [],
+        // Audit round 3 (GLM-5.2, M9-NEW finding): `required` was already
+        // correct, but the REASON fell through to the confidence message
+        // even when `requiresAudit` (not low confidence) was the actual
+        // cause -- e.g. every PASSING L3 dispatch (mandatory-audit tier)
+        // got a false "confidence below threshold" reason despite high
+        // confidence. Reason now names the real cause, checked in the same
+        // priority order `requiresAudit` itself is computed from.
+        escalation: {
+          required: escalationRequired,
+          reason: !escalationRequired
+            ? ""
+            : !qaGate.passed
+              ? qaGate.reason
+              : lowConfidence.detected
+                ? `low-confidence signal detected: "${lowConfidence.matchedPhrase}"`
+                : knowledgeGap.insufficientKnowledge
+                  ? `knowledge-gap signal detected: "${knowledgeGap.matchedPhrase}"`
+                  : riskLevel === "high" || riskLevel === "critical"
+                    ? `risk level "${riskLevel}" requires review`
+                    : requiresAudit
+                      ? "mandatory audit required for this tier/response shape"
+                      : `overall_confidence ${confidencePercentage}% below the ${WORKER_ESCALATION_CONFIDENCE_THRESHOLD}% worker escalation threshold`,
+        },
+        execution_summary: {
+          duration_seconds: Math.round((Date.now() - dispatchStartedAt) / 1000),
+          tokens_used: stepTokensUsed,
+          // Audit round 2 (GLM-5.2, B2-NEW finding): only populated when
+          // the caller supplied a real count -- never fabricated.
+          files_created: filesCreated,
+          files_modified: filesModified,
+          tests_passed: testsPassed,
+          tests_failed: testsFailed,
+        },
+      }
+      const recorded = await recordExecutionReport(taskId, stepReport, expectedSteps)
+      executionReport = recorded.mergedReport
+      taskRegisterStatus = recorded.status
+      // Audit round 3 (GLM-5.2, M10-NEW finding): M6's fix (round 2) made
+      // a lost report DETECTABLE and LOGGED at the service layer, but this
+      // route still silently returned status:"completed" with
+      // executionReport:null and no way for a caller to tell "no report
+      // because no level was declared" apart from "report was lost to a
+      // DB failure." Surfaced explicitly below.
+      if (!recorded.ok) reportPersistenceFailed = true
+    }
+
     return NextResponse.json({
+      // Audit round 2 (GLM-5.2, m6 finding): this `status` is per-DISPATCH-CALL
+      // (did THIS step complete without requiring audit) -- for a
+      // softwareTeamLevel dispatch it is NOT the same thing as
+      // `taskRegisterStatus`/`executionReport.status` below, which describe
+      // the WHOLE workflow across every accumulated step. A caller must
+      // check `taskRegisterStatus`, not this field, to know whether a
+      // multi-step L2/L3 workflow is actually finished.
       status: requiresAudit ? "pending_review" : "completed",
       classification,
       executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },
@@ -327,6 +620,20 @@ export async function POST(request: NextRequest) {
       vocabularyCheck,
       reviewActivityId: requiresAudit ? (activityRow?.id ?? null) : null,
       guardrails,
+      // AIROUTER-01 Phase 2 (Software Team L0-L5): null unless the caller
+      // declared softwareTeamLevel -- an ordinary dispatch is unaffected.
+      softwareTeamLevel: softwareTeamLevel ?? null,
+      taskId,
+      retryCount,
+      taskRegisterStatus,
+      executionReport,
+      // Audit round 3 (GLM-5.2, M10-NEW finding): explicit, always-present
+      // (for a softwareTeamLevel dispatch) signal distinguishing "no report
+      // because no level was declared" (reportPersisted stays true, but
+      // taskId/executionReport are simply null) from "a level WAS declared
+      // but the report was lost to a DB failure" (reportPersisted: false,
+      // executionReport: null) -- a caller must not have to infer this.
+      reportPersisted: !reportPersistenceFailed,
     })
   } catch (error) {
     if (error instanceof RoleNotCallableError) {
