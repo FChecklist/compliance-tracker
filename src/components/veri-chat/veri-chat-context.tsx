@@ -1,151 +1,80 @@
 "use client";
 
-// Shared state between VeriComposer (bottom, always in the same spot) and
-// VeriChatPanel (right side away from Home, merged into Home's center).
-// Deliberately keeps two independent axes, validated in the prototype:
-// `composerMode` answers "what am I about to DO" (drives the composer),
-// `rightPanelView` answers "what am I currently LOOKING AT" (drives the
-// panel's list) -- switching one must never disturb the other. Opening a
-// specific task or conversation is the one thing that's shared, since
-// continuing it genuinely requires both sides to agree on what's open.
+// Compliance-tracker's own thin wrapper around
+// @fchecklist/veridian-ui-kit/context's createVeriChatContext() factory --
+// the shared package owns the two-axis state machine (composerMode /
+// activeView, task/conversation "what's open" tracking, capability-tree
+// fetch-on-module-change), ported verbatim from what used to be this exact
+// file. What stays real, product-side state here (per the package's own
+// README scope boundary -- "multi-thread AI conversation switching... stays
+// in each product's own service layer"): the AI-thread switcher
+// (aiThreadId/activeAiThreadId/aiThreads/switchAiThread/createNewAiThread)
+// and the wider rightPanelView union (this repo's real Meetings/Approvals/
+// Voice tabs on top of the package's baseline Overview/Tasks/Chats/To Do).
+// Composed as a second, inner context rather than forking the factory, so
+// the shared state-machine logic itself (composerMode<->activeView
+// interactions, task/conversation open/close) has exactly one
+// implementation across every consuming product.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { createVeriChatContext, FIXED_MODES } from "@fchecklist/veridian-ui-kit/context";
+import type { CapabilityNode, CapabilityInputField, PathSegment } from "@fchecklist/veridian-ui-kit/context";
 
-// "select" renders as a dropdown of fixed choices (a click, never typed
-// text) -- used when one engine bundles several related functions (e.g.
-// Basic Arithmetic Engine covers add/subtract/multiply/divide) so the user
-// still never has to type something that could be spelled wrong. "number_list"
-// is a comma-separated list of numbers, parsed server-side into number[].
-export type CapabilityInputField = {
-  key: string;
-  label: string;
-  type: "number" | "text" | "select" | "number_list";
-  optional?: boolean;
-  options?: { value: string; label: string }[];
-};
+export type { CapabilityNode, CapabilityInputField, PathSegment };
+export { FIXED_MODES };
 
-export type CapabilityNode = {
-  key: string;
-  label: string;
-  leaf: boolean;
-  multi?: boolean;
-  codeReference?: string | null;
-  projectId?: string | null;
-  // Set on VCEL calculator leaves (capability-tree-service.ts's Calculators
-  // branch) -- identifies which computation_engines row to dispatch, paired
-  // with inputFields describing what the composer must collect before send.
-  engineKey?: string | null;
-  inputFields?: CapabilityInputField[];
-  // The real worker_agents.id to dispatch, when it differs from `key` (e.g.
-  // an entity-scoped leaf like "Compliance Item X -> Mark completed", where
-  // `key` must stay unique per item+action but the dispatchable agent is
-  // shared across every such leaf). Falls back to `key` when unset, which is
-  // how the plain worker-agent branch leaves (key IS the real agent id)
-  // already work.
-  agentId?: string | null;
-  // Values already determined by the leaf's position in the tree (e.g. which
-  // compliance item, which target status) -- sent through untouched, unlike
-  // inputFields which the composer still has to prompt the user to type.
-  fixedInputs?: Record<string, string>;
-  // Wave 173 (chain-integration for reports): when set, this leaf resolves
-  // to a real saved-report URL -- VeriComposer.tsx navigates here instead of
-  // POSTing to /api/tasks. Mirrors capability-tree-service.ts's own
-  // CapabilityNode.reportUrl field.
-  reportUrl?: string | null;
-  // True when this leaf carries a real codeReference or engineKey -- the
-  // selection is guaranteed to run as real software with zero AI
-  // involvement, computed server-side in capability-tree-service.ts.
-  deterministic?: boolean;
-  children?: CapabilityNode[];
-};
-
-export type PathSegment = string | { multi: true; values: string[] };
-
-export const FIXED_MODES = ["discuss", "chats", "todo"] as const;
-
-type VeriChatState = {
-  tree: CapabilityNode[];
-  treeLoading: boolean;
-  composerMode: string;
-  setComposerMode: (mode: string) => void;
-  activeTaskId: string | null;
-  activeConversationId: string | null;
-  openTask: (id: string) => void;
-  openConversation: (id: string) => void;
-  closeThread: () => void;
-  // Priority 18a (VERI Chat second-screen unification): "meetings" and
-  // "approvals" added alongside the original 4 -- both are read-mostly
-  // attention feeds like Tasks/Chats/To Do, not a new composerMode axis, so
-  // they slot into this same union rather than needing their own state.
-  rightPanelView: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice";
-  setRightPanelView: (v: "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice") => void;
-  aiThreadId: string | null;
-  refreshCounter: number;
-  bumpRefresh: () => void;
-  // Wave 148 (Phase4_Implementation_Plan.md, "multi-thread conversations"):
-  // aiThreadId above stays the singleton default thread, unchanged --
-  // activeAiThreadId is what the composer actually sends to, defaulting to
-  // aiThreadId but switchable to any workflow thread the user opens/creates.
-  activeAiThreadId: string | null;
-  aiThreads: { id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[];
-  switchAiThread: (id: string) => void;
-  // Priority 5 item E1 (10-priority5-software-orchestrator-tracker.yaml):
-  // 3rd param threads a resolved Dynamic Chain selection through to POST
-  // /api/conversations/workflow-thread -> createWorkflowThread(), same
-  // plumbing task creation already has via VeriComposer's dispatchInstruction.
-  // Priority 6 item 1 wired this up for real (AiThreadSwitcher's
-  // ChainSelectorDialog). REVIEW-FRAMEWORK-WAVE4: 4th param is the caller's
-  // explicit "the Chain Selector ran and was declined" signal --
-  // createWorkflowThread() now requires either a resolved chainSelection or
-  // this set true (see that function's own header comment).
-  createNewAiThread: (title?: string, workflowId?: string, chainSelection?: { modePill: string; pathKeys: string[] }, skippedChainSelector?: boolean) => Promise<string | null>;
-};
-
-const VeriChatContext = createContext<VeriChatState | null>(null);
+// Priority 18a (VERI Chat second-screen unification): Meetings/Approvals/
+// Voice are this repo's real extra panel tabs, layered on the package's
+// baseline 4 exactly as its own types.ts documents products may do.
+export type RightPanelView = "overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice";
 
 // D5.B7: the first path segment IS the route's module, matching this app's
-// flat src/app/(app)/<module>/... layout -- there's no separate routes
-// config to import from. capability-tree-service.ts's
-// MODULE_SCOPE_TOP_LEVEL_KEYS is the single source of truth for which module
-// strings actually narrow the tree server-side; any other value here is a
-// safe no-op (server falls back to the full tree), so this stays a plain
-// string derivation rather than a maintained allowlist that could drift out
-// of sync with the server-side map.
+// flat src/app/(app)/<module>/... layout.
 function moduleFromPathname(pathname: string | null): string | undefined {
   if (!pathname) return undefined;
   const segment = pathname.split("/").filter(Boolean)[0];
   return segment || undefined;
 }
 
-export function VeriChatProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const moduleScope = moduleFromPathname(pathname);
-  const [tree, setTree] = useState<CapabilityNode[]>([]);
-  const [treeLoading, setTreeLoading] = useState(true);
-  const [composerMode, setComposerModeState] = useState("tasks");
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [rightPanelView, setRightPanelView] = useState<"overview" | "tasks" | "chats" | "todo" | "meetings" | "approvals" | "voice">("overview");
-  const [aiThreadId, setAiThreadId] = useState<string | null>(null);
-  const [refreshCounter, setRefreshCounter] = useState(0);
-  const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
-  const [aiThreads, setAiThreads] = useState<{ id: string; title: string | null; workflowId: string | null; isPrimary: boolean }[]>([]);
+async function fetchCapabilityTree(moduleScope: string | undefined): Promise<CapabilityNode[]> {
+  const url = moduleScope ? `/api/capability-tree?module=${encodeURIComponent(moduleScope)}` : "/api/capability-tree";
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.nodes ?? [];
+}
 
-  // D5.B7: was a single mount-once effect with `tree` bundled in alongside
-  // conversations -- split out so the tree can legitimately re-fetch on
-  // `moduleScope` changes (i.e. real page-to-page navigation between
-  // different top-level route segments) without also re-running the
-  // unrelated one-shot conversations/AI-thread load below on every
-  // navigation.
-  useEffect(() => {
-    setTreeLoading(true);
-    const url = moduleScope ? `/api/capability-tree?module=${encodeURIComponent(moduleScope)}` : "/api/capability-tree";
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => setTree(d.nodes ?? []))
-      .catch(() => setTree([]))
-      .finally(() => setTreeLoading(false));
-  }, [moduleScope]);
+const base = createVeriChatContext<RightPanelView>({
+  fetchTree: fetchCapabilityTree,
+  defaultView: "overview",
+  defaultComposerMode: "tasks",
+});
+
+// Wave 148 (Phase4_Implementation_Plan.md, "multi-thread conversations"):
+// aiThreadId is the singleton default thread; activeAiThreadId is what the
+// composer actually sends to, defaulting to aiThreadId but switchable to any
+// workflow thread the user opens/creates. Real business logic (which thread
+// is "active", spinning up a new workflow thread) -- not a generic shell
+// concern, so it lives here rather than in the shared factory.
+type AiThreadSummary = { id: string; title: string | null; workflowId: string | null; isPrimary: boolean };
+
+type AiThreadState = {
+  aiThreadId: string | null;
+  activeAiThreadId: string | null;
+  aiThreads: AiThreadSummary[];
+  switchAiThread: (id: string) => void;
+  createNewAiThread: (
+    title?: string,
+    workflowId?: string,
+    chainSelection?: { modePill: string; pathKeys: string[] },
+    skippedChainSelector?: boolean
+  ) => Promise<string | null>;
+};
+
+const AiThreadContext = createContext<AiThreadState | null>(null);
+
+function AiThreadProvider({ children }: { children: ReactNode }) {
+  const [aiThreadId, setAiThreadId] = useState<string | null>(null);
+  const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
+  const [aiThreads, setAiThreads] = useState<AiThreadSummary[]>([]);
 
   useEffect(() => {
     fetch("/api/conversations")
@@ -155,7 +84,10 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
         const ai = all.filter((c) => c.isAiThread);
         setAiThreads(ai.map((c) => ({ id: c.id, title: c.title, workflowId: c.workflowId, isPrimary: c.isPrimary })));
         const primary = ai.find((c) => c.isPrimary) ?? ai[0];
-        if (primary) { setAiThreadId(primary.id); setActiveAiThreadId(primary.id); }
+        if (primary) {
+          setAiThreadId(primary.id);
+          setActiveAiThreadId(primary.id);
+        }
       })
       .catch(() => {});
   }, []);
@@ -185,50 +117,36 @@ export function VeriChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setComposerMode = (mode: string) => {
-    setComposerModeState(mode);
-    setActiveTaskId(null);
-    setActiveConversationId(null);
-    if (mode === "chats") setRightPanelView("chats");
-    else if (mode === "todo") setRightPanelView("todo");
-  };
-
-  const openTask = (id: string) => {
-    setActiveTaskId(id);
-    setActiveConversationId(null);
-    setComposerModeState("tasks");
-  };
-
-  const openConversation = (id: string) => {
-    setActiveConversationId(id);
-    setActiveTaskId(null);
-    setComposerModeState("chats");
-  };
-
-  const closeThread = () => {
-    setActiveTaskId(null);
-    setActiveConversationId(null);
-  };
-
-  const bumpRefresh = () => setRefreshCounter((c) => c + 1);
-
-  const value = useMemo<VeriChatState>(
-    () => ({
-      tree, treeLoading, composerMode, setComposerMode,
-      activeTaskId, activeConversationId, openTask, openConversation, closeThread,
-      rightPanelView, setRightPanelView, aiThreadId, refreshCounter, bumpRefresh,
-      activeAiThreadId, aiThreads, switchAiThread, createNewAiThread,
-    }),
-    [tree, treeLoading, composerMode, activeTaskId, activeConversationId, rightPanelView, aiThreadId, refreshCounter, activeAiThreadId, aiThreads]
+  const value = useMemo<AiThreadState>(
+    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread }),
+    [aiThreadId, activeAiThreadId, aiThreads]
   );
 
-  return <VeriChatContext.Provider value={value}>{children}</VeriChatContext.Provider>;
+  return <AiThreadContext.Provider value={value}>{children}</AiThreadContext.Provider>;
+}
+
+export function VeriChatProvider({ children }: { children: ReactNode }) {
+  return (
+    <base.VeriChatProvider>
+      <AiThreadProvider>{children}</AiThreadProvider>
+    </base.VeriChatProvider>
+  );
 }
 
 export function useVeriChat() {
-  const ctx = useContext(VeriChatContext);
-  if (!ctx) throw new Error("useVeriChat must be used within VeriChatProvider");
-  return ctx;
+  const state = base.useVeriChat();
+  const aiThread = useContext(AiThreadContext);
+  if (!aiThread) throw new Error("useVeriChat must be used within VeriChatProvider");
+  return {
+    ...state,
+    ...aiThread,
+    // rightPanelView/setRightPanelView alias the base factory's generic
+    // activeView/setActiveView -- kept under their original name here so
+    // every existing call site (VeriComposer.tsx, VeriChatPanel.tsx) reads
+    // unchanged.
+    rightPanelView: state.activeView,
+    setRightPanelView: state.setActiveView,
+  };
 }
 
 // D5.B6 (persistent visibility panel): VeriChatProvider only mounts for
@@ -239,5 +157,8 @@ export function useVeriChat() {
 // either crashing (useVeriChat's throw) or forcing every org onto the
 // VeriChatProvider tree just to support one unrelated panel.
 export function useVeriChatOptional() {
-  return useContext(VeriChatContext);
+  const state = base.useVeriChatOptional();
+  const aiThread = useContext(AiThreadContext);
+  if (!state || !aiThread) return null;
+  return { ...state, ...aiThread, rightPanelView: state.activeView, setRightPanelView: state.setActiveView };
 }

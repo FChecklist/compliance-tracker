@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { AppSidebar as SharedAppSidebar, type NavItem as SharedNavItem, type NavSection as SharedNavSection } from "@fchecklist/veridian-ui-kit/shell";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import {
   LayoutDashboard,
@@ -476,212 +476,150 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
-  const pathname = usePathname();
+
+// veridian-ui-kit migration (2026-07-19): the shared AppSidebar component
+// owns only the generic nav-sections shell/style (logo row + scrollable
+// section list, per its own README scope boundary) -- this repo's real nav
+// DATA (top-pinned Home/Dashboard/Chat/Connectors/FDE links, all module
+// sections, badges) is built here and passed in as plain props, converted
+// to the shared component's NavItem/NavSection shape. The top-pinned links
+// (previously their own distinctly-styled block above the module sections)
+// are folded into an unlabeled first section -- the shared component's
+// `.veri-nav-item.active` style (solid navy background, ported verbatim
+// from the mockup) replaces the old bg-ct-accent/border-l-saffron treatment
+// for every nav item; this is the same class of mockup-alignment correction
+// as AppShellFrame's home-merge fix, not an accidental restyle.
+//
+// Disclosed, confirmed tradeoffs of this swap (none of them break
+// navigation/data -- all are visual/convenience only):
+// - Active-state highlighting: the shared component computes `active` via
+//   `pathname === href || pathname.startsWith(href + "/")`, with no
+//   query-string awareness. A few items route via query string (e.g.
+//   "/compliance?status=overdue") -- those links still navigate correctly,
+//   they just won't visually highlight as active while on that exact view.
+// - The BYOB white-label logo row's border-bottom accent line has no
+//   equivalent slot in the shared component's fixed logo-row template; the
+//   logo image itself stays real-org-aware (falls back to the default mark)
+//   and is wrapped in a Link to "/" for click-to-home, just without the
+//   accent underline.
+// - The org-name/language-switcher footer has no footer slot in the shared
+//   component's template (a single overflow-y-auto region covers header+nav
+//   together, no separate pinned-footer scroll region) -- kept as this
+//   repo's own sibling below the shared component instead of inside it.
+function toSharedItem(href: string, label: string, icon: React.ElementType, badge?: { count: number; color: string }): SharedNavItem {
+  return {
+    href,
+    label,
+    icon: <SidebarIcon icon={icon} />,
+    badge: badge ? <CountBadge count={badge.count} color={badge.color} /> : undefined,
+  };
+}
+
+function SidebarIcon({ icon: Icon }: { icon: React.ElementType }) {
+  return <Icon className="size-3.5 shrink-0" />;
+}
+
+function CountBadge({ count, color = "bg-ct-saffron text-white" }: { count: number; color?: string }) {
+  return (
+    <Badge className={cn("h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 flex items-center justify-center", color)}>
+      {count}
+    </Badge>
+  );
+}
+
+function buildSharedSections(
+  t: ReturnType<typeof useTranslations>,
+  overdueCount: number, docCount: number, noticeCount: number, accountType: string,
+  unreadChatCount: number, unreadAiCount: number, connectedConnectorsCount: number,
+  pmsEnabled: boolean, firmEnabled: boolean
+): SharedNavSection[] {
+  const topPinned: SharedNavSection = {
+    items: [
+      toSharedItem("/home", t("top.home"), Sparkles, unreadAiCount > 0 ? { count: unreadAiCount, color: "bg-ct-saffron text-white" } : undefined),
+      toSharedItem("/dashboard", t("top.dashboard"), LayoutDashboard),
+      toSharedItem("/chat", t("top.chat"), MessageSquare, unreadChatCount > 0 ? { count: unreadChatCount, color: "bg-ct-saffron text-white" } : undefined),
+      toSharedItem("/connectors", t("top.connectors"), Link2, connectedConnectorsCount > 0 ? { count: connectedConnectorsCount, color: "bg-ct-saffron text-white" } : undefined),
+      toSharedItem("/fde", t("top.agents"), Rocket),
+    ],
+  };
+
+  const moduleSections = getNavSections(t, overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled).map(
+    (section): SharedNavSection => ({
+      label: section.title,
+      items: section.items.map((item) => toSharedItem(item.href, item.label, item.icon, item.badge)),
+    })
+  );
+
+  return [topPinned, ...moduleSections];
+}
+
+function AppSidebarFooter({ orgName }: { orgName: string }) {
   const t = useTranslations("Nav");
-  const sections = getNavSections(t, overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled);
+  return (
+    <div className="px-5 py-3 border-t border-ct-border flex items-center justify-between gap-2 shrink-0">
+      <div className="min-w-0">
+        <p className="text-xs text-ct-muted truncate">{orgName || " "}</p>
+        <p className="text-[10px] text-ct-muted/60">{t("poweredBy")}</p>
+      </div>
+      <LanguageSwitcher />
+    </div>
+  );
+}
+
+function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+  const t = useTranslations("Nav");
+  const sections = buildSharedSections(t, overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled);
+
+  const logo = (
+    <Link href="/" title="VERIDIAN AI" className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-sm">
+      <Image
+        src={orgLogoUrl || "/logo-mark.svg"}
+        alt={orgLogoUrl ? `${orgName || "Organisation"} logo` : "VERIDIAN AI"}
+        width={28}
+        height={28}
+        className="size-7 rounded-sm object-contain"
+        unoptimized
+      />
+    </Link>
+  );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Logo -- Wave B (BYOB white-label branding): when an org admin has
-          configured a custom logo (org-branding-service.ts's
-          resolveBranding(), plumbed through AppShell.tsx from /api/me), it
-          replaces the default VERIDIAN AI mark here; the wordmark switches
-          to the org's own name so a branded org doesn't show a
-          tenant-chosen icon next to a competitor-facing product name. No
-          logo configured (the overwhelming common case today -- every
-          existing org has this NULL) renders byte-identical to before this
-          wave. The border-bottom accent line is the other minimum-viable
-          per-tenant touchpoint this wave wires up (see globals.css's
-          --org-brand-accent/--org-brand-primary custom properties) --
-          deliberately the ONLY two spots re-themed in this pass rather than
-          retrofitting every bg-ct-saffron/text-ct-saffron usage across the
-          sidebar (a much larger, separately-scoped redesign); see this
-          wave's PR description for that explicit scope boundary. */}
-      <Link
-        href="/"
-        className="flex items-center gap-3 px-5 py-5 border-b-2"
-        style={{ borderBottomColor: "var(--org-brand-accent)" }}
-      >
-        <Image
-          src={orgLogoUrl || "/logo-mark.svg"}
-          alt={orgLogoUrl ? `${orgName || "Organisation"} logo` : "VERIDIAN AI"}
-          width={34}
-          height={34}
-          className="size-[34px] rounded-sm object-contain"
-          unoptimized
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 flex">
+        <SharedAppSidebar
+          sections={sections}
+          logo={logo}
+          productName={orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
+          collapsed={false}
         />
-        <span
-          className="font-heading text-lg tracking-tight truncate"
-          style={{ color: "var(--org-brand-primary)" }}
-        >
-          {orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
-        </span>
-      </Link>
-
-      {/* Home + VERI Chat Intelligence Engine -- promoted top-level, above
-          the collapsible module sections (Wave 13 added Chat; Wave 15
-          promotes Home alongside it; Wave 37 splits the single "VERI Chat"
-          link into its two sub-modules -- VERI AI (user <-> system) and
-          VERI Chat (user <-> people, enterprise Slack/WhatsApp-style) --
-          which used to be conflated as one link with the AI thread just
-          pinned inside the same list. See PLATFORM_STRATEGY.md §18. */}
-      {/* Wave 105 (demo feedback): Home is now the assistant-first screen
-          (formerly "Home 2"); the old tabbed workspace became Dashboard
-          (opens on Analytics). VERI AI's standalone page is retired for
-          users -- the assistant lives on Home -- so its unread count now
-          badges Home. VERI FDE, renamed "Do It For Me" in plain language,
-          is promoted here. Order: Home, Dashboard, VERI Chat, Do It For Me. */}
-      <div className="px-3 mb-2 space-y-0.5">
-        <Link
-          href="/home"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname === "/home"
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Sparkles className={cn("size-3.5 shrink-0", pathname === "/home" ? "text-ct-saffron" : "text-ct-saffron/70")} />
-          <span className="flex-1">{t("top.home")}</span>
-          {unreadAiCount > 0 && (
-            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
-              {unreadAiCount}
-            </Badge>
-          )}
-        </Link>
-        <Link
-          href="/dashboard"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/dashboard")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname.startsWith("/dashboard") && "text-ct-saffron")} />
-          <span className="flex-1">{t("top.dashboard")}</span>
-        </Link>
-        <Link
-          href="/chat"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/chat")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <MessageSquare className={cn("size-3.5 shrink-0", pathname.startsWith("/chat") && "text-ct-saffron")} />
-          <span className="flex-1">{t("top.chat")}</span>
-          {unreadChatCount > 0 && (
-            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
-              {unreadChatCount}
-            </Badge>
-          )}
-        </Link>
-        {/* Connectors (Connectors.docx wave, 2026-07-10): promoted from a
-            buried ADMIN-section link ("VERI CONNECT") to a top-level entry so
-            users can actually discover VERI Connect exists -- mirrors why
-            Home/Dashboard/VERI Chat are promoted here instead of living in a
-            collapsible section. */}
-        <Link
-          href="/connectors"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/connectors")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Link2 className={cn("size-3.5 shrink-0", pathname.startsWith("/connectors") && "text-ct-saffron")} />
-          <span className="flex-1">{t("top.connectors")}</span>
-          {connectedConnectorsCount > 0 && (
-            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
-              {connectedConnectorsCount}
-            </Badge>
-          )}
-        </Link>
-        <Link
-          href="/fde"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/fde")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Rocket className={cn("size-3.5 shrink-0", pathname.startsWith("/fde") && "text-ct-saffron")} />
-          <span className="flex-1">{t("top.agents")}</span>
-        </Link>
       </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
-        {sections.map((section) => (
-          <div key={section.title} className="mb-3">
-            <p className="px-3 mb-1 text-[9px] font-bold tracking-widest text-ct-muted uppercase">
-              {section.title}
-            </p>
-            {section.items.map((item) => {
-              const isActive = pathname.startsWith(item.href.split("?")[0]);
-
-              return (
-                <Link
-                  key={item.href + item.label}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors mb-0.5 relative",
-                    isActive
-                      ? "bg-ct-accent text-ct-saffron font-semibold border-l-[3px] border-ct-saffron"
-                      : "text-ct-slate hover:bg-ct-cloud"
-                  )}
-                >
-                  <item.icon className={cn("size-3.5 shrink-0", isActive && "text-ct-saffron")} />
-                  <span className="flex-1">{item.label}</span>
-                  {item.badge && (
-                    <Badge
-                      className={cn(
-                        "h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 flex items-center justify-center",
-                        item.badge.color
-                      )}
-                    >
-                      {item.badge.count}
-                    </Badge>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      {/* Bottom org info -- the signed-in organisation's real name (was a
-          hardcoded "Acme Financial Services" placeholder every tenant saw). */}
-      <div className="px-5 py-4 border-t border-ct-border flex items-center justify-between gap-2"><div className="min-w-0">
-        <p className="text-xs text-ct-muted truncate">{orgName || " "}</p>
-        <p className="text-[10px] text-ct-muted/60">{t("poweredBy")}</p></div><LanguageSwitcher />
-      </div>
+      <AppSidebarFooter orgName={orgName} />
     </div>
   );
 }
 
 export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null }) {
+  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl };
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
-      </aside>
+      {/* Desktop sidebar -- wrapping the shared component (rather than
+          giving it its own `hidden lg:flex` internally, which it doesn't
+          expose) lets it stay a plain, non-responsive component reusable by
+          any consumer, while this repo's own responsive behavior stays
+          here. */}
+      <div className="hidden lg:flex lg:h-full">
+        <SidebarInner {...props} />
+      </div>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
+        <MobileSheetTrigger {...props} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -690,7 +628,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden text-white hover:bg-white/10"
+          className="text-ct-slate hover:bg-ct-cloud hover:text-ct-navy"
         >
           <LayoutDashboard className="size-5" />
         </Button>
@@ -699,7 +637,9 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
+        <div className="h-full flex">
+          <SidebarInner {...props} />
+        </div>
       </SheetContent>
     </Sheet>
   );
