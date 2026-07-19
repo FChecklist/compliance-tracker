@@ -3,6 +3,10 @@ import { createId } from '@paralleldrive/cuid2'
 import { relations, sql } from 'drizzle-orm'
 
 export const complianceSchemaDB = pgSchema('compliance')
+// Same database as compliance, not a second DB (Supabase free tier caps DBs at 2) --
+// a same-database compartment for tables that don't belong to the compliance domain proper,
+// designed for an easy future split. See ai-os/CONSTITUTION.yaml / PROGRESS.md for the move history.
+export const platformSchemaDB = pgSchema('platform')
 
 // ─── Enums ───────────────────────────────────────────────────────────────
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
@@ -915,7 +919,7 @@ export const embeddings = complianceSchemaDB.table('embeddings', {
 // `embedding vector(1536)` intentionally omitted here, same reason as
 // `embeddings`/`assistant_memories` above -- managed via raw SQL, see
 // instruction-execution-cache-service.ts.
-export const instructionExecutionCache = complianceSchemaDB.table('instruction_execution_cache', {
+export const instructionExecutionCache = platformSchemaDB.table('instruction_execution_cache', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   // Nullable = platform-wide entry, same convention as embeddings.orgId --
   // no real caller passes null today (fde-service.ts always has a concrete
@@ -944,7 +948,7 @@ export const instructionExecutionCache = complianceSchemaDB.table('instruction_e
 // relationship this table is meant to express links two entities that
 // belong to a specific tenant; there is no platform-level use case for this
 // table the way there is for global-tier embeddings.
-export const entityRelationships = complianceSchemaDB.table('entity_relationships', {
+export const entityRelationships = platformSchemaDB.table('entity_relationships', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   sourceType: text('source_type').notNull(),
@@ -1063,7 +1067,7 @@ export const assistantMetricsDaily = complianceSchemaDB.table('assistant_metrics
 // CHECK constraint and by RLS (app_runtime can never write tier='global').
 // capability_embedding / knowledge_embedding vector(1536) columns deliberately
 // omitted, same as assistant_memories -- managed via raw SQL.
-export const workerAgents = complianceSchemaDB.table('worker_agents', {
+export const workerAgents = platformSchemaDB.table('worker_agents', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   tier: text('tier').notNull(), // 'global' | 'customer' | 'client' | 'user'
   name: text('name').notNull(),
@@ -1120,7 +1124,7 @@ export const workerAgents = complianceSchemaDB.table('worker_agents', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workerAgentVersions = complianceSchemaDB.table('worker_agent_versions', {
+export const workerAgentVersions = platformSchemaDB.table('worker_agent_versions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   version: integer('version').notNull(),
@@ -1131,7 +1135,7 @@ export const workerAgentVersions = complianceSchemaDB.table('worker_agent_versio
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const workerAgentUsageLog = complianceSchemaDB.table('worker_agent_usage_log', {
+export const workerAgentUsageLog = platformSchemaDB.table('worker_agent_usage_log', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   orgId: text('org_id'),
@@ -1144,7 +1148,7 @@ export const workerAgentUsageLog = complianceSchemaDB.table('worker_agent_usage_
 })
 
 // embedding vector(1536) column omitted, see note above.
-export const workerAgentLearnings = complianceSchemaDB.table('worker_agent_learnings', {
+export const workerAgentLearnings = platformSchemaDB.table('worker_agent_learnings', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   content: text('content').notNull(),
@@ -1152,7 +1156,7 @@ export const workerAgentLearnings = complianceSchemaDB.table('worker_agent_learn
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_domain_index', {
+export const workerAgentDomainIndex = platformSchemaDB.table('worker_agent_domain_index', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   workerAgentId: text('worker_agent_id').notNull(),
   domainPath: text('domain_path').notNull(),
@@ -1166,7 +1170,7 @@ export const workerAgentDomainIndex = complianceSchemaDB.table('worker_agent_dom
 // app_runtime only has SELECT on this table at the DB level (RLS), so a
 // genuinely new top-level category always falls back to 'general' until a
 // human adds a real row here via a reviewed migration.
-export const workerAgentDomainGroups = complianceSchemaDB.table('worker_agent_domain_groups', {
+export const workerAgentDomainGroups = platformSchemaDB.table('worker_agent_domain_groups', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   key: text('key').notNull(),
   name: text('name').notNull(),
@@ -1302,7 +1306,7 @@ export const taskChatMessages = complianceSchemaDB.table('task_chat_messages', {
 // most recent change for audit purposes; a full change-history table is a
 // straightforward additive follow-up if ever needed, not blocked by this
 // shape).
-export const aiTeamRoleOverrides = complianceSchemaDB.table('ai_team_role_overrides', {
+export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_overrides', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   roleKey: text('role_key').notNull().unique(),
   model: text('model').notNull(),
@@ -1720,7 +1724,7 @@ export const agentReviewRecords = complianceSchemaDB.table('agent_review_records
 // (business/AI/workflow/governance/knowledge definitions per chain) -- that
 // richer schema is deliberately deferred, see the constitution doc's
 // "Rollout scope" section for why.
-export const dynamicChains = complianceSchemaDB.table('dynamic_chains', {
+export const dynamicChains = platformSchemaDB.table('dynamic_chains', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   modePill: text('mode_pill').notNull(),
@@ -1933,7 +1937,7 @@ export const sharedPoolAllocations = complianceSchemaDB.table('shared_pool_alloc
 // (single-domain platform today, see purpose-bound-ai.ts's own honesty
 // note); promoting this to a real foreign-keyed table is the natural next
 // step once a second real domain (Sales/HR/SCM) actually exists.
-export const moduleRegistry = complianceSchemaDB.table('module_registry', {
+export const moduleRegistry = platformSchemaDB.table('module_registry', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   moduleKey: text('module_key').notNull().unique(), // matches the underlying table name 1:1 today; kept distinct from tableName since a future module's key and table COULD diverge (rename/versioning)
   displayName: text('display_name').notNull(),
@@ -1969,7 +1973,7 @@ export const moduleRegistry = complianceSchemaDB.table('module_registry', {
 // than that living only in a separate doc that will drift. See
 // MASTER_AI_OS_ARCHITECTURE.md for the full rules this table's columns
 // encode.
-export const productBranches = complianceSchemaDB.table('product_branches', {
+export const productBranches = platformSchemaDB.table('product_branches', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   branchKey: text('branch_key').notNull().unique(), // 'grc' today; 'sales' | 'hr' | 'scm' | ... in future Phase D branches
   displayName: text('display_name').notNull(),
@@ -1993,7 +1997,7 @@ export const productBranches = complianceSchemaDB.table('product_branches', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const productBranchModules = complianceSchemaDB.table('product_branch_modules', {
+export const productBranchModules = platformSchemaDB.table('product_branch_modules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   productBranchId: text('product_branch_id').notNull(),
   moduleKey: text('module_key').notNull(), // FK-by-convention on module_registry.module_key (the stable natural key), not module_registry.id
@@ -2017,7 +2021,7 @@ export const productBranchModules = complianceSchemaDB.table('product_branch_mod
 // completeness but has no rule-setting API/UI yet and no seeded rule uses
 // it -- most GRC rules are organizational, not personal; wiring real
 // per-user overrides is deferred, not built blind.
-export const moduleRuleConfigs = complianceSchemaDB.table('module_rule_configs', {
+export const moduleRuleConfigs = platformSchemaDB.table('module_rule_configs', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   moduleKey: text('module_key').notNull(), // FK-by-convention on module_registry.module_key
   ruleKey: text('rule_key').notNull(),
@@ -4365,7 +4369,7 @@ export const businessTerminologyGlossary = complianceSchemaDB.table('business_te
 // post-Wave-4 convention for values still likely to grow, e.g.
 // tasks.status), not a pg enum. triggerConditions is a simple {field,
 // operator, value} jsonb match, not an expression language.
-export const automationRules = complianceSchemaDB.table('automation_rules', {
+export const automationRules = platformSchemaDB.table('automation_rules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
@@ -4382,7 +4386,7 @@ export const automationRules = complianceSchemaDB.table('automation_rules', {
 
 // Run log -- mirrors orchestra_executions/worker_agent_usage_log's existing
 // "log every automated action" convention rather than inventing a new one.
-export const automationRuleRuns = complianceSchemaDB.table('automation_rule_runs', {
+export const automationRuleRuns = platformSchemaDB.table('automation_rule_runs', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   ruleId: text('rule_id').notNull(),
   triggeredAt: timestamp('triggered_at').notNull().defaultNow(),
@@ -4573,7 +4577,7 @@ export const metricAlertRules = complianceSchemaDB.table('metric_alert_rules', {
 // layer may create a new Worker Agent Proposal" (refinement #4) and "an
 // actual autonomous L2/L3 AI actor... natural next step... not yet
 // scoped or started" (the Wave 19 status note).
-export const fdeRequests = complianceSchemaDB.table('fde_requests', {
+export const fdeRequests = platformSchemaDB.table('fde_requests', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
   userId: text('user_id').notNull(),
@@ -9943,7 +9947,7 @@ export const assetRegistrationConfig = complianceSchemaDB.table('asset_registrat
 // fractional coverage number -- true per-request decomposition is a much
 // harder planning problem, out of scope for this pass (see tracker's
 // scope_decision).
-export const taskCapabilities = complianceSchemaDB.table('task_capabilities', {
+export const taskCapabilities = platformSchemaDB.table('task_capabilities', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   capabilityKey: text('capability_key').notNull().unique(),
   modePill: text('mode_pill'),
@@ -10020,7 +10024,7 @@ export const instructionPackages = complianceSchemaDB.table('instruction_package
 // capabilityVersion) at the DB level (migration) means a repeat finding
 // against the same capability+version increments occurrenceCount instead
 // of creating a duplicate row.
-export const capabilityImprovementProposals = complianceSchemaDB.table('capability_improvement_proposals', {
+export const capabilityImprovementProposals = platformSchemaDB.table('capability_improvement_proposals', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   capabilityId: text('capability_id').notNull(),
   capabilityVersion: integer('capability_version').notNull(),
@@ -10563,11 +10567,11 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
 // rationale (including why compliance.subscription_plans below is SEEDED
 // here rather than a new table being invented, and why BYOB gets no new
 // columns -- customer_model_config above already implements it).
-export const aiRouterScopeEnum = complianceSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing'])
-export const aiModelStatusEnum = complianceSchemaDB.enum('ai_model_status', ['active', 'disabled', 'deprecated'])
-export const aiModelHealthEnum = complianceSchemaDB.enum('ai_model_health', ['healthy', 'degraded', 'down'])
+export const aiRouterScopeEnum = platformSchemaDB.enum('ai_router_scope', ['software_team', 'end_user_org', 'sales_marketing'])
+export const aiModelStatusEnum = platformSchemaDB.enum('ai_model_status', ['active', 'disabled', 'deprecated'])
+export const aiModelHealthEnum = platformSchemaDB.enum('ai_model_health', ['healthy', 'degraded', 'down'])
 
-export const aiModelRegistry = complianceSchemaDB.table('ai_model_registry', {
+export const aiModelRegistry = platformSchemaDB.table('ai_model_registry', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   provider: text('provider').notNull(), // free text, not aiProviderEnum -- see migration header (cerebras deliberately excluded from that enum)
   model: text('model').notNull(),
@@ -10581,7 +10585,7 @@ export const aiModelRegistry = complianceSchemaDB.table('ai_model_registry', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const aiRoutingPolicies = complianceSchemaDB.table('ai_routing_policies', {
+export const aiRoutingPolicies = platformSchemaDB.table('ai_routing_policies', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   scope: aiRouterScopeEnum('scope').notNull(),
   version: integer('version').notNull(),
@@ -10591,7 +10595,7 @@ export const aiRoutingPolicies = complianceSchemaDB.table('ai_routing_policies',
   createdBy: text('created_by'),
 })
 
-export const aiRoutingAuditLog = complianceSchemaDB.table('ai_routing_audit_log', {
+export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   scope: aiRouterScopeEnum('scope').notNull(),
   context: jsonb('context').notNull().default({}),
