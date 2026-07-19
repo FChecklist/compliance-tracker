@@ -40,7 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260719-021229-gap-closure--gp-08-09-hallucination-conf) -- GP-08/GP-09 grep-verifiable claim confidence scoring"
+  - session_label: "claude-code (task-20260719-025216-migrate-compliance-tracker-to-consume-ve) -- migrate compliance-tracker to consume veridian-ui-kit's real shell/composer/panel/header components"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Bumping @fchecklist/veridian-ui-kit to v0.2.0 and swapping
+      compliance-tracker's own AppShell.tsx/AppSidebar.tsx/AppTopbar.tsx/
+      veri-chat/VeriComposer.tsx/VeriChatPanel.tsx/veri-chat-context.tsx to
+      actually consume the shared package's real AppShellFrame/AppSidebar/
+      AppHeader/VeriComposer/PanelShell/ThreadView/createVeriChatContext()
+      components -- this repo is the SOURCE those were extracted from
+      (PR #436, 2026-07-18), so this is the regression gate before PROJEXA
+      does the same swap. File scope: package.json (dependency bump),
+      src/app/globals.css + src/app/layout.tsx (consume the package's
+      tokens/fonts exports instead of locally-duplicated copies),
+      src/components/AppShell.tsx, AppSidebar.tsx, AppTopbar.tsx,
+      src/components/veri-chat/veri-chat-context.tsx, VeriComposer.tsx,
+      VeriChatPanel.tsx, src/app/(app)/home/page.tsx (homeThreadSlot wiring).
+      Read the shared package (README + every file under src/shell/,
+      src/composer/, src/panel/, src/context/, at the v0.2.0 tag) and this
+      repo's real current implementations in full first, per this task's own
+      instruction. Confirmed several genuine, real-feature-loss conflicts
+      between the shared package's deliberately-generic component surface
+      and this repo's real, product-specific behavior (VCEL calculator
+      structured-input collection, the FDE "my option isn't here" fallback
+      leaf, AI-suggested-calculator chips, and the chain-picker search/filter
+      box in VeriComposer -- none of these have any representation in the
+      shared package's actual props/callbacks, confirmed by reading its
+      source, not assumed) -- handling those as this task's own explicit
+      "stop and report the specific blocker, don't paper over it" instruction
+      directs, not by silently dropping them. Checked `gh pr list` + this
+      file for collisions: none found (the closest prior entry, PR #436
+      below, explicitly scoped this exact full-swap decision OUT as "a
+      separate, larger follow-on" -- this task is that follow-on).
     claimed_at: "2026-07-19T (this session)"
     claim: |
       Closing the real remaining slice of GP-09 (Confidence) /
