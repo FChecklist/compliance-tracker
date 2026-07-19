@@ -1,22 +1,25 @@
-# PROGRESS -- task-20260719-021229-gap-closure--gp-08-09-hallucination-conf
+# PROGRESS -- task-20260719-031532-schema-ts--reflect-live-platform-schema
 
 ## Completed
-- [x] Read ai-os/CONSTITUTION.yaml guardrail_protocols GP-08/GP-09 in full
-- [x] Read policy-enforcement-engine.ts, dispatch-confidence-scoring.ts, confidence-banding.ts, orchestra-execution-logger.ts, ai-team/roster.ts, ai-team/team-service.ts, ai-team/dispatch-repo.ts, api/ai/team/dispatch/route.ts, activity-log-service.ts
-- [x] Fresh grep for "confidence" across src/lib -- confirmed dispatch-confidence-scoring.ts already exists (2026-07-18) but is a deterministic proxy, NOT a fact-check of claims against real codebase state -- that specific gap is real
-- [x] Checked ai-os/boss/ACTIVE-CLAIMS.yaml + `gh pr list` -- no genuine duplicate claim on this narrow slice
-- [x] Registered claim in ACTIVE-CLAIMS.yaml, committed as its own first commit
-- [x] Implemented src/lib/claim-verification.ts (extraction + grep-verification of backtick-quoted file-path/function-name claims, capped, lazy-cached scan under src/lib+src/app+src/components, test files excluded from the scan)
-- [x] Wired confidenceScore/lowConfidenceFlagged into orchestra-execution-logger.ts's recordOrchestraExecution() (attached into existing output jsonb, no schema/migration change)
-- [x] Added tests: real function/file claim (high confidence, score 1) + nonexistent claim (low confidence, score 0, flagged) + mixed case + no-claims case -- 13 tests, all passing
-- [x] Updated CONSTITUTION.yaml GP-08/GP-09 status text
-- [x] bunx tsc --noEmit clean, bun run lint clean (pre-existing warnings only, unrelated), bun test: 1735+ pass / 0 fail
-- [x] Pushed, opened PR #463
-- [x] Posted structured AUDIT: PASS comment (8 fields, no markdown bold on labels -- validate-audit-verdict.ts requires the label at literal line start)
-- [x] CI green: Mandatory Audit Check, CI (Lint/Type Check/Build/Unit/E2E/Asset Registry/Metadata Index/Guardrail Presence/Doc checks), Sentinel Governance Checks, CodeQL all pass -- only Vercel failed (known rate-limited, non-required)
-- [x] Merged origin/main into branch multiple times (main moving fast -- PR #462, #464, GP-20 loop-prevention, etc. landing concurrently) to resolve repeated CONFLICTING mergeStateStatus, each time only PROGRESS.md (per-task-instance file) conflicting, ACTIVE-CLAIMS.yaml/CONSTITUTION.yaml auto-merging cleanly
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, confirmed no collision, registered claim, pushed as its own commit
+- [x] Read src/lib/db/schema.ts in full (10658 lines)
+- [x] Added `platformSchemaDB = pgSchema('platform')` export next to complianceSchemaDB
+- [x] Migrated 22 tables' `.table(...)` calls from complianceSchemaDB to platformSchemaDB (table name strings, columns, exported TS identifiers all unchanged)
+- [x] Migrated 3 enum types' `.enum(...)` calls (ai_router_scope, ai_model_status, ai_model_health) from complianceSchemaDB to platformSchemaDB
+- [x] Checked all `relations(...)` blocks touching these 22 tables (workerAgents*, moduleRegistry, productBranches*, moduleRuleConfigs, automationRules*, orgProductBranchEnablements->productBranches) -- all reference table objects directly, not schema-qualified, no same-schema assumption found
+- [x] Ran `bunx tsc --noEmit` -- 0 errors
+- [x] Ran `bun run lint` -- 0 errors (3 pre-existing unrelated warnings)
+- [x] Ran `bun test` -- 1754 pass / 0 fail
+- [x] Grepped src/ for hardcoded raw-SQL `compliance.<table>` references to all 22 tables -- found and fixed:
+  - src/lib/services/instruction-execution-cache-service.ts (5 raw `sql\`...\`` template occurrences)
+  - src/app/api/mcp/route.ts (1 comment)
+  - src/lib/services/capability-learning-service.ts (1 comment)
+  - src/lib/services/capability-audit-service.ts (1 live LLM-context string)
+  - Left worker-agent-service.test.ts's comment alone -- it's a dated historical fact ("verified live 2026-07-13", i.e. before the move), same treatment as historical drizzle/*.sql migration files
+- [x] Confirmed no new drizzle/*.sql migration file was created (git status clean besides the 6 intended files)
+- [x] Re-ran tsc/lint/test after the grep-fix edits -- still 0 errors / 0 fail
 
 ## Remaining
-- [ ] Push latest merge commit, re-verify CI green
-- [ ] Classify tier (TIER1 -- no schema/migration touched) and self-merge if green
-- [ ] Final report
+- [ ] Push, open PR, post AUDIT: PASS comment
+- [ ] Wait for CI, self-merge as TIER1 once green
+- [ ] Report PR number, CI result, merged status, tsc confirmation
