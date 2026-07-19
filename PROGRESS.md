@@ -1,32 +1,22 @@
-# PROGRESS -- task-20260719-021227-gap-closure--gp-20-loop-prevention
+# PROGRESS -- task-20260719-021229-gap-closure--gp-08-09-hallucination-conf
 
 ## Completed
-- [x] Read CONSTITUTION.yaml GP-20 section in full
-- [x] Read src/lib/loop-prevention.ts (checkLoopBudget, shouldPromptSelfCheck) in full
-- [x] Checked ACTIVE-CLAIMS.yaml + `gh pr list` for duplicate claims -- none found
-- [x] Read src/lib/task-execution-engine.ts's dispatch/escalation call chain -- confirmed no
-      existing code creates an edge between two DISTINCT `tasks` rows (escalation there is
-      same-task, role-ladder only via nextEscalationRung, structurally acyclic CSEO->COO->
-      Super Boss). The one real "task spawns + executes another task" call chain in this
-      codebase is crm-service.ts's createChainedTask() (Wave 78 Multi-Agent Chaining), which
-      calls task-execution-engine.ts's own executeTask() on a freshly created task.
+- [x] Read ai-os/CONSTITUTION.yaml guardrail_protocols GP-08/GP-09 in full
+- [x] Read policy-enforcement-engine.ts, dispatch-confidence-scoring.ts, confidence-banding.ts, orchestra-execution-logger.ts, ai-team/roster.ts, ai-team/team-service.ts, ai-team/dispatch-repo.ts, api/ai/team/dispatch/route.ts, activity-log-service.ts
+- [x] Fresh grep for "confidence" across src/lib -- confirmed dispatch-confidence-scoring.ts already exists (2026-07-18) but is a deterministic proxy, NOT a fact-check of claims against real codebase state -- that specific gap is real
+- [x] Checked ai-os/boss/ACTIVE-CLAIMS.yaml + `gh pr list` -- no genuine duplicate claim on this narrow slice
 - [x] Registered claim in ACTIVE-CLAIMS.yaml, committed as its own first commit
-- [x] Implemented pure wouldCreateCycle() DFS in src/lib/loop-prevention.ts
-- [x] Implemented DB-touching recordTaskEscalationEdge() in new src/lib/task-dependency-graph.ts
-      (entity_relationships-backed, ServiceError refusal on cycle)
-- [x] Wired into crm-service.ts's createChainedTask()/createFollowUpTaskFromLead/
-      createFollowUpTaskFromOpportunity (optional fromTaskId) + the 2 follow-up-task API routes
-- [x] Updated CONSTITUTION.yaml's GP-20 entry to reflect the real, honest new state
-- [x] Added unit tests: 2-task cycle, 3-task cycle, non-cyclic chains, independent chains,
-      diamond dependency, self-loop, determinism
-- [x] bunx tsc --noEmit clean, bun run lint 0 errors, bun test 1732 pass/0 fail
-- [x] All 6 local CI guardrail scripts pass (asset-registry-coverage, migration-collision,
-      guardrail-presence, doc-cross-references, doc-quarantine-banner, metadata-index-coverage)
-- [x] Merged origin/main (DMP-06 landed concurrently) -- only conflict was this PROGRESS.md
+- [x] Implemented src/lib/claim-verification.ts (extraction + grep-verification of backtick-quoted file-path/function-name claims, capped, lazy-cached scan under src/lib+src/app+src/components, test files excluded from the scan)
+- [x] Wired confidenceScore/lowConfidenceFlagged into orchestra-execution-logger.ts's recordOrchestraExecution() (attached into existing output jsonb, no schema/migration change)
+- [x] Added tests: real function/file claim (high confidence, score 1) + nonexistent claim (low confidence, score 0, flagged) + mixed case + no-claims case -- 13 tests, all passing
+- [x] Updated CONSTITUTION.yaml GP-08/GP-09 status text
+- [x] bunx tsc --noEmit clean, bun run lint clean (pre-existing warnings only, unrelated), bun test: 1735+ pass / 0 fail
+- [x] Pushed, opened PR #463
+- [x] Posted structured AUDIT: PASS comment (8 fields, no markdown bold on labels -- validate-audit-verdict.ts requires the label at literal line start)
+- [x] CI green: Mandatory Audit Check, CI (Lint/Type Check/Build/Unit/E2E/Asset Registry/Metadata Index/Guardrail Presence/Doc checks), Sentinel Governance Checks, CodeQL all pass -- only Vercel failed (known rate-limited, non-required)
+- [x] Merged origin/main into branch multiple times (main moving fast -- PR #462, #464, GP-20 loop-prevention, etc. landing concurrently) to resolve repeated CONFLICTING mergeStateStatus, each time only PROGRESS.md (per-task-instance file) conflicting, ACTIVE-CLAIMS.yaml/CONSTITUTION.yaml auto-merging cleanly
 
 ## Remaining
-- [ ] Push, open PR against main
-- [ ] Post structured AUDIT: PASS PR comment (8 fields)
-- [ ] Wait for CI via gh run watch
-- [ ] Classify tier (expect TIER1 -- no schema.ts/drizzle changes) and self-merge if green
-- [ ] Report final status
+- [ ] Push latest merge commit, re-verify CI green
+- [ ] Classify tier (TIER1 -- no schema/migration touched) and self-merge if green
+- [ ] Final report

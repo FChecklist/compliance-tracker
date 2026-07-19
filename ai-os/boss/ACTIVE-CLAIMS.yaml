@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-021229-gap-closure--gp-08-09-hallucination-conf) -- GP-08/GP-09 grep-verifiable claim confidence scoring"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Closing the real remaining slice of GP-09 (Confidence) /
+      GP-08 (Hallucination Prevention) in ai-os/CONSTITUTION.yaml. Verified
+      first, per this task's own instruction not to assume: a fresh grep
+      for "confidence" across src/lib shows dispatch-confidence-scoring.ts
+      + confidence-banding.ts already exist (added 2026-07-18, per
+      CONSTITUTION.yaml's own corrected GP-09 entry) -- but that pipeline is
+      an honest deterministic PROXY (lowConfidence/knowledgeGap/riskLevel
+      signals), never a check of a claim's actual factual assertions against
+      this repo's real state. That specific mechanism -- "this function
+      exists" / "this file exists" grep-verified BEFORE logging -- does not
+      exist anywhere yet, confirmed by reading dispatch-confidence-scoring.ts,
+      policy-enforcement-engine.ts, orchestra-execution-logger.ts, and the
+      /api/ai/team/dispatch route in full. Also confirmed: the dispatch
+      route does NOT itself call recordOrchestraExecution (it persists via
+      recordActivity/activity_log instead) -- orchestra-execution-logger.ts's
+      recordOrchestraExecution() is the real, single shared persistence
+      point for AI-generated output across every other real LLM call site
+      in the codebase (chat/CRM/FDE/construction/etc.), so that's the one
+      real call site this task wires into, per its own explicit naming.
+      File scope: new src/lib/claim-verification.ts (extraction + grep-
+      verification of backtick-quoted file-path/function-name claims, capped
+      claim count, lazy-cached recursive scan under src/lib+src/app+src/
+      components only) + its test file, additive change to
+      orchestra-execution-logger.ts's recordOrchestraExecution() attaching
+      confidenceScore (0-1 float) + lowConfidenceFlagged (boolean) into the
+      existing output jsonb before insert -- no schema.ts/drizzle migration
+      touched, no new call sites invented. Confirmed via `gh pr list` +
+      this file: no other active/open-PR claim targets this specific slice
+      (the one related active entry, "AI Architecture: Governance & Audit",
+      task-20260718-053004, is dated 2026-07-18, has no matching open PR,
+      and its own listed GP-06/09/26 finding is already superseded by the
+      corrected GP-09 constitution text this task itself reads -- treated as
+      stale/abandoned per this file's own >4h-no-PR protocol, not silently
+      ignored).
   - session_label: "claude-code (task-20260719-004413-gap-closure--res-02-phase1) -- RES-02 / GAP-NARROW-MONITOR-ESCALATION Phase 1"
     claimed_at: "2026-07-19T (this session)"
     claim: |
