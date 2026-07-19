@@ -71,7 +71,7 @@ active:
 
       Checked this file for collisions before starting: none found (no
       other active entry touches projexa E2E test files or this org's
-      seeded rows).
+      seeded rows). [retrigger]
   - session_label: "claude-code (task-20260719-070238-projexa-e2e-phase-2-batch-a--execution-f) -- PROJEXA E2E Phase 2 Batch A: Playwright tests for Core Execution & Field modules"
     claimed_at: "2026-07-19T (this session)"
     claim: |
