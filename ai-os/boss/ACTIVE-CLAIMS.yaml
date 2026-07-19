@@ -40,6 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources/Field/Design module tests"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Phase 2 (of 5) of the PROJEXA E2E testing program -- read-mostly
+      against the already-seeded "Meridian Construction Group (E2E Test
+      Org)" test org (compliance.organisations.id
+      4ecc472f-4152-4310-ae8d-cf8b7c52ab6d, see FChecklist/projexa's
+      PHASE1_SEED_REPORT.md, PR #45, and this repo's own PR #477 for full
+      seed detail) plus real, additive-only write operations (e.g. create a
+      purchase order, add a floor-plan) exercised through PROJEXA's UI
+      against the live https://projexa-ai.com deployment -- no direct
+      writes to this repo's database or schema from this session, no
+      migration, no schema change here.
+
+      This is a FChecklist/projexa-repo PR (real Playwright E2E test files
+      under that repo), registered here rather than there per Phase 1's
+      same precedent (projexa has no ai-os/ directory; this registry's own
+      header explicitly covers "or in veda-advisors / projexa" work).
+
+      Scope (Batch B only -- Resources, Field & Design modules): materials,
+      inventory, procurement, purchase-orders, vendors, labour, ffe,
+      floor-plans, mood-boards, permits, documents. Two sibling batches run
+      concurrently on disjoint module lists (Batch A: dashboard/schedule/
+      scope/rfis/submittals/punch-list/change-orders/site-diary/
+      work-progress/meetings; Batch C: accounting/budgets/invoices/
+      quotations/sales-orders/sales/customers/employees/payroll/
+      recruitment/hr/kpis/reports/wiki/knowledge-base/grc/copilot) -- no
+      file/module overlap with either.
+
+      Checked this file for collisions before starting: none found (no
+      other active entry touches projexa E2E test files or this org's
+      seeded rows).
   - session_label: "claude-code (task-20260719-050016-ai-router--registry-backed-model-resolut) -- AI Router: registry-backed model resolution (close 2 model-agnosticism gaps + new model + new scope)"
     claimed_at: "2026-07-19T (this session)"
     claim: |
