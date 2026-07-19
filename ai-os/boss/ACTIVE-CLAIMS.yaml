@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources/Field/Design module tests (retrigger CI)"
+  - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources/Field/Design module tests"
     claimed_at: "2026-07-19T (this session)"
     claim: |
       Phase 2 (of 5) of the PROJEXA E2E testing program -- read-mostly
@@ -72,6 +72,39 @@ active:
       Checked this file for collisions before starting: none found (no
       other active entry touches projexa E2E test files or this org's
       seeded rows).
+  - session_label: "claude-code (task-20260719-070238-projexa-e2e-phase-2-batch-a--execution-f) -- PROJEXA E2E Phase 2 Batch A: Playwright tests for Core Execution & Field modules"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Phase 2 (of the 5-phase PROJEXA E2E program; Phase 1 = the seed report
+      + 11 real login accounts, this repo's ai-os/boss/ACTIVE-CLAIMS.yaml
+      `recently_completed` per PHASE1_SEED_REPORT.md in FChecklist/projexa,
+      already merged PR #45). This claim covers Batch A ONLY: writing +
+      running real Playwright E2E tests against the live projexa-ai.com
+      site for exactly these 10 modules: dashboard, schedule, scope, rfis,
+      submittals, punch-list, change-orders, site-diary, work-progress,
+      meetings. Checked this file for a "Batch B"/"Batch C" collision on
+      the same 10-module boundary before starting: none found on
+      origin/main as of this claim (no other PROJEXA E2E Phase 2 entry
+      exists here yet) -- sibling batches are expected to claim their own
+      disjoint module lists (Resources/Commercial/etc.) separately.
+      Work happens entirely in FChecklist/projexa (new playwright.config.ts
+      + e2e/ test files + PHASE2_BATCH_A_FINDINGS.md there, not in this
+      repo) -- registering here only because that repo has no ai-os/
+      directory of its own for cross-session coordination and this
+      registry's header already covers "or in veda-advisors / projexa"
+      work, same precedent as Phase 1's own claim (PR #477). Read-mostly
+      against compliance-tracker's live DB (logging in as already-seeded
+      PROJEXA users, whose org is backed by the already-seeded
+      `Meridian Construction Group (E2E Test Org)`, compliance.organisations
+      id 4ecc472f-4152-4310-ae8d-cf8b7c52ab6d) plus a small number of
+      additive-only writes (creating a test RFI/submittal/punch-list item/
+      etc. as part of exercising each module's real write path) -- no new
+      schema/migration, no seed-data changes, reusing Phase 1's existing
+      1,007 seeded rows. Used a scratch clone
+      (/tmp/ct-claim-clone) rather than the shared checkout at
+      /opt/veridian/repos/compliance-tracker, which has pre-existing
+      uncommitted work from another session that this task must not
+      disturb (same precaution Phase 1 itself took).
   - session_label: "claude-code (task-20260719-050016-ai-router--registry-backed-model-resolut) -- AI Router: registry-backed model resolution (close 2 model-agnosticism gaps + new model + new scope)"
     claimed_at: "2026-07-19T (this session)"
     claim: |
