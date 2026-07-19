@@ -9,7 +9,7 @@
 - [x] Implemented proposeDynamicChain() + buildDynamicChainProposalFields() (pure builder) in dynamic-chain-directory-service.ts
 - [x] Wired submitFdeRequest()'s no_match branch to call proposeDynamicChain() alongside proposeWorkerAgent() (best-effort, non-blocking)
 - [x] Extended FdeEvaluation.proposal type + bumped fde.evaluate_request prompt template to v3 (moduleRef/businessRules/permissions/workflowSteps/kpis)
-- [x] Added fdeRequests.createdDynamicChainId column (schema.ts + drizzle/0242_dmp04_fde_dynamic_chain_bundle.sql)
+- [x] Added fdeRequests.createdDynamicChainId column (schema.ts + drizzle/0243_dmp04_fde_dynamic_chain_bundle.sql)
 - [x] Extended approvals/[id]/route.ts to handle requestType 'dynamic_chain_proposal' (approve -> status 'approved', reject -> status 'retired' + deprecationReason; gated at veridian_admin like worker_agent_proposal)
 - [x] Added unit tests for buildDynamicChainProposalFields (dynamic-chain-directory-service.test.ts, 4 tests)
 - [x] bunx tsc --noEmit clean, bun run lint clean (0 errors), bun test 1692 pass / 0 fail
