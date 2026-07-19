@@ -2324,43 +2324,56 @@ active:
       same class as embedding_cache/llm_response_cache; migration-collision;
       guardrail-presence; doc-cross-references; doc-quarantine-banner;
       metadata-index-coverage).
+
+# Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
+# closed_priorities is the permanent record, this is just recency context.
+# Restored 2026-07-19 (this session): this key had gone missing on main --
+# every entry below it (all using completed_at/merged_as, not claimed_at)
+# was structurally still nested inside `active:`'s own list, silently
+# defeating the "is this gap already claimed" check for anyone reading only
+# `active:`. Not this session's own claim's doing -- picked up while filing
+# this session's own recently_completed entry below. Did not otherwise
+# reorganize or re-file any other session's entries.
+recently_completed:
   - session_label: "claude-code (task-20260719-021225-gap-closure--dmp-06) -- DMP-06 Dynamic Chain Master Directory"
-    claimed_at: "2026-07-19T (this session)"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "PR #462 squash-merged"
     claim: |
-      Closing DMP-06 (CONSTITUTION.yaml, navigation_and_intent #6, status
-      POLICY_ONLY): the entity_relationships table exists as the DCMD graph
-      substrate but has zero chain->module rows written yet, and
+      Closed DMP-06 (CONSTITUTION.yaml, navigation_and_intent #6, was
+      POLICY_ONLY): the entity_relationships table existed as the DCMD
+      graph substrate with zero chain->module rows written, and
       capability-registry-service.ts's findSimilarCapabilities()/
       auditDuplicateCapabilities() duplicate-detection pattern (already
       generic over CAPABILITY_ENTITY_TYPES, which includes 'dynamic_chain'
-      since Wave 173) has never been called from the one real dynamic-chain
+      since Wave 173) was never called from the one real dynamic-chain
       creation/proposal chokepoint, dynamic-chain-directory-service.ts's
-      proposeDynamicChain() (DMP-04, PR #459) -- it creates a new chain
+      proposeDynamicChain() (DMP-04, PR #459) -- it created a new chain
       unconditionally with no duplicate check.
 
-      Confirmed via ai-os/boss/ACTIVE-CLAIMS.yaml + `gh pr list` before
-      starting: no other session/PR currently claims this gap. Overlaps
-      file-wise with the DMP-04 entry above (same file,
-      dynamic-chain-directory-service.ts) but that work is already merged
-      (PR #459, main) -- this is a new, separate slice on top of it, not a
-      collision with in-flight work.
-
-      Scope: (1) findSimilarDynamicChains(orgId, description, domain) in
+      Shipped: (1) findSimilarDynamicChains(orgId, description, domain) in
       capability-registry-service.ts, scoped to the 'dynamic_chain' entity
       type, same over-fetch-then-filter-then-slice shape as
-      findSimilarPromptPatterns(); (2) proposeDynamicChain() calls it BEFORE
-      inserting a new dynamicChains row -- a high-confidence match (0.92,
-      auditDuplicateCapabilities()'s own existing "same thing" bar) returns
-      the existing chain's id instead of creating a near-duplicate; (3) a
-      real dynamic_chain->module entity_relationships edge per
-      linkedModuleRefs entry, written the same best-effort/non-blocking way
-      as the existing dynamic_chain->worker_agent edge in the same function.
-      Permission-set edges deliberately NOT added -- confirmed no
-      permission_sets entity exists anywhere in schema.ts to point at;
-      permissions live only as this chain's own denormalized jsonb column,
-      same posture as businessRules/workflowStepsConfig. UI untouched, no
-      chain-browsing page, per task instructions.
+      findSimilarPromptPatterns(); (2) proposeDynamicChain() now calls it
+      BEFORE inserting a new dynamicChains row -- a high-confidence match
+      (>= 0.92, auditDuplicateCapabilities()'s own existing "same thing"
+      bar) returns the existing chain's id instead of creating a
+      near-duplicate; (3) a real dynamic_chain->module entity_relationships
+      edge per linkedModuleRefs entry, written the same
+      best-effort/non-blocking way as the existing
+      dynamic_chain->worker_agent edge in the same function. Permission-set
+      edges deliberately NOT added -- confirmed no permission_sets entity
+      exists anywhere in schema.ts to point at; permissions live only as
+      this chain's own denormalized jsonb column, same posture as
+      businessRules/workflowStepsConfig. UI untouched, no chain-browsing
+      page, per task instructions. No schema/migration changes -- TIER1.
 
+      Verified: bunx tsc --noEmit 0 errors, bun run lint 0 errors, bun test
+      1731 pass/0 fail (11 new tests, all pure/DB-free), all 6 local CI
+      guardrail scripts pass. Posted a structured `AUDIT: PASS` PR comment
+      (all 8 required fields). All CI checks green (Lint, Type Check,
+      Build, Unit Tests, E2E Tests, Asset Registry Coverage Check,
+      Guardrail Presence Check, audit-check) -- self-merged per Rule 6/task
+      instructions (TIER1, no Owner sign-off required).
   - session_label: "Claude Code (headless rescue task) -- Rescue PR #429"
     completed_at: "2026-07-18T (this session)"
     merged_as: "PR #429 squash-merged, commit 0208c702"
