@@ -40,6 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260719-070242-projexa-e2e-phase-2-batch-c--finance-sal) -- PROJEXA E2E Phase 2 Batch C: Finance/Sales/HR modules + copilot chat-command testing"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Phase 2 of the 5-phase PROJEXA E2E testing program (Phase 1: PR #45 on
+      FChecklist/projexa, merged -- architecture discovery + seed data for
+      "Meridian Construction Group (E2E Test Org)", 1,007 rows). This task
+      writes and runs real Playwright E2E tests against the live
+      projexa-ai.com site (repo: FChecklist/projexa, NOT this repo) for 16
+      modules -- accounting, budgets, invoices, quotations, sales-orders,
+      sales, customers, employees, payroll, recruitment, hr, kpis, reports,
+      wiki, knowledge-base, grc -- plus real natural-language chat-command
+      testing against the copilot's confirmed 7-tool dispatcher
+      (dispatchTool() in this repo's task-execution-engine.ts, reached via
+      POST /api/v1/projexa/assistant). This is a read-only + additive-write
+      task against this repo (compliance-tracker) -- no compliance-tracker
+      source files are modified, only this claims-file entry. All actual PR
+      work lands in FChecklist/projexa. Two sibling tasks run concurrently
+      on disjoint PROJEXA module scopes: Batch A (execution/field modules,
+      claim above, its own PR #480 already merged) and Batch B
+      (resources/design modules) -- no overlap with this task's
+      Finance/Sales/HR/copilot scope. Verified via a fresh clone (not the
+      shared /opt/veridian/repos/compliance-tracker checkout, which has
+      unrelated pre-existing uncommitted work from another session) that
+      no other active: entry below claims this same projexa-e2e-phase-2
+      scope before adding this one.
   - session_label: "claude-code (task-20260719-070238-projexa-e2e-phase-2-batch-a--execution-f) -- PROJEXA E2E Phase 2 Batch A: Playwright tests for Core Execution & Field modules"
     claimed_at: "2026-07-19T (this session)"
     claim: |
