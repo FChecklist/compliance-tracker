@@ -8,6 +8,10 @@ import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } 
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
 import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
+import { validateLevelDispatch, capabilityCategoryForLevel, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel } from "@/lib/ai-router/software-team-ladder"
+import { validateInstructionContract, taskTypeForStepCount, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
+import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
+import { createId } from "@paralleldrive/cuid2"
 import { detectLowConfidenceResponse } from "@/lib/floor-tier-escalation"
 import { detectKnowledgeGap } from "@/lib/knowledge-sufficiency-gate"
 import { recordActivity } from "@/lib/activity-log-service"
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary } = body as Partial<TightTask> & {
+    const { objective, scope, successCriteria, complexityTier, expectedOutput, constraints, touchesProduct, touchesAccount, touchesUser, role: forcedRole, responseVocabulary, softwareTeamLevel, taskId: callerTaskId } = body as Partial<TightTask> & {
       touchesProduct?: boolean
       touchesAccount?: boolean
       touchesUser?: boolean
@@ -64,6 +68,21 @@ export async function POST(request: NextRequest) {
       // response-vocabulary-gate.ts). Omitted on every dispatch that
       // doesn't declare it -- ordinary free-form reply, unchanged.
       responseVocabulary?: VocabularyDispatchType
+      // AIROUTER-01 Phase 2 (Software Team L0-L5): opt-in. Omitted ->
+      // this route behaves exactly as before (no Instruction Contract/
+      // Execution Report, no capability-category routing, no automatic
+      // retry loop) -- existing callers need no changes. Declared -> this
+      // dispatch is treated as one L1-L4 worker-level step against the
+      // Owner's ladder (software-team-ladder.ts), carries a persisted
+      // Instruction Contract/Execution Report pair (task-register-service.ts),
+      // and is routed through the capability-category axis of Mother
+      // Router's policy (Part C).
+      softwareTeamLevel?: SoftwareTeamLevel
+      // Stable across a multi-step L2/L3 workflow's sequential calls so
+      // their Execution Report steps accumulate under one task_register
+      // row. Generated when omitted (a single-step L1/L4 dispatch has no
+      // reason to require the caller to invent one).
+      taskId?: string
     }
 
     // Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): AI Dev Team
@@ -95,6 +114,21 @@ export async function POST(request: NextRequest) {
         status: "blocked",
         blockedBy: { reason: vocabEligibility.reason, guidance: vocabEligibility.guidance },
       }, { status: 422 })
+    }
+
+    // AIROUTER-01 Phase 2 (Software Team L0-L5): fail closed on an
+    // inconsistent (level, complexityTier) pairing BEFORE classification
+    // or any model call -- same "reject before spending anything" posture
+    // as the tightness/vocabulary checks just above.
+    if (softwareTeamLevel) {
+      const levelCheck = validateLevelDispatch(softwareTeamLevel, complexityTier!)
+      if (!levelCheck.valid) {
+        if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, complexityTier, errorReason: levelCheck.reason, durationMs: Date.now() - dispatchStartedAt })
+        return NextResponse.json({
+          status: "blocked",
+          blockedBy: { reason: levelCheck.reason, guidance: levelCheck.guidance },
+        }, { status: 422 })
+      }
     }
 
     const task = assembleTightTaskPrompt({ objective: objective!, scope: scope!, successCriteria: successCriteria!, complexityTier: complexityTier!, expectedOutput: expectedOutput!, constraints })
@@ -157,7 +191,56 @@ export async function POST(request: NextRequest) {
       model: targetRole.model,
       complexityTier: complexityTier!,
       roleKey: classification.role,
+      // AIROUTER-01 Phase 2 (Part C, capability routing matrix): only
+      // present when the caller declared a level -- an ordinary dispatch
+      // with no level keeps resolving purely by tier, unchanged.
+      capabilityCategory: softwareTeamLevel ? (capabilityCategoryForLevel(softwareTeamLevel) ?? undefined) : undefined,
     }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
+
+    // AIROUTER-01 Phase 2 (Part B): register the Instruction Contract
+    // BEFORE execution, matching the Owner's "genuinely PRE-execution"
+    // requirement. taskId is generated once per NEW task_id (an L2/L3
+    // multi-step workflow's caller passes the SAME taskId across sequential
+    // calls to accumulate one Execution Report -- see
+    // task-register-service.ts's recordExecutionReport()). Best-effort:
+    // registerInstructionContract() never throws, matching every other
+    // fire-and-forget audit write in this route.
+    const taskId = softwareTeamLevel ? (callerTaskId ?? createId()) : null
+    let priorStepCount = 0
+    if (softwareTeamLevel && taskId) {
+      const priorRecord = await getTaskRecord(taskId).catch(() => null)
+      priorStepCount = ((priorRecord?.executionReport as ExecutionReport | null)?.steps.length) ?? 0
+
+      const contract: InstructionContract = {
+        taskId,
+        level: softwareTeamLevel,
+        roleKey: classification.role,
+        objective: objective!,
+        preconditions: [`complexityTier="${complexityTier}"`, constraints ? `constraints: ${constraints}` : "none stated beyond scope/successCriteria"],
+        input: task,
+        process: [scope!],
+        constraints,
+        expectedOutputFormat: expectedOutput!,
+        validationCriteria: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
+        successCriteria: successCriteria!,
+        failureCriteria: `Output does not satisfy: ${successCriteria}`,
+        retryPolicy: SOFTWARE_TEAM_LADDER[softwareTeamLevel].retryPolicy,
+        escalationRule: SOFTWARE_TEAM_LADDER[softwareTeamLevel].escalationRules,
+        documentationRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].documentationRequirements,
+        evidenceRequired: SOFTWARE_TEAM_LADDER[softwareTeamLevel].evidenceRequired,
+        handoverRequirements: SOFTWARE_TEAM_LADDER[softwareTeamLevel].handoverRequirements,
+      }
+      const contractValidation = validateInstructionContract(contract)
+      if (!contractValidation.valid) {
+        if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: contractValidation.reason, durationMs: Date.now() - dispatchStartedAt })
+        return NextResponse.json({
+          status: "blocked",
+          classification,
+          blockedBy: { reason: contractValidation.reason, guidance: contractValidation.guidance },
+        }, { status: 422 })
+      }
+      await registerInstructionContract(contract, softwareTeamLevel, classification.role)
+    }
 
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
@@ -175,7 +258,25 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    const execution = await runRole(classification.role, task)
+    let execution = await runRole(classification.role, task)
+    let retryCount = 0
+
+    // AIROUTER-01 Phase 2 (Owner's Universal Tightened Instruction
+    // Template, Retry Policy: "1 retry for L1-L3"): bounded, automatic
+    // retry on a hedged/knowledge-gap first attempt -- only when the
+    // caller declared a level whose ladder contract names >0 automatic
+    // retries (L1-L3 today; L4's "as needed" / L0/L5's own policies are
+    // deliberately NOT automatic loops here, maxAutomaticRetries is 0 for
+    // them). An ordinary dispatch with no softwareTeamLevel is completely
+    // unaffected -- this loop never runs for it.
+    const maxAutomaticRetries = softwareTeamLevel ? SOFTWARE_TEAM_LADDER[softwareTeamLevel].maxAutomaticRetries : 0
+    while (
+      retryCount < maxAutomaticRetries &&
+      (detectLowConfidenceResponse(execution.content).detected || detectKnowledgeGap(execution.content).insufficientKnowledge)
+    ) {
+      retryCount++
+      execution = await runRole(classification.role, task)
+    }
 
     // VERIDIAN_AUDIT_ORGANIZATION.md, "L1 Real-Time Audit": the source
     // document requires audit before completion whenever confidence is
@@ -308,6 +409,46 @@ export async function POST(request: NextRequest) {
         })
       : null
 
+    // AIROUTER-01 Phase 2 (Part B): build + persist the Execution Report,
+    // matching the Owner's own literal schema (4 worked examples) exactly.
+    // This route dispatches exactly ONE step per call from its own
+    // perspective -- step_no continues from whatever this task_id already
+    // accumulated (priorStepCount, read above before execution), so an
+    // L2/L3 caller reusing the same taskId across sequential calls builds
+    // one growing, correctly-numbered Execution Report rather than N
+    // separate step-1 reports.
+    let executionReport: ExecutionReport | null = null
+    if (softwareTeamLevel && taskId) {
+      const stepNo = priorStepCount + 1
+      const stepStatus: ExecutionStepStatus = qaGate.passed ? "PASS" : requiresAudit ? "PARTIAL" : "FAIL"
+      const escalationRequired = requiresAudit || confidencePercentage < 95
+      executionReport = {
+        task_id: taskId,
+        task_type: taskTypeForStepCount(stepNo),
+        objective: objective!,
+        status: stepStatus,
+        overall_confidence: confidencePercentage,
+        completion: { completed: stepStatus === "PASS" ? stepNo : stepNo - 1, expected: stepNo, percentage: stepStatus === "PASS" ? 100 : Math.round(((stepNo - 1) / stepNo) * 100) },
+        steps: [{
+          step_no: stepNo,
+          name: objective!.slice(0, 120),
+          status: stepStatus,
+          confidence: confidencePercentage,
+          retry_count: retryCount,
+          validation: qaGate.passed ? "PASS" : "FAIL",
+        }],
+        missing: knowledgeGap.insufficientKnowledge && knowledgeGap.matchedPhrase ? [knowledgeGap.matchedPhrase] : [],
+        warnings: lowConfidence.detected && lowConfidence.matchedPhrase ? [lowConfidence.matchedPhrase] : [],
+        errors: stepStatus === "FAIL" ? [`Step ${stepNo} ("${objective}") did not pass QA pre-completion gate.`] : [],
+        escalation: { required: escalationRequired, reason: escalationRequired ? (!qaGate.passed ? qaGate.reason : `overall_confidence ${confidencePercentage}% below the 95% worker escalation threshold`) : "" },
+        execution_summary: {
+          duration_seconds: Math.round((Date.now() - dispatchStartedAt) / 1000),
+          tokens_used: (execution.usage.promptTokens ?? 0) + (execution.usage.completionTokens ?? 0),
+        },
+      }
+      await recordExecutionReport(taskId, executionReport, escalationRequired ? "escalated" : stepStatus === "PASS" ? "completed" : "failed")
+    }
+
     return NextResponse.json({
       status: requiresAudit ? "pending_review" : "completed",
       classification,
@@ -327,6 +468,12 @@ export async function POST(request: NextRequest) {
       vocabularyCheck,
       reviewActivityId: requiresAudit ? (activityRow?.id ?? null) : null,
       guardrails,
+      // AIROUTER-01 Phase 2 (Software Team L0-L5): null unless the caller
+      // declared softwareTeamLevel -- an ordinary dispatch is unaffected.
+      softwareTeamLevel: softwareTeamLevel ?? null,
+      taskId,
+      retryCount,
+      executionReport,
     })
   } catch (error) {
     if (error instanceof RoleNotCallableError) {
