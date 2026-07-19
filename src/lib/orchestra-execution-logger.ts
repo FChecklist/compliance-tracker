@@ -10,6 +10,7 @@ import { db, orchestraLayers, orchestraExecutions } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { estimateCostUsd, type LLMUsage } from "@/lib/llm-client";
+import { computeClaimConfidenceScore } from "@/lib/claim-verification";
 
 export type RecordOrchestraExecutionInput = {
   orgId: string;
@@ -43,12 +44,45 @@ export type RecordOrchestraExecutionInput = {
   routingRationale?: string;
 };
 
+// GP-08/GP-09 gap-closure (2026-07-19): runs the Tier-1 claim-verification
+// pass over the JSON-serialized output (so it works uniformly across every
+// call site's own differently-shaped output object -- reply text, verdict
+// text, action arrays, etc. -- without this shared logger needing to know
+// each caller's specific field names) and returns the two fields to merge
+// into the persisted `output`. Never throws -- a verification failure (e.g.
+// an unreadable source tree in this environment) must never break the
+// actual AI operation this logger is recording; it degrades to the neutral
+// "nothing checked" result instead.
+async function computeOutputConfidenceFields(output: Record<string, unknown>): Promise<{ confidenceScore: number; lowConfidenceFlagged: boolean }> {
+  try {
+    const { confidenceScore, lowConfidenceFlagged } = await computeClaimConfidenceScore(JSON.stringify(output));
+    return { confidenceScore, lowConfidenceFlagged };
+  } catch (err) {
+    console.warn("claim-verification confidence scoring failed (non-fatal):", err);
+    return { confidenceScore: 1, lowConfidenceFlagged: false };
+  }
+}
+
 export function recordOrchestraExecution(params: RecordOrchestraExecutionInput): void {
   withTenantContext({ orgId: params.orgId, userId: params.userId }, async (db) => {
     const layer = await db.query.orchestraLayers.findFirst({ where: eq(orchestraLayers.layerKey, params.layerKey) });
     if (!layer) return;
 
     const costUsd = params.model && params.usage ? estimateCostUsd(params.model, params.usage) : null;
+
+    // GP-08/GP-09 gap-closure (2026-07-19): a Tier-1, grep-verifiable
+    // fact-check of this AI-generated output's own claims (does the file/
+    // function it names actually exist in this repo?) -- see
+    // claim-verification.ts's header for why this is distinct from
+    // dispatch-confidence-scoring.ts's existing signal-based proxy.
+    // Attached into the existing `output` jsonb rather than a new column
+    // (no schema/migration change) -- only computed when there's an actual
+    // output to check; a "denied"/no-output row has nothing to verify.
+    // Never blocks or alters the row's `status` -- low confidence is
+    // surfaced via `lowConfidenceFlagged` for review, never auto-blocked.
+    const output = params.output
+      ? { ...params.output, ...(await computeOutputConfidenceFields(params.output)) }
+      : (params.output ?? null);
 
     await db.insert(orchestraExecutions).values({
       orchestraLayerId: layer.id,
@@ -58,7 +92,7 @@ export function recordOrchestraExecution(params: RecordOrchestraExecutionInput):
       taskId: params.taskId ?? null,
       eventType: params.eventType,
       input: params.input,
-      output: params.output ?? null,
+      output,
       status: params.status,
       durationMs: params.durationMs,
       model: params.model ?? null,
