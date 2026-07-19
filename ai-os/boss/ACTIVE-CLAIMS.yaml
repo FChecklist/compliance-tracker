@@ -4716,3 +4716,46 @@ recently_completed:
       drizzle/*.sql), so this PR would not have been merged by this session
       even had CI gone green -- reported to the Owner for sign-off, with the
       CI-trigger anomaly flagged as its own separate open item.
+
+# ── claim registered 2026-07-19 ~17:30 UTC ──────────────────────────────
+- session_label: >-
+    claude-code (this session, CLI)
+    task-20260719-171130-reevaluate-2045-row-veridian-framework-r
+    -- SUPERBOSS v2: reevaluate all 2045 Review-Framework rows against
+    everything actually shipped + close every genuinely-closable gap
+  claimed_at: 2026-07-19T17:30:00Z (this session)
+  claim: >-
+    Owner-directed REEVALUATE-2045-FRAMEWORK-AND-PLAN task
+    (SUPERBOSS_IMPLEMENTATION_PLAN v2). Scope: read the authoritative
+    claude-control/VERIDIAN_Review_Framework_evaluated_2045rows.csv fresh,
+    re-score every one of its 2045 rows against what has ACTUALLY shipped
+    since 2026-07-16 (Mother Router Phase 1 #433, Software Team L0-L5
+    #483, GLM-5.2/OpenRouter routing, AI_TEAM_LOG_SECRET fix, the full
+    9-workstream Wave B already present server-side: Fixed Assets /
+    CRM Accounts+Contacts / HR Attendance / Payment Entries approval /
+    Training LMS / BYOB white-label branding, plus prior Priority 10-22
+    waves and PLATFORM-01/DOMAIN-01/02), produce a real current gap count
+    + a 111-row decision log for the previously-deferred set + an
+    extended implementation plan (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md)
+    sized into task-shaped units tagged L1-L4 for Mother Router routing,
+    register in both repos' ACTIVE-CLAIMS.yaml, open a tier1 docs-only PR.
+    THIS SESSION'S OWN DECISION (Owner pre-authorized, applying it):
+    treat the 9-workstream laptop worktree work as superseded/abandoned
+    per the task's explicit OWNER-AUTHORIZED DECISION -- and, per live
+    evidence gathered this session, that work is in fact ALREADY
+    superseded by complete server-side implementations in this repo
+    (schema + service + API routes + UI pages + tests all present for
+    Fixed Assets, CRM Accounts, HR Attendance, Payment Entries, Training
+    LMS, BYOB white-label). So no re-do is needed for those; the v2 plan
+    records this plainly rather than scheduling duplicate builds. The
+    genuinely-remaining gaps (e.g. CRM Contacts list-route+page, BYOB
+    bring-your-own-AI-model wiring, the 111 deferred rows re-examined
+    under granted decision authority) ARE scheduled. Docs-only PR; no
+    code/schema changes from this task itself.
+  scope_note: >-
+    File scope this task writes: ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md
+    (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
+    Read-mostly against claude-control CSV + CONTROLLER + this repo's
+    schema/src to ground the gap count. No collision: the v2 plan is a
+    fresh doc; the v1 plan (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
+    PR #485) is already merged and is being EXTENDED, not duplicated.
