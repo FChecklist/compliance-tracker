@@ -21,9 +21,10 @@
 - [x] Pushed branch
 
 ## Remaining
-- [ ] Open PR
-- [ ] Post structured `AUDIT: PASS` comment
-- [ ] `gh run watch --exit-status` until all required checks green
-- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed
-- [ ] TIER2 (touches drizzle/*.sql + schema.ts new column/enum/seed row) -- do NOT self-merge, report as ready for Owner sign-off
-- [ ] Final report to Owner: PR number, CI result, plain-English registry-backed-vs-hardcoded summary
+- [x] Open PR -- #475
+- [x] Post structured `AUDIT: PASS` comment
+- [x] CodeQL flagged a real new tainted-format-string alert (js/tainted-format-string) introduced by this PR's own isKnownModel() error-log line -- fixed in a follow-up commit (moved `model` out of the console.error template literal into its own argument); re-ran `audit-check` after the fix (comment fetch is PR-scoped, not commit-scoped, so no need to re-post)
+- [x] All 7 required status checks green: Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests. Non-required checks: Vercel fails on a pre-existing, unrelated infra rate limit (nothing to do with this PR's diff); CodeQL shows 0 alerts on this PR's own diff (1 pre-existing high-severity alert, #24, on the SAME rule at a different line in this same file predates this PR entirely -- introduced on main before this branch existed, not fixed here as it's out of this task's scope, flagged in the final report below instead)
+- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed -- NOT done yet per that file's own protocol ("WHEN your work merges... move your entry") -- this PR is TIER2 and held for Owner sign-off, not yet merged
+- [x] TIER2 (touches drizzle/*.sql + schema.ts new column/enum/seed row) -- did NOT self-merge, reporting as ready for Owner sign-off
+- [x] Final report to Owner: PR number, CI result, plain-English registry-backed-vs-hardcoded summary
