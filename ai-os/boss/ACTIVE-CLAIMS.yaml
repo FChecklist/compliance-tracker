@@ -2260,6 +2260,48 @@ active:
       (rate-limited, non-required, same as prior rescue sessions' precedent).
       TIER2 (touches drizzle/0225 + schema.ts) -- NOT self-merged. Reported
       to Owner as ready for sign-off.
+  - session_label: "claude-code (task-20260719-004409-gap-closure--umr-03) -- UMR-03 gap closure (instruction-execution-cache)"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Closing UMR-03 (ai-os/CONSTITUTION.yaml section 14, learning_and_umr):
+      "every chat instruction (DMP+DCS+chat) is stored word-wise in the UMR
+      so a similar future instruction can be answered from what was already
+      learned, not re-derived from scratch." Checked ACTIVE-CLAIMS.yaml
+      (grepped for "umr", no matching claim found) and `gh pr list` (no open
+      PR touches fde-service.ts/embeddings.ts/capability-registry-service.ts
+      or any instruction-execution-cache naming) before starting.
+
+      Real gap: neither embeddings.ts's embedding_cache (caches embedding
+      VECTORS for exact-text reuse) nor capability-registry-service.ts's
+      findSimilarCapabilities() (matches a CAPABILITY's own description
+      against a query) remember "this exact instruction resolved to this
+      capability, and it worked" -- the instruction-to-execution-path
+      mapping itself.
+
+      Scope: new compliance.instruction_execution_cache table (drizzle/0242,
+      + src/lib/db/schema.ts) storing {org_id nullable, instruction_text,
+      content_hash, resolved_capability_type/id, resolved_label,
+      resolved_params_shape, success_count, last_used_at}; new
+      src/lib/services/instruction-execution-cache-service.ts
+      (findPriorExecutionPath/recordExecutionPath, reusing generateEmbedding()
+      from embeddings.ts and the assistant-memory-service.ts-style
+      RLS-respecting sql``+db.execute() pattern, not a second bypass
+      connection). Wired into the one real chat/DMP dispatch entry point:
+      fde-service.ts::submitFdeRequest (called from chat-service.ts's
+      passive background FDE eval on every AI-thread chat turn, and from
+      the explicit /fde page) now checks this cache BEFORE the embedding-
+      over-capabilities search, and records a resolution into it after an
+      embedding match, an LLM-assisted match, or a new proposal. UI (/fde
+      page, VeriComposer.tsx, DMP/DCS pill rendering) deliberately untouched
+      per task instructions -- reuseLevel value kept to the existing 3-value
+      enum so the /fde page's badge rendering needs no change.
+
+      Verified: bunx tsc --noEmit 0 errors, bun run lint 0 errors, bun test
+      1698 pass/0 fail (10 new tests), all 6 local CI guardrail scripts pass
+      (asset-registry-coverage -- new table exempted with a real reason,
+      same class as embedding_cache/llm_response_cache; migration-collision;
+      guardrail-presence; doc-cross-references; doc-quarantine-banner;
+      metadata-index-coverage).
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
