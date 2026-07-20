@@ -1949,7 +1949,7 @@ async function executePackageDispatch(
       let effectiveConfig = modelConfig;
       const callPackage = () => callLLMJson<{ result: string }>(
         effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
-        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500 }, effectiveConfig.fallback
+        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500, enablePromptCache: true }, effectiveConfig.fallback
       );
       let { data, usage } = await callPackage();
 
@@ -2324,9 +2324,19 @@ export async function executeTask(
     // TS's narrowing can't see that through the nested retry try/catch.
     let result!: PlanningResult;
     let usage!: Awaited<ReturnType<typeof callLLMJson<PlanningResult>>>["usage"];
+    // TASK 1.2 (2026-07-20): systemPrompt here is a DB-stored template
+    // (resolvePromptTemplate("task_execution.planning_system")) with only
+    // {{PURPOSE_CLAUSE}} substituted -- the exact "resolved+substituted
+    // template IS the static prefix boundary" shape callAnthropic's own
+    // header describes as the ideal caching case, and this is the real
+    // "AI Dev Team dispatch re-sends its full system prompt uncached"
+    // call site the Owner's finding named. enablePromptCache is a no-op
+    // for providers that don't support this shape (GLM/undocumented,
+    // most non-Anthropic OpenRouter models) -- see callOpenAICompatible's
+    // own header for exactly which providers this currently helps.
     const callPlanning = () => callLLMJson<PlanningResult>(
       effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
-      { temperature: 0.3, maxTokens: 800 }, effectiveConfig.fallback
+      { temperature: 0.3, maxTokens: 800, enablePromptCache: true }, effectiveConfig.fallback
     );
     try {
       ({ data: result, usage } = await callPlanning());
