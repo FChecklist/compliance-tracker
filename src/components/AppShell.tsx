@@ -7,6 +7,7 @@ import { HealthRibbon } from "@/components/HealthRibbon";
 import TrialBanner from "@/components/TrialBanner";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock";
+import { BottomNavStrip } from "@/components/BottomNavStrip";
 // HelpWidget was built in an earlier session wave but never wired into any
 // render tree — imported and rendered here as a fixed-position floating
 // widget that lives for the entire authenticated session.
@@ -178,6 +179,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {pathname !== HOME_ROUTE && <TrialBanner />}
           </div>
           {children}
+          <BottomNavStrip />
         </div>
       </AppShellFrame>
       {/* HelpWidget: floating help-chat button/panel, fixed-position, rendered
@@ -212,6 +214,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <TrialBanner />
           </div>
           {children}
+          <BottomNavStrip />
         </main>
       </div>
       <div className="print:hidden">

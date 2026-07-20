@@ -7,6 +7,14 @@
       "connectors": "Connectors",
       "agents": "Make Your Own Agents"
     },
+    "bottomNav": {
+      "chat": "Chat",
+      "todo": "To Do",
+      "analytics": "Analytics",
+      "approval": "Approval",
+      "email": "Email",
+      "new": "New"
+    },
     "poweredBy": "Powered by VERIDIAN AI",
     "sections": {
       "overview": {
