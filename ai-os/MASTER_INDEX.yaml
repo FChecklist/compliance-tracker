@@ -371,12 +371,16 @@ registries:
       this file is the ground-truth column-level reference.
     generator_script: >-
       /opt/veridian/repos/compliance-tracker/ai-os/scripts/extract-db-schema-catalog.mjs
-      -- must be run as `cd /opt/veridian/repos/compliance-tracker &&
-      node_modules/.bin/tsx ai-os/scripts/extract-db-schema-catalog.mjs`
-      (module resolution requires running from inside the repo tree,
-      confirmed 2026-07-20 -- running it from /opt/veridian/scripts/
-      fails with ERR_MODULE_NOT_FOUND even though a mirror copy exists
-      there for discoverability).
+      -- REUSABLE ACROSS REPOS as of 2026-07-20 (dynamic import(), not a
+      static import statement). Copy the script into the target repo's
+      own tree (module resolution for both the script's own
+      `drizzle-orm` import AND the dynamically-imported schema.ts's own
+      imports must resolve from the SAME node_modules -- confirmed this
+      fails across repos, e.g. compliance-tracker's tsx binary cannot
+      resolve projexa's drizzle-orm). Run as `cd <repo> &&
+      node_modules/.bin/tsx ai-os/scripts/extract-db-schema-catalog.mjs
+      <absolute-path-to-schema.ts>`. Absolute path required -- a
+      relative path is treated as a bare module specifier and fails.
     query_examples:
       - jq '.tables[] | select(.table_name=="organisations")' DATABASE_CATALOG.json
       - jq '.table_count, .enum_count' DATABASE_CATALOG.json
@@ -409,11 +413,14 @@ registries:
       granularity anywhere in the system before 2026-07-20.
     generator_script: >-
       /opt/veridian/repos/compliance-tracker/ai-os/scripts/extract-function-catalog.mjs
-      -- run as `cd /opt/veridian/repos/compliance-tracker && node
-      ai-os/scripts/extract-function-catalog.mjs` (plain node, not tsx --
-      the script itself is .mjs and only needs the `typescript` package,
-      already a project dependency; completes in under 2 seconds for
-      1,623 files).
+      -- REUSABLE ACROSS REPOS as of 2026-07-20 (repo root + output path
+      are now argv[2]/argv[3], not hardcoded). Copy into the target
+      repo's own tree so its `typescript` import resolves from that
+      repo's node_modules. Run as `node
+      extract-function-catalog.mjs <absolute-repo-root>
+      <absolute-output-path>` (plain node, no tsx needed -- Node's
+      native TS support handles the .mjs script itself; completes in
+      under 2 seconds even for 1,600+ files).
     query_examples:
       - jq '.functions[] | select(.name=="runRole")' FUNCTION_CATALOG.json
       - jq '.functions[] | select(.file | contains("cost-policy"))' FUNCTION_CATALOG.json
@@ -433,9 +440,86 @@ registries:
     status: live, generated 2026-07-20
     regenerate: run generator_script anytime src/ changes; safe, read-only, no DB/build step required
     scope_note: >-
-      compliance-tracker only (PROJEXA and veda-advisors consume this
-      platform via API rather than owning a separate codebase) -- not
-      yet extended to claude-control or any other repo's own scripts.
+      compliance-tracker specifically. CORRECTED 2026-07-20 (was
+      wrongly stated as "PROJEXA/veda-advisors consume via API, no
+      separate codebase" -- confirmed false on inspection: both have
+      their own package.json+src/ trees. See registries.projexa_catalog
+      and registries.veda_advisors_catalog for their own, separate
+      catalogs, same generator scripts, parameterized by repo path.
+
+  - id: projexa_catalog
+    type: json_files
+    path: /opt/veridian/repos/projexa/ai-os/DATABASE_CATALOG.json,
+      /opt/veridian/repos/projexa/ai-os/FUNCTION_CATALOG.json
+    central_mirror: /opt/veridian/ai-os/catalogs/projexa/
+    scope: >-
+      PROJEXA has its own real codebase (371 src/ files) AND its own
+      local database schema (11 tables, 0 enums -- notifications, chat,
+      membership, credentials layer), distinct from the
+      compliance-tracker business-logic tables it consumes via API.
+      992 functions catalogued. Generated with the same
+      extract-db-schema-catalog.mjs / extract-function-catalog.mjs
+      scripts, parameterized by repo path (scripts now take the schema
+      path / repo root as argv[1] instead of a hardcoded
+      compliance-tracker path -- confirmed working via a regression
+      test against compliance-tracker's own 444/124/5019 numbers before
+      reuse, all matched exactly).
+    generator_note: >-
+      Requires `bun install` in projexa/ first (node_modules did not
+      exist on this server before 2026-07-20) -- bun binary is at
+      ~/.bun/bin/bun, not on PATH in non-interactive SSH sessions.
+    pr_status: >-
+      Pushed via PR https://github.com/FChecklist/projexa/pull/50, not
+      main directly -- a pre-existing uncommitted local change to
+      .github/workflows/ci.yml (unrelated CI guardrail work, not mine,
+      faithfully restored via git stash after pulling) blocked direct
+      push (OAuth token lacks `workflow` scope). Catalog commits were
+      cherry-picked onto a clean branch off origin/main to avoid that
+      blocker; the workflow-touching commit remains local-only on
+      projexa's main branch, unpushed, pending a token with workflow
+      scope or manual push by the Owner.
+    status: live, generated 2026-07-20
+
+  - id: veda_advisors_catalog
+    type: json_file
+    path: /opt/veridian/repos/veda-advisors/ai-os/FUNCTION_CATALOG.json
+    central_mirror: /opt/veridian/ai-os/catalogs/veda-advisors/FUNCTION_CATALOG.json
+    scope: >-
+      veda-advisors has its own real codebase (62 src/ files, 270
+      functions). No schema.ts found -- uses src/lib/db.ts (a Supabase
+      client, not a Drizzle schema module), so no DATABASE_CATALOG
+      entry exists for this repo -- confirmed absence, not an
+      oversight.
+    pr_status: >-
+      Pushed via PR https://github.com/FChecklist/veda-advisors/pull/16
+      -- main is branch-protected on this repo (direct push rejected
+      with GH006), unlike projexa's main.
+    status: live, generated 2026-07-20
+
+  - id: veridian_ui_kit_catalog
+    type: json_file
+    path: /opt/veridian/repos/veridian-ui-kit/ai-os/FUNCTION_CATALOG.json
+    central_mirror: /opt/veridian/ai-os/catalogs/veridian-ui-kit/FUNCTION_CATALOG.json
+    scope: >-
+      Small shared UI component package (@fchecklist/veridian-ui-kit,
+      0 runtime deps, 22 src/ files, 46 functions). No database.
+    pr_status: pushed directly to master, no branch protection, no conflict.
+    status: live, generated 2026-07-20
+
+  - id: other_repos_classified
+    type: inline_note
+    scope: >-
+      Remaining repos under /opt/veridian/repos/ classified 2026-07-20,
+      no catalog needed (not application codebases):
+      veridian-brain (package.json but effectively a 1-file stub SDK
+      package, packages/brain-sdk/src/ -- not worth a dedicated
+      catalog run at this size); claude-control (pure YAML/config, see
+      registries.cross_project_controller); infisuite-reverse-engineering
+      and odoo-reverse-engineering (this session's own scraped
+      third-party-system documentation, not this system's code);
+      global-revenue-engine (empty repo, .git only, no committed
+      content yet); sumeet-spec (single spec .md file, no code).
+    status: classified, not catalogued (correctly out of scope)
 
   - id: attention_alerts
     type: markdown_file
@@ -732,3 +816,75 @@ audit_log:
       server. Applies to the "software first, AI second" mandate
       already in ai-os/CONSTITUTION.yaml, made explicit for
       indexation/catalog work specifically.
+  - pass: 6
+    ts: '2026-07-20T09:45:00+00:00'
+    type: whole_system_scope_expansion
+    trigger: >-
+      Owner: "finish this for the whole system FChecklist, VERIDIAN,
+      PROJEXA, Compliance-tracker" -- flagged that function_catalog's
+      scope_note claiming PROJEXA/veda-advisors are API-only was an
+      unverified assumption.
+    method: >-
+      Checked system_index/MASTER_INDEX first per the new standing
+      prompt (no exact duplicate found). Enumerated every repo under
+      /opt/veridian/repos/ (11 total), checked each for
+      package.json+src/ to distinguish real codebases from
+      config/doc/stub repos, rather than trusting the prior claim.
+    result: >-
+      The prior scope_note was WRONG. PROJEXA (371 files, own 11-table
+      schema, 992 functions) and veda-advisors (62 files, 270
+      functions, no schema.ts -- uses a Supabase client not Drizzle)
+      both have real, separate codebases. veridian-ui-kit (22 files, 46
+      functions) was not previously accounted for at all. Both
+      extraction scripts were parameterized (dynamic import() /
+      argv-based paths instead of hardcoded compliance-tracker paths)
+      and regression-tested against compliance-tracker's own known
+      numbers (444/124/5019, exact match) before reuse on the other
+      repos -- confirming the refactor didn't silently change behavior.
+    real_blockers_hit_and_resolved:
+      - >-
+        projexa had zero node_modules installed on this server --
+        installed via ~/.bun/bin/bun install (bun not on PATH in
+        non-interactive SSH sessions).
+      - >-
+        Cross-repo script invocation fails silently in confusing ways
+        (tsx module resolution is tied to the invoking binary's own
+        repo, not the dynamically-imported file's location) -- resolved
+        by copying the generator script into each target repo's own
+        tree so both its own and the dynamically-imported schema's
+        imports resolve from the same node_modules.
+      - >-
+        projexa's git push was rejected (remote had 2 newer commits);
+        pull required stashing pre-existing, real, uncommitted local
+        work (a CI guardrail check, not mine) to avoid losing it --
+        stashed, pulled, restored, resolved one real .gitignore merge
+        conflict (non-overlapping additive, both sides kept).
+      - >-
+        schema.ts changed during that pull (a notifications table was
+        added) -- caught before pushing, catalog regenerated against
+        the new HEAD rather than shipping a catalog already 1 commit
+        stale.
+      - >-
+        Final push blocked by GitHub: OAuth token lacks `workflow`
+        scope, and the restored CI guardrail commit touched
+        .github/workflows/ci.yml, blocking the whole branch push.
+        Resolved via AskUserQuestion (Owner chose): cherry-picked only
+        the 2 catalog commits onto a clean branch off origin/main,
+        opened https://github.com/FChecklist/projexa/pull/50. The
+        workflow-touching commit remains local-only on projexa main,
+        not lost, pending Owner action.
+      - >-
+        veda-advisors' main is branch-protected (GH006) -- pushed via
+        branch + PR (https://github.com/FChecklist/veda-advisors/pull/16)
+        instead, same pattern as the projexa workaround.
+    other_repos_classified: >-
+      veridian-brain (1-file stub, no catalog run), claude-control
+      (config-only, already covered), infisuite-reverse-engineering +
+      odoo-reverse-engineering (this session's own third-party-system
+      docs, not this system's code), global-revenue-engine (empty),
+      sumeet-spec (single spec file) -- all confirmed correctly out of
+      scope for a code catalog, not silently skipped.
+    next: >-
+      AI model/role catalog (the other half of the Owner's original
+      ask) not yet started this pass -- separate task, governance docs
+      exist but haven't had the mechanical-extraction treatment.
