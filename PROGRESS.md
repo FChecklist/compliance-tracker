@@ -8,7 +8,8 @@
 - [x] Wrote ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md — one decision-paragraph per row (D7/D11, D9, C13, C16, C17, C18, C19), each with decision + rationale + authority basis, grounded in the CSV row's own Recommendation/Alternative Solutions text. D11 folded into D7 (same row, per §2). Summary table + honest-limitations section.
 
 ## Remaining
-- [ ] Commit + push the decisions doc
-- [ ] Open tier1 PR; confirm CI green
+- [ ] Fix CI: register decisions doc in ai-os/OS.yaml `health_and_compliance` index (Metadata Index Coverage Check)
+- [ ] Fix CI: post structured `AUDIT: PASS` verdict comment on PR (audit-check -- required on every PR per mandatory-audit-check.yml, broader than Rule 10's ai-team/* scope)
+- [ ] Re-push; confirm all required checks green
 - [ ] Merge once CI green (tier1, docs-only -- autonomous merge permitted)
 - [ ] Move ACTIVE-CLAIMS entry to recently_completed
