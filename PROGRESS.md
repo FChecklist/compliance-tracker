@@ -1,17 +1,14 @@
-# PROGRESS -- task-20260719-171130-reevaluate-2045-row-veridian-framework-r
+# PROGRESS -- task-20260720-025001-superboss-v2-plan--decisions-of-record
 
 ## Completed
-- [x] Pulled claude-control fresh; confirmed VERIDIAN_Review_Framework_evaluated_2045rows.csv (2045 rows) is the authoritative source
-- [x] Parsed CSV Status distribution: 188 No-Gap / 1782 Gap-Open / 42 Needs-Owner-Decision / 33 Unable-to-Verify
-- [x] Re-read existing SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md (PR #485, now merged) + SOFTWARE_TEAM.md (PR #483, now merged) + MASTER-TRACKER.yaml + ACTIVE-CLAIMS.yaml (67 active claims surveyed for collisions)
-- [x] Pulled fresh `gh pr list` on compliance-tracker + projexa; confirmed #483/#485 merged, PROJEXA E2E Phase 2 Batches B(#48)/C(#46) merged
-- [x] Verified live code state of all 9 "Wave B laptop work" areas — CRITICAL FINDING: schema + service + API routes + UI pages + tests ALL already shipped server-side for Fixed Assets, CRM Accounts, HR Attendance, Payment Entries approval, Training LMS, BYOB white-label branding (the "redo fresh" directive is already satisfied; recording this rather than scheduling duplicate builds)
-- [x] Re-examined all 75 deferred rows (42 Needs-Owner-Decision + 33 Unable-to-Verify) under granted decision authority; classified each into (a) needs-real-money → stays deferred / (b) decision-only → decide now / (c) code-closable
-- [x] Registered claim in compliance-tracker ai-os/boss/ACTIVE-CLAIMS.yaml (projexa has no ai-os/ tree — cross-registered per existing precedent; documented in plan)
-- [x] Wrote ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (extended v1, not duplicated): real gap count + 75-row decision log + prioritized L1-L4 task units
-- [x] Registered v2 plan in ai-os/OS.yaml index (per v1 precedent, commit 95e537cf)
-- [x] Committed + pushed branch + opened tier1 docs-only PR #487 (https://github.com/FChecklist/compliance-tracker/pull/487)
+- [x] Read governance docs in order: ACTIVE-CLAIMS.yaml, v2 plan §2 (decision log), V2-6 task block
+- [x] Collision check: target file does not exist; no open PR touches it; no active claim on V2-6 row set
+- [x] Grounded each decision in the actual CSV rows (claude-control/VERIDIAN_Review_Framework_evaluated_2045rows.csv): D7/D11 (#36/#14 ERP/CRM Integration Readiness), D9 (FinOps dashboard reconciles engineering cost claims against Finance ledger), C13 (Bank integration credential storage security), C16 (Market Fit), C17 (4 rows blocked on OPENAI_API_KEY provisioning), C18 (Metadata Driven Platform), C19 (Horizontal Scalability / Supabase IPv4)
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (per Rule 11 protocol)
 
 ## Remaining
-- [ ] (Downstream execution, not this task) Dispatch the v2 plan's ready L1-L4 tasks through the Mother Router's software_team scope → GLM-5.2 via OpenRouter, per the plan's DONE CRITERIA, ahead of the 0800 IST 2026-07-20 deadline
-- [ ] (Downstream) The genuinely-money-blocked rows (SOC2 Type II engagement, third-party pentest, live payment-gateway merchant account, purchased training-content licensing) remain deferred — require Owner spend authorization, not decision authority
+- [ ] Write ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md (one decision-paragraph per row: D7/D11, D9, C13, C16, C17, C18, C19)
+- [ ] Commit + push incrementally
+- [ ] Open tier1 PR; confirm CI green
+- [ ] Merge once CI green (tier1, docs-only -- autonomous merge permitted)
+- [ ] Move ACTIVE-CLAIMS entry to recently_completed

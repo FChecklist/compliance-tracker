@@ -40,6 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260720-025001-superboss-v2-plan--decisions-of-record) -- SUPERBOSS v2 TASK V2-6: Decisions-of-record (docs-only close for the hold/document rows)"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      V2-6 of SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (PR #485's
+      successor). Docs-only task: write a single new
+      ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md recording one
+      decision-paragraph per §2 row that closes WITHOUT code -- D7/D11
+      (CRM/ERP connector hold), D9 (no second cost source), C13 (bank
+      credential target lowered to 3), C16 (market-fit deferred, no
+      customer base), C17 (OPENAI_API_KEY provisioning = formal Owner
+      request), C18 (metadata-driven = no action), C19 (Supabase IPv4
+      free half). Each entry = decision + rationale + authority basis,
+      grounded in the actual CSV rows (claude-control/
+      VERIDIAN_Review_Framework_evaluated_2045rows.csv) so the CSV
+      re-score has evidence. No code, no schema, no .env. Tier1.
+  scope_note: >-
+    File scope this task writes: ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md
+    (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
+    Read-mostly against the v2 plan + the claude-control CSV to ground
+    each decision row. Collision check before starting: no other active
+    entry touches REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md or the V2-6
+    row set; `gh pr list --state open` returns no PR touching that file;
+    file does not yet exist. Sibling V2 tasks (V2-1 UAE pack, V2-2 nav,
+    V2-3 verify Wave B, V2-7 staging env, etc.) touch disjoint
+    file/module scopes -- no overlap with this docs-only file.
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     claim: |
