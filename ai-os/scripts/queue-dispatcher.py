@@ -171,6 +171,12 @@ def dispatch(item):
 def main():
     with queue_lock():
         doc = load_queue()
+
+        if doc.get("dispatch_paused"):
+            print(f"PAUSED: {doc.get("pause_reason", "no reason recorded")}")
+            print(f"Held task_ids: {len(doc.get("held_task_ids", []))} -- dispatching nothing this run.")
+            return
+
         changed = sync_dispatched_statuses(doc)
 
         running = running_worker_count()

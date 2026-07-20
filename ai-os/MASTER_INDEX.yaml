@@ -569,6 +569,16 @@ registries:
         verified against a real restored balance, since the account is
         still genuinely exhausted as of this pass -- that real-money
         end-to-end proof can only happen once the Owner adds credits).
+        EXTENDED 2026-07-20 (Owner TASK 5, new directive): consults
+        get_held_task_ids() -- currently sourced from
+        gap_queue.yaml.held_task_ids when gap_queue.yaml.dispatch_paused
+        is true -- and skips (reports HELD, does not restart) any
+        task_id on that list. Added because 11 of the 21 held V2-plan
+        tasks are also balance-blocked and would otherwise have been
+        silently auto-resumed by this exact check the moment the Owner
+        adds credits, directly contradicting "stop these jobs." See
+        ai-os/GAP_ANALYSIS_2026-07-20_HOLD.md for the full analysis and
+        which 21 task_ids are held and why.
     cron_schedule: >-
       Added to crontab via run-logged.sh (same wrapper pattern as the
       other 7 jobs, registries.auto_execution_wrapper):
@@ -582,6 +592,28 @@ registries:
       and surfaced 2 more for follow-up -- 15 unindexed docs (named,
       not yet individually catalogued), 0 genuine constitution
       staleness findings this pass)
+
+  - id: gap_queue_dispatch_hold
+    type: dispatch_pause_flag
+    path: /opt/veridian/ai-os/gap_queue.yaml (live-only, not git-tracked -- same category as CONTROLLER.yaml)
+    analysis_doc: ai-os/GAP_ANALYSIS_2026-07-20_HOLD.md (git-tracked)
+    scope: >-
+      TASK 5, Owner directive 2026-07-20: analyze the 185 genuinely-open
+      Review-Framework rows (consolidated as 25 V2-* tasks in this
+      queue), do NOT work on them, stop auto-dispatch. gap_queue.yaml
+      gained top-level dispatch_paused/pause_reason/held_task_ids (21
+      task_ids, the 21 non-completed of 25 V2 items). Enforced in 2
+      places: queue-dispatcher.py's main() (checks dispatch_paused
+      first, dispatches nothing if true) and
+      registries.system_sync_mechanism.checks.resume_balance_blocked_check
+      (skips held_task_ids). To release: set dispatch_paused to false
+      or remove specific IDs from held_task_ids -- no code change
+      needed, the pause is data-driven.
+    status: >-
+      live, deployed and verified 2026-07-20 (queue-dispatcher.py
+      confirmed printing PAUSED and dispatching nothing;
+      resume_balance_blocked_check confirmed via monkeypatched dry-run
+      -- 21 held, 0 resumed)
 
   - id: cross_project_controller
     type: yaml_file
@@ -1740,3 +1772,44 @@ audit_log:
       work but not formally closed out; (5) BRAIN.md and SELF-CHECK.md
       were named in file_inventory.ai_os_governance_docs as real
       candidates for a proper registries entry, not yet done.
+  - pass: 16
+    ts: '2026-07-20T13:15:00+00:00'
+    type: task5_gap_analysis_and_dispatch_hold
+    trigger: >-
+      New Owner directive, TASK 5: "The remaining 185 gaps of 2056
+      which are still open, analyze them. What are they and how
+      important. Dont work on them. Tell Mother Router to stop these
+      jobs." Part of a larger 6-task directive; TASK 5 executed first
+      as the fastest, most bounded piece.
+    method: >-
+      Traced "185 of 2056" to its real source (not assumed): reconciles
+      exactly to SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md's ~170
+      genuinely-open + ~15 deferred-routed-to-execution rows. Found
+      these 185 rows are already consolidated into 25 V2-* dispatch
+      tasks in gap_queue.yaml (21 non-completed). Checked
+      queue-dispatcher.py's actual dispatch logic (not assumed) --
+      confirmed it only fires from gap_queue.yaml's own static list,
+      currently empty of dispatchable items, so nothing was actively
+      auto-dispatching. But found a real, live risk: 11 of the 21 held
+      items are ALSO balance-blocked and would have been silently
+      auto-resumed by resume_balance_blocked_check() (built this same
+      session) the moment the Owner adds OpenRouter credits -- a direct
+      conflict with this new directive that would not have been caught
+      without explicitly cross-checking the two mechanisms against each
+      other.
+    result: >-
+      Built a data-driven pause (gap_queue.yaml.dispatch_paused +
+      held_task_ids), enforced in both queue-dispatcher.py and
+      resume_balance_blocked_check(), both verified live. Wrote
+      ai-os/GAP_ANALYSIS_2026-07-20_HOLD.md: reconciliation, current
+      status breakdown (4 completed / 11 stuck-on-the-now-fixed-balance-
+      incident / 10 possible-duplicate-skips), and a real importance
+      read of all 25 items by category (4 High: delegation-expiry auth
+      gap, storage RLS+backup, payroll audit, GST e-invoicing
+      correctness -- all security/compliance/money-correctness, not
+      polish).
+    sign_off: >-
+      Analysis delivered, zero work done on the 185 gaps themselves per
+      the explicit "don't work on them" instruction. Dispatch hold is
+      permanent and data-driven (release by flipping one boolean, no
+      code change) -- not a one-time manual stop that silently expires.

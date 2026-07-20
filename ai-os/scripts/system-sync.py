@@ -300,6 +300,28 @@ def get_openrouter_remaining(min_remaining_usd=0.10):
 
 
 TASKS_DIR = "/opt/veridian/ai-os/tasks"
+GAP_QUEUE_YAML = "/opt/veridian/ai-os/gap_queue.yaml"
+
+
+def get_held_task_ids():
+    """Task IDs this system must never auto-touch (resume/dispatch) even
+    when their underlying blocking condition clears, because a human
+    explicitly said "stop these jobs, analyze only." Currently sourced
+    from gap_queue.yaml's held_task_ids (set 2026-07-20 per Owner
+    directive on the 185-gap Review-Framework V2 plan) -- generalized as
+    its own function so a future second hold source doesn't require
+    touching resume_balance_blocked_check() itself, only this lookup."""
+    held = set()
+    if os.path.isfile(GAP_QUEUE_YAML):
+        try:
+            import yaml as _yaml
+            with open(GAP_QUEUE_YAML, encoding="utf-8") as f:
+                doc = _yaml.safe_load(f)
+            if isinstance(doc, dict) and doc.get("dispatch_paused"):
+                held.update(doc.get("held_task_ids") or [])
+        except Exception:
+            pass
+    return held
 
 
 def resume_balance_blocked_check(dry_run, min_remaining_usd=0.10):
@@ -314,10 +336,14 @@ def resume_balance_blocked_check(dry_run, min_remaining_usd=0.10):
 
     import yaml as _yaml
 
+    held_task_ids = get_held_task_ids()
     resumed = []
     if not os.path.isdir(TASKS_DIR):
         return findings, resumed
     for task_id in sorted(os.listdir(TASKS_DIR)):
+        if task_id in held_task_ids:
+            findings.append(f"HELD (Owner pause, not resumed): {task_id}")
+            continue
         task_yaml_path = os.path.join(TASKS_DIR, task_id, "task.yaml")
         if not os.path.isfile(task_yaml_path):
             continue
