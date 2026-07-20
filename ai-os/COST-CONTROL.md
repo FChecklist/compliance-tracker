@@ -106,3 +106,29 @@ New tool built during this round: `/opt/veridian/scripts/cost-reconciliation.py`
 **Scope clarification, not a bug but worth stating precisely:** everything built tonight hardens the *worker execution layer* (`worker-entrypoint.sh` + the GLM proxy) — the mechanism that actually runs `SUPERBOSS_V2_PLAN` dispatches. It does not modify `mother-router.ts` or the tier-eligibility code in the application itself; those are a separate routing/eligibility layer for tenant-facing AI features, not touched by this work. If "Mother Router" in Q2 was meant to include that application code specifically, it's out of scope of what's deployed here and would need a separate, explicit task.
 
 **No repeat offenders found:** the reconciliation script also checks every task's `.failure_signatures.json` for a circuit-breaker-should-have-caught-this case (2 identical consecutive signatures still active). None found — expected, since the pre-existing pathological failures (BYOB etc.) already reached terminal `failed` state hours before the circuit breaker existed, so there's nothing currently live for it to have caught yet. This will be the real test once new dispatches run under real credits.
+
+## Audit round 2 (concurrency and edge cases)
+
+Real tests, not theoretical review:
+
+- **5 simultaneous distinct requests** fired at the live proxy: all 200, 5 distinct cache entries created correctly (no key collisions), `PRAGMA integrity_check` on the SQLite cache returned `ok`, budget accounting incremented correctly and exactly once per real call.
+- **Error responses are never cached**, confirmed by deliberately triggering a real 400 (an absurd `max_tokens`) and checking the cache row count was identical before and after.
+- **Known, bounded limitation, documented rather than hidden:** if two *genuinely simultaneous* identical requests arrive before either has written to the cache, both will miss and both will spend real money (last-write-wins on the resulting cache write — harmless, just not deduplicated). This does not affect the actual target scenario from the RCA — sequential retries of a stuck task, like BYOB's 12 restarts, which happen one invocation after another, never simultaneously. A true fix (an in-flight-request lock keyed by cache key) would close this but wasn't built tonight — it's a real gap, sized correctly as minor given the actual failure pattern it would guard against.
+- **Budget-ceiling check-then-spend has a similar bounded TOCTOU gap**: the check happens before the call, the spend is recorded after. Under high concurrency this could let the real spend overshoot the cap by up to (concurrent-in-flight-requests × average-call-cost) before the next request is rejected — not unbounded, but not perfectly atomic either. Given typical per-call cost is fractions of a cent, this overshoot is small in absolute dollars even in a worst case.
+
+## Audit round 3 (final sign-off)
+
+Everything above was tested against the live server, not asserted from reading the code. Final honest state:
+
+**Working, verified with real evidence:** response cache (hit/miss, 36x latency drop, error-exclusion, concurrency-safety all demonstrated live), hard budget ceiling (real 402 rejection demonstrated, $0 cost for the rejection itself), pre-flight guard (all 4 branches — circuit breaker, worktree lock, proxy health, canary — tested with real pass/fail cases), circuit breaker (tested standalone and observed correctly recording 2 different real signatures during the credit-exhaustion canary run), prompt-size reduction (verified the constructed resume prompt excludes the original spec), AI-to-AI terse prompt format (deployed), reconciliation script (already found a real issue — the 71.9% all-time failure rate — on its first run).
+
+**Not verified tonight, stated honestly rather than assumed:** the full success path (quality gate → commit → push → `pending_review`) wasn't re-exercised end-to-end, because every real call currently 402s at the OpenRouter account level — that code is unchanged from the working v1, so risk is low, but "unchanged" is not the same as "proven under the new pipeline." Needs one real successful dispatch once credits exist.
+
+**Known gaps, not fixed tonight, listed rather than glossed over:**
+1. No literal concurrent-worker cap (Group B's resource-contention failure mode is only indirectly mitigated via the pre-flight memory check, not a hard semaphore on how many workers can run at once).
+2. The in-flight-duplicate-request cache gap and the budget-ceiling TOCTOU gap from round 2, both bounded and minor given real usage patterns, neither closed.
+3. The 10-15 batched task prompts for the real ~185-row remaining scope (Q7) are recommended and sized, but not written — that's dispatch work for when credits exist, not part of tonight's "build the process" scope.
+4. `SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md`'s stale claim that the proxy is disabled was flagged, not corrected in that document itself.
+5. Weekly-cadence automation for `cost-reconciliation.py` (e.g. a cron entry) wasn't set up — it exists and works when run manually, but nothing runs it on a schedule yet.
+
+**The one finding that matters most for tonight's actual question:** none of this can be exercised against real GLM-5.2 work until the OpenRouter account has real balance again. Everything above is proven and ready for that moment, not a promise about what happens before it.
