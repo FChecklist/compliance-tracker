@@ -15,7 +15,13 @@
 - [x] `tsc --noEmit` clean (exit 0). `eslint` clean on all changed/new files (exit 0). `bun test` clean (9 pass / 0 fail).
 
 ## Remaining
-- [ ] Open PR (Tier2 — AppShell = app-shell surface touched → holds for Owner sign-off, not self-merged). Commit + push the implementation, then open the PR.
+- [x] Open PR (Tier2 — AppShell = app-shell surface touched → holds for Owner sign-off, not self-merged). PR #489 opened against `main`: https://github.com/FChecklist/compliance-tracker/pull/489
+
+## DONE CRITERIA status
+- [x] Unified nav live across all `(app)` pages — wired in both AppShell branches.
+- [x] Design-law conformance — the law's 6 items as a single strip above the compose bar, reusing the kit's nav tokens (one navigation system, not a competing pattern); two non-existent routes honestly reconciled.
+- [x] tsc/lint/test clean.
+- [x] PR open — #489 (Tier2, holds for Owner sign-off).
 
 ## Test approach (honest)
 The task's DONE CRITERIA says "Real component tests." This repo's established, only test runner is `bun test`, and it has **no React-component testing infra** — `@testing-library/react`, `happy-dom`, `jsdom`, `vitest`, and `jest` are none of them dependencies, and no existing `.test.ts(x)` in the repo renders a React component (every existing test is pure-logic under `bun:test`, e.g. `risk-classification.test.ts`, `llm-routing-gate.test.ts`).
