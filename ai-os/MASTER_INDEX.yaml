@@ -1,0 +1,488 @@
+schema_version: 1
+audience: ai_and_software_only
+protocol: >-
+  READ_THIS_FILE_FIRST. Before any grep/find/read across this server or the
+  compliance-tracker/projexa/veda-advisors/claude-control repos, before
+  writing any new script/table/register, query this file for an existing
+  match. If a match exists, use it or extend it -- do not create a parallel
+  mechanism. If check-duplicate (system_index) and this file both show no
+  match, proceed, then register the new thing in system_index (index-add)
+  AND in this file's relevant list.
+built_ts: '2026-07-20T08:11:00+00:00'
+built_by: superboss_interactive_session
+audit_passes_complete: 0
+audit_passes_required: 3
+canonical_path_live: /opt/veridian/ai-os/MASTER_INDEX.yaml
+canonical_path_repo: /opt/veridian/repos/compliance-tracker/ai-os/MASTER_INDEX.yaml
+
+# ---------------------------------------------------------------------------
+# root_cause -- why searches were slow / wrong files got picked (2026-07-20)
+# ---------------------------------------------------------------------------
+root_cause_confirmed:
+  finding: >-
+    Unscoped filesystem search (find/grep without prune) traverses
+    node_modules trees (per-repo, multiple GB) and per-task git-worktree
+    copies of the entire repo under ai-os/tasks/*/workspace/ -- both
+    contain files with basenames identical to canonical files
+    (CONSTITUTION.yaml, CONTROLLER.yaml appear 100+ times each across
+    worktree copies alone).
+  incident_evidence: >-
+    Unscoped `find /opt/veridian -iname CONSTITUTION.yaml` returned 200+
+    hits, ~198 of them ai-os/tasks/*/workspace/ worktree copies, 0
+    informative. Same command with -prune on the excluded paths returned
+    in under 2 seconds with the 1 canonical hit.
+  fix: >-
+    Apply exclusion_rules below on every search. Single highest-leverage
+    fix for search speed and wrong-file selection.
+
+exclusion_rules:
+  must_prune_not_just_exclude: true
+  reason: >-
+    find -not -path still descends into and stats every excluded
+    directory; only -prune skips the subtree, which is the actual speed
+    fix.
+  prune_paths:
+    - '*/node_modules/*'
+    - '*/.git/*'
+    - /opt/veridian/ai-os/tasks/*/workspace/*
+    - /opt/veridian/workspace/claude-cli-work/*
+    - /opt/veridian/workspace/main-e2e-check/*
+  correct_find_pattern: >-
+    find <roots> \( -path '*/node_modules' -o -path '*/.git' -o -path
+    '*/ai-os/tasks' -o -path '*/workspace/claude-cli-work' \) -prune -o
+    -type f -iname '<pattern>' -print
+
+canonical_dirs:
+  ops_scripts:
+    path: /opt/veridian/scripts/
+    contents: >-
+      Shell-layer worker fleet entrypoints, preflight/guardrail scripts,
+      dispatchers, register CLI. See file_inventory.scripts.
+  ai_os_governance_repo_copy:
+    path: /opt/veridian/repos/compliance-tracker/ai-os/
+    contents: >-
+      Git-tracked canonical governance/tracker/tree docs. This is the
+      copy to read/edit -- ai-os/tasks/*/workspace/ai-os/ copies are
+      ephemeral per-task worktrees, never edit those.
+  ai_os_live_runtime_state:
+    path: /opt/veridian/ai-os/
+    contents: >-
+      Non-git runtime state -- dispatched task dirs (tasks/), the live
+      task-state ledger (CONTROLLER.yaml, see
+      registries.task_state_ledger), cron-fed queues (gap_queue.yaml,
+      queues/), the register DB (memory/), response cache (logs/),
+      alerts (logs/ATTENTION.md).
+  cross_project_controller_repo:
+    path: /opt/veridian/repos/claude-control/
+    contents: >-
+      The real CONTROLLER.yaml (registries.cross_project_controller).
+      Separate GitHub-synced repo, one level above every individual
+      project.
+
+# ---------------------------------------------------------------------------
+# registries -- every mechanism whose job is to index/track/govern
+# something. Query the specific registry for its own domain instead of
+# grepping files.
+# ---------------------------------------------------------------------------
+registries:
+
+  - id: system_index
+    type: sqlite_table
+    path: /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
+    scope: >-
+      Existence-check for real mechanisms (scripts/services/tables/docs)
+      across the whole ops layer -- "does X already exist" before
+      building.
+    query_cmd: >-
+      python3 /opt/veridian/scripts/superboss-register.py check-duplicate
+      "<query>" [--category <cat>]
+    row_count_at_build: 28
+    status: live
+    mandatory_before: writing any new script, table, service, or doc on this server
+
+  - id: superboss_dialogue_log
+    type: sqlite_tables
+    path: /opt/veridian/ai-os/memory/superboss-register.sqlite#instructions,work_items,actions
+    scope: >-
+      Owner<->Superboss instruction/work/action audit trail. Not
+      reachable from TypeScript/Vercel app code (different host, no
+      bridge built).
+    query_cmd: python3 /opt/veridian/scripts/superboss-register.py search "<query>"
+    doc: /opt/veridian/repos/compliance-tracker/ai-os/SUPERBOSS_REGISTER.md
+    status: live
+
+  - id: cross_project_controller
+    type: yaml_file
+    path: /opt/veridian/repos/claude-control/CONTROLLER.yaml
+    scope: >-
+      Outermost requirements+decision catalog, spans every project
+      (compliance-tracker, projexa, veda-advisors, claude-control
+      itself). One level above any single project's own tracker. Points
+      at, never duplicates, project-local trackers (explicit in its own
+      header).
+    git: github.com/FChecklist/claude-control -- pull before read
+    status: live
+    read_priority: 1
+
+  - id: task_state_ledger
+    type: yaml_file
+    path: /opt/veridian/ai-os/CONTROLLER.yaml
+    scope: >-
+      DIFFERENT FROM cross_project_controller despite identical
+      basename -- this is a locked, auto-generated dump of this server's
+      291 dispatched worker-task execution states (service names,
+      checkpoints, task_dir paths). Not git-tracked, not
+      human-maintained.
+    name_collision_warning: true
+    name_collision_detail: >-
+      Two files named CONTROLLER.yaml exist
+      (repos/claude-control/CONTROLLER.yaml = cross_project_controller,
+      ai-os/CONTROLLER.yaml = this entry). Confirmed 2026-07-20, not yet
+      resolved by rename -- deferred because this file is actively
+      read-modify-written with a lock (.controller.lock) by
+      veridian-task.py (the live dispatch CLI), and renaming safely
+      requires updating 3 script references (veridian-task.py,
+      repair_controller.py, cost-reconciliation.py) plus re-verifying
+      live dispatch end to end. Real open follow-up, not silently
+      dropped.
+    writer: /opt/veridian/scripts/veridian-task.py (primary, locked read-modify-write)
+    rebuild_tool: /opt/veridian/scripts/repair_controller.py (corruption recovery only)
+    reader: /opt/veridian/scripts/cost-reconciliation.py
+    status: live
+
+  - id: constitution
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/CONSTITUTION.yaml
+    scope: >-
+      Canonical governance doc. 30 self-graded guardrail protocols
+      (GP-01..GP-30) with code citations. Explicitly the single status
+      table for guardrail grading -- do not re-grade in any other file.
+      Superseded ai-os/sentinel/SENTINEL.yaml as the authority (per
+      SENTINEL.yaml's own 2026-07-14 note).
+    status: live
+    read_priority: 2
+
+  - id: master_tracker
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/MASTER-TRACKER.yaml
+    scope: >-
+      The single file for gap analysis / pending work / WIP across the
+      VERIDIAN initiative. Created 2026-07-12 by consolidating 17 prior
+      tracker/gap-backlog files (5,538 lines) -- those originals are
+      archived (see tree_lineage.tree4_unified.subdirs), not maintained.
+      Update discipline is in the file's own header (move closed items
+      out, don't let it re-sprawl past ~1000 lines).
+    status: live
+    last_verified_modified: '2026-07-19T08:15:39+05:30'
+    known_gap: >-
+      No confirmed programmatic link to gap_dispatch_queue -- checked
+      2026-07-20, queue-dispatcher.py does not reference this file. The
+      two can drift; reconciling them is real open follow-up.
+    read_priority: 3
+
+  - id: gap_dispatch_queue
+    type: yaml_file
+    path: /opt/veridian/ai-os/gap_queue.yaml
+    scope: >-
+      Live cron-dispatched queue (1634 lines at build time). Distinct
+      from master_tracker -- this is dispatch-mechanics state (what's
+      queued/dispatched/blocked for the worker fleet), master_tracker is
+      the human-readable gap narrative. See known_gap above on
+      master_tracker.
+    dispatcher: /opt/veridian/scripts/queue-dispatcher.py (cron)
+    status: live
+
+  - id: module_pilot_queues
+    type: yaml_files
+    path: /opt/veridian/ai-os/queues/*.yaml
+    scope: >-
+      Module-scoped task queues for the Master/Supervisor pilot
+      (master-decompose.py writes, module-queue-dispatcher.py reads).
+      Explicitly reuses gap_dispatch_queue's dispatch machinery
+      (veridian-task.py create, worker/supervisor systemd, tier1/tier2
+      audit flow) -- not a parallel dispatch implementation, same
+      engine, different queue source. Not a duplicate of
+      gap_dispatch_queue.
+    status: >-
+      live, pilot scope (backend.yaml exists; only backend/database
+      modules active per master-decompose.py's PILOT_MODULES)
+
+  - id: active_claims
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/boss/ACTIVE-CLAIMS.yaml
+    scope: >-
+      Parallel-session work-claim coordination -- read before picking up
+      any gap to avoid 2 sessions building the same thing concurrently.
+      Explicitly referenced (not duplicated) by cross_project_controller.
+    status: live
+    read_priority: 4
+
+  - id: boss_board
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/boss/BOARD.yaml
+    scope: Original ComplianceTrack task board.
+    status: >-
+      STALE. Self-flagged in its own header -- stops at 2026-06-29, does
+      not reflect ~114 later waves. Superseded by master_tracker for
+      current state. Kept for pre-2026-06-29 historical detail only.
+
+  - id: boss_identity
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/boss/BOSS.yaml
+    scope: >-
+      Not a tracker -- role/identity config for VEDABOSS (architect
+      role, ComplianceTrack). Different purpose from boss_board despite
+      shared boss/ directory.
+    status: live, last content-verified 2026-07-09
+
+  - id: boss_roster
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/boss/ROSTER.yaml
+    scope: Authorized coding agents (VEDABOSS/ZAI/SENTINEL) and roles.
+    status: live, last content-verified 2026-07-09
+
+  - id: boss_completed_rollup
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/boss/COMPLETED.yaml
+    scope: >-
+      Two things in one file -- a completed_count/last_completed rollup
+      (stale, stuck 2026-06-28) and a separate entries list of WAVE-*
+      completion records (the VERIDIAN.docx joint plan's real log,
+      tracked independently of the stale rollup fields per the file's
+      own note). Read entries, not the rollup fields, for current state.
+    status: partial (entries live, rollup fields stale)
+
+  - id: sentinel_health
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/sentinel/HEALTH.yaml
+    scope: CI/branch health spot-check.
+    status: >-
+      STALE. last_check 2026-07-09 (11 days at build time), not re-run
+      since. Authority ceded to constitution (GP protocols) per
+      sentinel/SENTINEL.yaml's own 2026-07-14 note.
+
+  - id: sentinel_violations
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/sentinel/VIOLATIONS.yaml
+    scope: Secret/.env spot-check log.
+    status: >-
+      STALE. last_scan 2026-07-09, explicitly self-described as
+      "spot-check only," does not cover SENTINEL.yaml's full
+      validation_rules set (e.g. AR-001, AC-002 not re-audited).
+
+  - id: sentinel_rules
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/sentinel/SENTINEL.yaml
+    scope: >-
+      Original rule definitions (AR-*, AC-* etc). Superseded in
+      authority by constitution for guardrail grading (2026-07-14), but
+      the rule definitions themselves are not necessarily migrated --
+      relationship not fully re-verified this pass, real follow-up.
+
+  - id: lifecycle_state
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/LIFECYCLE.yaml
+    scope: Single current_stage marker (MONITOR) for the whole initiative.
+    status: live, corrected 2026-07-09 (was stuck at a stale stage)
+
+  - id: os_entrypoint
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/OS.yaml
+    scope: >-
+      Pre-existing "start here" stub for the ai-os/ tree. Rewritten
+      2026-07-13 after being found stale/wrong (false Prisma claim).
+      This MASTER_INDEX.yaml is a more complete, machine-oriented
+      version of the same "start here" job -- OS.yaml should be updated
+      to point here, not treated as a competing entrypoint. Real
+      follow-up, not done this pass.
+
+  - id: engine_registry
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/engines/ENGINES.yaml
+    scope: >-
+      VCEL deterministic-computation engine registry (247 engines
+      catalogued, 41 implemented per prior session record).
+    status: live
+
+  - id: file_ownership_rules
+    type: yaml_file
+    path: /opt/veridian/ai-os/file-ownership.yaml
+    scope: >-
+      Deterministic module-ownership map, cross-checked (not trusted
+      blindly) against AI-declared module labels by
+      master-decompose.py.
+    status: live
+
+  - id: artifact_registry
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/registry/ARTIFACTS.yaml
+    scope: Universal Asset Registry scaffold (VERIDIAN.docx Principle 16).
+    status: NOT_POPULATED. Explicitly a scaffold, not live data. Real gap.
+
+  - id: asset_registry_coverage
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/registry/asset-registry-coverage.yaml
+    scope: >-
+      CI-enforced manifest -- every src/lib/db/schema.ts table must
+      appear in exactly one of registered/exempted. Not the same thing
+      as system_index (that indexes ops mechanisms; this indexes DB
+      tables' asset-registration compliance status specifically).
+    enforced_by: scripts/check-asset-registry-coverage.mjs (CI)
+    status: live
+
+  - id: stale_doc_manifest
+    type: yaml_file
+    path: /opt/veridian/repos/compliance-tracker/ai-os/registry/stale-doc-manifest.yaml
+    scope: >-
+      Root-level doc quarantine-banner enforcement list, tied to
+      master_tracker's GAP-UNIFIED-SOT-REMAINDER item.
+    enforced_by: scripts/check-doc-quarantine-banner.mjs (CI)
+    status: live
+
+# ---------------------------------------------------------------------------
+# tree_lineage -- the requirement-vs-built-status document chain. Read this
+# before assuming audit-tree/system-tree/tree4-unified are duplicates --
+# they are a documented derivation chain, not parallel copies.
+# ---------------------------------------------------------------------------
+tree_lineage:
+  tree1_audit_tree:
+    path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/
+    role: Requirement-doc interpretation (9 source docs mapped to 28 domains).
+    status: >-
+      HISTORICAL_INPUT. archive/ subdir explicitly retired, folded into
+      tree4.
+  tree3_system_tree:
+    path: /opt/veridian/repos/compliance-tracker/ai-os/system-tree/
+    role: >-
+      Audited live-codebase tree (614 API routes / 377 DB tables / 130
+      pages / 57 AI roles, per prior session verification).
+    status: >-
+      HISTORICAL_INPUT. Evidence source for tree4, not itself re-read by
+      tree4.
+  tree4_unified:
+    path: /opt/veridian/repos/compliance-tracker/ai-os/tree4-unified/
+    role: >-
+      CANONICAL CURRENT merge of tree1+tree3, 149 sub-branches, granular
+      status plus gap backlog plus input/output/guardrail specs.
+    status: >-
+      live, built 2026-07-11, includes its own 2-round self-audit
+      (TREE4-AUDIT-ROUND-1.md, TREE4-AUDIT-ROUND-2.md)
+    entrypoint: tree4-unified/00-INDEX.md
+    subdirs:
+      completion_plan: tree4-unified/50-completion-plan/ (active plan)
+      completion_plan_archive: >-
+        tree4-unified/50-completion-plan/archive/ -- 13 retired
+        priority-tracker files, explicitly archived, folded into
+        master_tracker per master_tracker's own header.
+  read_order: >-
+    tree4_unified.entrypoint first; tree1_audit_tree and
+    tree3_system_tree only if tree4 references them for detail.
+
+# ---------------------------------------------------------------------------
+# databases -- every .sqlite file on the server (excl. ephemeral worktree
+# copies). Full app-level Postgres/Supabase schema is NOT re-catalogued
+# here -- see tree3_system_tree (12-compliance-tracker-database.yaml) for
+# that, avoiding duplication of a 377-table catalogue.
+# ---------------------------------------------------------------------------
+databases:
+  - path: /opt/veridian/ai-os/memory/superboss-register.sqlite
+    tables: [instructions, work_items, actions, system_index]
+    see: registries.system_index, registries.superboss_dialogue_log
+  - path: /opt/veridian/ai-os/logs/glm-response-cache.sqlite
+    tables: [cache]
+    scope: L1 exact-match response cache for the GLM/OpenRouter proxy.
+    writer_reader: /opt/veridian/scripts/anthropic_openrouter_proxy_v2.py
+  - path: app-level Postgres/Supabase (377 tables)
+    see: >-
+      tree_lineage.tree3_system_tree path
+      system-tree/12-compliance-tracker-database.yaml
+    note: >-
+      Not re-enumerated here -- query that file, do not re-catalogue 377
+      tables in a second place.
+
+# ---------------------------------------------------------------------------
+# file_inventory -- every .py/.md/.yaml/.yml/.sh under canonical_dirs
+# (exclusion_rules already applied). 133 files at build time. Grouped by
+# canonical_dirs key. Individual one-line purpose tags live in
+# system_index for the ~28 mechanisms already catalogued there -- this
+# list is the exhaustive raw census, system_index is the annotated
+# subset. An entry here with no system_index counterpart has not yet been
+# individually verified/tagged -- treat its purpose as unconfirmed until
+# checked.
+# ---------------------------------------------------------------------------
+file_inventory:
+  ops_scripts:
+    count: 28
+    glob: /opt/veridian/scripts/*.{py,sh}
+    system_index_tagged:
+      - worker-entrypoint.sh
+      - doc-worker-entrypoint.sh
+      - supervisor-entrypoint.sh
+      - master-decompose.py
+      - preflight-guard.py
+      - tight_task_validation.py
+      - superboss-register.py
+      - health-check-15min.py
+      - cost-usage-60min.py
+      - anthropic_openrouter_proxy_v2.py
+      - software-request-analyzer.py
+    not_yet_tagged:
+      - anthropic_openrouter_proxy.py  # v1, likely superseded by v2, not confirmed retired
+      - cost-reconciliation.py
+      - dispatch-docworker-task.sh
+      - gap-status.py
+      - import-memory-history.py
+      - module-queue-dispatcher.py
+      - quality-gate.sh
+      - queue-dispatcher.py
+      - repair_controller.py
+      - risk-tier.py
+      - scope-check.py
+      - supervisor-sweep.sh
+      - sync-controller-back.py
+      - sync-repos.sh
+      - sync-vercel-env.sh
+      - sync-verdian-ai-data.sh
+      - task-template.py
+      - veridian-task.py
+  ai_os_governance_docs:
+    count: 105
+    roots:
+      - ai-os/ root .md/.yaml
+      - ai-os/audit-tree/
+      - ai-os/boss/
+      - ai-os/engines/
+      - ai-os/registry/
+      - ai-os/sentinel/
+      - ai-os/system-tree/
+      - ai-os/tree4-unified/
+    see: registries (annotated), tree_lineage (the tree docs specifically)
+    unannotated_note: >-
+      Several dated point-in-time docs exist at ai-os/ root
+      (INCIDENT_11K_API_CALLS_RCA.md,
+      RCA_OVERNIGHT_DISPATCH_FAILURE_2026-07-20.md,
+      REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md, STAGING_ENV_2026-07-20.md,
+      priority18b/21/22 design docs, 2045-GAP-CLOSURE-10-DOLLAR-PLAN.md)
+      -- these are dated incident/decision records, not living
+      registries; correct to read once for history, not to treat as a
+      search target for current state. Not individually re-verified this
+      pass.
+
+# ---------------------------------------------------------------------------
+# audit_log -- the 3-pass verification this file itself requires per Owner
+# directive (2026-07-20). Append, do not overwrite prior pass entries.
+# ---------------------------------------------------------------------------
+audit_log:
+  - pass: 1
+    ts: '2026-07-20T08:11:00+00:00'
+    type: discovery_and_build
+    method: >-
+      Live SSH verification of every path/relationship above (file heads
+      read, git log checked, script grep'd for cross-references) -- no
+      memory-only claims. exclusion_rules discovered empirically
+      (unscoped find incident) not assumed.
+    known_incomplete:
+      - file_inventory.ops_scripts.not_yet_tagged
+      - file_inventory.ai_os_governance_docs.unannotated_note
+      - registries.sentinel_rules relationship to constitution
+      - registries.task_state_ledger rename not yet performed
