@@ -139,6 +139,24 @@ See `ai-os/scripts/preflight-guard.py` and `worker-entrypoint.sh` for the mechan
 
 ---
 
+## 7. COVERAGE MATRIX — real recheck, 2026-07-20, "ensure 100% for all AI tasks" audit
+
+Every distinct AI-invocation path found by direct grep of the codebase (not assumed complete — this list itself may still be incomplete; treat as the best real inventory taken so far, not a guarantee no path was missed).
+
+| Path | Cache | Circuit breaker / loop prevention | Cumulative budget | Software-vs-AI triage | Hallucination/low-confidence detection |
+|---|---|---|---|---|---|
+| `worker-entrypoint.sh` (GLM worker fleet) | `[LIVE]` L1 exact-match | `[LIVE]` 2-identical-failures stop | `[LIVE]` proxy hard ceiling | not wired (existing app-side `classifyExecution` not reachable from bash) | not present |
+| `doc-worker-entrypoint.sh` (reverse-engineering fleet) | none (real subscription path, different cost model) | `[LIVE]`, added this pass | n/a (subscription, not metered per-call the same way) | not wired | not present |
+| `runRole()` / AI Team dispatch (`team-service.ts`) | none (no exact-match response cache) | `[EXISTING]` bounded per-call retry with failure-signal injection (`detectLowConfidenceResponse`/`detectKnowledgeGap`), real and good, not rebuilt | `[LIVE]`, added this pass — real gap closed: this call bypasses the GLM proxy entirely, called directly from the Next.js process | `[EXISTING]` `software-coverage-service.ts`'s `classifyExecution()` — mature, DB-backed, NOT duplicated by this document's earlier `software-request-analyzer.py` (that script is scoped to the shell/bash layer only, which has no access to this TS/DB-backed system) | `[EXISTING]` `floor-tier-escalation.ts` + `knowledge-sufficiency-gate.ts`, deterministic phrase-matching, honestly scoped (catches hedging, not confident-wrong-answers) |
+| `generateAiReply()` / VERI Chat (`chat-service.ts`) | `[EXISTING, partial]` `prompt-cache/` framework — fingerprints Anthropic's own `cache_control` usage for metrics; unverified tonight whether VERI Chat's live calls still go through real Anthropic or have also moved to OpenRouter (if the latter, this framework's premise may be stale, same class of issue as the "proxy disabled" doc drift found earlier) | not verified this pass | not verified this pass | not verified this pass | not verified this pass |
+| `supervisor-entrypoint.sh` | none | none | n/a | not wired | not present |
+| `master-decompose.py` | none | none | n/a | not wired | not present |
+| Remaining ~20 of the 26 TS files found touching AI calls (`task-execution-engine.ts`, `dialogue-script-executor.ts`, `purpose-bound-ai.ts`, `communication-drafting-service.ts`, etc.) | not individually re-verified this pass | not individually re-verified this pass | not individually re-verified this pass | not individually re-verified this pass | not individually re-verified this pass |
+
+**Honest conclusion: not 100%.** Real, verified, tested progress landed this pass on the two highest-risk gaps found (doc-worker fleet had zero protection; `runRole()` bypassed every cost control that exists). `supervisor-entrypoint.sh`, `master-decompose.py`, the VERI Chat path, and ~20 further TS call sites are confirmed NOT yet re-verified against this checklist — flagged as open, not silently assumed fine.
+
+**UTM-style indexation — not built this pass.** Specified in §2 as a requirement but no implementation landed: the cache DB still keys on a raw SHA-256 hash, the task register still uses free-text titles and timestamp-slug IDs. This is real, scoped, buildable work — deferred here in favor of closing live, currently-unprotected paths first, not because it's less important.
+
 ## 6. WHO USES THIS DOCUMENT
 
 - **Mother Router** (`src/lib/ai-router/mother-router.ts`): should consult §1 (triage) before dispatch, and route through §2's cache layers before invoking a model. Not yet wired into that file — this document is the specification for that integration, not a claim that it's done.
