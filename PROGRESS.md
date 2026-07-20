@@ -9,7 +9,9 @@
 - [x] Commit + push + open PR (#496)
 - [x] Posted structured AUDIT: PASS verdict comment on PR #496 (8 AuditProtocolFields); re-triggered audit-check with an empty commit (initial run raced the comment)
 - [x] Merged origin/main (brings in merged V2-7 PR #495) into this worker branch; resolved PROGRESS.md + ai-os/OS.yaml conflicts (kept both V2-8 and V2-7 doc index entries) to unblock PR #496's CONFLICTING merge state
+- [x] All 7 required CI checks green on PR #496 (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests); non-required E2E + Vercel are pre-existing env failures
+- [x] PR #496 MERGED (squash, merge commit 6dc7983e) -- Tier1 docs-only, autonomous merge
+- [x] Moved V2-8 entry in ACTIVE-CLAIMS.yaml from `active:` to `recently_completed:`
 
 ## Remaining
-- [ ] PR #496 passes required CI checks (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests) -- merge autonomously (Tier1 docs-only) once green; E2E is a pre-existing playwright/module env issue, not caused by this docs-only PR
-- [ ] Move ACTIVE-CLAIMS V2-8 entry from `active:` to `recently_completed:` after merge
+- [ ] None -- V2-8 task complete and merged
