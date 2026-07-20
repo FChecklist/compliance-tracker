@@ -1914,6 +1914,53 @@ export const customerModelConfig = complianceSchemaDB.table('customer_model_conf
 })
 
 // ─── Client-level (Layer 3) BYO model config (Wave 45) ───────────────────
+// ─── Per-org BYO AI model for the Mother Router's software_team scope ─────
+// (Super Boss v2 plan task V2-5, BYOB bring-your-own-AI-model, 2026-07-20).
+//
+// DISTINCT from customerModelConfig above: that table serves the *end_user_org*
+// Mother Router scope (Orchestra Layers, product-facing AI calls via
+// resolveModelConfig() -> callLLM()). This table serves the *software_team*
+// scope (mother-router.ts's computeSoftwareTeamResolution, /api/ai/team/dispatch,
+// runRole in team-service.ts) -- the AI Dev Team dispatch path that builds
+// VERIDIAN itself. A tenant configures their own model id + (encrypted) API
+// key + optional base URL; the Mother Router PREFERS it for that org's
+// software_team dispatches, but STILL runs the candidate through
+// checkTierEligibility() exactly like every policy override in
+// computeSoftwareTeamResolution() -- an ineligible tenant model silently
+// downgrades to the roster baseline, never bypasses the tier-eligibility
+// guardrail (AGENTS.md Operating Rule 9). See mother-router.ts's
+// computeSoftwareTeamResolutionWithTenant() and team-service.ts's runRole()
+// tenantOverride path for the enforcement.
+//
+// One active row per org (enforced by a partial unique index in the
+// migration, same pattern ai_routing_policies_one_active_per_scope uses) --
+// "the org's model" is a single choice, not a per-layer matrix like
+// customerModelConfig's orchestraLayerId axis, because the software_team
+// scope resolves by role/tier/capability, not by Orchestra Layer.
+//
+// provider is constrained to the ai_provider enum like customerModelConfig
+// for consistency; the software_team dispatch path calls via OpenRouter
+// (roster.ts: "Every model here is called via OpenRouter"), so a tenant's
+// model is an OpenRouter model id (e.g. 'z-ai/glm-5.2') and their key is an
+// OpenRouter key. baseUrl is optional and defaults to OpenRouter's endpoint
+// when null -- kept as a nullable column so a tenant pointing at a
+// self-hosted OpenRouter-compatible gateway can, without a code change.
+export const tenantAiConfig = complianceSchemaDB.table('tenant_ai_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  provider: aiProviderEnum('provider').notNull(),
+  encryptedApiKey: text('encrypted_api_key'),
+  modelName: text('model_name'),
+  // Optional: an OpenAI-compatible chat-completions endpoint. Null = use the
+  // provider's own default endpoint resolved in llm-client.ts's dispatchLLM()
+  // (https://openrouter.ai/api/v1/chat/completions for the openrouter case).
+  baseUrl: text('base_url'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Mirrors customerModelConfig (Layer 2/org) exactly, one level down the
 // tenant hierarchy -- a real, confirmed gap: Layers 1/2/4 (platform/org/
 // user) all already had a model-resolution mechanism; Layer 3 (client, e.g.
@@ -2531,6 +2578,10 @@ export const customerModelConfigRelations = relations(customerModelConfig, ({ on
 export const clientModelConfigRelations = relations(clientModelConfig, ({ one }) => ({
   client: one(clients, { fields: [clientModelConfig.clientId], references: [clients.id] }),
   layer: one(orchestraLayers, { fields: [clientModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
+}))
+
+export const tenantAiConfigRelations = relations(tenantAiConfig, ({ one }) => ({
+  org: one(organisations, { fields: [tenantAiConfig.orgId], references: [organisations.id] }),
 }))
 
 export const sharedPoolAllocationsRelations = relations(sharedPoolAllocations, ({ one }) => ({
