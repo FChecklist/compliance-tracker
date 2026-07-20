@@ -6,7 +6,9 @@
 - [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (collision check: no other active claim on this scope; 3 projexa-e2e-phase-2 claims are Playwright test files, not these source screens)
 - [x] Wrote ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md (cross-ref note + re-score to "Decided -- cross-repo scope confirmed"; honest nuance that projexa screens exist but are not mobile-tuned = separate open rows #106/#1792/#1793/#1794, not closed here; optional deep-link deliberately not added per anti-scope-inflation)
 - [x] Registered new doc in ai-os/OS.yaml health_and_compliance index
-- [x] Commit + push + open PR
+- [x] Commit + push + open PR (#496)
+- [x] Posted structured AUDIT: PASS verdict comment on PR #496 (8 AuditProtocolFields); re-triggered audit-check with an empty commit (initial run raced the comment)
 
 ## Remaining
-- [ ] PR passes required CI checks (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests) -- merge autonomously (Tier1 docs-only) once green
+- [ ] PR #496 passes required CI checks (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests) -- merge autonomously (Tier1 docs-only) once green
+- [ ] Move ACTIVE-CLAIMS V2-8 entry from `active:` to `recently_completed:` after merge
