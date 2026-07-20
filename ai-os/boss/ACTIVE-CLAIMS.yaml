@@ -40,6 +40,22 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260720-035005-superboss-v2-plan--sentry-dsn-startup-ch) -- V2-10 Sentry DSN startup check"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      Super Boss v2 plan task V2-10 (TASK ID V2-10-SENTRY-DSN-CHECK, CSV row
+      #10 "Monitoring (SENTRY_DSN)"). Code-closable: add a server-side
+      startup check that logs a warning when SENTRY_DSN /
+      NEXT_PUBLIC_SENTRY_DSN is missing, plus a bun:test test asserting
+      the warning fires when unset and is silent when set. Read-only on
+      the three Sentry config files (sentry.server.config.ts /
+      sentry.edge.config.ts / src/instrumentation-client.ts) -- the new
+      check is additive, wired from src/instrumentation.ts's register()
+      startup hook. New files only: a check module under src/lib/ +
+      its .test.ts; one-line wiring call in src/instrumentation.ts. No
+      schema/auth/RLS/.env/payment changes (Tier1, docs/tests/additive-only).
+      Checked this file for collisions before starting: no other active
+      entry touches sentry* / instrumentation* / the V2-10 scope.
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     claim: |
