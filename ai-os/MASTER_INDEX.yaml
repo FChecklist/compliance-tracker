@@ -593,6 +593,70 @@ registries:
       not yet individually catalogued), 0 genuine constitution
       staleness findings this pass)
 
+  - id: ops_task_sync_bridge
+    type: cross_system_bridge
+    scope: >-
+      TASK 1.1, Owner directive 2026-07-20 ("biggest structural gap: the
+      app's task-tracking and this server's task-tracking are on two
+      different machines with zero bridge"). Verified before building
+      (not assumed): platform.task_register does not exist in the app
+      DB; the 2 real candidates (compliance.activity_log,
+      compliance.orchestra_executions) are both org_id NOT NULL --
+      customer-scoped business activity, wrong category for internal
+      engineering task state. Built a new, minimal, non-org-scoped
+      table instead (same convention as platform.module_registry /
+      platform.ai_model_registry).
+    components:
+      db_table: >-
+        platform.ops_dev_tasks (Supabase project pcrjmlpuqsbocqfwoxod,
+        verdian-ai). RLS: SELECT true for app_runtime (matches
+        ai_model_registry precedent), service_role bypass for writes.
+        Deployed live via migration, confirmed 0 new security-advisor
+        findings.
+      schema_ts: src/lib/db/schema.ts -- opsDevTasks table def, typecheck clean.
+      api_route: >-
+        POST /api/internal/ops-task-sync -- OPS_SYNC_SECRET bearer auth
+        (new dedicated secret, not reusing CRON_SECRET, to keep this
+        endpoint's blast radius separate from Vercel's own cron jobs).
+        Same isAuthorized() pattern as every other /api/internal/* route.
+        Upserts by ops_task_id.
+      ops_side_writer: >-
+        veridian-task.py -- new _sync_to_app() function, called
+        alongside the existing _auto_log_task_event() choke point for
+        create/checkpoint (not record_usage, which never changes
+        status). Same fail-open discipline: reads OPS_SYNC_SECRET from
+        /opt/veridian/shared/.env, 5s timeout, swallows all exceptions
+        -- a sync failure must never block real task lifecycle
+        management. Deliberately does NOT give the ops server a direct
+        Postgres credential -- an autonomous, largely-unattended worker
+        fleet holding a raw DB credential would be a much larger,
+        harder-to-revoke exposure than one narrow bearer token.
+      pr: >-
+        FChecklist/compliance-tracker#502 (feature/ops-task-sync-bridge).
+        Tier2 (schema + new secret) -- held for Owner sign-off, not
+        auto-merged, per this repo's own protocol. Mandatory audit-check
+        CI gate passed (structured 8-field verdict posted, see PR
+        comments).
+    verified: >-
+      npx tsc --noEmit clean (both the schema.ts change and the route.ts
+      add, run separately). Supabase get_advisors (security) shows zero
+      new findings attributable to this table. RLS policy content
+      confirmed via direct pg_policies query to match the precedent
+      table exactly.
+    known_gap_honest: >-
+      NOT yet verified end-to-end against a real live request -- blocked
+      by two independent external constraints hit while trying: (1)
+      Vercel hit its account-wide build-rate-limit (24h cooldown,
+      unrelated to this change) right as the Preview env var was added,
+      so no fresh preview build exists with OPS_SYNC_SECRET present; (2)
+      even an older already-built preview deployment returns a 302 --
+      Vercel's own deployment-protection SSO wall, not this route's
+      logic. Real E2E proof will happen naturally once this PR merges to
+      production (a separate deploy path/quota) -- which requires Owner
+      sign-off anyway, so this is not blocking anything that wasn't
+      already gated. Flagged honestly rather than claimed as tested.
+    status: code complete, deployed to DB + PR open, live E2E verification pending merge
+
   - id: gap_queue_dispatch_hold
     type: dispatch_pause_flag
     path: /opt/veridian/ai-os/gap_queue.yaml (live-only, not git-tracked -- same category as CONTROLLER.yaml)

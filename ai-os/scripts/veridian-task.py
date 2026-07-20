@@ -14,12 +14,71 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 import yaml
 
 AI_OS = "/opt/veridian/ai-os"
 CONTROLLER = f"{AI_OS}/CONTROLLER.yaml"
 CONTROLLER_LOCK = f"{AI_OS}/.controller.lock"
 REPOS = "/opt/veridian/repos"
+
+
+OPS_APP_SYNC_URL = "https://veridian-aios.com/api/internal/ops-task-sync"
+
+
+def _sync_to_app(task, extra_note=""):
+    """Bridge write (2026-07-20, TASK 1.1): mirrors this task's current
+    state into the app's own database (platform.ops_dev_tasks via
+    POST /api/internal/ops-task-sync) so a coding task dispatched, run,
+    and merged entirely on this server is visible from the app/Supabase
+    side too -- closes the "two machines, zero bridge" gap. Same
+    fail-open discipline as _auto_log_task_event below: never raises,
+    never blocks real task lifecycle management, a network hiccup here
+    must never be the reason a checkpoint fails. Short timeout (5s) for
+    the same reason -- this is best-effort telemetry, not a dependency.
+    """
+    try:
+        secret = os.environ.get("OPS_SYNC_SECRET")
+        if not secret:
+            env_path = "/opt/veridian/shared/.env"
+            with open(env_path) as f:
+                for line in f:
+                    if line.startswith("OPS_SYNC_SECRET="):
+                        secret = line.strip().split("=", 1)[1]
+                        break
+        if not secret:
+            return  # can't sync without the secret -- fail open, silent
+
+        last_note = extra_note or ""
+        checkpoints = task.get("checkpoints") or []
+        if checkpoints and not last_note:
+            last_note = checkpoints[-1].get("note", "") or ""
+
+        payload = {
+            "ops_task_id": task["id"],
+            "title": task.get("title", task["id"]),
+            "repo": task.get("repo", "unknown"),
+            "branch": task.get("branch"),
+            "status": task.get("status", "unknown"),
+            "software_task_id": task.get("software_task_id"),
+            "ai_task_id": task.get("ai_task_id"),
+            "execution_seconds": task.get("execution_seconds"),
+            "restart_count": task.get("restart_count"),
+            "last_checkpoint_note": (last_note or "")[:2000],
+        }
+        req = urllib.request.Request(
+            OPS_APP_SYNC_URL,
+            data=json.dumps(payload).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {secret}",
+            },
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
 
 
 def _auto_log_task_event(kind, task, extra_note=""):
@@ -237,6 +296,7 @@ def cmd_create(args):
     save_task(task_id, task)
     sync_controller_entry(task)
     _auto_log_task_event("create", task, extra_note=f"repo={args.repo}")
+    _sync_to_app(task, extra_note=f"repo={args.repo}")
 
     subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
     # enable (not just start): survives server reboot via linger + WantedBy=default.target
@@ -292,6 +352,7 @@ def cmd_checkpoint(args):
         save_task(args.task_id, task)
     sync_controller_entry(task)
     _auto_log_task_event("checkpoint", task, extra_note=args.note or f"files_modified={len(task.get('files_modified', []))}")
+    _sync_to_app(task, extra_note=args.note or "")
     print(f"CHECKPOINT saved for {args.task_id}: status={task['status']}")
 
 
