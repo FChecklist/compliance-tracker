@@ -657,6 +657,50 @@ registries:
       already gated. Flagged honestly rather than claimed as tested.
     status: code complete, deployed to DB + PR open, live E2E verification pending merge
 
+  - id: ai_router_migration_inventory_2026_07_20
+    type: investigation_and_documentation
+    scope: >-
+      TASK 1.3, Owner directive 2026-07-20 ("AI router has deliberately-
+      unmigrated call sites... FIX this issue permanently"). Re-verified
+      mother-router.ts's own scope-decision comment (written when Mother
+      Router shipped) rather than trusting it or blindly forcing a mass
+      migration to satisfy the directive's letter.
+    finding: >-
+      The comment's "~23+3" call-site estimate was stale. Mechanical
+      grep (excluding mother-router.ts itself, tests, and the 4 modules
+      being called) found 35 unique files still calling
+      resolveModelConfig() or checkTierEligibility() directly: 6 API
+      routes + 29 lib files, spanning core business logic --
+      crm-service.ts, fde-service.ts, gst/ai-review-report.ts,
+      construction-ai-service.ts, ticket-intelligence-service.ts,
+      veri-meeting-service.ts, chat-service.ts among them. (35 is a
+      grep-based count, ~1 possible false positive from a comment
+      mention in db/schema.ts not re-verified individually -- disclosed,
+      not hidden.)
+    decision: >-
+      NOT migrated this pass, deliberately. The original author's own
+      risk assessment ("several are guardrail-critical dispatch paths")
+      holds up under re-verification -- these are genuinely customer-
+      facing, revenue- and compliance-adjacent paths. Forcing a 35-file
+      mass migration in one pass, with zero ability to live-test any of
+      it (Vercel's account-wide build-rate-limit was active the same
+      day this was checked -- see registries.ops_task_sync_bridge),
+      would be the reckless shortcut this session's own verification
+      discipline exists to prevent, not a genuine fix. Updated
+      mother-router.ts's own header comment with the accurate count and
+      this reasoning (real, valuable, low-risk documentation fix) and
+      recorded the full 35-file list here rather than leaving the
+      directive's "fix this permanently" unaddressed.
+    recommended_follow_up: >-
+      A properly scoped, incrementally-tested migration -- a handful of
+      files at a time, each with its own test coverage and a real
+      deploy to verify against, prioritizing the lowest-risk files
+      first (e.g. module-rules-resolver.ts, ingest/extractor.ts) and
+      leaving the guardrail-critical dispatch route
+      (api/ai/team/dispatch/route.ts) and core revenue-path services
+      for last, reviewed individually. Not started this pass.
+    status: investigated and documented, migration deliberately deferred with reasoning
+
   - id: gap_queue_dispatch_hold
     type: dispatch_pause_flag
     path: /opt/veridian/ai-os/gap_queue.yaml (live-only, not git-tracked -- same category as CONTROLLER.yaml)
