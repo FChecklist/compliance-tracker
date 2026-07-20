@@ -2597,6 +2597,38 @@ active:
       (every other active entry is a specific implementation/test gap), so
       no scope collision. Will move this entry to recently_completed once
       the plan's PR is merged.
+  - session_label: "claude-code (task-20260720-034002-superboss-v2-plan--mobile-field-ux-cross) -- SUPERBOSS v2 TASK V2-8: Mobile field UX cross-reference to projexa (docs-only close of CSV row #1790)"
+    claimed_at: "2026-07-20T03:45:00Z (this session)"
+    claim: |
+      V2-8 of SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (decision D10,
+      CSV row #1790 "Mobile / Responsive Experience: Field-usable UX for Site
+      Diary and Attendance on mobile devices"). Docs-only L1 close: verify
+      the field-usable Site Diary + Attendance UI lives in the sibling
+      projexa repo and write a cross-reference note in THIS repo's ai-os/
+      pointing there, so the compliance-tracker evaluation row #1790 (which
+      correctly found "no in-repo UI to evaluate" and punted to an Owner
+      scope decision) is re-scored against the correct repo boundary per the
+      Owner's own D10 decision.
+
+      File scope (the ONLY files this task touches): a NEW
+      ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md, this
+      ACTIVE-CLAIMS.yaml claim entry, and the OS.yaml health_and_compliance
+      index registration line for the new doc. No code, no schema, no
+      migration, no .env, no compliance-tracker src/ change -- the
+      cross-reference is a docs pointer, not a code change.
+
+      Verified before claiming: projexa repo
+      /opt/veridian/repos/projexa ships real consuming UI screens --
+      src/app/(app)/site-diary/page.tsx (SiteDiaryClient.tsx) and
+      src/app/(app)/labour/page.tsx ("Manpower & Attendance",
+      LabourClient.tsx with Roster + Attendance tabs), consuming
+      compliance-tracker's /api/v1/projexa/{site-diary,attendance}
+      aliases which re-export /api/v1/construction/* which calls the real
+      construction-site-diary-service + attendance engines here. No
+      collision with the 3 active projexa-e2e-phase-2 batch claims (those
+      are Playwright test files in FChecklist/projexa, not these source
+      screens) and no collision with any other active: entry. Will move
+      this entry to recently_completed once the PR merges.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
