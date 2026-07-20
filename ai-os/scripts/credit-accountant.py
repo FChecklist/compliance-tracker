@@ -361,6 +361,23 @@ def cmd_report(args):
     sys.exit(0 if approved else 1)
 
 
+def cmd_prune(args):
+    """Bounds credit-ledger.sqlite's long-term growth. Safe to run
+    frequently (cheap no-op when nothing is old enough to delete) --
+    wired into a daily cron via run-logged.sh, same pattern as this
+    server's other scheduled maintenance."""
+    conn = get_db()
+    cur = conn.cursor()
+    cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=args.keep_days)).isoformat()
+    cur.execute("SELECT COUNT(*) FROM credit_increments WHERE plan_proposed_at < ?", (cutoff,))
+    to_delete = cur.fetchone()[0]
+    cur.execute("DELETE FROM credit_increments WHERE plan_proposed_at < ?", (cutoff,))
+    conn.commit()
+    conn.execute("VACUUM")
+    conn.close()
+    print(json.dumps({"pruned": to_delete, "keep_days": args.keep_days, "cutoff": cutoff}))
+
+
 def cmd_status(args):
     conn = get_db()
     cur = conn.cursor()
@@ -401,6 +418,12 @@ def main():
     p_status = sub.add_parser("status")
     p_status.add_argument("--task-id", required=True)
     p_status.set_defaults(func=cmd_status)
+
+    p_prune = sub.add_parser("prune")
+    p_prune.add_argument("--keep-days", type=int, default=30,
+                          help="delete increments older than this many days (default 30 -- generous margin over "
+                               "health-check-15min.py's own 15-minute credit_accountant lookback window)")
+    p_prune.set_defaults(func=cmd_prune)
 
     args = parser.parse_args()
     args.func(args)

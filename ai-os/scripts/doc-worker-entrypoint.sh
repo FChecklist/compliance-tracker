@@ -135,6 +135,31 @@ END_TS=$(date +%s)
 ELAPSED=$((END_TS - START_TS))
 python3 /opt/veridian/scripts/veridian-task.py record-usage "$TASK_ID" --elapsed "$ELAPSED"
 
+# Report increment 1 (the single propose call preflight-guard.py made for
+# this task) back to the credit ledger. --actual-spend-usd is always 0 --
+# see header comment on this patch / this script's own header comment for
+# why (real subscription, $0 from the metered pool this mechanism
+# protects). The CLI's own Anthropic-rate cost estimate is captured in the
+# outcome text for informational tracking only, not as the ledger's dollar
+# figure.
+DOC_CLI_REPORTED_COST=$(python3 -c "
+import json
+try:
+    with open('$MAIN_OUT') as f:
+        d = json.load(f)
+    print(d.get('total_cost_usd', 0) or 0)
+except Exception:
+    print(0)
+")
+if [ "$EXIT_CODE" -eq 124 ]; then
+  DOC_OUTCOME="hit the ${MAX_WALL_SECONDS}s wall-clock cap (not a crash); CLI-reported cost estimate (Anthropic list rate, informational only, real spend is \$0 from the metered pool): \$DOC_CLI_REPORTED_COST"
+elif [ "$EXIT_CODE" -ne 0 ]; then
+  DOC_OUTCOME="invocation FAILED, exit code $EXIT_CODE; CLI-reported cost estimate (informational only, real spend is \$0 from the metered pool): \$DOC_CLI_REPORTED_COST"
+else
+  DOC_OUTCOME="invocation completed, exit 0; CLI-reported cost estimate (informational only, real spend is \$0 from the metered pool): \$DOC_CLI_REPORTED_COST"
+fi
+python3 /opt/veridian/scripts/credit-accountant.py report --task-id "$TASK_ID" --increment 1 --actual-spend-usd 0 --outcome "$DOC_OUTCOME" >> "$TASK_DIR/worker.log" 2>&1 || true
+
 if [ "$EXIT_CODE" -eq 124 ]; then
   python3 /opt/veridian/scripts/veridian-task.py checkpoint "$TASK_ID" --status in_progress --note "hit the $MAX_WALL_SECONDS-second wall-clock cap for this invocation (not a crash) -- committing whatever progress exists, systemd will restart into a fresh invocation up to the lifetime cap"
   git -C "$WORKSPACE" add -A

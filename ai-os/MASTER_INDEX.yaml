@@ -1751,13 +1751,36 @@ registries:
     status: >-
       Complete and live: propose gate deployed in preflight-guard.py, report
       gate deployed in worker-entrypoint.sh (main invocation success/failure
-      + auto-fix retry loop), health check deployed in
-      health-check-15min.py, all mirrored to compliance-tracker and
-      committed (docs/cost-control-2026-07-20 branch). Deployment was
-      interrupted mid-pass by an unrelated SSH outage (ssh.service found
-      disabled on the server, fixed via Hetzner Rescue System -- see
-      [[feedback_ssh_outage_diagnostic_procedure]] in assistant memory, not
-      a MASTER_INDEX.yaml concern) -- resumed and completed same day.
+      + auto-fix retry loop) AND doc-worker-entrypoint.sh (single report
+      call, --actual-spend-usd always 0 since that task family draws $0
+      from the metered pool by design -- CLI's own cost estimate kept in
+      the outcome text for informational value only, never conflated with
+      real metered spend), health check deployed in health-check-15min.py,
+      ledger pruning deployed (credit-accountant.py prune subcommand,
+      30-day retention, daily cron via run-logged.sh), all mirrored to
+      compliance-tracker and committed (docs/cost-control-2026-07-20
+      branch). Deployment was interrupted mid-pass by an unrelated SSH
+      outage (ssh.service found disabled on the server, fixed via Hetzner
+      Rescue System -- see [[feedback_ssh_outage_diagnostic_procedure]] in
+      assistant memory, not a MASTER_INDEX.yaml concern) -- resumed and
+      completed same day.
+    audit_findings_2026_07_20: >-
+      3-round audit (same day) found and fixed 1 real production bug:
+      credit_accountant_rejected was missing from worker-entrypoint.sh's
+      hard-stop list, so the new gate's rejections fell through to the
+      "transient, let systemd retry" branch -- confirmed live: 163 real
+      tasks stuck in a restart-storm, 1954 rejected propose calls in ~40
+      minutes for the identical real reason (exhausted OpenRouter
+      balance). Fixed by adding it to the hard-stop condition, same
+      treatment as circuit_breaker_tripped/budget_exhausted/
+      openrouter_balance_exhausted (all 4 share the same property: blind
+      retry reproduces the identical rejection until a human intervenes).
+      Also closed 2 disclosed-but-not-yet-fixed gaps from that same audit:
+      doc-worker-entrypoint.sh's missing report call, and credit-ledger.sqlite's
+      missing pruning mechanism (both described above). No metered money
+      was ever actually wasted by the restart-storm bug -- every rejection
+      happens before any real spend -- but the churn itself was real,
+      unnecessary load, now stopped.
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/
