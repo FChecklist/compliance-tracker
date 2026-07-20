@@ -202,6 +202,11 @@ quick_reference:
     path: /opt/veridian/scripts/generate-system-diagram.py
     summary: TASK 3, Owner directive 2026-07-20 ("make a diagram or tree of the whole system"). Software-generated
       per the directive's own "modern...
+  - id: e2e_ci_playwright_fix_2026_07_20
+    status: live, merged, verified in real CI 2026-07-20
+    path: /opt/veridian/repos/compliance-tracker/playwright.config.ts
+    summary: 'Spawned background task, flagged during this session''s own audit of TASK 5-6 work: the E2E
+      Tests CI job crashed with MODULE_NOT_FOUND at...'
   - id: app_layer_failure_visibility
     status: live, deployed, verified 2026-07-20
     summary: TASK 2/4, Owner directive 2026-07-20 ("if task fails (any task, ai task, software task), server
@@ -937,6 +942,40 @@ registries:
       Edit SUBSYSTEMS/EDGES in generate-system-diagram.py and re-run --
       do not hand-edit SYSTEM_DIAGRAM.md's generated content directly.
     status: live, generated, committed 2026-07-20
+
+  - id: e2e_ci_playwright_fix_2026_07_20
+    type: ci_fix
+    path: /opt/veridian/repos/compliance-tracker/playwright.config.ts
+    pr: FChecklist/compliance-tracker#505 (merged)
+    scope: >-
+      Spawned background task, flagged during this session's own audit
+      of TASK 5-6 work: the E2E Tests CI job crashed with
+      MODULE_NOT_FOUND at config-load time on every single PR (#501-504,
+      all unrelated diffs), silently meaning the E2E suite had never
+      actually run in CI.
+    finding: >-
+      playwright.config.ts imported from "playwright/test" on the
+      unverified assumption that playwright was resolvable as a
+      transitive dependency via promptfoo. Verified false directly: no
+      node_modules/playwright existed, no playwright/@playwright/test
+      reference anywhere in package.json. `bunx playwright test`
+      fetches its OWN isolated playwright@latest into /tmp/bunx-*/
+      whenever the package isn't a real project dependency, completely
+      bypassing node_modules -- reproduced the exact CI failure locally
+      this way before touching anything.
+    fix: >-
+      Added @playwright/test as a real devDependency (the officially
+      supported setup), imported from it directly. bun install resolved
+      and locked @playwright/test@1.61.1 cleanly.
+    verified: >-
+      Reproduced the failure locally first, then the fix, both against
+      the exact command CI runs (bunx playwright test
+      --pass-with-no-tests) -- not just "it compiles." Confirmed in
+      REAL GitHub Actions CI (not just locally): E2E Tests job passed
+      on PR #505's run, log shows chromium installed + playwright test
+      executed cleanly with no MODULE_NOT_FOUND. Confirmed merged
+      content is genuinely on origin/main via git show.
+    status: live, merged, verified in real CI 2026-07-20
 
   - id: app_layer_failure_visibility
     type: monitor_extension
