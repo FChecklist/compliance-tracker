@@ -10,7 +10,7 @@ protocol: >-
   AND in this file's relevant list.
 built_ts: '2026-07-20T08:11:00+00:00'
 built_by: superboss_interactive_session
-audit_passes_complete: 0
+audit_passes_complete: 2
 audit_passes_required: 3
 canonical_path_live: /opt/veridian/ai-os/MASTER_INDEX.yaml
 canonical_path_repo: /opt/veridian/repos/compliance-tracker/ai-os/MASTER_INDEX.yaml
@@ -78,6 +78,20 @@ canonical_dirs:
       The real CONTROLLER.yaml (registries.cross_project_controller).
       Separate GitHub-synced repo, one level above every individual
       project.
+  ai_os_logs:
+    path: /opt/veridian/ai-os/logs/
+    contents: >-
+      Operational append-only logs and one live alert surface (see
+      registries.attention_alerts). Not registers -- do not search these
+      for "does X exist," only for historical/incident evidence.
+    files_at_build:
+      - ATTENTION.md  # live alert surface, see registries.attention_alerts
+      - cost-usage-60min.jsonl, cost-usage-60min.log, cost-usage-cron.log
+      - glm-proxy-calls.jsonl, glm-proxy.log  # raw GLM proxy call/response log, large
+      - glm-response-cache.sqlite  # see databases
+      - health-15min.jsonl, health-15min.log, health-check-cron.log
+      - reconciliation-alerts.jsonl
+      - superboss-supervision-start.txt
 
 # ---------------------------------------------------------------------------
 # registries -- every mechanism whose job is to index/track/govern
@@ -339,6 +353,19 @@ registries:
     enforced_by: scripts/check-doc-quarantine-banner.mjs (CI)
     status: live
 
+  - id: attention_alerts
+    type: markdown_file
+    path: /opt/veridian/ai-os/logs/ATTENTION.md
+    scope: >-
+      Live alert surface. Written by health-check-15min.py (systemd
+      unit failures, stalled checkpoints, Mother Router DB
+      reachability, disk/mem, task failure-rate threshold) and
+      cost-usage-60min.py (OpenRouter balance, token_usage_ledger
+      cross-check, spend-delta threshold). Added 2026-07-20 Pass 2 --
+      referenced in Pass 1 but not formally catalogued as a registry in
+      its own right.
+    status: live
+
 # ---------------------------------------------------------------------------
 # tree_lineage -- the requirement-vs-built-status document chain. Read this
 # before assuming audit-tree/system-tree/tree4-unified are duplicates --
@@ -377,6 +404,14 @@ tree_lineage:
   read_order: >-
     tree4_unified.entrypoint first; tree1_audit_tree and
     tree3_system_tree only if tree4 references them for detail.
+  basename_collision_note: >-
+    00-INDEX.md exists 4 times (audit-tree/, system-tree/, tree4-unified/,
+    tree4-unified/50-completion-plan/archive/) and README.md exists 2
+    times (audit-tree/source-documents/, tree4-unified/50-completion-plan/archive/).
+    Low risk -- each sits in a distinctly-named, already-catalogued
+    directory above -- but any search for a bare "00-INDEX.md" or
+    "README.md" basename must include the parent dir in the match,
+    confirmed 2026-07-20 Pass 2.
 
 # ---------------------------------------------------------------------------
 # databases -- every .sqlite file on the server (excl. ephemeral worktree
@@ -486,3 +521,29 @@ audit_log:
       - file_inventory.ai_os_governance_docs.unannotated_note
       - registries.sentinel_rules relationship to constitution
       - registries.task_state_ledger rename not yet performed
+  - pass: 2
+    ts: '2026-07-20T08:40:00+00:00'
+    type: independent_duplication_and_gap_recheck
+    method: >-
+      Basename-collision scan across both catalogued ai-os dirs
+      (find -prune, group by basename, count>1). Cross-check of
+      ai-os/logs/ actual directory listing against what Pass 1 had
+      referenced vs formally catalogued.
+    found_and_fixed:
+      - >-
+        ai-os/logs/ (10 files, incl. the live ATTENTION.md alert
+        surface) was referenced but not in canonical_dirs or
+        registries -- added canonical_dirs.ai_os_logs and
+        registries.attention_alerts.
+      - >-
+        00-INDEX.md (4x) and README.md (2x) basename repeats across
+        tree dirs, not previously flagged -- added
+        tree_lineage.basename_collision_note.
+    found_not_fix_needed:
+      - >-
+        MASTER_INDEX.yaml itself appears 2x (live path + repo mirror)
+        -- by design, both paths already declared at top of file, not
+        a collision.
+    still_incomplete: same 4 items as pass 1's known_incomplete, not
+      addressed this pass (pass 2 scope was duplication/collision
+      re-check, not deep per-file verification).
