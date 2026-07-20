@@ -12,7 +12,8 @@
 - [x] Shared country-config test suite (`country-config.test.ts`) — both IN + AE resolve through `getComplianceEngine()` with no India hardcoding; unregistered country throws
 - [x] E-invoice country-config test suite (`einvoice-format.test.ts`) — both IN + AE resolve through `buildEInvoicePayload`; no IRP schema leaks into AE payload; V2-21 GstRt fix asserted
 - [x] tsc clean / lint clean / guardrail-presence 88 markers / full suite 1842 pass 0 fail / `next build` exit 0
-- [x] Commit + push + open PR
+- [x] Commit + push + open PR (#492)
+- [x] Resume pass: merge `origin/main` (moved since branch point) — PR was CONFLICTING, now MERGEABLE. Conflict was only in governance/tracking files (PROGRESS.md rotating per-task file — kept this branch's V2-1 content; the V2-6 task's progress is in COMPLETED.yaml, not lost). One mechanical indentation fix to the V2-6 entry's `scope_note` key in ACTIVE-CLAIMS.yaml (came in malformed on main via PR #491: `scope_note` at col 2 with no list-marker broke the YAML sequence; indented to col 4 to nest as a fourth key in the V2-6 list item). No V2-1 code files touched by the merge. Re-ran full gauntlet green: tsc 0 / lint 0 err (3 pre-existing warnings) / guardrail 88 / metadata-index 39 / 1842 pass 0 fail / build exit 0.
 
 ## Remaining
 - [ ] Statutory-rule + tax-slab seed for both India and UAE — **DEFERRED, see STATUS note** (Tier2: per-org master-data tables, no country column; not a V2-1 code task)
