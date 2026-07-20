@@ -1,17 +1,13 @@
-# PROGRESS -- task-20260719-171130-reevaluate-2045-row-veridian-framework-r
+# PROGRESS -- task-20260720-022708-superboss-v2-plan--shared-cross-repo-pro
 
 ## Completed
-- [x] Pulled claude-control fresh; confirmed VERIDIAN_Review_Framework_evaluated_2045rows.csv (2045 rows) is the authoritative source
-- [x] Parsed CSV Status distribution: 188 No-Gap / 1782 Gap-Open / 42 Needs-Owner-Decision / 33 Unable-to-Verify
-- [x] Re-read existing SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md (PR #485, now merged) + SOFTWARE_TEAM.md (PR #483, now merged) + MASTER-TRACKER.yaml + ACTIVE-CLAIMS.yaml (67 active claims surveyed for collisions)
-- [x] Pulled fresh `gh pr list` on compliance-tracker + projexa; confirmed #483/#485 merged, PROJEXA E2E Phase 2 Batches B(#48)/C(#46) merged
-- [x] Verified live code state of all 9 "Wave B laptop work" areas — CRITICAL FINDING: schema + service + API routes + UI pages + tests ALL already shipped server-side for Fixed Assets, CRM Accounts, HR Attendance, Payment Entries approval, Training LMS, BYOB white-label branding (the "redo fresh" directive is already satisfied; recording this rather than scheduling duplicate builds)
-- [x] Re-examined all 75 deferred rows (42 Needs-Owner-Decision + 33 Unable-to-Verify) under granted decision authority; classified each into (a) needs-real-money → stays deferred / (b) decision-only → decide now / (c) code-closable
-- [x] Registered claim in compliance-tracker ai-os/boss/ACTIVE-CLAIMS.yaml (projexa has no ai-os/ tree — cross-registered per existing precedent; documented in plan)
-- [x] Wrote ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (extended v1, not duplicated): real gap count + 75-row decision log + prioritized L1-L4 task units
-- [x] Registered v2 plan in ai-os/OS.yaml index (per v1 precedent, commit 95e537cf)
-- [x] Committed + pushed branch + opened tier1 docs-only PR #487 (https://github.com/FChecklist/compliance-tracker/pull/487)
+- [x] Read governance: ACTIVE-CLAIMS.yaml (collision check), veridian-ui-kit repo, both repos' prompt-construction sites, src/lib/ai-router/, roster.ts, prompt-os-resolver.ts, llm-client.ts, policy-enforcement-engine.ts, orchestra-execution-logger.ts
+- [x] Registered ACTIVE-CLAIMS entry (committed + pushed on its own, per Rule 11 protocol) — branch `worker/task-20260720-022708-superboss-v2-plan--shared-cross-repo-pro`
+- [x] KEY FINDING (recorded in claim + here per task's "doesn't match the code" clause): projexa has ZERO prompt-construction code (no systemPrompt, no LLM-provider imports — every AI call proxies to compliance-tracker's `/api/v1/projexa/*` via `veridian-client.ts`). So there is NO live cross-repo prompt divergence to fix; projexa cannot diverge because it constructs no prompts. The real duplication is WITHIN compliance-tracker: ~30 call sites each hand-write the same 6-step sequence (resolveModelConfig → buildUserMessage → resolvePromptTemplate → enforcePolicy → callLLM/callLLMJson → recordOrchestraExecution).
 
 ## Remaining
-- [ ] (Downstream execution, not this task) Dispatch the v2 plan's ready L1-L4 tasks through the Mother Router's software_team scope → GLM-5.2 via OpenRouter, per the plan's DONE CRITERIA, ahead of the 0800 IST 2026-07-20 deadline
-- [ ] (Downstream) The genuinely-money-blocked rows (SOC2 Type II engagement, third-party pentest, live payment-gateway merchant account, purchased training-content licensing) remain deferred — require Owner spend authorization, not decision authority
+- [ ] Build shared module `@fchecklist/veridian-ui-kit/prompt-patterns` (new server-safe export path, zero UI deps): `src/prompt-patterns/{index,types,runner,catalog}.ts` + tests + README section + package.json exports entry + git tag — PR in FChecklist/veridian-ui-kit
+- [ ] Adopt at one call site in compliance-tracker (ticket-intelligence-service.ts) as proof + bump dep tag — PR in FChecklist/compliance-tracker
+- [ ] Projexa adoption: wire shared module as dep + ADR note (no prompt-construction site exists to adopt at; honest per finding) — PR in FChecklist/projexa
+- [ ] Tests green; self-merge Tier1 PRs once CI green
+- [ ] Re-score CSV row #60; move ACTIVE-CLAIMS entry to recently_completed
