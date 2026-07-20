@@ -226,6 +226,61 @@ registries:
       - python3 superboss-register.py search "<keyword>"  # finds conversation-log-auto and conversation-log-backfill rows same as any other
       - "SQL: SELECT * FROM instructions WHERE utm_campaign IN ('conversation-log-auto','conversation-log-backfill') ORDER BY ts"
     status: live, deployed and verified 2026-07-20
+    scope_gap_at_build_time: >-
+      This registry entry, as first built, only covered the laptop-side
+      interactive Claude Code CLI session -- confirmed by the Owner same
+      day ("we are not auto updating everything") to be an incomplete
+      fix: the autonomous worker/supervisor/doc-worker fleet dispatched
+      ON THIS SERVER (queue-dispatcher.py, module-queue-dispatcher.py,
+      master-decompose.py, systemd-run tasks) was never touched. Closed
+      by registries.auto_worker_task_log, same day, same pass.
+
+  - id: auto_worker_task_log
+    type: python_instrumentation
+    path: /opt/veridian/scripts/veridian-task.py
+    mirror: /opt/veridian/repos/compliance-tracker/ai-os/scripts/veridian-task.py
+    scope: >-
+      The server-side half of the auto-logging fix. Owner: "for your
+      work that CLAUDE CODE CLI or CLAUDE CODE is doing and ai
+      superboss, ai agents, software are doing need to be automatically
+      updated in the server." registries.auto_conversation_log only
+      covered the interactive laptop session -- this covers every
+      dispatched AI worker/supervisor/doc-worker task, regardless of
+      what created it.
+    design: >-
+      veridian-task.py's cmd_create/cmd_checkpoint/cmd_record_usage are
+      the single choke point EVERY dispatch path already goes through
+      (queue-dispatcher.py, module-queue-dispatcher.py,
+      dispatch-docworker-task.sh, a manual CLI call) -- instrumenting
+      this one file once, rather than each caller separately, is the
+      same "hook the choke point" principle as the interactive
+      UserPromptSubmit/PostToolUse hooks, applied to the dispatch layer.
+      _auto_log_task_event() shells out to superboss-register.py's own
+      already-tested log-work/log-action CLI (not a parallel write
+      path), reusing the ai_task_id convention documented in that
+      script's own header (the existing task_id reused verbatim, never
+      reissued). No network-latency design concern here unlike the
+      laptop hooks -- this all runs locally on the server already.
+      Wrapped in try/except that swallows all errors: a logging failure
+      must never break real task lifecycle management, which is this
+      script's actual job.
+    tested: >-
+      _auto_log_task_event() called directly in isolation against a
+      synthetic fake task dict (not a real dispatched task, to avoid
+      triggering a real git worktree/systemd service) before trusting
+      it -- confirmed correct rows landed in work_items (ai_task_id
+      correctly populated, not a new ID) and actions, then cleaned up.
+      Confirmed `veridian-task.py status` still runs correctly
+      end-to-end against real existing task data post-edit, before
+      calling this deployed.
+    scope_not_covered: >-
+      cmd_resume_context (read-only, no state change, not logged by
+      design) and the cron jobs that don't go through veridian-task.py
+      at all (health-check-15min.py, cost-usage-60min.py -- these
+      already write to registries.attention_alerts, just not to
+      instructions/actions specifically) -- real, honest, undone scope,
+      not silently covered.
+    status: live, deployed and verified 2026-07-20
 
   - id: cross_project_controller
     type: yaml_file
@@ -1096,3 +1151,40 @@ audit_log:
       Known, honest scope limit: only THIS session was backfilled;
       other prior sessions on this laptop were not, and are real,
       separate follow-up work if wanted.
+  - pass: 9
+    ts: '2026-07-20T10:22:00+00:00'
+    type: server_side_auto_logging_worker_tasks
+    trigger: >-
+      Owner, same day, after reviewing pass 8: "we are not auto
+      updating everything... for your work that CLAUDE CODE CLI or
+      CLAUDE CODE is doing and ai superboss, ai agents, software are
+      doing need to be automatically updated in the server by a
+      script." Correctly identified that pass 8's hooks only covered
+      the interactive laptop session, not the autonomous dispatch
+      fleet running on the server itself.
+    method: >-
+      Found the real choke point before writing anything --
+      veridian-task.py's cmd_create/cmd_checkpoint/cmd_record_usage are
+      the single functions every dispatch path (queue-dispatcher.py,
+      module-queue-dispatcher.py, dispatch-docworker-task.sh, manual
+      CLI calls) already goes through. Instrumented once there rather
+      than separately in every caller. Backed up the original file
+      before editing, syntax-checked locally and remotely before
+      swapping in, tested the new function in isolation against a
+      synthetic task (not a real dispatch, to avoid triggering a real
+      git worktree/systemd service) before trusting it, then confirmed
+      `veridian-task.py status` still works correctly against real
+      existing task data post-edit.
+    result: >-
+      registries.auto_worker_task_log deployed and verified. Combined
+      with pass 8, both halves the Owner asked about are now covered:
+      the interactive session (hooks) and the autonomous dispatch fleet
+      (veridian-task.py instrumentation).
+    sign_off: >-
+      Honest remaining gap, stated plainly: the periodic cron jobs that
+      never call veridian-task.py at all (health-check-15min.py,
+      cost-usage-60min.py) are not instrumented by this pass -- they
+      already write to registries.attention_alerts, which is indexed
+      and searchable, just not via instructions/actions specifically.
+      Real, scoped, undone follow-up if the Owner wants full coverage
+      of that layer too, not silently claimed as done.
