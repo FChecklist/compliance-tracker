@@ -4,15 +4,16 @@ AUDIENCE: AI agents. Machine-parseable structure, not narrative. Deployed 2026-0
 
 ## What this is, precisely
 
-Three linked, indexed, full-text-searchable SQLite tables at `/opt/veridian/ai-os/memory/superboss-register.sqlite`, distinct from:
+Four linked, indexed, full-text-searchable SQLite tables at `/opt/veridian/ai-os/memory/superboss-register.sqlite`, distinct from:
 - The AI-work cost-control system (`AI_CACHE_AND_TRIAGE_ARCHITECTURE.md`) — that governs dispatched WORKER tasks (GLM fleet, doc-worker fleet). This register governs the Owner<->Superboss operational dialogue itself, which nothing else tracks.
 - `conversations`/`messages` in `schema.ts` — VERI Chat's end-customer product tables, a different population, confirmed by direct inspection before building this (not a duplicate).
 
-## Schema (all three: `[table]` + `[table]_fts` FTS5 shadow + UTM-style tag columns)
+## Schema (all four: `[table]` + `[table]_fts` FTS5 shadow; first three carry UTM-style tag columns)
 
 - **instructions**: one row per distinct request from the Owner (or any other requester). Columns: `instruction_id` (`INS-YYYYMMDD-HHMMSS-hex`), `ts`, `session_id`, `utm_source/medium/campaign/content/term`, `raw_text`, `metadata_json`, `response_summary`.
 - **work_items**: one row per unit of work registered in response. `work_item_id` (`WRK-...`), `instruction_id` FK, `software_task_id` XOR `ai_task_id` (the latter reuses the EXISTING CONTROLLER.yaml task_id verbatim — not reissued, avoids a second ID for the same task), `cache_id`/`ai_cache_id` (references the L1 cache's own key in `glm-response-cache.sqlite` — not a new ID space), UTM tags, `status`.
 - **actions**: finest-grained audit trail. `action_id` (`ACT-...`), `work_item_id` FK, `instruction_id` FK, UTM tags, `result`.
+- **system_index**: one row per real mechanism that already exists in the system (a script, a TS module, a DB table, a doc section) — built 2026-07-20 to fix the root cause of repeatedly picking the wrong file/table/logic: there was no way to search "does this already exist" before building. Columns: `index_id` (`IDX-YYYYMMDD-HHMMSS-hex`), `ts`, `path` (UNIQUE — the upsert key), `category` (e.g. `cache`, `guardrail`, `validation`, `classification`, `task_register`, `monitor`, `dispatch_entrypoint`), `layer` (`shell`/`typescript`/`database`/`documentation`), `status` (`live`/`partial`/`designed_not_built`/`dead`), `purpose`, `utm_term`, `calls`, `called_by`, `verified_ts`, `metadata_json`. Re-running `index-add` on the same `path` UPDATEs the existing row (real upsert, verified: re-adding `master-decompose.py` after fixing it produced 1 row, not 2) — so re-verifying a mechanism never creates a duplicate entry.
 
 ## Usage — the CLI, machine JSON in/out
 
@@ -21,9 +22,15 @@ python3 /opt/veridian/scripts/superboss-register.py log-instruction --text "..."
 python3 /opt/veridian/scripts/superboss-register.py log-work --instruction-id INS-... --ai-task-id <existing task_id> --content <short_tag> --status completed
 python3 /opt/veridian/scripts/superboss-register.py log-action --instruction-id INS-... --content <short_tag> --result success
 python3 /opt/veridian/scripts/superboss-register.py search "<keyword>"
+python3 /opt/veridian/scripts/superboss-register.py index-add --path <path> --category <cat> --layer <layer> --status <status> --purpose "<text>" --term "<comma,keywords>" [--calls "<...>"] [--called-by "<...>"]
+python3 /opt/veridian/scripts/superboss-register.py check-duplicate "<query>" [--category <cat>]
 ```
 
-Two retrieval modes, both proven live tonight: FTS5 full-text (`search <query>`) and structured UTM-tag filtering (direct SQL on `utm_campaign`/`utm_source`/etc. — a real query dimension, not a display label).
+Three retrieval modes, all proven live: FTS5 full-text (`search <query>`, `check-duplicate <query>`), structured UTM-tag filtering (direct SQL on `utm_campaign`/`utm_source`/etc.), and `check-duplicate`'s category filter for a scoped "does this already exist" check before building anything new. `check-duplicate` returns `{"found": N, "verdict": "STOP -- existing mechanism(s) found, review before building" | "no existing match found -- safe to proceed, but this is not exhaustive", "matches": [...]}` — **run this before writing any new script, table, or service**, not just before logging one.
+
+### FTS5 matching note (bug fixed 2026-07-20)
+
+`search`/`check-duplicate` strip stopwords and OR-join the remaining query terms (`_fts_query()` in the script) rather than passing the raw query straight to FTS5 MATCH. Reason: FTS5's default MATCH is an implicit AND across space-separated terms, which produced a real false negative (`check-duplicate 'software vs AI classification' --category classification` returned 0 matches against 3 real matching rows, because "vs" wasn't indexed anywhere). Fixed and re-verified (11 correct matches on retest) — a forgiving, discovery-oriented OR search is the intended behavior for "does this already exist," where a strict AND would systematically undercount and give false confidence that nothing exists.
 
 ## Protocol for any AI session working on this server
 
@@ -34,7 +41,9 @@ Two retrieval modes, both proven live tonight: FTS5 full-text (`search <query>`)
 
 ## Honest status, 2026-07-20
 
-Built and tested tonight: schema, FTS5 search, structured filtering, ID linkage across all three tables — all verified with real inserts and real queries, not assumed. **Not yet enforced by code** — logging happens because an AI agent chooses to call the CLI, not because anything blocks work from proceeding without it. Making that mandatory (e.g., wiring `log-instruction` into the shell entrypoints' own dispatch path) is real, scoped follow-up work, not done this pass.
+Built and tested: schema, FTS5 search, structured filtering, ID linkage across `instructions`/`work_items`/`actions` — all verified with real inserts and real queries, not assumed. `system_index` added same day, seeded with 26 real, individually-verified mechanisms (not guessed), and used live to find and fix two real unprotected entrypoints (`supervisor-entrypoint.sh`, `master-decompose.py`) with zero duplication of either fix. **Still not yet enforced by code** — logging (and checking `check-duplicate` before building) happens because an AI agent chooses to call the CLI, not because anything blocks work from proceeding without it. Making that mandatory (e.g., wiring `log-instruction`/`check-duplicate` into the shell entrypoints' own dispatch path, or into a pre-commit-style gate) is real, scoped follow-up work, not done this pass.
+
+Known real gaps, not glossed over: `software_task_id` has never been populated (0 rows — no software-only task logged that way yet); the status vocabulary (`pending`/`blocked`/`deprecated`) has never been used (only `historical`/`completed`/`live`/`partial`/`designed_not_built`/`dead` exist as real values across the four tables); this register (SQLite, on this Hetzner box) is architecturally unreachable from the TypeScript/Vercel application code (`mother-router.ts`, `team-service.ts` — confirmed via `grep -rln 'superboss-register' src/` returning zero matches) — closing that requires either a Supabase migration or a bespoke API bridge, not yet decided or built; and TASK-05 (`mid_session_self_check` in `CONSTITUTION.yaml`) confirms this register's use in an interactive Superboss/Tier-4 session (i.e. right now) is voluntary discipline only, with zero code-level enforcement.
 
 ## Historical import (2026-07-20, `ai-os/scripts/import-memory-history.py`)
 
