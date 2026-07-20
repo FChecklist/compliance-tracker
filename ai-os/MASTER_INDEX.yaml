@@ -120,9 +120,9 @@ system_boundary:
     reverse_engineering:
       note: >-
         For reverse-engineering features -- these hold scraped
-        documentation of THIRD-PARTY systems (Infisuite, Odoo), not
-        VERIDIAN's own application code. Verified 2026-07-20: both
-        repos contain only docs/ and screenshots/ directories, no
+        documentation of THIRD-PARTY systems (Infisuite, Odoo, Zoho),
+        not VERIDIAN's own application code. Verified 2026-07-20: all
+        3 repos contain only docs/ and screenshots/ directories, no
         source code -- correctly excluded from the code
         catalogs (registries.database_catalog /
         registries.function_catalog only cover real app codebases).
@@ -131,6 +131,15 @@ system_boundary:
           local_path: /opt/veridian/repos/odoo-reverse-engineering
         - repo: FChecklist/infisuite-reverse-engineering
           local_path: /opt/veridian/repos/infisuite-reverse-engineering
+        - repo: FChecklist/zoho-reverse-engineering
+          local_path: /opt/veridian/repos/zoho-reverse-engineering
+          role: >-
+            Zoho CRM + Zoho Projects field/screen documentation, built
+            2026-07-20 by navigating a live Owner-authenticated session
+            via Claude in Chrome (read-only -- forms opened to
+            enumerate fields then cancelled, no records
+            created/edited/deleted). docs/crm/fields.md and
+            docs/projects/fields.md.
     personal_advisory_not_active:
       note: >-
         Personal advisory for Owner Rajat Agarwal. Explicitly NOT
