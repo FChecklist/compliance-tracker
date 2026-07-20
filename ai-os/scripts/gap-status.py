@@ -11,7 +11,7 @@ for item in doc["queue"]:
 
 total = len(doc["queue"])
 completed = len(by_status.get("completed", []))
-print(f"{completed}/{total} groups completed ({doc['total_findings']} total findings across all groups)")
+print(f"{completed}/{total} groups completed ({doc.get('total_findings', 'unknown')} total findings across all groups)")
 
 for status in ("awaiting_human_approval", "stuck_needs_human", "needs_retry", "dispatch_failed", "skipped_possible_duplicate"):
     items = by_status.get(status, [])
