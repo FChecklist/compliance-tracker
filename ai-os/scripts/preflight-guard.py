@@ -79,6 +79,30 @@ def check_mem(min_available_mb=300):
                             f"likely resource contention from concurrent workers (Group B failure pattern)")
 
 
+def check_tight_task_schema(task_dir):
+    """Faithful Python port of task-tightening.ts's validateTightTask() --
+    closes the gap found in the constitution cross-check audit (2026-07-20):
+    the shell-layer fleet had zero access to this TS/DB-backed validation.
+    Only blocks NEW-format prompts (## OBJECTIVE / ## SCOPE / etc. labeled
+    headers) -- a legacy free-text prompt is never retroactively failed."""
+    prompt_path = os.path.join(task_dir, "prompt.txt")
+    if not os.path.exists(prompt_path):
+        return
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import tight_task_validation as ttv
+        with open(prompt_path) as f:
+            text = f.read()
+        fields = ttv.parse_labeled_fields(text)
+        if fields is None:
+            return  # legacy free-text prompt -- not this validator's concern
+        result = ttv.validate_tight_task(fields)
+        if not result.get("valid"):
+            fail("tight_task_schema_violation", f"{result.get('reason')} {result.get('guidance')}")
+    except ImportError:
+        return  # validator module unavailable -- fail open, don't block on infra issue
+
+
 def check_worktree(workspace):
     lock = os.path.join(workspace, ".git", "index.lock")
     if os.path.exists(lock):
@@ -135,6 +159,7 @@ if __name__ == "__main__":
     proxy_arg = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:8787"
 
     check_circuit_breaker(task_dir_arg)
+    check_tight_task_schema(task_dir_arg)
     check_disk(workspace_arg)
     check_mem()
     check_worktree(workspace_arg)
