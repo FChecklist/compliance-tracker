@@ -92,3 +92,17 @@ Honest scope: exact-match only. It catches literal repeats (a retry that re-send
 | `/opt/veridian/ai-os/logs/glm-response-cache.sqlite` | new — cache store |
 
 Rollback, if ever needed: restore the two `.v1.bak` files, `systemctl --user daemon-reload && systemctl --user restart veridian-glm-proxy.service`.
+
+---
+
+## Audit round 1 (2026-07-20, same session)
+
+New tool built during this round: `/opt/veridian/scripts/cost-reconciliation.py` (Q6's "keep it working" check, run on demand, $0 cost — reads only local logs).
+
+**Finding, corrected upward from the earlier estimate:** the ALL-TIME failure rate across every task ever tracked in `CONTROLLER.yaml` is **71.9% (205 failed / 285 total)** — not the 45% calculated earlier from a single 15-hour window. The 45% figure was real but described a narrower slice; the true historical picture is worse. This is exactly the kind of thing Q6's reconciliation habit is meant to catch, and it caught it on its first real run.
+
+**Finding, a flaw in my own first draft of the reconciliation script:** the initial cache-hit-rate calculation blended the ~2,375 calls made before the cache existed (which can only ever show as misses) with the ~19 made since, producing a meaningless 1.1%. Fixed to window from cache-deployment time: **18/19 = 94.7%** hit rate since deployment — real, but caveated honestly in the script's own output as still-small-sample and inflated by repeated verification testing during this build, not yet a steady-state measurement under normal diverse task dispatch.
+
+**Scope clarification, not a bug but worth stating precisely:** everything built tonight hardens the *worker execution layer* (`worker-entrypoint.sh` + the GLM proxy) — the mechanism that actually runs `SUPERBOSS_V2_PLAN` dispatches. It does not modify `mother-router.ts` or the tier-eligibility code in the application itself; those are a separate routing/eligibility layer for tenant-facing AI features, not touched by this work. If "Mother Router" in Q2 was meant to include that application code specifically, it's out of scope of what's deployed here and would need a separate, explicit task.
+
+**No repeat offenders found:** the reconciliation script also checks every task's `.failure_signatures.json` for a circuit-breaker-should-have-caught-this case (2 identical consecutive signatures still active). None found — expected, since the pre-existing pathological failures (BYOB etc.) already reached terminal `failed` state hours before the circuit breaker existed, so there's nothing currently live for it to have caught yet. This will be the real test once new dispatches run under real credits.
