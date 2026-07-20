@@ -87,7 +87,7 @@ This is why the CSV Status column cannot be trusted alone: it predates #433/#483
 
 | # | Row ref | Why code-closable now | Plan task |
 |---|---|---|---|
-| C1 | #10 Monitoring (SENTRY_DSN) | Add a **startup check** that warns if `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` missing; provisioning the DSN itself is an Owner/Vercel-dashboard action (out of code scope) but the *check* is code. | V2-10 |
+| C1 | #10 Monitoring (SENTRY_DSN) | Add a **startup check** that warns if `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` missing; provisioning the DSN itself is an Owner/Vercel-dashboard action (out of code scope) but the *check* is code. **RE-SCORED CLOSED 2026-07-20 (V2-10, PR TBD):** startup check `src/lib/sentry-dsn-check.ts` + 8 `bun:test` assertions wired from `src/instrumentation.ts`'s `register()` hook; fires a `[sentry] ...` warning naming the missing var(s) when unset, silent when set; Sentry configs left read-only. The DSN-provisioning half stays an Owner action (C17). | V2-10 ✅ |
 | C2 | #11 Delegation expiry enforcement | Audit every authorization checkpoint (not just listing views) for expiry enforcement; add a test. Pure code. | V2-11 |
 | C3 | #13 Vertical Scalability | Document the serverless resource-limit tradeoff + audit heaviest workloads. Docs+code. | V2-12 |
 | C4 | #16/#17/#20 Business Terminology / Context-Aware / Mode Pills | Verify wiring (`contextEntityId` fetch into reply prompt) + add usage analytics. Code. | V2-13 |
@@ -222,7 +222,7 @@ This is why the CSV Status column cannot be trusted alone: it predates #433/#483
 - CONSTRAINTS: Reuse existing notification infra. Register claim.
 - DONE CRITERIA: Insights surface to affected users; tests; row re-scored; PR open.
 
-### V2-10 — Sentry DSN startup check [C1]
+### V2-10 — Sentry DSN startup check [C1] — ✅ CLOSED 2026-07-20 (PR TBD)
 - READY: yes
 - SOFTWARE TEAM LEVEL: L1 Code Worker
 - TASK ID: V2-10-SENTRY-DSN-CHECK
