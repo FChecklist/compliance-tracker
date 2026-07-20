@@ -14,6 +14,23 @@ audit_passes_complete: 3
 audit_passes_required: 3
 canonical_path_live: /opt/veridian/ai-os/MASTER_INDEX.yaml
 canonical_path_repo: /opt/veridian/repos/compliance-tracker/ai-os/MASTER_INDEX.yaml
+sync_mechanism:
+  script: /opt/veridian/scripts/system-sync.py
+  run_on_demand: >-
+    python3 /opt/veridian/scripts/system-sync.py [--dry-run] [--check
+    mirror|constitution|unindexed|all]. Run this whenever you suspect the
+    live server, this file, CONSTITUTION.yaml, or the git-tracked script
+    mirrors have drifted apart -- it is the single entrypoint for "sync
+    the whole system," built 2026-07-20 per Owner directive ("one server,
+    one system," see registries.system_sync_mechanism for full detail).
+  run_on_schedule: >-
+    Wired into crontab via run-logged.sh (registries.auto_execution_wrapper),
+    see registries.system_sync_mechanism.cron_schedule.
+  do_not_build_a_new_sync_script: >-
+    If a future session finds drift/staleness this script's 3 checks
+    don't cover, EXTEND this script with a 4th check function -- do not
+    write a parallel sync mechanism. This file's own protocol field
+    exists precisely to prevent that failure mode.
 
 # ---------------------------------------------------------------------------
 # root_cause -- why searches were slow / wrong files got picked (2026-07-20)
@@ -462,6 +479,76 @@ registries:
       evidence of the bug manifesting there) -- flagged honestly
       rather than silently left uninvestigated.
     status: live, deployed and verified 2026-07-20
+
+  - id: system_sync_mechanism
+    type: python_script
+    path: /opt/veridian/scripts/system-sync.py
+    mirror: /opt/veridian/repos/compliance-tracker/ai-os/scripts/system-sync.py
+    scope: >-
+      TASKS 2-6 of the Owner's 2026-07-20 systems-design directive,
+      built as ONE unified mechanism deliberately, not 5 separate
+      scripts -- the directive itself (TASK 3/4: "System is broken.
+      Its working in parts. Make it integrated... You are facing it
+      again and again. Though you are updating few files other are
+      getting missed.") is a direct complaint about exactly the kind
+      of proliferating-parallel-mechanisms failure mode a 5th/6th/7th
+      standalone script would repeat. Every check is mechanical (file
+      existence, git-log date comparison, path diffing) -- zero AI
+      judgment embedded in detection, by design (judgment calls like
+      "what should this doc's corrected sentence say" are left to
+      whoever reads the findings, not auto-generated).
+    checks:
+      mirror_drift_check: >-
+        Diffs /opt/veridian/scripts/*.py|sh and MASTER_INDEX.yaml
+        against their git-tracked repo-mirror counterparts. SAFE to
+        auto-fix (pure file copy, staged not committed -- committing
+        still requires the same manual verify-then-commit discipline
+        used all session). First real run found 17 files with ZERO
+        mirror at all -- including queue-dispatcher.py, which fires
+        live via cron every 10 minutes and had no git-tracked copy
+        whatsoever (a genuine, serious instance of the exact "files
+        getting missed" pattern TASK 3/4 named). All 17 copied into
+        the mirror and committed same pass.
+      constitution_staleness_check: >-
+        Extracts every backtick-quoted src/lib/*.ts path from
+        CONSTITUTION.yaml's mechanism/evidence fields (same claim
+        shape claim-verification.ts already checks for AI OUTPUT,
+        GP-08/GP-09 -- reused here to check the DOCUMENT itself, not
+        duplicated logic), compares each referenced file's last git-
+        commit date against CONSTITUTION.yaml's own last-commit date.
+        Report-only, appends to registries.attention_alerts, never
+        auto-edits the doc. First real run found 1 apparent broken
+        reference (src/lib/veridian-client.ts) that was actually a
+        cross-repo false positive -- the file legitimately lives in
+        FChecklist/projexa, not compliance-tracker, and
+        CONSTITUTION.yaml's control_model.products section correctly
+        describes other repos' files as compliance evidence. Fixed by
+        checking all 3 known repos (compliance-tracker, projexa,
+        veda-advisors) before flagging broken -- 0 genuine findings
+        after the fix.
+      unindexed_files_check: >-
+        Walks canonical_dirs.ops_scripts and
+        .ai_os_governance_repo_copy, flags any file MASTER_INDEX.yaml
+        never mentions by name. Report-only, appends to
+        registries.attention_alerts. First real run found 15 ai-os/
+        root .md docs genuinely absent from this file's text (not
+        even in file_inventory.ai_os_governance_docs's own
+        unannotated_note, which only said "several" without naming
+        them) -- see that field's now-explicit list, generated from
+        this check's output rather than hand-typed.
+    cron_schedule: >-
+      Added to crontab via run-logged.sh (same wrapper pattern as the
+      other 7 jobs, registries.auto_execution_wrapper):
+      `0 */6 * * * python3 /opt/veridian/scripts/system-sync.py --check
+      all`. Every 6 hours -- frequent enough to catch drift before it
+      compounds, infrequent enough that report-only findings in
+      ATTENTION.md do not spam past what a human/AI can realistically
+      act on between reads.
+    status: live, deployed and verified 2026-07-20 (real first run found
+      and closed 1 genuine gap class -- 17 unmirrored live scripts --
+      and surfaced 2 more for follow-up -- 15 unindexed docs (named,
+      not yet individually catalogued), 0 genuine constitution
+      staleness findings this pass)
 
   - id: cross_project_controller
     type: yaml_file
@@ -1046,6 +1133,25 @@ file_inventory:
       registries; correct to read once for history, not to treat as a
       search target for current state. Not individually re-verified this
       pass.
+    unindexed_docs_named_2026_07_20: >-
+      registries.system_sync_mechanism's unindexed_files_check
+      mechanically found these 15 ai-os/ root docs genuinely absent
+      from this file's text (a stricter bar than the "several" above,
+      which was itself an approximation): AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md,
+      AI_CACHE_AND_TRIAGE_ARCHITECTURE.md, BRAIN.md, COST-CONTROL.md,
+      DCMD-SCHEMA-DESIGN.md, REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md,
+      SELF-CHECK.md, SOFTWARE_TEAM.md, STATUS-REPORT.md,
+      SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
+      SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md,
+      priority18b_stage0_design.md, priority21_workspace_memory_design.md,
+      priority22_ling_trial_findings.md, priority22_officecli_feasibility.md.
+      Named here rather than individually catalogued -- most are the
+      same class of dated point-in-time record as the unannotated_note
+      above (design docs, audit logs, status snapshots); BRAIN.md and
+      SELF-CHECK.md are the 2 exceptions that read as living docs and
+      are real candidates for a proper registries entry in a future
+      pass, not done this pass (scope was naming the gap, not
+      individually re-verifying and cataloguing 15 files' content).
 
 # ---------------------------------------------------------------------------
 # audit_log -- the 3-pass verification this file itself requires per Owner
@@ -1454,3 +1560,51 @@ audit_log:
       claimed. TASKS 2-6 (constitution staleness detection, unified
       system-sync.py, cron wiring) and the required 3-round audit of
       that work remain -- not started this pass, tracked separately.
+  - pass: 12
+    ts: '2026-07-20T12:15:00+00:00'
+    type: unified_sync_mechanism_build_and_verify
+    trigger: >-
+      Owner TASKS 2-6: constitution staleness detection, "system is
+      broken, working in parts, make it integrated," "files getting
+      missed," a script referenced FROM this file that syncs the whole
+      system on demand, and the same running on a schedule. Owner:
+      "YOU ARE THE SYSTEMS DESIGNER. THINK TO MAKE IT PERFECT."
+    method: >-
+      Deliberately built ONE mechanism (system-sync.py) instead of 5
+      separate scripts -- building another standalone script per task
+      would have repeated the exact "working in parts" failure mode
+      the directive itself names. See registries.system_sync_mechanism
+      for the 3 checks and their real first-run findings. Every check
+      verified against real, not hypothetical, drift: ran --dry-run
+      first, inspected findings before trusting them (caught and fixed
+      1 real false-positive bug -- cross-repo file references -- before
+      it could hide genuine future findings under noise), then ran for
+      real, then re-ran after fixes to confirm 0 findings, then
+      verified the actual cron-wrapped invocation
+      (run-logged.sh "system-sync" ...) produces the identical result
+      before trusting the schedule.
+    result: >-
+      1 genuine, serious gap closed: 17 live scripts (including
+      queue-dispatcher.py, firing every 10 minutes via cron) had ZERO
+      git-tracked mirror -- now all mirrored and committed. 1 false-
+      positive class fixed in the checker itself before it shipped
+      (cross-repo CONSTITUTION.yaml references). 15 previously-unnamed
+      governance docs now explicitly named (see
+      file_inventory.ai_os_governance_docs.unindexed_docs_named_2026_07_20).
+      All 3 checks confirmed at 0 findings after fixes applied and this
+      file redeployed with the new names embedded -- re-ran
+      system-sync.py --check all a final time to prove the loop closes
+      (a finding disappears once genuinely fixed, not just logged).
+    sign_off: >-
+      TASKS 2-6 of the Owner's 6-part directive complete: a single,
+      cron-scheduled (every 6h), on-demand-invokable, MASTER_INDEX.yaml-
+      registered mechanism now continuously re-checks the 3 highest-
+      value drift classes found this session, extending in place
+      (registries.system_sync_mechanism.do_not_build_a_new_sync_script)
+      rather than by further script proliferation. Honest scope note:
+      these 3 checks are the ones this session's own work surfaced as
+      real -- a genuinely new drift class discovered later needs a 4th
+      check function added here, this is not a claim that every
+      possible form of system drift is now covered. Remaining: the
+      Owner's required 3-round audit of everything built this pass
+      (TASK 52) -- not started yet.
