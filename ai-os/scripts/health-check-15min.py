@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+import sqlite3
 from datetime import datetime, timezone, timedelta
 
 LOG_DIR = "/opt/veridian/ai-os/logs"
@@ -30,6 +31,7 @@ MAX_LINES = 700
 STALE_THRESHOLD_MIN = 25  # 15-min cadence + 1 grace period
 FAILURE_RATE_THRESHOLD = 0.20  # 2026-07-20, constitution-audit gap #3
 ENV_FILE = "/opt/veridian/repos/compliance-tracker/.env.local"
+CREDIT_LEDGER_PATH = "/opt/veridian/ai-os/memory/credit-ledger.sqlite"
 
 EXHAUSTION_PATTERNS = [
     r"credit balance is too low",
@@ -159,6 +161,54 @@ def check_app_layer_failures(lookback_minutes=15):
         return {"reachable": True, "raw": out}
 
 
+def check_credit_accountant_health():
+    """Owner directive 2026-07-20 credit-governance mechanism
+    (registries.credit_spend_governance): the accountant gate in
+    credit-accountant.py fails CLOSED on its own errors, by design -- any
+    accountant-call timeout/error halts ALL metered AI spend server-wide
+    rather than silently letting it through (the correct safe default for
+    a gate whose job is preventing waste). But that must never happen
+    SILENTLY -- this is the function credit-accountant.py's own docstring
+    promises exists, to surface "accountant broken, spend currently
+    halted" fast rather than leaving it to be discovered only when a task
+    mysteriously can't get any credit approved.
+
+    Looks at the last 15 minutes of the SQLite ledger (this script's own
+    cadence) for plan_reviewer/outcome_reviewer == 'claude_cli_failed' --
+    credit-accountant.py's own specific signal that the claude -p judgment
+    call itself errored/timed out, distinct from a normal PASS/FAIL/REDIRECT
+    verdict on a plan's actual merits (which is expected, working-as-
+    designed behavior, not an anomaly).
+    """
+    if not os.path.isfile(CREDIT_LEDGER_PATH):
+        return {"reachable": False, "note": "ledger not yet created -- no metered spend proposed yet, not itself an anomaly"}
+    try:
+        conn = sqlite3.connect(CREDIT_LEDGER_PATH, timeout=5)
+        cur = conn.cursor()
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=16)).isoformat()
+        cur.execute(
+            "SELECT task_id, increment_number, plan_reasoning FROM credit_increments "
+            "WHERE plan_reviewed_at >= ? AND plan_reviewer = 'claude_cli_failed'",
+            (cutoff,),
+        )
+        plan_failures = cur.fetchall()
+        cur.execute(
+            "SELECT task_id, increment_number, outcome_reasoning FROM credit_increments "
+            "WHERE outcome_reviewed_at >= ? AND outcome_reviewer = 'claude_cli_failed'",
+            (cutoff,),
+        )
+        report_failures = cur.fetchall()
+        conn.close()
+        return {
+            "reachable": True,
+            "recent_propose_accountant_failures": len(plan_failures),
+            "recent_report_accountant_failures": len(report_failures),
+            "sample": [list(r) for r in (plan_failures + report_failures)[:3]],
+        }
+    except Exception as e:
+        return {"reachable": False, "error": str(e)}
+
+
 def check_server_health():
     disk_out, _, _ = sh("df -h / | tail -1")
     disk_pct = None
@@ -217,6 +267,7 @@ def main():
     app_failures = check_app_layer_failures()
     server = check_server_health()
     claude_signal = scan_claude_exhaustion_signatures()
+    credit_health = check_credit_accountant_health()
 
     anomalies = []
     if units["failed_count"] > 0:
@@ -251,6 +302,16 @@ def main():
         anomalies.append(f"Memory usage at {server['mem_pct_used']}%")
     if claude_signal["exhaustion_signature_hits"]:
         anomalies.append(f"Possible Claude/API quota exhaustion signature found in {len(claude_signal['exhaustion_signature_hits'])} recent log(s)")
+    if not credit_health.get("reachable") and "note" not in credit_health:
+        anomalies.append(f"Credit-accountant ledger unreachable: {credit_health.get('error')}")
+    credit_failures = credit_health.get("recent_propose_accountant_failures", 0) + credit_health.get("recent_report_accountant_failures", 0)
+    if credit_failures > 0:
+        anomalies.append(
+            f"HIGH PRIORITY: credit-accountant.py itself failed/timed out {credit_failures} time(s) in the last 15min "
+            f"-- this is failing CLOSED and BLOCKING ALL METERED AI SPEND server-wide by design (Owner zero-waste "
+            f"directive 2026-07-20). Fix the accountant (check CLAUDE_CODE_OAUTH_TOKEN / claude -p reachability), "
+            f"do not bypass or disable the gate."
+        )
 
     record = {
         "ts": now,
@@ -260,6 +321,7 @@ def main():
         "app_layer_failures": app_failures,
         "server": server,
         "claude_quota_proxy_signal": claude_signal,
+        "credit_accountant": credit_health,
         "anomalies": anomalies,
     }
 

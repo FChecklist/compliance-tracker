@@ -258,6 +258,8 @@ json.dump(sigs, open(sig_file, 'w'))
 
 if [ "$EXIT_CODE" -ne 0 ]; then
   record_failure_signature
+  FAIL_COST=$(real_invocation_cost_usd "$MAIN_START_EPOCH")
+  python3 /opt/veridian/scripts/credit-accountant.py report --task-id "$TASK_ID" --increment 1 --actual-spend-usd "$FAIL_COST" --outcome "main invocation FAILED, exit code $EXIT_CODE, real cost \$$FAIL_COST -- see worker.log" >> "$TASK_DIR/worker.log" 2>&1 || true
   git -C "$WORKSPACE" add -A
   git -C "$WORKSPACE" commit -m "Worker $TASK_ID: checkpoint commit (invocation failed, exit $EXIT_CODE)" >> "$TASK_DIR/worker.log" 2>&1 || true
   git -C "$WORKSPACE" push -u origin "$BRANCH" >> "$TASK_DIR/worker.log" 2>&1 || true
@@ -266,6 +268,7 @@ if [ "$EXIT_CODE" -ne 0 ]; then
 fi
 
 MAIN_COST=$(real_invocation_cost_usd "$MAIN_START_EPOCH")
+python3 /opt/veridian/scripts/credit-accountant.py report --task-id "$TASK_ID" --increment 1 --actual-spend-usd "$MAIN_COST" --outcome "main invocation completed, exit 0, real cost \$$MAIN_COST" >> "$TASK_DIR/worker.log" 2>&1 || true
 if [ "$(budget_exceeded "$MAIN_COST")" = "1" ]; then
   python3 /opt/veridian/scripts/veridian-task.py checkpoint "$TASK_ID" --status blocked --note "PREVENTION CAP HIT: this invocation's REAL OpenRouter/GLM-5.2 cost was \$$MAIN_COST, at/above the \$$WORKER_BUDGET_CAP_USD budget cap -- stopped rather than continuing unbounded. Needs human review before further retries (likely a stuck/looping task, not ordinary progress)."
   git -C "$WORKSPACE" add -A
@@ -300,11 +303,25 @@ while [ "$GATE_ATTEMPT" -lt 3 ]; do
 $(cat "$TASK_DIR/quality-gate-$((GATE_ATTEMPT-1)).json" | python3 -c 'import json,sys; d=json.load(sys.stdin); [print(f"--{k}--\n{v.get(\"output_tail\",\"\")}") for k,v in d.items() if not v.get("passed", True)]' 2>/dev/null)
 
 $PROGRESS_INSTRUCTION"
+  FIX_PROPOSE_OUT=$(python3 /opt/veridian/scripts/credit-accountant.py propose --task-id "$TASK_ID" --plan "auto-fix attempt $GATE_ATTEMPT/2 for quality gate failure on task $TASK_ID, see quality-gate-$((GATE_ATTEMPT-1)).json for the failing checks" --search-terms "quality gate auto-fix retry")
+  FIX_PROPOSE_RC=$?
+  echo "$FIX_PROPOSE_OUT" >> "$TASK_DIR/worker.log"
+  if [ "$FIX_PROPOSE_RC" -ne 0 ]; then
+    python3 /opt/veridian/scripts/veridian-task.py checkpoint "$TASK_ID" --status blocked --note "credit accountant rejected auto-fix attempt $GATE_ATTEMPT, no further metered spend without human review: $FIX_PROPOSE_OUT"
+    git -C "$WORKSPACE" add -A
+    git -C "$WORKSPACE" commit -m "Worker $TASK_ID: automated checkpoint commit (credit accountant rejected auto-fix)" >> "$TASK_DIR/worker.log" 2>&1 || true
+    git -C "$WORKSPACE" push -u origin "$BRANCH" >> "$TASK_DIR/worker.log" 2>&1 || true
+    systemctl --user disable "veridian-worker@${TASK_ID}.service" >> "$TASK_DIR/worker.log" 2>&1 || true
+    exit 0
+  fi
+  FIX_INCREMENT=$(echo "$FIX_PROPOSE_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('increment_number', $GATE_ATTEMPT + 1))" 2>/dev/null)
+  FIX_INCREMENT="${FIX_INCREMENT:-$((GATE_ATTEMPT + 1))}"
   FIX_OUT="$TASK_DIR/.claude-out-fix-$GATE_ATTEMPT.json"
   FIX_START_EPOCH=$(date -u +%s)
   claude -p "$FIX_PROMPT" --continue --dangerously-skip-permissions --max-budget-usd "$WORKER_BUDGET_CAP_USD" --output-format json > "$FIX_OUT" 2>>"$TASK_DIR/worker.log"
   cat "$FIX_OUT" >> "$TASK_DIR/result.json"
   FIX_COST=$(real_invocation_cost_usd "$FIX_START_EPOCH")
+  python3 /opt/veridian/scripts/credit-accountant.py report --task-id "$TASK_ID" --increment "$FIX_INCREMENT" --actual-spend-usd "$FIX_COST" --outcome "auto-fix attempt $GATE_ATTEMPT/2 completed, real cost \$$FIX_COST" >> "$TASK_DIR/worker.log" 2>&1 || true
   if [ "$(budget_exceeded "$FIX_COST")" = "1" ]; then
     python3 /opt/veridian/scripts/veridian-task.py checkpoint "$TASK_ID" --status blocked --note "PREVENTION CAP HIT: auto-fix attempt $GATE_ATTEMPT real cost \$$FIX_COST, at/above the \$$WORKER_BUDGET_CAP_USD budget cap. Stopping auto-fix loop for human review rather than continuing unbounded."
     git -C "$WORKSPACE" add -A

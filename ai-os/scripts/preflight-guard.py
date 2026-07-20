@@ -24,6 +24,7 @@ import shutil
 import sys
 import urllib.error
 import urllib.request
+import subprocess
 
 
 def fail(reason, detail=""):
@@ -107,6 +108,75 @@ def check_worktree(workspace):
     lock = os.path.join(workspace, ".git", "index.lock")
     if os.path.exists(lock):
         fail("worktree_locked", lock)
+
+def check_credit_accountant_approval(task_dir):
+    """Owner directive 2026-07-20: "without Claude Code CLI subscription
+    permission, the mother router cannot spend any credit." This is the
+    single, universal enforcement point -- every dispatch path
+    (worker-entrypoint.sh AND doc-worker-entrypoint.sh) already calls
+    preflight-guard.py, so inserting the gate here means no individual
+    dispatcher (queue-dispatcher.py, master-decompose.py, etc.) needs to
+    be taught about the accountant separately -- it cannot be forgotten
+    or bypassed by a caller that doesn't know it exists. Same
+    "middleware/aspect" choke-point pattern already used for
+    run-logged.sh and the auto-logging mechanisms this session.
+
+    Auto-derives a plan + search terms from the task's own prompt.txt
+    (tight-task-schema OBJECTIVE/SCOPE fields when present, else the
+    first 300 chars) -- no caller needs to change to submit a plan
+    manually; this check does it on their behalf using data that
+    already exists for every task.
+
+    FAILS CLOSED like credit-accountant.py itself: if the accountant
+    call errors/times out, this check treats it as a rejection, not a
+    pass-through. Zero tolerance means zero silent bypass on
+    infrastructure hiccups here specifically -- unlike balance/proxy
+    checks elsewhere in this file, which correctly fail open.
+    """
+    task_id = os.path.basename(os.path.normpath(task_dir))
+    prompt_path = os.path.join(task_dir, "prompt.txt")
+    plan_text = None
+    search_terms = task_id.replace("-", " ").replace("_", " ")
+    if os.path.exists(prompt_path):
+        try:
+            with open(prompt_path) as f:
+                text = f.read()
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import tight_task_validation as ttv
+            fields = ttv.parse_labeled_fields(text)
+            if fields and fields.get("objective"):
+                plan_text = fields["objective"][:500]
+                if fields.get("scope"):
+                    search_terms = fields["scope"][:200]
+            else:
+                plan_text = text[:500]
+        except Exception:
+            try:
+                with open(prompt_path) as f:
+                    plan_text = f.read()[:500]
+            except Exception:
+                plan_text = f"task {task_id}, prompt unreadable"
+    else:
+        plan_text = f"task {task_id}, no prompt.txt found at preflight time"
+
+    try:
+        result = subprocess.run(
+            ["python3", "/opt/veridian/scripts/credit-accountant.py", "propose",
+             "--task-id", task_id, "--plan", plan_text, "--search-terms", search_terms],
+            capture_output=True, text=True, timeout=90,
+        )
+        if result.returncode != 0:
+            try:
+                data = json.loads(result.stdout)
+                reason = data.get("reason", "no reason given")
+            except Exception:
+                reason = f"unparseable accountant output: {result.stdout[:200]} {result.stderr[:200]}"
+            fail("credit_accountant_rejected", reason)
+    except subprocess.TimeoutExpired:
+        fail("credit_accountant_unreachable", "credit-accountant.py propose call timed out -- failing closed, no spend without approval")
+    except Exception as e:
+        fail("credit_accountant_unreachable", f"credit-accountant.py propose call failed: {e} -- failing closed, no spend without approval")
+
 
 
 def check_proxy_health(proxy_url):
@@ -225,6 +295,7 @@ if __name__ == "__main__":
     check_disk(workspace_arg)
     check_mem()
     check_worktree(workspace_arg)
+    check_credit_accountant_approval(task_dir_arg)
 
     if proxy_arg == "--no-proxy":
         # doc-worker-entrypoint.sh's real-subscription tasks don't route
