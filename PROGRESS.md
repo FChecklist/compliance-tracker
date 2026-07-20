@@ -1,18 +1,28 @@
-# PROGRESS -- task-20260720-035002-superboss-v2-plan--surface-loop-derived
+# PROGRESS -- task-20260720-022710-superboss-v2-plan--byob-bring-your-own-a
+
+Task: **V2-5 — BYOB bring-your-own-AI-model [D6]** (TASK ID `V2-5-BYOB-AI-MODEL`,
+Tier2 — schema+crypto, holds for Owner sign-off).
 
 ## Completed
-- [x] Register claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (checked active list for collisions on the loop/insight-to-notification surface — none found)
-- [x] Read the loop/insight service + existing notification channels (`notifications` table, `notificationTypeEnum`, `task-nudge-digest-service.ts` precedent for per-user fan-out + `metadata.kind` discriminator)
-- [x] Build `src/lib/loop-insight-notifier.ts` — pure renderer (`summarizeLoopInsight`), audience decision (`audienceKindForTarget`), recipient resolution (`resolveInsightRecipients`), fan-out emitter (`notifyLoopInsight`). Reuses existing `notifications` channel (type `system`, `metadata.kind: "loop_insight`) — no schema/enum migration (Tier1, additive)
-- [x] Wire the hook into the single chokepoint `proposeLoopImprovement()` in `src/lib/loop-improvement-proposer.ts` — fire-and-forget, never blocks the proposal capture that just succeeded
-- [x] Add `src/lib/loop-insight-notifier.test.ts` — 20 tests covering the pure renderer + audience-decision logic (mirrors `byo-model-audit.test.ts` / `task-nudge-digest-service.test.ts` pure-vs-DB split; DB fan-out wrappers have no correctness logic of their own)
-- [x] `bunx tsc --noEmit` — clean (0 errors)
-- [x] `bun test src/lib/loop-insight-notifier.test.ts` — 20 pass / 0 fail
-- [x] `bun run lint` — 0 errors (3 pre-existing warnings, none in new files)
-- [x] Fix lint: drop triple-slash `/// <reference types="bun:test" />` in test (matches the dominant `import { ... } from "bun:test"` convention used by `abac.test.ts` et al.)
+- [x] Read governance: ACTIVE-CLAIMS.yaml (registry + collision check), model-tier-eligibility.ts, AGENTS.md Rule 9, mother-router.ts, roster-overrides.ts, ai-config-crypto.ts, dispatch-repo.ts, /api/ai/team/dispatch, team-service.ts runRole, orchestra-model-resolver.ts (existing BYO pattern), CONSTITUTION ai_orchestra_tiers.
+- [x] Collision check: no open PR touches mother-router.ts software_team tenant-model scope. The prior 2026-07-16 BYOB-AI claim (PR #384, now recently_completed) targeted a *different* file scope (orchestra-model-resolver.ts / customer_model_config, the end_user_org scope) — disjoint.
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (committed + pushed on its own).
+
+## Analysis (the gap is real)
+The Orchestra-layer BYOB (customer_model_config → resolveModelConfig() → callLLM()) is shipped and serves the `end_user_org` Mother Router scope. **V2-5 targets the `software_team` scope, which has no per-tenant input at all today:**
+- `computeSoftwareTeamResolution()` resolves only from a global `ai_routing_policies` rule + roster baseline; the `software_team` MotherRouterContext carries no `orgId`.
+- `runRole()` (team-service.ts:42) hardcodes `platformOpenRouterKey()` + provider `"openrouter"` — a tenant's own model+key cannot be *used* by the software_team dispatch path.
+
+So "configure + use their own model" through the Mother Router's software_team scope is genuinely not yet possible. Real work, Tier2 (schema+crypto) → holds for Owner sign-off, no auto-merge.
 
 ## Remaining
-- [ ] Commit + push incrementally
-- [ ] Open PR; let CI run all required checks green
-- [ ] Tier1 (additive, no schema/auth/RLS/payment/.env changes) → merge autonomously once CI genuinely green on all required checks
-- [ ] Row re-score: CSV row #18 (`Suggests Process Improvements conversationally`) is closed by this PR; the CSV lives in `claude-control/` (separate, re-scored externally like V2-6 precedent) — PR body + COMPLETED.yaml entry (on merge) provide the auditable evidence for the re-score
+- [ ] Add `tenant_ai_config` table to schema.ts (org_id + provider + encrypted_api_key + model_name + optional base_url + is_active) + Drizzle migration.
+- [ ] Add `resolveTenantAiConfig(orgId)` resolver (decrypts key server-side, mirrors ai-config-crypto.ts).
+- [ ] Extend Mother Router: `software_team` context optionally carries `orgId`; when a tenant config exists, prefer its model but STILL run `checkTierEligibility()` (ineligible → silent downgrade to baseline, never a bypass).
+- [ ] Wire `runRole()` to optionally accept/use the tenant model+key+baseUrl (provider stays openrouter-compatible; the task's server-side constraint routes through GLM-5.2 via OpenRouter, cheapest real provider).
+- [ ] Settings UI section for tenant admin (mirror OrchestraModelConfigSection).
+- [ ] CRUD API `src/app/api/settings/tenant-ai-config/**` (admin-only, encrypt key, never return key).
+- [ ] Tests: guardrail-no-bypass case (ineligible tenant model downgrades, never bypasses checkTierEligibility), prefer-when-eligible, no-config fallback, encryption round-trip.
+- [ ] tsc --noEmit clean (no NEW errors), eslint clean, `bun test` green on new tests.
+- [ ] Run sync-check scripts; update check-guardrail-presence.mjs manifest if a new guardrail call site is wired (Rule 9).
+- [ ] Open PR (WIP if needed); Tier2 — do NOT self-merge, hold for Owner sign-off + audit.

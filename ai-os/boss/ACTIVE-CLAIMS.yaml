@@ -131,6 +131,42 @@ active:
       loop/insight-to-notification surface. The nearest related completed
       work (GP-20 loop-prevention, model-pricing-audit daily cron, routing
       accuracy report) all touch different files and are closed.
+  - session_label: "claude-code (task-20260720-022710-superboss-v2-plan--byob-bring-your-own-a) -- V2-5 BYOB bring-your-own-AI-model: per-tenant model+key into the Mother Router's software_team scope"
+    claimed_at: "2026-07-20T02:50:00Z (this session)"
+    claim: |
+      Super Boss v2 plan task V2-5 (TASK ID V2-5-BYOB-AI-MODEL, D6, Tier2).
+      Objective: per-org tenant_ai_config (encrypted API key + model id + optional
+      base URL) + a Mother Router override path in the software_team scope that
+      PREFERs the tenant's model but STILL runs checkTierEligibility() (an
+      ineligible tenant model silently downgrades, never bypasses the guardrail),
+      + a Settings UI for the tenant admin, + real tests incl. the
+      guardrail-no-bypass case.
+
+      DISTINCT FROM the already-shipped Orchestra-layer BYOB (customer_model_config
+      -> resolveModelConfig() -> callLLM(), the 'end_user_org' scope, closed by the
+      2026-07-16 claim below / PR #384): that serves product-facing Orchestra Layer
+      calls. V2-5 is specifically the Mother Router's software_team scope
+      (mother-router.ts computeSoftwareTeamResolution, /api/ai/team/dispatch,
+      dispatch-repo.ts, runRole in team-service.ts) which currently has NO per-tenant
+      input at all -- the software_team MotherRouterContext carries no orgId and
+      runRole() hardcodes the platform's OPENROUTER_API_KEY. So the gap is real and
+      the file scope is disjoint from PR #384's.
+
+      File scope: src/lib/db/schema.ts (new tenant_ai_config table), drizzle/ (new
+      migration, schema+crypto so Tier2 -- holds for Owner sign-off),
+      src/lib/ai-router/mother-router.ts (extend computeSoftwareTeamResolution /
+      resolveModel for tenant override, still through checkTierEligibility),
+      src/lib/ai-team/team-service.ts runRole (optional tenant key+model+baseUrl
+      override path), src/app/api/settings/tenant-ai-config/** (new admin CRUD),
+      src/components/* (new settings UI section), + tests under src/lib/ai-router/
+      and src/lib/ai-team/. Will NOT weaken checkTierEligibility()
+      (AGENTS.md Rule 9) -- tenant model is a candidate only, gated identically to
+      every policy override.
+
+      Checked this file + gh pr list for collisions before starting: none found.
+      The prior BYOB-AI claim (2026-07-16, now in recently_completed, PR #384)
+      is a different file scope (orchestra-model-resolver.ts/customer_model_config).
+      No open PR touches mother-router.ts software_team tenant model scope.
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     status: "DONE -- real work shipped in FChecklist/projexa PR #48 (https://github.com/FChecklist/projexa/pull/48), 12 spec files / 31 tests for the 11 Batch B modules + findings doc PHASE2_BATCH_B_FINDINGS.md. TIER1 self-merge once CI green. Note: the wrapping worker crashed in a 3s loop on upstream API 429 session-limit after the real work committed; root-caused, not a worker-script bug. The additive ci.yml e2e CI job was deferred (push token lacks workflow scope) and is a separately-pushable follow-up. UPDATE 2026-07-19T17:15Z: a re-opened PR #49 (same branch, after #48's squash merge drifted PROGRESS.md vs main) was conflict-resolved (merged origin/main, reconciled the single PROGRESS.md conflict keeping the truthful record), re-verified (tsc/lint/build all clean), and merged (commit 9156e2e, 17:15:14Z, branch deleted) -- TIER1, test-files-only."
