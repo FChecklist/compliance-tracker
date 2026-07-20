@@ -65,7 +65,7 @@ GUARD_EXIT=$?
 if [ "$GUARD_EXIT" -ne 0 ]; then
   GUARD_REASON=$(echo "$GUARD_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('reason','unknown'))" 2>/dev/null || echo "unknown")
   GUARD_DETAIL=$(echo "$GUARD_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('detail',''))" 2>/dev/null || echo "$GUARD_OUT")
-  if [ "$GUARD_REASON" = "circuit_breaker_tripped" ] || [ "$GUARD_REASON" = "budget_exhausted" ] || [ "$GUARD_REASON" = "openrouter_balance_exhausted" ]; then
+  if [ "$GUARD_REASON" = "circuit_breaker_tripped" ] || [ "$GUARD_REASON" = "budget_exhausted" ] || [ "$GUARD_REASON" = "openrouter_balance_exhausted" ] || [ "$GUARD_REASON" = "credit_accountant_rejected" ]; then
     # Hard stops -- retrying will not help, do not let systemd restart this.
     # openrouter_balance_exhausted added 2026-07-20 (RCA fix): confirmed root
     # cause of a 47-failed-unit incident was a real, live OpenRouter 402 that
@@ -73,6 +73,13 @@ if [ "$GUARD_EXIT" -ne 0 ]; then
     # (like circuit_breaker_tripped/budget_exhausted) must be a hard stop,
     # not a retryable transient -- retrying an empty account produces the
     # identical failure every time until a human adds credits.
+    # credit_accountant_rejected added 2026-07-20 (round-2 audit fix, same
+    # day): the credit-accountant.py gate's own deterministic rejections
+    # (balance/existing-capability/sequencing) share the identical property
+    # -- blind retry produces the identical rejection until a human
+    # intervenes. Confirmed live: 163 tasks were stuck in a restart-storm
+    # before this fix because this reason fell through to the transient
+    # branch below instead.
     python3 /opt/veridian/scripts/veridian-task.py checkpoint "$TASK_ID" --status blocked --note "PRE-FLIGHT HARD STOP ($GUARD_REASON): $GUARD_DETAIL"
     systemctl --user disable "veridian-worker@${TASK_ID}.service" >> "$TASK_DIR/worker.log" 2>&1 || true
     exit 0
