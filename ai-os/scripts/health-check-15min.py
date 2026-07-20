@@ -124,6 +124,41 @@ def check_mother_router_db():
         return {"reachable": True, "raw": out}
 
 
+def check_app_layer_failures(lookback_minutes=15):
+    """TASK 2/4 (Owner directive 2026-07-20: "if task fails (any task, ai
+    task, software task), server to know, log it"). Real cross-system gap
+    found: this ops server had zero visibility into APP-layer (Vercel/
+    Supabase) task failures -- only its own systemd worker fleet
+    (check_tasks() above). Reuses the exact same DATABASE_URL psql
+    connection check_mother_router_db() above already establishes and
+    proves works (verified live before writing this: 'ai_model_registry_rows':
+    11, matching the Supabase MCP tool's own count exactly) -- no new
+    infrastructure, no new credential, same fail-open contract (returns
+    reachable:False on any error rather than raising).
+
+    orchestra_executions.status is the only currently-populated failure
+    signal on the app side (activity_log has 0 rows as of 2026-07-20 --
+    built but not yet wired to any live call site, a separate, already-
+    disclosed gap, not something this check can surface data for that
+    doesn't exist).
+    """
+    db_url = get_env_value("DATABASE_URL")
+    if not db_url:
+        return {"reachable": False, "error": "DATABASE_URL not found in .env.local"}
+    out, err, code = sh(
+        f'psql "{db_url}" -t -A -c '
+        f'"select count(*) from compliance.orchestra_executions '
+        f"where status = 'failed' and created_at >= now() - interval '{lookback_minutes} minutes';\"",
+        timeout=20,
+    )
+    if code != 0:
+        return {"reachable": False, "error": err[:300]}
+    try:
+        return {"reachable": True, "recent_failed_count": int(out.strip()), "lookback_minutes": lookback_minutes}
+    except Exception:
+        return {"reachable": True, "raw": out}
+
+
 def check_server_health():
     disk_out, _, _ = sh("df -h / | tail -1")
     disk_pct = None
@@ -179,6 +214,7 @@ def main():
     units = check_systemd_units()
     tasks = check_tasks()
     router = check_mother_router_db()
+    app_failures = check_app_layer_failures()
     server = check_server_health()
     claude_signal = scan_claude_exhaustion_signatures()
 
@@ -204,6 +240,11 @@ def main():
                               f"above {FAILURE_RATE_THRESHOLD*100:.0f}% threshold")
     if not router.get("reachable"):
         anomalies.append(f"Mother Router DB unreachable: {router.get('error')}")
+    if app_failures.get("reachable") and app_failures.get("recent_failed_count", 0) > 0:
+        anomalies.append(
+            f"{app_failures['recent_failed_count']} app-layer (orchestra_executions) "
+            f"task(s) failed in the last {app_failures['lookback_minutes']} min"
+        )
     if server.get("disk_pct_used") is not None and server["disk_pct_used"] >= 90:
         anomalies.append(f"Disk usage at {server['disk_pct_used']}%")
     if server.get("mem_pct_used") is not None and server["mem_pct_used"] >= 90:
@@ -216,6 +257,7 @@ def main():
         "systemd_units": units,
         "tasks": tasks,
         "mother_router": router,
+        "app_layer_failures": app_failures,
         "server": server,
         "claude_quota_proxy_signal": claude_signal,
         "anomalies": anomalies,

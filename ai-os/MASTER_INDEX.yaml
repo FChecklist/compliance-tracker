@@ -627,10 +627,25 @@ registries:
         status). Same fail-open discipline: reads OPS_SYNC_SECRET from
         /opt/veridian/shared/.env, 5s timeout, swallows all exceptions
         -- a sync failure must never block real task lifecycle
-        management. Deliberately does NOT give the ops server a direct
-        Postgres credential -- an autonomous, largely-unattended worker
-        fleet holding a raw DB credential would be a much larger,
-        harder-to-revoke exposure than one narrow bearer token.
+        management.
+      correction_2026_07_20: >-
+        This entry originally claimed "the ops server has no direct
+        Postgres credential" as the reason to build the bearer-token
+        API-route bridge instead of a direct DB write. VERIFIED FALSE
+        while building TASK 2/4 the same day: a real, working
+        DATABASE_URL already sits in
+        compliance-tracker/.env.local on this server, already actively
+        used by health-check-15min.py's check_mother_router_db()
+        (confirmed live: 11 rows in platform.ai_model_registry, exact
+        match against the same table queried independently via the
+        Supabase MCP tool). The bearer-token route design itself is
+        still kept -- correctly reasoned now: don't widen the use of an
+        existing broad-access credential for a new write purpose when a
+        narrow, single-purpose, independently-revocable channel serves
+        the same need (capability separation / least privilege), not
+        "no credential exists at all." Corrected in place per this
+        session's established discipline of flagging its own false
+        claims rather than leaving them uncorrected.
       pr: >-
         FChecklist/compliance-tracker#502 (feature/ops-task-sync-bridge).
         Tier2 (schema + new secret) -- held for Owner sign-off, not
@@ -656,6 +671,46 @@ registries:
       sign-off anyway, so this is not blocking anything that wasn't
       already gated. Flagged honestly rather than claimed as tested.
     status: code complete, deployed to DB + PR open, live E2E verification pending merge
+
+  - id: app_layer_failure_visibility
+    type: monitor_extension
+    scope: >-
+      TASK 2/4, Owner directive 2026-07-20 ("if task fails (any task, ai
+      task, software task), server to know, log it") + ("make the
+      complete server one integrated system"). Real gap found: this ops
+      server (health-check-15min.py) had visibility into its OWN
+      systemd worker fleet's failures only (check_tasks()) -- zero
+      visibility into app-layer (Vercel/Supabase) task failures.
+    design_decision: >-
+      Discovered while investigating (see
+      registries.ops_task_sync_bridge.correction_2026_07_20) that a
+      real, working DATABASE_URL already exists on this server
+      (compliance-tracker/.env.local), already used read-only by
+      check_mother_router_db(). Reused that exact same proven
+      connection pattern instead of routing this through the new
+      ops_task_sync_bridge (which is a WRITE path, app<-ops direction)
+      -- this is a READ, ops<-app direction, and the existing DB
+      connection is the more direct, already-proven path for it. No new
+      infrastructure, no new credential.
+    implementation: >-
+      health-check-15min.py gained check_app_layer_failures(): queries
+      compliance.orchestra_executions for status='failed' rows in the
+      last 15 minutes (the only currently-populated app-layer failure
+      signal -- activity_log has 0 rows as of this pass, a separate,
+      already-disclosed gap, not fabricated data). Wired into main():
+      called alongside check_mother_router_db(), added to the JSONL
+      record, and raises a real anomaly (written to
+      registries.attention_alerts) when recent_failed_count > 0.
+    verified: >-
+      Isolated function test with default 15-min lookback: reachable
+      true, recent_failed_count 0 (accurate -- no recent failures
+      exist). Re-tested with an artificially wide lookback to prove the
+      query logic actually finds real rows, not trivially returning
+      zero: correctly found the 2 known historical failed rows. Full
+      script run end-to-end: no crash, existing anomaly detection
+      (systemd/task-failure-rate/disk/mem) unaffected, new field
+      present in the JSONL record.
+    status: live, deployed, verified 2026-07-20
 
   - id: ai_router_migration_inventory_2026_07_20
     type: investigation_and_documentation
