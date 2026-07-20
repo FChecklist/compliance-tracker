@@ -15,5 +15,9 @@
 
 ## Remaining
 - [x] Push the docs-only portion of V2-7 (STAGING_ENV doc + OS.yaml index + workflow patch + PROGRESS) -- this token CAN push non-workflow files (scopes: gist, read:org, repo)
-- [ ] CI green on all required checks for PR #495 (Metadata Index Coverage now passes; audit-check pending a CI rerun that sees the audit comment; E2E is a pre-existing playwright/module env issue, not caused by this docs-only PR)
-- [ ] Owner applies `ai-os/v2-7-workflow-change.patch` with a workflow-scoped token (this token cannot push `.github/workflows/*.yml`). Documented in the PR body + §6 of the doc. Tier2 (workflow file) holds for Owner sign-off regardless of audit verdict.
+- [x] CI green on all required checks for PR #495 -- PR #495 MERGED 2026-07-20T04:26:53Z (mergeCommit 92150717, = HEAD). All required checks SUCCESS: Lint, Type Check, Build, Unit Tests, audit-check, Guardrail Presence, Metadata Index Coverage, Asset Registry Coverage, Doc Cross-Reference, Doc Quarantine Banner, Secret Scanning, Security Pattern, CodeQL. E2E failed (pre-existing playwright/module env issue, not required, not caused by this docs-only PR); Vercel PENDING is a deploy, not a required check.
+- [ ] Owner applies `ai-os/v2-7-workflow-change.patch` with a workflow-scoped token (this token cannot push `.github/workflows/*.yml`). Documented in the PR body + §6 of STAGING_ENV_2026-07-20.md. Tier2 (workflow file) holds for Owner sign-off regardless of audit verdict -- this is the only open item and is gated on Owner action, not on this session.
+
+## Outcome
+- V2-7 docs-only portion COMPLETE and MERGED via PR #495. The docs-only design + workflow patch handoff is the deliverable this token can ship. The premise correction (Hobby tier caps custom environments at 0; the tier-honest path is a long-lived `staging` git branch with `target=preview`+`gitBranch=staging` scoping, no paid plan change) is recorded in `ai-os/STAGING_ENV_2026-07-20.md` (merged into main).
+- Tier2 workflow file change (`.github/workflows/sync-vercel-env.yml`) is staged as `ai-os/v2-7-workflow-change.patch` for Owner application with a workflow-scoped token. Cannot be completed by this session (gh-token lacks `workflow` scope) -- correctly held for Owner sign-off per Tier2 rule.
