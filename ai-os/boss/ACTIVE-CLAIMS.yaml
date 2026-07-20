@@ -2597,6 +2597,63 @@ active:
       (every other active entry is a specific implementation/test gap), so
       no scope collision. Will move this entry to recently_completed once
       the plan's PR is merged.
+  - session_label: "claude-code (task-20260720-022708-superboss-v2-plan--shared-cross-repo-pro) -- V2-4 Shared cross-repo prompt-pattern module"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      SUPERBOSS v2 plan TASK V2-4-SHARED-PROMPT-PATTERNS (CSV row #60,
+      "Worker Agent cross-repo prompt reuse"). OBJECTIVE per plan: build
+      a versioned shared module of prompt patterns consumed by both
+      compliance-tracker and projexa so worker-agent prompts stop
+      diverging, + 2 adoptions + tests + PRs in both repos.
+
+      KEY FINDING FROM READING THE CURRENT CODE (noted here + will be
+      recorded in PROGRESS.md per task's "doesn't match the code" clause):
+      projexa has ZERO prompt-construction code -- no systemPrompt, no
+      LLM-provider import (grep -rE 'openai|@anthropic|groq|ai-sdk|systemPrompt'
+      over projexa/src returns nothing), every AI call (/assistant, /discuss)
+      proxies to compliance-tracker's /api/v1/projexa/* backend via
+      veridian-client.ts callVeridian(). So there is NO live cross-repo
+      prompt divergence to fix today -- projexa cannot diverge because it
+      constructs no prompts. The genuine duplication is WITHIN
+      compliance-tracker: ~30 call sites (src/lib/ai-team/team-service.ts +
+      src/lib/services/*-service.ts) each hand-write the same 6-step
+      sequence: resolveModelConfig -> buildUserMessage -> resolvePromptTemplate
+      -> enforcePolicy -> callLLM/callLLMJson -> recordOrchestraExecution.
+
+      DECISION: build the shared module as a NEW server-safe export path
+      @fchecklist/veridian-ui-kit/prompt-patterns (new src/prompt-patterns/
+      dir in the FChecklist/veridian-ui-kit repo, NOT the UI shell -- it
+      has zero UI/dom/react deps, so it does not pollute the UI package's
+      stated scope; veridian-ui-kit's README scopes it to "the shell" and
+      this lives outside that scope with its own README section). The
+      module owns the canonical step SEQUENCE + JSON-call wrapper +
+      versioned pattern catalog; repo-specific hooks (resolvePrompt,
+      resolveModel, enforcePolicy, recordExecution) are injected so the
+      module never imports a consuming repo's db/tenant code. This is the
+      shape that lets projexa adopt the SAME pattern if/when it ever adds
+      local prompt construction, instead of inventing its own -- which is
+      the divergence the task fears, prevented preemptively.
+
+      Adoption (2, per DONE CRITERIA): (1) compliance-tracker: add dep on
+      @fchecklist/veridian-ui-kit/prompt-patterns (bump tag) + adopt at ONE
+      call site (ticket-intelligence-service.ts) as proof, additive, no
+      behavior change to in-scope prompts. (2) projexa: since it has no
+      prompt-construction site, the honest "second adoption" is wiring the
+      shared module as a real dep + an ADR-style note in its repo that any
+      future local prompt construction MUST go through it -- NOT fabricating
+      a prompt site that does not exist. PRs: one in FChecklist/veridian-
+      ui-kit (the module), one in FChecklist/compliance-tracker (adoption +
+      dep bump), and the projexa adoption noted/landed via its own PR.
+
+      File scope: FChecklist/veridian-ui-kit: NEW src/prompt-patterns/*
+      (index.ts, types.ts, runner.ts, catalog.ts + *.test.ts) + README
+      section + package.json exports map entry + new git tag. FChecklist/
+      compliance-tracker: package.json dep bump + ONE service call-site
+      adoption + PROGRESS.md. Tier1 (additive, no schema/auth/RLS/payment/
+      billing/.env changes) -- may self-merge once CI genuinely green.
+      Checked this file's active: section in full: no other active claim
+      touches prompt-pattern extraction, prompt-os-resolver.ts internals,
+      or veridian-ui-kit's non-UI export surface -- no scope collision.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
