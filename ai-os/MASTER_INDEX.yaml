@@ -521,6 +521,41 @@ registries:
       content yet); sumeet-spec (single spec .md file, no code).
     status: classified, not catalogued (correctly out of scope)
 
+  - id: ai_roster_catalog
+    type: json_file
+    path: /opt/veridian/ai-os/AI_ROSTER_CATALOG.json
+    source_of_truth: /opt/veridian/repos/compliance-tracker/src/lib/ai-team/roster.ts (AI_TEAM_ROSTER export)
+    scope: >-
+      The "what AI models/roles exist and what they do" half of the
+      Owner's original ask -- previously only covered by prose
+      governance docs (AI_ORCHESTRA_HIERARCHY.md), never mechanically
+      extracted. 195 roles total (190 LLM-backed via OpenRouter, 2
+      isCodeOnly/deterministic, 3 isHuman/interactive-only), with
+      by-team and by-model breakdowns, plus the guardrail/audit-org/
+      operational role-key lists exactly as team-service.ts's own
+      helper functions (allGuardrailRoles, allAuditOrganizationRoles,
+      operationalRoles) would return them.
+    generator_script: >-
+      /opt/veridian/repos/compliance-tracker/ai-os/scripts/extract-ai-roster-catalog.mjs
+      -- dynamic import() of the real, evaluated roster.ts module (not
+      text-parsing the object literal array). Run as `node
+      extract-ai-roster-catalog.mjs <absolute-path-to-roster.ts>
+      <absolute-output-path>`.
+    stale_doc_correction: >-
+      roster.ts's OWN header comment (written 2026-07-07) claims "the
+      founder's full ~30-role company org chart." The live, evaluated
+      array has 195 roles as of 2026-07-20 -- not wrong when written,
+      gone stale as the 5 AUDIT_* teams grew to 130 roles between
+      them. Same pattern as tree3_system_tree's stale 377-table claim:
+      a real number in a comment/doc drifts from the code it describes
+      unless something re-derives it mechanically.
+    query_examples:
+      - jq '.by_team' AI_ROSTER_CATALOG.json
+      - jq '.roles[] | select(.roleKey=="super_boss")' AI_ROSTER_CATALOG.json
+      - jq '.roles[] | select(.team=="AUDIT_BUSINESS_ASSURANCE") | .roleKey' AI_ROSTER_CATALOG.json
+    status: live, generated 2026-07-20
+    regenerate: run generator_script anytime roster.ts changes; safe, read-only, no API calls
+
   - id: attention_alerts
     type: markdown_file
     path: /opt/veridian/ai-os/logs/ATTENTION.md
@@ -888,3 +923,38 @@ audit_log:
       AI model/role catalog (the other half of the Owner's original
       ask) not yet started this pass -- separate task, governance docs
       exist but haven't had the mechanical-extraction treatment.
+  - pass: 7
+    ts: '2026-07-20T09:48:00+00:00'
+    type: ai_model_role_catalog
+    trigger: >-
+      Same instruction as pass 6 ("finish this for the whole system"),
+      second half: the AI model/role side, previously only covered by
+      prose docs.
+    method: >-
+      Found the real code-level source of truth first
+      (src/lib/ai-team/roster.ts's AI_TEAM_ROSTER export) rather than
+      extracting from AI_ORCHESTRA_HIERARCHY.md's prose. Wrote
+      extract-ai-roster-catalog.mjs, dynamically importing the real,
+      evaluated array (same technique as database_catalog, not AST
+      text-parsing, since this is declarative data rather than code
+      structure).
+    result: >-
+      195 roles (190 LLM-backed, 2 code-only, 3 human) -- the file's
+      own header comment claims "~30-role company org chart," written
+      2026-07-07, now stale: the 5 AUDIT_* teams alone grew to 130
+      roles since. 4 known roles (founder_ceo, super_boss,
+      executive_advisor, cost_policy_engine) spot-verified against the
+      file's own documented claims about them -- exact match on all 4.
+    output: /opt/veridian/ai-os/AI_ROSTER_CATALOG.json
+    committed: compliance-tracker commit b0a01530, pushed cleanly (no
+      branch-protection/token-scope issue on this repo).
+    original_directive_status: >-
+      Both halves of the Owner's "finish this for the whole system"
+      instruction are now closed: whole-system code/DB catalogs
+      (registries.projexa_catalog, .veda_advisors_catalog,
+      .veridian_ui_kit_catalog) and the AI model/role catalog (this
+      entry). Real, intentionally-deferred follow-up remains
+      (registries.task_state_ledger rename, the projexa workflow-file
+      commit awaiting a workflow-scope token, master_tracker<->
+      gap_dispatch_queue reconciliation) -- documented, not silently
+      dropped.
