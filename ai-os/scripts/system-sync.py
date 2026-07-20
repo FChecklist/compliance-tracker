@@ -39,6 +39,24 @@ Three checks, each independent and individually skippable:
                                    declares), diffs against
                                    file_inventory's declared lists. REPORT
                                    ONLY.
+  4. resume_balance_blocked_check() -- added during this file's own audit
+                                   round 2, after verifying (not assuming)
+                                   that "blocked" tasks do NOT all
+                                   auto-resume once OpenRouter credits are
+                                   restored (queue-dispatcher.py only
+                                   revisits gap_queue.yaml items still in
+                                   'dispatched' status; most of the 46
+                                   recovered units were either already
+                                   terminal there or never tracked there
+                                   at all). Queries the real balance; if
+                                   restored, finds every task whose LAST
+                                   checkpoint note is the
+                                   openrouter_balance_exhausted hard stop
+                                   and restarts its systemd unit directly
+                                   -- operates on CONTROLLER.yaml/systemd,
+                                   not gap_queue.yaml, so it covers every
+                                   balance-blocked task regardless of
+                                   dispatch lineage.
 
 Findings from checks 2 and 3 are appended to the existing live alert surface
 (/opt/veridian/ai-os/logs/ATTENTION.md, registries.attention_alerts) -- not
@@ -232,10 +250,111 @@ def unindexed_files_check():
     return findings
 
 
+# -----------------------------------------------------------------------
+# Check 4: resume tasks blocked purely on OpenRouter balance, once the
+# balance is actually restored. Added 2026-07-20 Audit Round 2 -- the
+# original worker_fleet_rca_fix_2026_07_20 registry entry claimed
+# recovered units "will resume automatically once credits are added,"
+# which turned out to be FALSE on verification: queue-dispatcher.py's
+# retry logic only re-touches gap_queue.yaml items still in 'dispatched'
+# status (21 of the 46 had already been marked stuck_needs_human before
+# recovery, a terminal state queue-dispatcher never revisits), and the
+# other 25 were never tracked in gap_queue.yaml at all (dispatched by a
+# different, one-off mechanism). This check closes that gap directly by
+# operating on CONTROLLER.yaml/systemd, not on gap_queue.yaml's narrower
+# tracking -- so it covers every blocked-on-balance task uniformly
+# regardless of which dispatch lineage originally created it.
+# -----------------------------------------------------------------------
+def get_openrouter_remaining(min_remaining_usd=0.10):
+    import json
+    import urllib.request
+
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        env_path = "/opt/veridian/shared/.env"
+        try:
+            with open(env_path) as f:
+                for line in f:
+                    if line.startswith("OPENROUTER_API_KEY="):
+                        key = line.strip().split("=", 1)[1]
+                        break
+        except FileNotFoundError:
+            pass
+    if not key:
+        return None
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/credits",
+        headers={"Authorization": f"Bearer {key}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+    except Exception:
+        return None
+    d = data.get("data", {})
+    total_credits = d.get("total_credits")
+    total_usage = d.get("total_usage")
+    if total_credits is None or total_usage is None:
+        return None
+    return total_credits - total_usage
+
+
+TASKS_DIR = "/opt/veridian/ai-os/tasks"
+
+
+def resume_balance_blocked_check(dry_run, min_remaining_usd=0.10):
+    findings = []
+    remaining = get_openrouter_remaining(min_remaining_usd)
+    if remaining is None:
+        findings.append("SKIPPED: could not read OpenRouter balance (network/key issue) -- fail open, no action taken")
+        return findings, []
+    if remaining < min_remaining_usd:
+        findings.append(f"BALANCE STILL EXHAUSTED (${remaining:.4f} remaining) -- balance-blocked tasks left untouched")
+        return findings, []
+
+    import yaml as _yaml
+
+    resumed = []
+    if not os.path.isdir(TASKS_DIR):
+        return findings, resumed
+    for task_id in sorted(os.listdir(TASKS_DIR)):
+        task_yaml_path = os.path.join(TASKS_DIR, task_id, "task.yaml")
+        if not os.path.isfile(task_yaml_path):
+            continue
+        try:
+            with open(task_yaml_path, encoding="utf-8") as f:
+                task_doc = _yaml.safe_load(f)
+        except Exception:
+            continue
+        if not isinstance(task_doc, dict) or task_doc.get("status") != "blocked":
+            continue
+        checkpoints = task_doc.get("checkpoints") or []
+        if not checkpoints:
+            continue
+        # Only act on the LAST checkpoint being the balance block -- a task
+        # that has since progressed past it (new checkpoint appended) must
+        # not be touched.
+        last_note = checkpoints[-1].get("note", "") or ""
+        if "openrouter_balance_exhausted" not in last_note:
+            continue
+        unit = f"veridian-worker@{task_id}.service"
+        is_active = subprocess.run(
+            ["systemctl", "--user", "is-active", unit], capture_output=True, text=True
+        ).stdout.strip()
+        if is_active == "active":
+            continue  # already running again for some other reason -- do not interfere
+        findings.append(f"RESUMABLE (balance restored): {task_id}")
+        if not dry_run:
+            subprocess.run(["systemctl", "--user", "reset-failed", unit], capture_output=True)
+            subprocess.run(["systemctl", "--user", "start", unit], capture_output=True)
+            resumed.append(task_id)
+    return findings, resumed
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--check", choices=["mirror", "constitution", "unindexed", "all"], default="all")
+    parser.add_argument("--check", choices=["mirror", "constitution", "unindexed", "resume-balance", "all"], default="all")
     args = parser.parse_args()
 
     total_findings = 0
@@ -261,6 +380,14 @@ def main():
         for f in findings:
             print(f"  - {f}")
         append_attention("unindexed_files_check", findings)
+        total_findings += len(findings)
+
+    if args.check in ("resume-balance", "all"):
+        findings, resumed = resume_balance_blocked_check(args.dry_run)
+        print(f"[resume_balance_blocked_check] {len(findings)} finding(s), {len(resumed)} resumed")
+        for f in findings:
+            print(f"  - {f}")
+        append_attention("resume_balance_blocked_check", findings)
         total_findings += len(findings)
 
     print(f"\nTotal findings across all checks run: {total_findings}")

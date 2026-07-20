@@ -18,7 +18,8 @@ sync_mechanism:
   script: /opt/veridian/scripts/system-sync.py
   run_on_demand: >-
     python3 /opt/veridian/scripts/system-sync.py [--dry-run] [--check
-    mirror|constitution|unindexed|all]. Run this whenever you suspect the
+    mirror|constitution|unindexed|resume-balance|all]. Run this whenever
+    you suspect the
     live server, this file, CONSTITUTION.yaml, or the git-tracked script
     mirrors have drifted apart -- it is the single entrypoint for "sync
     the whole system," built 2026-07-20 per Owner directive ("one server,
@@ -462,9 +463,26 @@ registries:
       (down from 47); OpenRouter balance itself still exhausted
       ($-0.07 remaining as of this check) so the 44+2=46 recovered
       units now correctly sit in blocked state with an accurate
-      diagnostic, not a dead unexplained failure -- they will resume
-      automatically once the Owner adds real OpenRouter credits, no
-      further code change needed.
+      diagnostic, not a dead unexplained failure.
+    correction_2026_07_20_audit_round_2: >-
+      This entry originally claimed here (and in audit_log pass 11)
+      that recovered units "will resume automatically once credits are
+      added, no further code change needed." VERIFIED FALSE on audit:
+      queue-dispatcher.py's retry logic (TERMINAL_BAD handling in
+      sync_dispatched_statuses()) only re-touches gap_queue.yaml items
+      still in 'dispatched' status -- 21 of the 46 recovered tasks were
+      already marked stuck_needs_human (a terminal state it never
+      revisits) BEFORE this pass's recovery, and the other 25 were
+      never tracked in gap_queue.yaml at all (dispatched via a
+      different, one-off mechanism). Neither group would have resumed
+      on its own. Corrected by building
+      registries.system_sync_mechanism.checks.resume_balance_blocked_check,
+      which operates directly on CONTROLLER.yaml/systemd instead of
+      gap_queue.yaml's narrower tracking, so it covers both groups
+      uniformly. That check now makes the original claim actually true
+      going forward (verified via a monkeypatched-balance dry-run:
+      correctly identified all 47 balance-blocked tasks as resumable,
+      took no action in dry-run mode as designed).
     known_gap_not_fixed_this_pass: >-
       doc-worker-entrypoint.sh (separate script, veridian-docworker@
       template, used for real-Claude-subscription browser
@@ -536,6 +554,21 @@ registries:
         unannotated_note, which only said "several" without naming
         them) -- see that field's now-explicit list, generated from
         this check's output rather than hand-typed.
+      resume_balance_blocked_check: >-
+        Added during this file's own audit round 2 (self-audit found a
+        false claim in this registry entry's earlier text -- see
+        registries.worker_fleet_rca_fix_2026_07_20.correction_2026_07_20_audit_round_2
+        for the full finding). Queries the real OpenRouter balance; if
+        restored above the safety floor, finds every task whose LAST
+        checkpoint note is the openrouter_balance_exhausted hard stop
+        (parsed from task.yaml's real checkpoints list, not string-
+        matched against the whole file) and restarts its systemd unit
+        directly -- covers every balance-blocked task regardless of
+        whether queue-dispatcher.py's own gap_queue.yaml ever tracked
+        it. Verified via a monkeypatched-balance dry-run (not yet
+        verified against a real restored balance, since the account is
+        still genuinely exhausted as of this pass -- that real-money
+        end-to-end proof can only happen once the Owner adds credits).
     cron_schedule: >-
       Added to crontab via run-logged.sh (same wrapper pattern as the
       other 7 jobs, registries.auto_execution_wrapper):
@@ -1608,3 +1641,102 @@ audit_log:
       possible form of system drift is now covered. Remaining: the
       Owner's required 3-round audit of everything built this pass
       (TASK 52) -- not started yet.
+  - pass: 13
+    ts: '2026-07-20T12:30:00+00:00'
+    type: required_3round_audit_round_1_verification
+    trigger: >-
+      Owner: "After doing it. Audit 1 it, analyze the gaps, fill it.
+      Audit 2 it... Audit 3 it..." -- required final step of the
+      6-part directive, covering TASK 1 (worker_fleet_rca_fix) and
+      TASKS 2-6 (system_sync_mechanism) together.
+    method: >-
+      Re-verified every claim made in the two new registry entries
+      against real, current server state (not re-reading what was
+      already written): 0 failed veridian-worker/docworker units, all
+      3 worker-entrypoint.sh fix markers present in the live file,
+      check_openrouter_balance() actually wired into preflight-guard.py's
+      main(), the crontab entry actually installed, git working tree
+      clean, PR #501 open and mergeable, live MASTER_INDEX.yaml
+      byte-identical to its repo mirror.
+    result: "8/8 checks passed. No discrepancy found between claimed and actual state."
+  - pass: 14
+    ts: '2026-07-20T12:45:00+00:00'
+    type: required_3round_audit_round_2_deeper_edge_case
+    trigger: Same directive, round 2 -- deeper edge-case check, not just re-verifying surface claims.
+    method: >-
+      Picked the single most load-bearing claim in
+      registries.worker_fleet_rca_fix_2026_07_20 ("recovered units will
+      resume automatically once credits are added") and traced it
+      against the ACTUAL retry logic in queue-dispatcher.py, rather
+      than trusting the claim because it sounded plausible.
+    found_and_fixed: >-
+      The claim was FALSE. queue-dispatcher.py's sync_dispatched_statuses()
+      only revisits gap_queue.yaml items still in 'dispatched' status;
+      21 of the 46 recovered tasks were already stuck_needs_human
+      (terminal, never revisited) before this pass's recovery even
+      ran, and the other 25 were never tracked in gap_queue.yaml at
+      all. Built registries.system_sync_mechanism.checks.resume_balance_blocked_check
+      to close the gap directly (operates on CONTROLLER.yaml/systemd,
+      covers both groups uniformly), corrected the false claim in
+      place with an explicit correction note (audit_log is append-
+      only per its own header, but registries reflect current truth --
+      the false claim is preserved, visible, and explicitly marked
+      corrected, not silently rewritten). Verified the new check's
+      logic via a monkeypatched-balance dry-run: correctly identified
+      all 47 balance-blocked tasks, took zero action in dry-run mode.
+      Not yet verified against a real restored balance (the account is
+      still genuinely exhausted -- that proof needs the Owner to add
+      credits first, honestly flagged as not yet end-to-end proven).
+    sign_off: >-
+      This is exactly the kind of gap the required audit exists to
+      catch: a claim that was reasonable-sounding but unverified,
+      found false by actually tracing the code path instead of
+      re-reading the claim. 1 real gap found, 1 real fix built and
+      deployed, corrected in place rather than silently patched over.
+  - pass: 15
+    ts: '2026-07-20T13:00:00+00:00'
+    type: required_3round_audit_round_3_final_signoff
+    trigger: Same directive, round 3 -- final mechanical verification and honest close-out.
+    method: >-
+      Re-ran system-sync.py --check all one final time after all round-
+      1/2 fixes and this file's own edits were deployed, to prove
+      findings actually disappear once genuinely fixed rather than
+      just being logged and forgotten. Separately checked this file's
+      OWN standing protocol rule ("register the new thing in
+      system_index AND in this file's relevant list") against what had
+      actually been done -- found a real gap: none of this pass's 4
+      new/changed scripts (preflight-guard.py, worker-entrypoint.sh,
+      recover-failed-workers.py, system-sync.py) had been registered
+      in system_index (the SQLite 4th tree), only in this YAML file.
+      Fixed immediately via superboss-register.py index-add for all 4
+      (IDX-20260720-075710-066a, IDX-20260720-075711-f6b8,
+      IDX-20260720-114948-a0f2, IDX-20260720-114948-05c7).
+    result: >-
+      mirror_drift/constitution_staleness/unindexed_files: 0/0/0
+      findings -- confirmed the loop closes, not just claimed. Only
+      remaining finding across all 4 checks: resume_balance_blocked
+      correctly reports the real, external, unresolved condition
+      (OpenRouter balance still exhausted) rather than a false
+      positive or an internal bug -- this is the correct, expected
+      steady state, not a gap. system_index registration gap found and
+      closed same pass.
+    sign_off: >-
+      TASKS 1-6 of the Owner's 2026-07-20 6-part directive are complete,
+      live, and verified against real server state -- not claimed from
+      memory. Required 3-round audit complete: round 1 verified 8/8
+      surface claims, round 2 found and fixed 1 real functional gap
+      (false auto-resume claim), round 3 found and fixed 1 real
+      process gap (system_index registration) and confirmed the sync
+      loop genuinely closes. Honest remaining items, not silently
+      dropped: (1) OpenRouter balance is still genuinely exhausted --
+      real money problem, Owner action required, not a code gap; (2)
+      doc-worker-entrypoint.sh does not yet have the same
+      API_IS_ERROR/CLI_HIT_BUDGET_CAP fixes (0 current failures there,
+      flagged not urgent); (3) resume_balance_blocked_check is logic-
+      verified but not yet proven end-to-end against a real restored
+      balance; (4) TASK 46 (the broader "full system re-evaluation"
+      task-tracker entry from before this 6-part directive) remains
+      open in the task tracker, superseded in substance by this pass's
+      work but not formally closed out; (5) BRAIN.md and SELF-CHECK.md
+      were named in file_inventory.ai_os_governance_docs as real
+      candidates for a proper registries entry, not yet done.
