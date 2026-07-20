@@ -672,6 +672,29 @@ registries:
       already gated. Flagged honestly rather than claimed as tested.
     status: code complete, deployed to DB + PR open, live E2E verification pending merge
 
+  - id: system_diagram
+    type: generated_documentation
+    path: /opt/veridian/scripts/generate-system-diagram.py
+    output: ai-os/SYSTEM_DIAGRAM.md (Mermaid, git-tracked)
+    scope: >-
+      TASK 3, Owner directive 2026-07-20 ("make a diagram or tree of the
+      whole system"). Software-generated per the directive's own
+      "modern software already has packages, use them" instruction --
+      Mermaid (native GitHub + Artifact rendering), diagram content
+      lives as structured data (SUBSYSTEMS/EDGES) in the generator
+      script, not hand-drawn. Reflects the Owner's own two-subsystem
+      framing (Software Development & AI System vs Software & End-User
+      Management) verbatim.
+    content: >-
+      23 components, 21 edges, all verified to actually exist this
+      session (not aspirational) -- includes both new cross-system
+      bridges (TASK 1.1 write path, TASK 2/4 read path) and the 35
+      unmigrated router call sites as an explicitly labeled known gap.
+    to_update: >-
+      Edit SUBSYSTEMS/EDGES in generate-system-diagram.py and re-run --
+      do not hand-edit SYSTEM_DIAGRAM.md's generated content directly.
+    status: live, generated, committed 2026-07-20
+
   - id: app_layer_failure_visibility
     type: monitor_extension
     scope: >-
