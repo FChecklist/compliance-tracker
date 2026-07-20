@@ -129,15 +129,23 @@ def canary_call(proxy_url):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        fail("bad_invocation", "usage: preflight-guard.py <task_dir> <workspace> [proxy_url]")
+        fail("bad_invocation", "usage: preflight-guard.py <task_dir> <workspace> [proxy_url|--no-proxy]")
     task_dir_arg = sys.argv[1]
     workspace_arg = sys.argv[2]
-    proxy_url_arg = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:8787"
+    proxy_arg = sys.argv[3] if len(sys.argv) > 3 else "http://127.0.0.1:8787"
 
     check_circuit_breaker(task_dir_arg)
     check_disk(workspace_arg)
     check_mem()
     check_worktree(workspace_arg)
-    check_proxy_health(proxy_url_arg)
-    canary_call(proxy_url_arg)
-    ok("all pre-flight checks passed (circuit-breaker, disk, memory, worktree, proxy health, canary)")
+
+    if proxy_arg == "--no-proxy":
+        # doc-worker-entrypoint.sh's real-subscription tasks don't route
+        # through the GLM proxy at all (see that script's own header
+        # comment) -- proxy health/canary/budget checks don't apply. Static
+        # checks + circuit breaker above still fully apply and already ran.
+        ok("pre-flight checks passed (circuit-breaker, disk, memory, worktree) -- proxy checks skipped, not applicable to this task family")
+    else:
+        check_proxy_health(proxy_arg)
+        canary_call(proxy_arg)
+        ok("all pre-flight checks passed (circuit-breaker, disk, memory, worktree, proxy health, canary)")
