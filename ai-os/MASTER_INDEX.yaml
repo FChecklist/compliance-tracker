@@ -275,12 +275,77 @@ registries:
       calling this deployed.
     scope_not_covered: >-
       cmd_resume_context (read-only, no state change, not logged by
-      design) and the cron jobs that don't go through veridian-task.py
-      at all (health-check-15min.py, cost-usage-60min.py -- these
-      already write to registries.attention_alerts, just not to
-      instructions/actions specifically) -- real, honest, undone scope,
-      not silently covered.
+      design). The cron-job gap noted here originally is CLOSED as of
+      the same day -- see registries.auto_execution_wrapper.
     status: live, deployed and verified 2026-07-20
+
+  - id: auto_execution_wrapper
+    type: shell_wrapper
+    path: /opt/veridian/scripts/run-logged.sh
+    mirror: /opt/veridian/repos/compliance-tracker/ai-os/scripts/run-logged.sh
+    scope: >-
+      Closes the honest gap stated in registries.auto_worker_task_log
+      and registries.auto_conversation_log: the periodic cron jobs that
+      never call veridian-task.py and were never covered by the
+      interactive-session hooks either. Owner asked directly: "in
+      modern software without AI, how do you ensure tasks/actions are
+      logged with id and time/date" -- answer applied here is the
+      standard middleware/aspect pattern: a single wrapper every job
+      runs THROUGH, so coverage does not depend on the wrapped script's
+      own author remembering to add logging (the same failure mode
+      fixed twice already this session, now fixed at the process-
+      supervision layer instead of the application layer).
+    design: >-
+      Generates a unique exec_id + UTC start timestamp before running
+      the real command; logs a job_start action immediately, runs the
+      command with combined stdout+stderr capture, logs a job_end
+      action (status completed/failed, real exit code, duration,
+      output excerpt) after. Echoes the original output and exits with
+      the original exit code -- fully transparent to cron and to any
+      pre-existing `>> logfile 2>&1` redirect, which all 4 already-
+      redirected jobs keep working exactly as before. Each register
+      call individually wrapped in a 10s timeout so a slow/broken
+      register write can never delay or block the real job -- logging
+      is best-effort, never load-bearing.
+    crontab_coverage: >-
+      All 7 ACTIVE crontab entries as of 2026-07-20 now route through
+      this wrapper: sync-repos.sh, sync-vercel-env.sh,
+      sync-verdian-ai-data.sh, sync-controller-back.py,
+      queue-dispatcher.py, health-check-15min.py, cost-usage-60min.py.
+      The 1 explicitly disabled entry (#DISABLED-2026-07-18
+      supervisor-sweep.sh) was left untouched, not re-enabled --
+      re-enabling a disabled job was never asked for. Original crontab
+      backed up to
+      /opt/veridian/scripts/crontab-backup-2026-07-20.txt before this
+      change (reversible).
+    tested: >-
+      Wrapper tested standalone with both a success command and a
+      deliberately-failing command (exit 7) before touching the real
+      crontab -- confirmed correct exec_id/timestamp/status/exit_code/
+      duration/output landed in the register for both paths, correct
+      exit code propagated back to the caller in both cases. Then run
+      manually against the REAL health-check-15min.py through the
+      wrapper (not a synthetic stand-in) before trusting it on a live
+      schedule -- this real run surfaced a genuine, serious, pre-
+      existing production finding unrelated to this fix: 47 systemd
+      units in failed state and a 71.9% task failure rate (207/288),
+      both already tracked by health-check-15min.py's own alerting
+      (registries.attention_alerts), now also correctly logged as a
+      real job_end action with that exact output captured.
+    real_unattended_cron_verification: >-
+      CONFIRMED 2026-07-20T10:40:01Z: queue-dispatcher's real, natural
+      10-minute cron tick fired with zero manual intervention (crontab
+      was installed ~10:29, prior firing at 10:30 was still the
+      old/unwrapped entry, this 10:40 firing was the first fully
+      unattended one under the new wrapper). Produced a matching
+      job_start/job_end pair (exec_id=1e314ccbb970, status=completed,
+      exit_code=0, real output "Running workers: 0, free slots: 5 /
+      PROGRESS: 4/25 groups completed") -- proves the crontab entry
+      itself works end to end, not just manual invocation of the same
+      command line.
+    status: live, deployed and verified 2026-07-20 (all 3 auto-logging
+      layers -- interactive session, worker-task dispatch, cron -- now
+      confirmed with real evidence, not just claimed)
 
   - id: cross_project_controller
     type: yaml_file
@@ -1188,3 +1253,51 @@ audit_log:
       and searchable, just not via instructions/actions specifically.
       Real, scoped, undone follow-up if the Owner wants full coverage
       of that layer too, not silently claimed as done.
+  - pass: 10
+    ts: '2026-07-20T10:40:30+00:00'
+    type: cron_execution_wrapper_zero_gap
+    trigger: >-
+      Owner: "in modern software without AI, how do you ensure that
+      tasks, actions are properly logged with id and time date...
+      ensure that the server have that script that can do it for every
+      task, every encounter in server... make it end to end. zero gap,
+      100% coverage. no assumptions." Direct follow-through on pass 9's
+      stated honest gap.
+    method: >-
+      Answered the conceptual question first (the middleware/aspect
+      pattern -- a single wrapper every job runs through, so coverage
+      never depends on the wrapped script's own author remembering to
+      log), then applied it concretely. Checked the FULL crontab
+      before assuming scope (`crontab -l`) rather than trusting the
+      2 job names quoted back in the prior turn -- found 8 entries, 7
+      active + 1 already disabled, not 2. Built run-logged.sh, tested
+      standalone (success path + deliberate-failure path) before
+      touching the real crontab, backed up the original crontab
+      (reversible), installed the wrapped version preserving every
+      existing >>logfile redirect and leaving the disabled entry
+      untouched, then verified with a REAL job run through the wrapper
+      (not just a synthetic test) before trusting it live.
+    result: >-
+      All 7 active cron jobs now route through run-logged.sh.
+      Real production run (health-check-15min.py) surfaced a genuine,
+      serious, pre-existing operational finding unrelated to this fix
+      (47 failed systemd units, 71.9% task failure rate) -- reported to
+      Owner immediately, not buried in a log file. Waited for and
+      confirmed the actual unattended cron tick (queue-dispatcher at
+      2026-07-20T10:40:01Z, zero manual intervention) logged correctly
+      -- proves the crontab entries themselves work, not just manual
+      invocation of the same command line.
+    sign_off: >-
+      All 3 auto-logging layers identified across this session are now
+      built AND verified with real evidence, not claimed: (1)
+      interactive laptop session via Claude Code hooks
+      (registries.auto_conversation_log), (2) autonomous worker/
+      supervisor/doc-worker dispatch via veridian-task.py instrumentation
+      (registries.auto_worker_task_log), (3) periodic cron jobs via
+      run-logged.sh (registries.auto_execution_wrapper). "Zero gap"
+      claim is scoped honestly: it covers every currently-active,
+      currently-known execution path on this server as enumerated by
+      direct inspection (not assumed) -- a genuinely new execution path
+      added later (a new cron entry, a new dispatch mechanism) would
+      need the same treatment applied to it explicitly, this is not a
+      universal, permanently-self-extending guarantee.
