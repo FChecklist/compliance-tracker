@@ -2,13 +2,19 @@
 // across src/**/*.{ts,tsx} via the TypeScript compiler's own AST (parse-only,
 // no type-checker/Program needed -- fast, no project-wide resolution).
 // Ground truth generated from the live code, not AI-written descriptions.
-// Run (from repo root): node ai-os/scripts/extract-function-catalog.mjs > FUNCTION_CATALOG.json
+// Reusable across repos -- pass repo root as argv[2], output path as argv[3].
+// Run: node extract-function-catalog.mjs /abs/repo/root /abs/output.json
 import ts from 'typescript'
 import { readFileSync, writeFileSync } from 'fs'
 import { execSync } from 'child_process'
 import path from 'path'
 
-const REPO_ROOT = '/opt/veridian/repos/compliance-tracker'
+const REPO_ROOT = process.argv[2]
+const OUTPUT_PATH = process.argv[3] || '/tmp/function_catalog.json'
+if (!REPO_ROOT) {
+  console.error('Usage: extract-function-catalog.mjs /abs/repo/root [/abs/output.json]')
+  process.exit(1)
+}
 const SRC_ROOT = path.join(REPO_ROOT, 'src')
 
 const fileList = execSync(
@@ -167,7 +173,7 @@ for (const absPath of fileList) {
 
 const result = {
   generated_by: 'extract-function-catalog.mjs (TypeScript compiler AST, parse-only, not AI-written)',
-  source_root: 'src/ (compliance-tracker)',
+  source_root: SRC_ROOT,
   files_scanned: fileList.length,
   files_parsed: filesParsed,
   files_failed: filesFailed,
@@ -176,7 +182,7 @@ const result = {
   functions,
 }
 
-writeFileSync('/tmp/function_catalog.json', JSON.stringify(result))
+writeFileSync(OUTPUT_PATH, JSON.stringify(result))
 console.log(JSON.stringify({
   files_scanned: fileList.length,
   files_parsed: filesParsed,

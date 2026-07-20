@@ -1,10 +1,17 @@
-// Mechanical extraction of every table/column/enum from schema.ts via
-// drizzle-orm's own introspection (getTableConfig), not text-parsing and
+// Mechanical extraction of every table/column/enum from a Drizzle schema.ts
+// via drizzle-orm's own introspection (getTableConfig), not text-parsing and
 // not AI-written descriptions. Ground truth generated from the live code.
-// Run: tsx extract-db-schema-catalog.mjs > DATABASE_CATALOG.json
+// Reusable across repos -- pass the absolute schema.ts path as argv[2].
+// Run: tsx extract-db-schema-catalog.mjs /abs/path/to/schema.ts > CATALOG.json
 import { is } from 'drizzle-orm'
 import { PgTable, getTableConfig } from 'drizzle-orm/pg-core'
-import * as schema from '/opt/veridian/repos/compliance-tracker/src/lib/db/schema.ts'
+
+const schemaPath = process.argv[2]
+if (!schemaPath) {
+  console.error('Usage: extract-db-schema-catalog.mjs /abs/path/to/schema.ts')
+  process.exit(1)
+}
+const schema = await import(schemaPath)
 
 const tables = []
 const enums = []
@@ -67,7 +74,7 @@ for (const [exportName, value] of Object.entries(schema)) {
 
 const result = {
   generated_by: 'extract-db-schema-catalog.mjs (drizzle-orm getTableConfig introspection, not AI-written)',
-  source_file: '/opt/veridian/repos/compliance-tracker/src/lib/db/schema.ts',
+  source_file: schemaPath,
   table_count: tables.length,
   enum_count: enums.length,
   other_export_count: other.length,
