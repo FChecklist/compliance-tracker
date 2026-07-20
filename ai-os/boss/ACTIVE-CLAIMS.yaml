@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260720-031002-superboss-v2-plan--persistent-vercel-sta) -- SUPERBOSS v2 TASK V2-7: Persistent Vercel staging env + per-env var scoping"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      V2-7 of SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md. Extend
+      .github/workflows/sync-vercel-env.yml to scope env vars per
+      environment (per-system-env target + gitBranch-scoped preview vars
+      for a persistent `staging` branch) + document the staging smoke-test
+      expectation. Tier2 (touches .github/workflows/*.yml). IMPORTANT
+      finding verified live against the Vercel API 2026-07-20: the account
+      is on the Hobby plan (billing.plan=hobby) and Hobby allows 0 custom
+      environments -- the v2 plan's D8 claim that a named `staging` custom
+      env is "already supported, no extra spend at current tier" is FALSE
+      at Hobby (Pro/$20-mo required). So the tier-honest path is NOT a
+      custom environment: it is a long-lived `staging` git branch (Vercel
+      auto-deploys each push as a preview) + env vars scoped via
+      target=preview + gitBranch=staging (free, the env-var API's
+      gitBranch field, no plan change). gh-token here has scopes
+      gist,read:org,repo -- NO `workflow` scope, so this token CANNOT
+      push the .yml change; the workflow edit is staged for an Owner push
+      with that limitation documented in the PR. The per-env-var scoping
+      design + staging-branch smoke-test doc + the plan-premise correction
+      are what this PR ships; no live Vercel project mutation (no env
+      created/deleted) in the PR itself -- only repo-side workflow +
+      docs. PR: #495. V2-6 moved to recently_completed on main (eac7feee)
+      during this rebase; kept only the V2-7 entry under active:.
+  scope_note: >-
+    File scope this task writes: .github/workflows/sync-vercel-env.yml
+    (staged for Owner push due to gh-token workflow-scope limitation),
+    ai-os/STAGING_ENV_2026-07-20.md (new -- staging smoke-test + design
+    doc), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md. No
+    schema, no .env, no source code, no live Vercel mutation. Collision
+    check before starting: no other active entry touches sync-vercel-env.yml
+    or a staging-env doc; gh pr list --state open returns none on this
+    file. Verified live via VERCEL_ACCESS_TOKEN that the project has 0
+    custom environments and Hobby plan caps custom envs at 0. Sibling V2
+    tasks touch disjoint scopes (V2-6 docs, V2-1 UAE pack, V2-2 nav, etc.).
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     claim: |
