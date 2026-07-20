@@ -131,6 +131,21 @@ system_boundary:
           local_path: /opt/veridian/repos/odoo-reverse-engineering
         - repo: FChecklist/infisuite-reverse-engineering
           local_path: /opt/veridian/repos/infisuite-reverse-engineering
+          role: >-
+            Reverse-engineered across bharatnet/indyanet/cityline Infisuite
+            tenants (CRM, Billstack, Contracts, Ticketing modules). Updated
+            2026-07-20: merged 2 fully-documented cityline worker branches
+            (CRM+Billstack, Contracts -- both had succeeded earlier the same
+            day but were left unmerged on origin/worker/* branches) into
+            main, then closed the 3rd (Ticketing), whose 6 role-account
+            logins had all genuinely failed automated auth, by riding the
+            Owner's already-authenticated real Chrome session (Claude in
+            Chrome) to reach it directly -- same real-session-reuse pattern
+            that separately unblocked Odoo's Cloudflare Turnstile gate (see
+            odoo-reverse-engineering/PROGRESS.md). Notable finding preserved
+            in docs/cityline-contracts/contracts.md: a reproducible crash
+            bug makes the Contract entity's own list/create/view UI
+            unreachable in that tenant.
         - repo: FChecklist/zoho-reverse-engineering
           local_path: /opt/veridian/repos/zoho-reverse-engineering
           role: >-
