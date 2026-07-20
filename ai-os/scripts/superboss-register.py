@@ -158,6 +158,39 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_work_items_campaign ON work_items(utm_campaign);
     CREATE INDEX IF NOT EXISTS idx_actions_work_item ON actions(work_item_id);
     CREATE INDEX IF NOT EXISTS idx_actions_campaign ON actions(utm_campaign);
+
+    -- 4th tree (2026-07-20, Owner directive: "indexation of everything we
+    -- do is missing... that's why wrong files/scripts/tables keep getting
+    -- picked"). Catalogs every real mechanism (script/service/table) found
+    -- during this session's audits, not the work-event history above --
+    -- this answers "does X already exist and where" BEFORE building
+    -- anything, which the other 3 trees cannot (they log what happened,
+    -- not what exists).
+    CREATE TABLE IF NOT EXISTS system_index (
+        index_id TEXT PRIMARY KEY,
+        ts TEXT NOT NULL,
+        path TEXT NOT NULL,
+        category TEXT NOT NULL,
+        layer TEXT NOT NULL,
+        status TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        utm_term TEXT,
+        calls TEXT,
+        called_by TEXT,
+        verified_ts TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE VIRTUAL TABLE IF NOT EXISTS system_index_fts USING fts5(
+        index_id UNINDEXED, path, purpose, utm_term, calls, called_by,
+        content='system_index', content_rowid='rowid'
+    );
+    CREATE TRIGGER IF NOT EXISTS system_index_ai AFTER INSERT ON system_index BEGIN
+        INSERT INTO system_index_fts(rowid, index_id, path, purpose, utm_term, calls, called_by)
+        VALUES (new.rowid, new.index_id, new.path, new.purpose, new.utm_term, new.calls, new.called_by);
+    END;
+    CREATE INDEX IF NOT EXISTS idx_system_index_category ON system_index(category);
+    CREATE INDEX IF NOT EXISTS idx_system_index_status ON system_index(status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_system_index_path ON system_index(path);
     """)
     conn.commit()
     conn.close()
@@ -214,12 +247,31 @@ def log_action(args):
     print(json.dumps({"action_id": aid}))
 
 
+STOPWORDS = {"the", "a", "an", "of", "to", "for", "and", "or", "in", "on", "vs", "is", "are", "be", "do", "does"}
+
+
+def _fts_query(raw):
+    """2026-07-20 fix: FTS5's default MATCH syntax is implicit AND across
+    space-separated bare terms -- a natural query like 'software vs AI
+    classification' silently returns ZERO rows if even one word (here:
+    'vs') isn't indexed anywhere, which is exactly the false-negative this
+    whole tool exists to prevent (a missed duplicate is worse than noise
+    from a false positive). Strip stopwords, OR the remaining terms
+    together -- forgiving by design for a discovery search."""
+    terms = [t.strip('"') for t in raw.split() if t.strip('"').lower() not in STOPWORDS and t.strip('"')]
+    if not terms:
+        terms = raw.split() or [raw]
+    escaped = [t.replace('"', '""') for t in terms]
+    return " OR ".join(f'"{t}"' for t in escaped)
+
+
 def search(args):
     init_db_silent()
     conn = _connect()
-    results = {"instructions": [], "work_items": [], "actions": []}
-    q = args.query.replace('"', '""')
-    for table, fts in [("instructions", "instructions_fts"), ("work_items", "work_items_fts"), ("actions", "actions_fts")]:
+    results = {"instructions": [], "work_items": [], "actions": [], "system_index": []}
+    q = _fts_query(args.query)
+    for table, fts in [("instructions", "instructions_fts"), ("work_items", "work_items_fts"),
+                        ("actions", "actions_fts"), ("system_index", "system_index_fts")]:
         try:
             rows = conn.execute(
                 f"SELECT t.* FROM {fts} f JOIN {table} t ON t.rowid = f.rowid WHERE {fts} MATCH ? ORDER BY rank LIMIT ?",
@@ -229,6 +281,64 @@ def search(args):
         except sqlite3.OperationalError as e:
             results[table] = {"error": str(e)}
     print(json.dumps(results, indent=2, default=str))
+
+
+def index_add(args):
+    """Add or re-verify one system_index entry. path is UNIQUE -- re-running
+    this on an already-indexed path UPDATES it (refreshes verified_ts,
+    status, etc.) rather than erroring, since this is meant to be a living
+    catalog re-checked over time, not a write-once log."""
+    init_db_silent()
+    conn = _connect()
+    iid = _new_id("IDX")
+    now = _now_iso()
+    conn.execute(
+        "INSERT INTO system_index (index_id, ts, path, category, layer, status, purpose, utm_term, calls, called_by, verified_ts, metadata_json) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(path) DO UPDATE SET category=excluded.category, layer=excluded.layer, status=excluded.status, "
+        "purpose=excluded.purpose, utm_term=excluded.utm_term, calls=excluded.calls, called_by=excluded.called_by, "
+        "verified_ts=excluded.verified_ts, metadata_json=excluded.metadata_json",
+        (iid, now, args.path, args.category, args.layer, args.status, args.purpose, args.term,
+         args.calls, args.called_by, now, json.dumps(json.loads(args.metadata) if args.metadata else {})),
+    )
+    conn.commit()
+    row = conn.execute("SELECT index_id FROM system_index WHERE path=?", (args.path,)).fetchone()
+    conn.close()
+    print(json.dumps({"index_id": row["index_id"], "path": args.path}))
+
+
+def check_duplicate(args):
+    """The concrete fix for 'we keep duplicating': search system_index by
+    category and/or keyword BEFORE building something new. Prints every
+    existing mechanism that might already do what's being considered."""
+    init_db_silent()
+    conn = _connect()
+    conditions = []
+    params = []
+    if args.category:
+        conditions.append("category = ?")
+        params.append(args.category)
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = []
+    if args.query:
+        q = _fts_query(args.query)
+        fts_rows = conn.execute(
+            "SELECT t.* FROM system_index_fts f JOIN system_index t ON t.rowid = f.rowid WHERE system_index_fts MATCH ?",
+            (q,),
+        ).fetchall()
+        if args.category:
+            rows = [r for r in fts_rows if r["category"] == args.category]
+        else:
+            rows = fts_rows
+    elif conditions:
+        rows = conn.execute(f"SELECT * FROM system_index {where}", params).fetchall()
+    conn.close()
+    result = [dict(r) for r in rows]
+    print(json.dumps({
+        "found": len(result),
+        "verdict": "STOP -- existing mechanism(s) found, review before building" if result else "no existing match found -- safe to proceed, but this is not exhaustive",
+        "matches": result,
+    }, indent=2, default=str))
 
 
 def init_db_silent():
@@ -287,6 +397,21 @@ if __name__ == "__main__":
     p_search.add_argument("query")
     p_search.add_argument("--limit", type=int, default=10)
 
+    p_idx = sub.add_parser("index-add")
+    p_idx.add_argument("--path", required=True, help="file/table/mechanism location, e.g. src/lib/task-tightening.ts")
+    p_idx.add_argument("--category", required=True, help="cache|validation|guardrail|router|monitor|task_register|hallucination_detection|confidence_scoring|dispatch_entrypoint|classification|other")
+    p_idx.add_argument("--layer", required=True, help="shell|typescript|database|documentation")
+    p_idx.add_argument("--status", required=True, help="live|partial|dead|deprecated|designed_not_built")
+    p_idx.add_argument("--purpose", required=True)
+    p_idx.add_argument("--term", default="")
+    p_idx.add_argument("--calls", default="")
+    p_idx.add_argument("--called-by", dest="called_by", default="")
+    p_idx.add_argument("--metadata", default="")
+
+    p_dup = sub.add_parser("check-duplicate")
+    p_dup.add_argument("query", nargs="?", default="")
+    p_dup.add_argument("--category", default="")
+
     args = p.parse_args()
     if args.cmd == "init":
         init_db()
@@ -298,3 +423,7 @@ if __name__ == "__main__":
         log_action(args)
     elif args.cmd == "search":
         search(args)
+    elif args.cmd == "index-add":
+        index_add(args)
+    elif args.cmd == "check-duplicate":
+        check_duplicate(args)
