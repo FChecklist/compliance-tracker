@@ -34,4 +34,13 @@ Two retrieval modes, both proven live tonight: FTS5 full-text (`search <query>`)
 
 ## Honest status, 2026-07-20
 
-Built and tested tonight: schema, FTS5 search, structured filtering, ID linkage across all three tables — all verified with real inserts and real queries, not assumed. Backfilled 5 of tonight's real instructions as seed data, not the full session history (would need re-deriving from the transcript, not done). **Not yet enforced by code** — logging happens because an AI agent chooses to call the CLI, not because anything blocks work from proceeding without it. Making that mandatory (e.g., wiring `log-instruction` into the shell entrypoints' own dispatch path) is real, scoped follow-up work, not done this pass.
+Built and tested tonight: schema, FTS5 search, structured filtering, ID linkage across all three tables — all verified with real inserts and real queries, not assumed. **Not yet enforced by code** — logging happens because an AI agent chooses to call the CLI, not because anything blocks work from proceeding without it. Making that mandatory (e.g., wiring `log-instruction` into the shell entrypoints' own dispatch path) is real, scoped follow-up work, not done this pass.
+
+## Historical import (2026-07-20, `ai-os/scripts/import-memory-history.py`)
+
+79 entries from the local memory index (spanning 2026-06-25 through this session) imported as `work_items` with `status='historical'` and `metadata_json.historical_import=true` — so a historical entry is never confused with a real-time log, and never claims false precision. Import script:
+- Parses `- [Title](file.md) — description` lines, extracts a `YYYY-MM-DD` date from filename/description when present (`date_confidence: "explicit"`, 33 of 79) and leaves `ts` at import-time with `date_confidence: "unknown"` when absent (46 of 79) — never guessed.
+- Campaign-tags by keyword match against a small, auditable ordered list (software-first: no LLM classification call for a bulk mechanical task).
+- Re-runnable: running it again on an updated memory index would re-import (not currently deduplicated against prior imports — if re-run, check for duplicate `source_file` values in `metadata_json` first).
+
+This is a first pass at "the real memory," built from the INDEX line only (title + one-line description), not each memory file's full content — a real, honest depth limit, not the deepest possible import. Deepening specific entries (reading the full file, not just its index line) is real follow-up work if a particular historical topic needs more than the index line provides.

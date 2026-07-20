@@ -183,10 +183,14 @@ def log_work(args):
     init_db_silent()
     conn = _connect()
     wid = _new_id("WRK")
+    # --ts override (2026-07-20, historical-import support): a bulk import of
+    # past sessions needs to carry each entry's REAL date, not the moment of
+    # import -- otherwise the whole point (an accurate timeline) is lost.
+    ts = getattr(args, "ts", None) or _now_iso()
     conn.execute(
         "INSERT INTO work_items (work_item_id, ts, instruction_id, software_task_id, ai_task_id, cache_id, ai_cache_id, "
         "utm_source, utm_medium, utm_campaign, utm_content, utm_term, status, metadata_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (wid, _now_iso(), args.instruction_id, args.software_task_id, args.ai_task_id, args.cache_id, args.ai_cache_id,
+        (wid, ts, args.instruction_id, args.software_task_id, args.ai_task_id, args.cache_id, args.ai_cache_id,
          args.source, args.medium, args.campaign, args.content, args.term, args.status,
          json.dumps(json.loads(args.metadata) if args.metadata else {})),
     )
@@ -266,6 +270,7 @@ if __name__ == "__main__":
     p_work.add_argument("--term", default="")
     p_work.add_argument("--status", default="open")
     p_work.add_argument("--metadata", default="")
+    p_work.add_argument("--ts", default=None, help="ISO8601 override for historical imports; defaults to now")
 
     p_act = sub.add_parser("log-action")
     p_act.add_argument("--work-item-id", dest="work_item_id", default=None)
