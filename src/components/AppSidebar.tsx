@@ -71,6 +71,12 @@ import {
   GraduationCap,
   Copy,
   Activity,
+  NotebookPen,
+  FileCheck2,
+  ListChecks,
+  Ruler,
+  HardHat,
+  CircleDollarSign,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +171,29 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
     ...(pmsEnabled
       ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
+    // Wave 6 batch 1 (compliance-tracker/PROJEXA merge): construction
+    // execution modules -- backend (construction-*-service.ts) was already
+    // fully built across earlier PROJEXA-foundation waves and served only
+    // PROJEXA's own frontend until this wave; these are the first (app)
+    // pages for any of it. Shown unconditionally, same posture as the
+    // 'erp'/GRC sections below (no constructionEnabled-shaped flag exists
+    // anywhere in this codebase -- confirmed by search before adding this
+    // section -- so gating behind a still-unbuilt toggle would just hide
+    // real, working pages behind a switch nobody can flip). Labour here is
+    // site-labour manpower (construction-labour-service.ts), a distinct
+    // concept from company-employee HR attendance under People & HR below.
+    {
+      title: t("sections.construction.title"),
+      items: [
+        { label: t("sections.construction.items.siteDiary"), href: "/site-diary", icon: NotebookPen },
+        { label: t("sections.construction.items.rfis"), href: "/rfis", icon: HelpCircle },
+        { label: t("sections.construction.items.submittals"), href: "/submittals", icon: FileCheck2 },
+        { label: t("sections.construction.items.punchList"), href: "/punch-list", icon: ListChecks },
+        { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
+        { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
+        { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
+      ],
+    },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
     // real routes/UI this wave) -- gated behind its own 'the_firm' product
     // branch, same reversible-without-redeploy posture as PMS above.
@@ -566,7 +595,7 @@ function AppSidebarFooter({ orgName }: { orgName: string }) {
   );
 }
 
-function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const t = useTranslations("Nav");
   const sections = buildSharedSections(t, overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled);
 
@@ -589,7 +618,7 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
         <SharedAppSidebar
           sections={sections}
           logo={logo}
-          productName={orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
+          productName={orgLogoUrl && orgName ? orgName : (brandName || "VERIDIAN AI")}
           collapsed={false}
         />
       </div>
@@ -598,8 +627,8 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null }) {
-  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl };
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null, brandName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null; brandName?: string }) {
+  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName };
   return (
     <>
       {/* Desktop sidebar -- wrapping the shared component (rather than
@@ -619,7 +648,7 @@ export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, ac
   );
 }
 
-function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const [open, setOpen] = useState(false);
 
   return (

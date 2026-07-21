@@ -12,13 +12,14 @@
 // (b) the log lifecycle (draft -> generated -> cancelled) works.
 // markEInvoiceGenerated lets an admin record the IRP's actual response
 // after submitting the payload through their own GSP integration.
-import { erpEInvoiceLogs, erpSalesInvoices, erpSalesInvoiceItems, erpCustomers, organisations, users } from "@/lib/db"
+import { erpEInvoiceLogs, erpSalesInvoices, erpSalesInvoiceItems, erpCustomers, organisations, users, erpTaxTemplateItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { buildEInvoicePayload, type EinvoiceLineInput } from "@/lib/engines/einvoice-format"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -60,25 +61,62 @@ export async function generateEInvoicePayload(ctx: ErpContext, invoiceId: string
 
     const items = await db.query.erpSalesInvoiceItems.findMany({ where: eq(erpSalesInvoiceItems.invoiceId, invoiceId) })
 
-    const payload = {
-      Version: "1.1",
-      TranDtls: { TaxSch: "GST", SupTyp: "B2B" },
-      DocDtls: { Typ: "INV", No: String(invoice.invoiceNumber), Dt: invoice.postingDate },
-      SellerDtls: { Gstin: org.gstin, LglNm: org.name, Addr1: org.address ?? "" },
-      BuyerDtls: { Gstin: customer.gstin, LglNm: customer.customerName, Pos: customer.gstin.slice(0, 2) },
-      ItemList: items.map((item, i) => ({
-        SlNo: String(i + 1),
-        HsnCd: item.hsnSacCode ?? "",
-        Qty: Number(item.quantity),
-        Unit: "NOS",
-        UnitPrice: Number(item.rate),
-        TotAmt: Number(item.amount),
-        AssAmt: Number(item.amount),
-        GstRt: 0, // per-line GST rate isn't separately tracked -- see ValDtls for the invoice-level tax total
-        TotItemVal: Number(item.amount),
-      })),
-      ValDtls: { AssVal: Number(invoice.subtotal), TotInvVal: Number(invoice.grandTotal), OthChrg: Number(invoice.taxAmount) },
+    // V2-21 per-line GstRt fix: resolve each line's real tax rate from its
+    // tax template (erpTaxTemplateItems.rate) instead of emitting a hardcoded
+    // 0. A line with no tax template is genuinely 0 (zero-rated/exempt), not
+    // "unknown". The template can carry multiple component rates (CGST+SGST as
+    // two rows); the per-line GstRt for the IRP schema is the combined rate.
+    const lines: EinvoiceLineInput[] = []
+    for (const item of items) {
+      let taxRatePercent = 0
+      let cgst = 0, sgst = 0, igst = 0
+      if (item.taxTemplateId) {
+        const taxLines = await db.query.erpTaxTemplateItems.findMany({ where: eq(erpTaxTemplateItems.taxTemplateId, item.taxTemplateId) })
+        const combinedRate = taxLines.reduce((sum, t) => sum + Number(t.rate), 0)
+        taxRatePercent = combinedRate
+        // India intra-state vs inter-state split: if the org's and customer's
+        // GSTIN state codes differ, the line tax is IGST; otherwise CGST+SGST.
+        // UAE ignores these fields (single national rate, no split) -- the
+        // country-config resolver in einvoice-format.ts only reads taxRatePercent
+        // for AE, so populating them is harmless for the AE path.
+        const orgState = (org.gstin ?? "").slice(0, 2)
+        const buyerState = (customer.gstin ?? "").slice(0, 2)
+        const lineTax = Number(item.amount) * (combinedRate / 100)
+        if (orgState !== buyerState) {
+          igst = round2(lineTax)
+        } else {
+          cgst = round2(lineTax / 2)
+          sgst = round2(lineTax / 2)
+        }
+      }
+      lines.push({
+        description: item.description,
+        quantity: Number(item.quantity),
+        rate: Number(item.rate),
+        amount: Number(item.amount),
+        hsnSacCode: item.hsnSacCode ?? undefined,
+        taxRatePercent,
+        cgst, sgst, igst,
+      })
     }
+
+    // V2-1 country-config e-invoice FORMAT path: route on organisations.country
+    // through the shared resolver -- an AE org gets a UAE FTA Peppol payload,
+    // an IN org gets India's IRP JSON. No India hardcoding in the service; the
+    // format lives in einvoice-format.ts (the same "second country through the
+    // same abstraction" guarantee the engines already prove).
+    const { payload } = buildEInvoicePayload({
+      country: org.country ?? "IN",
+      invoiceNumber: String(invoice.invoiceNumber),
+      postingDate: invoice.postingDate,
+      subtotal: Number(invoice.subtotal),
+      taxAmount: Number(invoice.taxAmount),
+      grandTotal: Number(invoice.grandTotal),
+      seller: { taxId: org.gstin, legalName: org.name, address: org.address ?? undefined },
+      buyer: { taxId: customer.gstin, legalName: customer.customerName },
+      buyerStateCode: (customer.gstin ?? "").slice(0, 2),
+      lines,
+    })
 
     const [log] = await db.insert(erpEInvoiceLogs).values({
       orgId: ctx.orgId, referenceType: "sales_invoice", referenceId: invoiceId, status: "draft",
@@ -134,4 +172,10 @@ export async function cancelEInvoice(ctx: ErpContext, logId: string, input: { ca
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_e_invoice_log.cancelled", entityType: "erp_e_invoice_log", entityId: logId })
     return updated
   })
+}
+
+// V2-21: 2dp rounding for the per-line CGST/SGST/IGST split (matches the
+// engines' round2 convention -- tax amounts are never carried beyond cents).
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100
 }
