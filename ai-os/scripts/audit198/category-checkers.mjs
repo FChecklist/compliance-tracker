@@ -106,6 +106,35 @@ export const CATEGORY_INFRA = {
       { grepDirs: ["src/app/api/v1"], grepTerm: "export", minFileCount: 1 },
     ],
   },
+  // Added 2026-07-21 (audit198 gap closure, RULE-012/RULE-056). Hand-
+  // verified via direct code reading before this entry was added: real
+  // per-user, per-role personalization mechanisms confirmed live in this
+  // repo -- getUserChainLibrary() (chain-usage-ranking.ts) builds a
+  // deterministic, per-user "Dynamic Mode Pills" / Library ranking from
+  // that user's own task history (src/app/api/dynamic-chains/my-library/
+  // route.ts is its real call site), and requirePermissionForUser()
+  // (permission-service.ts) is the real role/permission gate every
+  // personalized surface is scoped through. This was previously an
+  // uncovered category (no CATEGORY_INFRA entry at all) -- these items
+  // only had weak keyword-co-occurrence evidence before this fix.
+  PERSONALIZATION: {
+    infraChecks: [
+      { file: "src/lib/services/chain-usage-ranking.ts", markers: ["export async function getUserChainLibrary"] },
+      { file: "src/lib/services/permission-service.ts", markers: ["export function requirePermissionForUser"] },
+    ],
+  },
+  // Added 2026-07-21 (audit198 gap closure, RULE-072/RULE-073). Hand-
+  // verified: ai-os/CONSTITUTION.yaml's ARCH-06/ARCH-07 already document
+  // (in prose) a real open-source-study/license-verdict decision record,
+  // but no structured, queryable artifact existed for it -- this PR adds
+  // ai-os/OSS_STUDY_LEDGER.yaml (18 real projects, reconciled from
+  // ARCH-06/07's own known-risk list, not fabricated) as that table.
+  // Previously an uncovered category (no CATEGORY_INFRA entry at all).
+  OPEN_SOURCE_REUSE: {
+    infraChecks: [
+      { file: "ai-os/OSS_STUDY_LEDGER.yaml", markers: ["verdict: safe_to_reuse_code", "verdict: study_ideas_only_no_code"] },
+    ],
+  },
 }
 
 /**

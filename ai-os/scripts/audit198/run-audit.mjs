@@ -162,7 +162,19 @@ function deriveVerdict(item, categoryId, categoryDef, categoryInfra, itemEvidenc
 
   if (categoryInfra.defined) {
     for (const c of categoryInfra.checks) {
-      evidence.push({ type: "category_infra_check", ...c })
+      // Fixed 2026-07-21 (audit198 gap-closure wave, confirmed via direct
+      // code reading): `...c` spreading AFTER `type: "category_infra_check"`
+      // silently overwrote that label with c's own inner type
+      // ("fileContainsMarkers" / "grepCount"), so every category-level
+      // infra evidence entry in the output JSON lost its "this came from
+      // the category infra check" marker -- purely a reporting/
+      // traceability gap; deriveVerdict() above already reads
+      // categoryInfra.strength/total directly (computed separately in
+      // runCategoryInfra()), so no verdict was ever wrong because of this.
+      // Fix: spread c FIRST so its own specific type (fileContainsMarkers/
+      // grepCount) is kept, then add a separate boolean marker instead of
+      // clobbering it.
+      evidence.push({ ...c, is_category_infra_check: true })
     }
   }
 

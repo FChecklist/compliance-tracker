@@ -46,6 +46,11 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role (server-side only)
 
+## Development Environment (Thin Client Only) -- RULE-067
+- **Current dev environment (Owner directive, standing rule):** development, execution, and AI processing for this repo shall use GLM 5.2 and Claude Code CLI running exclusively on the VERIDIAN-DEV server (Hetzner, 167.233.220.35) through SSH. No development, execution, or AI processing shall occur on local machines unless explicitly authorized by the Owner for that specific session.
+- Every git/gh/shell/bun/node command touching this repo is expected to run wrapped in `ssh -i ~/.ssh/veridian-dev rajat@167.233.220.35 "cd /opt/veridian/repos/compliance-tracker && <command>"` (or the equivalent worktree path) — never bare on a local laptop.
+- See `ai-os/AI_ORCHESTRA_HIERARCHY.md` for the live model roster (GLM 5.2 / Claude Code CLI is the judgment-tier seat) and `ai-os/OSS_STUDY_LEDGER.yaml` for the open-source study/reuse ledger referenced by RULE-072/RULE-073.
+
 ## AI-OS Rules
 - Open tasks/gaps tracked in `ai-os/MASTER-TRACKER.yaml`; closed work logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
 - `ai-os/CONSTITUTION.yaml` is supreme — never bypass a rule in it without the owner's explicit written instruction (see its own `amendment_rule`)
