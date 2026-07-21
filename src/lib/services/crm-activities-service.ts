@@ -14,6 +14,7 @@ import { crmActivities } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+export { ServiceError } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
 
 export type CrmActivityContext = { orgId: string; userId: string }
