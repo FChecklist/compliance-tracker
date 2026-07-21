@@ -525,6 +525,28 @@ quick_reference:
 # ---------------------------------------------------------------------------
 registries:
 
+  - id: ai_engineering_policy
+    type: policy_doc
+    path: ai-os/AI_ENGINEERING_POLICY.yaml
+    scope: >-
+      Owner directive 2026-07-21: mandatory engineering playbook for the
+      whole integrated system (FChecklist, VERIDIAN AI OS,
+      compliance-tracker, PROJEXA, server, GitHub, Vercel, Supabase,
+      product, project, brands, AI models, end user). A 30-item
+      build-vs-buy priority order (existing capability/config/package/
+      framework/... before new code), explicit always_prefer /
+      never_behave_like_a_human_operator lists, and a continuous
+      optimization checklist. Complements, does not duplicate,
+      ai-os/RULES_ARTICLES_198.json / ai-os/CONSTITUTION.yaml's own
+      declarative "software first, AI second" rules -- those declare
+      WHAT the system must be; this file is the operational HOW, a
+      playbook to consult per-task rather than a per-item scored
+      registry.
+    status: live
+    mandatory_before: >-
+      starting any engineering, software-development, systems-management,
+      or process-design task on this system
+
   - id: system_index
     type: sqlite_table
     path: /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
