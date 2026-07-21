@@ -854,6 +854,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: task_reflections
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: tenant_ai_config
+    reason: "Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model, drizzle/0253, 2026-07-20 -- renumbered from 0251 during review to resolve a collision with the unrelated drizzle/0251_crm_wave1_activities_campaigns_lost_reasons.sql migration): per-org BYO AI model for the Mother Router's software_team scope -- one active row per org (partial unique index tenant_ai_config_one_active_per_org), no genuine display-name column (model_name is an OpenRouter model id like 'z-ai/glm-5.2', not this config row's own name), and a single config row not a browsable collection -- same self-exemption class as the already-exempted customer_model_config/client_model_config BYO config tables it mirrors."
   - table: ticket_intelligence_action_items
     reason: "join table (ticket_intelligence_item -> promoted task), same shape/reasoning as email_intelligence_action_items -- not itself a discoverable platform asset"
   - table: ticket_intelligence_items
