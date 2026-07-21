@@ -1541,7 +1541,7 @@ active:
       account (magic-link/OAuth/etc. still required for first-time
       signup) -- passcode is a faster RETURN-login method only.
       Scope: new nullable users.passcodeHash/passcodeSetAt columns
-      (drizzle/0211_passcode_login.sql, additive migration -- does NOT
+      (drizzle/0259_passcode_login.sql, additive migration -- does NOT
       touch users.passwordHash, which stays the pre-existing legacy
       "supabase-auth-managed" placeholder, confirmed not reusable for a
       real per-user secret since every row shares that literal string); new
