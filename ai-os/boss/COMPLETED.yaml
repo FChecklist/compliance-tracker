@@ -2807,3 +2807,94 @@ entries:
         decide whether the is94gppgpbuwq8jl3m5baame orphan and the
         anonymous-landing-page brand gap warrant their own follow-up
         waves.
+  - id: WAVE-200
+    title: "Install snip token-reduction hook for Claude Code + build a VERIDIAN custom filter library (bun/vercel)"
+    doer:
+      agent: "claude-code (background task, this session, direct SSH to VERIDIAN-DEV, not a sub-agent)"
+      date: "2026-07-21"
+      pr: "PR #549 MERGED (squash) -- .snip/config.toml + .snip/filters/*.yaml (5 custom filters) + ai-os/boss/completed-work/snip-integration/ (9 reports) + ai-os/MASTER_INDEX.yaml entry, all 7 required checks green (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry Coverage/Unit Tests). Claim registered+closed via PR #548 (fast-track, merged first per ACTIVE-CLAIMS.yaml protocol)."
+      summary: >
+        Owner directive (structured JSON task spec): deploy
+        github.com/edouard-claude/snip (376 stars, MIT, pure-Go static
+        binary, no network calls, fail-open) "across the entire VERIDIAN
+        AI infrastructure" to cut LLM token consumption from verbose
+        CLI/terminal output. Full detail in the 9 reports under
+        ai-os/boss/completed-work/snip-integration/; summary here.
+
+        THE SINGLE MOST IMPORTANT FINDING, stated plainly, not softened:
+        the Mother Router + child routers (src/lib/ai-router/mother-router.ts,
+        dispatched via /api/ai/team/dispatch) call LLM providers directly
+        over HTTP -- they are NOT Claude Code CLI sessions and have no
+        shell/subprocess surface (confirmed via grep for
+        child_process/spawn/exec across src/lib/ai-router/, zero matches)
+        for snip's actual mechanism (a Claude Code PreToolUse hook that
+        intercepts shell command output) to attach to. No fake
+        "integration" was built there. If the Owner wants the routers'
+        own verbose LLM-call logging reduced, that is a legitimately
+        different, unexplored feature request.
+
+        snip genuinely applies to, and was verified live on, two real
+        surfaces: (1) interactive Claude Code CLI sessions on VERIDIAN-DEV
+        (rajat account) -- installed v0.22.0, PreToolUse hook confirmed
+        registered in the global ~/.claude/settings.json by directly
+        reading the file, not trusting the install message; (2) headless
+        veridian-worker@<id>.service claude -p --dangerously-skip-permissions
+        processes (worker-entrypoint.sh) -- confirmed live via a real
+        headless invocation routed through the worker fleet's own
+        anthropic_openrouter_proxy_v2.py (127.0.0.1:8787), which produced
+        a real snip hook-audit entry and a new tracking.db row at the
+        exact run timestamp. 0 workers currently running, but the
+        mechanism is proven, not assumed.
+
+        Built 5 custom VERIDIAN filters (.snip/filters/) for real,
+        confirmed gaps in the 132 built-in filters: bun install/test
+        (bun.lock confirms bun is this repo's real primary package
+        manager), bunx, bun x, and vercel (globally installed v56.3.1).
+        Deliberately did NOT build redis-cli or supabase-CLI filters --
+        neither tool is genuinely used by this codebase (Redis
+        deliberately rejected per asset-registry-cache.ts's own header;
+        migrations run entirely through drizzle-kit, zero real supabase
+        CLI invocations anywhere in the repo) -- and did not build
+        filters for preflight-guard.py/run-logged.sh, both confirmed to
+        run outside any Claude Code session (launcher/cron-invoked only,
+        never reach the PreToolUse hook).
+
+        Found and disclosed a genuine never-compress risk: the built-in
+        go-test.yaml filter can collapse a real test failure (verified
+        live against a synthetic go test -json fixture containing a
+        literal "SECURITY-CRITICAL" marker string) down to a bare
+        "N passed, M failed" count with zero inline detail -- mitigated
+        by snip's own tee-on-failure safety net (confirmed: full raw
+        output recoverable from the pointed-to log file) but a real,
+        disclosed residual risk. This project's own custom bun-test.yaml
+        was deliberately designed with a deny-list-only pipeline (never
+        snip's aggregate action) specifically to avoid this failure
+        mode, verified live against a real deliberately-broken bun test.
+
+        Also found and disclosed a genuine gap in snip v0.22.0 itself:
+        the tool's own documented .snip/filters + .snip/config.toml
+        project-local auto-discovery convention is not actually wired to
+        the real filter-loading path used by run/check/hook (confirmed
+        by reading the Go source directly) -- the working mechanism,
+        verified live, is adding the project's absolute filter path to
+        each developer's own global ~/.config/snip/config.toml. Documented
+        precisely in the maintenance guide, including the one-time setup
+        steps a new developer/worktree needs.
+
+        Real benchmark numbers (not estimated): full real 1898-test bun
+        suite, 0 fail, went from 257,371 to 27,970 chars (89.1%) through
+        the custom filter, cross-checked against
+        ~/.local/share/snip/tracking.db (89.13%, consistent since this
+        filter has no inject step). git log -30 showed 92.9% true
+        end-to-end reduction (34,311 -> 2,441 chars) though the tool's
+        own self-reported metric (28.3%) measures only its pipeline step
+        on top of its own argument-injection, a methodology nuance
+        documented explicitly in the benchmark report. A small-scale
+        gh pr checks call (19 checks) showed no real benefit (-0.6%),
+        reported honestly rather than cherry-picked.
+
+        Registered in ai-os/MASTER_INDEX.yaml (registries list,
+        id: snip_token_reduction_hook) and system_index (index-add,
+        IDX-20260721-185951-dd1d). Rollback/upgrade procedures and a
+        maintenance guide for adding future filters are in
+        ai-os/boss/completed-work/snip-integration/07-09*.md.
