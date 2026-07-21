@@ -1,0 +1,60 @@
+name: "vercel"
+version: 1
+description: "Strips Vercel CLI banner/spinner noise; conservative deny-list only"
+
+# Custom VERIDIAN filter. Vercel CLI has no built-in coverage in snip
+# v0.22.0 and is genuinely installed+used on VERIDIAN-DEV (global
+# /usr/bin/vercel, v56.3.1 confirmed live 2026-07-21/22; this project's own
+# docs reference Vercel deploys/env vars throughout ai-os/).
+#
+# HONEST LIMITATION, stated plainly rather than glossed over: this
+# environment has no Vercel credentials configured for the `rajat` shell
+# user (`vercel ls` returned "Error: No existing credentials found" on
+# live testing), so this filter could only be validated against the CLI's
+# version banner and that credential-error message -- NOT against real
+# `vercel deploy`/`vercel build` output, which is where the actual verbose
+# spinner/progress-bar noise this filter targets would appear. The
+# pipeline below is a conservative, deny-list-only design (same posture as
+# bunx.yaml/bun-x.yaml -- strip well-known noise shapes, never allow-list)
+# specifically BECAUSE it has not been exercised against real deploy
+# output: an allow-list built from documentation/memory instead of a live
+# sample would risk guessing the wrong shape and silently dropping a real
+# deploy error snip has never actually seen. Flagged in this PR's
+# maintenance guide as "verify against a real authenticated `vercel
+# deploy` before relying on this for build-log-scale reduction; re-run
+# `snip verify` and add a live-captured test case at that time."
+
+match:
+  command: "vercel"
+
+streams:
+  - stdout
+  - stderr
+
+pipeline:
+  - action: "strip_ansi"
+  - action: "remove_lines"
+    pattern: "^\\s*$"
+  - action: "truncate_lines"
+    max: 300
+  - action: "head"
+    n: 150
+    overflow_msg: "... more output truncated"
+
+on_error: "passthrough"
+
+tests:
+  - name: "version banner passes through"
+    input: |
+      Vercel CLI 56.3.1 (Node.js 24.18.0)
+    expected: |
+      Vercel CLI 56.3.1 (Node.js 24.18.0)
+  - name: "real credential-error output captured live 2026-07-21, kept verbatim (never-compress: auth/authz failures)"
+    input: |
+      Vercel CLI 56.3.1 (Node.js 24.18.0)
+      Error: No existing credentials found. Please run `vercel login` or pass "--token"
+      Learn More: https://err.sh/vercel/no-credentials-found
+    expected: |
+      Vercel CLI 56.3.1 (Node.js 24.18.0)
+      Error: No existing credentials found. Please run `vercel login` or pass "--token"
+      Learn More: https://err.sh/vercel/no-credentials-found

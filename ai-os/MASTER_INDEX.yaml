@@ -1901,6 +1901,46 @@ registries:
       was ever actually wasted by the restart-storm bug -- every rejection
       happens before any real spend -- but the churn itself was real,
       unnecessary load, now stopped.
+  - id: snip_token_reduction_hook
+    type: dev_tooling
+    path: >-
+      .snip/filters/ (bun-install.yaml, bun-test.yaml, bunx.yaml,
+      bun-x.yaml, vercel.yaml) in this repo; server-side install at
+      /home/rajat/.local/bin/snip + /home/rajat/.claude/settings.json
+      PreToolUse hook + /home/rajat/.config/snip/config.toml filters.dir
+      entry (VERIDIAN-DEV, rajat account, not part of this git repo).
+      Full reports: ai-os/boss/completed-work/snip-integration/
+    scope: >-
+      github.com/edouard-claude/snip v0.22.0 (376 stars, MIT, pure Go,
+      no network calls, fail-open), a PreToolUse hook for Claude Code
+      that filters verbose shell/CLI output through declarative YAML
+      pipelines before it reaches an AI coding assistant's context, cutting
+      LLM token consumption 89-93% on real large-scale git-log/bun-test
+      output measured live on this server (see 05-benchmark-report.md).
+      IMPORTANT SCOPE BOUNDARY: applies ONLY to actual Claude Code CLI
+      sessions with a Bash tool -- interactive sessions on VERIDIAN-DEV,
+      and the headless veridian-worker@<id>.service claude -p processes
+      (worker-entrypoint.sh), both confirmed live (see
+      04-verification-report.md). Does NOT and cannot apply to
+      src/lib/ai-router/mother-router.ts or its child routers -- confirmed
+      zero child_process/spawn/exec calls anywhere in src/lib/ai-router/,
+      i.e. no shell surface exists there for this mechanism to attach to
+      (see 02-architecture-report.md; do not build a "Mother Router
+      integration" for this tool, that would misrepresent what it does).
+      132 built-in filters ship compiled into the binary; this repo adds
+      5 custom ones for bun/bunx/vercel (genuinely used, genuinely
+      uncovered) and deliberately does NOT add redis-cli or supabase-CLI
+      filters (neither is genuinely used by this codebase -- see
+      02-architecture-report.md §3c).
+    status: live
+    verification_mechanism: >-
+      ai-os/boss/completed-work/snip-integration/04-verification-report.md
+      (hook registration read directly from settings.json, headless-mode
+      fired live via a real claude -p run through the worker's own proxy,
+      never-compress tested against a real deliberately-broken bun test
+      and a synthetic go-test failure fixture)
+    system_index_id: IDX-20260721-185951-dd1d
+
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/

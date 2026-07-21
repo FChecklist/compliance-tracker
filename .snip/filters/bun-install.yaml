@@ -1,0 +1,94 @@
+name: "bun-install"
+version: 1
+description: "Condensed bun dependency-change output: summary and errors only"
+
+# Custom VERIDIAN filter -- bun has no built-in coverage in snip v0.22.0
+# (confirmed 2026-07-21 via `snip check -- bun install` => "no filter",
+# cross-checked against the 132-file github.com/edouard-claude/snip/filters
+# listing). bun is this repo's genuine primary package manager (bun.lock
+# present, no npm-lock.json/pnpm-lock.yaml) so this is a real, not
+# speculative, gap. Modeled directly on the built-in npm-install.yaml's own
+# keep_lines-allowlist shape (same class of well-bounded, well-understood
+# output), adapted to bun's real observed format:
+#   "bun install v1.3.14 (hash)" / "bun add v1.3.14 (hash)" header
+#   "+ pkg@version" per top-level added package (can be 100s of lines on a
+#     from-scratch install -- these are dropped, same call npm-install.yaml
+#     makes for its own per-package noise; the summary count line already
+#     conveys "how many changed")
+#   "N package(s) installed [Xs]" summary line
+#   "error: GET <url> - 404" (or similar) on failure
+# Real samples this filter was validated against are in the tests: block
+# below, captured live on VERIDIAN-DEV 2026-07-21/22 (see this PR's
+# verification report for the raw-output evidence).
+
+match:
+  command: "bun"
+  subcommand:
+    - "install"
+    - "i"
+    - "add"
+    - "remove"
+    - "rm"
+    - "update"
+    - "up"
+  exclude_flags: ["--version", "-v", "--help"]
+
+streams:
+  - stdout
+  - stderr
+
+pipeline:
+  - action: "strip_ansi"
+  - action: "remove_lines"
+    pattern: "^\\s*$"
+  # Drop individual "+ pkg@version" / "- pkg@version" add/remove lines --
+  # the summary count line below already reports how many changed. This is
+  # the ONLY thing this filter drops; anything not matching one of these
+  # exact noise shapes (warnings, unknown output, errors) survives.
+  - action: "remove_lines"
+    pattern: "^[+-] \\S"
+  - action: "remove_lines"
+    pattern: "^(Resolving dependencies|Resolved, downloaded and extracted)"
+  - action: "truncate_lines"
+    max: 200
+  - action: "head"
+    n: 30
+    overflow_msg: "... more output truncated"
+  - action: "on_empty"
+    message: "ok"
+
+on_error: "passthrough"
+
+tests:
+  - name: "fresh install with many new packages"
+    input: |
+      bun install v1.3.14 (0d9b296a)
+
+      + @playwright/test@1.61.1
+      + @tailwindcss/postcss@4.3.3
+      + typescript@6.0.3
+      + zustand@5.0.14
+
+      1181 packages installed [4.00s]
+    expected: |
+      bun install v1.3.14 (0d9b296a)
+      1181 packages installed [4.00s]
+  - name: "no-op reinstall, one package"
+    input: |
+      bun install v1.3.14 (0d9b296a)
+
+      + xlsx@https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz
+
+      1 package installed [83.00ms]
+    expected: |
+      bun install v1.3.14 (0d9b296a)
+      1 package installed [83.00ms]
+  - name: "add nonexistent package -- real error format"
+    input: |
+      bun add v1.3.14 (0d9b296a)
+      Resolving dependencies
+      Resolved, downloaded and extracted [1]
+      error: GET https://registry.npmjs.org/this-package-does-not-exist - 404
+    expected: |
+      bun add v1.3.14 (0d9b296a)
+      error: GET https://registry.npmjs.org/this-package-does-not-exist - 404
