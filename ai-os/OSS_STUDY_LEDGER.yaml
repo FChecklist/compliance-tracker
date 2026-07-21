@@ -1,0 +1,160 @@
+# ============================================================================
+# VERIDIAN AI OS -- OPEN-SOURCE STUDY / REUSE LICENSE LEDGER
+# ============================================================================
+# audit198 gap closure, 2026-07-21 (RULE-072, RULE-073, ai-os/RULES_ARTICLES_198.json):
+#   RULE-072: "The platform shall continuously study industry-leading
+#     products, open-source projects, and proven business practices to
+#     accelerate development without unnecessarily reinventing existing
+#     solutions."
+#   RULE-073: "Whenever legally permissible, open-source software, reusable
+#     libraries, templates, frameworks, APIs, and community-supported
+#     components shall be preferred to reduce development effort, cost,
+#     and delivery time."
+#
+# This is the structured artifact ai-os/CONSTITUTION.yaml's ARCH-06 already
+# calls for in prose ("Every vertical's research pass produces a per-repo
+# license-plus-verdict table before any code is written against a studied
+# project's ideas") but did not yet exist as a queryable table -- ARCH-06's
+# own `note` field held the same data as a single unstructured sentence.
+# This file turns that prose into real per-project rows; it does not
+# invent new research, it structures research the Owner/prior sessions
+# already did and ARCH-06/ARCH-07 already ratified (ai-os/CONSTITUTION.yaml
+# lines ~559-567, sourced from MASTER_AI_OS_ARCHITECTURE.md #6/#7).
+#
+# SCHEMA (every entry below uses this shape):
+#   project:  <name>
+#   license:  <SPDX-ish license identifier as documented in CONSTITUTION.yaml>
+#   verdict:  safe_to_reuse_code | study_ideas_only_no_code | data_model_shape_reference_only | do_not_run_as_live_service
+#   reused_in: <this repo's real call site/module that benefited from studying
+#               this project, or "none_yet" if study-only so far -- never
+#               fabricated, updated only when a real PR cites the project>
+#   notes:    <short, factual>
+#   source:   <constitution id this was reconciled from>
+#
+# language_rule: short structured values only, matching CONSTITUTION.yaml's
+#   own convention -- no narrative prose beyond this header.
+# ============================================================================
+
+meta:
+  id: OSS-STUDY-LEDGER
+  version: 1.0
+  effective_date: "2026-07-21"
+  reconciled_from:
+    - "ai-os/CONSTITUTION.yaml#ARCH-06"
+    - "ai-os/CONSTITUTION.yaml#ARCH-07"
+  update_rule: >-
+    Add a new entry (or update reused_in) whenever a real PR studies or
+    reuses ideas/patterns from an open-source project. Never mark
+    safe_to_reuse_code for an AGPL/BUSL/SSPL project -- see
+    ai-os/CONSTITUTION.yaml ARCH-06's known-risk list, which this file
+    extends, not replaces.
+
+projects:
+  - project: nocodb/nocodb
+    license: AGPL-3.0
+    verdict: study_ideas_only_no_code
+    reused_in: none_yet
+    notes: "Network-copyleft -- study UI/data-grid patterns only, never copy source."
+    source: ARCH-06
+  - project: appsmith/appsmith
+    license: AGPL-3.0
+    verdict: study_ideas_only_no_code
+    reused_in: none_yet
+    notes: "Network-copyleft -- low-code builder UX patterns, study only."
+    source: ARCH-06
+  - project: twentyhq/twenty
+    license: AGPL-3.0
+    verdict: study_ideas_only_no_code
+    reused_in: none_yet
+    notes: "Network-copyleft CRM -- study data model/UX only."
+    source: ARCH-06
+  - project: makeplane/plane
+    license: AGPL-3.0
+    verdict: study_ideas_only_no_code
+    reused_in: none_yet
+    notes: "Network-copyleft PM tool -- study workflow/board UX only."
+    source: ARCH-06
+  - project: docmost/docmost
+    license: AGPL-3.0
+    verdict: study_ideas_only_no_code
+    reused_in: none_yet
+    notes: "Network-copyleft docs tool -- study editor UX only."
+    source: ARCH-06
+  - project: directus/directus
+    license: BUSL-1.1
+    verdict: study_ideas_only_no_code
+    reused_in: none_yet
+    notes: "Business Source License -- headless CMS/data-studio patterns, study only."
+    source: ARCH-06
+  - project: frappe/erpnext
+    license: GPL-3.0-or-later / LGPL / proprietary (mixed)
+    verdict: data_model_shape_reference_only
+    reused_in: none_yet
+    notes: "GPL-3.0 core has no network clause; safe as data-model-shape reference, never copied code, never run as a live backend service (see frappe/crm|builder|insights below, ARCH-07)."
+    source: ARCH-06
+  - project: frappe/hrms
+    license: GPL-3.0-or-later
+    verdict: data_model_shape_reference_only
+    reused_in: none_yet
+    notes: "Same GPL-3.0-no-network-clause reasoning as frappe/erpnext -- HR module data model reference only."
+    source: ARCH-07
+  - project: frappe/crm
+    license: AGPL-3.0
+    verdict: do_not_run_as_live_service
+    reused_in: none_yet
+    notes: "AGPL, real legal exposure for a commercial SaaS -- never run as a live backend inside VERIDIAN; no MariaDB/Redis/Docker infra provisioned for it regardless of licensing."
+    source: ARCH-07
+  - project: frappe/builder
+    license: AGPL-3.0
+    verdict: do_not_run_as_live_service
+    reused_in: none_yet
+    notes: "Same AGPL exposure as frappe/crm -- ARCH-07."
+    source: ARCH-07
+  - project: frappe/insights
+    license: AGPL-3.0
+    verdict: do_not_run_as_live_service
+    reused_in: none_yet
+    notes: "Same AGPL exposure as frappe/crm -- ARCH-07."
+    source: ARCH-07
+  - project: medusajs/medusa
+    license: MIT
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive -- commerce-engine architecture safe to reference and reuse code from."
+    source: ARCH-06
+  - project: saleor/saleor (core)
+    license: BSD-3-Clause
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive core -- safe to reference and reuse code from (Saleor Cloud/enterprise add-ons are separately licensed, not covered by this entry)."
+    source: ARCH-06
+  - project: vendure-ecommerce/vendure
+    license: MIT
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive -- safe to reference and reuse code from."
+    source: ARCH-06
+  - project: bagisto/bagisto
+    license: MIT
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive -- safe to reference and reuse code from."
+    source: ARCH-06
+  - project: shopware/shopware (core)
+    license: MIT
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive core -- safe to reference and reuse code from (Shopware Enterprise Edition is separately licensed, not covered by this entry)."
+    source: ARCH-06
+  - project: spree/spree
+    license: BSD-3-Clause
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive -- safe to reference and reuse code from."
+    source: ARCH-06
+  - project: chatwoot/chatwoot (core)
+    license: MIT
+    verdict: safe_to_reuse_code
+    reused_in: none_yet
+    notes: "Permissive core -- safe to reference and reuse code from (Chatwoot Enterprise Edition module is separately licensed, not covered by this entry)."
+    source: ARCH-06

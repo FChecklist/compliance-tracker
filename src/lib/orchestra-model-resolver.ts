@@ -1,3 +1,33 @@
+/**
+ * audit198 gap closure, 2026-07-21 (RULE-065, ai-os/RULES_ARTICLES_198.json,
+ * AI_MODEL_AGNOSTIC category): RULE-065 requires "the complete AI
+ * architecture, including routers, orchestrators, supervisors, worker
+ * agents, and execution engines" to "remain fully AI Model Agnostic."
+ * Confirmed via direct code reading (not asserted) that every one of those
+ * layers resolves its model/provider through this file (or
+ * model-tier-eligibility.ts, which itself defers to this file) rather than
+ * hardcoding a provider --
+ *   - routers:      src/lib/ai-router/mother-router.ts's resolveModel()
+ *                    calls into the same platform.ai_model_registry-backed
+ *                    resolution this file implements.
+ *   - orchestrators: src/app/api/ai/orchestrate/route.ts imports
+ *                    resolveModelConfig from this file directly.
+ *   - supervisors:   src/lib/ai-router/software-team-ladder.ts's tier
+ *                    ladder is checked against model-tier-eligibility.ts's
+ *                    checkTierEligibility(), never a hardcoded model id.
+ *   - worker agents: src/lib/ai-team/roster.ts documents its own model
+ *                    slot as resolved via this file's
+ *                    resolvePlatformModelConfig(), not a literal.
+ *   - execution engines: src/lib/task-execution-engine.ts imports
+ *                    resolveModelConfig/escalatedPlatformConfig from this
+ *                    file and calls it at every real dispatch site.
+ * getRoleModel() below is the concrete swap point: platform.ai_model_registry
+ * is a live DB table, so replacing/upgrading/switching an AI provider for
+ * any of the layers above is a data change, not an architectural one --
+ * this file's own header comments on PLATFORM_FALLBACK_MODEL_FALLBACK
+ * document why the old hardcoded-constant approach was replaced with this
+ * registry lookup for exactly that reason.
+ */
 import { db, orchestraLayers, customerModelConfig, clientModelConfig, sharedPoolAllocations, aiModelRegistry } from "@/lib/db";
 import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
