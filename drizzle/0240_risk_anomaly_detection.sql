@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_risk_anomaly_events_event_type ON compliance.risk
 CREATE INDEX IF NOT EXISTS idx_risk_anomaly_events_status ON compliance.risk_anomaly_events(status);
 
 -- Unified pre-auth failure log, no org_id column -- exact same rationale as
--- passcode_login_attempts (drizzle/0211_passcode_login.sql): an attempt has
+-- passcode_login_attempts (drizzle/0259_passcode_login.sql): an attempt has
 -- no org to resolve to until AFTER a successful match. service_role-only
 -- access (raw db client, never withTenantContext), same security posture as
 -- that table -- it records raw attempted email addresses.

@@ -1427,7 +1427,7 @@ entries:
         covered by WAVE-170/PR #251. workerAgents.supervisorWorkerAgentId
         was confirmed dead (0 of then-27 rows populated, no write path) and
         deliberately not resurrected; instead built worker_agent_domain_
-        groups (drizzle/0173_worker_agent_domain_groups.sql, applied live)
+        groups (drizzle/0256_worker_agent_domain_groups.sql, applied live)
         + resolveDomainGroupKey() in worker-agent-service.ts, structurally
         similar to the existing module_registry precedent.
     auditor:
@@ -2629,7 +2629,72 @@ entries:
         scoped to new/changed files: 0 errors. No live browser
         verification was possible -- SSH-only server environment, no
         reachable dev server for this repo from this session.
+
   - id: WAVE-197
+    title: "PROJEXA duplicate-composer investigation (CRM+PROJEXA merge plan Wave 8): confirmed still-live, deletion deferred to post-Wave-10"
+    doer:
+      agent: "claude-code (background session, this task)"
+      date: "2026-07-21"
+      pr: "none -- read-only investigation, no code change"
+      summary: >
+        Investigated whether FChecklist/projexa's local mode-pill/chain-selector/
+        chatbox composer (src/components/veri-chat/VeriComposer.tsx,
+        VeriChatPanel.tsx, veri-chat-context.tsx) is safe to delete now that
+        compliance-tracker has the equivalent components (merged Waves 4-7).
+        Result: NOT safe. Fresh isolated clone of FChecklist/projexa (not the
+        shared /opt/veridian/repos/projexa checkout, which had unrelated
+        uncommitted work on another branch) confirmed via grep that
+        src/app/(app)/layout.tsx -- the shell wrapping all ~30 real PROJEXA
+        modules (accounting, payroll, sales, invoices, hr, procurement, etc.)
+        -- imports VeriComposer and VeriChatPanel directly and unconditionally.
+        The file's own 2026-07-18 header comment states these stay PROJEXA's
+        own components deliberately, wired to real working /api/assistant,
+        /api/discuss, /api/todos, /api/conversations routes; only the outer
+        AppShellFrame chrome moved to the shared veridian-ui-kit package.
+        projexa-ai.com is a live Vercel deployment with real customer orgs.
+        Wave 10 (DNS/Vercel cutover) has not happened. Deleting this composer
+        now would break the live app. No files were deleted or changed in
+        the projexa repo.
+    verified:
+      - "grep for veri-chat/VeriComposer and VeriChatPanel importers in FChecklist/projexa (fresh clone) returns src/app/(app)/layout.tsx as a live importer of both"
+      - "confirmed zero importers of veridian-ui-kit's own VeriComposer export in projexa -- the shared package is not yet substituted in"
+      - "read src/app/(app)/layout.tsx in full: composer/panel wired unconditionally into AppShellFrame for every route under the (app) route group"
+      - "follow-up: re-run this same check after Wave 10's DNS cutover completes -- if compliance-tracker is then genuinely serving projexa-ai.com traffic, this composer becomes dead code and the original Wave 8 deletion can proceed safely"
+
+  - id: WAVE-198
+    title: "Fix 6 pre-existing duplicate drizzle migration number prefixes on main (0172, 0173, 0198, 0204, 0211, 0214)"
+    doer:
+      agent: "claude-code (background session, this task)"
+      date: "2026-07-21"
+      pr: "#545 MERGED (squash, merge commit 3bd8c8ef)"
+      summary: >
+        Unrelated pre-existing technical debt, found in review. Reconfirmed
+        fresh (main had moved since the original finding) via
+        ls drizzle/*.sql | grep -oE '^[0-9]+' | sort | uniq -d that all 6
+        prefixes still collided; 0211 turned out to have 3 colliding files,
+        not 2. Used git log --diff-filter=A --follow first-commit date per
+        file to establish true chronological order, then renamed the
+        later-added file(s) in each group to the next free number after the
+        then-current highest migration (0254): 0172_priority11_deployment_events
+        -> 0255, 0173_worker_agent_domain_groups -> 0256,
+        0198_priority15_sales_crm_depth -> 0257,
+        0204_pms_issues_created_by_no_fk -> 0258, 0211_passcode_login -> 0259,
+        0211_workspace_memory_capsule_events -> 0260,
+        0214_workspace_memory_sync_method -> 0261. Pure git-mv renames, zero
+        SQL content changes. Updated the 7 other files that named an old
+        filename in a comment (drizzle/0240, 0206, 0207, 0205, 0176,
+        src/lib/services/worker-agent-service.ts, src/lib/db/schema.ts) plus
+        2 ai-os/boss registry log lines. drizzle/meta/_journal.json only
+        tracks migration 0000 and never referenced any of the 7 renamed
+        files, so it needed no change.
+    verified:
+      - "gh pr view 545 --json state,mergedAt shows state=MERGED, mergedAt=2026-07-21T17:12:19Z"
+      - "all 7 required status checks (Lint/Type Check/Build/audit-check/Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests) showed SUCCESS on the final commit before merge -- confirmed via gh pr view --json statusCheckRollup, not assumed"
+      - "post-fix: ls drizzle/*.sql | grep -oE '^[0-9]+' | sort | uniq -d returns empty (zero duplicate prefixes remain)"
+      - "post-fix: node scripts/check-migration-collision.mjs exits 0"
+      - "grep across the whole repo (excluding node_modules/.git) for all 7 old filenames returns zero residual references"
+      - "non-required Metadata Index Coverage Check failed on this PR, same pre-existing failure (unrelated ai-os files missing from OS.yaml index) also present on the sibling claims-registration PR #544 and not something this diff introduced or is required to fix"
+  - id: WAVE-199
     title: "Wave 10: projexa-ai.com DNS/Vercel cutover to compliance-tracker, plus the Wave 9 PROJEXA credential reverse-link gap it was blocked on"
     doer:
       agent: "claude-code (background task, this session, direct SSH + Supabase MCP + Vercel CLI, not a sub-agent)"
