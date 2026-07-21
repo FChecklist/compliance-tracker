@@ -578,6 +578,27 @@ registries:
       never weaken a checker just to inflate a score, and never build a
       second scoring script for the same 198 items.
 
+  - id: standing_task_directive
+    type: guardrail_ruleset
+    path: ai-os/STANDING_DIRECTIVE.yaml
+    scope: >-
+      Owner directive 2026-07-21: machine-readable encoding of the
+      Owner's single-line standing per-task prompt. Cite this file (by
+      id or path) with any task instead of restating the full protocol
+      -- it points to precheck (MASTER_INDEX.yaml+system_index),
+      execution (SSH-only, VERIDIAN-DEV), guardrails
+      (rules_articles_198 + ai_engineering_policy incl.
+      automation_scope_boundary), logging (ACTIVE-CLAIMS.yaml/
+      COMPLETED.yaml/system_index), verification (audit198_framework
+      re-run, never self-certified), and complete sync scope (server,
+      GitHub, Vercel, Supabase).
+    status: live
+    mandatory_before: >-
+      doing any work on this system when cited alongside a task --
+      same mandatory_before class as rules_articles_198 and
+      ai_engineering_policy, which this file references rather than
+      duplicates
+
   - id: ai_engineering_policy
     type: policy_doc
     path: ai-os/AI_ENGINEERING_POLICY.yaml
