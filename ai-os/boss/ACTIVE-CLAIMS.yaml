@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background task, 2026-07-21) -- Wave 9: migrate PROJEXA's org/user/credential data into compliance-tracker schema"
+    claimed_at: "2026-07-21T (this session)"
+    claim: |
+      Wave 9 of the VERIDIAN/PROJEXA brand-layer merge (see the 2026-07-21
+      "CRM completion + VERIDIAN/PROJEXA brand-layer merge" claim elsewhere
+      in this file for the full 10-wave plan; Owner gave explicit sign-off
+      to proceed with Waves 9+10 this session). Scope: migrate PROJEXA's
+      own Supabase project (evpckeuxgvahguwsaeul) organizations/memberships/
+      profiles into this repo's compliance schema (compliance.organisations,
+      compliance.users) on project pcrjmlpuqsbocqfwoxod, data-only (no
+      schema/DDL changes). Confirmed via live query: 9 PROJEXA orgs, 88
+      memberships total, all confirmed synthetic/demo/test data (no real
+      paying customers) -- 3 orgs already linked to existing
+      compliance.organisations rows via PROJEXA's own veridian_credentials
+      bridge table (Platform Test Org Alpha/4qtph, Demo Organization,
+      Meridian Construction Group), 6 need new compliance.organisations
+      rows created (Acme Test Construction, Wave4 QA Test Co, Skyline
+      Builders, Meridian Skyline Group, Platform Test Org Alpha/fm6zh, Al
+      Maha Skyline Contracting & Interiors LLC). CORRECTION to this wave's
+      original brief: the correct platform.product_branches row for
+      PROJEXA-provisioned orgs is branch_key='projexa'
+      (5fceebcd-0a7a-4448-ae2b-a72637124f13), confirmed by reading the live
+      POST /api/v1/platform/provision-org route and cross-checking the 3
+      already-linked orgs (all tagged with that branch id, not 'pms').
+      PROJEXA's own database (evpckeuxgvahguwsaeul) is read-only for this
+      task -- rollback source, never written to. Verified via a Supabase
+      branch off pcrjmlpuqsbocqfwoxod before any real-project write.
+      File scope: scripts/wave9-projexa-data-migration.ts (new, one-off
+      data migration script), ai-os/boss/completed-work/wave9-projexa-data-migration.md
+      (new summary), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry),
+      ai-os/boss/COMPLETED.yaml (new WAVE-N entry once merged). No overlap
+      with any other active entry: checked this file fresh
+      (2026-07-21) for "wave 9"/"projexa data migration" -- only the
+      parent plan's own scope description mentions Wave 9, no other
+      session has an active claim on it.
   - session_label: "claude-code (task-20260720-031002-superboss-v2-plan--persistent-vercel-sta) -- SUPERBOSS v2 TASK V2-7: Persistent Vercel staging env + per-env var scoping"
     claimed_at: "2026-07-20T (this session)"
     claim: |
