@@ -41,6 +41,18 @@
           "veriProjectsAi": "VERI Projects AI"
         }
       },
+      "construction": {
+        "title": "Construction",
+        "items": {
+          "siteDiary": "Site Diary",
+          "rfis": "RFIs",
+          "submittals": "Submittals",
+          "punchList": "Punch List",
+          "scope": "Scope (BOQ)",
+          "labour": "Labour",
+          "expenses": "Expenses"
+        }
+      },
       "theFirm": {
         "title": "The Firm",
         "items": {

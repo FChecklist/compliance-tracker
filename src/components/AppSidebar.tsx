@@ -71,6 +71,12 @@ import {
   GraduationCap,
   Copy,
   Activity,
+  NotebookPen,
+  FileCheck2,
+  ListChecks,
+  Ruler,
+  HardHat,
+  CircleDollarSign,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +171,29 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
     ...(pmsEnabled
       ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
+    // Wave 6 batch 1 (compliance-tracker/PROJEXA merge): construction
+    // execution modules -- backend (construction-*-service.ts) was already
+    // fully built across earlier PROJEXA-foundation waves and served only
+    // PROJEXA's own frontend until this wave; these are the first (app)
+    // pages for any of it. Shown unconditionally, same posture as the
+    // 'erp'/GRC sections below (no constructionEnabled-shaped flag exists
+    // anywhere in this codebase -- confirmed by search before adding this
+    // section -- so gating behind a still-unbuilt toggle would just hide
+    // real, working pages behind a switch nobody can flip). Labour here is
+    // site-labour manpower (construction-labour-service.ts), a distinct
+    // concept from company-employee HR attendance under People & HR below.
+    {
+      title: t("sections.construction.title"),
+      items: [
+        { label: t("sections.construction.items.siteDiary"), href: "/site-diary", icon: NotebookPen },
+        { label: t("sections.construction.items.rfis"), href: "/rfis", icon: HelpCircle },
+        { label: t("sections.construction.items.submittals"), href: "/submittals", icon: FileCheck2 },
+        { label: t("sections.construction.items.punchList"), href: "/punch-list", icon: ListChecks },
+        { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
+        { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
+        { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
+      ],
+    },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
     // real routes/UI this wave) -- gated behind its own 'the_firm' product
     // branch, same reversible-without-redeploy posture as PMS above.
