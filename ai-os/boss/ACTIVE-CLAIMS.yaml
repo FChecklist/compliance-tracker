@@ -5211,3 +5211,13 @@ recently_completed:
     at /opt/veridian/workspace/wave8-tasks/, not the shared repos/
     compliance-tracker checkout. No overlap with the CRM/PROJEXA work
     above -- pure numbering fix, no schema/business-logic changes.
+
+# ── claims closed 2026-07-21 (background session) ──────────────────────
+# Both claims registered above under 'claim registered 2026-07-21
+# (background session)' are now CLOSED. Outcomes logged as
+# ai-os/boss/COMPLETED.yaml WAVE-197 (PROJEXA composer: investigated,
+# confirmed still-live via src/app/(app)/layout.tsx import chain in a
+# fresh FChecklist/projexa clone, deletion deferred until after Wave 10's
+# DNS cutover -- no code change, no PR) and WAVE-198 (6 duplicate drizzle
+# migration number prefixes renumbered, PR #545 MERGED). No open work
+# remains under either claim.
