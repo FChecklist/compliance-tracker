@@ -2052,6 +2052,43 @@ entries:
         call sites had prior test coverage of the achievement-check branch
         itself, same as the pre-existing first_compliance_item wiring).
 
+  - id: WAVE-196
+    title: "Merge chain complete: MASTER_INDEX.yaml root (#501) -> AI_ENGINEERING_POLICY.yaml + automation_scope_boundary (#526) -> RULES_ARTICLES_198.json + audit198_framework guardrail registration (#540)"
+    doer:
+      agent: "claude-code (this session, direct SSH-driven merges, not a sub-agent)"
+      date: "2026-07-21"
+      pr: "#501, #526, #540 (sequential chain, each retargeted to main and merged in order)"
+      summary: >
+        Owner directive 2026-07-21 ("complete all of these" + STANDING_DIRECTIVE.yaml,
+        PR-merge-scope answer "1 and 2 both"): merged the 3-PR chain that makes
+        MASTER_INDEX.yaml, AI_ENGINEERING_POLICY.yaml (incl. its
+        automation_scope_boundary field), RULES_ARTICLES_198.json, and the
+        audit198_framework verification framework all land on main for the
+        first time -- previously all four existed only on unmerged branches.
+        Each PR was retargeted to main via `gh api .../pulls/<n> -X PATCH
+        -f base=main` (plain `gh pr edit --base` silently failed with a
+        stale GraphQL Projects-classic error on #526, confirmed via the
+        PATCH response's own base.ref field instead of trusting exit code),
+        given a genuine structured audit-check PR comment (this repo's
+        required `audit-check` CI gate parses a strict 8-field format --
+        see src/lib/audit-protocol.ts -- and fails the PR without it),
+        updated against main via `update-branch`, and merged only after
+        all 7 required status checks (Lint/Type Check/Build/audit-check/
+        Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests)
+        showed pass. Encountered and worked through repeated "head branch
+        not up to date"/"policy prohibits merge" races against other
+        concurrently-merging background agents (expected with 3 parallel
+        merge chains active), and a genuine multi-minute SSH path-flakiness
+        episode to the VERIDIAN-DEV host (confirmed via the Hetzner Cloud
+        API that the server itself stayed `running`, not rescued/rebooted,
+        the whole time -- same conclusion as the 2026-07-20/07-21 SSH
+        outage precedents: network noise on this specific path, not a
+        server fault, so no server-side action was taken).
+    verified:
+      - "gh pr view 501/526/540 --json state,mergedAt all show state=MERGED with real mergedAt timestamps"
+      - "all 7 required status checks confirmed pass on the final commit of each PR before merge, not assumed from an earlier run"
+      - "confirmed no collision with the separately-dispatched audit198-merge-agent background task, which had already finished by the time this chain was merged"
+
   - id: WAVE-180
     title: "GAP-AI-WORKFORCE-GOVERNANCE closed: Agent Review Registry (ARR) -- the last of PLATFORM_STRATEGY.md section 30's 2 genuinely-new registries"
     doer:
