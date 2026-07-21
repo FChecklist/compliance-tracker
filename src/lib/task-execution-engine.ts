@@ -380,7 +380,7 @@ function parseNumberList(v: unknown): number[] {
   });
 }
 
-async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
   assertBusinessRulesBeforeExecution(engineKey, inputs);
   // Zero typed fields -- validates a real GST return period's own confirmed
   // sales invoices, never a human-typed line-items list. Completes the GST
@@ -404,6 +404,58 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   }
 
   switch (engineKey) {
+    // VERIDIAN CRM Wave 4 (2026-07-21): structured, zero-LLM record
+    // creation -- the capability-tree leaf (capability-tree-service.ts's
+    // buildCrmQuickCreateNodes()) already collected every field via
+    // inputFields before this ever runs, so there is nothing left for an
+    // AI to interpret. userId (from this function's own new param, Wave 4)
+    // is what makes createdById real instead of a system placeholder.
+    case "crm_create_lead_engine": {
+      const { createLead } = await import("@/lib/services/crm-service");
+      const name = String(inputs.name ?? "").trim();
+      if (!name) throw new Error("name is required");
+      return createLead(
+        { orgId, userId },
+        {
+          name,
+          contactEmail: inputs.contactEmail ? String(inputs.contactEmail) : undefined,
+          contactPhone: inputs.contactPhone ? String(inputs.contactPhone) : undefined,
+          source: inputs.source ? String(inputs.source) : undefined,
+        }
+      );
+    }
+    case "crm_create_opportunity_engine": {
+      const { createOpportunity } = await import("@/lib/services/crm-service");
+      const name = String(inputs.name ?? "").trim();
+      const leadId = String(inputs.leadId ?? "").trim();
+      if (!name) throw new Error("name is required");
+      if (!leadId) throw new Error("leadId is required");
+      return createOpportunity(
+        { orgId, userId },
+        { name, leadId, estimatedValue: inputs.estimatedValue != null ? Number(inputs.estimatedValue) : undefined }
+      );
+    }
+    case "crm_create_activity_engine": {
+      const { createActivity } = await import("@/lib/services/crm-activities-service");
+      const entityType = String(inputs.entityType ?? "");
+      const entityId = String(inputs.entityId ?? "").trim();
+      const activityType = String(inputs.activityType ?? "");
+      const subject = String(inputs.subject ?? "").trim();
+      if (!["lead", "opportunity", "account", "contact"].includes(entityType)) throw new Error("entityType must be lead, opportunity, account, or contact");
+      if (!entityId) throw new Error("entityId is required");
+      if (!["task", "meeting", "call"].includes(activityType)) throw new Error("activityType must be task, meeting, or call");
+      if (!subject) throw new Error("subject is required");
+      return createActivity(
+        { orgId, userId },
+        { entityType: entityType as "lead" | "opportunity" | "account" | "contact", entityId, activityType: activityType as "task" | "meeting" | "call", subject, dueDate: inputs.dueDate ? String(inputs.dueDate) : undefined }
+      );
+    }
+    case "crm_create_campaign_engine": {
+      const { createCampaign } = await import("@/lib/services/crm-campaigns-service");
+      const name = String(inputs.name ?? "").trim();
+      if (!name) throw new Error("name is required");
+      return createCampaign({ orgId, userId }, { name, campaignType: inputs.campaignType ? String(inputs.campaignType) : undefined });
+    }
     // Mathematical Computation Engine (10 of 13 -- see capability-tree-
     // service.ts's comment for the 3 deferred, matrix/model-input ones).
     case "basic_arithmetic_engine": {
@@ -1793,7 +1845,7 @@ async function executeEngineDispatch(orgId: string, userId: string, taskId: stri
     try {
       const output = await invokeEngine(
         db, { orgId, userId, taskId }, engineKey,
-        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, engineKey, inputs),
+        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, userId, engineKey, inputs),
         engineInputs
       );
       assertValidDispatchOutput(output);
