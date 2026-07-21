@@ -15,11 +15,30 @@ import { defineConfig } from "@playwright/test";
 // package preference and this config's own module resolution have a real
 // package to find.
 //
-// Wave 79 note (still true): zero E2E tests exist yet -- writing real
-// Playwright browser tests (server + auth fixtures) is separate, larger
-// scope. testDir scopes discovery to a dedicated e2e/ directory
-// (currently empty), so --pass-with-no-tests in the CI workflow still
-// applies honestly.
+// audit198 gap-closure wave 2 (2026-07-21, ARTICLE-073: "Every critical
+// business workflow shall include end-to-end integration testing"): the
+// Wave 79 "zero E2E tests exist yet" honest gap is now partially closed --
+// e2e/smoke.spec.ts has real tests, which means Playwright needs a real
+// running app to test against. webServer below reuses the exact same
+// `bun run dev` script (and its predev hook, scripts/generate-protected-
+// routes.mjs) CI/local dev already use, on the default port 3000, with
+// the same placeholder DB/Supabase env vars the `build` job in ci.yml
+// already uses successfully -- these tests never issue a real DB query,
+// same honest note as the Unit Tests job's own comment on this pattern.
 export default defineConfig({
   testDir: "./e2e",
+  webServer: {
+    command: "bun run dev",
+    url: "http://localhost:3000",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://postgres:placeholder@localhost:5432/postgres",
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key",
+    },
+  },
+  use: {
+    baseURL: "http://localhost:3000",
+  },
 });

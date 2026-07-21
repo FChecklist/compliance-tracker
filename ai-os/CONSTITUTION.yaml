@@ -808,6 +808,142 @@ prompt_cache_framework:
       note: "A prior draft of this framework proposed a 'cache_registry' as if it were a data store -- corrected before implementation: there is nothing for VERIDIAN to store, since the provider already stores it. Recorded here so a future session doesn't rebuild a redundant local cache."
 
 # ============================================================================
+# 21. AUDIT198 GAP-CLOSURE WAVE 2 (2026-07-21) -- CI_CD_TESTING /
+#     SOLID_ENGINEERING_DISCIPLINE / SECURITY_RLS_ACCESS
+# ============================================================================
+# Owner directive 2026-07-21: close every genuinely-closable gap the
+# audit198 framework (ai-os/scripts/audit198/, PR #522) found for these 3
+# categories, and prove it with the audit engine's own re-run, not a
+# claim. Entries below cross-reference to specific RULES_ARTICLES_198.json
+# items (ARTICLE-0xx/RULE-0xx ids noted per entry) via run-audit.mjs's
+# constitution-index.mjs word-overlap matcher -- every status/mechanism
+# here is this session's own honest, independently-verified assessment
+# (grep/read against the real repo, cited inline), not an assertion
+# inherited from the 198-item checklist itself.
+audit198_wave2_engineering_discipline:
+  scope_note: "Covers items this wave targeted in CI_CD_TESTING, SOLID_ENGINEERING_DISCIPLINE, and SECURITY_RLS_ACCESS. A sibling session covered MONITORING_INFRA/TRACEABILITY_AUDIT_LOGGING/RECOVERY_RESILIENCE separately, on a different branch -- not duplicated here."
+  rules:
+    - id: CICD-01
+      rule: "Every source code change shall be version controlled."
+      status: ENFORCED
+      mechanism: "Git is this repo's sole source of truth (AGENTS.md Operating Rule 5). AGENTS.md Rule 6: GitHub branch protection on main requires every change to go through a PR that passes CI, enforce_admins on, no direct-push bypass for any agent including a full-access PAT -- so every change reaching main is, by construction, a version-controlled commit reachable from a reviewed PR."
+      source: "AGENTS.md Operating Rules 5-6"
+    - id: CICD-02
+      rule: "Every software change shall be traceable to a business requirement, defect, enhancement, or approved task."
+      status: PARTIALLY_ENFORCED
+      mechanism: "Wave 2 (2026-07-21): .github/pull_request_template.md's new Traceability section requires every PR to cite the WAVE/task id, ai-os/boss/COMPLETED.yaml or ACTIVE-CLAIMS.yaml entry, GitHub issue, or Owner-directive quote it addresses. ai-os/boss/COMPLETED.yaml and ACTIVE-CLAIMS.yaml already independently record the task each merged/in-flight change maps to."
+      gap: "The template field is not machine-validated -- nothing in CI rejects a PR whose Traceability field is left blank. Enforced by review discipline, the same guarantee class ARCH-03 above already documents honestly for a different rule."
+      source: ".github/pull_request_template.md"
+    - id: CICD-03
+      rule: "Every pull request shall be reviewed before merging into the primary branch."
+      status: PARTIALLY_ENFORCED
+      mechanism: ".github/workflows/mandatory-audit-check.yml requires a structured 8-field AUDIT: PASS/FAIL verdict comment (validated by scripts/validate-audit-verdict.ts against the real audit-protocol.ts AuditProtocolFields contract) on every PR into main; AGENTS.md Rule 6's branch-protection PR+CI gate guarantees no direct push bypasses this."
+      gap: "AGENTS.md Rule 6 states explicitly: 'No human approval is required on the PR itself.' mandatory-audit-check.yml's own header confirms it is not yet added to branch protection's required status checks, so the structured audit-verdict comment is real and substantive but currently advisory, not merge-blocking. Wiring it into required status checks is a repo access-control (branch protection) change that job's own header deliberately leaves for the Owner to make -- this wave did not make that change unilaterally."
+      source: "AGENTS.md Rule 6, .github/workflows/mandatory-audit-check.yml"
+    - id: CICD-04
+      rule: "Every deployment shall execute automated validation checks before release."
+      status: ENFORCED
+      mechanism: ".github/workflows/ci.yml runs Lint, Type Check, Build, Unit Tests, Guardrail Presence, Asset Registry Coverage, Metadata Index Coverage, Doc Quarantine Banner, Doc Cross-Reference, Hardcoded Config Check (added this wave), and E2E Tests on every push/PR to main; AGENTS.md Rule 6 makes this required (no direct-push bypass) before any change reaches the branch Vercel deploys from."
+      source: ".github/workflows/ci.yml, AGENTS.md Rule 6"
+    - id: CICD-05
+      rule: "Every production release shall include a rollback strategy."
+      status: ENFORCED
+      mechanism: "docs/SEV1_INCIDENT_RUNBOOK.md section 4 documents the real, concrete rollback path: Vercel Instant Rollback to the previous production deployment (project prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII) as the fastest first lever -- explicitly 'use it before attempting a code fix under pressure', no new commit/PR required -- plus a documented secret-rotation runbook via .github/workflows/sync-vercel-env.yml, ahead of the normal code-fix-through-PR path."
+      source: "docs/SEV1_INCIDENT_RUNBOOK.md section 4"
+    - id: CICD-06
+      rule: "Every module shall include automated testing appropriate to its responsibility."
+      status: PARTIALLY_ENFORCED
+      mechanism: ".github/workflows/ci.yml's Unit Tests job runs `bun test` against real src/lib/*.test.ts / src/app/**/*.test.ts files with no --passWithNoTests (Wave 79) -- a future PR that deletes all tests fails CI instead of passing silently."
+      gap: "Coverage is real but not universal: no coverage-percentage gate exists, so a new module can still ship with zero tests without failing CI."
+      source: ".github/workflows/ci.yml"
+    - id: CICD-07
+      rule: "Every critical business workflow shall include end-to-end integration testing."
+      status: PARTIALLY_ENFORCED
+      mechanism: "Wave 2 (2026-07-21): playwright.config.ts now has a real webServer (boots the actual app via `bun run dev`) and e2e/smoke.spec.ts has 3 real browser tests -- landing page render, login page render, and proxy.ts's real unauthenticated-redirect enforcement on a protected /clients route -- replacing the prior Wave 79 zero-test `--pass-with-no-tests` state in ci.yml's E2E job."
+      gap: "Only unauthenticated smoke coverage exists so far. Authenticated critical workflows (compliance task completion, approval chains, etc.) still have no E2E coverage -- that needs a real seeded-user auth fixture, a genuine, explicitly flagged follow-up, not claimed as done here."
+      source: "e2e/smoke.spec.ts, playwright.config.ts"
+    - id: CICD-08
+      rule: "Every defect shall include reproducible steps before engineering work begins."
+      status: PARTIALLY_ENFORCED
+      mechanism: "Wave 2 (2026-07-21): .github/ISSUE_TEMPLATE/bug_report.yml is a real GitHub Issue Form (not a markdown template) with `required: true` on Steps to Reproduce, Expected behavior, Actual behavior, and Environment -- GitHub itself blocks submission of an incomplete form, not just convention."
+      gap: "Only covers issues filed through GitHub's issue tracker via this form -- a defect reported another way (Slack, verbal, a PR description) isn't gated by it."
+      source: ".github/ISSUE_TEMPLATE/bug_report.yml"
+    - id: CICD-09
+      rule: "Every resolved defect shall include regression protection to prevent recurrence."
+      status: PARTIALLY_ENFORCED
+      mechanism: "Wave 2 (2026-07-21): .github/pull_request_template.md's new Regression protection section requires every bug-fix PR to either include a test that fails before / passes after the change, or state why one isn't possible. CICD-06's real, CI-enforced unit-test suite is the surface that regression test lands in and stays protected by."
+      gap: "The checkbox is discipline-enforced, not CI-validated -- no mechanical way exists to prove a specific new test would actually have failed before the fix."
+      source: ".github/pull_request_template.md"
+    - id: SOLID-CONFIG-01
+      rule: "Every configuration value shall be externalized and never hardcoded."
+      status: PARTIALLY_ENFORCED
+      mechanism: "Wave 2 (2026-07-21): scripts/check-hardcoded-config.mjs (new CI job 'Hardcoded Config Check') scans src/ for hardcoded secret-shaped literals (provider API-key/token formats) and hardcoded external base URLs not sourced from process.env, failing the build on an unexempted match. First run against the real repo found 0 secret-shaped literals and 41 URL findings, triaged in ai-os/registry/hardcoded-config-exemptions.yaml (provider API constants, fixed share-link hosts, and this app's own metadata-default domains, each with a stated reason) -- same registry+exemption convention as check-asset-registry-coverage.mjs."
+      gap: "Deliberately scoped to secret-shaped literals and external URLs -- does not attempt to detect every hardcoded configuration value (magic numbers, feature-flag literals, etc.), which would require far higher-risk heuristics than this wave's time budget supports honestly. 8 of the 41 exempted findings are this app's own deployment domain hardcoded with no env-var fallback (layout.tsx, page.tsx x2, robots.ts, sitemap.ts, openapi/generate.ts, mcp/route.ts, llm-client.ts) -- flagged in the exemptions file as a real, un-fixed follow-up (move onto the NEXT_PUBLIC_SITE_URL-first pattern email.ts/contact-service.ts/forge-intake-service.ts already use), not silently dropped."
+      source: "scripts/check-hardcoded-config.mjs, ai-os/registry/hardcoded-config-exemptions.yaml"
+    - id: SOLID-CONFIG-02
+      rule: "Every workflow shall be configurable without modifying source code wherever practical."
+      status: PARTIALLY_ENFORCED
+      mechanism: "Multiple real, data-driven workflow points already exist and were independently confirmed by reading the code, not assumed: report_definitions (200+ rows driving the Reports engine, no per-report code branch), src/lib/services/package-variable-resolver.ts's resolvePackageVariablesOrThrow() (task-execution-engine.ts's dispatch behavior is driven by `packages` table rows, not hardcoded per-task branches), and the capability/asset registry services referenced elsewhere in this document (GP-16 area, category infra checks)."
+      gap: "No universal lint/audit confirms every workflow in the codebase follows this pattern -- confirmed only for the named subsystems above, not repo-wide. A generic 'is this workflow code-driven or config-driven' mechanical check does not exist and would require case-by-case judgment to build honestly."
+      source: "src/lib/services/report-taxonomy.ts, src/lib/services/package-variable-resolver.ts, src/lib/task-execution-engine.ts"
+    - id: SEC-ITEM-01
+      rule: "Security shall be enforced at every architectural layer."
+      status: ENFORCED
+      mechanism: "Edge/middleware layer: src/proxy.ts (real Supabase session auth + generated protected-route allowlist, verified by direct read this wave). Application layer: src/lib/policy-enforcement-engine.ts::enforcePolicy(). Database layer: RLS via CREATE POLICY app_runtime_org_scoped + service_role_bypass_<table>, confirmed across 127 migration files under drizzle/ (510 total CREATE POLICY hits). Secrets layer: GP-16 above (secrets never in source; BYOK keys encrypted at rest) plus this wave's SOLID-CONFIG-01 mechanical check."
+      source: "src/proxy.ts, src/lib/policy-enforcement-engine.ts, drizzle/*.sql, GP-16, SOLID-CONFIG-01"
+    - id: SEC-ITEM-02
+      rule: "Every user action shall be authenticated."
+      status: ENFORCED
+      mechanism: "src/proxy.ts calls supabase.auth.getUser() on every request and redirects unauthenticated requests to /login (with redirectTo preserved) for every route listed in the auto-generated src/lib/protected-routes.generated.ts (scripts/generate-protected-routes.mjs, regenerated from the real src/app/(app)/ directory listing so the allowlist cannot silently drift, per that script's own 2026-07-09 gap-closure note). Verified this wave by direct read of proxy.ts and by e2e/smoke.spec.ts's new redirect test against a real protected route (/clients)."
+      source: "src/proxy.ts, src/lib/protected-routes.generated.ts, e2e/smoke.spec.ts"
+    - id: SEC-ITEM-03
+      rule: "Every resource request shall be authorized."
+      status: ENFORCED
+      mechanism: "Defense in depth, both layers independently confirmed: application-layer ABAC via src/lib/policy-enforcement-engine.ts and src/app/api/governance/abac-policies/route.ts, backstopped at the database layer regardless of any application-layer miss by RLS org-scoping (compliance.current_org_id()-scoped CREATE POLICY across 127 migrations, SEC-ITEM-01)."
+      source: "src/lib/policy-enforcement-engine.ts, src/app/api/governance/abac-policies/route.ts, drizzle/*.sql"
+    - id: SEC-ITEM-04
+      rule: "Every secret, API key, token, and credential shall be securely managed and never hardcoded."
+      status: PARTIALLY_ENFORCED
+      mechanism: "GP-16 above (secrets never in source, BYOK keys encrypted at rest) plus this wave's scripts/check-hardcoded-config.mjs CI job (SOLID-CONFIG-01), which found 0 secret-shaped literals on its first real run against src/."
+      gap: "check-hardcoded-config.mjs is new this wave and pattern-based (regex heuristics against known provider key formats) -- not a formally verified guarantee against every possible secret shape, the same honest-limitation class as every other check-*.mjs script in this repo."
+      source: "GP-16, scripts/check-hardcoded-config.mjs"
+
+# Values/priority items (RULE-096, ARTICLE-091, ARTICLE-092): these are
+# architectural PRIORITY statements, not boolean facts -- no mechanical
+# check can verify every development activity/architectural decision
+# honored a stated ordering. Per Owner directive 2026-07-21, the honest
+# automatable move for a "needs human judgment" item of this shape is not
+# to leave it undocumented, but to codify the actual priority ordering as
+# a real, dated policy artifact -- giving future evidence-gathering
+# something concrete to cite, where nothing existed before. Mirrored in
+# /opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml (server-level, applies
+# across all VERIDIAN repos, not just this one -- that file is NOT
+# git-tracked inside this repo, so this in-repo copy is the one audit198's
+# own evidence-engine can actually cite for this repo's audit).
+audit198_wave2_engineering_priority_policy:
+  scope_note: "Codified 2026-07-21, Owner directive. Status POLICY_ONLY throughout this section is deliberate and honest: a real, dated priority-ordering decision now exists and is citable, but it is inherently a values statement, not something a boolean check can confirm was followed on every occasion."
+  rules:
+    - id: PRIORITY-01
+      rule: "Every development activity shall prioritize maintainability, scalability, modularity, version control, automated testing, and long-term sustainability."
+      status: POLICY_ONLY
+      mechanism: "Codified 2026-07-21 in /opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml's engineering_values_priority_order section (server-level, Owner-facing, applies across FChecklist/compliance-tracker/PROJEXA/VERIDIAN AI OS) and mirrored here."
+      gap: "Inherently a values/priority statement -- no mechanical check can verify every development activity honored this ordering. What this wave closes is the previously-missing artifact itself: before 2026-07-21 no codified priority record existed anywhere for this rule to cite; now one does."
+      source: "/opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml"
+    - id: PRIORITY-02
+      rule: "Every architectural decision shall prioritize maintainability over short-term implementation speed."
+      status: POLICY_ONLY
+      mechanism: "Codified 2026-07-21 in /opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml's engineering_values_priority_order section, same artifact as PRIORITY-01."
+      gap: "Same honest limitation as PRIORITY-01 -- a priority statement, not a per-decision boolean fact."
+      source: "/opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml"
+    - id: PRIORITY-03
+      rule: "Every optimization shall preserve correctness before improving performance."
+      status: POLICY_ONLY
+      mechanism: "Codified 2026-07-21 in /opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml's engineering_values_priority_order section, same artifact as PRIORITY-01/02."
+      gap: "Same honest limitation as PRIORITY-01/02 -- a priority statement, not a per-optimization boolean fact."
+      source: "/opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml"
+
+
+# ============================================================================
 # HOW TO KEEP THIS FILE HONEST
 # ============================================================================
 maintenance_rule: "When any cited mechanism changes in a way that would flip a status value above, update this file in the SAME PR, not a follow-up -- cite the change under amendment_log with a date and one-line reason. When a POLICY_ONLY/NOT_YET_BUILT/NOT_YET_TRACKED rule gets built, move its status here AND log the real PR number as evidence. If a future session finds a claim here that no longer matches the cited file, that is drift in THIS document, not a hidden intentional inaccuracy -- fix it or remove it, the same rule every superseded source document held itself to."
