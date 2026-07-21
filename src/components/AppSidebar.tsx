@@ -75,6 +75,12 @@ import {
   Palette,
   Sofa,
   Gauge,
+  NotebookPen,
+  FileCheck2,
+  ListChecks,
+  Ruler,
+  HardHat,
+  CircleDollarSign,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -169,30 +175,41 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
     ...(pmsEnabled
       ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
-    // Wave 6 batch 2 (compliance-tracker/PROJEXA merge): visual-design +
-    // higher-level construction modules -- interior floor plans, mood
-    // boards, FF&E, change orders, work-progress logging (+ AI photo
-    // estimation), org-wide construction dashboard. Backend for all of
-    // these was already fully built across earlier PROJEXA-foundation
-    // waves; this wave is the first (app) UI for any of it.
+    // Wave 6 (compliance-tracker/PROJEXA merge): construction modules --
+    // backend (construction-*-service.ts / interior-*-service.ts) was
+    // already fully built across earlier PROJEXA-foundation waves and
+    // served only PROJEXA's own frontend before this; these are the first
+    // (app) pages for any of it. Shown unconditionally, same posture as
+    // the 'erp'/GRC sections below (no constructionEnabled-shaped flag
+    // exists anywhere in this codebase). Labour here is site-labour
+    // manpower (construction-labour-service.ts), a distinct concept from
+    // company-employee HR attendance under People & HR below.
     //
-    // NOTE (real, foreseeable merge conflict, disclosed here on purpose):
-    // this branch (wave6-batch2-construction-pages) was cut from origin/main
-    // BEFORE Wave 6 batch 1's PR (#514: site-diary/RFIs/submittals/
-    // punch-list/scope/labour/expenses) merged, per this wave's own
-    // instructions ("base off main -- independent, not stacked on batch 1's
-    // branch, since batch 1 isn't merged yet either"). Batch 1 added its own
-    // "Construction" section (t("sections.construction.title")) at this
-    // same spot in this same file. Whichever of #514 / this PR merges
-    // second WILL conflict here (and in messages/en.json + messages/hi.json)
-    // -- resolution is a trivial union of the two items[] arrays (and the
-    // two i18n key sets) under one shared "Construction" section, not a
-    // real design conflict. Left as two separate sections instead of
-    // silently guessing at batch 1's still-possibly-changing exact item
-    // list/order.
+    // MERGE CONFLICT RESOLUTION (batch 1 / PR #514 vs batch 2 / PR #524):
+    // both waves independently added their own "Construction" nav section
+    // at this same spot, since neither branch was cut after the other's
+    // merge into main yet (disclosed by both PRs' own bodies as a
+    // foreseeable, non-design conflict). Resolved by combining into ONE
+    // "Construction" section with all 13 items from both waves -- batch
+    // 1's execution modules (site-diary/RFIs/submittals/punch-list/scope/
+    // labour/expenses) followed by batch 2's design+progress modules
+    // (floor-plans/mood-boards/FF&E/change-orders/work-progress/
+    // dashboard) -- rather than one wave's entries overwriting the
+    // other's. i18n keys are left under their original two namespaces
+    // (sections.construction.items.* and sections.constructionDesign.
+    // items.*) since both are merged into messages/en.json and
+    // messages/hi.json unchanged; only the nav section object itself is
+    // unified.
     {
-      title: t("sections.constructionDesign.title"),
+      title: t("sections.construction.title"),
       items: [
+        { label: t("sections.construction.items.siteDiary"), href: "/site-diary", icon: NotebookPen },
+        { label: t("sections.construction.items.rfis"), href: "/rfis", icon: HelpCircle },
+        { label: t("sections.construction.items.submittals"), href: "/submittals", icon: FileCheck2 },
+        { label: t("sections.construction.items.punchList"), href: "/punch-list", icon: ListChecks },
+        { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
+        { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
+        { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
         { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
         { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
         { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
@@ -602,7 +619,7 @@ function AppSidebarFooter({ orgName }: { orgName: string }) {
   );
 }
 
-function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const t = useTranslations("Nav");
   const sections = buildSharedSections(t, overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled);
 
@@ -625,7 +642,7 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
         <SharedAppSidebar
           sections={sections}
           logo={logo}
-          productName={orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
+          productName={orgLogoUrl && orgName ? orgName : (brandName || "VERIDIAN AI")}
           collapsed={false}
         />
       </div>
@@ -634,8 +651,8 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null }) {
-  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl };
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null, brandName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null; brandName?: string }) {
+  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName };
   return (
     <>
       {/* Desktop sidebar -- wrapping the shared component (rather than
@@ -655,7 +672,7 @@ export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, ac
   );
 }
 
-function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const [open, setOpen] = useState(false);
 
   return (

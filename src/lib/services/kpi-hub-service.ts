@@ -3,7 +3,16 @@
 // compliance/risk/ERP/ticket/AI-ops data -- no new schema, no fabricated
 // metrics. Reuses Wave 95's orchestra-analytics-service for the AI-ops
 // section rather than re-deriving that aggregation.
-import { complianceItems, risks, tickets, erpSalesInvoices } from "@/lib/db"
+//
+// Wave 7 (PROJEXA reconcile, kpis vs kpi-hub): construction-kpi-service.ts
+// (Wave 117) is a separate definitions+entries approval-workflow system,
+// not an extension of this hardcoded scorecard -- deliberately left
+// unmerged (its own service, PROJEXA /kpis page, and /api/v1/projexa/kpis/**
+// routes are untouched by this addition). This just folds a live read-only
+// rollup of that data into the aggregation below so /kpi-hub reflects
+// construction KPIs too, the same "additive, no new schema" shape as every
+// other section here.
+import { complianceItems, risks, tickets, erpSalesInvoices, constructionKpiDefinitions, constructionKpiEntries } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
 import { getOrchestraAnalytics, type OrchestraAnalyticsSummary } from "./orchestra-analytics-service"
@@ -28,6 +37,13 @@ export type KpiHubSummary = {
     total: number
     open: number
     slaComplianceRate: number // of tickets resolved with a real SLA deadline, the fraction resolved on or before it
+  }
+  construction: {
+    totalDefinitions: number
+    totalEntries: number
+    pendingApproval: number
+    approved: number
+    onTargetRate: number // of approved entries whose definition has a targetValue, the fraction where actualValue >= targetValue
   }
   aiOps: OrchestraAnalyticsSummary
 }
@@ -64,6 +80,23 @@ export async function getKpiHubSummary(ctx: { orgId: string }): Promise<KpiHubSu
     const resolvedWithSla = Number(ticketStats?.resolvedWithSla ?? 0)
     const resolvedOnTime = Number(ticketStats?.resolvedOnTime ?? 0)
 
+    // Left-joined from definitions (not entries) so orgs with definitions
+    // but zero entries yet still get a real totalDefinitions count instead
+    // of being silently dropped by an inner join.
+    const [constructionKpiStats] = await db.select({
+      totalDefinitions: sql<number>`count(distinct ${constructionKpiDefinitions.id})`,
+      totalEntries: sql<number>`count(${constructionKpiEntries.id})`,
+      pendingApproval: sql<number>`count(*) filter (where ${constructionKpiEntries.approvalStatus} = 'submitted')`,
+      approved: sql<number>`count(*) filter (where ${constructionKpiEntries.approvalStatus} = 'approved')`,
+      onTarget: sql<number>`count(*) filter (where ${constructionKpiEntries.approvalStatus} = 'approved' and ${constructionKpiDefinitions.targetValue} is not null and ${constructionKpiEntries.actualValue}::numeric >= ${constructionKpiDefinitions.targetValue}::numeric)`,
+      ratedApproved: sql<number>`count(*) filter (where ${constructionKpiEntries.approvalStatus} = 'approved' and ${constructionKpiDefinitions.targetValue} is not null)`,
+    }).from(constructionKpiDefinitions)
+      .leftJoin(constructionKpiEntries, eq(constructionKpiEntries.kpiDefinitionId, constructionKpiDefinitions.id))
+      .where(eq(constructionKpiDefinitions.orgId, ctx.orgId))
+
+    const ratedApproved = Number(constructionKpiStats?.ratedApproved ?? 0)
+    const onTarget = Number(constructionKpiStats?.onTarget ?? 0)
+
     const aiOps = await getOrchestraAnalytics({ orgId: ctx.orgId }, 30)
 
     return {
@@ -87,8 +120,14 @@ export async function getKpiHubSummary(ctx: { orgId: string }): Promise<KpiHubSu
         open: Number(ticketStats?.open ?? 0),
         slaComplianceRate: resolvedWithSla > 0 ? resolvedOnTime / resolvedWithSla : 0,
       },
+      construction: {
+        totalDefinitions: Number(constructionKpiStats?.totalDefinitions ?? 0),
+        totalEntries: Number(constructionKpiStats?.totalEntries ?? 0),
+        pendingApproval: Number(constructionKpiStats?.pendingApproval ?? 0),
+        approved: Number(constructionKpiStats?.approved ?? 0),
+        onTargetRate: ratedApproved > 0 ? onTarget / ratedApproved : 0,
+      },
       aiOps,
     }
   })
 }
-

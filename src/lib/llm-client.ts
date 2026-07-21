@@ -56,6 +56,17 @@ export type CallLLMOptions = {
   // deliberately not touched this slice. Groq/OpenRouter/Cerebras/Google
   // get no special handling this slice either.
   enablePromptCache?: boolean;
+  // Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model, 2026-07-20):
+  // optional OpenAI-compatible chat-completions endpoint that, when set,
+  // overrides dispatchLLM()'s per-provider default URL for the groq/openai/
+  // openrouter/cerebras (callOpenAICompatible) branches ONLY. Used by the
+  // software_team-scope tenant-override path (runRole in team-service.ts)
+  // so an org pointing its BYO model at a self-hosted OpenRouter-compatible
+  // gateway can do so with no code change. Undefined for every pre-existing
+  // call site -> dispatchLLM uses its hardcoded provider URL exactly as
+  // before (zero behavior change). Not honored for anthropic/google
+  // (their request shapes are not OpenAI-compatible).
+  baseUrl?: string;
 };
 
 export type LLMUsage = {
@@ -449,15 +460,24 @@ async function callGoogle(
 }
 
 function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, systemPrompt: string, userMessage: string, options?: CallLLMOptions): Promise<{ content: string; usage: LLMUsage }> {
+  // Super Boss v2 plan task V2-5 (BYOB): an explicit OpenAI-compatible
+  // baseUrl in options overrides the per-provider default for the four
+  // callOpenAICompatible branches. The tenant-override path (runRole) is
+  // the only caller that sets this today; every existing call site leaves
+  // it undefined and gets dispatchLLM's hardcoded provider URL exactly as
+  // before. Anthropic/Google keep their own non-OpenAI-compatible shapes
+  // and ignore this (a tenant BYO model routed through OpenRouter never
+  // lands on those branches anyway).
+  const overrideUrl = options?.baseUrl
   switch (provider) {
     case "groq":
-      return callOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "openai":
-      return callOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "openrouter":
-      return callOpenAICompatible("https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "cerebras":
-      return callOpenAICompatible("https://api.cerebras.ai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://api.cerebras.ai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "anthropic":
       return callAnthropic(apiKey, model, systemPrompt, userMessage, options);
     case "google":

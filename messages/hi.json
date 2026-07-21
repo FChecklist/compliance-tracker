@@ -41,6 +41,18 @@
           "veriProjectsAi": "VERI प्रोजेक्ट्स AI"
         }
       },
+      "construction": {
+        "title": "निर्माण",
+        "items": {
+          "siteDiary": "साइट डायरी",
+          "rfis": "RFI",
+          "submittals": "सबमिटल",
+          "punchList": "पंच लिस्ट",
+          "scope": "स्कोप (BOQ)",
+          "labour": "श्रम",
+          "expenses": "व्यय"
+        }
+      },
       "constructionDesign": {
         "title": "निर्माण (डिज़ाइन और प्रगति)",
         "items": {
