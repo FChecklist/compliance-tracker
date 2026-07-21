@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260720-031002-superboss-v2-plan--persistent-vercel-sta) -- SUPERBOSS v2 TASK V2-7: Persistent Vercel staging env + per-env var scoping"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      V2-7 of SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md. Extend
+      .github/workflows/sync-vercel-env.yml to scope env vars per
+      environment (per-system-env target + gitBranch-scoped preview vars
+      for a persistent `staging` branch) + document the staging smoke-test
+      expectation. Tier2 (touches .github/workflows/*.yml). IMPORTANT
+      finding verified live against the Vercel API 2026-07-20: the account
+      is on the Hobby plan (billing.plan=hobby) and Hobby allows 0 custom
+      environments -- the v2 plan's D8 claim that a named `staging` custom
+      env is "already supported, no extra spend at current tier" is FALSE
+      at Hobby (Pro/$20-mo required). So the tier-honest path is NOT a
+      custom environment: it is a long-lived `staging` git branch (Vercel
+      auto-deploys each push as a preview) + env vars scoped via
+      target=preview + gitBranch=staging (free, the env-var API's
+      gitBranch field, no plan change). gh-token here has scopes
+      gist,read:org,repo -- NO `workflow` scope, so this token CANNOT
+      push the .yml change; the workflow edit is staged for an Owner push
+      with that limitation documented in the PR. The per-env-var scoping
+      design + staging-branch smoke-test doc + the plan-premise correction
+      are what this PR ships; no live Vercel project mutation (no env
+      created/deleted) in the PR itself -- only repo-side workflow +
+      docs. PR: #495. V2-6 moved to recently_completed on main (eac7feee)
+      during this rebase; kept only the V2-7 entry under active:.
+  scope_note: >-
+    File scope this task writes: .github/workflows/sync-vercel-env.yml
+    (staged for Owner push due to gh-token workflow-scope limitation),
+    ai-os/STAGING_ENV_2026-07-20.md (new -- staging smoke-test + design
+    doc), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md. No
+    schema, no .env, no source code, no live Vercel mutation. Collision
+    check before starting: no other active entry touches sync-vercel-env.yml
+    or a staging-env doc; gh pr list --state open returns none on this
+    file. Verified live via VERCEL_ACCESS_TOKEN that the project has 0
+    custom environments and Hobby plan caps custom envs at 0. Sibling V2
+    tasks touch disjoint scopes (V2-6 docs, V2-1 UAE pack, V2-2 nav, etc.).
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
     status: "DONE -- real work shipped in FChecklist/projexa PR #48 (https://github.com/FChecklist/projexa/pull/48), 12 spec files / 31 tests for the 11 Batch B modules + findings doc PHASE2_BATCH_B_FINDINGS.md. TIER1 self-merge once CI green. Note: the wrapping worker crashed in a 3s loop on upstream API 429 session-limit after the real work committed; root-caused, not a worker-script bug. The additive ci.yml e2e CI job was deferred (push token lacks workflow scope) and is a separately-pushable follow-up. UPDATE 2026-07-19T17:15Z: a re-opened PR #49 (same branch, after #48's squash merge drifted PROGRESS.md vs main) was conflict-resolved (merged origin/main, reconciled the single PROGRESS.md conflict keeping the truthful record), re-verified (tsc/lint/build all clean), and merged (commit 9156e2e, 17:15:14Z, branch deleted) -- TIER1, test-files-only."
@@ -73,31 +109,6 @@ active:
       Checked this file for collisions before starting: none found (no
       other active entry touches projexa E2E test files or this org's
       seeded rows).
-  - session_label: "claude-code (task-20260719-070242-projexa-e2e-phase-2-batch-c--finance-sal) -- PROJEXA E2E Phase 2 Batch C: Finance/Sales/HR modules + copilot chat-command testing"
-    claimed_at: "2026-07-19T (this session)"
-    claim: |
-      Phase 2 of the 5-phase PROJEXA E2E testing program (Phase 1: PR #45 on
-      FChecklist/projexa, merged -- architecture discovery + seed data for
-      "Meridian Construction Group (E2E Test Org)", 1,007 rows). This task
-      writes and runs real Playwright E2E tests against the live
-      projexa-ai.com site (repo: FChecklist/projexa, NOT this repo) for 16
-      modules -- accounting, budgets, invoices, quotations, sales-orders,
-      sales, customers, employees, payroll, recruitment, hr, kpis, reports,
-      wiki, knowledge-base, grc -- plus real natural-language chat-command
-      testing against the copilot's confirmed 7-tool dispatcher
-      (dispatchTool() in this repo's task-execution-engine.ts, reached via
-      POST /api/v1/projexa/assistant). This is a read-only + additive-write
-      task against this repo (compliance-tracker) -- no compliance-tracker
-      source files are modified, only this claims-file entry. All actual PR
-      work lands in FChecklist/projexa. Two sibling tasks run concurrently
-      on disjoint PROJEXA module scopes: Batch A (execution/field modules,
-      claim above, its own PR #480 already merged) and Batch B
-      (resources/design modules) -- no overlap with this task's
-      Finance/Sales/HR/copilot scope. Verified via a fresh clone (not the
-      shared /opt/veridian/repos/compliance-tracker checkout, which has
-      unrelated pre-existing uncommitted work from another session) that
-      no other active: entry below claims this same projexa-e2e-phase-2
-      scope before adding this one.
   - session_label: "claude-code (task-20260719-070238-projexa-e2e-phase-2-batch-a--execution-f) -- PROJEXA E2E Phase 2 Batch A: Playwright tests for Core Execution & Field modules"
     claimed_at: "2026-07-19T (this session)"
     claim: |
@@ -131,6 +142,41 @@ active:
       /opt/veridian/repos/compliance-tracker, which has pre-existing
       uncommitted work from another session that this task must not
       disturb (same precaution Phase 1 itself took).
+  - session_label: "claude-code (task-20260719-061256-projexa-e2e-phase-1--architecture-discov) -- PROJEXA E2E Testing Program, Phase 1: architecture discovery + realistic seed data for a new clean test org (1 CEO + 10 employees)"
+    claimed_at: "2026-07-19T (this session)"
+    claim: |
+      Owner directive 2026-07-19, Phase 1 of a 5-phase PROJEXA E2E testing
+      program (see PROJEXA-E2E-TESTING-PROGRAM-2026-07-19 in
+      claude-control/CONTROLLER.yaml for the full 5-phase sequencing).
+      Registering here (not a separate projexa-repo claims file -- FChecklist/
+      projexa has no ai-os/boss/ directory at all; this file's own header
+      already covers "veda-advisors / projexa" work, so this is the correct
+      single registry for this cross-system task).
+
+      Scope: READ-ONLY across compliance-tracker's real code (product-branch-
+      service.ts, /api/v1/projexa/* route surface, schema.ts) to document the
+      real PROJEXA<->VERIDIAN auth/data-bridge and confirm which of PROJEXA's
+      40 modules have real backing today. WRITE scope is narrow and additive
+      only: (1) new rows in a brand-new compliance.organisations tenant (NOT
+      projexa_demo_org/demo_org -- a fresh, clearly-labeled test org, e.g.
+      "Meridian Construction Group (E2E Test Org)") plus its own new users/
+      projects/RFIs/submittals/etc rows scoped to that new orgId, seeded via a
+      new script following src/db/seed.ts's + scripts/gen-wave111-seed-sql.ts's
+      existing conventions; (2) 11 new Supabase Auth users on PROJEXA's own
+      Supabase project (evpckeuxgvahguwsaeul), following the exact provisioning
+      pattern already used for democeo@projexa-ai.com (see PROJEXA-DEMO-01 in
+      CONTROLLER.yaml: real signup flow for the org owner, direct auth.users/
+      auth.identities inserts + a manual memberships row for the other 10,
+      since PROJEXA has no self-serve team-invite flow). No existing row in
+      any table is modified or deleted. No schema/migration change planned.
+      Deliverable is docs + a seed script, committed as a small PR against
+      FChecklist/projexa (PHASE1_SEED_REPORT.md), not against this repo.
+
+      Re-checked this file fresh before starting: no other active entry
+      claims product-branch-service.ts, the /api/v1/projexa/* route surface,
+      or any new-test-org seeding work. Does NOT touch projexa_demo_org,
+      demo_org, or any existing load-test org's data.
+
   - session_label: "claude-code (task-20260719-050016-ai-router--registry-backed-model-resolut) -- AI Router: registry-backed model resolution (close 2 model-agnosticism gaps + new model + new scope)"
     claimed_at: "2026-07-19T (this session)"
     claim: |
@@ -2598,6 +2644,38 @@ active:
       (every other active entry is a specific implementation/test gap), so
       no scope collision. Will move this entry to recently_completed once
       the plan's PR is merged.
+  - session_label: "claude-code (task-20260720-034002-superboss-v2-plan--mobile-field-ux-cross) -- SUPERBOSS v2 TASK V2-8: Mobile field UX cross-reference to projexa (docs-only close of CSV row #1790)"
+    claimed_at: "2026-07-20T03:45:00Z (this session)"
+    claim: |
+      V2-8 of SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (decision D10,
+      CSV row #1790 "Mobile / Responsive Experience: Field-usable UX for Site
+      Diary and Attendance on mobile devices"). Docs-only L1 close: verify
+      the field-usable Site Diary + Attendance UI lives in the sibling
+      projexa repo and write a cross-reference note in THIS repo's ai-os/
+      pointing there, so the compliance-tracker evaluation row #1790 (which
+      correctly found "no in-repo UI to evaluate" and punted to an Owner
+      scope decision) is re-scored against the correct repo boundary per the
+      Owner's own D10 decision.
+
+      File scope (the ONLY files this task touches): a NEW
+      ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md, this
+      ACTIVE-CLAIMS.yaml claim entry, and the OS.yaml health_and_compliance
+      index registration line for the new doc. No code, no schema, no
+      migration, no .env, no compliance-tracker src/ change -- the
+      cross-reference is a docs pointer, not a code change.
+
+      Verified before claiming: projexa repo
+      /opt/veridian/repos/projexa ships real consuming UI screens --
+      src/app/(app)/site-diary/page.tsx (SiteDiaryClient.tsx) and
+      src/app/(app)/labour/page.tsx ("Manpower & Attendance",
+      LabourClient.tsx with Roster + Attendance tabs), consuming
+      compliance-tracker's /api/v1/projexa/{site-diary,attendance}
+      aliases which re-export /api/v1/construction/* which calls the real
+      construction-site-diary-service + attendance engines here. No
+      collision with the 3 active projexa-e2e-phase-2 batch claims (those
+      are Playwright test files in FChecklist/projexa, not these source
+      screens) and no collision with any other active: entry. Will move
+      this entry to recently_completed once the PR merges.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
@@ -2609,6 +2687,21 @@ active:
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
 recently_completed:
+  - session_label: "claude-code (task-20260720-025001-superboss-v2-plan--decisions-of-record) -- SUPERBOSS v2 TASK V2-6: Decisions-of-record (docs-only close for the hold/document rows)"
+    completed_at: "2026-07-20T03:09:13Z"
+    merged_as: "PR #491 MERGED (squash, merge commit 8b0afd65) -- tier1 docs-only, all 7 required checks green (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests). audit-check required two verdict-comment corrections (the validator rejects trailing prose on the 'Severity Classified' enum line -- the repo's FChecklist-account-posted verdict pattern needed the bare 'none' token). Non-required E2E Tests check fails pre-existing on main (playwright/test module-not-found, environmental, unrelated to this docs-only diff)."
+    claim: |
+      V2-6 of SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md. Docs-only
+      close for the §2 decision-log rows that need NO code: wrote a
+      single new ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md with one
+      decision-paragraph per row (D7/D11 CRM-ERP connector hold, D9
+      no-second-cost-source, C13 bank-credential-target-lowered-to-3,
+      C16 market-fit-deferred, C17 OPENAI_API_KEY provisioning = formal
+      Owner request, C18 metadata-driven no-action, C19 Supabase IPv4
+      free-half/paid-half split), each with decision + rationale +
+      authority basis, grounded in the actual CSV rows. Registered the
+      new doc in ai-os/OS.yaml health_and_compliance index. No code, no
+      schema, no .env. Tier1, autonomously merged.
   - session_label: "claude-code (task-20260719-122711-airouter-01-phase-2--software-team-l0-l5) -- AIROUTER-01 Phase 2: Software Team L0-L5 execution ladder + Instruction Contract/Execution Report schema + capability routing matrix"
     completed_at: "2026-07-19T (this session)"
     merged_as: "PR #483 OPENED against main, NOT yet merged -- tier2 (schema/architecture), held for Owner sign-off per this repo's own rule, not self-merged. Update this entry with the merge commit once it lands."
@@ -2681,6 +2774,29 @@ recently_completed:
       clean; all 6 guardrail-check scripts pass (added a new OS.yaml index
       entry for the new RCA doc to keep check-metadata-index-coverage.mjs
       green).
+  - session_label: "claude-code (task-20260719-070242-projexa-e2e-phase-2-batch-c--finance-sal) -- PROJEXA E2E Phase 2 Batch C: Finance/Sales/HR modules + copilot chat-command testing"
+    completed_at: "2026-07-19T (this session)"
+    merged_as: "FChecklist/projexa PR #46, squash-merged (TIER1, test files + devDependency only, no schema/migration touched)"
+    claim: |
+      Wrote and ran a real Playwright E2E suite (7 spec files, 72 tests, 71
+      passed / 0 failed / 1 skipped) against the live projexa-ai.com site
+      for 16 Finance/Sales/HR modules (accounting, budgets, invoices,
+      quotations, sales-orders, sales, customers, employees, payroll,
+      recruitment, hr, kpis, reports, wiki, knowledge-base, grc), plus 12
+      real natural-language chat-command tests against the copilot's
+      confirmed 7-tool construction-only dispatcher and free-text Discuss
+      chat. Full results + every real gap found in FChecklist/projexa's
+      PHASE2_BATCH_C_FINDINGS.md. Most significant findings: every
+      HR/Payroll/Leave write is permanently broken for every PROJEXA user
+      (including the org owner) via a ctx.dbUser requirement this repo's
+      own routes enforce that PROJEXA's shared-API-key bridge can never
+      satisfy (src/app/api/v1/projexa/{hr/departments,leave/*,employees,
+      payroll/*}/route.ts); GET /api/hr/departments 500s on a relational
+      query bug; GRC's policies/[id] PATCH request_publish action 500s
+      (risk-register-service.ts's updatePolicy). Read this repo via a
+      fresh scratch clone (this file) throughout, no compliance-tracker
+      source files modified.
+
   - session_label: "claude-code (task-20260719-034948-migrate-projexa-to-consume-veridian-ui-k) -- migrate FChecklist/projexa to consume veridian-ui-kit's real shell/composer/panel/header components"
     completed_at: "2026-07-19T (this session)"
     merged_as: "FChecklist/projexa PR #42, squash-merged (TIER1, no schema/migration touched), commit 341435a3"
@@ -4717,3 +4833,88 @@ recently_completed:
       drizzle/*.sql), so this PR would not have been merged by this session
       even had CI gone green -- reported to the Owner for sign-off, with the
       CI-trigger anomaly flagged as its own separate open item.
+
+# ── claim registered 2026-07-19 ~17:30 UTC ──────────────────────────────
+- session_label: >-
+    claude-code (this session, CLI)
+    task-20260719-171130-reevaluate-2045-row-veridian-framework-r
+    -- SUPERBOSS v2: reevaluate all 2045 Review-Framework rows against
+    everything actually shipped + close every genuinely-closable gap
+  claimed_at: 2026-07-19T17:30:00Z (this session)
+  claim: >-
+    Owner-directed REEVALUATE-2045-FRAMEWORK-AND-PLAN task
+    (SUPERBOSS_IMPLEMENTATION_PLAN v2). Scope: read the authoritative
+    claude-control/VERIDIAN_Review_Framework_evaluated_2045rows.csv fresh,
+    re-score every one of its 2045 rows against what has ACTUALLY shipped
+    since 2026-07-16 (Mother Router Phase 1 #433, Software Team L0-L5
+    #483, GLM-5.2/OpenRouter routing, AI_TEAM_LOG_SECRET fix, the full
+    9-workstream Wave B already present server-side: Fixed Assets /
+    CRM Accounts+Contacts / HR Attendance / Payment Entries approval /
+    Training LMS / BYOB white-label branding, plus prior Priority 10-22
+    waves and PLATFORM-01/DOMAIN-01/02), produce a real current gap count
+    + a 111-row decision log for the previously-deferred set + an
+    extended implementation plan (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md)
+    sized into task-shaped units tagged L1-L4 for Mother Router routing,
+    register in both repos' ACTIVE-CLAIMS.yaml, open a tier1 docs-only PR.
+    THIS SESSION'S OWN DECISION (Owner pre-authorized, applying it):
+    treat the 9-workstream laptop worktree work as superseded/abandoned
+    per the task's explicit OWNER-AUTHORIZED DECISION -- and, per live
+    evidence gathered this session, that work is in fact ALREADY
+    superseded by complete server-side implementations in this repo
+    (schema + service + API routes + UI pages + tests all present for
+    Fixed Assets, CRM Accounts, HR Attendance, Payment Entries, Training
+    LMS, BYOB white-label). So no re-do is needed for those; the v2 plan
+    records this plainly rather than scheduling duplicate builds. The
+    genuinely-remaining gaps (e.g. CRM Contacts list-route+page, BYOB
+    bring-your-own-AI-model wiring, the 111 deferred rows re-examined
+    under granted decision authority) ARE scheduled. Docs-only PR; no
+    code/schema changes from this task itself.
+  scope_note: >-
+    File scope this task writes: ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md
+    (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
+    Read-mostly against claude-control CSV + CONTROLLER + this repo's
+    schema/src to ground the gap count. No collision: the v2 plan is a
+    fresh doc; the v1 plan (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
+    PR #485) is already merged and is being EXTENDED, not duplicated.
+
+  - session_label: "claude-code (interactive Superboss session, 2026-07-21) -- Full-system 198-item (99 Rules + 99 Articles) software-driven gap audit"
+    claimed_at: "2026-07-21T (this session)"
+    claim: |
+      Owner directive 2026-07-21: supplied RULES.xlsx (99 numbered Rules +
+      99 numbered Articles governing the complete VERIDIAN AI OS system,
+      extracted losslessly to ai-os/RULES_ARTICLES_198.json, PR #518).
+      Strict instruction: run an independent, parallel gap-analysis agent
+      across the server, every GitHub repository, Vercel, and Supabase,
+      auditing every one of the 198 items. The audit itself must be
+      performed by SOFTWARE SCRIPTS the AI writes and controls -- not by
+      the AI freehand-reading each rule and giving a prose opinion -- so
+      it becomes a standard, re-runnable audit system, not a one-off.
+      Final output must be delivered to the Owner in an understandable
+      form (a report/dashboard, not raw JSON).
+
+      Checked first (zero-duplication): ai-os/CONSTITUTION.yaml (819
+      lines) does NOT contain this ruleset -- confirmed via grep, zero
+      literal "Rule 1"/"Article 1" overlap. Genuinely distinct, not
+      reconciled with this ruleset yet -- both govern the same system.
+      audit-protocol.ts's existing 8-field structured-verdict convention
+      (FChecklist Agent Communication Standard) is the precedent this
+      audit's own verdict schema should extend, not reinvent.
+
+      Real, disclosed tooling gap found before dispatch: the Vercel CLI
+      is NOT authenticated on this server (confirmed live via `vercel
+      whoami` -- "No existing credentials found"), only on the separate
+      local Windows machine, which the standing SSH-only rule (never run
+      bare locally) means this session will not use for live work. Vercel
+      live deployment/env-var evidence is therefore NOT available to this
+      audit unless/until a VERCEL_TOKEN is provisioned server-side --
+      audit framework must mark Vercel-dependent items' verdicts as
+      EVIDENCE_UNAVAILABLE with the reason stated, never fabricate a
+      pass/fail without real evidence. GitHub (gh CLI, authenticated,
+      repo/read:org/gist scopes) and Supabase (MCP tools, project
+      pcrjmlpuqsbocqfwoxod, confirmed working this session) ARE available.
+
+      File scope: new ai-os/scripts/audit198/** (the audit framework +
+      per-rule checkers), a generated report artifact, ai-os/RULES_
+      ARTICLES_198.json (already added, PR #518). No changes to existing
+      production code/schema from this claim -- this is read-only
+      evidence-gathering plus a new, additive audit tool.
