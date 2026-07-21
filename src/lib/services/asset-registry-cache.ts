@@ -32,6 +32,9 @@
 // the very next read still relies on TTL).
 import { db, platformAssets } from "@/lib/db"
 import { and, eq, isNull, or } from "drizzle-orm"
+import { logCacheEvent } from "@/lib/cache-governance"
+
+const CACHE_NAME = "asset-registry-cache"
 
 export type CachedAsset = typeof platformAssets.$inferSelect
 
@@ -77,14 +80,19 @@ function isFresh(entry: CacheEntry | undefined): entry is CacheEntry {
 // serves from memory until the next expiry or explicit invalidation.
 export async function getCachedOrgAssets(orgId: string): Promise<CachedAsset[]> {
   const existing = orgCache.get(orgId)
-  if (isFresh(existing)) return existing.assets
+  if (isFresh(existing)) {
+    logCacheEvent(CACHE_NAME, "hit", { orgId })
+    return existing.assets
+  }
 
   const inFlight = inFlightLoads.get(orgId)
   if (inFlight) return inFlight
 
+  logCacheEvent(CACHE_NAME, "miss", { orgId })
   const loadPromise = loadOrgAssets(orgId)
     .then((assets) => {
       orgCache.set(orgId, { loadedAt: Date.now(), assets })
+      logCacheEvent(CACHE_NAME, "write", { orgId, count: assets.length })
       return assets
     })
     .finally(() => {
@@ -98,6 +106,7 @@ export async function getCachedOrgAssets(orgId: string): Promise<CachedAsset[]> 
 // writes) right after a successful write, best-effort same-instance
 // freshness. Safe to call even if orgId was never cached (no-op).
 export function invalidateOrgCache(orgId: string | null | undefined): void {
+  logCacheEvent(CACHE_NAME, "invalidate", { orgId: orgId ?? "platform_tier_all" })
   if (orgId === null || orgId === undefined) {
     // A platform-tier write (orgId IS NULL) is visible to every org's
     // cache entry (the OR isNull(orgId) clause in loadOrgAssets) -- there
@@ -114,6 +123,7 @@ export function invalidateOrgCache(orgId: string | null | undefined): void {
 }
 
 export function invalidateAllCaches(): void {
+  logCacheEvent(CACHE_NAME, "invalidate", { orgId: "all" })
   orgCache.clear()
 }
 

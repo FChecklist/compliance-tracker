@@ -937,6 +937,42 @@ export const instructionExecutionCache = platformSchemaDB.table('instruction_exe
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Production Issues Knowledge Repository ──────────────────────────────
+// Audit198 gap closure, 2026-07-21 (DOCUMENTATION category -- ARTICLE-076
+// "Every production issue shall be documented in a knowledge repository",
+// verdict NOT_YET_BUILT before this pass, confirmed correct: the existing
+// `incidents` table (compliance schema) is a GRC/compliance business
+// incident register -- categories 'Security / Data Breach' | 'Operational'
+// | 'Safety' | 'Financial', no description/root-cause/resolution field,
+// CAPA-owner workflow for regulatory/business incidents. It does not serve
+// software/engineering production issues (bugs, outages, deploy failures)
+// and is a genuinely different concern, not a duplicate of this table.
+// Platform-scoped (platformSchemaDB, no org_id/RLS) because this is
+// VERIDIAN's OWN engineering history, not tenant business data -- same
+// scoping choice instructionExecutionCache above already made for the
+// same reason.
+export const productionIssueSeverityEnum = platformSchemaDB.enum('production_issue_severity', ['low', 'medium', 'high', 'critical'])
+export const productionIssueStatusEnum = platformSchemaDB.enum('production_issue_status', ['open', 'investigating', 'resolved', 'wont_fix'])
+
+export const productionIssues = platformSchemaDB.table('production_issues', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  component: text('component'), // free-text file/module/service name -- not an FK, this predates any formal module registry entry existing
+  severity: productionIssueSeverityEnum('severity').notNull().default('medium'),
+  status: productionIssueStatusEnum('status').notNull().default('open'),
+  description: text('description').notNull(),
+  rootCause: text('root_cause'),
+  resolution: text('resolution'),
+  preventionAction: text('prevention_action'),
+  relatedPr: text('related_pr'),
+  tags: jsonb('tags').notNull().default([]), // string[]
+  reportedBy: text('reported_by'), // 'system' | 'ai' | a users.id string, free text -- platform-wide, spans org/no-org context, not an FK
+  discoveredAt: timestamp('discovered_at').notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── Entity Relationships (Phase 3 graph store, Phase3_Design_by_Claude.md) ──
 // Generic typed-edge table -- the substrate every "Enterprise * Graph"
 // proposal in both VERIDIAN.docx studies needs and none of them has today.

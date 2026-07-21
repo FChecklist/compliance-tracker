@@ -1,20 +1,20 @@
 {
   "meta": {
-    "generated_at": "2026-07-21T09:29:09.981Z",
-    "completed_at": "2026-07-21T09:30:15.219Z",
+    "generated_at": "2026-07-21T12:17:09.190Z",
+    "completed_at": "2026-07-21T12:18:14.898Z",
     "framework": "ai-os/scripts/audit198",
     "source": "ai-os/RULES_ARTICLES_198.json",
     "constitution_cross_reference": "ai-os/CONSTITUTION.yaml",
     "total_items": 198,
     "categories_used": 33,
     "status_counts": {
-      "ENFORCED": 22,
-      "PARTIALLY_ENFORCED": 152,
+      "ENFORCED": 23,
+      "PARTIALLY_ENFORCED": 157,
       "POLICY_ONLY": 0,
       "NOT_APPLICABLE_YET": 0,
-      "NOT_YET_BUILT": 15,
+      "NOT_YET_BUILT": 10,
       "EVIDENCE_UNAVAILABLE": 0,
-      "NEEDS_HUMAN_JUDGMENT": 9
+      "NEEDS_HUMAN_JUDGMENT": 8
     },
     "note": "Every verdict below was derived programmatically from live grep/file/CONSTITUTION.yaml evidence gathered at generation time -- see each item's `evidence` array for the exact citations. Re-run via `node ai-os/scripts/audit198/run-audit.mjs` to regenerate against the current state of the repo."
   },
@@ -74,7 +74,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -163,7 +163,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -233,7 +233,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -251,7 +251,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -321,7 +321,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 28,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -340,7 +340,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -429,7 +429,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -499,7 +499,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -519,7 +519,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -608,7 +608,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -678,7 +678,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 30,
+          "distinctFilesHit": 31,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -695,7 +695,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -783,7 +783,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -825,7 +825,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -865,7 +865,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -899,15 +899,15 @@
           "sampleHits": [
             "src/lib/services/chat-service.ts:602:    // (2026-07-18): \"Explainability of Output\" -- personalize tone/address",
             "src/lib/floor-tier-escalation.ts:103:// \"Personalized AI Responses\" / \"AI Confidence Score\" findings: no confidence",
-            "src/lib/db/schema.ts:3654:  // \"Personalized AI Responses\"): 'high' | 'medium' | 'low', set ONLY on a",
-            "ai-os/CONSTITUTION.yaml:330:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\"",
+            "src/lib/db/schema.ts:3690:  // \"Personalized AI Responses\"): 'high' | 'medium' | 'low', set ONLY on a",
+            "ai-os/CONSTITUTION.yaml:332:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\"",
             "ai-os/system-tree/50-merged-tree.yaml:2210:    personalized-observation + free-session-booking email within 24h) + a WhatsApp fallback (wa.me/919650397480)."
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -933,7 +933,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
+          "distinctFilesHit": 30,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/privacy/page.tsx",
@@ -951,7 +951,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -993,7 +993,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1057,16 +1057,16 @@
           ],
           "sampleHits": [
             "src/lib/guardrail-engine.ts:3:// per Dynamic Mode Pills/Chain Selection, with a predefined polite message",
-            "ai-os/CONSTITUTION.yaml:290:# 6. NAVIGATION AND INTENT CAPTURE -- Dynamic Mode Pills / Dynamic Chain",
-            "ai-os/CONSTITUTION.yaml:293:  rule: \"Dynamic Mode Pills (DMP) + Dynamic Option Selection/Chain Selector + chat is the flexible, non-rigid instruction interface. Changes per module/org/user. The tree already exists shipped, not a new concept.\"",
-            "ai-os/CONSTITUTION.yaml:297:      rule: \"Dynamic Mode Pills and cascading Chain Selector render live, computed per-org, not hardcoded.\"",
-            "ai-os/CONSTITUTION.yaml:330:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\""
+            "ai-os/CONSTITUTION.yaml:292:# 6. NAVIGATION AND INTENT CAPTURE -- Dynamic Mode Pills / Dynamic Chain",
+            "ai-os/CONSTITUTION.yaml:295:  rule: \"Dynamic Mode Pills (DMP) + Dynamic Option Selection/Chain Selector + chat is the flexible, non-rigid instruction interface. Changes per module/org/user. The tree already exists shipped, not a new concept.\"",
+            "ai-os/CONSTITUTION.yaml:299:      rule: \"Dynamic Mode Pills and cascading Chain Selector render live, computed per-org, not hardcoded.\"",
+            "ai-os/CONSTITUTION.yaml:332:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1123,7 +1123,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/proxy.ts"
@@ -1139,7 +1139,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1213,7 +1213,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1257,7 +1257,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1290,11 +1290,12 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
-          "coOccurrenceFileCount": 4,
+          "distinctFilesHit": 26,
+          "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/terms/page.tsx",
+            "src/app/api/ai/cache/governance/route.ts",
             "src/app/api/v1/projexa/fraud-cases/route.ts",
             "src/app/api/v1/projexa/companies/route.ts"
           ],
@@ -1314,7 +1315,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1384,7 +1385,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 23,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -1393,7 +1394,7 @@
           "sampleHits": [
             "src/lib/services/report-engine-service.ts:580:    if (budgetTotal <= 0) return { columns: [\"Metric\", \"Value\"], rows: [{ Metric: \"Budget Utilized %\", Value: \"N/A\" }], note: \"No project-linked budget line items exist for this organisation's cost centres yet.\" }",
             "src/lib/services/report-engine-service.ts:586:        { Metric: \"Budget Utilized %\", Value: Math.round((actualTotal / budgetTotal) * 1000) / 10 },",
-            "src/lib/db/schema.ts:9433:  projectId: text('project_id'), // nullable -- org-wide KPIs (e.g. \"Designer Hours Utilized\") vs. project-scoped ones",
+            "src/lib/db/schema.ts:9469:  projectId: text('project_id'), // nullable -- org-wide KPIs (e.g. \"Designer Hours Utilized\") vs. project-scoped ones",
             "drizzle/0181_project_construction_report_definitions.sql:475:-- 7. Budget Utilized %.",
             "drizzle/0181_project_construction_report_definitions.sql:476:('rptdef_kpi_budget_utilized', NULL, 'Budget Utilized %',"
           ]
@@ -1401,7 +1402,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1466,7 +1467,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1480,6 +1481,15 @@
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
         {
+          "type": "constitution_cross_reference",
+          "constitution_id": "OWN-01",
+          "constitution_rule": "Every software module and AI component shall have clearly defined ownership, responsibilities, authority, inputs, outputs, reporting requirements, and escalation paths.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": ".github/CODEOWNERS (added 2026-07-21) -- real GitHub PR-review-routing enforcement per module path (governance/CI/DB-schema/AI-platform paths explicitly routed, default owner for everything else). AI component ownership: src/lib/ai-team/roster.ts + ai-os/CONSTITUTION.yaml's orchestrator_governance section (pre-existing) define role/authority for the AI Team dispatch system itself. AGENTS.md Operating Rules 1-11 define the escalation path (PR/CI gate, agent authorization, no-override-without-owner-directive).",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-048 (num 48, GOVERNANCE_OWNERSHIP category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 0.391
+        },
+        {
           "type": "item_keyword_grep",
           "keywords": [
             "software",
@@ -1492,7 +1502,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -1511,7 +1521,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1555,7 +1565,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 19,
+          "distinctFilesHit": 20,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/page.tsx"
@@ -1571,7 +1581,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1624,7 +1634,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1677,7 +1687,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1730,7 +1740,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1763,16 +1773,16 @@
           ],
           "sampleHits": [
             "src/lib/guardrail-engine.ts:3:// per Dynamic Mode Pills/Chain Selection, with a predefined polite message",
-            "ai-os/CONSTITUTION.yaml:290:# 6. NAVIGATION AND INTENT CAPTURE -- Dynamic Mode Pills / Dynamic Chain",
-            "ai-os/CONSTITUTION.yaml:293:  rule: \"Dynamic Mode Pills (DMP) + Dynamic Option Selection/Chain Selector + chat is the flexible, non-rigid instruction interface. Changes per module/org/user. The tree already exists shipped, not a new concept.\"",
-            "ai-os/CONSTITUTION.yaml:297:      rule: \"Dynamic Mode Pills and cascading Chain Selector render live, computed per-org, not hardcoded.\"",
-            "ai-os/CONSTITUTION.yaml:330:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\""
+            "ai-os/CONSTITUTION.yaml:292:# 6. NAVIGATION AND INTENT CAPTURE -- Dynamic Mode Pills / Dynamic Chain",
+            "ai-os/CONSTITUTION.yaml:295:  rule: \"Dynamic Mode Pills (DMP) + Dynamic Option Selection/Chain Selector + chat is the flexible, non-rigid instruction interface. Changes per module/org/user. The tree already exists shipped, not a new concept.\"",
+            "ai-os/CONSTITUTION.yaml:299:      rule: \"Dynamic Mode Pills and cascading Chain Selector render live, computed per-org, not hardcoded.\"",
+            "ai-os/CONSTITUTION.yaml:332:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1812,7 +1822,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1902,7 +1912,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -1959,7 +1969,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 13,
+          "distinctFilesHit": 14,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/litert-spike/page.tsx",
@@ -1976,7 +1986,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2046,24 +2056,24 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/litert-spike/page.tsx"
           ],
           "sampleHits": [
+            "ai-os/CONSTITUTION.yaml:812:      rule: \"Browser cache, application cache, server cache, metadata cache, and workflow cache are maximized wherever appropriate, alongside the AI provider cache, to reduce latency, reduce AI cost, and improve user experience.\"",
+            "ai-os/CONSTITUTION.yaml:815:      gap: \"All six named cache types have a real, wired implementation as of 2026-07-21 (previously true but never cross-referenced together in one place) -- 'maximized wherever appropriate' is not yet literally true everywhere: llm-response-cache is opt-in at only 2 call sites (src/app/api/ai/orchestrate/route.ts, src/lib/services/fde-service.ts), not automatic at every AI invocation site across the codebase's 400+ API routes. Breadth of adoption, not existence of the mechanisms, is the remaining gap.\"",
             "ai-os/audit-tree/10-merged-tree.yaml:623:            output: \"A learning-loop entry scoped to that selection's guardrails (feeds D16). Objective throughout: lower token usage, maximize deterministic software over AI.\"",
             "ai-os/audit-tree/03-dmp-dcf.yaml:152:      - \"Strategic objective: maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge, provide every user a personalized context-aware experience\"",
-            "ai-os/audit-tree/AUDIT-ROUND-2.md:29:These are the same claim, restated with a near-identical enumeration. D5.B1.S3 also restates D5.B1.S2's \"software execution / continuous learning\" objectives in its closing clause (\"maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge\"). The only genuinely new content in D5.B1.S3 is the authority-level statement (\"mandatory for every component... a foundational constitutional requirement\") -- which is worth keeping, but the branch as currently written duplicates roughly 70% of its own text with its two siblings.",
-            "ai-os/audit-tree/08-task-response-engine.yaml:25:      - \"Should lower token usage and maximize use of deterministic software over AI\"",
-            "ai-os/audit-tree/08-task-response-engine.yaml:45:      - \"This whole validation system should help lower token usage and maximize software (vs. AI) usage\""
+            "ai-os/audit-tree/AUDIT-ROUND-2.md:29:These are the same claim, restated with a near-identical enumeration. D5.B1.S3 also restates D5.B1.S2's \"software execution / continuous learning\" objectives in its closing clause (\"maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge\"). The only genuinely new content in D5.B1.S3 is the authority-level statement (\"mandatory for every component... a foundational constitutional requirement\") -- which is worth keeping, but the branch as currently written duplicates roughly 70% of its own text with its two siblings."
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2106,7 +2116,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2132,7 +2142,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 23,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/(app)/home/page.tsx",
@@ -2149,7 +2159,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2195,7 +2205,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2237,7 +2247,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2277,7 +2287,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2320,7 +2330,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2363,7 +2373,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2403,7 +2413,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2478,7 +2488,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2520,7 +2530,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2562,7 +2572,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2588,7 +2598,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 26,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
@@ -2602,7 +2612,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2633,7 +2643,7 @@
           "coOccurrenceFiles": [
             "src/app/litert-spike/worker-src/inference-worker.ts",
             "src/app/litert-spike-embeddings/worker-src/inference-worker.ts",
-            "ai-os/audit-tree/10-merged-tree.yaml"
+            "ai-os/CONSTITUTION.yaml"
           ],
           "sampleHits": [
             "src/app/litert-spike/worker-src/inference-worker.ts:36:interface RunMsg {",
@@ -2646,7 +2656,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2723,7 +2733,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2779,7 +2789,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2821,7 +2831,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2832,8 +2842,56 @@
       "category": "GOVERNANCE_OWNERSHIP",
       "category_label": "Ownership, responsibility, authorized-scope governance",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "CODEOWNERS names one owner (@FChecklist) for every path today (single-collaborator repo, confirmed via gh api) -- per-module OWNERSHIP is structurally declared but not yet DIFFERENTIATED (no module has a distinct owner from any other yet). Responsibilities/authority/reporting for most individual modules still live in scattered header comments, not one indexed place.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "OWN-01",
+          "constitution_rule": "Every software module and AI component shall have clearly defined ownership, responsibilities, authority, inputs, outputs, reporting requirements, and escalation paths.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": ".github/CODEOWNERS (added 2026-07-21) -- real GitHub PR-review-routing enforcement per module path (governance/CI/DB-schema/AI-platform paths explicitly routed, default owner for everything else). AI component ownership: src/lib/ai-team/roster.ts + ai-os/CONSTITUTION.yaml's orchestrator_governance section (pre-existing) define role/authority for the AI Team dispatch system itself. AGENTS.md Operating Rules 1-11 define the escalation path (PR/CI gate, agent authorization, no-override-without-owner-directive).",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-048 (num 48, GOVERNANCE_OWNERSHIP category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": ".github/CODEOWNERS",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "@FChecklist",
+              "found": true,
+              "line": 27
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/classification.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function canAccess",
+              "found": true,
+              "line": 40
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/module-rules-resolver.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function resolveModuleRule",
+              "found": true,
+              "line": 43
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2847,7 +2905,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -2865,7 +2923,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2875,9 +2933,48 @@
       "text": "The same principles of defined roles, responsibilities, governance, reporting, and accountability shall apply to organizational workflows managed within VERIDIAN AI OS.",
       "category": "GOVERNANCE_OWNERSHIP",
       "category_label": "Ownership, responsibility, authorized-scope governance",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": ".github/CODEOWNERS",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "@FChecklist",
+              "found": true,
+              "line": 27
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/classification.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function canAccess",
+              "found": true,
+              "line": 40
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/module-rules-resolver.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function resolveModuleRule",
+              "found": true,
+              "line": 43
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2891,7 +2988,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 25,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -2911,7 +3008,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -2922,8 +3019,56 @@
       "category": "GOVERNANCE_OWNERSHIP",
       "category_label": "Ownership, responsibility, authorized-scope governance",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "These are real, independently-verified gates at their respective call sites, but there is no single 'authorized scope' registry cross-referencing product/subscribed-modules/permissions/guardrails together -- enforcement is real and distributed, completeness across every route is not independently audited as one thing.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "OWN-02",
+          "constitution_rule": "Users shall only perform activities that fall within the authorized scope of the product, subscribed modules, assigned permissions, and defined business guardrails.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/classification.ts::canAccess() (role/classification-level gate, e.g. incidents.route.ts's per-record classification check), src/lib/policy-enforcement-engine.ts::enforcePolicy() (business-purpose + role/RLS gate for AI calls), src/lib/module-rules-resolver.ts::resolveModuleRule() (per-org/per-module rule override, e.g. incidents' regulatory_notify_triggers), requireAuth()/requireRole() (src/lib/supabase/auth-guard.ts, used across every admin/member-gated route in this codebase).",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-050 (num 50, GOVERNANCE_OWNERSHIP category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": ".github/CODEOWNERS",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "@FChecklist",
+              "found": true,
+              "line": 27
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/classification.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function canAccess",
+              "found": true,
+              "line": 40
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/module-rules-resolver.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function resolveModuleRule",
+              "found": true,
+              "line": 43
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2956,7 +3101,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3013,7 +3158,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3069,7 +3214,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3095,7 +3240,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
@@ -3109,7 +3254,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3151,7 +3296,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3196,7 +3341,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3239,7 +3384,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3309,24 +3454,24 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 31,
+          "distinctFilesHit": 33,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "ai-os/audit-tree/10-merged-tree.yaml",
             "src/app/page.tsx"
           ],
           "sampleHits": [
+            "ai-os/CONSTITUTION.yaml:812:      rule: \"Browser cache, application cache, server cache, metadata cache, and workflow cache are maximized wherever appropriate, alongside the AI provider cache, to reduce latency, reduce AI cost, and improve user experience.\"",
+            "ai-os/CONSTITUTION.yaml:815:      gap: \"All six named cache types have a real, wired implementation as of 2026-07-21 (previously true but never cross-referenced together in one place) -- 'maximized wherever appropriate' is not yet literally true everywhere: llm-response-cache is opt-in at only 2 call sites (src/app/api/ai/orchestrate/route.ts, src/lib/services/fde-service.ts), not automatic at every AI invocation site across the codebase's 400+ API routes. Breadth of adoption, not existence of the mechanisms, is the remaining gap.\"",
             "ai-os/audit-tree/10-merged-tree.yaml:623:            output: \"A learning-loop entry scoped to that selection's guardrails (feeds D16). Objective throughout: lower token usage, maximize deterministic software over AI.\"",
             "ai-os/audit-tree/03-dmp-dcf.yaml:152:      - \"Strategic objective: maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge, provide every user a personalized context-aware experience\"",
-            "ai-os/audit-tree/AUDIT-ROUND-2.md:29:These are the same claim, restated with a near-identical enumeration. D5.B1.S3 also restates D5.B1.S2's \"software execution / continuous learning\" objectives in its closing clause (\"maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge\"). The only genuinely new content in D5.B1.S3 is the authority-level statement (\"mandatory for every component... a foundational constitutional requirement\") -- which is worth keeping, but the branch as currently written duplicates roughly 70% of its own text with its two siblings.",
-            "ai-os/audit-tree/08-task-response-engine.yaml:25:      - \"Should lower token usage and maximize use of deterministic software over AI\"",
-            "ai-os/audit-tree/08-task-response-engine.yaml:45:      - \"This whole validation system should help lower token usage and maximize software (vs. AI) usage\""
+            "ai-os/audit-tree/AUDIT-ROUND-2.md:29:These are the same claim, restated with a near-identical enumeration. D5.B1.S3 also restates D5.B1.S2's \"software execution / continuous learning\" objectives in its closing clause (\"maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge\"). The only genuinely new content in D5.B1.S3 is the authority-level statement (\"mandatory for every component... a foundational constitutional requirement\") -- which is worth keeping, but the branch as currently written duplicates roughly 70% of its own text with its two siblings."
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3382,7 +3527,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3408,10 +3553,9 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 34,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 37,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
-            "ai-os/audit-tree/10-merged-tree.yaml",
             "ai-os/boss/ACTIVE-CLAIMS.yaml",
             "ai-os/system-tree/50-merged-tree.yaml"
           ],
@@ -3426,7 +3570,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3452,7 +3596,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 17,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/terms/page.tsx",
@@ -3472,7 +3616,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3525,7 +3669,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3571,7 +3715,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3629,7 +3773,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3674,7 +3818,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3729,7 +3873,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3771,7 +3915,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3841,7 +3985,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3874,7 +4018,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 23,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -3892,7 +4036,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3931,17 +4075,17 @@
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/api/ai/cache/governance/route.ts:8:// the concrete, software-only (zero AI call in this route) evidence that",
             "src/lib/services/capability-learning-service.ts:107:// needing zero AI reasoning, not a bare majority -- a capability that's",
             "src/lib/services/fde-service.ts:435:      responseText += ` This exact Dynamic Chain has been run ${stats.total} time(s) before: ${stats.fullSoftwarePercent}% required zero AI reasoning, ${stats.packageAvailablePercent}% used an approved instruction package, ${stats.novelPercent}% needed fresh judgment.`",
             "src/lib/services/crm-service.ts:291:// crmLeads/crmOpportunities were pure CRUD with zero AI reasoning. Both",
-            "src/lib/services/capability-audit-service.ts:156:      `${stats.fullSoftwarePercent}% required zero AI reasoning (FULL_SOFTWARE), ` +",
-            "src/lib/services/capability-audit-service.ts:167:    \"Question: can this task/capability be completed 100% by software -- zero AI reasoning required at request \" +"
+            "src/lib/services/capability-audit-service.ts:156:      `${stats.fullSoftwarePercent}% required zero AI reasoning (FULL_SOFTWARE), ` +"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -3985,7 +4129,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4027,7 +4171,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4053,23 +4197,24 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 19,
-          "coOccurrenceFileCount": 1,
+          "distinctFilesHit": 20,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
+            "ai-os/CONSTITUTION.yaml",
             "src/app/page.tsx"
           ],
           "sampleHits": [
+            "src/app/api/ai/cache/governance/route.ts:3:// continuously by software without requiring AI intervention\"). Mirrors",
             "src/lib/services/d1-metrics-tracker-service.ts:9://   reliable, continuously improving execution while minimizing human",
             "src/lib/loops/data-separation-audit.ts:10: * Continuously re-verifies the thing Wave 1 exists to guarantee: that",
             "src/lib/loops/data-separation-audit.ts:20: * continuously, not exhaustively checked on every invocation.",
-            "ai-os/LIFECYCLE.yaml:4:note: \"Corrected 2026-07-09 (was stuck at DEPLOY since 2026-06-29, describing a rebuild that finished long ago). The platform has been live and iterating continuously since -- ~114 further waves (git log: Wave 30 through at least Wave 143), an AI OS Certification audit (2026-07-04/05, gate result FAIL, see AI_OS_CERTIFICATION.md), and this VERIDIAN.docx constitution study. MONITOR/LEARN/IMPROVE better describes ongoing operation than a one-time DEPLOY stage. See ai-os/boss/BOARD.yaml's staleness notice for why this wasn't caught sooner.\"",
-            "ai-os/RCA_OVERNIGHT_DISPATCH_FAILURE_2026-07-20.md:11:The mechanism responsible for driving continuous multi-agent dispatch was a **Claude Desktop local scheduled task** (`veridian-glm-superboss-supervision`), repurposed mid-session from a pure-audit role into an active-dispatch role. This scheduler's own tool description states plainly: *\"Scheduled tasks run while this app is open. If the app is closed when a task is due, it runs on next launch.\"* The app was not continuously open/active on the Owner's laptop through the relevant overnight window, so the cron-style `*/15 * * * *` firing simply did not happen at the intended cadence — evidenced directly: `list_scheduled_tasks` showed exactly one `lastRunAt` (14:48:53Z) in the ~9 hours since the task was created/updated around 17:12 UTC, with `nextRunAt` skipping forward to 16:48Z rather than backfilling the missed 15-minute windows."
+            "src/lib/cache-governance.ts:7:// measured, invalidated when required, and optimized continuously by"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4095,7 +4240,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 18,
+          "distinctFilesHit": 19,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "ai-os/audit-tree/10-merged-tree.yaml"
@@ -4111,7 +4256,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4155,7 +4300,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4166,8 +4311,17 @@
       "category": "INTEGRATIONS_API_GOVERNANCE",
       "category_label": "External integrations, API versioning/deprecation/dependency hygiene",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "Broad, multi-system integration breadth is real but not centrally inventoried in one registry cross-referencing which of the 9 named integration classes (email/third-party/business-apps/APIs/ERP/CRM/accounting/communication/cloud) has a live adapter today.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "API-01",
+          "constitution_rule": "The platform shall integrate securely with email systems, third-party software, business applications, APIs, ERP systems, CRM systems, accounting platforms, communication tools, and cloud services to create a unified business workspace.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/app/api/v1/* (199 exported route handlers, versioned REST surface), src/components/ApiKeySection.tsx + POST /api/settings/api-keys (external-caller auth), src/lib/gst/adapters/tally-xml-adapter.ts (accounting-platform adapter), CRM/ERP/procurement modules under src/app/api/v1/projexa/*, resend (email, package.json dependency). Every external call site goes through requireAuth()/API-key validation, never unauthenticated.",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-075 (num 75, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "grepCount",
           "term": "export",
@@ -4184,6 +4338,32 @@
           "pass": true
         },
         {
+          "type": "fileContainsMarkers",
+          "file": ".github/dependabot.yml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "package-ecosystem",
+              "found": true,
+              "line": 3
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
           "type": "item_keyword_grep",
           "keywords": [
             "integrate",
@@ -4196,14 +4376,14 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 16,
-          "coOccurrenceFileCount": 5,
+          "distinctFilesHit": 17,
+          "coOccurrenceFileCount": 6,
           "coOccurrenceFiles": [
             "src/components/ApiKeySection.tsx",
+            "ai-os/CONSTITUTION.yaml",
             "src/app/data-policy/page.tsx",
             "src/app/privacy/page.tsx",
-            "src/app/page.tsx",
-            "src/app/terms/page.tsx"
+            "src/app/page.tsx"
           ],
           "sampleHits": [
             "src/app/api/frameworks/route.ts:12:  { frameworkKey: \"coso\", name: \"COSO Internal Control – Integrated Framework\", relevanceNote: null },",
@@ -4216,7 +4396,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4227,8 +4407,17 @@
       "category": "CACHING",
       "category_label": "Cache layers: use, invalidation, logging",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "All six named cache types have a real, wired implementation as of 2026-07-21 (previously true but never cross-referenced together in one place) -- 'maximized wherever appropriate' is not yet literally true everywhere: llm-response-cache is opt-in at only 2 call sites (src/app/api/ai/orchestrate/route.ts, src/lib/services/fde-service.ts), not automatic at every AI invocation site across the codebase's 400+ API routes. Breadth of adoption, not existence of the mechanisms, is the remaining gap.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "CACHE-05",
+          "constitution_rule": "Browser cache, application cache, server cache, metadata cache, and workflow cache are maximized wherever appropriate, alongside the AI provider cache, to reduce latency, reduce AI cost, and improve user experience.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/browser-intent-cache.ts (browser, client IndexedDB), src/lib/services/instruction-execution-cache-service.ts (application/workflow, pgvector instruction-reuse), src/lib/llm-response-cache.ts (server, DB-backed LLM completions), src/lib/services/asset-registry-cache.ts (metadata, in-process compiled registry), src/lib/prompt-cache/* (AI provider -- see CACHE-01..CACHE-04 above). Full inventory + declared policy: src/lib/cache-governance.ts::CACHE_REGISTRY.",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-076; audit198 gap-closure 2026-07-21",
+          "similarity_score": 0.778
+        },
         {
           "type": "fileContainsMarkers",
           "file": "src/lib/llm-response-cache.ts",
@@ -4276,7 +4465,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4287,8 +4476,17 @@
       "category": "CACHING",
       "category_label": "Cache layers: use, invalidation, logging",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "instruction-execution-cache has no explicit invalidation function (TTL-expiry-only is not even applicable -- rows persist until manually pruned; recorded honestly in cache-governance.ts's registry notes rather than glossed over). llm-response-cache's invalidateLlmResponseCache(orgId) cannot address a single org's rows without a schema change (cacheKey is a single sha256 hash with no separate orgId column) -- it currently performs a full clear, documented as a known limitation, not silently overclaimed.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "CACHE-06",
+          "constitution_rule": "Cache invalidation follows predefined governance rules, and every cache layer is monitored, audited, measured, and optimized continuously by software, without requiring AI intervention.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/cache-governance.ts::CACHE_REGISTRY (declared TTL/invalidation policy per cache, hand-verified against each cache's real code), GET /api/ai/cache/governance (veridian_admin-gated monitoring, zero AI call in the route), GET /api/assets/cache/stats (asset-registry-cache-specific), llm-response-cache.ts::invalidateLlmResponseCache()/invalidateAllLlmResponseCache()/purgeExpiredLlmResponseCache() (explicit invalidation + TTL-expiry sweep, added this pass -- TTL was previously the ONLY freshness mechanism for that cache), asset-registry-cache.ts::invalidateOrgCache()/invalidateAllCaches() (pre-existing). Every operation above is deterministic software, zero LLM/AI call.",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-077, ARTICLE-054; audit198 gap-closure 2026-07-21",
+          "similarity_score": 0.588
+        },
         {
           "type": "fileContainsMarkers",
           "file": "src/lib/llm-response-cache.ts",
@@ -4316,9 +4514,12 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "distinctFilesHit": 23,
+          "coOccurrenceFileCount": 2,
+          "coOccurrenceFiles": [
+            "src/app/api/ai/cache/governance/route.ts",
+            "src/lib/cache-governance.ts"
+          ],
           "sampleHits": [
             "src/app/api/v1/projexa/inventory/stock-balance/route.ts:4:// wave; never a duplicated/cached balance table). Answers \"what stock do I",
             "src/app/api/assets/cache/stats/route.ts:2:// evidence that the compiled metadata cache is real, not just a claim --",
@@ -4330,7 +4531,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4385,7 +4586,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4424,7 +4625,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 28,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -4441,7 +4642,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4480,7 +4681,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 2,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/shared/conversation/[token]/page.tsx",
@@ -4498,7 +4699,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4524,7 +4725,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 18,
+          "distinctFilesHit": 19,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/api/ai/team/dispatch/route.ts"
@@ -4540,7 +4741,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4584,7 +4785,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4626,7 +4827,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4669,7 +4870,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4682,6 +4883,55 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -4715,7 +4965,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4728,6 +4978,55 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -4757,7 +5056,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4783,7 +5082,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/page.tsx"
@@ -4799,7 +5098,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4810,8 +5109,49 @@
       "category": "COMPLETION_RATE_KPI",
       "category_label": "100% completion target, measurable KPIs",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "No single dashboard/metric currently reports 'actual completion rate vs the 100% target' as one number -- the gating mechanism prevents silent fake-completion, but doesn't itself compute or publish a completion-rate KPI.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "KPI-01",
+          "constitution_rule": "The target completion rate for all valid business tasks is 100%, subject only to user permissions, business rules, and external system availability.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/qa-precompletion-gate.ts::checkQaPreCompletionGate() gates a dispatch from reaching lifecycle_stage='completed' without a structured self-assessment or explicit override; src/lib/activity-log-service.ts::getGovernanceHealthCounts()/listStuckActivities() surface non-completing work for follow-up.",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-088 (num 88, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            },
+            {
+              "marker": "export function buildDispatchSelfAssessment",
+              "found": true,
+              "line": 119
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-engine-service.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-taxonomy.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -4843,7 +5183,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4876,10 +5216,11 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 20,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 22,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
+            "src/app/api/ai/cache/governance/route.ts",
             "src/app/api/approvals/[id]/route.ts",
             "src/app/api/ai/team/governance-health/route.ts"
           ],
@@ -4894,7 +5235,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4937,7 +5278,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -4948,8 +5289,61 @@
       "category": "DOCUMENTATION",
       "category_label": "Module/workflow/decision documentation",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "The individual pieces (deprecation, asset registration, ownership) are each real and CI-enforced, but there is no single per-module 'complete documentation' artifact or check -- this remains the most architecturally broad item in the category and the least mechanically verifiable as one thing.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "DOC-03",
+          "constitution_rule": "Every software module, workflow, API, AI agent, automation, integration, and scheduled process shall have complete documentation of inputs, outputs, validation rules, guardrails, dependencies, reporting, and escalation paths.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "ai-os/registry/deprecations.yaml + scripts/check-deprecations.mjs (CI-enforced, added 2026-07-21) covers the deprecation/retirement-schedule slice. ai-os/registry/asset-registry-coverage.yaml + scripts/check-asset-registry-coverage.mjs (pre-existing) covers per-table registration. .github/CODEOWNERS (added 2026-07-21) covers per-module ownership/escalation routing. No single mechanism covers the full input/output/validation/guardrail documentation surface this rule names for EVERY module.",
+          "constitution_source": "RULES_ARTICLES_198.json RULE-091 (num 91, DOCUMENTATION category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/CONSTITUTION.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "amendment_log:",
+              "found": true,
+              "line": 134
+            },
+            {
+              "marker": "amendment_rule:",
+              "found": true,
+              "line": 45
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "production_issues",
+              "found": true,
+              "line": 957
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -4963,7 +5357,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
+          "distinctFilesHit": 26,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -4981,7 +5375,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5042,7 +5436,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5068,7 +5462,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 28,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5086,7 +5480,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5156,7 +5550,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 20,
+          "distinctFilesHit": 21,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5174,7 +5568,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5217,7 +5611,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5257,7 +5651,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5283,12 +5677,13 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 21,
-          "coOccurrenceFileCount": 4,
+          "distinctFilesHit": 22,
+          "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/data-policy/page.tsx",
             "src/app/privacy/page.tsx",
+            "src/app/api/ai/cache/governance/route.ts",
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
@@ -5302,7 +5697,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5390,7 +5785,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5417,9 +5812,10 @@
           "keywordCount": 6,
           "phraseHits": 0,
           "distinctFilesHit": 28,
-          "coOccurrenceFileCount": 1,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
-            "src/app/api/ai/team/dispatch/route.ts"
+            "src/app/api/ai/team/dispatch/route.ts",
+            "src/app/api/ai/cache/governance/route.ts"
           ],
           "sampleHits": [
             "src/app/api/ai/team/dispatch/route.ts:607:      executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },",
@@ -5432,7 +5828,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5476,7 +5872,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5489,6 +5885,15 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "KPI-03",
+          "constitution_rule": "Every business metric shall have a measurable definition and authoritative data source.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "compliance.report_definitions table (src/lib/db/schema.ts) -- name/description/category/executionType/executionConfig fields give every registered report a measurable definition; executionConfig cites the real data source per report. src/lib/services/report-engine-service.ts executes against that definition.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-086 (num 86, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 0.308
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -5522,7 +5927,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5592,7 +5997,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5610,7 +6015,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5667,7 +6072,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5685,7 +6090,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5743,7 +6148,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5802,7 +6207,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5845,7 +6250,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5889,7 +6294,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5913,7 +6318,7 @@
           "keywordsWithHits": 4,
           "keywordCount": 4,
           "phraseHits": 0,
-          "distinctFilesHit": 17,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/proxy.ts",
@@ -5930,7 +6335,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -5959,6 +6364,32 @@
           "pass": true
         },
         {
+          "type": "fileContainsMarkers",
+          "file": ".github/dependabot.yml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "package-ecosystem",
+              "found": true,
+              "line": 3
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
           "type": "item_keyword_grep",
           "keywords": [
             "Every API",
@@ -5969,11 +6400,9 @@
           "keywordsWithHits": 4,
           "keywordCount": 4,
           "phraseHits": 1,
-          "distinctFilesHit": 27,
-          "coOccurrenceFileCount": 1,
-          "coOccurrenceFiles": [
-            "ai-os/boss/ACTIVE-CLAIMS.yaml"
-          ],
+          "distinctFilesHit": 26,
+          "coOccurrenceFileCount": 0,
+          "coOccurrenceFiles": [],
           "sampleHits": [
             "src/app/api/v1/projexa/procurement/requisitions/[id]/submit/route.ts:13:// route returns 400 for every API-key caller until that bridge exists.",
             "src/lib/services/api-usage-service.ts:3:// validateApiKey() populates on every API-key-authenticated request --",
@@ -5985,7 +6414,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6029,7 +6458,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6067,7 +6496,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6106,7 +6535,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6129,7 +6558,7 @@
           "keywordsWithHits": 3,
           "keywordCount": 3,
           "phraseHits": 0,
-          "distinctFilesHit": 13,
+          "distinctFilesHit": 14,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/terms/page.tsx",
@@ -6146,7 +6575,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6182,7 +6611,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6223,7 +6652,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6264,7 +6693,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/proxy.ts",
@@ -6282,7 +6711,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6292,9 +6721,58 @@
       "text": "Every automation shall define rollback procedures.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6320,7 +6798,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6330,9 +6808,58 @@
       "text": "Every transaction shall be atomic wherever technically feasible.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6358,7 +6885,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6397,7 +6924,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6440,7 +6967,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6464,7 +6991,7 @@
           "keywordsWithHits": 4,
           "keywordCount": 4,
           "phraseHits": 0,
-          "distinctFilesHit": 14,
+          "distinctFilesHit": 15,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -6481,7 +7008,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6524,7 +7051,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6583,7 +7110,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6635,7 +7162,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6679,7 +7206,7 @@
           ],
           "sampleHits": [
             "src/lib/compliance-templates.ts:71:  { id: \"mca-charge\", title: \"Charge Registration (Form CHG-1)\", complianceType: \"MCA\", description: \"Registration of creation/modification/satisfaction of charges on company assets within 30 days. Mandatory for secured borrowings.\", recurrenceType: \"annually\", dueDateRule: \"30 days from charge creation\", entityTypes: [\"Pvt Ltd\", \"LLP\"], priority: \"high\", registrationLabel: \"CIN\", amount: null },",
-            "ai-os/CONSTITUTION.yaml:632:      rule: \"Only Level 1 VERIDIAN AI (platform maintainer) may perform platform code changes, DB schema changes, Worker Agent source changes, or core API modifications.\"",
+            "ai-os/CONSTITUTION.yaml:634:      rule: \"Only Level 1 VERIDIAN AI (platform maintainer) may perform platform code changes, DB schema changes, Worker Agent source changes, or core API modifications.\"",
             "ai-os/audit-tree/10-merged-tree.yaml:901:        name: \"Given-task tracking and modification\"",
             "ai-os/audit-tree/01-consutitution.yaml:547:      - \"Architecture modifications require governance approval\"",
             "ai-os/audit-tree/05-work-requirement.yaml:45:      - \"Approval category: Awaiting Approval, Under Approval, Approved, Partially Approved, Rejected, Returned for Modification\""
@@ -6688,7 +7215,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6730,7 +7257,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6771,7 +7298,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6817,7 +7344,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6859,7 +7386,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6884,7 +7411,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 28,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
@@ -6898,7 +7425,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6940,7 +7467,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -6966,25 +7493,26 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 27,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
+            "src/app/api/ai/cache/governance/route.ts",
             "src/instrumentation.ts",
             "src/app/api/ai/team/dispatch/route.test.ts",
             "src/app/page.tsx"
           ],
           "sampleHits": [
+            "src/app/api/ai/cache/governance/route.ts:3:// continuously by software without requiring AI intervention\"). Mirrors",
             "src/lib/services/d1-metrics-tracker-service.ts:9://   reliable, continuously improving execution while minimizing human",
             "src/lib/loops/data-separation-audit.ts:10: * Continuously re-verifies the thing Wave 1 exists to guarantee: that",
             "src/lib/loops/data-separation-audit.ts:20: * continuously, not exhaustively checked on every invocation.",
-            "ai-os/LIFECYCLE.yaml:4:note: \"Corrected 2026-07-09 (was stuck at DEPLOY since 2026-06-29, describing a rebuild that finished long ago). The platform has been live and iterating continuously since -- ~114 further waves (git log: Wave 30 through at least Wave 143), an AI OS Certification audit (2026-07-04/05, gate result FAIL, see AI_OS_CERTIFICATION.md), and this VERIDIAN.docx constitution study. MONITOR/LEARN/IMPROVE better describes ongoing operation than a one-time DEPLOY stage. See ai-os/boss/BOARD.yaml's staleness notice for why this wasn't caught sooner.\"",
-            "ai-os/RCA_OVERNIGHT_DISPATCH_FAILURE_2026-07-20.md:11:The mechanism responsible for driving continuous multi-agent dispatch was a **Claude Desktop local scheduled task** (`veridian-glm-superboss-supervision`), repurposed mid-session from a pure-audit role into an active-dispatch role. This scheduler's own tool description states plainly: *\"Scheduled tasks run while this app is open. If the app is closed when a task is due, it runs on next launch.\"* The app was not continuously open/active on the Owner's laptop through the relevant overnight window, so the cron-style `*/15 * * * *` firing simply did not happen at the intended cadence — evidenced directly: `list_scheduled_tasks` showed exactly one `lastRunAt` (14:48:53Z) in the ~9 hours since the task was created/updated around 17:12 UTC, with `nextRunAt` skipping forward to 16:48Z rather than backfilling the missed 15-minute windows."
+            "src/lib/cache-governance.ts:7:// measured, invalidated when required, and optimized continuously by"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7047,7 +7575,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7111,7 +7639,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7177,7 +7705,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7224,7 +7752,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7294,7 +7822,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 19,
+          "distinctFilesHit": 20,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -7313,7 +7841,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7349,7 +7877,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7385,7 +7913,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7396,8 +7924,49 @@
       "category": "COMPLETION_RATE_KPI",
       "category_label": "100% completion target, measurable KPIs",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Scoped to the ai_team_dispatch activityType only (same honest scope GP-26 already states) -- not yet generic across every activity_log activityType.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "KPI-02",
+          "constitution_rule": "Every completed task shall generate structured completion evidence.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/qa-precompletion-gate.ts::buildDispatchSelfAssessment() produces a HandoverFields-shaped structured record for every ai_team_dispatch completion (see CONSTITUTION.yaml GP-26 above).",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-041 (num 41, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            },
+            {
+              "marker": "export function buildDispatchSelfAssessment",
+              "found": true,
+              "line": 119
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-engine-service.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-taxonomy.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7410,7 +7979,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
+          "distinctFilesHit": 30,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/proxy.ts",
@@ -7427,7 +7996,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7470,7 +8039,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7510,7 +8079,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7523,6 +8092,55 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7552,7 +8170,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7565,6 +8183,55 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7592,7 +8259,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7605,6 +8272,55 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7627,13 +8343,13 @@
             "src/lib/services/hr-attendance-service.ts:106: * midnight boundary within a long-running process.",
             "src/lib/services/ticket-intelligence-service.ts:60:// preserved) and hard-caps total length -- a long-running ticket's",
             "src/lib/loop-prevention.ts:27:// covers both as forms of keeping a long-running loop honest to itself.",
-            "ai-os/CONSTITUTION.yaml:457:    rule: \"Every ~25-30 turns of a long-running session, or immediately before any merge/destructive/high-impact action, re-affirm the 5 questions in ai-os/SELF-CHECK.md.\""
+            "ai-os/CONSTITUTION.yaml:459:    rule: \"Every ~25-30 turns of a long-running session, or immediately before any merge/destructive/high-impact action, re-affirm the 5 questions in ai-os/SELF-CHECK.md.\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7690,7 +8406,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7741,7 +8457,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7783,7 +8499,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7813,16 +8529,16 @@
           "coOccurrenceFiles": [],
           "sampleHits": [
             "src/app/api/assets/cache/stats/route.ts:4:// exposes per-org cache occupancy, which is operational data, not",
+            "src/app/api/ai/cache/governance/route.ts:5:// same reasoning: this exposes operational data, not something every",
             "src/app/api/incidents/[id]/route.ts:48:          title: `Risk from incident: ${existing.title}`, category: \"operational\", ownerId: dbUser.id, ownerDept: dbUser.departmentId, orgId,",
             "src/app/(app)/incidents/page.tsx:25:  const [categoryInput, setCategoryInput] = useState(\"Operational\");",
-            "src/app/(app)/incidents/page.tsx:49:          <p className=\"text-sm text-ct-muted mt-1\">Every incident — security, breach, operational, safety — logged to closed</p>",
-            "src/app/(app)/incidents/page.tsx:57:          <Input placeholder=\"Category (e.g. Security / Data Breach, Operational, Safety)\" value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} className=\"h-9\" />"
+            "src/app/(app)/incidents/page.tsx:49:          <p className=\"text-sm text-ct-muted mt-1\">Every incident — security, breach, operational, safety — logged to closed</p>"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7833,8 +8549,17 @@
       "category": "CACHING",
       "category_label": "Cache layers: use, invalidation, logging",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "Wired at exactly one call site (fde-service.ts's VERI FDE resolution path), not every AI-response-generating call site in the codebase.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "CACHE-07",
+          "constitution_rule": "The system shall reuse historical knowledge before generating new AI responses.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/services/instruction-execution-cache-service.ts::findPriorExecutionPath() -- embeds the instruction, cosine-matches against platform.instruction_execution_cache, returns the prior resolution above MATCH_THRESHOLD (0.95) instead of re-deriving one; called from src/lib/services/fde-service.ts. Hit/miss now logged via cache-governance.ts::logCacheEvent() (added 2026-07-21, see CACHE-09).",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-051; audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "fileContainsMarkers",
           "file": "src/lib/llm-response-cache.ts",
@@ -7875,7 +8600,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7900,7 +8625,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 23,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
@@ -7914,7 +8639,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7925,8 +8650,17 @@
       "category": "CACHING",
       "category_label": "Cache layers: use, invalidation, logging",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "Not literally 'always' -- opt-in at 2 wired call sites, not automatic at every AI invocation site across the codebase's 400+ API routes (same breadth gap as CACHE-05).",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "CACHE-08",
+          "constitution_rule": "Cache is checked before invoking AI.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/llm-response-cache.ts::callLLMCached()/callLLMJsonCached() query the DB-backed cache and return on a fresh hit before ever calling callLLM() -- wired at src/app/api/ai/orchestrate/route.ts and src/lib/services/fde-service.ts.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-053; audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "fileContainsMarkers",
           "file": "src/lib/llm-response-cache.ts",
@@ -7951,11 +8685,9 @@
           "keywordsWithHits": 3,
           "keywordCount": 3,
           "phraseHits": 0,
-          "distinctFilesHit": 11,
-          "coOccurrenceFileCount": 1,
-          "coOccurrenceFiles": [
-            "src/app/api/ai/orchestrate/route.ts"
-          ],
+          "distinctFilesHit": 13,
+          "coOccurrenceFileCount": 0,
+          "coOccurrenceFiles": [],
           "sampleHits": [
             "src/app/api/v1/projexa/inventory/stock-balance/route.ts:4:// wave; never a duplicated/cached balance table). Answers \"what stock do I",
             "src/app/api/assets/cache/stats/route.ts:2:// evidence that the compiled metadata cache is real, not just a claim --",
@@ -7967,7 +8699,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -7978,8 +8710,17 @@
       "category": "CACHING",
       "category_label": "Cache layers: use, invalidation, logging",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "instruction-execution-cache has no explicit invalidation function at all (rows persist until manually pruned) -- recorded honestly in the registry, not glossed over. llm-response-cache's org-scoped invalidation cannot address a single org (cacheKey is a single sha256 hash, no separate org_id column) -- performs a full clear instead, a documented known limitation.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "CACHE-10",
+          "constitution_rule": "Cache invalidation shall follow predefined governance rules.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/cache-governance.ts::CACHE_REGISTRY declares each cache's TTL + invalidation policy (hand-verified against real code 2026-07-21). llm-response-cache.ts::invalidateLlmResponseCache()/invalidateAllLlmResponseCache()/purgeExpiredLlmResponseCache() (explicit invalidation + TTL sweep, added 2026-07-21 -- TTL expiry was previously the ONLY freshness mechanism this cache offered). asset-registry-cache.ts::invalidateOrgCache()/invalidateAllCaches() (pre-existing explicit invalidation).",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-054; audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "fileContainsMarkers",
           "file": "src/lib/llm-response-cache.ts",
@@ -8007,9 +8748,11 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
-          "coOccurrenceFileCount": 1,
+          "distinctFilesHit": 21,
+          "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
+            "src/app/api/ai/cache/governance/route.ts",
+            "src/lib/llm-response-cache.ts",
             "src/app/page.tsx"
           ],
           "sampleHits": [
@@ -8023,7 +8766,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8034,8 +8777,17 @@
       "category": "CACHING",
       "category_label": "Cache layers: use, invalidation, logging",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "browser-intent-cache.ts (client-side IndexedDB) cannot be observed or logged by this server-process-scoped mechanism -- a genuine technical constraint (no server visibility into browser storage), recorded honestly in cache-governance.ts's registry rather than silently excluded.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "CACHE-09",
+          "constitution_rule": "Cache hit and cache miss are logged.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "src/lib/cache-governance.ts::logCacheEvent() (structured JSON hit/miss/write/invalidate/expire event log + in-memory counters, exposed via GET /api/ai/cache/governance, veridian_admin-gated) wired into llm-response-cache.ts, asset-registry-cache.ts, and instruction-execution-cache-service.ts on 2026-07-21 -- none of this logging existed before this pass; each file's hit/miss behavior was previously observable only by reading the caller's own control flow.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-055; audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "fileContainsMarkers",
           "file": "src/lib/llm-response-cache.ts",
@@ -8073,7 +8825,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8105,12 +8857,13 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 18,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 19,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/litert-spike/page.tsx",
             "src/app/litert-spike/worker-src/inference-worker.ts",
-            "src/app/litert-spike-embeddings/page.tsx"
+            "src/app/litert-spike-embeddings/page.tsx",
+            "src/app/api/ai/cache/governance/route.ts"
           ],
           "sampleHits": [
             "src/app/litert-spike/page.tsx:87:          clientRoundTripMs: Math.round(performance.now() - runStartRef.current),",
@@ -8123,7 +8876,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8157,10 +8910,11 @@
           "keywordCount": 6,
           "phraseHits": 0,
           "distinctFilesHit": 24,
-          "coOccurrenceFileCount": 3,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/proxy.ts",
             "src/app/page.tsx",
+            "src/app/api/ai/cache/governance/route.ts",
             "src/app/api/capability-registry/coverage/route.ts"
           ],
           "sampleHits": [
@@ -8174,7 +8928,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8223,7 +8977,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8270,7 +9024,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8309,7 +9063,7 @@
           "keywordsWithHits": 4,
           "keywordCount": 4,
           "phraseHits": 0,
-          "distinctFilesHit": 16,
+          "distinctFilesHit": 15,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/proxy.ts",
@@ -8328,7 +9082,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8379,7 +9133,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8431,7 +9185,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8489,7 +9243,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8530,7 +9284,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/api/v1/platform/provision-org/route.ts"
@@ -8546,7 +9300,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8556,9 +9310,58 @@
       "text": "Every deployment shall be reversible without data loss wherever technically feasible.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -8584,7 +9387,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8628,7 +9431,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8696,7 +9499,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8750,7 +9553,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -8769,7 +9572,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8835,7 +9638,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8903,7 +9706,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -8974,7 +9777,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9046,7 +9849,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9119,7 +9922,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9191,7 +9994,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9245,7 +10048,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 35,
+          "distinctFilesHit": 34,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/litert-spike-embeddings/worker-src/inference-worker.ts",
@@ -9262,7 +10065,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9272,9 +10075,62 @@
       "text": "Every production issue shall be documented in a knowledge repository.",
       "category": "DOCUMENTATION",
       "category_label": "Module/workflow/decision documentation",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Built 2026-07-21 with zero historical backfill -- no production issue from before this date has an entry yet. No UI page yet (API-only); no automated ingestion from error tracking (Sentry, per src/instrumentation.ts) into this table -- issues must be entered manually today.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "DOC-01",
+          "constitution_rule": "Every production issue is documented in a knowledge repository.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "platform.production_issues table (drizzle/0251_production_issues_knowledge_repository.sql) + GET/POST /api/engineering/production-issues + PATCH /api/engineering/production-issues/[id] (veridian_admin-gated). Fields: title, component, severity, status, description, root_cause, resolution, prevention_action, related_pr, tags, discovered_at, resolved_at -- a real postmortem/knowledge-base shape, not a bare log. Distinct from compliance.incidents (GRC/business incident register, no description/root-cause/resolution field) -- see schema.ts's table comment for why these are genuinely different concerns.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-076 (num 76, DOCUMENTATION category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/CONSTITUTION.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "amendment_log:",
+              "found": true,
+              "line": 134
+            },
+            {
+              "marker": "amendment_rule:",
+              "found": true,
+              "line": 45
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "production_issues",
+              "found": true,
+              "line": 957
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9287,9 +10143,11 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "distinctFilesHit": 26,
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "src/app/api/engineering/production-issues/route.ts"
+          ],
           "sampleHits": [
             "src/app/litert-spike/page.tsx:12:// production file, DB table, or API route.",
             "src/app/litert-spike/page.tsx:32:// light: do not point any production build at this model without resolving",
@@ -9301,7 +10159,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9312,8 +10170,61 @@
       "category": "DOCUMENTATION",
       "category_label": "Module/workflow/decision documentation",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Not a single enforced mechanism -- amendment_log covers CONSTITUTION.yaml changes specifically; header-comment discipline is a strong observed convention, not a CI-checked requirement (no automated check that a new/changed .ts file's header documents assumptions/trade-offs).",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "DOC-02",
+          "constitution_rule": "Every engineering decision shall document its assumptions, constraints, and trade-offs.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "ai-os/CONSTITUTION.yaml's own amendment_rule + amendment_log (this file, meta section) requires a dated one-line reason for any amendment that changes what a rule permits -- a real, enforced (by the amendment_rule's own stated discipline, followed consistently across every amendment_log entry above) engineering-decision record. Separately, this codebase's own file-header-comment culture (see src/lib/cache-governance.ts, src/lib/llm-response-cache.ts, src/lib/services/asset-registry-cache.ts, src/lib/services/instruction-execution-cache-service.ts for examples written/extended 2026-07-21) routinely states the alternative considered, why it was rejected, and the honest limitation of what was built -- a real, widespread pattern, not formalized as a single named mechanism.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-077 (num 77, DOCUMENTATION category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/CONSTITUTION.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "amendment_log:",
+              "found": true,
+              "line": 134
+            },
+            {
+              "marker": "amendment_rule:",
+              "found": true,
+              "line": 45
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/db/schema.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "production_issues",
+              "found": true,
+              "line": 957
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9324,10 +10235,10 @@
             "constraints",
             "trade-offs"
           ],
-          "keywordsWithHits": 5,
+          "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 19,
+          "distinctFilesHit": 20,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/terms/page.tsx",
@@ -9344,7 +10255,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9355,8 +10266,17 @@
       "category": "INTEGRATIONS_API_GOVERNANCE",
       "category_label": "External integrations, API versioning/deprecation/dependency hygiene",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "The migration-path documentation mechanism (deprecations.yaml) is new and currently covers only the 1 deprecation that exists in the codebase today -- not yet exercised against a larger public-interface change.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "API-02",
+          "constitution_rule": "Every public interface shall maintain backward compatibility or provide a documented migration path.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "/api/v1 versioning prefix (ARTICLE-010, ENFORCED above) + ai-os/registry/deprecations.yaml (added 2026-07-21, replacement field documents the migration path for each deprecated feature, e.g. mcp_access_codes -> api_keys).",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-078 (num 78, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "grepCount",
           "term": "export",
@@ -9373,6 +10293,32 @@
           "pass": true
         },
         {
+          "type": "fileContainsMarkers",
+          "file": ".github/dependabot.yml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "package-ecosystem",
+              "found": true,
+              "line": 3
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
           "type": "item_keyword_grep",
           "keywords": [
             "public",
@@ -9385,7 +10331,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/proxy.ts"
@@ -9401,7 +10347,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9412,8 +10358,17 @@
       "category": "INTEGRATIONS_API_GOVERNANCE",
       "category_label": "External integrations, API versioning/deprecation/dependency hygiene",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "Neither tracked deprecation has a set retirement_date yet (both 'not_yet_scheduled', stated honestly in the registry) -- the TRACKING mechanism is now enforced, but no deprecated feature in this codebase has an actual scheduled date today.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "API-03",
+          "constitution_rule": "Every deprecated feature shall include a planned retirement schedule.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "ai-os/registry/deprecations.yaml + scripts/check-deprecations.mjs (CI job 'Deprecation Registry Coverage Check', added 2026-07-21) -- fails the build if a src/ @deprecated marker has no matching registry entry, or if a registry entry references a marker that no longer exists. Both real @deprecated markers in this codebase (src/app/api/mcp/tokens/route.ts, src/lib/db/schema.ts's mcpAccessCodes) are now tracked.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-079 (num 79, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "grepCount",
           "term": "export",
@@ -9427,6 +10382,32 @@
           "fileCount": 199,
           "totalHits": 292,
           "threshold": 1,
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": ".github/dependabot.yml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "package-ecosystem",
+              "found": true,
+              "line": 3
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
           "pass": true
         },
         {
@@ -9453,13 +10434,13 @@
             "src/lib/ai-team/roster-overrides.test.ts:45:  test(\"a model with no registry row (or only a disabled/deprecated one) is not known\", async () => {",
             "src/lib/ai-team/roster-overrides.test.ts:46:    mockRegistry([{ model: \"z-ai/glm-5.2\" }, { model: \"some/retired-model\", status: \"deprecated\" }])",
             "src/lib/task-tightening.test.ts:241:      objective: \"Delete the deprecated legacy-report-export module entirely\",",
-            "src/lib/db/schema.ts:981:// @deprecated Wave 10: /api/mcp now authenticates against the unified"
+            "src/lib/db/schema.ts:1017:// @deprecated Wave 10: /api/mcp now authenticates against the unified"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9470,8 +10451,17 @@
       "category": "INTEGRATIONS_API_GOVERNANCE",
       "category_label": "External integrations, API versioning/deprecation/dependency hygiene",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
+      "gap": "No automated licensing check (e.g. a license-compliance CI step) exists -- licensing is the one of the 4 named dimensions (security/compatibility/licensing/lifecycle) with no software mechanism today.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "API-04",
+          "constitution_rule": "Every system dependency shall be monitored for security, compatibility, licensing, and lifecycle status.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": ".github/dependabot.yml (npm + github-actions ecosystems, weekly schedule) -- automated security/lifecycle monitoring, real PRs generated on outdated/vulnerable dependencies (12 jspdf CVEs + 7 Dependabot PRs fixed 2026-07-10, see compliance_tracker_dependency_cleanup session record). Compatibility is exercised by the CI build/typecheck/test jobs running against every dependency bump PR before merge.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-080 (num 80, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
         {
           "type": "grepCount",
           "term": "export",
@@ -9488,6 +10478,32 @@
           "pass": true
         },
         {
+          "type": "fileContainsMarkers",
+          "file": ".github/dependabot.yml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "package-ecosystem",
+              "found": true,
+              "line": 3
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/registry/deprecations.yaml",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "retirement_date",
+              "found": true,
+              "line": 17
+            }
+          ],
+          "pass": true
+        },
+        {
           "type": "item_keyword_grep",
           "keywords": [
             "dependency",
@@ -9500,9 +10516,10 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 37,
-          "coOccurrenceFileCount": 1,
+          "distinctFilesHit": 32,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
+            "ai-os/CONSTITUTION.yaml",
             "src/app/api/v1/projexa/quotations/route.ts"
           ],
           "sampleHits": [
@@ -9516,7 +10533,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9529,6 +10546,55 @@
       "verdict": "PARTIALLY_ENFORCED",
       "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9558,7 +10624,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9607,7 +10673,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9617,9 +10683,58 @@
       "text": "Every scheduled job shall detect missed executions and recover automatically whenever feasible.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": false,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": false
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": false
+            }
+          ],
+          "pass": false
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9647,7 +10762,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9680,7 +10795,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 16,
+          "distinctFilesHit": 17,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/api/v1/projexa/schedule/workload/route.ts",
@@ -9697,7 +10812,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9748,7 +10863,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9759,8 +10874,49 @@
       "category": "COMPLETION_RATE_KPI",
       "category_label": "100% completion target, measurable KPIs",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Covers metrics that have been registered as a report_definitions row -- a business metric referenced only informally in code/UI (not yet promoted to a report definition) has no enforced measurable-definition record.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "KPI-03",
+          "constitution_rule": "Every business metric shall have a measurable definition and authoritative data source.",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "compliance.report_definitions table (src/lib/db/schema.ts) -- name/description/category/executionType/executionConfig fields give every registered report a measurable definition; executionConfig cites the real data source per report. src/lib/services/report-engine-service.ts executes against that definition.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-086 (num 86, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            },
+            {
+              "marker": "export function buildDispatchSelfAssessment",
+              "found": true,
+              "line": 119
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-engine-service.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-taxonomy.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9774,7 +10930,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/privacy/page.tsx",
@@ -9791,7 +10947,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9825,13 +10981,13 @@
             "src/lib/services/report-domain-enablement-service.ts:30:// internal cron-only artifacts with no user-facing route at all (see their",
             "src/lib/policy-enforcement-engine.ts:129:/** User-facing refusal text -- polite, explains scope, never echoes the denylist pattern that matched. */",
             "src/components/WorkspaceMemorySection.tsx:8:// builds all 3 as real, named, distinct user-facing choices rather than",
-            "ai-os/CONSTITUTION.yaml:607:      - \"src/lib/loops/*.ts (system-generated, not user-facing free text)\""
+            "ai-os/CONSTITUTION.yaml:609:      - \"src/lib/loops/*.ts (system-generated, not user-facing free text)\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9871,7 +11027,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9913,7 +11069,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9955,7 +11111,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -9981,21 +11137,21 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
             "src/lib/services/erp-company-service.ts:1:// Wave 67 (multi-entity/consolidation, the biggest architectural gap for",
             "src/lib/services/ticket-intelligence-service.ts:28:// The one real architectural difference from email: a ticket already",
             "src/lib/activity-log-service.ts:307:// incidents, architectural changes, or governance updates indicate the",
-            "ai-os/CONSTITUTION.yaml:471:  source: \"VERIDIAN_AUDIT_ORGANIZATION.md 'The one architectural correction'\"",
-            "ai-os/system-tree/50-merged-tree.yaml:519:    activityLog, a documented architectural decision, not an inconsistency."
+            "ai-os/CONSTITUTION.yaml:473:  source: \"VERIDIAN_AUDIT_ORGANIZATION.md 'The one architectural correction'\"",
+            "ai-os/CONSTITUTION.yaml:869:      gap: \"The individual pieces (deprecation, asset registration, ownership) are each real and CI-enforced, but there is no single per-module 'complete documentation' artifact or check -- this remains the most architecturally broad item in the category and the least mechanically verifiable as one thing.\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10026,7 +11182,7 @@
           "sampleHits": [
             "src/app/api/internal/loops/run/route.ts:107:  // \"AI Cost Optimization\" finding) -- same \"piggyback the existing daily",
             "src/lib/task-execution-engine.ts:1281:    case \"route_optimization_engine\": {",
-            "src/lib/services/asset-registry-cache.ts:49:// instance) rather than a per-call optimization.",
+            "src/lib/services/asset-registry-cache.ts:52:// instance) rather than a per-call optimization.",
             "src/lib/services/capability-tree-service.ts:170:// The other 3 (Matrix Computation, Linear Algebra, Optimization) take a",
             "src/lib/services/capability-tree-service.ts:654:// UI fields for 5 of 6 wired engines. route_optimization_engine takes an"
           ]
@@ -10034,7 +11190,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10060,7 +11216,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -10078,7 +11234,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10120,7 +11276,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10131,8 +11287,49 @@
       "category": "COMPLETION_RATE_KPI",
       "category_label": "100% completion target, measurable KPIs",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "construction_kpi_definitions is scoped to the PROJEXA/construction domain -- not every operational process across the platform has a defined KPI yet.",
       "evidence": [
+        {
+          "type": "constitution_cross_reference",
+          "constitution_id": "KPI-04",
+          "constitution_rule": "Every operational process shall be measurable through defined Key Performance Indicators (KPIs).",
+          "constitution_status": "PARTIALLY_ENFORCED",
+          "constitution_mechanism": "construction_kpi_definitions/construction_kpi_entries tables (designer-fills/manager-approves KPI workflow) + reportsKpisSlas jsonb field (worker_agents and related tables) give a real, queried KPI-definition mechanism for the modules that use it.",
+          "constitution_source": "RULES_ARTICLES_198.json ARTICLE-095 (num 95, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21",
+          "similarity_score": 1
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/qa-precompletion-gate.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function checkQaPreCompletionGate",
+              "found": true,
+              "line": 63
+            },
+            {
+              "marker": "export function buildDispatchSelfAssessment",
+              "found": true,
+              "line": 119
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-engine-service.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-taxonomy.ts",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -10143,28 +11340,29 @@
             "defined",
             "performance"
           ],
-          "keywordsWithHits": 5,
+          "keywordsWithHits": 6,
           "keywordCount": 6,
-          "phraseHits": 0,
-          "distinctFilesHit": 21,
-          "coOccurrenceFileCount": 3,
+          "phraseHits": 1,
+          "distinctFilesHit": 19,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
+            "ai-os/CONSTITUTION.yaml",
             "src/instrumentation.ts",
             "src/app/litert-spike/page.tsx",
             "src/app/litert-spike/worker-src/inference-worker.ts"
           ],
           "sampleHits": [
+            "ai-os/CONSTITUTION.yaml:911:      rule: \"Every operational process shall be measurable through defined Key Performance Indicators (KPIs).\"",
             "src/app/api/assets/cache/stats/route.ts:4:// exposes per-org cache occupancy, which is operational data, not",
+            "src/app/api/ai/cache/governance/route.ts:5:// same reasoning: this exposes operational data, not something every",
             "src/app/api/incidents/[id]/route.ts:48:          title: `Risk from incident: ${existing.title}`, category: \"operational\", ownerId: dbUser.id, ownerDept: dbUser.departmentId, orgId,",
-            "src/app/(app)/incidents/page.tsx:25:  const [categoryInput, setCategoryInput] = useState(\"Operational\");",
-            "src/app/(app)/incidents/page.tsx:49:          <p className=\"text-sm text-ct-muted mt-1\">Every incident — security, breach, operational, safety — logged to closed</p>",
-            "src/app/(app)/incidents/page.tsx:57:          <Input placeholder=\"Category (e.g. Security / Data Breach, Operational, Safety)\" value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} className=\"h-9\" />"
+            "src/app/(app)/incidents/page.tsx:25:  const [categoryInput, setCategoryInput] = useState(\"Operational\");"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10174,8 +11372,8 @@
       "text": "Every completed task shall contribute to continuous platform improvement through analytics, software enhancement, documentation, or reusable knowledge.",
       "category": "VISION_STRATEGIC",
       "category_label": "Aspirational vision / long-term strategic objectives",
-      "verdict": "NEEDS_HUMAN_JUDGMENT",
-      "gap": "Inherently architectural/aspirational item (category flagged qualitative in the taxonomy) -- no repo grep, category infra check, or CONSTITUTION.yaml cross-reference produced meaningful signal; a mechanical check cannot confidently classify this one way or another. Evidence gathering WAS run (see item_keyword_grep) -- this is not a skipped item.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
         {
           "type": "item_keyword_grep",
@@ -10190,9 +11388,11 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 30,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "distinctFilesHit": 31,
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "src/app/api/ai/cache/governance/route.ts"
+          ],
           "sampleHits": [
             "src/proxy.ts:64:  // session that hasn't completed the challenge yet is still at",
             "src/app/shared/meeting/[token]/page.tsx:97:                        <span className={`size-1.5 rounded-full shrink-0 ${ai.task?.status === \"completed\" ? \"bg-emerald-500\" : \"bg-ct-saffron\"}`} />",
@@ -10204,7 +11404,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10230,25 +11430,25 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
+            "ai-os/CONSTITUTION.yaml",
             "ai-os/audit-tree/10-merged-tree.yaml",
-            "ai-os/audit-tree/03-dmp-dcf.yaml",
             "src/app/data-policy/page.tsx"
           ],
           "sampleHits": [
+            "src/app/api/ai/cache/governance/route.ts:3:// continuously by software without requiring AI intervention\"). Mirrors",
             "src/lib/services/d1-metrics-tracker-service.ts:9://   reliable, continuously improving execution while minimizing human",
             "src/lib/loops/data-separation-audit.ts:10: * Continuously re-verifies the thing Wave 1 exists to guarantee: that",
             "src/lib/loops/data-separation-audit.ts:20: * continuously, not exhaustively checked on every invocation.",
-            "ai-os/LIFECYCLE.yaml:4:note: \"Corrected 2026-07-09 (was stuck at DEPLOY since 2026-06-29, describing a rebuild that finished long ago). The platform has been live and iterating continuously since -- ~114 further waves (git log: Wave 30 through at least Wave 143), an AI OS Certification audit (2026-07-04/05, gate result FAIL, see AI_OS_CERTIFICATION.md), and this VERIDIAN.docx constitution study. MONITOR/LEARN/IMPROVE better describes ongoing operation than a one-time DEPLOY stage. See ai-os/boss/BOARD.yaml's staleness notice for why this wasn't caught sooner.\"",
-            "ai-os/RCA_OVERNIGHT_DISPATCH_FAILURE_2026-07-20.md:11:The mechanism responsible for driving continuous multi-agent dispatch was a **Claude Desktop local scheduled task** (`veridian-glm-superboss-supervision`), repurposed mid-session from a pure-audit role into an active-dispatch role. This scheduler's own tool description states plainly: *\"Scheduled tasks run while this app is open. If the app is closed when a task is due, it runs on next launch.\"* The app was not continuously open/active on the Owner's laptop through the relevant overnight window, so the cron-style `*/15 * * * *` firing simply did not happen at the intended cadence — evidenced directly: `list_scheduled_tasks` showed exactly one `lastRunAt` (14:48:53Z) in the ~9 hours since the task was created/updated around 17:12 UTC, with `nextRunAt` skipping forward to 16:48Z rather than backfilling the missed 15-minute windows."
+            "src/lib/cache-governance.ts:7:// measured, invalidated when required, and optimized continuously by"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10318,7 +11518,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -10336,7 +11536,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     },
     {
@@ -10362,13 +11562,14 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 21,
-          "coOccurrenceFileCount": 4,
+          "distinctFilesHit": 20,
+          "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/data-policy/page.tsx",
             "src/app/privacy/page.tsx",
-            "src/app/terms/page.tsx"
+            "src/app/terms/page.tsx",
+            "src/app/api/ai/cache/governance/route.ts"
           ],
           "sampleHits": [
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
@@ -10381,7 +11582,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave5"
       }
     }
   ]
