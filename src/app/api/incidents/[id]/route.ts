@@ -4,9 +4,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { checkIncidentClosure } from "@/lib/rca-closure-gate"
 
 const STAGES = ["logged", "triaged", "investigating", "contained", "notified", "remediated", "closed"]
 type RouteContext = { params: Promise<{ id: string }> }
+
+// Thrown inside withTenantContext's callback and caught below -- mirrors
+// ticket-service.ts's own ServiceError shape (a dedicated typed error with
+// an HTTP status, not a sentinel value smuggled through the transaction's
+// return type) so a 422 closure-gate block is distinguishable from every
+// other error path without weakening the callback's real return type.
+class IncidentClosureBlockedError extends Error {
+  guidance: string
+  constructor(reason: string, guidance: string) {
+    super(reason)
+    this.guidance = guidance
+  }
+}
 
 // action='advance' | 'mark_notified' | 'flag_as_risk' -- flag_as_risk
 // mirrors the mockup's cross-linking: an incident that reveals a systemic
@@ -31,6 +45,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         const idx = STAGES.indexOf(existing.stage)
         if (idx >= STAGES.length - 1) return existing
         const nextStage = STAGES[idx + 1]
+
+        // Audit198 gap closure (ARTICLE-028 "every incident shall have an
+        // owner until closure" / ARTICLE-030 "every Root Cause shall
+        // generate ... a preventive action"): confirmed genuinely unguarded
+        // before this fix -- an incident could advance straight through to
+        // 'closed' via repeated calls with capaOwnerId never set. See
+        // rca-closure-gate.ts's own header.
+        const closureCheck = checkIncidentClosure(nextStage, existing.capaOwnerId)
+        if (!closureCheck.allowed) {
+          throw new IncidentClosureBlockedError(closureCheck.reason, closureCheck.guidance)
+        }
+
         const [updated] = await db.update(incidents).set({ stage: nextStage as never, closedDate: nextStage === "closed" ? new Date() : null, updatedAt: new Date() }).where(eq(incidents.id, id)).returning()
         await logActivity({ tx: db, action: "status_change", entityType: "Incident", entityId: id, details: `"${existing.title}" moved to ${nextStage}`, orgId, dbUser, request })
         return updated
@@ -58,6 +84,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!result) return NextResponse.json({ error: "Incident not found" }, { status: 404 })
     return NextResponse.json({ id: result.id, stage: result.stage })
   } catch (error) {
+    if (error instanceof IncidentClosureBlockedError) {
+      return NextResponse.json({ error: error.message, guidance: error.guidance }, { status: 422 })
+    }
     console.error("Incident PATCH error:", error)
     return NextResponse.json({ error: "Failed to update incident" }, { status: 500 })
   }
