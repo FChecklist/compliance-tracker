@@ -260,6 +260,31 @@ function openRouterProviderFor(baseUrl: string, model: string): { order: string[
   return preferred ? { order: [preferred] } : undefined
 }
 
+// TASK 1.2 (Owner directive 2026-07-20): AI Dev Team dispatch
+// (task-execution-engine.ts) goes through this function, not
+// callAnthropic -- enablePromptCache was silently a no-op here before
+// this change (the option was defined on CallLLMOptions and read by
+// callAnthropic only; every other provider ignored it). Verified via
+// OpenRouter's own docs before writing anything (not assumed):
+//  - DeepSeek: caching is fully automatic on OpenRouter, no request
+//    field needed -- this function already gets that benefit for free
+//    on any DeepSeek-routed call, with or without this change.
+//  - Anthropic-family models (routed either directly or via
+//    OpenRouter's "anthropic/..." model IDs): OpenRouter passes
+//    through the same cache_control content-block shape Anthropic's
+//    own API uses -- implemented below, gated to only fire for
+//    anthropic/-prefixed model IDs so no other provider ever receives
+//    a field it might not understand.
+//  - GLM/Zhipu (the AIROUTER-01 default judgment model): OpenRouter's
+//    docs do not document caching support one way or the other for
+//    this provider. Deliberately NOT guessed at here -- sending an
+//    unverified cache_control shape to a live paid API on a guess
+//    risks a silently malformed request. Left as a known, honest open
+//    item (see ai-os/MASTER_INDEX.yaml) rather than fabricated.
+function isAnthropicModelId(model: string): boolean {
+  return model.toLowerCase().startsWith("anthropic/") || model.toLowerCase().startsWith("claude-")
+}
+
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,
@@ -268,10 +293,17 @@ async function callOpenAICompatible(
   userMessage: string,
   options?: CallLLMOptions
 ): Promise<{ content: string; usage: LLMUsage }> {
+  const cacheEligible =
+    Boolean(options?.enablePromptCache) &&
+    isAnthropicModelId(model) &&
+    systemPrompt.length >= ANTHROPIC_MIN_CACHEABLE_CHARS
   const body: Record<string, unknown> = {
     model,
     messages: [
-      { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content: cacheEligible ? [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] : systemPrompt,
+      },
       ...(options?.history ?? []).map((h) => ({ role: h.role, content: h.content })),
       { role: "user", content: userMessage },
     ],
