@@ -2125,3 +2125,90 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+
+  - id: WAVE-194
+    title: "audit198 gap closure wave 7 (leftover-category cluster): PERSONALIZATION/GUARDRAILS_LEARNING_LOOPS/THIN_CLIENT_DEV_ENV/COST_TOKEN_GOVERNANCE/OPEN_SOURCE_REUSE/AI_MODEL_AGNOSTIC/ORCHESTRATOR_GOVERNANCE -- 4 verdict flips, 2 previously-uncovered categories given real infra checks"
+    doer:
+      agent: "claude-code (background sub-agent, worktree audit198-gap-wave7 on the Hetzner VERIDIAN-DEV server, dispatched by Super Boss supervisor)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/532 (base: audit198-framework, head: audit198-gap-wave7-remaining)"
+      summary: >
+        Owner directive 2026-07-21: close gaps the audit198 software-driven
+        audit engine (ai-os/scripts/audit198/, PR #522 lineage, not yet on
+        main) found against 198 Owner Rules/Articles, for the smallest
+        leftover category cluster not claimed by any of 6 sibling
+        gap-closure waves working other category clusters in parallel
+        worktrees/branches. Assigned: PERSONALIZATION,
+        GUARDRAILS_LEARNING_LOOPS, THIN_CLIENT_DEV_ENV,
+        COST_TOKEN_GOVERNANCE, OPEN_SOURCE_REUSE, AI_MODEL_AGNOSTIC,
+        ORCHESTRATOR_GOVERNANCE, plus 3 orphan categories confirmed by
+        reading the full 198-item results array (not claimed by any wave):
+        IDENTITY_SCOPE, NO_ASSUMPTIONS_GUESSWORK, ESCALATION_HIERARCHY --
+        all 3 orphans were already fully ENFORCED, no gaps found there.
+
+        9 non-ENFORCED items investigated via direct code reading before
+        any change (no fix attempted on assertion alone):
+
+        4 verdict flips, PARTIALLY_ENFORCED -> ENFORCED, re-run-confirmed:
+        RULE-021 (centralized AI Orchestrator -- confirmed the mechanism
+        already existed, distributed across 7 real files: mother-router.ts,
+        roster.ts, software-team-ladder.ts, monitor-protocol.ts,
+        policy-enforcement-engine.ts, escalation-ladder.ts,
+        activity-log-service.ts, task-execution-engine.ts; added a doc
+        block to mother-router.ts naming/citing all of them);
+        RULE-056 (VERI personalizes workspaces by user behavior -- already
+        had a real phrase hit, only needed the new PERSONALIZATION category
+        infra check below to cross the ENFORCED threshold);
+        RULE-065 (complete AI architecture stays AI Model Agnostic --
+        confirmed routers/orchestrators/supervisors/worker
+        agents/execution engines all resolve models through
+        orchestra-model-resolver.ts's registry-backed getRoleModel(), never
+        a hardcoded provider; documented each layer's real call site);
+        RULE-067 (dev env: GLM 5.2 + Claude Code CLI via SSH only -- the
+        real gap was that CLAUDE.md/AGENTS.md never stated this standing
+        rule in-repo, only given per-session by the Owner verbally; added
+        it permanently to both files as CLAUDE.md's "Development
+        Environment (Thin Client Only)" section and AGENTS.md Operating
+        Rule 12).
+
+        2 categories given real CATEGORY_INFRA entries in
+        ai-os/scripts/audit198/category-checkers.mjs for the first time
+        (previously zero infra coverage, every item scoring on weak
+        keyword co-occurrence alone): PERSONALIZATION (citing
+        chain-usage-ranking.ts's getUserChainLibrary(), a deterministic
+        per-user chain-ranking function with zero LLM call, backing
+        /api/dynamic-chains/my-library, plus permission-service.ts's
+        requirePermissionForUser()); OPEN_SOURCE_REUSE (ai-os/
+        CONSTITUTION.yaml's ARCH-06 already required, in prose, "a
+        per-repo license-plus-verdict table" that did not exist as a
+        structured artifact -- added ai-os/OSS_STUDY_LEDGER.yaml, 18 real
+        project entries reconciled from ARCH-06/ARCH-07's own
+        already-owner-reviewed known-risk list, not fabricated new
+        research).
+
+        5 items (RULE-012, RULE-046, RULE-072, RULE-073, ARTICLE-037)
+        remain PARTIALLY_ENFORCED with materially stronger evidence
+        (a real, hand-verified category infra check now backs each,
+        replacing coOccurrence-only evidence) but did not flip verdict --
+        their own rule text has no capitalized multi-word phrase, so the
+        audit engine's "infra fully passes + phrase found -> ENFORCED"
+        promotion path is structurally unreachable for them without
+        loosening that rule for all 198 items, explicitly out of scope
+        ("never weaken a checker to inflate a score").
+
+        Also fixed, via direct code reading (confirmed, not asserted): a
+        pre-existing bug in run-audit.mjs where
+        `evidence.push({ type: "category_infra_check", ...c })` had `...c`
+        spread AFTER the type field, silently overwriting the label with
+        c's own inner type for every category-level evidence entry across
+        all 198 items -- zero effect on any verdict (deriveVerdict() reads
+        categoryInfra.strength/total directly, never this label), purely a
+        traceability gap in the evidence JSON. Fixed additively
+        (is_category_infra_check boolean), c's own type preserved.
+
+        Re-run proof (node ai-os/scripts/audit198/run-audit.mjs on this
+        branch): ENFORCED 22->26, PARTIALLY_ENFORCED 152->148,
+        NOT_YET_BUILT 15 (unchanged), NEEDS_HUMAN_JUDGMENT 9 (unchanged) --
+        the +4/-4 exactly matches the 4 flipped items; no category outside
+        this wave's scope moved. bun install + bun run build: exit 0, zero
+        TypeScript errors.
