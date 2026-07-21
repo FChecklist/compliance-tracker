@@ -1,0 +1,40 @@
+# ai-os/registry/deprecations.yaml
+# ============================================================================
+# Audit198 gap closure, 2026-07-21 (INTEGRATIONS_API_GOVERNANCE category --
+# ARTICLE-079 "Every deprecated feature shall include a planned retirement
+# schedule."). Same enforcement class as ai-os/registry/asset-registry-
+# coverage.yaml and ai-os/registry/stale-doc-manifest.yaml: a single
+# machine-readable list every `@deprecated` marker in src/ MUST have a
+# matching entry here, checked in CI by scripts/check-deprecations.mjs
+# (Deprecation Registry Coverage Check job). A code comment alone is not a
+# "planned retirement schedule" -- this file is.
+#
+# SCHEMA (one entry per @deprecated marker, no exceptions):
+#   file: <path containing the @deprecated marker, relative to repo root>
+#   feature: <short name of what is deprecated>
+#   deprecated_since: <wave/date the @deprecated marker was added>
+#   replacement: <what callers should use instead>
+#   retirement_date: <planned removal date, or "not_yet_scheduled" if
+#                      genuinely undecided -- stated honestly, not guessed>
+#   retirement_blocked_by: <what has to be true before removal is safe,
+#                            omitted only if retirement_date is set>
+#
+# HONEST STATE as of 2026-07-21: exactly one @deprecated marker exists in
+# src/ (confirmed via `grep -rn "@deprecated" src`). It has no retirement
+# date set in the pre-existing code comment -- this registry does not
+# invent one. retirement_date is recorded as not_yet_scheduled, which is
+# real, current, unresolved state, not a placeholder pretending otherwise.
+
+entries:
+  - file: src/app/api/mcp/tokens/route.ts
+    feature: "MCP token management via mcp_access_codes table (POST disabled; GET/DELETE still functional for already-issued legacy tokens)"
+    deprecated_since: "Wave 10"
+    replacement: "Unified api_keys table via POST /api/settings/api-keys (also works for /api/v1, Wave 11)"
+    retirement_date: not_yet_scheduled
+    retirement_blocked_by: "Confirmation that no already-issued mcp_access_codes token is still held by any live caller (src/lib/db/schema.ts's own mcpAccessCodes table comment: 'left in place, not dropped, in case any already-issued token is still held by a caller somewhere')."
+  - file: src/lib/db/schema.ts
+    feature: "mcpAccessCodes table (schema definition backing the route above)"
+    deprecated_since: "Wave 10"
+    replacement: "api_keys table"
+    retirement_date: not_yet_scheduled
+    retirement_blocked_by: "Same blocker as src/app/api/mcp/tokens/route.ts above -- same feature, two files."

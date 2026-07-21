@@ -28,6 +28,18 @@ import { sql } from "drizzle-orm"
 import { createHash } from "crypto"
 import { generateEmbedding } from "@/lib/embeddings"
 import type { CapabilityEntityType } from "./capability-registry-service"
+import { logCacheEvent } from "@/lib/cache-governance"
+
+// Audit198 gap closure, 2026-07-21 (CACHING category -- ARTICLE-051 "The
+// system shall reuse historical knowledge before generating new AI
+// responses", ARTICLE-055 "Every cache hit and cache miss shall be
+// logged"): this file IS the reuse-historical-knowledge mechanism
+// (instruction text -> previously-resolved capability), but had zero
+// structured hit/miss logging before this pass -- findPriorExecutionPath()
+// returning non-null vs null was previously observable only by reading
+// the caller's own control flow, not logged anywhere. See
+// src/lib/cache-governance.ts for the shared logCacheEvent()/registry.
+const CACHE_NAME = "instruction-execution-cache"
 
 // Same bar fde-service.ts's HIGH_CONFIDENCE_THRESHOLD uses for its own
 // no-LLM-reasoning gate -- reused rather than introducing a second,
@@ -87,10 +99,17 @@ export async function findPriorExecutionPath(
     LIMIT 1
   `)) as RawMatchRow[]
 
-  if (rows.length === 0) return null
+  if (rows.length === 0) {
+    logCacheEvent(CACHE_NAME, "miss", { orgId, reason: "no_row" })
+    return null
+  }
   const row = rows[0]
   const score = Number(row.score)
-  if (!isHighConfidenceExecutionMatch(score)) return null
+  if (!isHighConfidenceExecutionMatch(score)) {
+    logCacheEvent(CACHE_NAME, "miss", { orgId, reason: "below_confidence_threshold", score })
+    return null
+  }
+  logCacheEvent(CACHE_NAME, "hit", { orgId, score, resolvedCapabilityId: row.resolved_capability_id })
 
   // Fire-and-forget usage bump -- same convention as embeddings.ts's
   // getCachedEmbedding(): freshness/count tracking must never block or fail
@@ -160,4 +179,5 @@ export async function recordExecutionPath(
       ${paramsShapeJson}::jsonb, ${vectorStr}::vector, 1, NOW(), NOW()
     )
   `)
+  logCacheEvent(CACHE_NAME, "write", { orgId, resolvedCapabilityId: resolved.capabilityId })
 }
