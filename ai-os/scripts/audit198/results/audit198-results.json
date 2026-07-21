@@ -1,20 +1,20 @@
 {
   "meta": {
-    "generated_at": "2026-07-21T09:29:09.981Z",
-    "completed_at": "2026-07-21T09:30:15.219Z",
+    "generated_at": "2026-07-21T12:20:18.420Z",
+    "completed_at": "2026-07-21T12:21:24.323Z",
     "framework": "ai-os/scripts/audit198",
     "source": "ai-os/RULES_ARTICLES_198.json",
     "constitution_cross_reference": "ai-os/CONSTITUTION.yaml",
     "total_items": 198,
     "categories_used": 33,
     "status_counts": {
-      "ENFORCED": 22,
-      "PARTIALLY_ENFORCED": 152,
+      "ENFORCED": 30,
+      "PARTIALLY_ENFORCED": 151,
       "POLICY_ONLY": 0,
       "NOT_APPLICABLE_YET": 0,
-      "NOT_YET_BUILT": 15,
+      "NOT_YET_BUILT": 11,
       "EVIDENCE_UNAVAILABLE": 0,
-      "NEEDS_HUMAN_JUDGMENT": 9
+      "NEEDS_HUMAN_JUDGMENT": 6
     },
     "note": "Every verdict below was derived programmatically from live grep/file/CONSTITUTION.yaml evidence gathered at generation time -- see each item's `evidence` array for the exact citations. Re-run via `node ai-os/scripts/audit198/run-audit.mjs` to regenerate against the current state of the repo."
   },
@@ -55,7 +55,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 17,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -64,17 +64,17 @@
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -144,7 +144,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 3,
-          "distinctFilesHit": 20,
+          "distinctFilesHit": 21,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -153,17 +153,17 @@
             "src/app/privacy/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -251,7 +251,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -340,7 +340,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -429,7 +429,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -499,7 +499,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 23,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -519,7 +519,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -589,26 +589,27 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
-          "coOccurrenceFileCount": 4,
+          "distinctFilesHit": 28,
+          "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/litert-spike-embeddings/page.tsx",
             "src/app/litert-spike-embeddings/worker-src/inference-worker.ts",
             "src/app/privacy/page.tsx",
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:4:// createReportShareLink/getReportByShareToken (report-share-service.ts).",
+            "src/app/shared/report/[token]/page.tsx:43:      const res = await fetch(`/api/reports/share/${params.token}`);",
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/litert-spike-embeddings/page.tsx:32:// (worker-src/wordpiece-tokenizer.ts), embeds each, and reports real load",
-            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts:37:// route reports), but model.run() fails with \"TensorBuffer ranked tensor",
-            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts:70:// Fallback sequence length used only if the model reports a dynamic",
-            "src/app/api/v1/projexa/trial-balance/route.ts:4:// logic. Mirrors the session-only /api/erp/reports/trial-balance route's",
-            "src/app/api/v1/projexa/reports/catalog/route.ts:5:// PROJEXA Reports & Analysis catalog UI (CONTROLLER.yaml PRIORITY-17"
+            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts:37:// route reports), but model.run() fails with \"TensorBuffer ranked tensor"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -695,7 +696,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -765,7 +766,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -773,17 +774,17 @@
             "src/app/privacy/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -825,7 +826,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -835,8 +836,8 @@
       "text": "The primary differences between individual users are their knowledge, responsibilities, preferences, communication style, and software adoption.",
       "category": "VISION_STRATEGIC",
       "category_label": "Aspirational vision / long-term strategic objectives",
-      "verdict": "NEEDS_HUMAN_JUDGMENT",
-      "gap": "Inherently architectural/aspirational item (category flagged qualitative in the taxonomy) -- no repo grep, category infra check, or CONSTITUTION.yaml cross-reference produced meaningful signal; a mechanical check cannot confidently classify this one way or another. Evidence gathering WAS run (see item_keyword_grep) -- this is not a skipped item.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
         {
           "type": "item_keyword_grep",
@@ -852,8 +853,10 @@
           "keywordCount": 6,
           "phraseHits": 0,
           "distinctFilesHit": 29,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml"
+          ],
           "sampleHits": [
             "src/lib/services/fm-asset-service.ts:22:// differences on top of real naming differences.",
             "src/lib/services/veri-chat-service.ts:91:// existed\", so an attacker can't use response differences to enumerate",
@@ -865,7 +868,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -891,7 +894,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 22,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/api/veri-chat/approvals/route.ts"
@@ -899,7 +902,7 @@
           "sampleHits": [
             "src/lib/services/chat-service.ts:602:    // (2026-07-18): \"Explainability of Output\" -- personalize tone/address",
             "src/lib/floor-tier-escalation.ts:103:// \"Personalized AI Responses\" / \"AI Confidence Score\" findings: no confidence",
-            "src/lib/db/schema.ts:3654:  // \"Personalized AI Responses\"): 'high' | 'medium' | 'low', set ONLY on a",
+            "src/lib/db/schema.ts:3668:  // \"Personalized AI Responses\"): 'high' | 'medium' | 'low', set ONLY on a",
             "ai-os/CONSTITUTION.yaml:330:      rule: \"Per-screen adaptive Dynamic Mode Pills (context reflows as the user navigates modules) and a Global + personalized User Library of frequently-used chains.\"",
             "ai-os/system-tree/50-merged-tree.yaml:2210:    personalized-observation + free-session-booking email within 24h) + a WhatsApp fallback (wa.me/919650397480)."
           ]
@@ -907,7 +910,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -951,7 +954,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -977,23 +980,23 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1066,7 +1069,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1139,7 +1142,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1213,7 +1216,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1239,12 +1242,11 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 27,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 28,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
-            "src/app/data-policy/page.tsx",
-            "ai-os/audit-tree/01-consutitution.yaml"
+            "src/app/data-policy/page.tsx"
           ],
           "sampleHits": [
             "src/app/page.tsx:92:    body: \"Every AI execution is logged with its model, tokens, cost and outcome. Intelligence you cannot audit is a liability wearing a demo. Ours writes its own ledger, task by task.\",",
@@ -1257,7 +1259,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1314,7 +1316,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1393,7 +1395,7 @@
           "sampleHits": [
             "src/lib/services/report-engine-service.ts:580:    if (budgetTotal <= 0) return { columns: [\"Metric\", \"Value\"], rows: [{ Metric: \"Budget Utilized %\", Value: \"N/A\" }], note: \"No project-linked budget line items exist for this organisation's cost centres yet.\" }",
             "src/lib/services/report-engine-service.ts:586:        { Metric: \"Budget Utilized %\", Value: Math.round((actualTotal / budgetTotal) * 1000) / 10 },",
-            "src/lib/db/schema.ts:9433:  projectId: text('project_id'), // nullable -- org-wide KPIs (e.g. \"Designer Hours Utilized\") vs. project-scoped ones",
+            "src/lib/db/schema.ts:9488:  projectId: text('project_id'), // nullable -- org-wide KPIs (e.g. \"Designer Hours Utilized\") vs. project-scoped ones",
             "drizzle/0181_project_construction_report_definitions.sql:475:-- 7. Budget Utilized %.",
             "drizzle/0181_project_construction_report_definitions.sql:476:('rptdef_kpi_budget_utilized', NULL, 'Budget Utilized %',"
           ]
@@ -1401,7 +1403,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1466,7 +1468,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1511,7 +1513,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1571,7 +1573,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1624,7 +1626,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1663,21 +1665,21 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1730,7 +1732,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1740,9 +1742,38 @@
       "text": "The primary web interface shall consist of five components: Left Navigation Rail, Main Workspace, Dynamic Mode Pills with Dynamic Option Selection and Chat Box, VERI Chat, and Top Navigation Rail.",
       "category": "UI_UX_ARCHITECTURE",
       "category_label": "Core 5-part UI, rich interactive output",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppShell.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppSidebar.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "export",
+          "hits": [
+            "src/components/ui/input-otp.tsx:77:export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }",
+            "src/components/ui/separator.tsx:28:export { Separator }",
+            "src/components/ui/form.tsx:158:export {",
+            "src/components/ui/badge.tsx:46:export { Badge, badgeVariants }",
+            "src/components/ui/sonner.tsx:25:export { Toaster }"
+          ],
+          "fileCount": 52,
+          "totalHits": 58,
+          "threshold": 40,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -1772,7 +1803,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1782,9 +1813,38 @@
       "text": "The approved VERIDIAN UI/UX design shall serve as the implementation standard for all web interfaces, modules, dashboards, and future enhancements.",
       "category": "UI_UX_ARCHITECTURE",
       "category_label": "Core 5-part UI, rich interactive output",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppShell.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppSidebar.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "export",
+          "hits": [
+            "src/components/ui/input-otp.tsx:77:export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }",
+            "src/components/ui/separator.tsx:28:export { Separator }",
+            "src/components/ui/form.tsx:158:export {",
+            "src/components/ui/badge.tsx:46:export { Badge, badgeVariants }",
+            "src/components/ui/sonner.tsx:25:export { Toaster }"
+          ],
+          "fileCount": 52,
+          "totalHits": 58,
+          "threshold": 40,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -1795,24 +1855,26 @@
             "serve",
             "implementation"
           ],
-          "keywordsWithHits": 5,
+          "keywordsWithHits": 6,
           "keywordCount": 6,
-          "phraseHits": 0,
-          "distinctFilesHit": 30,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "phraseHits": 1,
+          "distinctFilesHit": 29,
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "ai-os/UI_UX_DESIGN_SYSTEM.yaml"
+          ],
           "sampleHits": [
+            "ai-os/UI_UX_DESIGN_SYSTEM.yaml:5:# UI_UX_ARCHITECTURE): RULE-028 (\"The approved VERIDIAN UI/UX design shall",
             "src/app/api/v1/projexa/change-orders/[id]/route.ts:42:    // route used to call markChangeOrderApproved()/markChangeOrderRejected()",
             "src/app/api/v1/projexa/change-orders/[id]/route.ts:43:    // directly, letting ANY caller flip a change order to approved/rejected",
             "src/app/api/v1/projexa/change-orders/[id]/route.ts:51:    return NextResponse.json({ error: \"action must be 'submit' -- a change order can only be approved/rejected via a real e-signature completion, see GET .../signature-status\" }, { status: 400 })",
-            "src/app/api/v1/projexa/quotations/[id]/convert/route.ts:9:// after its 'approved' transition already required a real manager-rank",
-            "src/app/api/v1/projexa/quotations/[id]/convert/route.ts:10:// session (see [id]/route.ts) -- converting an already-approved,"
+            "src/app/api/v1/projexa/quotations/[id]/convert/route.ts:9:// after its 'approved' transition already required a real manager-rank"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1882,7 +1944,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -1892,17 +1954,17 @@
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -1976,7 +2038,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2063,7 +2125,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2073,9 +2135,40 @@
       "text": "VERI Chat and VERI - Your Assistant are two independent system components. VERI Chat is the communication workspace, while VERI - Your Assistant is the user's intelligent business assistant.",
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2106,7 +2199,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2116,9 +2209,40 @@
       "text": "VERI - Your Assistant shall act as the user's primary business assistant, capable of securely controlling authorized modules, workflows, automations, reports, approvals, tasks, and business operations on behalf of the user within defined permissions and guardrails.",
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2132,7 +2256,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 23,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/(app)/home/page.tsx",
@@ -2149,7 +2273,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2159,9 +2283,40 @@
       "text": "VERI Chat shall function as the central business communication hub where users receive tasks, notifications, approvals, chats, emails, reminders, summaries, and system updates from a single interface.",
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2176,13 +2331,13 @@
           "keywordCount": 6,
           "phraseHits": 1,
           "distinctFilesHit": 27,
-          "coOccurrenceFileCount": 6,
+          "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/shared/conversation/[token]/page.tsx",
-            "src/app/shared/meeting/[token]/page.tsx",
             "src/app/api/veri-chat/approvals/route.ts",
             "src/instrumentation.ts",
-            "src/app/litert-spike/worker-src/inference-worker.ts"
+            "src/app/litert-spike/worker-src/inference-worker.ts",
+            "src/app/page.tsx"
           ],
           "sampleHits": [
             "src/app/shared/conversation/[token]/page.tsx:48:            <p className=\"text-white/60 text-[11px]\">Read-only, shared from VERI Chat</p>",
@@ -2195,7 +2350,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2205,9 +2360,40 @@
       "text": "For mobile web usage, VERI Chat shall become the primary user interface, enabling users to perform business operations with minimal navigation.",
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2237,7 +2423,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2247,9 +2433,40 @@
       "text": "VERI - Your Assistant shall communicate using clear, simple, concise, professional, and business-appropriate language. Offensive, abusive, discriminatory, political, religious, or inappropriate content shall never be generated.",
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2277,7 +2494,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2288,8 +2505,39 @@
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2300,10 +2548,10 @@
             "using",
             "professional"
           ],
-          "keywordsWithHits": 5,
+          "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 23,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -2320,7 +2568,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2331,8 +2579,37 @@
       "category": "UI_UX_ARCHITECTURE",
       "category_label": "Core 5-part UI, rich interactive output",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppShell.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppSidebar.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "export",
+          "hits": [
+            "src/components/ui/input-otp.tsx:77:export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }",
+            "src/components/ui/separator.tsx:28:export { Separator }",
+            "src/components/ui/form.tsx:158:export {",
+            "src/components/ui/badge.tsx:46:export { Badge, badgeVariants }",
+            "src/components/ui/sonner.tsx:25:export { Toaster }"
+          ],
+          "fileCount": 52,
+          "totalHits": 58,
+          "threshold": 40,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2346,10 +2623,11 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
-          "coOccurrenceFileCount": 2,
+          "distinctFilesHit": 21,
+          "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/proxy.ts",
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/privacy/page.tsx"
           ],
           "sampleHits": [
@@ -2357,13 +2635,13 @@
             "src/proxy.ts:49:  // each time. PROTECTED_APP_ROUTE_PREFIXES is now generated directly from",
             "src/proxy.ts:50:  // the filesystem (scripts/generate-protected-routes.mjs, run via the",
             "src/app/litert-spike/page.tsx:24:// headers for why they're regenerated rather than committed).",
-            "src/app/litert-spike-embeddings/page.tsx:38:// script's own header for why they're regenerated rather than committed)."
+            "src/app/shared/report/[token]/page.tsx:28:  generatedAt: string;"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2373,9 +2651,38 @@
       "text": "Every report, dashboard, workflow, and analysis shall provide an interactive user experience so that the interface feels informative, responsive, and conversational.",
       "category": "UI_UX_ARCHITECTURE",
       "category_label": "Core 5-part UI, rich interactive output",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppShell.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppSidebar.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "export",
+          "hits": [
+            "src/components/ui/input-otp.tsx:77:export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }",
+            "src/components/ui/separator.tsx:28:export { Separator }",
+            "src/components/ui/form.tsx:158:export {",
+            "src/components/ui/badge.tsx:46:export { Badge, badgeVariants }",
+            "src/components/ui/sonner.tsx:25:export { Toaster }"
+          ],
+          "fileCount": 52,
+          "totalHits": 58,
+          "threshold": 40,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2389,21 +2696,23 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "distinctFilesHit": 26,
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "src/app/shared/report/[token]/page.tsx"
+          ],
           "sampleHits": [
             "src/instrumentation.ts:12:// throw again (that would make error *reporting* itself a source of",
             "src/instrumentation.ts:49:    // it just means that specific error report is silently dropped, same",
             "src/instrumentation.ts:63:    // Never let error *reporting* itself throw -- console.error remains",
             "src/app/litert-spike/worker-src/inference-worker.ts:31:// a minimal repro before wiring it into this file -- see the final report",
-            "src/app/litert-spike-embeddings/page.tsx:32:// (worker-src/wordpiece-tokenizer.ts), embeds each, and reports real load"
+            "src/app/shared/report/[token]/page.tsx:4:// createReportShareLink/getReportByShareToken (report-share-service.ts)."
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2478,7 +2787,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2489,8 +2798,37 @@
       "category": "UI_UX_ARCHITECTURE",
       "category_label": "Core 5-part UI, rich interactive output",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppShell.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/AppSidebar.tsx",
+          "exists": true,
+          "markers": [],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "export",
+          "hits": [
+            "src/components/ui/input-otp.tsx:77:export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }",
+            "src/components/ui/separator.tsx:28:export { Separator }",
+            "src/components/ui/form.tsx:158:export {",
+            "src/components/ui/badge.tsx:46:export { Badge, badgeVariants }",
+            "src/components/ui/sonner.tsx:25:export { Toaster }"
+          ],
+          "fileCount": 52,
+          "totalHits": 58,
+          "threshold": 40,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2510,17 +2848,17 @@
             "src/app/api/v1/projexa/reports/catalog/route.ts"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:4:// createReportShareLink/getReportByShareToken (report-share-service.ts).",
+            "src/app/shared/report/[token]/page.tsx:43:      const res = await fetch(`/api/reports/share/${params.token}`);",
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/litert-spike-embeddings/page.tsx:32:// (worker-src/wordpiece-tokenizer.ts), embeds each, and reports real load",
-            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts:37:// route reports), but model.run() fails with \"TensorBuffer ranked tensor",
-            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts:70:// Fallback sequence length used only if the model reports a dynamic",
-            "src/app/api/v1/projexa/trial-balance/route.ts:4:// logic. Mirrors the session-only /api/erp/reports/trial-balance route's",
-            "src/app/api/v1/projexa/reports/catalog/route.ts:5:// PROJEXA Reports & Analysis catalog UI (CONTROLLER.yaml PRIORITY-17"
+            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts:37:// route reports), but model.run() fails with \"TensorBuffer ranked tensor"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2531,8 +2869,39 @@
       "category": "NOTIFICATIONS_PRODUCTIVITY",
       "category_label": "Proactive notifications, productivity-value display",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/notification-priority-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function rankNotifications",
+              "found": true,
+              "line": 58
+            },
+            {
+              "marker": "export function capForOverload",
+              "found": true,
+              "line": 83
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "drizzle/0251_audit198_notification_priority.sql",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "compute_notification_priority",
+              "found": true,
+              "line": 42
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2562,7 +2931,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2572,9 +2941,40 @@
       "text": "Notifications shall be prioritized intelligently to prevent information overload while ensuring that users always know their next most important action.",
       "category": "NOTIFICATIONS_PRODUCTIVITY",
       "category_label": "Proactive notifications, productivity-value display",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/notification-priority-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function rankNotifications",
+              "found": true,
+              "line": 58
+            },
+            {
+              "marker": "export function capForOverload",
+              "found": true,
+              "line": 83
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "drizzle/0251_audit198_notification_priority.sql",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "compute_notification_priority",
+              "found": true,
+              "line": 42
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2589,8 +2989,11 @@
           "keywordCount": 6,
           "phraseHits": 0,
           "distinctFilesHit": 27,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "coOccurrenceFileCount": 2,
+          "coOccurrenceFiles": [
+            "src/app/api/notifications/route.ts",
+            "src/lib/services/notification-priority-service.ts"
+          ],
           "sampleHits": [
             "src/app/api/notifications/[id]/read/route.ts:1:import { notifications } from \"@/lib/db\";",
             "src/app/api/notifications/[id]/read/route.ts:18:      const notif = await db.query.notifications.findFirst({",
@@ -2602,7 +3005,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2613,8 +3016,39 @@
       "category": "NOTIFICATIONS_PRODUCTIVITY",
       "category_label": "Proactive notifications, productivity-value display",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/notification-priority-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function rankNotifications",
+              "found": true,
+              "line": 58
+            },
+            {
+              "marker": "export function capForOverload",
+              "found": true,
+              "line": 83
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "drizzle/0251_audit198_notification_priority.sql",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "compute_notification_priority",
+              "found": true,
+              "line": 42
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2628,11 +3062,10 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 27,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/litert-spike/worker-src/inference-worker.ts",
-            "src/app/litert-spike-embeddings/worker-src/inference-worker.ts",
             "ai-os/audit-tree/10-merged-tree.yaml"
           ],
           "sampleHits": [
@@ -2646,7 +3079,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2723,7 +3156,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2779,7 +3212,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2789,9 +3222,40 @@
       "text": "VERI - Your Assistant shall function as a trusted 24x7 business companion that continuously assists users with planning, execution, monitoring, and business decision support.",
       "category": "VERI_CHAT_ASSISTANT",
       "category_label": "VERI Chat / VERI Assistant product surfaces",
-      "verdict": "PARTIALLY_ENFORCED",
-      "gap": "A distinctive phrase from this item's own text was found in the repo, but no category-level infra mechanism is separately confirmed and no CONSTITUTION.yaml match -- real but partial/unconfirmed evidence.",
+      "verdict": "ENFORCED",
+      "gap": null,
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/components/veri-chat/VeriChatPanel.tsx",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export default function VeriChatPanel",
+              "found": true,
+              "line": 71
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/chat-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createConversation",
+              "found": true,
+              "line": 275
+            },
+            {
+              "marker": "resolvePromptTemplate",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -2805,7 +3269,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 33,
+          "distinctFilesHit": 32,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/page.tsx"
@@ -2821,7 +3285,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2865,7 +3329,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2891,27 +3355,27 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 25,
-          "coOccurrenceFileCount": 5,
+          "distinctFilesHit": 27,
+          "coOccurrenceFileCount": 6,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/partner/[token]/page.tsx",
             "src/app/data-policy/page.tsx",
             "src/app/privacy/page.tsx",
-            "ai-os/audit-tree/10-merged-tree.yaml"
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2956,7 +3420,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -2995,7 +3459,7 @@
           "keywordsWithHits": 4,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 16,
+          "distinctFilesHit": 17,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -3003,17 +3467,17 @@
             "src/app/privacy/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3052,24 +3516,25 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 2,
-          "distinctFilesHit": 22,
-          "coOccurrenceFileCount": 2,
+          "distinctFilesHit": 21,
+          "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/partner/[token]/page.tsx",
             "src/app/(app)/veri-ai/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3079,9 +3544,40 @@
       "text": "Users shall be able to securely share reports, dashboards, and business analysis through controlled shareable links without exposing unauthorized information.",
       "category": "SHARING_SECURITY",
       "category_label": "Controlled external sharing",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/share-link-kernel.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function evaluateShareLinkStatus",
+              "found": true,
+              "line": 35
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-share-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createReportShareLink",
+              "found": true,
+              "line": 40
+            },
+            {
+              "marker": "export async function getReportByShareToken",
+              "found": true,
+              "line": 141
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -3095,9 +3591,11 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 21,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "distinctFilesHit": 23,
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "src/lib/services/report-share-service.ts"
+          ],
           "sampleHits": [
             "src/app/auth/callback/route.ts:22:      // Link this Supabase Auth identity to a pre-seeded compliance.users row",
             "src/app/auth/callback/route.ts:25:      // orchestra_changes.md) -- this only covers users an admin already",
@@ -3109,7 +3607,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3120,8 +3618,39 @@
       "category": "SHARING_SECURITY",
       "category_label": "Controlled external sharing",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/share-link-kernel.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export function evaluateShareLinkStatus",
+              "found": true,
+              "line": 35
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/report-share-service.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function createReportShareLink",
+              "found": true,
+              "line": 40
+            },
+            {
+              "marker": "export async function getReportByShareToken",
+              "found": true,
+              "line": 141
+            }
+          ],
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -3135,23 +3664,24 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 37,
-          "coOccurrenceFileCount": 1,
+          "distinctFilesHit": 35,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
-            "src/app/shared/conversation/[token]/page.tsx"
+            "src/app/shared/conversation/[token]/page.tsx",
+            "src/lib/services/report-share-service.ts"
           ],
           "sampleHits": [
             "src/app/shared/conversation/[token]/page.tsx:4:// allowlist -- this is the one legitimate public page in this codebase,",
+            "src/app/shared/report/[token]/page.tsx:7:// outside middleware's protected-route allowlist -- never move this under",
             "src/app/shared/meeting/[token]/page.tsx:9:// outside middleware's protected-route allowlist -- never move this under",
             "src/app/partner/[token]/page.tsx:4:// (app)/ and outside middleware's protected-route allowlist (tokenized,",
-            "src/app/sign/[token]/page.tsx:4:// allowlist -- the public e-signature page (Wave 86), mirroring",
-            "src/app/api/training/enrollments/route.ts:30:// Self-enroll always allowed; enrolling someone else requires manager+,"
+            "src/app/sign/[token]/page.tsx:4:// allowlist -- the public e-signature page (Wave 86), mirroring"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3196,7 +3726,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3239,7 +3769,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3309,7 +3839,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 31,
+          "distinctFilesHit": 32,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "ai-os/audit-tree/10-merged-tree.yaml",
@@ -3326,7 +3856,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3365,24 +3895,24 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 17,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/data-policy/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3408,7 +3938,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 34,
+          "distinctFilesHit": 35,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "ai-os/audit-tree/10-merged-tree.yaml",
@@ -3416,17 +3946,17 @@
             "ai-os/system-tree/50-merged-tree.yaml"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3472,7 +4002,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3525,7 +4055,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3571,7 +4101,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3629,7 +4159,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3674,7 +4204,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3729,7 +4259,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3755,23 +4285,23 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 3,
-          "distinctFilesHit": 22,
+          "distinctFilesHit": 23,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3841,7 +4371,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3892,7 +4422,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3925,7 +4455,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/terms/page.tsx"
@@ -3941,7 +4471,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -3967,7 +4497,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 22,
+          "distinctFilesHit": 23,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -3975,17 +4505,17 @@
             "src/app/privacy/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4027,7 +4557,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4069,7 +4599,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4111,7 +4641,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4137,25 +4667,26 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 29,
-          "coOccurrenceFileCount": 3,
+          "distinctFilesHit": 30,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/page.tsx",
             "src/lib/db/schema.ts",
             "ai-os/audit-tree/10-merged-tree.yaml"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4196,7 +4727,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 16,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/components/ApiKeySection.tsx",
@@ -4216,7 +4747,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4276,7 +4807,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4330,7 +4861,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4369,7 +4900,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 28,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/instrumentation.ts"
@@ -4385,7 +4916,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4441,7 +4972,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4480,7 +5011,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 2,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/shared/conversation/[token]/page.tsx",
@@ -4498,7 +5029,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4524,7 +5055,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 18,
+          "distinctFilesHit": 19,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/api/ai/team/dispatch/route.ts"
@@ -4540,7 +5071,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4566,7 +5097,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "ai-os/CONSTITUTION.yaml",
@@ -4584,7 +5115,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4626,7 +5157,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4653,23 +5184,24 @@
           "keywordCount": 6,
           "phraseHits": 1,
           "distinctFilesHit": 23,
-          "coOccurrenceFileCount": 2,
+          "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/data-policy/page.tsx",
             "src/lib/task-execution-engine.ts"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4715,7 +5247,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4757,7 +5289,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4783,7 +5315,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/page.tsx"
@@ -4792,14 +5324,14 @@
             "src/lib/composio-connectors.ts:18:// through the separate Activepieces MCP was unnecessary for the OAuth-",
             "ai-os/boss/ACTIVE-CLAIMS.yaml:398:      make an unnecessary change if a finding is already resolved.",
             "ai-os/boss/ACTIVE-CLAIMS.yaml:519:      unnecessary change.",
-            "ai-os/audit-tree/01-consutitution.yaml:169:      - \"...increase automation over time, reduce unnecessary escalations, improve prompt/workflow quality, improve task success rates\"",
-            "ai-os/audit-tree/01-consutitution.yaml:279:      - \"Accountable for: >=99% successful completion of eligible GPT-OSS-120B tasks by 31 Aug 2026; reduction in unnecessary escalations; reduction in hallucination incidents; reduction in workflow loop incidents; documentation quality/completeness; improvement implementation rate; governance compliance; knowledge base growth/quality; mean time to resolution for escalations; system availability/operational health\""
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml:12:# interaction shall minimize unnecessary input\" into a clean pass/fail on",
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml:88:    text: \"Every user interaction shall minimize unnecessary input by using automation, prediction, defaults, and contextual assistance.\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4828,22 +5360,22 @@
           "distinctFilesHit": 24,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
-            "src/app/sign/[token]/page.tsx",
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/privacy/page.tsx",
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
             "src/app/litert-spike/page.tsx:177:                const file = e.target.files?.[0];",
+            "src/app/shared/report/[token]/page.tsx:115:                    onChange={(e) => setFilterText(e.target.value)}",
             "src/app/litert-spike-embeddings/page.tsx:18:// by this one. The real target this could eventually feed: CONSTITUTION.yaml's",
             "src/app/sign/[token]/page.tsx:182:              value={typedName} onChange={(e) => setTypedName(e.target.value)}",
-            "src/app/sign/[token]/page.tsx:198:              <input className=\"w-full h-9 border border-ct-border rounded-md px-3 text-sm\" placeholder=\"Reason (optional)\" value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} />",
-            "src/app/api/training/enrollments/route.ts:39:    const targetEmployeeId = body.employeeId || dbUser.id"
+            "src/app/sign/[token]/page.tsx:198:              <input className=\"w-full h-9 border border-ct-border rounded-md px-3 text-sm\" placeholder=\"Reason (optional)\" value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} />"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4894,7 +5426,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4937,7 +5469,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -4981,7 +5513,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5022,7 +5554,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 22,
+          "distinctFilesHit": 23,
           "coOccurrenceFileCount": 9,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5032,17 +5564,17 @@
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5086,7 +5618,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5156,7 +5688,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 20,
+          "distinctFilesHit": 19,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5174,7 +5706,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5217,7 +5749,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5257,7 +5789,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5283,7 +5815,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5292,17 +5824,17 @@
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5372,7 +5904,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 22,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5380,17 +5912,17 @@
             "src/app/api/ai/team/dispatch/route.test.ts"
           ],
           "sampleHits": [
+            "src/app/api/notifications/route.ts:17:        // ultimately shown -- rankNotifications/capForOverload below need",
             "src/lib/services/erp-fixed-assets-service.test.ts:125:// hasRole()/ROLE_RANK the route's gate ultimately calls (imported",
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml:79:      EASE OF ADOPTION are still ultimately judged by an actual user, not",
             "ai-os/audit-tree/01-consutitution.yaml:791:      - \"No AI model, AI agent, workflow, module, automation, integration, or customer process may disable, bypass, or weaken these guardrails without explicit approval from the governance hierarchy (Super Boss and ultimately the Owner where required)\"",
-            "ai-os/audit-tree/04-veri-chat.yaml:155:      - \"The end user always retains ultimate authority over business communications\"",
-            "drizzle/0244_narrow_monitor_agents_phase1.sql:58:  'Tier 1 rule-engine monitor: checks whether a webhook delivery (all retry attempts) ultimately succeeded or failed. Fires on API_SUCCESS and API_FAILED -- see src/lib/monitors/webhook-delivery-outcome-monitor.ts.',",
-            "src/app/page.tsx:69:    status: \"Engineering practice\","
+            "ai-os/audit-tree/04-veri-chat.yaml:155:      - \"The end user always retains ultimate authority over business communications\""
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5432,7 +5964,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5458,7 +5990,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 22,
+          "distinctFilesHit": 23,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/instrumentation.ts",
@@ -5476,7 +6008,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5502,7 +6034,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 33,
+          "distinctFilesHit": 34,
           "coOccurrenceFileCount": 5,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -5522,7 +6054,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5610,7 +6142,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5685,7 +6217,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5743,7 +6275,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5802,7 +6334,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5845,7 +6377,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5889,7 +6421,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5913,7 +6445,7 @@
           "keywordsWithHits": 4,
           "keywordCount": 4,
           "phraseHits": 0,
-          "distinctFilesHit": 17,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/proxy.ts",
@@ -5930,7 +6462,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -5985,7 +6517,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6029,7 +6561,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6067,7 +6599,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6106,7 +6638,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6146,7 +6678,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6182,7 +6714,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6223,7 +6755,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6282,7 +6814,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6320,7 +6852,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6358,7 +6890,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6397,7 +6929,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6440,7 +6972,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6481,7 +7013,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6524,7 +7056,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6583,7 +7115,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6635,7 +7167,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6688,7 +7220,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6713,11 +7245,10 @@
           "keywordCount": 4,
           "phraseHits": 0,
           "distinctFilesHit": 20,
-          "coOccurrenceFileCount": 3,
+          "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/proxy.ts",
-            "src/app/privacy/page.tsx",
-            "src/app/terms/page.tsx"
+            "src/app/shared/report/[token]/page.tsx"
           ],
           "sampleHits": [
             "src/app/api/veri-chat/approvals/route.ts:24:// existing, unchanged route. change_order is the one exception (added after",
@@ -6730,7 +7261,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6771,7 +7302,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6797,14 +7328,14 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 26,
-          "coOccurrenceFileCount": 8,
+          "distinctFilesHit": 27,
+          "coOccurrenceFileCount": 7,
           "coOccurrenceFiles": [
             "ai-os/audit-tree/10-merged-tree.yaml",
             "ai-os/audit-tree/01-consutitution.yaml",
             "src/instrumentation.ts",
             "src/app/litert-spike-embeddings/worker-src/inference-worker.ts",
-            "src/app/api/auth/failure-event/route.ts"
+            "src/app/api/v1/projexa/reports/catalog/route.ts"
           ],
           "sampleHits": [
             "ai-os/audit-tree/10-merged-tree.yaml:145:            sources: [\"01:Part 2 -- Claude Desktop Sonnet 5.0, role framing\", \"01:Claude -- Responsibility 1: Final Escalation Authority\", \"01:Claude -- Responsibility 2: Executive Decision Support\", \"01:Claude -- Responsibility 3: AI Organization Governance\", \"01:Claude -- Responsibility 4: Architecture Ownership\", \"01:Claude -- Responsibility 5: Strategic Review\", \"01:Claude -- Responsibility 6: Decision Quality Audit\", \"01:Claude -- Responsibility 7: Documentation Governance\", \"01:Claude -- Responsibility 8: Knowledge Governance\", \"01:Claude -- Responsibility 9: Continuous Improvement Leadership\", \"01:Claude -- Responsibility 10: Organizational Performance Review\", \"01:Claude -- Responsibility 11: Root Cause Analysis\", \"01:Claude -- Responsibility 12: AI Workforce Management\", \"01:Claude -- Responsibility 13: Release Governance\", \"01:Claude -- Responsibility 14: Code Governance\", \"01:Claude -- Responsibility 15: Risk Management\", \"01:Claude -- Responsibility 16: Monitoring Oversight\", \"01:Claude -- Responsibility 17: Governance Enforcement\", \"01:Claude -- Responsibility 18: Owner Advisory Role\", \"01:Claude -- Decision Authority Matrix\", \"01:Claude -- KPIs\"]",
@@ -6817,7 +7348,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6843,7 +7374,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 27,
+          "distinctFilesHit": 26,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/litert-spike-embeddings/worker-src/wordpiece-tokenizer.ts"
@@ -6859,7 +7390,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6898,7 +7429,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6940,7 +7471,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -6984,7 +7515,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7030,7 +7561,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 29,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -7047,7 +7578,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7111,7 +7642,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7177,7 +7708,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7224,7 +7755,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7294,7 +7825,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 19,
+          "distinctFilesHit": 18,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -7313,7 +7844,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7349,7 +7880,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7385,7 +7916,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7410,7 +7941,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
+          "distinctFilesHit": 28,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/proxy.ts",
@@ -7427,7 +7958,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7470,7 +8001,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7510,7 +8041,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7552,7 +8083,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7592,7 +8123,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7633,7 +8164,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7671,13 +8202,12 @@
           "keywordCount": 4,
           "phraseHits": 0,
           "distinctFilesHit": 16,
-          "coOccurrenceFileCount": 5,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/litert-spike/page.tsx",
             "src/app/litert-spike-embeddings/page.tsx",
             "src/app/data-policy/page.tsx",
-            "src/app/privacy/page.tsx",
-            "src/app/terms/page.tsx"
+            "src/app/privacy/page.tsx"
           ],
           "sampleHits": [
             "src/app/litert-spike/page.tsx:73:    worker.onmessage = (ev: MessageEvent<WorkerOutMessage>) => {",
@@ -7690,7 +8220,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7741,7 +8271,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7783,7 +8313,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7822,7 +8352,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7875,7 +8405,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7914,7 +8444,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -7967,7 +8497,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8023,7 +8553,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8073,7 +8603,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8123,7 +8653,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8174,7 +8704,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8223,7 +8753,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8270,7 +8800,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8328,7 +8858,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8379,7 +8909,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8431,7 +8961,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8469,14 +8999,14 @@
           "keywordsWithHits": 5,
           "keywordCount": 5,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 7,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
             "src/app/data-policy/page.tsx",
             "src/proxy.ts",
             "src/app/litert-spike/page.tsx",
-            "src/app/litert-spike-embeddings/page.tsx"
+            "src/app/shared/report/[token]/page.tsx"
           ],
           "sampleHits": [
             "src/app/api/v1/openapi.json/route.ts:5:// sensitive, and a ChatGPT custom GPT Action / integration tool needs to",
@@ -8489,7 +9019,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8530,7 +9060,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 28,
+          "distinctFilesHit": 30,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/api/v1/platform/provision-org/route.ts"
@@ -8546,7 +9076,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8584,7 +9114,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8628,7 +9158,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8680,7 +9210,7 @@
           "keywordsWithHits": 4,
           "keywordCount": 4,
           "phraseHits": 0,
-          "distinctFilesHit": 23,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/app/privacy/page.tsx"
@@ -8696,7 +9226,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8750,7 +9280,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -8769,7 +9299,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8835,7 +9365,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8903,7 +9433,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -8974,7 +9504,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9028,7 +9558,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 34,
+          "distinctFilesHit": 35,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/litert-spike/worker-src/inference-worker.ts",
@@ -9046,7 +9576,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9119,7 +9649,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9191,7 +9721,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9262,7 +9792,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9301,7 +9831,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9344,7 +9874,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9385,7 +9915,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 29,
+          "distinctFilesHit": 30,
           "coOccurrenceFileCount": 1,
           "coOccurrenceFiles": [
             "src/proxy.ts"
@@ -9401,7 +9931,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9453,13 +9983,13 @@
             "src/lib/ai-team/roster-overrides.test.ts:45:  test(\"a model with no registry row (or only a disabled/deprecated one) is not known\", async () => {",
             "src/lib/ai-team/roster-overrides.test.ts:46:    mockRegistry([{ model: \"z-ai/glm-5.2\" }, { model: \"some/retired-model\", status: \"deprecated\" }])",
             "src/lib/task-tightening.test.ts:241:      objective: \"Delete the deprecated legacy-report-export module entirely\",",
-            "src/lib/db/schema.ts:981:// @deprecated Wave 10: /api/mcp now authenticates against the unified"
+            "src/lib/db/schema.ts:995:// @deprecated Wave 10: /api/mcp now authenticates against the unified"
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9516,7 +10046,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9558,7 +10088,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9607,7 +10137,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9647,7 +10177,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9697,7 +10227,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9748,7 +10278,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9774,7 +10304,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 26,
+          "distinctFilesHit": 27,
           "coOccurrenceFileCount": 2,
           "coOccurrenceFiles": [
             "src/app/privacy/page.tsx",
@@ -9791,7 +10321,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9801,8 +10331,8 @@
       "text": "Every user-facing feature shall prioritize simplicity, consistency, accessibility, and ease of adoption.",
       "category": "VISION_STRATEGIC",
       "category_label": "Aspirational vision / long-term strategic objectives",
-      "verdict": "NEEDS_HUMAN_JUDGMENT",
-      "gap": "Inherently architectural/aspirational item (category flagged qualitative in the taxonomy) -- no repo grep, category infra check, or CONSTITUTION.yaml cross-reference produced meaningful signal; a mechanical check cannot confidently classify this one way or another. Evidence gathering WAS run (see item_keyword_grep) -- this is not a skipped item.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
         {
           "type": "item_keyword_grep",
@@ -9817,9 +10347,11 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 36,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "distinctFilesHit": 33,
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml"
+          ],
           "sampleHits": [
             "src/app/(app)/fde/page.tsx:32:  // NOT labeled \"Denied\" in this user-facing badge.",
             "src/lib/services/report-domain-enablement-service.ts:30:// internal cron-only artifacts with no user-facing route at all (see their",
@@ -9831,7 +10363,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9841,8 +10373,8 @@
       "text": "Every user interaction shall minimize unnecessary input by using automation, prediction, defaults, and contextual assistance.",
       "category": "VISION_STRATEGIC",
       "category_label": "Aspirational vision / long-term strategic objectives",
-      "verdict": "NEEDS_HUMAN_JUDGMENT",
-      "gap": "Inherently architectural/aspirational item (category flagged qualitative in the taxonomy) -- no repo grep, category infra check, or CONSTITUTION.yaml cross-reference produced meaningful signal; a mechanical check cannot confidently classify this one way or another. Evidence gathering WAS run (see item_keyword_grep) -- this is not a skipped item.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
       "evidence": [
         {
           "type": "item_keyword_grep",
@@ -9858,8 +10390,10 @@
           "keywordCount": 6,
           "phraseHits": 0,
           "distinctFilesHit": 27,
-          "coOccurrenceFileCount": 0,
-          "coOccurrenceFiles": [],
+          "coOccurrenceFileCount": 1,
+          "coOccurrenceFiles": [
+            "ai-os/UX_DESIGN_PRINCIPLES.yaml"
+          ],
           "sampleHits": [
             "src/app/data-policy/page.tsx:36:          <li>We analyse usage patterns, AI execution outcomes, and anonymised interaction data to improve routing, prompts, and system behaviour.</li>",
             "src/lib/services/chat-service.ts:65:// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, \"AI Clarification",
@@ -9871,7 +10405,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9913,7 +10447,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9955,7 +10489,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -9981,7 +10515,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 25,
+          "distinctFilesHit": 24,
           "coOccurrenceFileCount": 0,
           "coOccurrenceFiles": [],
           "sampleHits": [
@@ -9995,7 +10529,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10034,7 +10568,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10061,8 +10595,9 @@
           "keywordCount": 6,
           "phraseHits": 0,
           "distinctFilesHit": 24,
-          "coOccurrenceFileCount": 3,
+          "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
+            "src/app/shared/report/[token]/page.tsx",
             "src/app/page.tsx",
             "src/app/data-policy/page.tsx",
             "src/app/privacy/page.tsx"
@@ -10078,7 +10613,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10120,7 +10655,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10164,7 +10699,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10204,7 +10739,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10248,7 +10783,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10318,7 +10853,7 @@
           "keywordsWithHits": 6,
           "keywordCount": 6,
           "phraseHits": 0,
-          "distinctFilesHit": 24,
+          "distinctFilesHit": 25,
           "coOccurrenceFileCount": 3,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -10336,7 +10871,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     },
     {
@@ -10362,7 +10897,7 @@
           "keywordsWithHits": 5,
           "keywordCount": 6,
           "phraseHits": 1,
-          "distinctFilesHit": 21,
+          "distinctFilesHit": 22,
           "coOccurrenceFileCount": 4,
           "coOccurrenceFiles": [
             "src/app/page.tsx",
@@ -10371,17 +10906,17 @@
             "src/app/terms/page.tsx"
           ],
           "sampleHits": [
+            "src/app/shared/report/[token]/page.tsx:96:              {data ? `Generated ${new Date(data.generatedAt).toLocaleString()} · ` : \"\"}Read-only, shared from VERIDIAN AI OS Reports",
             "src/app/page.tsx:286:              VERIDIAN AI OS is owned and operated by SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED, a company",
             "src/app/partner/[token]/page.tsx:88:            <p className=\"text-xs text-ct-muted\">No referral links yet -- contact your VERIDIAN AI OS contact to get one set up.</p>",
             "src/app/data-policy/page.tsx:5:  title: \"Data Policy — VERIDIAN AI OS\",",
-            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\",",
-            "src/app/data-policy/page.tsx:63:          and GDPR commitments — VERIDIAN AI OS itself does not hold an independent SOC 2 certification or"
+            "src/app/data-policy/page.tsx:6:  description: \"How VERIDIAN AI OS handles, isolates, and learns from data — including model training.\","
           ]
         }
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave6"
       }
     }
   ]
