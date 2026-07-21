@@ -525,6 +525,102 @@ quick_reference:
 # ---------------------------------------------------------------------------
 registries:
 
+  - id: rules_articles_198
+    type: guardrail_ruleset
+    path: ai-os/RULES_ARTICLES_198.json
+    scope: >-
+      Owner directive 2026-07-21: the 99 Rules + 99 Articles governing
+      the complete VERIDIAN AI OS system, supplied by the Owner
+      (RULES.xlsx), extracted losslessly. THIS IS A LIVE, SYSTEM-WIDE
+      GUARDRAIL -- every AI agent (Mother Router, Superboss, Supervisor,
+      any worker doing software development) shall keep these 198 items
+      in consideration WHILE doing work, not just as something audited
+      after the fact. Complements ai_engineering_policy (the HOW, a
+      build-vs-buy playbook) and ai-os/CONSTITUTION.yaml (a differently-
+      numbered, separately-sourced rule registry, zero literal overlap
+      confirmed via grep) -- this file is the Owner's own canonical
+      198-point checklist, distinct from both.
+    status: live
+    mandatory_before: >-
+      doing any work on this system -- FChecklist, VERIDIAN AI OS,
+      compliance-tracker, PROJEXA, server, GitHub, Vercel, Supabase,
+      product, project, brands, AI models, end user
+    verification_mechanism: registries.audit198_framework (re-runnable,
+      evidence-based scoring against this exact file)
+
+  - id: audit198_framework
+    type: verification_mechanism
+    path: ai-os/scripts/audit198/ (run-audit.mjs, evidence-engine.mjs,
+      category-checkers.mjs, rules-taxonomy.mjs, constitution-index.mjs,
+      results/audit198-results.json, results/audit198-summary.md)
+    scope: >-
+      Re-runnable, software-driven gap-audit engine for
+      rules_articles_198 (above) -- run: node
+      ai-os/scripts/audit198/run-audit.mjs. Groups the 198 items into
+      33 thematic categories, each backed by a generic evidence-
+      gathering + verdict engine (file-marker checks, repo-wide grep
+      with file:line citations, cross-reference against
+      ai-os/CONSTITUTION.yaml's own status vocabulary). Verdict
+      vocabulary: ENFORCED / PARTIALLY_ENFORCED / POLICY_ONLY /
+      NOT_APPLICABLE_YET / NOT_YET_BUILT / NEEDS_HUMAN_JUDGMENT /
+      EVIDENCE_UNAVAILABLE. THIS is the objective proof mechanism for
+      whether the system-wide guardrail above is actually being
+      honored -- re-run it, don't just assert compliance.
+    status: live, real 198/198 run completed 2026-07-21, actively
+      being extended by a multi-wave gap-closure initiative (see
+      ai-os/boss/ACTIVE-CLAIMS.yaml, "Close all 176 non-ENFORCED
+      items")
+    do_not_build_a_parallel_audit_mechanism: >-
+      if a future session needs a different verification angle for
+      these 198 items, EXTEND this framework's category-checkers.mjs
+      with a new check, or improve evidence-engine.mjs's detection
+      logic when a real capability exists but isn't being recognized --
+      never weaken a checker just to inflate a score, and never build a
+      second scoring script for the same 198 items.
+
+  - id: standing_task_directive
+    type: guardrail_ruleset
+    path: ai-os/STANDING_DIRECTIVE.yaml
+    scope: >-
+      Owner directive 2026-07-21: machine-readable encoding of the
+      Owner's single-line standing per-task prompt. Cite this file (by
+      id or path) with any task instead of restating the full protocol
+      -- it points to precheck (MASTER_INDEX.yaml+system_index),
+      execution (SSH-only, VERIDIAN-DEV), guardrails
+      (rules_articles_198 + ai_engineering_policy incl.
+      automation_scope_boundary), logging (ACTIVE-CLAIMS.yaml/
+      COMPLETED.yaml/system_index), verification (audit198_framework
+      re-run, never self-certified), and complete sync scope (server,
+      GitHub, Vercel, Supabase).
+    status: live
+    mandatory_before: >-
+      doing any work on this system when cited alongside a task --
+      same mandatory_before class as rules_articles_198 and
+      ai_engineering_policy, which this file references rather than
+      duplicates
+
+  - id: ai_engineering_policy
+    type: policy_doc
+    path: ai-os/AI_ENGINEERING_POLICY.yaml
+    scope: >-
+      Owner directive 2026-07-21: mandatory engineering playbook for the
+      whole integrated system (FChecklist, VERIDIAN AI OS,
+      compliance-tracker, PROJEXA, server, GitHub, Vercel, Supabase,
+      product, project, brands, AI models, end user). A 30-item
+      build-vs-buy priority order (existing capability/config/package/
+      framework/... before new code), explicit always_prefer /
+      never_behave_like_a_human_operator lists, and a continuous
+      optimization checklist. Complements, does not duplicate,
+      ai-os/RULES_ARTICLES_198.json / ai-os/CONSTITUTION.yaml's own
+      declarative "software first, AI second" rules -- those declare
+      WHAT the system must be; this file is the operational HOW, a
+      playbook to consult per-task rather than a per-item scored
+      registry.
+    status: live
+    mandatory_before: >-
+      starting any engineering, software-development, systems-management,
+      or process-design task on this system
+
   - id: system_index
     type: sqlite_table
     path: /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
