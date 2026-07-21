@@ -2126,7 +2126,8 @@ entries:
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
 
-  - id: WAVE-181
+  # Renumbered from this agent's own WAVE-181 to WAVE-185: WAVE-181/182 are reserved by not-yet-merged Wave 4/5 docs PRs (#511/#513), and WAVE-183/184 by this same audit's Wave 6 batch 1 / Wave 7 entitlement docs PRs (#515/#517) -- none visible to a fresh origin/main checkout. Caveat for whoever merges these: every WAVE-N docs PR in flight this session picked its number the same way (best-effort against a stale origin/main), so final numbering may still need a pass at actual merge time regardless of these fixes.
+  - id: WAVE-185
     title: "Wave 7 RECONCILE (2 of 3): construction KPIs folded into KPI Hub, quotation->PO gap closed in ERP procurement; budgets project-scoping confirmed already fine"
     doer:
       agent: "claude-code"
