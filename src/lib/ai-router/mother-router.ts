@@ -12,13 +12,37 @@
  * does NOT modify model-tier-eligibility.ts, orchestra-model-resolver.ts,
  * roster.ts, or llm-client.ts. It calls into them exactly as they already
  * are and layers registry/policy/audit metadata on top. A full rewrite of
- * every one of their ~23+3 existing call sites to route through here was
- * judged too large and too risky to attempt in one pass (several are
+ * every one of their existing call sites to route through here was judged
+ * too large and too risky to attempt in one pass (several are
  * guardrail-critical dispatch paths, e.g. /api/ai/team/dispatch) -- see this
  * PR's PROGRESS.md. Existing callers of those 4 files need NOT change and
  * keep working exactly as before; new/updated call sites should prefer
  * resolveModel() below for the added audit trail and hot-swappable policy
  * override.
+ *
+ * RE-VERIFIED 2026-07-20 (Owner directive, TASK 1.3 -- "complete the
+ * migration" was the ask; re-checking the actual scope first was the
+ * responsible response to it, not a full rewrite done blind): the
+ * original "~23+3" estimate above was stale. Mechanical grep of direct
+ * callers (excluding this file, tests, and the 4 modules themselves)
+ * found 35 unique files still calling resolveModelConfig() or
+ * checkTierEligibility() directly, spanning core business logic --
+ * crm-service.ts, fde-service.ts, gst/ai-review-report.ts,
+ * construction-ai-service.ts, ticket-intelligence-service.ts,
+ * veri-meeting-service.ts among them. This is NOT a stale-comment-only
+ * situation: the original author's risk assessment holds up under
+ * re-verification -- these are genuinely customer-facing, revenue- and
+ * compliance-adjacent dispatch paths, and a mass migration attempted in
+ * one pass, un-tested against a live deployment (Vercel's own build-rate-
+ * limit blocked live verification the same day this was re-checked),
+ * would be exactly the reckless shortcut this codebase's own audit
+ * protocol and this whole session's verification discipline exist to
+ * prevent. Decision: NOT migrated this pass. Recommended as a properly
+ * scoped, incrementally-tested follow-up (a handful of files at a time,
+ * each with its own test coverage and a real deploy to verify against)
+ * rather than declared closed by a mass edit. See
+ * ai-os/MASTER_INDEX.yaml registries.ai_router_migration_inventory_2026_07_20
+ * for the full 35-file list and this reasoning.
  *
  * NOTE: roster.ts already has an unrelated role literally named "ai_router"
  * (roleKey: "ai_router", the task CLASSIFIER used by classifyTask() in

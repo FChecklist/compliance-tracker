@@ -172,6 +172,30 @@ continuous_optimization_checklist:
     - can this become a workflow?
     - can this become a reusable tool?
 
+automation_scope_boundary:
+  rule: >-
+    "100% automation" and "no manual work" directives (Owner, 2026-07-21)
+    apply to executing software-verifiable facts and building real
+    capability -- they do NOT extend to genuinely irreversible actions or
+    to items that are not reducible to a software fact. This is a
+    standing exception, not a case-by-case judgment call, so future
+    automation-heavy directives are never misread as license to silently
+    force through a decision that isn't a software fact.
+  standing_exceptions:
+    genuinely_irreversible_actions: >-
+      Live customer data changes, production DNS changes, and
+      persistent/standing server-config changes (e.g. crontab
+      modifications) get surfaced to the Owner for explicit confirmation
+      before execution -- never silently automated through, regardless of
+      any other directive's "100% automation" framing.
+    needs_human_judgment_items: >-
+      Any item registries.audit198_framework itself scores
+      NEEDS_HUMAN_JUDGMENT gets surfaced to the Owner with the specific
+      reason it could not be reduced to a boolean check, rather than
+      forced to a fabricated ENFORCED/closed verdict to satisfy a
+      zero-gap target.
+  source: "Owner directive, 2026-07-21 (chat), stated explicitly to remove ambiguity."
+
 final_goal: >-
   The objective is not to produce code. The objective is to engineer a
   platform where each new feature requires less manual work than the
