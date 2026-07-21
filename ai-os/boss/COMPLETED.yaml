@@ -2297,3 +2297,107 @@ entries:
         Full before/after evidence, the live dry-run output, and the
         marker-typo self-correction are in PR #528's body and commit
         message.
+
+  - id: WAVE-192
+    title: "audit198 gap-closure wave 3: SOFTWARE_FIRST_AI_SECOND/CONFIDENCE_ROUTING/REUSE_COMPONENTIZATION cluster (36/198 items) -- 2 NOT_YET_BUILT items closed, 2 items reached ENFORCED, 1 real wiring gap closed, 1 real checker gap fixed"
+    doer:
+      agent: "claude-code (audit198 gap-closure sub-agent, dispatched from interactive Super Boss session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/529 (base: audit198-framework)"
+      summary: >
+        Owner directive 2026-07-21: close every gap identified by
+        audit198's software-driven audit of 198 Owner Rules/Articles
+        (WAVE-186, PR #522) for ONE assigned cluster:
+        SOFTWARE_FIRST_AI_SECOND + CONFIDENCE_ROUTING +
+        REUSE_COMPONENTIZATION (36 of 198 items, read fresh from the live
+        results.json rather than trusting a stale count in the dispatch
+        prompt -- confirmed 36 by direct filter: 17+7+12). Worktree
+        created at /opt/veridian/workspace/audit198-gap-wave3 (branch
+        audit198-gap-wave3-software-first) based on origin/audit198-
+        framework, since that unmerged branch (PR #522) has both the
+        audit198 framework code and its already-run baseline results.
+
+        Read ai-os/AI_ENGINEERING_POLICY.yaml first as instructed (its
+        engineering_priority_order puts existing_software_capability,
+        configuration, and existing_reusable_services/modules all ahead
+        of new code). Ran `python3 /opt/veridian/scripts/superboss-
+        register.py check-duplicate` before building anything -- it
+        confirmed software-coverage-service.ts's classification was
+        already wired into task-execution-engine.ts/chat-service.ts but
+        explicitly NOT into runRole()/AI Team dispatch or the worker-
+        fleet shell entrypoints (IDX-20260720-075710-ad2d), and
+        separately confirmed (by direct code read) that the worker-fleet
+        shell side already has a real, working software-first gate via
+        preflight-guard.py -> credit-accountant.py propose ->
+        check_existing_capability() -> superboss-register.py -- just not
+        expressed through the TS classification module, so that side
+        needed no new wiring.
+
+        Before (full 198-item re-run): 22 ENFORCED / 152
+        PARTIALLY_ENFORCED / 15 NOT_YET_BUILT / 9 NEEDS_HUMAN_JUDGMENT.
+        After (re-run via `node ai-os/scripts/audit198/run-audit.mjs`,
+        not claimed): 24 ENFORCED / 152 PARTIALLY_ENFORCED / 13
+        NOT_YET_BUILT / 9 NEEDS_HUMAN_JUDGMENT.
+
+        REAL wiring gap closed: src/lib/ai-team/team-service.ts's
+        runRole() now calls classifyExecutionWithReliability
+        (software-coverage-service.ts) +
+        findOrCreateCapability/findApprovedPackage/recordExecutionOutcome
+        (capability-learning-service.ts) before every AI Dev Team LLM
+        call -- fire-and-forget, fully swallowed errors, observability/
+        trend-tracking only (no deterministic executor exists yet for an
+        approved instruction package against free-text engineering work,
+        a materially bigger feature, honestly left out of scope).
+
+        ONE real missing capability built: src/lib/services/memory-tier-
+        registry.ts (ARTICLE-050, "operational memory shall be separated
+        from long-term knowledge") -- the separation already existed
+        architecturally in schema.ts (messages/conversations/
+        activity_log/assistant_sessions vs assistant_memories/
+        task_capabilities/instruction_packages/platform_assets) but was
+        never declared as explicit, checkable metadata anywhere; this
+        registry makes it real (classifyMemoryTier(), tablesForTier()),
+        per AI_ENGINEERING_POLICY.yaml's own "metadata over hardcoding"
+        preference -- not a new storage layer.
+
+        ONE real checker gap fixed, not gamed: REUSE_COMPONENTIZATION had
+        ZERO infraChecks entries in category-checkers.mjs (confirmed by
+        direct read of run-audit.mjs's infraForCategory() fallback --
+        this whole category fell through to per-item keyword grep only),
+        even though real category-wide infra exists and was verified by
+        direct code reading before citing it: capability-learning-
+        service.ts's findApprovedPackage()/recordExecutionOutcome(), and
+        capability-audit-service.ts's closeImprovementLoop() -- which
+        already converts a closed AI-driven improvement into both a
+        versioned instruction_packages row AND a discoverable
+        platform_assets/UMR row, i.e. it already IS ARTICLE-052's
+        ("every reusable AI solution shall be converted into structured
+        knowledge") real mechanism, just never registered as category
+        evidence.
+
+        Verdict changes: RULE-018 and RULE-059 moved PARTIALLY_ENFORCED
+        -> ENFORCED (their own text already had a matching phrase; the
+        new category infra entry supplied the missing category-level
+        evidence). ARTICLE-050 and ARTICLE-052 moved NOT_YET_BUILT ->
+        PARTIALLY_ENFORCED. The other 10 REUSE_COMPONENTIZATION items
+        stay PARTIALLY_ENFORCED, now backed by real infra evidence
+        instead of generic keyword co-occurrence alone. None claimed as
+        ENFORCED beyond what the re-run itself confirmed.
+
+        Left open, and why: the 6 non-ENFORCED CONFIDENCE_ROUTING items
+        and 14 non-ENFORCED SOFTWARE_FIRST_AI_SECOND items stay
+        PARTIALLY_ENFORCED -- their category infra (task-execution-
+        engine.ts, model-tier-eligibility.ts, task-tightening.ts) already
+        passes fully, but deriveVerdict()'s ENFORCED ceiling requires a
+        verbatim capitalized multi-word phrase from the item's own
+        (lowercase, legal-register) text to appear in the repo -- the
+        same structural, 198-item-wide matching-logic limitation the
+        WAVE-191 sibling cluster hit and documented. Deliberately NOT
+        touched in this narrowly-scoped PR (evidence-engine.mjs's
+        extractKeywords() is shared across all 33 categories and all
+        parallel agents' clusters) -- flagged as a real, separate
+        follow-up, same as WAVE-191's note.
+
+        bun install + bun run build: exit 0, zero TypeScript errors.
+        Full before/after evidence and the re-run summary are in PR
+        #529's body and commit message.
