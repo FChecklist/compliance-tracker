@@ -4667,6 +4667,9 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
   aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
   aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
+  // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_campaigns --
+  // same bare-text/no-FK/nullable convention as companyId/accountId above.
+  campaignId: text('campaign_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4715,6 +4718,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // record), independent of whether it also has a leadId/clientId. Same
   // bare-text/no-FK/nullable convention as accountId on crmLeads above.
   accountId: text('account_id'),
+  // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_lost_reasons,
+  // set only when stage='lost'. Same bare-text/no-FK/nullable convention
+  // as accountId just above -- structured, org-configurable reason
+  // instead of a hardcoded enum, matching the Odoo reference pattern.
+  lostReasonId: text('lost_reason_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4822,6 +4830,63 @@ export const crmContacts = complianceSchemaDB.table('crm_contacts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+// ─── VERIDIAN CRM Wave 1 (2026-07-21) ─────────────────────────────────────
+// Closes 3 gaps confirmed against reference-system docs (Zoho/Odoo/Infisuite
+// reverse-engineering repos, see docs/crm/fields.md in each): a structured
+// Lost Reason (Odoo has a configurable Lost Reasons taxonomy; this schema
+// only had free-text stage='lost'), an Activities table for Tasks/Meetings/
+// Calls tied to any CRM record (Zoho has this; this schema had no
+// activity-tracking concept at all -- crm_stage_history's own polymorphic
+// entityType+entityId pattern, established for lead/opportunity history, is
+// reused here and extended to account/contact), and a Campaigns table (Zoho
+// has this; this schema had zero campaign concept). All additive, zero
+// changes to existing crm_leads/crm_opportunities/crm_accounts/crm_contacts
+// columns.
+
+export const crmLostReasons = complianceSchemaDB.table('crm_lost_reasons', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reasonText: text('reason_text').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const crmActivities = complianceSchemaDB.table('crm_activities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // 'lead' | 'opportunity' | 'account' | 'contact'
+  entityId: text('entity_id').notNull(),
+  activityType: text('activity_type').notNull(), // 'task' | 'meeting' | 'call'
+  subject: text('subject').notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  status: text('status').notNull().default('not_started'), // 'not_started' | 'in_progress' | 'completed'
+  priority: text('priority').notNull().default('normal'), // 'low' | 'normal' | 'high'
+  notes: text('notes'),
+  assignedToId: text('assigned_to_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
+export const crmCampaigns = complianceSchemaDB.table('crm_campaigns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  campaignType: text('campaign_type'),
+  status: text('status').notNull().default('planning'), // 'planning' | 'active' | 'completed' | 'cancelled'
+  startDate: date('start_date', { mode: 'string' }),
+  endDate: date('end_date', { mode: 'string' }),
+  budgetedCost: numeric('budgeted_cost'),
+  actualCost: numeric('actual_cost'),
+  expectedRevenue: numeric('expected_revenue'),
+  description: text('description'),
+  ownerId: text('owner_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
 // minthcm/erpnext(hrms)/orangehrm were evaluated and rejected as software

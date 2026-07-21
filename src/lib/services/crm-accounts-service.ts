@@ -534,3 +534,15 @@ export async function listContactsForAccount(ctx: { orgId: string }, accountId: 
     db.query.crmContacts.findMany({ where: and(eq(crmContacts.accountId, accountId), eq(crmContacts.orgId, ctx.orgId)), orderBy: (t, { desc }) => desc(t.isPrimary) })
   )
 }
+
+
+// VERIDIAN CRM Wave 1 (2026-07-21) CRUD audit finding: createContact/
+// updateContact/deleteContact/listContactsForAccount existed but no
+// single-contact fetch by id -- every other CRM entity in this codebase
+// (lead, opportunity, account) has a get-by-id; contacts didn't.
+export async function getContact(ctx: { orgId: string }, contactId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmContacts.findFirst({ where: and(eq(crmContacts.id, contactId), eq(crmContacts.orgId, ctx.orgId)) })
+  )
+}
