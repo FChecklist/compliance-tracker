@@ -2126,7 +2126,8 @@ entries:
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
 
-  - id: WAVE-181
+  # Renumbered from the build agent's own WAVE-181 to WAVE-183: WAVE-181/182 are already reserved by not-yet-merged PRs #511/#513 (Waves 4/5's own COMPLETED.yaml entries), which this branch's fresh origin/main checkout could not see.
+  - id: WAVE-183
     title: "Wave 6 batch 1: 5 construction module pages ported to compliance-tracker (site-diary, RFIs, submittals, punch list, scope/BOQ, labour, expenses)"
     doer:
       agent: "claude-code (worktree wave6-batch1-construction-pages)"
