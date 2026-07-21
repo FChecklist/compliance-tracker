@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (background task, 2026-07-21) -- Install/wire snip token-reduction tool across VERIDIAN-DEV"
+    claimed_at: "2026-07-21T (this session)"
+    claim: |
+      Owner directive (structured JSON task spec): deploy github.com/edouard-claude/snip
+      (376 stars, MIT, pure-Go static binary, no network calls, fail-open PreToolUse
+      hook that filters verbose shell/CLI output before it reaches an AI coding
+      assistant's context) "across the entire VERIDIAN AI infrastructure" to cut
+      LLM token consumption. Scoping finding made before any build work (see full
+      writeup in this PR's docs): the Mother Router + child routers
+      (src/lib/ai-router/mother-router.ts, dispatched via /api/ai/team/dispatch)
+      call LLM providers directly over HTTP -- they are NOT Claude Code CLI
+      sessions and have no shell/terminal surface for snip's actual mechanism to
+      attach to. snip genuinely applies to: (a) interactive Claude Code CLI
+      sessions on this VERIDIAN-DEV server (rajat user account), and (b) the
+      headless veridian-worker@<id>.service systemd Claude Code CLI processes
+      (/opt/veridian/scripts/veridian-task.py + worker-entrypoint.sh) which run
+      claude -p --dangerously-skip-permissions headlessly. Work is server-level
+      (binary install + hook registration under rajat's home dir, not part of
+      this repo) plus a small VERIDIAN custom-filter library + reports committed
+      here for version control/team-sharing and CI-gated review.
+  scope_note: >-
+    File scope this task writes: ai-os/boss/completed-work/snip-integration/
+    (new -- installation/architecture/configuration/verification/benchmark/
+    risk/rollback/upgrade/maintenance reports), custom snip filter YAML files
+    (new, committed for version control -- exact path documented in the reports),
+    ai-os/boss/ACTIVE-CLAIMS.yaml (this entry, then closed to
+    recently_completed on merge), ai-os/boss/COMPLETED.yaml (new WAVE-NNN entry
+    on merge), ai-os/MASTER_INDEX.yaml + system_index (registration on merge).
+    No schema, no application source code (src/**), no live customer data, no
+    .github/workflows/*.yml. Collision check before starting: grepped
+    ACTIVE-CLAIMS.yaml, COMPLETED.yaml, MASTER_INDEX.yaml for "snip" --
+    zero matches, no prior/concurrent claim on this work. This registration
+    commit is pushed on its own, ahead of the real work PR, per this file's
+    own protocol (section 2 of the header).
   - session_label: "claude-code (background task, 2026-07-21) -- Wave 10: projexa-ai.com DNS/Vercel cutover + Wave 9 credential reverse-link gap [CLOSED, see WAVE-199 in COMPLETED.yaml]"
     claimed_at: "2026-07-21T (this session)"
     claim: |
