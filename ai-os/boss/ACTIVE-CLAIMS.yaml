@@ -4842,3 +4842,40 @@ recently_completed:
     schema/src to ground the gap count. No collision: the v2 plan is a
     fresh doc; the v1 plan (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
     PR #485) is already merged and is being EXTENDED, not duplicated.
+
+  - session_label: "claude-code (interactive Superboss session, 2026-07-21) -- Close all 176 non-ENFORCED items from the 198-item software-driven gap audit"
+    claimed_at: "2026-07-21T (this session)"
+    claim: |
+      Owner directive 2026-07-21: fill every gap identified by the
+      audit198 framework (PR #522, results 198/198 scored: 22 ENFORCED,
+      152 PARTIALLY_ENFORCED, 15 NOT_YET_BUILT, 9 NEEDS_HUMAN_JUDGMENT).
+      Target: zero contradiction, zero duplication, zero gaps, 100%
+      implementation, via 100% automation (no manual/AI-freehand work).
+      Verification loop: audit198's own re-runnable engine (node
+      ai-os/scripts/audit198/run-audit.mjs) is the proof mechanism --
+      close a real gap in code/config, re-run, confirm the verdict
+      flips to ENFORCED with real new evidence, not a claimed fix.
+
+      Disclosed tension, stated to the Owner up front: 9 items were
+      scored NEEDS_HUMAN_JUDGMENT by the audit engine ITSELF because no
+      mechanical check could produce a confident verdict at audit time
+      -- some of these (e.g. ARTICLE-012/013, config externalization)
+      are closeable by building the missing mechanical check (a lint
+      rule, an audit script) that upgrades the verdict with real
+      evidence; a few (e.g. RULE-011, ARTICLE-096 -- aspirational
+      vision statements about "continuous platform improvement")
+      cannot be reduced to a boolean pass/fail by any script and will
+      be escalated to the Owner explicitly rather than fabricated.
+
+      Structured as ~7 waves by category cluster (mirrors audit198's
+      own 33-category taxonomy), dispatched via background build
+      agents, each wave: read the current audit198-results.json fresh
+      (do not assume an earlier session's counts are still accurate),
+      close real gaps in code/config/docs for that cluster's
+      non-ENFORCED items, re-run the audit engine, verify improvement,
+      commit/PR, register.
+
+      File scope: touches many parts of compliance-tracker's src/lib,
+      src/app, ai-os/ across 29 categories -- see each wave's own PR
+      for its specific scope, not enumerated here given the breadth.
+      No PROJEXA/veda-advisors changes under this claim.
