@@ -2052,6 +2052,43 @@ entries:
         call sites had prior test coverage of the achievement-check branch
         itself, same as the pre-existing first_compliance_item wiring).
 
+  - id: WAVE-196
+    title: "Merge chain complete: MASTER_INDEX.yaml root (#501) -> AI_ENGINEERING_POLICY.yaml + automation_scope_boundary (#526) -> RULES_ARTICLES_198.json + audit198_framework guardrail registration (#540)"
+    doer:
+      agent: "claude-code (this session, direct SSH-driven merges, not a sub-agent)"
+      date: "2026-07-21"
+      pr: "#501, #526, #540 (sequential chain, each retargeted to main and merged in order)"
+      summary: >
+        Owner directive 2026-07-21 ("complete all of these" + STANDING_DIRECTIVE.yaml,
+        PR-merge-scope answer "1 and 2 both"): merged the 3-PR chain that makes
+        MASTER_INDEX.yaml, AI_ENGINEERING_POLICY.yaml (incl. its
+        automation_scope_boundary field), RULES_ARTICLES_198.json, and the
+        audit198_framework verification framework all land on main for the
+        first time -- previously all four existed only on unmerged branches.
+        Each PR was retargeted to main via `gh api .../pulls/<n> -X PATCH
+        -f base=main` (plain `gh pr edit --base` silently failed with a
+        stale GraphQL Projects-classic error on #526, confirmed via the
+        PATCH response's own base.ref field instead of trusting exit code),
+        given a genuine structured audit-check PR comment (this repo's
+        required `audit-check` CI gate parses a strict 8-field format --
+        see src/lib/audit-protocol.ts -- and fails the PR without it),
+        updated against main via `update-branch`, and merged only after
+        all 7 required status checks (Lint/Type Check/Build/audit-check/
+        Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests)
+        showed pass. Encountered and worked through repeated "head branch
+        not up to date"/"policy prohibits merge" races against other
+        concurrently-merging background agents (expected with 3 parallel
+        merge chains active), and a genuine multi-minute SSH path-flakiness
+        episode to the VERIDIAN-DEV host (confirmed via the Hetzner Cloud
+        API that the server itself stayed `running`, not rescued/rebooted,
+        the whole time -- same conclusion as the 2026-07-20/07-21 SSH
+        outage precedents: network noise on this specific path, not a
+        server fault, so no server-side action was taken).
+    verified:
+      - "gh pr view 501/526/540 --json state,mergedAt all show state=MERGED with real mergedAt timestamps"
+      - "all 7 required status checks confirmed pass on the final commit of each PR before merge, not assumed from an earlier run"
+      - "confirmed no collision with the separately-dispatched audit198-merge-agent background task, which had already finished by the time this chain was merged"
+
   - id: WAVE-180
     title: "GAP-AI-WORKFORCE-GOVERNANCE closed: Agent Review Registry (ARR) -- the last of PLATFORM_STRATEGY.md section 30's 2 genuinely-new registries"
     doer:
@@ -2125,3 +2162,76 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+
+  - id: WAVE-181
+    title: "CRM+PROJEXA-merge plan Wave 4: CRM wired into VERI Chat (capability-tree + dispatchEngine), zero-LLM structured create"
+    doer:
+      agent: "claude-code (Super Boss, interactive session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/510 (base: wave3-crm-pages / PR #509)"
+      summary: >
+        Wave 4 of the 10-wave CRM-completion + PROJEXA/THE FIRM brand-merge
+        plan (claim registered 2026-07-21 in this same file's
+        ACTIVE-CLAIMS.yaml, "CRM completion + VERIDIAN/PROJEXA brand-layer
+        merge"). Owner directive being closed here specifically: "example
+        creation of lead -- user just puts name etc in the chatbox and our
+        system creates the lead."
+
+        Read capability-tree-service.ts (1503 lines) and
+        task-execution-engine.ts (2515 lines) in full before writing
+        anything, to find the correct existing mechanism rather than
+        inventing a new one. Confirmed executeTask() already has 3 dispatch
+        paths (engineKey -> dispatchEngine() FULL_SOFTWARE; resolvedWorkerAgentId
+        -> executeStructuredDispatch(); free-text LLM planning as the
+        fallback) and that the engineKey/dispatchEngine() path -- already
+        used for all ~10 wired VCEL calculator engines -- is the correct
+        zero-LLM mechanism to reuse, not the generic unfiltered
+        buildCalculatorNodes() "Calculators" bucket (wrong UX: would flood
+        the CRM page's chat with 200+ unrelated entries) and not a new
+        per-record dispatch path (unnecessary duplication of an existing
+        working mechanism).
+
+        Built: crm scope (MODULE_SCOPE_TOP_LEVEL_KEYS.crm) extended with a
+        new "crm_quick_create" key. New buildCrmQuickCreateNodes() function
+        (capability-tree-service.ts, placed immediately before
+        buildCapabilityTree(), same position as its closest precedent
+        buildCalculatorNodes()) returns 4 static leaves -- Create a Lead /
+        Create an Opportunity / Create an Activity / Create a Campaign --
+        each with its own engineKey and typed inputFields (text/number/
+        select, required vs optional), wired into buildCapabilityTree()'s
+        staticNodes assembly. task-execution-engine.ts's dispatchEngine()
+        gained a userId parameter (every prior engine case was a pure
+        calculation with no createdById-style field to set, so this was
+        never needed before) threaded through from its one real call site
+        in executeEngineDispatch() (userId was already in that function's
+        own scope). Added 4 new switch cases -- crm_create_lead_engine,
+        crm_create_opportunity_engine, crm_create_activity_engine,
+        crm_create_campaign_engine -- each doing minimal required-field
+        validation then a real dynamic-import call into Wave 1's
+        crm-service.ts / crm-activities-service.ts / crm-campaigns-service.ts
+        create functions, same dynamic-import style every existing case in
+        this switch already uses. Zero LLM calls for the create operation
+        itself -- the capability tree's typed inputFields already collect
+        every field client-side before dispatch ever runs, directly
+        satisfying the Owner's separate "less coding, more software,
+        reduce AI token use" directive from the same session.
+
+        Deployed via the same dry-run-verify-deploy Python patch-script
+        pattern used for every other infra/schema change this session:
+        wrote 2 patch scripts locally, scp'd to the server, ran against a
+        fresh git-worktree copy (wave4-crm-chat, branched off
+        origin/wave3-crm-pages), diffed against pre-patch backups to
+        confirm only the 3 intended edits per file landed, grep-verified
+        the new engineKeys/scope entry/signature change, then bun install
+        + bun run build (clean, exit 0, full route table, zero TypeScript/
+        compile errors) before commit/push/PR.
+
+        Deliberately NOT done in this wave, honestly flagged: no live
+        end-to-end chat smoke test (typing "create lead John Doe" in a
+        running dev/preview environment and confirming a real crmLeads row)
+        -- no preview environment was available in this SSH-only session;
+        recommended as a follow-up verification step once a preview/dev
+        deploy exists, noted explicitly in the PR body. No test file
+        added/changed -- this wave is additive dispatch wiring calling
+        already-tested Wave 1 service functions, not new business logic of
+        its own.

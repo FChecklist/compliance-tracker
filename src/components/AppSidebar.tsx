@@ -566,7 +566,7 @@ function AppSidebarFooter({ orgName }: { orgName: string }) {
   );
 }
 
-function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const t = useTranslations("Nav");
   const sections = buildSharedSections(t, overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled);
 
@@ -589,7 +589,7 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
         <SharedAppSidebar
           sections={sections}
           logo={logo}
-          productName={orgLogoUrl && orgName ? orgName : "VERIDIAN AI"}
+          productName={orgLogoUrl && orgName ? orgName : (brandName || "VERIDIAN AI")}
           collapsed={false}
         />
       </div>
@@ -598,8 +598,8 @@ function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unread
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null }) {
-  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl };
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null, brandName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null; brandName?: string }) {
+  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName };
   return (
     <>
       {/* Desktop sidebar -- wrapping the shared component (rather than
@@ -619,7 +619,7 @@ export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, ac
   );
 }
 
-function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null }) {
+function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const [open, setOpen] = useState(false);
 
   return (
