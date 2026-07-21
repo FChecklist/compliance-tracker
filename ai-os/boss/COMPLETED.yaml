@@ -2125,3 +2125,63 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+
+  - id: WAVE-181
+    title: "Wave 7 RECONCILE (2 of 3): construction KPIs folded into KPI Hub, quotation->PO gap closed in ERP procurement; budgets project-scoping confirmed already fine"
+    doer:
+      agent: "claude-code"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/519"
+      summary: >
+        Wave 7 of the PROJEXA -> compliance-tracker merge plan (waves 1-6
+        already shipped as PR #507-#515). Closed 3 of Wave 7's RECONCILE
+        items from /opt/veridian/workspace/wave6-module-mapping.md: kpis
+        vs kpi-hub, budgets project-scoping, procurement workflow depth.
+        Read the real code for each before writing anything.
+
+        1. KPIs vs KPI Hub (fixed, additive): kpi-hub-service.ts's
+        getKpiHubSummary() previously only aggregated
+        complianceItems/risks/tickets/erpSalesInvoices. Added a fifth
+        `construction` section (totalDefinitions, totalEntries,
+        pendingApproval, approved, onTargetRate) read live via a left
+        join between construction_kpi_definitions and
+        construction_kpi_entries (Wave 117), scoped by orgId.
+        construction-kpi-service.ts's own approval workflow, PROJEXA's
+        /kpis page, and /api/v1/projexa/kpis/** routes are all untouched
+        and unaffected. /kpi-hub's page.tsx got one new Construction KPIs
+        card.
+
+        2. Budgets project-scoping (confirmed already fine, no code
+        change): erp_budgets has no direct projectId column, but
+        erp_cost_centers does, and erp_budgets.costCenterId already links
+        a budget to a cost center -- so budgets are already project-scoped
+        the same indirect way PROJEXA's own BudgetsClient.tsx does it
+        (read in full: it has no project filter either, only a
+        company-scope selector and cost-center picker, which CT's own
+        /erp/budgets page already matches and exceeds with fiscal-year
+        creation, variance analysis, and submit/cancel). No invented
+        projectId filter, since PROJEXA's own reference UI doesn't expose
+        one to reconcile against.
+
+        3. Procurement workflow depth (fixed, narrowly): read PROJEXA's
+        ProcurementClient.tsx (603 lines) in full against CT's
+        erp/procurement, erp/goods-receipt, and
+        erp-procurement-workflow-service.ts. CT's RFQ workflow already
+        substantially exceeds PROJEXA's own depth (Compare Quotes ranked
+        view, weighted scoring, negotiation-round log, reverse auctions --
+        none of which PROJEXA has). The one real gap: a one-click
+        "quotation -> PO" action, present in PROJEXA, absent in CT despite
+        the identical backend route already existing
+        (/api/erp/buying/purchase-orders). Added the same single action to
+        CT's erp/procurement/page.tsx (Quotations tab + Compare Quotes
+        view), mirroring PROJEXA's depth exactly, nothing deeper.
+
+        Deliberately not touched: product-branch-service.ts (PMS/THE-FIRM
+        entitlement RECONCILE items handled separately elsewhere per this
+        session's dispatch), construction-kpi-service.ts's service/route
+        layer, PROJEXA's repo (read-only reference, its own pre-existing
+        uncommitted changes left alone).
+
+        bun install: 1181 packages, clean. bun run build: exit 0, zero
+        TypeScript errors, all routes including /kpi-hub and
+        /erp/procurement compiled successfully.
