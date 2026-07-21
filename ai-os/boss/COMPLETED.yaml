@@ -2297,3 +2297,105 @@ entries:
         Full before/after evidence, the live dry-run output, and the
         marker-typo self-correction are in PR #528's body and commit
         message.
+
+  # Numbered WAVE-193: real highest id re-verified live across ALL remote
+  # branches (not just this docs branch or origin/main) before picking this
+  # number -- full scan found the confirmed global max was WAVE-192, on
+  # origin/docs/audit198-wave3-completed-log (a sibling audit198 gap-
+  # closure agent's own docs branch, not yet merged into this one). 193 is
+  # safely above the confirmed global max.
+  - id: WAVE-193
+    title: "audit198 gap-closure wave 4: EXPLAINABILITY/RCA_ERROR_HANDLING/TASK_GUARDRAILS_ZERO_AMBIGUITY/DEDUPLICATION_SSOT cluster (27/198 items) -- 4 NOT_YET_BUILT items closed, 1 real capability built, 4 real checker gaps fixed"
+    doer:
+      agent: "claude-code (audit198 gap-closure sub-agent, dispatched from interactive Super Boss session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/530 (base: audit198-framework)"
+      summary: >
+        Owner directive 2026-07-21: close every gap identified by
+        audit198's software-driven audit of 198 Owner Rules/Articles
+        (WAVE-186, PR #522) for ONE assigned cluster: EXPLAINABILITY +
+        RCA_ERROR_HANDLING + TASK_GUARDRAILS_ZERO_AMBIGUITY +
+        DEDUPLICATION_SSOT (27 of 198 items, read fresh from the live
+        results.json rather than trusting a stale count in the dispatch
+        prompt -- confirmed 7+7+6+7=27 by direct filter). Worktree
+        created at /opt/veridian/workspace/audit198-gap-wave4 (branch
+        audit198-gap-wave4-explainability-rca-guardrails, exactly as
+        briefed) based on origin/audit198-framework, since that unmerged
+        branch (PR #522) has both the audit198 framework code and its
+        already-run baseline results.
+
+        Before: 22 ENFORCED / 152 PARTIALLY_ENFORCED / 15 NOT_YET_BUILT
+        (whole-repo baseline). This cluster specifically: 4 NOT_YET_BUILT
+        (ARTICLE-015 explainability, ARTICLE-031 documented-verification-
+        before-defect-closure, ARTICLE-039 pre-execution task validation,
+        ARTICLE-040 post-execution task verification), 23 PARTIALLY_ENFORCED,
+        0 ENFORCED.
+        After (re-run via `node ai-os/scripts/audit198/run-audit.mjs`, not
+        claimed): whole-repo 28 ENFORCED / 150 PARTIALLY_ENFORCED / 11
+        NOT_YET_BUILT. This cluster: all 4 targeted NOT_YET_BUILT items
+        moved to PARTIALLY_ENFORCED (zero NOT_YET_BUILT remain in the
+        cluster); 6 items reached full ENFORCED (RULE-064, ARTICLE-002,
+        ARTICLE-016, ARTICLE-029, ARTICLE-030, ARTICLE-042).
+
+        ONE real missing capability built: src/lib/rca-closure-gate.ts
+        (+ 10 unit tests) -- confirmed by direct code read, not assumed,
+        that ticket-service.ts's updateProblemRecord() let a problem
+        record (this codebase's own documented-root-cause record for a
+        known defect) reach status "resolved" with a blank rootCause, and
+        src/app/api/incidents/[id]/route.ts's PATCH action="advance" let
+        an incident reach the terminal 'closed' stage with no capaOwnerId
+        ever assigned. Both now return 422 without documented RCA / an
+        assigned CAPA owner, closing ARTICLE-029/031/028/030. Also wired
+        a real post-execution verification pass into
+        task-execution-engine.ts's customer-task free-text planning path
+        (reusing the SAME proven detectors --
+        detectLowConfidenceResponse/detectKnowledgeGap -- its sibling
+        /api/ai/team/dispatch route already used, extended to a SECOND
+        real call site that had pre- but no post-execution verification),
+        closing ARTICLE-040. Checked check-duplicate first (21 matches,
+        none were this specific gate); indexed the new mechanism after
+        (IDX-20260721-121302-1495).
+
+        FOUR real checker gaps fixed, not gamed: EXPLAINABILITY,
+        RCA_ERROR_HANDLING, TASK_GUARDRAILS_ZERO_AMBIGUITY, and
+        DEDUPLICATION_SSOT had ZERO infraChecks entries in
+        category-checkers.mjs (confirmed by direct file read), so every
+        item in all 4 categories was scored on raw keyword co-occurrence
+        alone -- which is why real, live, wired mechanisms
+        (src/lib/explainability/ai-decision-explanation.ts with confirmed
+        live callers in the CRM and task-prediction surfaces;
+        task-tightening.ts's validateTightTask/validateTaskBrief,
+        confirmed wired as a blocking pre-execution gate on BOTH real
+        dispatch surfaces; task-dedup-service.ts and
+        capability-registry-service.ts's auditDuplicateCapabilities())
+        were invisible to the audit before this PR. Added hand-verified
+        infra checks for all 4 categories -- every marker cites a real
+        exported symbol, checked against the file before being added, no
+        checker weakened to inflate a score.
+
+        4 items moved NOT_YET_BUILT -> PARTIALLY_ENFORCED: ARTICLE-015,
+        ARTICLE-031, ARTICLE-039, ARTICLE-040 (the 4 explicitly named in
+        the dispatch brief). None claimed as ENFORCED or as universal
+        guarantees -- each item's own gap text still honestly states
+        "real mechanism likely present, item-level completeness not
+        independently confirmed" (the audit's own conservative decision
+        table only grants ENFORCED on a verbatim phrase match from the
+        item's own text, not merely "infra exists").
+
+        Left open, and why: the 21 remaining PARTIALLY_ENFORCED items in
+        this cluster stay that way for the same structural reason WAVE-191
+        documented -- deriveVerdict()'s ENFORCED ceiling requires a
+        verbatim capitalized multi-word phrase from the item's own
+        (lowercase, legal-register) text to appear in the repo, which
+        essentially no normal-cased requirement sentence can satisfy.
+        Deliberately NOT touched in this narrowly-scoped PR (would affect
+        all 33 categories, not just this cluster) -- flagged as a real,
+        separate follow-up, same as the prior wave's own note. Also left
+        open: no integration test exists yet for updateProblemRecord()'s
+        or the incidents route's real HTTP call sites (confirmed by
+        search, not just missing coverage on new code) -- the new gate's
+        pure-function logic is fully covered by rca-closure-gate.test.ts,
+        but a full request-level integration test is real follow-up work.
+
+        Full before/after evidence and the re-run's exact status counts
+        are in PR #530's body and commit message.
