@@ -2694,3 +2694,116 @@ entries:
       - "post-fix: node scripts/check-migration-collision.mjs exits 0"
       - "grep across the whole repo (excluding node_modules/.git) for all 7 old filenames returns zero residual references"
       - "non-required Metadata Index Coverage Check failed on this PR, same pre-existing failure (unrelated ai-os files missing from OS.yaml index) also present on the sibling claims-registration PR #544 and not something this diff introduced or is required to fix"
+  - id: WAVE-199
+    title: "Wave 10: projexa-ai.com DNS/Vercel cutover to compliance-tracker, plus the Wave 9 PROJEXA credential reverse-link gap it was blocked on"
+    doer:
+      agent: "claude-code (background task, this session, direct SSH + Supabase MCP + Vercel CLI, not a sub-agent)"
+      date: "2026-07-21"
+      pr: "none -- no repo code changes; all work was live Supabase SQL (via MCP) and Vercel CLI domain operations, documented in ai-os/boss/completed-work/wave10-dns-cutover.md"
+      summary: >
+        Final step of the VERIDIAN/PROJEXA brand-layer merge. Owner
+        authorized Waves 9+10 ("Yes, proceed with both now") and
+        separately delegated judgment for the remaining decisions ("you
+        decide ... complete everything and report back"). Full detail
+        and rollback runbook in
+        ai-os/boss/completed-work/wave10-dns-cutover.md; summary here.
+
+        Part 1 (prerequisite gap): Wave 9 created 6 new
+        compliance.organisations rows for 6 PROJEXA orgs (Acme Test
+        Construction, Wave4 QA Test Co, Skyline Builders, Meridian
+        Skyline Group, Platform Test Org Alpha 2nd, Al Maha Skyline
+        Contracting & Interiors LLC) but deliberately left PROJEXA's own
+        public.veridian_credentials table (Supabase project
+        evpckeuxgvahguwsaeul) unwritten -- those 6 orgs had no vk_...
+        key linking PROJEXA's runtime to their new org ids. Read
+        src/app/api/v1/platform/provision-org/route.ts first to confirm
+        the real key-minting shape (vk_ + 32 random alphanumeric chars,
+        SHA-256 hex hash via the same hashSHA256()/generateApiKey()
+        helpers in src/lib/api-keys.ts, key_prefix = first 8 chars +
+        "...", scopes 'read,write', issued_for_application_id = the real
+        platform_applications row for application_key='projexa'
+        (a1dab7a7-8fb5-4853-9876-a3cb72703da1)) -- that route mints keys
+        for brand-new orgs only, not a clean fit for backfilling
+        already-created rows, so minted the 6 keys directly via SQL
+        matching that exact shape rather than forcing a reuse that
+        didn't fit, then wrote the corresponding organization_id/
+        veridian_org_id/veridian_api_key rows into PROJEXA's
+        veridian_credentials (the one deliberate exception to Wave 9's
+        read-only posture, exactly as its own brief anticipated).
+        Verified with a real HTTPS call, not just a DB check: one new
+        key (Acme Test Construction's) used as an
+        `Authorization: Bearer vk_...` header against the live production
+        GET /api/v1/compliance returned 200 with a correctly org-scoped
+        JSON body. A DB-level join across api_keys x organisations x
+        platform_applications confirms all 9 PROJEXA-provisioned orgs (3
+        pre-existing + 6 new) now resolve end-to-end. Left the
+        pre-existing orphaned duplicate compliance-tracker org
+        (is94gppgpbuwq8jl3m5baame, flagged by Wave 9 itself, no live
+        PROJEXA org points at it) alone with a documented note -- not a
+        cutover blocker, and fixing a likely failed-retry duplicate
+        properly is a bigger judgment call than the brief's own
+        few-minutes time-box allowed.
+
+        Part 2 (cutover): confirmed via `vercel project ls` that
+        compliance-tracker deploys as Vercel project
+        veridian-compliance-ai (production URL veridian-aios.com) and
+        PROJEXA as its own separate project `projexa`, both under team
+        meet-track-s-projects. Key finding that changed the shape of this
+        step: `vercel domains inspect projexa-ai.com` showed the domain
+        is registered directly through Vercel itself (registrar=Vercel,
+        nameservers=ns1/ns2.vercel-dns.com) with `vercel dns ls` showing
+        only Vercel's own ALIAS/CAA records resolving to the same shared
+        edge IPs (216.198.79.1/.65) veridian-aios.com already uses --
+        there is no external registrar/DNS provider and no meaningful
+        TTL to lower and wait out here; the entire cutover mechanism is a
+        Vercel-side project-to-domain reassignment, confirmed to
+        propagate in under a minute in practice (both directions), not
+        the multi-hour external-DNS wait the original brief anticipated
+        for a generic domain. Ran `vercel domains add projexa-ai.com
+        veridian-compliance-ai --force` (output confirmed the domain was
+        removed from the old project and added to the new one) and the
+        same for www.projexa-ai.com. Did NOT delete or archive the old
+        `projexa` Vercel project or the FChecklist/projexa GitHub repo --
+        confirmed both still present and unarchived afterward
+        (`vercel project ls` still lists `projexa`; `gh repo view
+        FChecklist/projexa` -> isArchived:false) -- this is the
+        deliberate, permanent rollback path per the brief, not a cleanup
+        step deferred.
+
+        Verified live: `vercel domains inspect projexa-ai.com` now shows
+        it under veridian-compliance-ai; `curl https://projexa-ai.com/`
+        returns HTTP/2 200 with Vercel/Next.js headers matching
+        compliance-tracker's own app (x-vercel-cache: MISS on first hit,
+        ruling out a stale cached response); the same domain also
+        correctly authenticates the new vk_ key from Part 1 against
+        /api/v1/compliance. Honestly NOT verified/overclaimed: the
+        anonymous, logged-out marketing "/" page at projexa-ai.com still
+        renders compliance-tracker's default "THE FIRM" / "VERIDIAN
+        COGNITIVE AI OS" branding rather than PROJEXA branding --
+        src/lib/services/org-branding-service.ts's resolveBranding() is
+        org-scoped, applied post-login/post-org-resolution, and there is
+        no hostname-to-brand resolver for the anonymous landing page
+        (not something this wave's brief asked to build; a separate,
+        pre-existing gap, disclosed rather than glossed over). An
+        authenticated PROJEXA-branch org's own API-level branding
+        resolves correctly (per the merge's earlier Wave 5 brand-name
+        fix), which is the part actually in scope here.
+
+        Full rollback runbook (Vercel-side reassignment back to the
+        `projexa` project, no DNS-provider step needed, ~seconds to
+        low-minutes to take effect, no data-loss risk since nothing was
+        ever deleted) is in
+        ai-os/boss/completed-work/wave10-dns-cutover.md.
+    auditor:
+      agent: "unaudited -- background task, no second agent available in this session; flagging for the next supervising session per this repo's own doer/auditor convention"
+      date: "2026-07-21"
+      verdict: "pending"
+      summary: >
+        Not yet independently audited. Recommended checks for whoever
+        picks this up: (1) re-run the 6 api_keys/veridian_credentials
+        live-API verification calls independently, (2) confirm
+        projexa-ai.com and www.projexa-ai.com still resolve to
+        compliance-tracker after any subsequent Vercel changes, (3)
+        decide whether the is94gppgpbuwq8jl3m5baame orphan and the
+        anonymous-landing-page brand gap warrant their own follow-up
+        waves.

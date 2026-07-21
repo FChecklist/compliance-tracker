@@ -69,6 +69,8 @@ index:
       covers: "THE single tracker for open items / gaps / work-in-progress. Consolidated 2026-07-12 from 17 prior scattered tracker files (archived, not deleted). Update discipline documented in the file's own header."
     - path: ai-os/boss/COMPLETED.yaml
       covers: "Append-only doer+auditor completion log, per AGENTS.md Rule 7(d) -- every completed task gets a real entry here, by both whoever did it and whoever audited it. Different purpose from MASTER-TRACKER.yaml (a pending-work list) -- this is a permanent historical record, never edited after the fact, only appended to."
+    - path: ai-os/boss/completed-work
+      covers: "Directory-level entry (per this file's own directory-level indexing convention, see ai-os/audit-tree etc. above) covering per-wave detailed writeups, one .md per wave (e.g. wave9-projexa-data-migration.md, wave10-dns-cutover.md), each referenced by its corresponding brief WAVE-N summary entry in ai-os/boss/COMPLETED.yaml. Found un-indexed (a real pre-existing gap, not introduced by the wave10-dns-cutover.md addition that surfaced it) while closing Wave 10 of the VERIDIAN/PROJEXA brand-layer merge; fixed here rather than left for the next session to rediscover."
     - path: ai-os/boss/BOARD.yaml
       covers: "Older task board. Self-declared stale in its own header since 2026-07-09 (stopped tracking ~114 waves ago) -- superseded by COMPLETED.yaml. Kept for historical reference only, not maintained."
     - path: PLATFORM_STRATEGY.md
