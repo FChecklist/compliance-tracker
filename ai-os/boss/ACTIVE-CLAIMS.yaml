@@ -2687,6 +2687,22 @@ active:
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
 recently_completed:
+  - session_label: "claude-code (task-20260720-035005-superboss-v2-plan--sentry-dsn-startup-ch) -- V2-10 Sentry DSN startup check"
+    completed_at: "2026-07-20T04:20:54Z"
+    merged_as: "PR #497 MERGED (squash, merge commit 16fab761) -- Tier1 additive code+tests, all required checks green (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests). Non-required E2E Tests check failed pre-existing on main (playwright/test module-not-found, environmental, unrelated to this additive diff). Posted AUDIT: PASS verdict comment (8 fields, validated locally)."
+    claim: |
+      Super Boss v2 plan task V2-10 (TASK ID V2-10-SENTRY-DSN-CHECK, CSV
+      row #10 "Monitoring (SENTRY_DSN)"). Built a pure, injectable
+      startup check module src/lib/sentry-dsn-check.ts
+      (checkSentryDsnEnv + warnIfSentryDsnMissing; env+logger injected)
+      and wired it into src/instrumentation.ts's register() hook for
+      both nodejs and edge runtimes -- read-only on the three Sentry
+      config files, additive only. Test src/lib/sentry-dsn-check.test.ts:
+      8 bun:test assertions (warning fires when unset, silent when set,
+      names only the missing var, whitespace = missing, caller-supplied
+      env honored). Full suite 1822 pass / 0 fail; lint clean; tsc clean.
+      Re-scored CSV row #10 / C1 in the v2 plan. No schema/auth/RLS/.env
+      changes (Tier1).
   - session_label: "claude-code (task-20260720-025001-superboss-v2-plan--decisions-of-record) -- SUPERBOSS v2 TASK V2-6: Decisions-of-record (docs-only close for the hold/document rows)"
     completed_at: "2026-07-20T03:09:13Z"
     merged_as: "PR #491 MERGED (squash, merge commit 8b0afd65) -- tier1 docs-only, all 7 required checks green (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry/Unit Tests). audit-check required two verdict-comment corrections (the validator rejects trailing prose on the 'Severity Classified' enum line -- the repo's FChecklist-account-posted verdict pattern needed the bare 'none' token). Non-required E2E Tests check fails pre-existing on main (playwright/test module-not-found, environmental, unrelated to this docs-only diff)."
