@@ -2125,3 +2125,83 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+
+  # Renumbered against the live WAVE-N ids visible in origin/main's own
+  # entries plus the highest number found across every other currently-open
+  # docs PR touching this file (checked via `gh pr list --search
+  # "COMPLETED.yaml in:title,body"` and `gh pr diff` on each result:
+  # #511=WAVE-181, #513=WAVE-182, #515=WAVE-183, #517=WAVE-184,
+  # #521=WAVE-185, #523=WAVE-186 -- none merged, none visible to a fresh
+  # origin/main checkout). Picked WAVE-190 to sit safely above all of them.
+  # Same caveat WAVE-185's own entry already states: every WAVE-N docs PR
+  # in flight this session picked its number the same way (best-effort
+  # against a stale origin/main), so final numbering may still need a pass
+  # at actual merge time regardless of this check.
+  - id: WAVE-190
+    title: "Wave 6 batch 2: floor-plans, mood-boards, FF&E, change-orders, work-progress, construction dashboard ported as new compliance-tracker pages"
+    doer:
+      agent: "claude-code"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/524"
+      summary: >
+        Continuation of Wave 6 (folding PROJEXA in as a brand-layer
+        instance of compliance-tracker). Batch 1 (PR #514/#515) shipped
+        the 7 smaller/higher-priority modules the wave6-module-mapping.md
+        research report recommended first; this batch ports the 6 modules
+        deliberately held back as larger or lower-priority: floor-plans,
+        mood-boards, ffe, change-orders, work-progress, and an org-wide
+        construction-dashboard. Zero schema changes, zero migrations, zero
+        service-layer changes -- confirmed the backend
+        (interior-design-service.ts, interior-floorplan-service.ts,
+        construction-change-order-service.ts,
+        construction-progress-service.ts, construction-ai-service.ts,
+        construction-dashboard-service.ts) was 100% already built for
+        every field this batch's 8 new pages use.
+
+        Change Orders (/change-orders, /change-orders/[id]) reuses the
+        real e-signature workflow (esignature-service.ts) -- there is
+        deliberately no client-side approve/reject action anywhere, only
+        "submit for approval" plus a read-only live signature-status view,
+        matching the service's own documented removal of a prior
+        approve/reject bypass. Work Progress (/work-progress) adds AI
+        photo-based progress estimation on top of PROJEXA's own reference
+        page (which never wired construction-ai-service.ts's
+        estimate-progress/progress-summary into any UI despite the
+        backend fully supporting both) -- upload a site photo via the
+        existing /api/documents, then a documentId+activityName call
+        estimates percent-complete, applied into the manual log-entry
+        dialog rather than auto-submitted. Construction Dashboard
+        (/construction-dashboard, named distinctly from this repo's own
+        generic GRC-wide /dashboard) adds a department filter over
+        PROJEXA's own reference, sourced from the existing
+        GET /api/departments.
+
+        Floor Plans (/floor-plans, /floor-plans/[id]) is the real 2D
+        SVG room + FF&E-placement editor, ported directly from PROJEXA's
+        own pure-SVG FloorPlanEditorClient.tsx (draw room polygons,
+        per-room material pickers, drag/rotate placements) -- not a
+        stripped-down stand-in. The one deliberate scope decision: did
+        NOT port PROJEXA's "3D Walkthrough" page, which depends on
+        @react-three/fiber/@react-three/drei/three -- confirmed via grep
+        these are real PROJEXA deps and confirmed via grep none exist in
+        compliance-tracker's own package.json. Adding ~3 new heavy 3D
+        rendering deps to the main app bundle was flagged as a real,
+        disclosable scope decision rather than silently added; the 3D
+        entry point is visibly present but disabled ("3D (deferred)")
+        with the decision noted inline, and GET .../scene (the endpoint a
+        future 3D client would consume) is untouched and ready server-side.
+
+        Real, foreseeable merge conflict disclosed in the PR: this branch
+        was cut from origin/main independently of batch 1's still-unmerged
+        branch (per this wave's own instructions), so both branches add
+        their own "Construction" nav section to AppSidebar.tsx/en.json/
+        hi.json and their own copy of the shared ProjectPicker.tsx --
+        whichever of #514/#524 merges second will hit a trivial,
+        flagged-in-advance conflict there.
+
+        bun install clean (1181 packages). bun run build: exit 0, Next.js
+        16 + Turbopack "Compiled successfully", zero TypeScript errors,
+        all routes including the 7 new ones statically collected. eslint
+        scoped to new/changed files: 0 errors. No live browser
+        verification was possible -- SSH-only server environment, no
+        reachable dev server for this repo from this session.
