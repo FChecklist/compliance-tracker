@@ -53,6 +53,17 @@
           "expenses": "Expenses"
         }
       },
+      "constructionDesign": {
+        "title": "Construction (Design & Progress)",
+        "items": {
+          "floorPlans": "Floor Plans",
+          "moodBoards": "Mood Boards",
+          "ffe": "FF&E",
+          "changeOrders": "Change Orders",
+          "workProgress": "Work Progress",
+          "dashboard": "Construction Dashboard"
+        }
+      },
       "theFirm": {
         "title": "The Firm",
         "items": {
