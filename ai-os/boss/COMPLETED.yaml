@@ -2125,3 +2125,94 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+  - id: WAVE-181
+    title: "audit198 gap closure wave 6: VISION_STRATEGIC / UI_UX_ARCHITECTURE / VERI_CHAT_ASSISTANT / NOTIFICATIONS_PRODUCTIVITY / SHARING_SECURITY (8 verdicts moved to ENFORCED, 4 NOT_YET_BUILT and 3 NEEDS_HUMAN_JUDGMENT items closed to PARTIALLY_ENFORCED)"
+    doer:
+      agent: "claude-code (background sub-agent, worktree audit198-gap-wave6)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/534 (base: audit198-framework, not yet merged)"
+      summary: >
+        Owner directive 2026-07-21: close every real gap the audit198
+        framework (ai-os/scripts/audit198/, PR #522, unmerged) found
+        against 198 Owner Rules/Articles, for the assigned category
+        cluster (VISION_STRATEGIC 17 items, UI_UX_ARCHITECTURE 5,
+        VERI_CHAT_ASSISTANT 7, NOTIFICATIONS_PRODUCTIVITY 3,
+        SHARING_SECURITY 2 -- 34 items, filtered live from the framework's
+        own results.json, not a stale count). Several sibling agents
+        worked other category clusters in parallel worktrees this same
+        directive spawned.
+
+        Built (not just documented): (1) notifications.priority column
+        (reuses the existing priorityEnum, not a new one) plus a BEFORE
+        INSERT DB trigger (drizzle/0251) classifying every insert by
+        type/deadline-proximity -- covers all ~12 existing insert call
+        sites with zero changes to any of them; read-side ranking +
+        overflow-cap in notification-priority-service.ts, wired into
+        GET /api/notifications and AppTopbar.tsx (RULE-043). (2)
+        reportShareLinks table + report-share-service.ts, mirroring this
+        codebase's own pre-existing conversationShareLinks (Wave 36) /
+        veriMeetingShareLinks (Wave 44) pattern -- report is executed ONCE
+        at share-creation time while the sharer is still authenticated/
+        tenant-scoped, and the frozen snapshot (not a live re-query) is
+        what the public /shared/report/[token] route serves, closing
+        RULE-053's "without exposing unauthorized information" clause by
+        construction. share-link-kernel.ts factors the expiry/revocation
+        check out of what were 2 duplicate inline copies. (3) drizzle/0252
+        adds an explicit content-appropriateness guardrail and a
+        respectful-address (Sir/Madam/preferred title) instruction to the
+        live chat.ai_thread_system prompt -- confirmed missing by direct
+        read of the v3 production content first (RULE-036/037). (4)
+        ai-os/UI_UX_DESIGN_SYSTEM.yaml formally declares the existing
+        52-component shadcn/ui library + 5-part layout shell + report
+        interactivity conventions as the approved standard RULE-028's own
+        text requires (the design system existed; nothing had ever
+        declared it the standard). (5) category-checkers.mjs gained
+        infraChecks for VERI_CHAT_ASSISTANT / UI_UX_ARCHITECTURE /
+        NOTIFICATIONS_PRODUCTIVITY / SHARING_SECURITY, none of which had
+        any before -- every file/marker cited was hand-verified via direct
+        read first, nothing weakened to inflate a score.
+
+        For VISION_STRATEGIC's 4 NEEDS_HUMAN_JUDGMENT items (aspirational/
+        values statements, qualitative=true in the taxonomy by design):
+        ai-os/UX_DESIGN_PRINCIPLES.yaml codifies each as an explicit
+        design principle citing real partial mechanisms already in the
+        codebase (stage0 auto-provisioning, IntentCommandPalette's real
+        predictive-recall UI, COMPLETED.yaml/audit198 itself as the
+        continuous-improvement mechanism) -- 3 of 4 (RULE-011,
+        ARTICLE-087, ARTICLE-088) moved to PARTIALLY_ENFORCED on re-run.
+        ARTICLE-096 stayed NEEDS_HUMAN_JUDGMENT -- confirmed by direct
+        testing that evidence-engine.mjs's per-keyword 8-hit grep cap gets
+        consumed by src/'s ~400-route codebase before ever reaching
+        ai-os/ for common single words like "completed"/"software", a
+        real structural precision limit of the shared engine, not absence
+        of evidence -- flagged in the PR rather than worked around by
+        editing shared cross-category engine logic outside this wave's
+        scope. All 4 explicitly flagged in the PR as not "done" --
+        RULE-011 (unify 3 personalization axes: product decision),
+        ARTICLE-087 (simplicity/adoption: no automated proxy exists,
+        needs real usability testing), ARTICLE-088 (platform-wide smart-
+        defaults service vs. ad-hoc: architecture cost/benefit call),
+        ARTICLE-096 (engine limitation above).
+
+        Verified via `node ai-os/scripts/audit198/run-audit.mjs`
+        (regenerated results committed as proof, not claimed): within
+        scope, ENFORCED +8, NOT_YET_BUILT -4 (15->11, all 4 mine),
+        NEEDS_HUMAN_JUDGMENT -3 (9->6, all mine). Full 198-item counts
+        after this wave: ENFORCED 30, PARTIALLY_ENFORCED 151,
+        NOT_YET_BUILT 11, NEEDS_HUMAN_JUDGMENT 6 -- verified item-by-item
+        that zero items outside this wave's 34-item scope changed
+        verdict, i.e. no interference with sibling agents' concurrent
+        category clusters.
+
+        bun run build: exit 0, zero TypeScript errors. bunx eslint on
+        every new/changed file: exit 0. Migrations 0251/0252 hand-authored
+        following this repo's real numbering convention (confirmed
+        drizzle-kit generate/migrate is not this repo's actual day-to-day
+        workflow -- its journal has only one stale baseline entry despite
+        250+ real hand-authored migrations); not applied to the live DB
+        from this session (no DATABASE_URL available in the worktree,
+        consistent with the documented Vercel-Sensitive-var constraint) --
+        will apply via the normal deploy/migrate pipeline. NOT merged by
+        this session -- PR #534 left open against audit198-framework for
+        the supervising session's audit, same as this framework's own
+        prior waves.
