@@ -1,0 +1,94 @@
+# ============================================================================
+# VERIDIAN AI OS -- UI/UX DESIGN SYSTEM (approved implementation standard)
+# ============================================================================
+# audit198 gap closure (Owner directive 2026-07-21, wave 6, category
+# UI_UX_ARCHITECTURE): RULE-028 ("The approved VERIDIAN UI/UX design shall
+# serve as the implementation standard for all web interfaces, modules,
+# dashboards, and future enhancements.") had NOT_YET_BUILT verdict before
+# this file existed -- not because no design system exists in the codebase
+# (a substantial one does, cited below with real file paths), but because
+# nothing in the repo had ever DECLARED it the approved standard. This file
+# is that declaration: it does not invent new components, it names the
+# ones that already exist and states, in the same machine-readable
+# CONSTITUTION.yaml-style shape, that they ARE the standard -- so future
+# evidence-gathering (this audit's own re-runs, and any human/AI reviewing
+# a new page) has something concrete to cite instead of ad-hoc consistency.
+#
+# Every file path below was confirmed to exist via direct read/grep before
+# being written here (2026-07-21) -- this is not aspirational.
+#
+# language_rule: short structured values only, matching CONSTITUTION.yaml's
+#   own convention -- no narrative prose beyond this header.
+# ============================================================================
+
+meta:
+  id: VERIDIAN-UI-UX-DESIGN-SYSTEM
+  version: 1.0
+  effective_date: "2026-07-21"
+  source: "audit198 RULE-028 gap closure, wave 6"
+  authority_note: >-
+    This file is the approved implementation standard RULE-028 requires.
+    Any new web interface, module, dashboard, or enhancement in
+    compliance-tracker should be built from the primitives and layout
+    contract named below, not a one-off equivalent.
+
+# ─── RULE-027: the 5-part primary web interface ───────────────────────────
+five_part_layout:
+  id: UIUX-001
+  rule: "Every authenticated page is composed of these five parts, no exceptions."
+  parts:
+    - name: left_navigation_rail
+      mechanism: "src/components/AppSidebar.tsx"
+    - name: main_workspace
+      mechanism: "src/components/AppShell.tsx (slot-based layout shell composing the other four parts around page content)"
+    - name: dynamic_mode_pills
+      mechanism: "src/components/veri-chat/ChainSelector.tsx, src/components/veri-chat/IntentCommandPalette.tsx"
+    - name: veri_chat
+      mechanism: "src/components/veri-chat/VeriChatPanel.tsx, src/components/veri-chat/HomeThreadSlot.tsx"
+    - name: top_navigation_rail
+      mechanism: "src/components/AppTopbar.tsx"
+  status: ENFORCED
+  source: RULE-027
+
+# ─── RULE-028: the approved standard itself ────────────────────────────────
+approved_component_library:
+  id: UIUX-002
+  rule: "All new UI is built from this shared primitive set, not bespoke per-page styling."
+  mechanism: "src/components/ui/ (shadcn/ui-based, 52 files as of 2026-07-21: button, card, dialog, dropdown-menu, data-table, chart, dashboard-card, compliance-chart, tooltip, tabs, and 42 others)"
+  status: ENFORCED
+  source: RULE-028
+  note: >-
+    This is the SAME library every page in src/app/(app)/** already
+    imports from -- this entry declares that existing, already-consistent
+    usage as the approved standard, it does not change any component.
+
+brand_and_theming:
+  id: UIUX-003
+  rule: "Brand tokens (ct-navy, ct-saffron, ct-cream, ct-cloud, ct-muted, gradient-navy, shadow-card, shadow-saffron) are the only approved color/elevation vocabulary for new UI."
+  mechanism: "tailwind.config.ts / globals.css ct-* token definitions, referenced throughout src/app/(app)/** and src/components/**"
+  status: ENFORCED
+  source: RULE-028
+
+# ─── RULE-038 / RULE-039 / RULE-041: interactivity standard ───────────────
+interactive_output_standard:
+  id: UIUX-004
+  rule: >-
+    Every report, dashboard, workflow, and analysis surface must offer at
+    least one of: sortable/filterable tabular data, drill-down navigation,
+    hover/tooltip detail, or live client-side re-computation -- never a
+    static, non-interactive dump of numbers.
+  mechanism:
+    - "src/components/ui/data-table.tsx (sortable/filterable table primitive)"
+    - "src/components/ui/chart.tsx, src/components/ui/compliance-chart.tsx (interactive chart primitives, tooltip-driven)"
+    - "src/app/(app)/reports/page.tsx (Tooltip-driven chart + multi-format export actions)"
+    - "src/app/shared/report/[token]/page.tsx (RULE-053's public report snapshot view: client-side sort + filter, added wave 6 -- proof this standard extends even to unauthenticated read-only surfaces, not just the authenticated app)"
+  status: PARTIALLY_ENFORCED
+  gap: >-
+    The standard above is real and demonstrably followed in the reports
+    surface and the new shared-report view, but there is no automated
+    lint/CI check yet that FAILS a build when a new report/dashboard page
+    ships with zero interactive elements -- compliance today is by
+    convention and code review, not a mechanically enforced gate. Closing
+    that fully (an ESLint rule or a CI content-check) is future work, not
+    claimed done here.
+  source: [RULE-038, RULE-039, RULE-041]

@@ -1,0 +1,124 @@
+# ============================================================================
+# VERIDIAN AI OS -- UX DESIGN PRINCIPLES (VISION_STRATEGIC codification)
+# ============================================================================
+# audit198 gap closure (Owner directive 2026-07-21, wave 6, category
+# VISION_STRATEGIC). This file exists because 4 items in that category --
+# RULE-011, ARTICLE-087, ARTICLE-088, ARTICLE-096 -- scored
+# NEEDS_HUMAN_JUDGMENT: aspirational/values statements about user
+# personalization, simplicity, minimal-input UX, and continuous
+# improvement, which the audit's own taxonomy correctly flags as
+# inherently qualitative (rules-taxonomy.mjs: VISION_STRATEGIC.qualitative
+# = true) -- no mechanical grep/file check can turn "every user
+# interaction shall minimize unnecessary input" into a clean pass/fail on
+# its own.
+#
+# This file does NOT fabricate a mechanical pass for those 4 items. It
+# does two honest things instead, per the Owner's own wave-6 brief:
+#   1. Names the REAL, PARTIAL mechanisms already in the codebase that
+#      serve each principle (every mechanism citation below was confirmed
+#      by direct code read on 2026-07-21, not asserted from memory).
+#   2. States each principle as an explicit, standing design commitment in
+#      a real, git-tracked artifact -- so future evidence-gathering (this
+#      audit's own re-runs, or a human reviewer) has something concrete to
+#      cite, instead of the item's own free-text sentence being the only
+#      thing that exists anywhere for it.
+#
+# HONEST LIMITATION, stated plainly for the Owner: none of the 4 items
+# below should be read as "closed". Each remains a genuine judgment call
+# -- see human_judgment_notes at the bottom of each entry for why a
+# mechanical check specifically cannot and should not resolve it, and what
+# a real resolution would need to look like.
+#
+# language_rule: short structured values only, matching CONSTITUTION.yaml's
+#   own convention -- no narrative prose beyond this header.
+# ============================================================================
+
+meta:
+  id: VERIDIAN-UX-DESIGN-PRINCIPLES
+  version: 1.0
+  effective_date: "2026-07-21"
+  source: "audit198 VISION_STRATEGIC gap closure, wave 6"
+
+principles:
+  - id: UXP-001
+    covers: RULE-011
+    text: "The primary differences between individual users are their knowledge, responsibilities, preferences, communication style, and software adoption."
+    principle: >-
+      Personalization axes are: role/responsibility, onboarding/adoption
+      stage, and communication preference -- not a single generic user
+      model.
+    partial_mechanisms:
+      - "src/lib/db/schema.ts users.role / users.departmentId / users.reportingToId (responsibility axis)"
+      - "src/lib/db/schema.ts users.onboardingStage / users.onboardingCompleted (software-adoption axis, M-20)"
+      - "src/lib/db/schema.ts aiAssistants (5 per user, Wave 2) -- lets each user configure a distinct assistant identity rather than one platform-wide voice (communication-style axis)"
+    human_judgment_notes: >-
+      What's still missing is a single, queryable "user profile" that
+      actually COMBINES these axes into one personalization signal used
+      consistently across dashboards/reports/communication (today they're
+      three separate columns/tables, each consumed independently by
+      different features, not a unified model). Whether that unification
+      is worth building, and what "communication style" should even mean
+      as a stored preference (tone? verbosity? channel?), is a product
+      decision for the Owner, not something a grep can resolve.
+
+  - id: UXP-002
+    covers: ARTICLE-087
+    text: "Every user-facing feature shall prioritize simplicity, consistency, accessibility, and ease of adoption."
+    principle: >-
+      Every new web interface, module, dashboard, or enhancement is built
+      from the approved shared component library and layout contract, not
+      bespoke per-page styling -- see ai-os/UI_UX_DESIGN_SYSTEM.yaml (wave
+      6, RULE-028's own gap closure), which is this principle's concrete
+      mechanism.
+    partial_mechanisms:
+      - "ai-os/UI_UX_DESIGN_SYSTEM.yaml (consistency + accessibility primitives via src/components/ui/, 52 shared components as of 2026-07-21)"
+      - "src/components/AppShell.tsx / AppSidebar.tsx / AppTopbar.tsx (the one layout contract every authenticated page shares -- ease of adoption via a single learned navigation model)"
+    human_judgment_notes: >-
+      A shared component library makes CONSISTENCY mechanically checkable
+      (does the page import from src/components/ui/?) but SIMPLICITY and
+      EASE OF ADOPTION are still ultimately judged by an actual user, not
+      a linter -- there is no accepted automated proxy for "is this
+      feature simple" the way there is for "is this notification
+      prioritized" (RULE-043). Real usability testing / user feedback is
+      the only complete answer, and that requires the Owner or real
+      end-users, not more code.
+
+  - id: UXP-003
+    covers: ARTICLE-088
+    text: "Every user interaction shall minimize unnecessary input by using automation, prediction, defaults, and contextual assistance."
+    principle: >-
+      Prefer auto-provisioning, sensible defaults, and predictive
+      surfacing over asking the user to re-enter or re-choose information
+      the system can already infer.
+    partial_mechanisms:
+      - "src/lib/services/stage0-service.ts tryUpgradeStage0UserInPlace / src/lib/invite-link-service.ts (auto-provisioning -- a user never re-enters org/role info the invite link already encodes)"
+      - "src/components/veri-chat/IntentCommandPalette.tsx (predictive command surfacing -- contextual assistance without the user typing a full request)"
+      - "src/lib/services/chat-service.ts's system prompt: \"If you are about to assume something the user did not actually say, ask a short clarifying question instead of guessing\" (the inverse safeguard -- prediction is preferred, but never silently, which is the honest tension this principle has to hold)"
+    human_judgment_notes: >-
+      These are real but scattered examples, not a platform-wide default-
+      and-predict layer applied uniformly to every form/workflow. Whether
+      to build a general "smart defaults" service (vs. continuing to add
+      defaults per-feature as each one is built) is an architecture
+      decision with real cost/benefit tradeoffs the Owner should make, not
+      something to default into existence via this file.
+
+  - id: UXP-004
+    covers: ARTICLE-096
+    text: "Every completed task shall contribute to continuous platform improvement through analytics, software enhancement, documentation, or reusable knowledge."
+    principle: >-
+      Completed work is logged, auditable, and re-checkable by software,
+      not just claimed done in conversation.
+    partial_mechanisms:
+      - "ai-os/boss/COMPLETED.yaml (the WAVE- log every completed wave, including this one, is appended to)"
+      - "ai-os/scripts/audit198/ itself -- a re-runnable, software-driven audit that measures platform state after every wave (this is the literal \"measured software enhancement\" this article names, applied reflexively to itself)"
+      - "python3 /opt/veridian/scripts/superboss-register.py index-add (reusable-knowledge dedup registry, checked before building anything new -- including everything in this wave)"
+    human_judgment_notes: >-
+      The logging/audit mechanisms above are real and this wave itself
+      used all three. What is NOT yet true: nothing currently reads the
+      COMPLETED.yaml log or audit198 re-run deltas and automatically
+      surfaces a "what got better" trend to the Owner -- the mechanisms
+      capture the data, but no dashboard/report synthesizes it into the
+      kind of continuous-improvement signal this article implies. That's
+      a real, buildable gap (arguably a REPORTS/analytics feature, not a
+      VISION_STRATEGIC one) worth a future wave, not something this
+      wave's scope covers.

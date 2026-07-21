@@ -589,6 +589,20 @@ export const notifications = complianceSchemaDB.table('notifications', {
   // {conversationId, mismatchId} for the topbar's click-through to open the
   // exact chat thread) -- avoids a bespoke FK column per notification type.
   metadata: jsonb('metadata').notNull().default({}),
+  // audit198 RULE-043 gap closure ("Notifications shall be prioritized
+  // intelligently to prevent information overload while ensuring that
+  // users always know their next most important action"): reuses the
+  // ALREADY-EXISTING `priorityEnum` (low/medium/high/critical -- the same
+  // one compliance items already use), not a bespoke notification-only
+  // enum, per AI_ENGINEERING_POLICY.yaml's "existing_database_capability
+  // before new code" / "reuse over rebuilding". Populated server-side by
+  // the compute_notification_priority() trigger (see drizzle migration
+  // 0251) at INSERT time, from `type` + `metadata`, so every one of this
+  // table's ~12 existing insert call sites gets real prioritization with
+  // zero app-code changes -- see src/lib/services/notification-priority-
+  // service.ts for the ranking/overload-prevention logic the read path
+  // (GET /api/notifications) applies on top of this persisted column.
+  priority: priorityEnum('priority').notNull().default('medium'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -4542,6 +4556,47 @@ export const reportItemActions = complianceSchemaDB.table('report_item_actions',
   targetId: text('target_id'), // scopedDelegations.id (delegate) or tasks.id (todo); null for accept
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Report Share Links (audit198 RULE-053 gap closure, wave 6) ──────────
+// "Users shall be able to securely share reports, dashboards, and business
+// analysis through controlled shareable links without exposing
+// unauthorized information." Deliberately the SAME tokenized/time-limited/
+// individually-revocable shape conversation_share_links (Wave 36) and
+// veri_meeting_share_links (Wave 44) already established -- not a fourth
+// bespoke design. See src/lib/services/share-link-kernel.ts for the pure
+// status-evaluation logic now factored out and shared across all three.
+//
+// The one deliberate difference from those two: `snapshotResult` freezes
+// the report's output (via report-engine-service.ts's
+// executeReportDefinition) AT SHARE-CREATION TIME, while the creating user
+// is still authenticated and tenant-scoped. The public token route (GET
+// /api/reports/share/[token]) serves ONLY this frozen snapshot and never
+// re-executes the report definition for an anonymous caller -- the report
+// engine's aggregation/query layer is tenant-scoped by design and is not
+// safe to invoke with no session/orgId. This is what makes the link
+// "secure" / "without exposing unauthorized information" per RULE-053's
+// own text, not just a token check: an anonymous viewer can never trigger
+// a fresh query against the org's live data, only read what the sharer
+// explicitly captured and chose to share.
+export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  reportDefinitionId: text('report_definition_id').notNull(),
+  orgId: text('org_id').notNull(),
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id').notNull(),
+  snapshotName: text('snapshot_name').notNull(),
+  snapshotDescription: text('snapshot_description'),
+  snapshotResult: jsonb('snapshot_result').notNull(),
+  snapshotGeneratedAt: timestamp('snapshot_generated_at').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  viewCount: integer('view_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const reportShareLinksRelations = relations(reportShareLinks, ({ one }) => ({
+  reportDefinition: one(reportDefinitions, { fields: [reportShareLinks.reportDefinitionId], references: [reportDefinitions.id] }),
+}))
 
 // ─── Metric Alert Rules (Wave 38, Grafana-inspired scheduled threshold
 // alerting, PLATFORM_STRATEGY.md §22) ─────────────────────────────────────

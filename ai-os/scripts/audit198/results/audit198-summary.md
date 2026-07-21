@@ -1,23 +1,23 @@
 # Audit198 Results Summary
 
-Generated: 2026-07-21T09:30:15.219Z
+Generated: 2026-07-21T12:21:24.323Z
 Items scored: 198 / 198
 
 ## Status counts
 
-- ENFORCED: 22
-- PARTIALLY_ENFORCED: 152
+- ENFORCED: 30
+- PARTIALLY_ENFORCED: 151
 - POLICY_ONLY: 0
 - NOT_APPLICABLE_YET: 0
-- NOT_YET_BUILT: 15
+- NOT_YET_BUILT: 11
 - EVIDENCE_UNAVAILABLE: 0
-- NEEDS_HUMAN_JUDGMENT: 9
+- NEEDS_HUMAN_JUDGMENT: 6
 
 ## By category
 
 - **IDENTITY_SCOPE** (Identity, business-only scope, confidentiality, 4 items): ENFORCED=4
 - **SOFTWARE_FIRST_AI_SECOND** (Software-First / AI-Second core doctrine, 17 items): ENFORCED=3, PARTIALLY_ENFORCED=14
-- **VISION_STRATEGIC** (Aspirational vision / long-term strategic objectives, 17 items): PARTIALLY_ENFORCED=13, NEEDS_HUMAN_JUDGMENT=4
+- **VISION_STRATEGIC** (Aspirational vision / long-term strategic objectives, 17 items): PARTIALLY_ENFORCED=16, NEEDS_HUMAN_JUDGMENT=1
 - **PERSONALIZATION** (Per-user/per-org personalization, 2 items): PARTIALLY_ENFORCED=2
 - **REUSE_COMPONENTIZATION** (Converting AI solutions into reusable software components, 12 items): PARTIALLY_ENFORCED=10, NOT_YET_BUILT=2
 - **CONFIDENCE_ROUTING** (Confidence-threshold based software-vs-AI routing, 7 items): ENFORCED=1, PARTIALLY_ENFORCED=6
@@ -28,12 +28,12 @@ Items scored: 198 / 198
 - **ESCALATION_HIERARCHY** (Software -> Worker AI -> Supervisor -> Senior -> Master escalation, 1 items): ENFORCED=1
 - **AI_MODEL_AGNOSTIC** (AI model/provider agnosticism, 2 items): ENFORCED=1, PARTIALLY_ENFORCED=1
 - **TRACEABILITY_AUDIT_LOGGING** (IDs, audit logging, history, structured event metadata, 14 items): ENFORCED=3, PARTIALLY_ENFORCED=11
-- **UI_UX_ARCHITECTURE** (Core 5-part UI, rich interactive output, 5 items): PARTIALLY_ENFORCED=3, NOT_YET_BUILT=2
-- **VERI_CHAT_ASSISTANT** (VERI Chat / VERI Assistant product surfaces, 7 items): PARTIALLY_ENFORCED=7
-- **NOTIFICATIONS_PRODUCTIVITY** (Proactive notifications, productivity-value display, 3 items): PARTIALLY_ENFORCED=2, NOT_YET_BUILT=1
+- **UI_UX_ARCHITECTURE** (Core 5-part UI, rich interactive output, 5 items): ENFORCED=2, PARTIALLY_ENFORCED=3
+- **VERI_CHAT_ASSISTANT** (VERI Chat / VERI Assistant product surfaces, 7 items): ENFORCED=6, PARTIALLY_ENFORCED=1
+- **NOTIFICATIONS_PRODUCTIVITY** (Proactive notifications, productivity-value display, 3 items): PARTIALLY_ENFORCED=3
 - **GUARDRAILS_LEARNING_LOOPS** (Bounded learning, no uncontrolled/recursive loops, 1 items): PARTIALLY_ENFORCED=1
 - **GOVERNANCE_OWNERSHIP** (Ownership, responsibility, authorized-scope governance, 3 items): PARTIALLY_ENFORCED=3
-- **SHARING_SECURITY** (Controlled external sharing, 2 items): NOT_YET_BUILT=1, PARTIALLY_ENFORCED=1
+- **SHARING_SECURITY** (Controlled external sharing, 2 items): PARTIALLY_ENFORCED=2
 - **DEDUPLICATION_SSOT** (Single source of truth / zero duplication, 7 items): PARTIALLY_ENFORCED=7
 - **RCA_ERROR_HANDLING** (Root-cause analysis, incident ownership, defect closure, 7 items): PARTIALLY_ENFORCED=6, NOT_YET_BUILT=1
 - **THIN_CLIENT_DEV_ENV** (Server-only dev environment (GLM/Claude Code CLI via SSH), 1 items): PARTIALLY_ENFORCED=1

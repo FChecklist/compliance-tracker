@@ -26,9 +26,21 @@ type NotificationItem = {
   title: string;
   message: string;
   type: string;
+  // audit198 RULE-043: server-computed (see notification-priority-service.ts
+  // + drizzle/0251's compute_notification_priority() trigger), already
+  // ranked most-important-first by the API -- this field is for the
+  // per-item visual cue below, not client-side re-sorting.
+  priority: "critical" | "high" | "medium" | "low";
   isRead: boolean;
   metadata: { conversationId?: string; mismatchId?: string } | null;
   createdAt: string;
+};
+
+const PRIORITY_DOT_CLASS: Record<NotificationItem["priority"], string> = {
+  critical: "bg-red-600",
+  high: "bg-amber-500",
+  medium: "bg-ct-saffron",
+  low: "bg-ct-muted",
 };
 
 // veridian-ui-kit migration (2026-07-19): the shared AppHeader owns the
@@ -45,6 +57,11 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsList, setNotificationsList] = useState<NotificationItem[]>([]);
+  // audit198 RULE-043 ("...prevent information overload..."): count of
+  // lower-priority notifications the API deliberately held back (see
+  // capForOverload in notification-priority-service.ts) so this dropdown
+  // never gets flooded past the point of being scannable.
+  const [overflowCount, setOverflowCount] = useState(0);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   // Shared react-query cache instead of its own /api/me fetch-on-mount.
@@ -64,6 +81,7 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
       .then((d) => {
         setUnreadCount(d.unreadCount ?? 0);
         setNotificationsList(d.notifications ?? []);
+        setOverflowCount(d.overflowCount ?? 0);
       })
       .catch(() => {});
 
@@ -121,19 +139,32 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
         {notificationsList.length === 0 ? (
           <div className="px-3 py-4 text-sm text-ct-muted text-center">No notifications</div>
         ) : (
-          notificationsList.map((n) => (
-            <DropdownMenuItem
-              key={n.id}
-              className="flex-col items-start gap-0.5 whitespace-normal"
-              onClick={() => handleNotificationClick(n)}
-            >
-              <div className="flex items-center gap-2 w-full">
-                {!n.isRead && <span className="size-1.5 rounded-full bg-ct-saffron shrink-0" />}
-                <span className="text-sm font-medium text-ct-navy">{n.title}</span>
+          <>
+            {notificationsList.map((n) => (
+              <DropdownMenuItem
+                key={n.id}
+                className="flex-col items-start gap-0.5 whitespace-normal"
+                onClick={() => handleNotificationClick(n)}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  {/* audit198 RULE-043: priority dot so the user's next
+                      most important action is visually obvious without
+                      opening each item -- red/amber (critical/high) reads
+                      as "act now" vs. the pre-existing plain unread dot,
+                      which only meant "unseen", not "urgent". */}
+                  <span className={`size-1.5 rounded-full shrink-0 ${PRIORITY_DOT_CLASS[n.priority] ?? PRIORITY_DOT_CLASS.medium}`} title={`Priority: ${n.priority}`} />
+                  {!n.isRead && <span className="size-1.5 rounded-full bg-ct-saffron shrink-0" />}
+                  <span className="text-sm font-medium text-ct-navy">{n.title}</span>
+                </div>
+                <p className="text-xs text-ct-muted">{n.message}</p>
+              </DropdownMenuItem>
+            ))}
+            {overflowCount > 0 && (
+              <div className="px-3 py-2 text-xs text-ct-muted text-center border-t border-ct-border">
+                +{overflowCount} more lower-priority update{overflowCount === 1 ? "" : "s"}
               </div>
-              <p className="text-xs text-ct-muted">{n.message}</p>
-            </DropdownMenuItem>
-          ))
+            )}
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
