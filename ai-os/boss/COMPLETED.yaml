@@ -2125,3 +2125,89 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+
+  # Numbered WAVE-186: WAVE-181-185 are reserved by this same session's own
+  # not-yet-merged docs PRs (#511, #513, #515, #517, #521), invisible to a
+  # fresh origin/main checkout. Real highest merged id re-verified live
+  # (git show origin/main:...) as WAVE-180 before picking this number.
+  - id: WAVE-186
+    title: "Full-system 198-item (99 Rules + 99 Articles) software-driven gap audit -- reusable audit198 framework, 198/198 items scored with real evidence"
+    doer:
+      agent: "claude-code (Super Boss, interactive session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/522 (ruleset checklist: PR #518; claim registration: PR #520)"
+      summary: >
+        Owner directive 2026-07-21: supplied RULES.xlsx (99 numbered Rules
+        + 99 numbered Articles governing the complete VERIDIAN AI OS
+        system) with a strict instruction that a full gap audit against
+        all 198 items be performed BY SOFTWARE SCRIPTS, not by AI
+        freehand-reading each item and writing a prose opinion -- "AI
+        should work as a software auditor, writing and controlling
+        software scripts and software programs to do this work... so
+        that software does complete audit, gap analysis."
+
+        Extracted the ruleset losslessly from the source .xlsx (198 rows,
+        verified 99+99, spot-checked first/last of each kind against raw
+        XML) into ai-os/RULES_ARTICLES_198.json (PR #518). Checked first
+        (zero-duplication rule): ai-os/CONSTITUTION.yaml (819 lines, the
+        existing machine-readable rule registry) does NOT contain this
+        ruleset -- confirmed via grep, zero literal "Rule 1"/"Article 1"
+        overlap. Genuinely distinct, Owner-supplied canonical source, not
+        a duplicate -- both govern the same system, noted explicitly as
+        not-yet-reconciled in the new file's own meta block.
+
+        Built ai-os/scripts/audit198/ -- a reusable, re-runnable audit
+        framework (run via: node ai-os/scripts/audit198/run-audit.mjs),
+        not 198 disposable one-off checkers: the 198 items were grouped
+        into 33 thematic categories (rules-taxonomy.mjs), each backed by
+        ONE generic, parameterized evidence-gathering + verdict engine
+        (evidence-engine.mjs -- file-marker presence checks, repo-wide
+        keyword/co-occurrence grep with real file:line citations,
+        cross-reference against CONSTITUTION.yaml's own existing
+        ENFORCED/PARTIALLY_ENFORCED/POLICY_ONLY/NOT_APPLICABLE_YET/
+        NOT_YET_BUILT status vocabulary via constitution-index.mjs).
+        Extended that vocabulary with two states the narrower
+        CONSTITUTION.yaml scope never needed: EVIDENCE_UNAVAILABLE
+        (evidence genuinely could not be gathered -- reserved for the
+        disclosed Vercel-CLI-unauthenticated-server-side gap, confirmed
+        live via `vercel whoami` before the audit ran, though zero of
+        the 198 items ended up needing it this run since static evidence
+        sufficed for every Vercel-adjacent item) and NEEDS_HUMAN_JUDGMENT
+        (item is genuinely qualitative/architectural, no mechanical
+        check can produce a confident verdict -- used honestly 9 times
+        rather than forcing a false-precision score).
+
+        Real completed run, 198/198 items scored with evidence citations
+        (never an unsupported assertion): ENFORCED=22,
+        PARTIALLY_ENFORCED=152, NOT_YET_BUILT=15, NEEDS_HUMAN_JUDGMENT=9,
+        EVIDENCE_UNAVAILABLE=0, POLICY_ONLY=0, NOT_APPLICABLE_YET=0.
+        Results in ai-os/scripts/audit198/results/audit198-results.json
+        (structured, per-item) and results/audit198-summary.md (category
+        rollup). The PARTIALLY_ENFORCED-heavy skew is a real finding,
+        consistent with this session's own repeated direct observation
+        of a "software already built, never fully wired" pattern across
+        many modules (e.g. Wave 3/6's own paginated-listing and
+        construction-UI gaps) -- not a scoring artifact.
+
+        bun run build clean (exit 0). bun run lint clean (0 errors, 3
+        pre-existing warnings in unrelated files not touched by this
+        change). Not wired into cron in this PR -- 198 items x
+        multi-repo evidence gathering is not cheap; a sane frequency
+        (e.g. weekly) is left as an explicit follow-up decision rather
+        than silently modifying the live crontab.
+
+        Two background build agents hit transient infrastructure
+        failures partway through this work (one a stalled stream, one a
+        sandbox with zero network route to the Hetzner server) --
+        neither fabricated results when cut off; the second correctly
+        refused to proceed without real connectivity. This session's own
+        prior finding (retry-loop patterns silently masking real
+        failure, and hardcoded script paths pointing at the wrong
+        worktree) informed how the recovery was handled: verified real
+        on-disk state directly before trusting any prior "done" claim,
+        and finished the remaining build/lint/commit/push/PR steps
+        directly rather than risking a third opaque dispatch.
+
+        Follow-up (not this claim's job): turn the machine-readable
+        results into a polished, Owner-readable report/dashboard --
+        planned as the next step after this registration.
