@@ -1,15 +1,15 @@
 # Audit198 Results Summary
 
-Generated: 2026-07-21T09:30:15.219Z
+Generated: 2026-07-21T11:55:03.301Z
 Items scored: 198 / 198
 
 ## Status counts
 
 - ENFORCED: 22
-- PARTIALLY_ENFORCED: 152
+- PARTIALLY_ENFORCED: 156
 - POLICY_ONLY: 0
 - NOT_APPLICABLE_YET: 0
-- NOT_YET_BUILT: 15
+- NOT_YET_BUILT: 11
 - EVIDENCE_UNAVAILABLE: 0
 - NEEDS_HUMAN_JUDGMENT: 9
 
@@ -41,7 +41,7 @@ Items scored: 198 / 198
 - **OPEN_SOURCE_REUSE** (Studying industry solutions, preferring OSS, 2 items): PARTIALLY_ENFORCED=2
 - **INTEGRATIONS_API_GOVERNANCE** (External integrations, API versioning/deprecation/dependency hygiene, 5 items): PARTIALLY_ENFORCED=4, ENFORCED=1
 - **CACHING** (Cache layers: use, invalidation, logging, 6 items): PARTIALLY_ENFORCED=6
-- **RECOVERY_RESILIENCE** (Checkpointing, rollback, graceful failure, resumability, 10 items): PARTIALLY_ENFORCED=6, NOT_YET_BUILT=4
+- **RECOVERY_RESILIENCE** (Checkpointing, rollback, graceful failure, resumability, 10 items): PARTIALLY_ENFORCED=10
 - **COMPLETION_RATE_KPI** (100% completion target, measurable KPIs, 4 items): PARTIALLY_ENFORCED=4
 - **DOCUMENTATION** (Module/workflow/decision documentation, 3 items): PARTIALLY_ENFORCED=2, NOT_YET_BUILT=1
 - **SECURITY_RLS_ACCESS** (Security, RBAC, RLS, secrets management, AI write-guardrails, 6 items): ENFORCED=2, PARTIALLY_ENFORCED=4
