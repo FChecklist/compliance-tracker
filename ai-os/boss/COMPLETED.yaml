@@ -2297,3 +2297,108 @@ entries:
         Full before/after evidence, the live dry-run output, and the
         marker-typo self-correction are in PR #528's body and commit
         message.
+  - id: WAVE-192
+    title: "audit198 gap-closure wave 5: CACHING/INTEGRATIONS_API_GOVERNANCE/COMPLETION_RATE_KPI/DOCUMENTATION/GOVERNANCE_OWNERSHIP cluster (21/198 items) -- 1 NOT_YET_BUILT item closed, 5 real capabilities built, 3 real checker gaps fixed"
+    doer:
+      agent: "claude-code (audit198 gap-closure sub-agent, dispatched from interactive Super Boss session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/539 (base: audit198-framework)"
+      summary: >
+        Owner directive 2026-07-21: close every gap identified by
+        audit198's software-driven audit of 198 Owner Rules/Articles
+        (WAVE-186, PR #522) for ONE assigned cluster: CACHING (6) +
+        INTEGRATIONS_API_GOVERNANCE (5) + COMPLETION_RATE_KPI (4) +
+        DOCUMENTATION (3) + GOVERNANCE_OWNERSHIP (3) = 21 of 198 items,
+        read fresh from the live results.json rather than trusting the
+        dispatch prompt's count (confirmed 21 by direct filter). Worktree
+        created at /opt/veridian/workspace/audit198-gap-wave5 (branch
+        audit198-gap-wave5-caching-api-docs) based on origin/audit198-
+        framework, since that unmerged branch (PR #522) has both the
+        audit198 framework code and its already-run baseline results.
+
+        Before (this cluster): 1 ENFORCED (ARTICLE-010) / 19
+        PARTIALLY_ENFORCED / 1 NOT_YET_BUILT (ARTICLE-076). After
+        (re-run via `node ai-os/scripts/audit198/run-audit.mjs`, not
+        claimed): 2 ENFORCED (ARTICLE-010 unchanged + RULE-049 now
+        ENFORCED) / 19 PARTIALLY_ENFORCED / 0 NOT_YET_BUILT. Overall
+        198-item counts on this branch moved ENFORCED 22->23,
+        NOT_YET_BUILT 15->10, NEEDS_HUMAN_JUDGMENT 9->8.
+
+        FIVE real capabilities built, not just documented: (1)
+        src/lib/cache-governance.ts -- a 6-cache-layer registry (browser/
+        application/server/metadata/workflow/AI-provider, matching
+        RULE-076's own list) with declared TTL/invalidation policy, plus
+        logCacheEvent() structured hit/miss/write/invalidate logging
+        wired into llm-response-cache.ts, asset-registry-cache.ts, and
+        instruction-execution-cache-service.ts -- none of this hit/miss
+        logging existed before this pass. (2)
+        invalidateLlmResponseCache()/invalidateAllLlmResponseCache()
+        added to llm-response-cache.ts -- TTL expiry was previously the
+        ONLY freshness mechanism that cache offered. (3) GET
+        /api/ai/cache/governance (veridian_admin-gated, zero AI call)
+        monitoring endpoint. (4) platform.production_issues table
+        (drizzle/0251) + GET/POST /api/engineering/production-issues +
+        PATCH .../[id] -- a real production-issue knowledge repository
+        (title/component/severity/status/description/root_cause/
+        resolution/prevention_action/related_pr/tags), distinct from
+        compliance.incidents (the existing GRC/business register, no
+        resolution field, confirmed by direct schema read before
+        building anything new). Closes ARTICLE-076, which was genuinely
+        NOT_YET_BUILT before this. (5) ai-os/registry/deprecations.yaml +
+        scripts/check-deprecations.mjs (standalone-runnable; NOT wired
+        into .github/workflows/ci.yml this PR -- the available push
+        credential lacks the workflow OAuth scope, confirmed via the
+        actual rejected push, flagged as an open follow-up rather than
+        worked around) -- every @deprecated marker in src/ now has a
+        tracked entry (retirement dates honestly not_yet_scheduled, not
+        invented). Plus .github/CODEOWNERS for real per-module PR-review
+        ownership routing.
+
+        THREE real checker gaps fixed, not gamed: COMPLETION_RATE_KPI,
+        DOCUMENTATION, and GOVERNANCE_OWNERSHIP had ZERO infraChecks
+        entries in category-checkers.mjs at all (confirmed by direct
+        file read) -- every item in those 3 categories was structurally
+        incapable of reaching ENFORCED regardless of what real code
+        existed. Added hand-verified infra checks for all 3 (qa-
+        precompletion-gate.ts/report-engine-service.ts/report-
+        taxonomy.ts; CONSTITUTION.yaml's own amendment_log discipline/
+        deprecations.yaml/production_issues table; .github/CODEOWNERS/
+        classification.ts::canAccess/module-rules-resolver.ts), same
+        discipline the other 15 pre-existing category entries already
+        use. Also fixed 3 ai-os/OS.yaml metadata-index-coverage gaps
+        (RULES_ARTICLES_198.json, ai-os/scripts/audit198,
+        ai-os/registry/deprecations.yaml were unindexed -- 2 pre-existing
+        on audit198-framework itself, 1 introduced by this PR) so this
+        branch's own CI passes check-metadata-index-coverage.mjs.
+
+        1 item moved NOT_YET_BUILT -> PARTIALLY_ENFORCED (ARTICLE-076,
+        real capability built from zero) and 1 moved PARTIALLY_ENFORCED
+        -> ENFORCED (RULE-049, via the new GOVERNANCE_OWNERSHIP infra
+        check combined with pre-existing phrase evidence). The other 19
+        items stayed PARTIALLY_ENFORCED but each now carries a precise,
+        ~1.0-Jaccard-score ai-os/CONSTITUTION.yaml citation (CACHE-05..10,
+        DOC-01..03, OWN-01..02, KPI-01..04, API-01..04 -- 21 new entries)
+        with an honest, specific gap, replacing the prior generic
+        "keyword co-occurrence, needs human follow-up" placeholder text.
+        None claimed as ENFORCED where a real gap remains -- e.g.
+        ARTICLE-080 (dependency monitoring): license-checker was actually
+        run against this repo and found existing LGPL-3.0 dependencies,
+        so no hard-failing licensing CI gate was added (would break CI on
+        unrelated pre-existing deps) and no no-op check was added either
+        (would fake the claim) -- documented as the one open gap on that
+        item instead.
+
+        Same structural finding wave1 (WAVE-191) already documented,
+        confirmed independently here: deriveVerdict()'s ENFORCED ceiling
+        requires a verbatim capitalized multi-word phrase from an item's
+        own (mostly lowercase, legal-register) text to appear in the
+        repo -- most CACHING/API-governance items have no such phrase in
+        their own wording, capping them at PARTIALLY_ENFORCED via the
+        infra-check path regardless of real code behind them. Not
+        touched here (shared logic affecting all 33 categories, out of
+        this narrowly-scoped PR).
+
+        Verified: bunx tsc --noEmit exit 0, bun run lint 0 errors, bun
+        run build exit 0 (zero TypeScript errors), bun test 1822 pass / 0
+        fail. Full before/after evidence and re-run output are in PR
+        #539's body and commit message.
