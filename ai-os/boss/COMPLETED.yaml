@@ -2211,3 +2211,89 @@ entries:
         Follow-up (not this claim's job): turn the machine-readable
         results into a polished, Owner-readable report/dashboard --
         planned as the next step after this registration.
+
+  # Numbered WAVE-191: real highest id re-verified live across ALL remote
+  # branches (not just origin/main or this docs branch) before picking
+  # this number -- full scan found a contiguous 173-186 plus a reserved
+  # WAVE-190 on origin/docs/wave6-batch2-completed-log (unrelated
+  # session); WAVE-187-189 unused anywhere found. 191 is safely above the
+  # confirmed global max.
+  - id: WAVE-191
+    title: "audit198 gap-closure wave 1: MONITORING_INFRA/TRACEABILITY_AUDIT_LOGGING/RECOVERY_RESILIENCE cluster (33/198 items) -- 4 NOT_YET_BUILT items closed, 1 real capability built, 1 real checker gap fixed"
+    doer:
+      agent: "claude-code (audit198 gap-closure sub-agent, dispatched from interactive Super Boss session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/528 (base: audit198-framework)"
+      summary: >
+        Owner directive 2026-07-21: close every gap identified by
+        audit198's software-driven audit of 198 Owner Rules/Articles
+        (WAVE-186, PR #522) for ONE assigned cluster: MONITORING_INFRA +
+        TRACEABILITY_AUDIT_LOGGING + RECOVERY_RESILIENCE (33 of 198
+        items, read fresh from the live results.json rather than trusting
+        a stale count in the dispatch prompt -- confirmed 33 by direct
+        filter). Worktree created at
+        /opt/veridian/workspace/audit198-gap-wave1-monrec (branch
+        audit198-gap-wave1-monitoring-recovery, exactly as briefed) based
+        on origin/audit198-framework, since that unmerged branch (PR
+        #522) has both the audit198 framework code and its already-run
+        baseline results.
+
+        Before: 3 ENFORCED / 26 PARTIALLY_ENFORCED / 4 NOT_YET_BUILT.
+        After (re-run via `node ai-os/scripts/audit198/run-audit.mjs`,
+        not claimed): 3 ENFORCED / 30 PARTIALLY_ENFORCED / 0
+        NOT_YET_BUILT.
+
+        ONE real missing capability built: ai-os/scripts/
+        missed-execution-detector.py, closing ARTICLE-083 ("every
+        scheduled job shall detect missed executions and recover
+        automatically"). Deliberately built as an EXTENSION of the
+        run-logged.sh/superboss-register.py execution-logging pipeline
+        already built earlier this session (per
+        AI_ENGINEERING_POLICY.yaml's prefer-existing-mechanism rule), not
+        a parallel one -- reads the real crontab for schedule+recovery
+        command, reads the register's own actions table for last-run
+        evidence, re-invokes missed jobs through the same run-logged.sh
+        wrapper. Verified via a live dry run against the real production
+        crontab + register DB: all 9 real cron jobs correctly parsed and
+        reported OK. Checked check-duplicate first (0 matches). NOT added
+        to crontab -- left for Owner sign-off as a standing-configuration
+        change, per this session's safety boundary on persistent
+        server-config changes made without an interactive human in the
+        loop.
+
+        ONE real checker gap fixed, not gamed: RECOVERY_RESILIENCE had
+        ZERO infraChecks entries in category-checkers.mjs (an actual
+        oversight in the WAVE-186 framework, confirmed by direct file
+        read), so every item in the category was scored on raw keyword
+        co-occurrence alone. Added 3 hand-verified checks (exception-
+        taxonomy.ts's withAutomaticRecovery/classifyError -- also
+        independently documented as CONSTITUTION.yaml GP-29; the new
+        missed-execution-detector.py; >=4 real db.transaction( atomic-
+        write call sites). Caught and fixed a real bug in my own first
+        pass while verifying via the audit re-run itself (a marker string
+        was missing the `async` keyword and silently failed to match) --
+        re-ran a second time to confirm the fix before committing, per
+        the "if a fix doesn't move the verdict as expected, investigate
+        why" instruction.
+
+        4 items moved NOT_YET_BUILT -> PARTIALLY_ENFORCED: ARTICLE-018
+        (rollback procedures), ARTICLE-019 (atomic transactions),
+        ARTICLE-065 (reversible deployments), ARTICLE-083 (missed-
+        execution detection, the one with a real new capability behind
+        it). None claimed as ENFORCED or as universal guarantees -- each
+        item's own gap text still honestly states what remains partial.
+
+        Left open, and why: MONITORING_INFRA's 9 items and
+        TRACEABILITY_AUDIT_LOGGING's 11 non-ENFORCED items stay
+        PARTIALLY_ENFORCED -- their infra checks already pass, but
+        deriveVerdict()'s ENFORCED ceiling requires a verbatim capitalized
+        multi-word phrase from the item's own (lowercase, legal-register)
+        text to appear in the repo, a structural property of shared,
+        198-item-wide matching logic that essentially no normal-cased
+        requirement sentence can satisfy. Deliberately NOT touched in
+        this narrowly-scoped PR (would affect all 33 categories, not just
+        this cluster) -- flagged as a real, separate follow-up.
+
+        Full before/after evidence, the live dry-run output, and the
+        marker-typo self-correction are in PR #528's body and commit
+        message.
