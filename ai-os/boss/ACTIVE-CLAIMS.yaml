@@ -5157,3 +5157,57 @@ recently_completed:
       /opportunities, /contacts pages, src/lib/services/capability-tree-service.ts,
       src/lib/task-execution-engine.ts. No PROJEXA repo changes in this
       first batch.
+
+# ── claim registered 2026-07-21 (background session) ──────────────────
+- session_label: >-
+    claude-code (background session, this task) --
+    wave8-retire-projexa-duplicate-composer
+  claimed_at: 2026-07-21T (this session)
+  claim: >-
+    Owner directive (follow-on to the 2026-07-21 CRM+PROJEXA merge plan's
+    Wave 8): confirm whether PROJEXA's local mode-pill/chain-selector/
+    chatbox composer (src/components/veri-chat/VeriComposer.tsx and
+    related files in the separate FChecklist/projexa repo) is genuinely
+    superseded now that compliance-tracker has the equivalent
+    VeriChatPanel.tsx/VeriComposer.tsx/capability-tree-service.ts (merged
+    Waves 4-7). If no live PROJEXA route still imports it and Wave 10's
+    DNS cutover has already happened, delete the duplicate and PR it. If
+    PROJEXA is still a live, separately-deployed app depending on it (Wave
+    10 not yet done), do NOT delete -- document findings only and leave as
+    a follow-up, per explicit Owner instruction not to break a live
+    deployment to hit a completeness goal.
+  scope_note: >-
+    File scope: FChecklist/projexa repo only (src/components/veri-chat/**
+    and any importers), read-first via a fresh isolated clone, not the
+    shared /opt/veridian/repos/projexa checkout. No compliance-tracker
+    code changes in this claim. Checked this file for collisions before
+    starting: no other active entry names PROJEXA's own local composer
+    files as in-progress work (the 2026-07-21 Wave0 CRM+PROJEXA claim
+    above holds Waves 5-10 for a separate Owner sign-off on brand infra;
+    this claim is narrower -- read-only confirmation + conditional
+    deletion of one already-superseded duplicate, not the brand merge
+    itself).
+
+- session_label: >-
+    claude-code (background session, this task) --
+    fix-6-duplicate-migration-numbers
+  claimed_at: 2026-07-21T (this session)
+  claim: >-
+    Unrelated pre-existing technical debt found in review: drizzle/*.sql
+    migration filename prefixes 0172, 0173, 0198, 0204, 0211, 0214 each
+    have two different files sharing the same leading number on main.
+    Reconfirm which pairs still collide (main has moved -- prior sessions'
+    claims elsewhere in this file already show at least one of these
+    numbers, e.g. 0198 and 0204, were renumbered once before, so a fresh
+    check is required, not an assumption). For each real remaining
+    duplicate, renumber the later-added file (per git log) to the next
+    free number after the current highest migration, update
+    drizzle/meta/_journal.json and any other repo reference to the old
+    filename, one PR (or one per fix), CI green, merge.
+  scope_note: >-
+    File scope: compliance-tracker only, drizzle/*.sql (rename only, no
+    schema content changes) + drizzle/meta/_journal.json + any doc/
+    manifest referencing an old migration filename. Fresh isolated clone
+    at /opt/veridian/workspace/wave8-tasks/, not the shared repos/
+    compliance-tracker checkout. No overlap with the CRM/PROJEXA work
+    above -- pure numbering fix, no schema/business-logic changes.
