@@ -8,9 +8,22 @@ require checking for an existing capability before writing new code, and
 the tooling to do that already exists (capability-registry-service.ts's
 findSimilarCapabilities()/auditDuplicateCapabilities()) -- it just wasn't
 mandated anywhere. This template is the mandate.
+
+Extended audit198 gap-closure wave 2 (2026-07-21, ARTICLE-068/075,
+CI_CD_TESTING): the Capability Registry check above already covers
+duplicate-avoidance traceability; these two new sections close the
+remaining gap -- every change traceable to a concrete requirement/defect/
+task, and every bug-fix PR carrying real regression protection, not just
+a code diff.
 -->
 
 ## What does this PR do?
+
+
+
+## Traceability (ARTICLE-068: every change traceable to a requirement, defect, enhancement, or approved task)
+
+- [ ] This PR links the specific WAVE/task id, `ai-os/boss/COMPLETED.yaml` or `ACTIVE-CLAIMS.yaml` entry, GitHub issue, or Owner-directive quote it addresses:
 
 
 
@@ -22,3 +35,8 @@ mandated anywhere. This template is the mandate.
 ## Test plan
 
 - [ ]
+
+## Regression protection (ARTICLE-075: every resolved defect includes regression protection to prevent recurrence)
+
+- [ ] If this PR fixes a bug/defect: a test that fails on `main` (before this change) and passes on this branch (after this change) is included in this diff — OR this PR isn't a bug fix.
+- [ ] If a regression test genuinely isn't possible (e.g. the defect can't be triggered outside a live third-party integration), the reason is stated here:

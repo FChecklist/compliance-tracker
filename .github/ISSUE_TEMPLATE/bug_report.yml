@@ -1,0 +1,58 @@
+name: Bug report
+description: >-
+  File a defect. audit198 gap-closure wave 2 (2026-07-21, ARTICLE-074:
+  "Every defect shall include reproducible steps before engineering work
+  begins"). GitHub issue forms validate `required: true` fields at
+  submission time -- this is enforced by GitHub itself, not just
+  convention, unlike a plain markdown template.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear, concise description of the defect.
+    validations:
+      required: true
+  - type: textarea
+    id: repro-steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Exact, ordered steps a different engineer could follow to
+        reproduce this from scratch. This field existing and being filled
+        in is the whole point of ARTICLE-074 -- engineering work should
+        not begin on a defect that can't yet be reproduced.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Branch/commit, browser, org/tenant if relevant, and whether this reproduces on `main`.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Screenshot, error message, log excerpt, or request ID. Real evidence, not a description of evidence.
+    validations:
+      required: false

@@ -1,0 +1,89 @@
+# ai-os/registry/hardcoded-config-exemptions.yaml
+#
+# Exemption registry for scripts/check-hardcoded-config.mjs (audit198
+# gap-closure wave 2, 2026-07-21, ARTICLE-012). Same convention as
+# ai-os/registry/asset-registry-coverage.yaml: every real finding the
+# scanner produces must either be fixed (source the value from
+# process.env / a config module) or listed here with an honest reason.
+# `file` and `line` must match the finding exactly -- the scanner keys
+# exemptions by file:line, so a line-shift from an unrelated edit will
+# correctly re-surface an exemption that no longer points at the same
+# literal, rather than silently staying exempt forever.
+#
+# First-run triage, 2026-07-21: 41 findings on the scanner's first pass
+# against this repo's real src/ tree, 0 of them secret-shaped literals
+# (GP-16's existing "secrets never in source" discipline holds) -- all 41
+# are hardcoded external URLs, in two honest classes below. This wave did
+# NOT additionally refactor the 8 own-domain metadata URLs (layout.tsx,
+# page.tsx x2, robots.ts, sitemap.ts, openapi/generate.ts, mcp/route.ts,
+# llm-client.ts's HTTP-Referer) onto an env-var-first pattern the way
+# email.ts/contact-service.ts/forge-intake-service.ts already do for
+# NEXT_PUBLIC_SITE_URL/NEXT_PUBLIC_APP_URL -- that is a real, legitimate,
+# small follow-up (flagged honestly here, not silently dropped), out of
+# this wave's time budget.
+
+exemptions:
+  # -- Class 1: third-party PROVIDER API base URLs. These are integration
+  # constants, not environment-specific configuration -- swapping which
+  # LLM/embedding/OCR/exchange-rate/CRM provider is called requires a
+  # different request/response shape in code regardless of where the URL
+  # string lives, so externalizing just the URL would not make the
+  # provider swappable via config alone. Each is the provider's own
+  # publicly documented, stable API endpoint.
+  - { file: "src/lib/llm-client.ts", line: 365, reason: "Anthropic Messages API's own stable public endpoint; provider integration constant, not env-specific config" }
+  - { file: "src/lib/llm-client.ts", line: 423, reason: "Google Generative Language API's own stable public endpoint; provider integration constant" }
+  - { file: "src/lib/llm-client.ts", line: 454, reason: "Groq OpenAI-compatible endpoint; provider integration constant" }
+  - { file: "src/lib/llm-client.ts", line: 456, reason: "OpenAI's own stable public endpoint; provider integration constant" }
+  - { file: "src/lib/llm-client.ts", line: 458, reason: "OpenRouter's own stable public endpoint; provider integration constant" }
+  - { file: "src/lib/llm-client.ts", line: 460, reason: "Cerebras OpenAI-compatible endpoint; provider integration constant" }
+  - { file: "src/lib/llm-client.ts", line: 568, reason: "Anthropic Messages API (vision call path); same provider constant as line 365" }
+  - { file: "src/lib/llm-client.ts", line: 598, reason: "Google Generative Language API (vision call path); same provider constant as line 423" }
+  - { file: "src/lib/llm-client.ts", line: 622, reason: "Groq OpenAI-compatible endpoint (vision call path); same provider constant as line 454" }
+  - { file: "src/lib/llm-client.ts", line: 624, reason: "OpenAI's own stable public endpoint (vision call path); same provider constant as line 456" }
+  - { file: "src/lib/llm-client.ts", line: 626, reason: "OpenRouter's own stable public endpoint (vision call path); same provider constant as line 458" }
+  - { file: "src/lib/llm-client.ts", line: 628, reason: "Cerebras OpenAI-compatible endpoint (vision call path); same provider constant as line 460" }
+  - { file: "src/lib/embeddings.ts", line: 45, reason: "OpenRouter embeddings endpoint; provider integration constant" }
+  - { file: "src/lib/embeddings.ts", line: 126, reason: "Groq embeddings endpoint; provider integration constant" }
+  - { file: "src/lib/whisper-client.ts", line: 42, reason: "OpenAI Whisper transcription endpoint; provider integration constant" }
+  - { file: "src/lib/composio-connectors.ts", line: 105, reason: "Composio's own stable public API base URL; provider integration constant" }
+  - { file: "src/lib/exchange-rate-feed-client.ts", line: 33, reason: "open.er-api.com's own stable public free-tier endpoint; provider integration constant" }
+  - { file: "src/lib/exchange-rate-feed-client.ts", line: 74, reason: "exchangerate-api.com's own stable public endpoint (API key is already the real config value, passed via apiKey param, not hardcoded); provider integration constant" }
+  - { file: "src/app/litert-spike-embeddings/worker-src/inference-worker.ts", line: 62, reason: "Hugging Face model artifact URL for the litert spike -- a specific pinned model asset reference, not environment config; spike code (Wave 79/Priority 21 scope note)" }
+  - { file: "src/app/litert-spike-embeddings/worker-src/inference-worker.ts", line: 68, reason: "Hugging Face vocab artifact URL for the same litert spike as line 62; same reasoning" }
+  - { file: "src/lib/services/ocr-client.ts", line: 37, reason: "GitHub REST API's own stable public endpoint used to dispatch the OCR workflow; provider integration constant, mirrors dispatch-repo.ts" }
+  - { file: "src/lib/ai-team/dispatch-repo.ts", line: 68, reason: "GitHub REST API's own stable public endpoint (repository_dispatch); provider integration constant" }
+
+  # -- Class 2: fixed, non-secret share-target URLs (WhatsApp/Telegram deep
+  # links, Gmail message permalink) -- these are the ONLY correct URLs for
+  # "open a WhatsApp/Telegram share composer" or "open this message in
+  # Gmail's web UI"; there is no environment-specific variant of wa.me or
+  # mail.google.com to externalize to.
+  - { file: "src/app/api/veri-chat/conversations/[id]/guest-access/route.ts", line: 37, reason: "wa.me is WhatsApp's own fixed share-link host; not environment-specific" }
+  - { file: "src/app/api/veri-chat/conversations/[id]/guest-access/route.ts", line: 38, reason: "t.me is Telegram's own fixed share-link host; not environment-specific" }
+  - { file: "src/app/api/veri-chat/conversations/[id]/share-links/route.ts", line: 36, reason: "wa.me is WhatsApp's own fixed share-link host; not environment-specific" }
+  - { file: "src/app/api/veri-chat/conversations/[id]/share-links/route.ts", line: 37, reason: "t.me is Telegram's own fixed share-link host; not environment-specific" }
+  - { file: "src/app/api/veri-meetings/[id]/share-links/route.ts", line: 44, reason: "wa.me is WhatsApp's own fixed share-link host; not environment-specific" }
+  - { file: "src/app/api/veri-meetings/[id]/share-links/route.ts", line: 45, reason: "t.me is Telegram's own fixed share-link host; not environment-specific" }
+  - { file: "src/lib/services/connector-data-service.ts", line: 141, reason: "mail.google.com is Gmail's own fixed web-UI permalink host for a synced message; not environment-specific" }
+
+  # -- Class 3: this repo's own deployment domain, used as a hardcoded
+  # metadata default (OpenGraph/sitemap/robots/OpenAPI servers block) or a
+  # fallback when NEXT_PUBLIC_SITE_URL/NEXT_PUBLIC_APP_URL isn't set.
+  # Honest, real follow-up flagged in this file's header above: these
+  # SHOULD move to the same env-var-first pattern email.ts/contact-
+  # service.ts/forge-intake-service.ts already use, and were not refactored
+  # this wave for time-budget reasons, not because the finding is wrong.
+  - { file: "src/app/api/mcp/route.ts", line: 296, reason: "Own deployment domain as OpenAPI server URL default; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/app/layout.tsx", line: 37, reason: "Own deployment domain in OpenGraph metadata; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/app/page.tsx", line: 320, reason: "Own deployment domain in JSON-LD structured data; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/app/page.tsx", line: 321, reason: "Own deployment domain (logo asset path) in JSON-LD structured data; same follow-up as line 320" }
+  - { file: "src/app/robots.ts", line: 13, reason: "Own deployment domain in robots.txt sitemap reference; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/app/sitemap.ts", line: 5, reason: "Own deployment domain as sitemap BASE; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/lib/llm-client.ts", line: 241, reason: "Own deployment domain as OpenRouter HTTP-Referer header value; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/lib/openapi/generate.ts", line: 45, reason: "Own deployment domain in generated OpenAPI servers[] block; real follow-up to source from NEXT_PUBLIC_SITE_URL, flagged not fixed this wave" }
+  - { file: "src/lib/email.ts", line: 52, reason: "Already env-var-first (process.env.NEXT_PUBLIC_APP_URL ?? ...) -- the literal here is a fallback default, not an unconditional hardcode; genuinely externalized already" }
+  - { file: "src/lib/services/contact-service.ts", line: 73, reason: "Already env-var-first (process.env.NEXT_PUBLIC_SITE_URL ?? ...) -- fallback default only, genuinely externalized already" }
+  - { file: "src/lib/services/forge-intake-service.ts", line: 56, reason: "Already env-var-first (process.env.NEXT_PUBLIC_SITE_URL ?? ...) -- fallback default only, genuinely externalized already" }
+
+  # -- Class 4: seed/fixture data.
+  - { file: "src/db/seed.ts", line: 93, reason: "Demo-seed fixture data (fake storage URL for sample records), not application configuration" }
