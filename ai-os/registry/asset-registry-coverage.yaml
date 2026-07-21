@@ -79,6 +79,10 @@ registered:
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped company-level account record, same class as crm_leads/crm_opportunities -- auto_register_asset_trg attached, name_column=name, owner_column=owner_id, no purpose/active column (no genuine fit)"
   - table: crm_contacts
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped person record belonging to a crm_account -- auto_register_asset_trg attached, name_column=name, no owner_column (belongs to the account, not assigned to a rep directly, matching clients/erp_customers' own NULL-owner precedent), no purpose/active column"
+  - table: crm_activities
+    reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): Tasks/Meetings/Calls tied to any CRM record (lead/opportunity/account/contact) via a polymorphic entity_type+entity_id link -- auto_register_asset_trg attached (asset_registration_config row + trigger created in drizzle/0251 itself), asset_type other, name_column=subject, owner_column=assigned_to_id, org_column=org_id, no purpose/active column (no genuine fit)"
+  - table: crm_campaigns
+    reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): org-scoped marketing campaign record, crm_leads attributed to one via the new campaign_id bridge column -- auto_register_asset_trg attached (asset_registration_config row + trigger created in drizzle/0251 itself), asset_type other, name_column=name, owner_column=owner_id, org_column=org_id, no purpose/active column (status is a workflow enum, not boolean)"
   - table: connector_documents
     reason: "Priority 9 (verification fix on PR #226, drizzle/0162): the Business Digital Twin's first-slice canonical document representation, pulled from real connector data (Gmail/Drive) -- a real, discoverable document asset. auto_register_asset_trg attached, name_column=title, module_column=toolkit_slug, owner_column=user_id"
   # Priority 4 domain A (subagent-p4-domain-a, drizzle/0153): Documents/
@@ -318,6 +322,8 @@ registered:
   - table: ai_model_registry
     reason: "AIROUTER-01 (drizzle/0226): PLATFORM-WIDE by design (no org_id column -- a shared catalog of every AI model/provider pair the platform knows about, same class as module_registry/subscription_plans) -- auto_register_asset_trg attached, name_column=model (a genuine human-recognizable identifier e.g. \"z-ai/glm-5.2\"), purpose_column=notes, active_column=NULL (status is a real Postgres enum active/disabled/deprecated, not boolean, matching training_courses's own precedent)"
 exempted:
+  - table: crm_lost_reasons
+    reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): a small org-configurable picklist of Lost Reasons for crm_opportunities.lost_reason_id (Odoo reference pattern) -- comparable to a status/enum table, not itself a trackable business asset, matching this schema's own precedent of not registering lookup/config tables. Deliberately NOT registered, judgment documented in drizzle/0251's own header at the time it was written."
   - table: access_review_certifications
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: no genuine display-name column (reviewedRole is a point-in-time role snapshot, not this row's own name) -- a per-user-per-cycle decision record, same class as this codebase's other append-only join/log tables, not a named asset"
   - table: activity_log
@@ -848,6 +854,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: task_reflections
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: tenant_ai_config
+    reason: "Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model, drizzle/0253, 2026-07-20 -- renumbered from 0251 during review to resolve a collision with the unrelated drizzle/0251_crm_wave1_activities_campaigns_lost_reasons.sql migration): per-org BYO AI model for the Mother Router's software_team scope -- one active row per org (partial unique index tenant_ai_config_one_active_per_org), no genuine display-name column (model_name is an OpenRouter model id like 'z-ai/glm-5.2', not this config row's own name), and a single config row not a browsable collection -- same self-exemption class as the already-exempted customer_model_config/client_model_config BYO config tables it mirrors."
   - table: ticket_intelligence_action_items
     reason: "join table (ticket_intelligence_item -> promoted task), same shape/reasoning as email_intelligence_action_items -- not itself a discoverable platform asset"
   - table: ticket_intelligence_items
