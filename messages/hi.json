@@ -41,6 +41,29 @@
           "veriProjectsAi": "VERI प्रोजेक्ट्स AI"
         }
       },
+      "construction": {
+        "title": "निर्माण",
+        "items": {
+          "siteDiary": "साइट डायरी",
+          "rfis": "RFI",
+          "submittals": "सबमिटल",
+          "punchList": "पंच लिस्ट",
+          "scope": "स्कोप (BOQ)",
+          "labour": "श्रम",
+          "expenses": "व्यय"
+        }
+      },
+      "constructionDesign": {
+        "title": "निर्माण (डिज़ाइन और प्रगति)",
+        "items": {
+          "floorPlans": "फ़्लोर प्लान",
+          "moodBoards": "मूड बोर्ड",
+          "ffe": "FF&E",
+          "changeOrders": "चेंज ऑर्डर",
+          "workProgress": "कार्य प्रगति",
+          "dashboard": "निर्माण डैशबोर्ड"
+        }
+      },
       "theFirm": {
         "title": "द फर्म",
         "items": {

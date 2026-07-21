@@ -28,6 +28,10 @@ export type MeResponse = {
   orgLogoUrl: string | null;
   orgBrandPrimaryColor: string | null;
   orgBrandAccentColor: string | null;
+  // Wave 5 (CRM+PROJEXA-merge plan): the product name to show in the app
+  // chrome, resolved from the org's primaryProductBranchId. Always a real
+  // string (defaults to "VERIDIAN AI OS" server-side), never null.
+  brandName: string;
 };
 
 async function fetchMe(): Promise<MeResponse> {

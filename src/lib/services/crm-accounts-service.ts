@@ -534,3 +534,40 @@ export async function listContactsForAccount(ctx: { orgId: string }, accountId: 
     db.query.crmContacts.findMany({ where: and(eq(crmContacts.accountId, accountId), eq(crmContacts.orgId, ctx.orgId)), orderBy: (t, { desc }) => desc(t.isPrimary) })
   )
 }
+
+
+// VERIDIAN CRM Wave 1 (2026-07-21) CRUD audit finding: createContact/
+// updateContact/deleteContact/listContactsForAccount existed but no
+// single-contact fetch by id -- every other CRM entity in this codebase
+// (lead, opportunity, account) has a get-by-id; contacts didn't.
+export async function getContact(ctx: { orgId: string }, contactId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmContacts.findFirst({ where: and(eq(crmContacts.id, contactId), eq(crmContacts.orgId, ctx.orgId)) })
+  )
+}
+
+
+// VERIDIAN CRM Wave 3 (2026-07-21): real gap confirmed by reading this file
+// fresh -- listContactsForAccount() requires an accountId, so there was no
+// way to list every contact across an org's whole account book in one
+// place. Same shape as listAccountsPaged() just above.
+export type ListContactsOptions = { search?: string; accountId?: string; page?: number; pageSize?: number }
+
+export async function listContactsPaged(ctx: { orgId: string }, opts: ListContactsOptions = {}): Promise<PagedResult<typeof crmContacts.$inferSelect>> {
+  await requireSalesEnabled(ctx.orgId)
+  const page = Math.max(1, opts.page ?? 1)
+  const pageSize = Math.min(200, Math.max(1, opts.pageSize ?? 25))
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(crmContacts.orgId, ctx.orgId)]
+    if (opts.accountId) conditions.push(eq(crmContacts.accountId, opts.accountId))
+    if (opts.search?.trim()) conditions.push(ilike(crmContacts.name, `%${opts.search.trim()}%`))
+    const where = and(...conditions)
+
+    const [items, totalRows] = await Promise.all([
+      db.query.crmContacts.findMany({ where, orderBy: (t, { desc }) => desc(t.createdAt), limit: pageSize, offset: (page - 1) * pageSize }),
+      db.select({ count: sql<number>`count(*)` }).from(crmContacts).where(where),
+    ])
+    return { items, total: Number(totalRows[0]?.count ?? 0), page, pageSize }
+  })
+}
