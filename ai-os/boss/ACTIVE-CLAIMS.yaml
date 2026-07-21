@@ -2686,6 +2686,55 @@ active:
 # `active:`. Not this session's own claim's doing -- picked up while filing
 # this session's own recently_completed entry below. Did not otherwise
 # reorganize or re-file any other session's entries.
+  - session_label: "claude-code (task-20260720-022706-superboss-v2-plan--verify-and-close-fixe) -- V2-3 Verify-and-close Fixed Assets + Change Orders (already shipped)"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      Super Boss v2 plan TASK V2-3 (V2-3-VERIFY-WAVEB-SHIPPED), decision-log
+      D3/D4: verify-and-close (NOT rebuild) the already-shipped Fixed Assets
+      (CRUD+approval+validation) and Change Orders (write path + e-signature
+      auto-transition) surfaces, add any missing edge-case test, write an
+      evidence note in ai-os/, re-score CSV rows to No-Gap.
+
+      Confirmed CLOSED by reading the live shipped code (no new build needed):
+      - Fixed Assets: erp-fixed-assets-service.ts ships full CRUD
+        (create/update/list/get fixed assets + categories), the shared
+        Approval Workflow Engine (startApprovalWorkflow -> finalizeAssetDisposal
+        / markAssetDisposalRejectedFromApproval) for disposal, real business-rule
+        validation (depreciation schedule generation straight-line + declining
+        balance with mid-period proration + true-up + salvage floor + fully-
+        depreciated-at-acquisition edge case, isPeriodOpenForDate gates,
+        netBookValue>=0 guard, gain/loss + balanced-entry check), and a real
+        draft->in_use->disposed/scrapped state machine with re-entry guards.
+        erp-fixed-assets-service.test.ts already covers the pure depreciation
+        math + the disposal route's role-rank gate.
+      - Change Orders: construction-change-order-service.ts ships the
+        draft->pending_approval->approved/rejected state machine via real
+        e-signature dispatch (submitChangeOrderForApproval ->
+        createSignatureRequest linkedEntityType:"change_order"); the e-sig
+        auto-transition itself lives in esignature-service.ts's
+        submitSignature() (allSigned -> status:"approved") and
+        declineSignature() (-> status:"rejected"). The one-click approve/reject
+        PATCH bypass branches were removed (src/app/api/v1/projexa/change-
+        orders/[id]/route.ts returns 400 directing to signature-status);
+        markChangeOrderApproved/Rejected are deliberately unwired building
+        blocks. PROJEXA repo has its own api/change-orders + page.tsx +
+        signature-status route.
+
+      File scope (compliance-tracker, additive tests + docs ONLY, no schema):
+      src/lib/services/esignature-service.ts (extract a pure transition-decision
+      helper so the allSigned/anySigned/outOfTurn/change_order->approved logic
+      becomes unit-testable the same way generateDepreciationSchedule already
+      is -- behavior-preserving, not a new feature), new
+      src/lib/services/esignature-service.test.ts, and a new evidence note +
+      CSV re-score under ai-os/. NOT touching erp-fixed-assets-service.ts or
+      construction-change-order-service.ts source (already verified-good; only
+      the esignature transition helper extraction to make it testable).
+
+      Checked this file + `gh pr list` for collisions before starting: the only
+      other entries mentioning these files are 2026-07-16/17 Wave B/Wave 4
+      claims (PRs #387/#391 already merged, 3-4 days stale, well past the
+      4-hour abandonment threshold) -- no open PR touches any of these files.
+      Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
   - session_label: "claude-code (task-20260720-035005-superboss-v2-plan--sentry-dsn-startup-ch) -- V2-10 Sentry DSN startup check"
     completed_at: "2026-07-20T04:20:54Z"
