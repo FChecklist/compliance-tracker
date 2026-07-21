@@ -71,6 +71,10 @@ import {
   GraduationCap,
   Copy,
   Activity,
+  LayoutPanelLeft,
+  Palette,
+  Sofa,
+  Gauge,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +169,38 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
     ...(pmsEnabled
       ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
+    // Wave 6 batch 2 (compliance-tracker/PROJEXA merge): visual-design +
+    // higher-level construction modules -- interior floor plans, mood
+    // boards, FF&E, change orders, work-progress logging (+ AI photo
+    // estimation), org-wide construction dashboard. Backend for all of
+    // these was already fully built across earlier PROJEXA-foundation
+    // waves; this wave is the first (app) UI for any of it.
+    //
+    // NOTE (real, foreseeable merge conflict, disclosed here on purpose):
+    // this branch (wave6-batch2-construction-pages) was cut from origin/main
+    // BEFORE Wave 6 batch 1's PR (#514: site-diary/RFIs/submittals/
+    // punch-list/scope/labour/expenses) merged, per this wave's own
+    // instructions ("base off main -- independent, not stacked on batch 1's
+    // branch, since batch 1 isn't merged yet either"). Batch 1 added its own
+    // "Construction" section (t("sections.construction.title")) at this
+    // same spot in this same file. Whichever of #514 / this PR merges
+    // second WILL conflict here (and in messages/en.json + messages/hi.json)
+    // -- resolution is a trivial union of the two items[] arrays (and the
+    // two i18n key sets) under one shared "Construction" section, not a
+    // real design conflict. Left as two separate sections instead of
+    // silently guessing at batch 1's still-possibly-changing exact item
+    // list/order.
+    {
+      title: t("sections.constructionDesign.title"),
+      items: [
+        { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
+        { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
+        { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
+        { label: t("sections.constructionDesign.items.changeOrders"), href: "/change-orders", icon: FileSignature },
+        { label: t("sections.constructionDesign.items.workProgress"), href: "/work-progress", icon: Activity },
+        { label: t("sections.constructionDesign.items.dashboard"), href: "/construction-dashboard", icon: Gauge },
+      ],
+    },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
     // real routes/UI this wave) -- gated behind its own 'the_firm' product
     // branch, same reversible-without-redeploy posture as PMS above.

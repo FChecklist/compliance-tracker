@@ -17,6 +17,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/cap-table",
   "/capability-improvements",
   "/capability-registry",
+  "/change-orders",
   "/charges",
   "/chat",
   "/checklists",
@@ -24,6 +25,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/committees",
   "/compliance",
   "/connectors",
+  "/construction-dashboard",
   "/contract-compliance",
   "/crm",
   "/dashboard",
@@ -34,6 +36,8 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/erp",
   "/esg",
   "/fde",
+  "/ffe",
+  "/floor-plans",
   "/fm-register-digitization",
   "/frameworks",
   "/fraud-cases",
@@ -57,6 +61,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/mca-filings",
   "/mdm-quality",
   "/metric-alerts",
+  "/mood-boards",
   "/notices",
   "/orchestra",
   "/penalties",
@@ -90,5 +95,6 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/veri-meetings",
   "/veri-todo",
   "/voice-tickets",
-  "/whistleblower"
+  "/whistleblower",
+  "/work-progress"
 ]
