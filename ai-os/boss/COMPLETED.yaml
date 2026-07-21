@@ -2125,3 +2125,74 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+  - id: WAVE-195
+    title: "audit198 gap-closure wave 2: CI_CD_TESTING / SOLID_ENGINEERING_DISCIPLINE / SECURITY_RLS_ACCESS"
+    date: "2026-07-21"
+    doer: "Claude (Claude Code, this session)"
+    auditor: "PENDING -- per AGENTS.md Rule 7(c) / Operating Rule 6, the agent that did NOT implement this must audit it before/at merge; not self-certified here."
+    summary: >-
+      Owner directive 2026-07-21: close every genuinely-closable gap the
+      audit198 framework (ai-os/scripts/audit198/, PR #522, branch
+      audit198-framework) found for 26 items across CI_CD_TESTING (9),
+      SOLID_ENGINEERING_DISCIPLINE (11), and SECURITY_RLS_ACCESS (6),
+      proven by the audit engine's own re-run, not a claim. A sibling
+      session covered MONITORING_INFRA/TRACEABILITY_AUDIT_LOGGING/
+      RECOVERY_RESILIENCE separately on branch audit198-gap-wave6 -- not
+      duplicated here.
+    result: >-
+      11 of 26 items improved verdict, 0 regressions (verified by
+      programmatically diffing this branch's re-run audit198-results.json
+      against the framework's own committed baseline, item by item):
+      RULE-096/ARTICLE-091/ARTICLE-092 NEEDS_HUMAN_JUDGMENT->POLICY_ONLY
+      (codified a real, dated engineering-priority policy in
+      /opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml, mirrored into this
+      repo's ai-os/CONSTITUTION.yaml so audit198 can cite it);
+      ARTICLE-012/013 NEEDS_HUMAN_JUDGMENT->PARTIALLY_ENFORCED (new
+      scripts/check-hardcoded-config.mjs CI job, real config-driven
+      workflow evidence cited); ARTICLE-060/061/062/067/070/071
+      PARTIALLY_ENFORCED->ENFORCED (independently-verified real mechanisms
+      cited in CONSTITUTION.yaml: proxy.ts auth, policy-enforcement-
+      engine.ts, RLS across 127 migrations, AGENTS.md Rule 6 branch
+      protection, ci.yml's 11 jobs, and docs/SEV1_INCIDENT_RUNBOOK.md's
+      already-existing Vercel Instant Rollback procedure, which the audit
+      engine simply hadn't been pointed at before). Also shipped real new
+      capability without a verdict flip yet (honest remaining gap in each
+      case, documented in CONSTITUTION.yaml): PR template Traceability +
+      Regression-protection sections (ARTICLE-068/075), a real GitHub
+      Issue Form with required repro-step fields (ARTICLE-074), and a
+      real webServer-backed Playwright E2E smoke suite (e2e/smoke.spec.ts,
+      3 tests) replacing the prior Wave 79 zero-test state (ARTICLE-073,
+      unauthenticated-only coverage so far). NOT attempted: ARTICLE-001/
+      009/011/066/093/094 (SOLID items) -- left at their pre-existing
+      PARTIALLY_ENFORCED verdict, no claim made, time-budget reasons
+      stated honestly in the PR.
+    evidence: >-
+      bun run lint: 0 errors (3 pre-existing unrelated warnings). bunx tsc
+      --noEmit: 0 errors. bun test src: 1752 pass / 0 fail (bun test test
+      job in ci.yml itself was fixed to scope to src/ -- bare `bun test`
+      collided with the new e2e/smoke.spec.ts's Playwright test() calls,
+      confirmed by direct reproduction, fixed as a real correctness fix
+      not a workaround). bun run build: exit 0, clean production build.
+      Also found and reverted a real regression this wave introduced and
+      caught before shipping: an evidence-engine.mjs change to broaden
+      phrase-matching caused 32 regressions in OTHER categories (keyword-
+      slot crowding); reverted in full, evidence-engine.mjs is unchanged
+      from the audit198-framework baseline in the shipped PR.
+      Honest gap: .github/workflows/ci.yml's real diff (hardcoded-config-
+      check job, e2e job wired to real tests, unit-tests scoped to src/)
+      could NOT be pushed -- this session's gh OAuth token lacks the
+      `workflow` scope GitHub requires for any push touching
+      .github/workflows/*. Reverted that one file back to its pre-wave
+      content (commit e86e768c) so the rest of the PR could ship; the
+      exact diff is in the PR description for the Owner (or a
+      workflow-scoped session) to apply.
+    pr: "https://github.com/FChecklist/compliance-tracker/pull/536 (base: audit198-framework, head: audit198-gap-wave2-cicd-solid-security)"
+    files_changed: >-
+      .github/pull_request_template.md, .github/workflows/ci.yml (reverted,
+      see honest gap above), .github/ISSUE_TEMPLATE/bug_report.yml (new),
+      ai-os/CONSTITUTION.yaml, ai-os/registry/hardcoded-config-
+      exemptions.yaml (new), ai-os/scripts/audit198/results/*
+      (regenerated), e2e/smoke.spec.ts (new), playwright.config.ts,
+      scripts/check-hardcoded-config.mjs (new). Also updated (outside this
+      repo, server-level, not part of this PR's diff):
+      /opt/veridian/ai-os/AI_ENGINEERING_POLICY.yaml.
