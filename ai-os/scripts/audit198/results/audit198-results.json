@@ -1,7 +1,7 @@
 {
   "meta": {
-    "generated_at": "2026-07-21T09:29:09.981Z",
-    "completed_at": "2026-07-21T09:30:15.219Z",
+    "generated_at": "2026-07-21T11:53:58.010Z",
+    "completed_at": "2026-07-21T11:55:03.301Z",
     "framework": "ai-os/scripts/audit198",
     "source": "ai-os/RULES_ARTICLES_198.json",
     "constitution_cross_reference": "ai-os/CONSTITUTION.yaml",
@@ -9,10 +9,10 @@
     "categories_used": 33,
     "status_counts": {
       "ENFORCED": 22,
-      "PARTIALLY_ENFORCED": 152,
+      "PARTIALLY_ENFORCED": 156,
       "POLICY_ONLY": 0,
       "NOT_APPLICABLE_YET": 0,
-      "NOT_YET_BUILT": 15,
+      "NOT_YET_BUILT": 11,
       "EVIDENCE_UNAVAILABLE": 0,
       "NEEDS_HUMAN_JUDGMENT": 9
     },
@@ -74,7 +74,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -163,7 +163,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -251,7 +251,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -340,7 +340,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -429,7 +429,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -519,7 +519,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -608,7 +608,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -695,7 +695,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -783,7 +783,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -825,7 +825,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -865,7 +865,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -907,7 +907,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -951,7 +951,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -993,7 +993,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1066,7 +1066,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1139,7 +1139,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1213,7 +1213,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1257,7 +1257,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1314,7 +1314,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1401,7 +1401,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1466,7 +1466,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1511,7 +1511,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1571,7 +1571,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1624,7 +1624,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1677,7 +1677,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1730,7 +1730,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1772,7 +1772,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1812,7 +1812,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1902,7 +1902,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -1976,7 +1976,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2063,7 +2063,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2106,7 +2106,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2149,7 +2149,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2195,7 +2195,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2237,7 +2237,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2277,7 +2277,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2320,7 +2320,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2363,7 +2363,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2403,7 +2403,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2478,7 +2478,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2520,7 +2520,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2562,7 +2562,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2602,7 +2602,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2646,7 +2646,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2723,7 +2723,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2779,7 +2779,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2821,7 +2821,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2865,7 +2865,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2911,7 +2911,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -2956,7 +2956,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3013,7 +3013,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3069,7 +3069,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3109,7 +3109,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3151,7 +3151,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3196,7 +3196,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3239,7 +3239,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3326,7 +3326,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3382,7 +3382,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3426,7 +3426,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3472,7 +3472,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3525,7 +3525,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3571,7 +3571,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3629,7 +3629,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3674,7 +3674,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3729,7 +3729,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3771,7 +3771,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3841,7 +3841,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3892,7 +3892,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3941,7 +3941,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -3985,7 +3985,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4027,7 +4027,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4069,7 +4069,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4111,7 +4111,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4155,7 +4155,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4216,7 +4216,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4276,7 +4276,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4330,7 +4330,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4385,7 +4385,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4441,7 +4441,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4498,7 +4498,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4540,7 +4540,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4584,7 +4584,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4626,7 +4626,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4669,7 +4669,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4680,8 +4680,59 @@
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -4715,7 +4766,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4726,8 +4777,59 @@
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -4757,7 +4859,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4799,7 +4901,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4843,7 +4945,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4894,7 +4996,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4937,7 +5039,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -4981,7 +5083,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5042,7 +5144,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5086,7 +5188,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5174,7 +5276,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5217,7 +5319,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5257,7 +5359,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5302,7 +5404,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5390,7 +5492,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5432,7 +5534,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5476,7 +5578,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5522,7 +5624,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5610,7 +5712,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5685,7 +5787,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5743,7 +5845,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5802,7 +5904,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5845,7 +5947,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5889,7 +5991,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5930,7 +6032,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -5985,7 +6087,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6029,7 +6131,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6067,7 +6169,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6106,7 +6208,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6146,7 +6248,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6182,7 +6284,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6223,7 +6325,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6282,7 +6384,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6292,9 +6394,60 @@
       "text": "Every automation shall define rollback procedures.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6320,7 +6473,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6330,9 +6483,60 @@
       "text": "Every transaction shall be atomic wherever technically feasible.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -6358,7 +6562,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6397,7 +6601,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6440,7 +6644,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6481,7 +6685,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6524,7 +6728,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6583,7 +6787,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6635,7 +6839,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6688,7 +6892,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6730,7 +6934,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6771,7 +6975,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6817,7 +7021,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6859,7 +7063,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6898,7 +7102,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6940,7 +7144,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -6984,7 +7188,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7047,7 +7251,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7111,7 +7315,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7177,7 +7381,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7224,7 +7428,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7313,7 +7517,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7349,7 +7553,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7385,7 +7589,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7427,7 +7631,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7470,7 +7674,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7510,7 +7714,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7521,8 +7725,59 @@
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7552,7 +7807,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7563,8 +7818,59 @@
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7592,7 +7898,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7603,8 +7909,59 @@
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -7633,7 +7990,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7690,7 +8047,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7741,7 +8098,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7783,7 +8140,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7822,7 +8179,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7875,7 +8232,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7914,7 +8271,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -7967,7 +8324,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8023,7 +8380,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8073,7 +8430,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8123,7 +8480,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8174,7 +8531,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8223,7 +8580,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8270,7 +8627,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8328,7 +8685,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8379,7 +8736,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8431,7 +8788,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8489,7 +8846,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8546,7 +8903,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8556,9 +8913,60 @@
       "text": "Every deployment shall be reversible without data loss wherever technically feasible.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -8584,7 +8992,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8628,7 +9036,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8696,7 +9104,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8769,7 +9177,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8835,7 +9243,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8903,7 +9311,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -8974,7 +9382,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9046,7 +9454,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9119,7 +9527,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9191,7 +9599,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9262,7 +9670,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9301,7 +9709,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9344,7 +9752,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9401,7 +9809,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9459,7 +9867,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9516,7 +9924,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9527,8 +9935,59 @@
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
       "verdict": "PARTIALLY_ENFORCED",
-      "gap": "Two or more of this item's own extracted keywords co-occur in at least one real file (see coOccurrenceFiles in evidence), but no distinctive phrase, category infra check, or CONSTITUTION.yaml match confirms a complete mechanism -- needs targeted human/automated follow-up.",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9558,7 +10017,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9607,7 +10066,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9617,9 +10076,60 @@
       "text": "Every scheduled job shall detect missed executions and recover automatically whenever feasible.",
       "category": "RECOVERY_RESILIENCE",
       "category_label": "Checkpointing, rollback, graceful failure, resumability",
-      "verdict": "NOT_YET_BUILT",
-      "gap": "No CONSTITUTION.yaml cross-reference, no category infra evidence, and no meaningful keyword-grep signal (only generic/incidental hits, if any) found in the scanned repo -- no evidence a concrete mechanism for this requirement exists in code today.",
+      "verdict": "PARTIALLY_ENFORCED",
+      "gap": "Category-level mechanism exists (see category_infra_check evidence) but this specific item's own wording only matched generic/shared keywords, not a distinctive phrase -- real mechanism likely present, item-level completeness not independently confirmed.",
       "evidence": [
+        {
+          "type": "fileContainsMarkers",
+          "file": "src/lib/services/exception-taxonomy.ts",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "export async function withAutomaticRecovery",
+              "found": true,
+              "line": 36
+            },
+            {
+              "marker": "export function classifyError",
+              "found": true,
+              "line": 16
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "fileContainsMarkers",
+          "file": "ai-os/scripts/missed-execution-detector.py",
+          "exists": true,
+          "markers": [
+            {
+              "marker": "def discover_jobs",
+              "found": true,
+              "line": 119
+            },
+            {
+              "marker": "def attempt_recovery",
+              "found": true,
+              "line": 192
+            }
+          ],
+          "pass": true
+        },
+        {
+          "type": "grepCount",
+          "term": "db.transaction(",
+          "hits": [
+            "src/lib/services/capability-learning-service.ts:247:// Wrapped in a db.transaction() (same pattern as prompt-os-service.ts's",
+            "src/lib/services/capability-learning-service.ts:259:  await db.transaction(async (tx) => {",
+            "src/lib/services/fraud-case-service.ts:57: * connection (see src/lib/db/index.ts), so a nested db.transaction() call",
+            "src/lib/services/prompt-os-service.ts:34:  return db.transaction(async (tx) => {",
+            "src/lib/services/abac-policy-service.ts:125: * same transaction rather than nesting a second db.transaction() on this"
+          ],
+          "fileCount": 4,
+          "totalHits": 5,
+          "threshold": 3,
+          "pass": true
+        },
         {
           "type": "item_keyword_grep",
           "keywords": [
@@ -9647,7 +10157,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9697,7 +10207,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9748,7 +10258,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9791,7 +10301,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9831,7 +10341,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9871,7 +10381,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9913,7 +10423,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9955,7 +10465,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -9995,7 +10505,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10034,7 +10544,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10078,7 +10588,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10120,7 +10630,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10164,7 +10674,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10204,7 +10714,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10248,7 +10758,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10336,7 +10846,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     },
     {
@@ -10381,7 +10891,7 @@
       ],
       "scope": {
         "repo": "FChecklist/compliance-tracker",
-        "repo_root": "/opt/veridian/workspace/audit198-framework"
+        "repo_root": "/opt/veridian/workspace/audit198-gap-wave1-monrec"
       }
     }
   ]
