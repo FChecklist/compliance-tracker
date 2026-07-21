@@ -1111,7 +1111,7 @@ export const workerAgents = platformSchemaDB.table('worker_agents', {
   // column already follows a "Category > Subcategory" convention -- the
   // top-level Category is a real, non-arbitrary department grouping,
   // structurally the same shape as roster.ts's own TeamName enum (a small,
-  // bounded, governable set). See drizzle/0173_worker_agent_domain_groups.sql
+  // bounded, governable set). See drizzle/0256_worker_agent_domain_groups.sql
   // for the full reasoning and the live backfill (0 of 27 rows null as of
   // that migration). Resolved automatically at proposal time by
   // worker-agent-service.ts's resolveDomainGroupKey() -- see its own comment
@@ -1190,7 +1190,7 @@ export const opsDevTasks = platformSchemaDB.table('ops_dev_tasks', {
 })
 
 // Real Agent Hierarchy Registry (AHR) -- see workerAgents.domainGroupId's
-// own comment and drizzle/0173_worker_agent_domain_groups.sql for the full
+// own comment and drizzle/0256_worker_agent_domain_groups.sql for the full
 // reasoning. Deliberately a small, bounded, hand-curated set (like
 // roster.ts's TeamName), not auto-grown by app code at request time --
 // app_runtime only has SELECT on this table at the DB level (RLS), so a

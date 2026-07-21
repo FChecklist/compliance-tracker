@@ -1427,7 +1427,7 @@ entries:
         covered by WAVE-170/PR #251. workerAgents.supervisorWorkerAgentId
         was confirmed dead (0 of then-27 rows populated, no write path) and
         deliberately not resurrected; instead built worker_agent_domain_
-        groups (drizzle/0173_worker_agent_domain_groups.sql, applied live)
+        groups (drizzle/0256_worker_agent_domain_groups.sql, applied live)
         + resolveDomainGroupKey() in worker-agent-service.ts, structurally
         similar to the existing module_registry precedent.
     auditor:
