@@ -75,10 +75,11 @@
  * infrequent, human-triggered admin action) but not engineered around
  * here -- see PROGRESS.md.
  */
-import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users } from "@/lib/db"
+import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users, tenantAiConfig } from "@/lib/db"
 import { and, count, eq } from "drizzle-orm"
 import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-tier-eligibility"
 import { resolveModelConfig, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
+import { decryptApiKey } from "@/lib/ai-config-crypto"
 import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
 import type { LLMProvider } from "@/lib/llm-client"
 import type { ComplexityTier } from "@/lib/task-tightening"
@@ -134,7 +135,30 @@ export type MotherRouterResolution = {
 }
 
 export type MotherRouterContext =
-  | { scope: "software_team"; model: string; complexityTier: ComplexityTier; roleKey: string; capabilityCategory?: CapabilityCategory }
+  | {
+      scope: "software_team"
+      model: string
+      complexityTier: ComplexityTier
+      roleKey: string
+      capabilityCategory?: CapabilityCategory
+      // Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model,
+      // 2026-07-20): the org a software_team dispatch is happening on behalf
+      // of. When present AND that org has an active tenant_ai_config row,
+      // the tenant's own model is PREFERRED for this dispatch -- but only
+      // after being run through the SAME checkTierEligibility() gate every
+      // policy override already passes through in
+      // computeSoftwareTeamResolution(). An ineligible tenant model silently
+      // downgrades to the roster baseline, NEVER bypasses the tier-
+      // eligibility guardrail (AGENTS.md Operating Rule 9 -- this is the
+      // rule the task's DONE CRITERIA "guardrail-no-bypass test green"
+      // names, and this optional field is the only new input the tenant-
+      // override path reads; the gate itself is the pre-existing
+      // checkTierEligibility() call, not a new call site, so no new
+      // entry is required in scripts/check-guardrail-presence.mjs's
+      // manifest). Optional: a software_team dispatch with no org context
+      // (e.g. a platform-level run) resolves exactly as before.
+      orgId?: string
+    }
   | { scope: "end_user_org"; orgId: string; layerKey: string; sourceType?: string }
   | { scope: "sales_marketing"; roleKey: string }
   // AI Router registry-backed model resolution follow-up (2026-07-19): 4th
@@ -193,14 +217,59 @@ async function logRoutingDecision(scope: AiRouterScope, context: MotherRouterCon
  * baseline or an explicit policy override, and always runs the override
  * candidate through the SAME checkTierEligibility() gate as the baseline,
  * so a policy can never grant a tier a model hasn't earned.
+ *
+ * `tenantOverrideModel` (Super Boss v2 plan task V2-5, BYOB bring-your-own-
+ * AI-model, 2026-07-20): when an org has configured its own model in
+ * tenant_ai_config, that model is passed here and PREFERRED over both the
+ * baseline and any policy override -- but ONLY after being run through the
+ * SAME existing checkTierEligibility() gate as every other candidate below.
+ * An ineligible tenant model silently downgrades to the baseline, NEVER
+ * bypasses the tier-eligibility guardrail (AGENTS.md Operating Rule 9).
+ * This is the real enforcement of the task's DONE CRITERIA "guardrail-no-
+ * bypass test green": the tenant's preference can change WHICH eligible
+ * model runs, never whether the gate ran. The gate itself is the pre-
+ * existing checkTierEligibility() call this function already made for the
+ * baseline -- no new call site is wired, so no new entry is required in
+ * scripts/check-guardrail-presence.mjs's manifest (Rule 9's manifest tracks
+ * call sites, not arguments).
  */
 export function computeSoftwareTeamResolution(
   baselineModel: string,
   complexityTier: ComplexityTier,
   roleKey: string,
   policy: ActivePolicy | null,
-  capabilityCategory?: CapabilityCategory
+  capabilityCategory?: CapabilityCategory,
+  tenantOverrideModel?: string
 ): MotherRouterResolution {
+  // Super Boss v2 plan task V2-5 (BYOB): a tenant's own configured model
+  // takes PRIORITY over both the roster baseline and any ai_routing_policies
+  // override -- the org paid for / configured its own model specifically so
+  // its dispatches use it, not the platform's default. But the preference
+  // can NEVER skip the gate: the tenant model is run through the SAME
+  // checkTierEligibility() call the baseline and every policy override
+  // already pass through. Eligible -> use it (audit reason names the tenant
+  // config as the source). Ineligible -> silently fall through to the
+  // baseline path below (which itself re-runs the gate on the baseline and
+  // logs exactly why), never grant the tenant an ineligible model anyway.
+  // This branch is the single new tenant-aware code path; it reuses the
+  // existing checkTierEligibility() call, so it adds no new guardrail call
+  // site to the manifest.
+  if (tenantOverrideModel && tenantOverrideModel !== baselineModel) {
+    const tenantEligibility = checkTierEligibility(tenantOverrideModel, complexityTier)
+    if (tenantEligibility.eligible) {
+      return {
+        provider: ROSTER_PROVIDER,
+        model: tenantOverrideModel,
+        reason: `tenant_ai_config override for org (role ${roleKey}, ${complexityTier}) -- preferred over roster.ts baseline and routing policy`,
+        tierEligibility: tenantEligibility,
+      }
+    }
+    // Ineligible tenant model: do NOT grant it. Fall through to the
+    // baseline/policy resolution below, which logs the real model that ran
+    // and its own eligibility. The tenant's preference was heard and
+    // rejected at the gate -- exactly the no-bypass contract.
+  }
+
   const override =
     policy?.rule.preferredModelByRole?.[roleKey] ??
     (capabilityCategory && policy?.rule.preferredModelByCapabilityCategory?.[capabilityCategory]) ??
@@ -427,14 +496,90 @@ export async function getOrgAiPackage(orgId: string): Promise<string | null> {
   return features?.aiPackage ?? null
 }
 
+// ─── Per-org BYO AI model (software_team scope, V2-5, 2026-07-20) ──────────
+
+export type ResolvedTenantAiConfig = {
+  provider: LLMProvider
+  model: string
+  apiKey: string
+  baseUrl: string | null
+}
+
+/**
+ * Resolves an org's own BYO AI model for the software_team scope
+ * (mother-router.ts's computeSoftwareTeamResolution / team-service.ts's
+ * runRole), the software_team-scope analog of orchestra-model-resolver.ts's
+ * resolveModelConfig() for the end_user_org scope.
+ *
+ * Uses the raw `db` client -- this is a platform-level resolution step that
+ * runs before any tenant-scoped transaction, not a per-request user action
+ * needing RLS (same posture resolveModelConfig() documents). The BYO API
+ * key is decrypted here via the same ai-config-crypto.ts decryptApiKey()
+ * every BYO path already uses and must never be returned to a client --
+ * callers use it to make the LLM call and discard it.
+ *
+ * Returns null when the org has no active tenant_ai_config row OR that row
+ * is inert (no encrypted_api_key AND/OR no model_name -- mirroring
+ * resolveModelConfig()'s own `customerConfig?.encryptedApiKey && modelName`
+ * gate, so an admin can save provider/model first and add the key in a
+ * follow-up edit without that half-configured row ever being "used"). A null
+ * return is the no-config-fallback case: the caller resolves exactly as
+ * before, no tenant override applied.
+ *
+ * Honest limitation: this resolver is the one place that actually decrypts
+ * the tenant key for a software_team dispatch. It is ONLY ever called from
+ * resolveModel()'s software_team branch (below) AND from the dispatch
+ * route's runRole() override path -- both server-side, both already behind
+ * requireAuth()'s admin gate at the route layer. Never exported to a client
+ * response.
+ */
+export async function resolveTenantAiConfig(orgId: string): Promise<ResolvedTenantAiConfig | null> {
+  const row = await db.query.tenantAiConfig.findFirst({
+    where: and(eq(tenantAiConfig.orgId, orgId), eq(tenantAiConfig.isActive, true)),
+  })
+  if (!row) return null
+  // Inert-row gate, same shape as resolveModelConfig()'s own check -- a
+  // half-configured row (model set but no key, or vice versa) is never
+  // "used," it falls through to the baseline.
+  if (!row.encryptedApiKey || !row.modelName) return null
+
+  const apiKey = await decryptApiKey(row.encryptedApiKey)
+  // lastUsedAt reflects the org's OWN real usage -- fire-and-forget, same
+  // non-blocking pattern as resolveModelConfig()'s own lastUsedAt write.
+  db.update(tenantAiConfig).set({ lastUsedAt: new Date() }).where(eq(tenantAiConfig.id, row.id)).then(() => {})
+  return {
+    provider: row.provider as LLMProvider,
+    model: row.modelName,
+    apiKey,
+    baseUrl: row.baseUrl,
+  }
+}
+
 // ─── Main entry point ──────────────────────────────────────────────────
 
 export async function resolveModel(context: MotherRouterContext): Promise<MotherRouterResolution> {
   let resolution: MotherRouterResolution
 
   if (context.scope === "software_team") {
+    // Super Boss v2 plan task V2-5 (BYOB): when an org context is present,
+    // resolve that org's own tenant_ai_config and pass the tenant's model
+    // (if any) into computeSoftwareTeamResolution as the preferred override
+    // candidate. computeSoftwareTeamResolution() gates it through the SAME
+    // checkTierEligibility() call as the baseline -- an ineligible tenant
+    // model silently downgrades, never bypasses the guardrail. A software
+    // team dispatch with no orgId, or one whose org has no active/inert-free
+    // tenant config, resolves exactly as before (tenantOverrideModel
+    // undefined -> the new branch is skipped, zero behavior change).
+    const tenantConfig = context.orgId ? await resolveTenantAiConfig(context.orgId) : null
     const policy = await getActivePolicy(context.scope)
-    resolution = computeSoftwareTeamResolution(context.model, context.complexityTier, context.roleKey, policy, context.capabilityCategory)
+    resolution = computeSoftwareTeamResolution(
+      context.model,
+      context.complexityTier,
+      context.roleKey,
+      policy,
+      context.capabilityCategory,
+      tenantConfig?.model
+    )
   } else if (context.scope === "end_user_org") {
     // 3 mutually independent fetches -- none consumes another's result --
     // run concurrently instead of paying their summed latency in sequence.

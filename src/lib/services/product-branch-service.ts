@@ -5,7 +5,7 @@
 // per-vertical copy -- see MASTER_AI_OS_ARCHITECTURE.md's module-reuse and
 // branch-key rules for why. pms-enablement-service.ts is now a thin
 // wrapper over this file with branchKey: "pms".
-import { orgProductBranchEnablements, productBranches } from "@/lib/db"
+import { orgProductBranchEnablements, organisations, productBranches } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
@@ -45,6 +45,30 @@ export function assertValidLayerKey(branchKey: string, layerKey: string): void {
 export async function isBranchEnabledForOrg(orgId: string, branchKey: string): Promise<boolean> {
   return withTenantContext({ orgId }, async (db) => {
     const branchId = await getBranchId(db, branchKey)
+    // Wave 7 (CRM+PROJEXA-merge plan, 2026-07-21): an org whose entire
+    // brand identity IS this branch (organisations.primaryProductBranchId
+    // -- the same field org-branding-service.ts's resolveBranding() reads
+    // for brandName, Wave 5) is inherently enabled for it, with no
+    // separate paid-add-on enablement row required. This is the real fix
+    // for a reconciling gap the CRM+PROJEXA module-mapping report flagged:
+    // PROJEXA's own /v1/projexa/schedule|board/** routes deliberately
+    // never call requirePmsEnabled() (see that route's own comment --
+    // "pms_issues is PROJEXA's generic task/schedule substrate, not gated
+    // behind the separately-purchased PMS product branch"), while this
+    // repo's OWN /pms/[projectId]/* UI does gate on it -- so a PROJEXA-
+    // branded org could reach the data via PROJEXA's frontend but not via
+    // this repo's own equivalent page. A PROJEXA-branded org's whole
+    // product IS project management; requiring them to also separately
+    // "buy" the pms branch on top of their own brand identity would be
+    // charging twice for the same thing. GRC-only orgs that separately
+    // enable pms as an add-on are completely unaffected -- this only ever
+    // ADDS an enabled=true outcome on top of the existing row-based check,
+    // never removes one.
+    const org = await db.query.organisations.findFirst({
+      where: eq(organisations.id, orgId),
+      columns: { primaryProductBranchId: true },
+    })
+    if (org?.primaryProductBranchId === branchId) return true
     const row = await db.query.orgProductBranchEnablements.findFirst({
       where: and(eq(orgProductBranchEnablements.orgId, orgId), eq(orgProductBranchEnablements.productBranchId, branchId)),
     })
