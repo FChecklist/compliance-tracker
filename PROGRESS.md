@@ -1,24 +1,63 @@
-# PROGRESS -- task-20260720-022706-superboss-v2-plan--verify-and-close-fixe
-
-> Verification DONE (all three CSV rows CLOSED by shipped code). Additive
-> helper-extraction + tests + evidence note DONE. PR being opened.
+# PROGRESS -- task-20260720-022700-superboss-v2-plan--finish-the-uae-countr
 
 ## Completed
-- [x] Read governance (ACTIVE-CLAIMS protocol, plan §1.1/§2 D3-D4, CSV rows #43/#44/#59 / internal 1030/1031/1526)
-- [x] Collision check: no open PR touches target files; prior claims are 3-4 days stale (merged PRs #387/#391, past 4hr abandonment threshold)
-- [x] **Verify Fixed Assets shipped code** — `erp-fixed-assets-service.ts` ships full CRUD (create/update/list/get fixed assets + categories), the shared Approval Workflow Engine for disposal (`startApprovalWorkflow` → `finalizeAssetDisposal` / `markAssetDisposalRejectedFromApproval`), real business-rule validation (depreciation schedule generation: straight-line + declining-balance with mid-period proration + true-up + salvage floor + fully-depreciated-at-acquisition edge case; `isPeriodOpenForDate` gates; `netBookValue>=0` guard; gain/loss + balanced-entry check), and a `draft→in_use→disposed/scrapped` state machine with re-entry guards. `erp-fixed-assets-service.test.ts` already covers the pure depreciation math + the disposal route's role-rank gate. **Rows #43 (CRUD & Approval Workflow, W4 Critical) + #44 (Business Rule & Validation, W5 Critical) = CLOSED.**
-- [x] **Verify Change Orders e-sig auto-transition** — `construction-change-order-service.ts` ships `draft→pending_approval→approved/rejected` via real e-signature (`submitChangeOrderForApproval` → `createSignatureRequest` linkedEntityType:"change_order"); the auto-transition lives in `esignature-service.ts` `submitSignature()` (allSigned → status:"approved") + `declineSignature()` (→ status:"rejected"). One-click `action:"approve"/"reject"` PATCH bypass branches removed (`api/v1/projexa/change-orders/[id]/route.ts` returns 400 directing to signature-status); `markChangeOrderApproved`/`Rejected` deliberately unwired building blocks. PROJEXA repo has its own `api/change-orders` + `app/(app)/change-orders/page.tsx` + `signature-status` route. **Row #59 (CRUD & Approval Workflow / e-sig auto-transition, W4 Medium) = CLOSED.**
-- [x] Register + commit + push claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (commit 178fcd88)
-- [x] **Extract pure transition-decision helpers** from `esignature-service.ts` (behavior-preserving, Tier1): `computeSignatureRequestStatusAfterSign(signers)` (line 51) → `"completed"|"partially_signed"|null`; `changeOrderTransitionAfter(event, linkedEntityType, signers, now)` (line 78) → `null | { status, approvedAt? }`. `submitSignature`/`declineSignature` now call them — no behavior change. Fixed Assets + change-order services untouched.
-- [x] **Add `esignature-service.test.ts`** (17 tests, green): all-signed→completed+approved; single-signer→approved; partial→partially_signed+no transition; decline→rejected (no approvedAt); decline ignores signers; declined signer doesn't count toward completion; non-change_order (document/erp_contract)→no transition; empty signer set→null.
-- [x] Run `bun test` (1831 pass, 0 fail) + `bunx tsc --noEmit` (0 errors project-wide) + lint on changed files (exit 0, clean).
-- [x] **Write evidence note** `ai-os/REVIEW_FRAMEWORK_V2-3_VERIFY_FIXED_ASSETS_CHANGE_ORDERS_2026-07-20.md` citing exact routes/pages/lines closing rows #43/#44/#59; re-scored to No-Gap.
-- [x] Commit + push incrementally.
-
-- [x] Commit + push incrementally.
-- [x] Open PR #490 `V2-3: verify-and-close Fixed Assets + Change Orders` (opened during prior session).
-- [x] **Fix Metadata Index Coverage Check** — evidence note `ai-os/REVIEW_FRAMEWORK_V2-3_VERIFY_FIXED_ASSETS_CHANGE_ORDERS_2026-07-20.md` was neither indexed nor exempted in `ai-os/OS.yaml`; added it to the `health_and_compliance` index with a real `covers` entry (commit + push).
-- [x] **Fix audit-check (Rule 7c/10 merge gate)** — posted structured `AUDIT: PASS` comment on PR #490 with all 8 AuditProtocolFields (Objective Understood / Standards Reviewed / Scope Confirmed / Evidence Recorded / Severity Classified=none / Verdict=pass / Corrective Action Owner / Re-Audit Scheduled).
+- [x] Read governance (ACTIVE-CLAIMS, CONSTITUTION, SUPERBOSS v2 plan §1.1/§2/§4 V2-1)
+- [x] Collision check: no active claim touches UAE engines / compliance-engine-registry.ts / erp-einvoice-service.ts / statutory-rule enum
+- [x] Map existing country-config architecture (finding: scaffolded-but-unwired — see note below)
+- [x] Register ACTIVE-CLAIMS claim + push on its own commit (3810ef9f)
+- [x] Build UAE VAT engine (`src/lib/engines/ae/vat-engine.ts`) — real FTA Decree-Law No. 8/2017 logic (5% standard, zero-rated vs exempt distinction, input-tax recovery apportionment, reverse charge, TRN validation, late-payment penalty, return validation)
+- [x] Build UAE corporate-tax engine (`src/lib/engines/ae/corporate-tax-engine.ts`) — FTA Decree-Law No. 47/2022 (0% ≤ AED 375k, 9% above, 9% on QFZP non-qualifying slice, Pillar Two 15% top-up for MNEs ≥ EUR 750M)
+- [x] Register UAE (`ae`) in `compliance-engine-registry.ts` (wire `getComplianceEngine('AE')`) — per-country slots, not a forced uniform shape
+- [x] Add country-config e-invoice FORMAT path in `erp-einvoice-service.ts` + new `einvoice-format.ts` (UAE FTA Peppol UBL alongside India IRP JSON, chosen on `organisations.country`) + fix the V2-21 per-line `GstRt: 0` gap (real tax-template rate per line)
+- [x] Shared country-config test suite (`country-config.test.ts`) — both IN + AE resolve through `getComplianceEngine()` with no India hardcoding; unregistered country throws
+- [x] E-invoice country-config test suite (`einvoice-format.test.ts`) — both IN + AE resolve through `buildEInvoicePayload`; no IRP schema leaks into AE payload; V2-21 GstRt fix asserted
+- [x] tsc clean / lint clean / guardrail-presence 88 markers / full suite 1842 pass 0 fail / `next build` exit 0
+- [x] Commit + push + open PR (#492)
+- [x] Resume pass: merge `origin/main` (moved since branch point) — PR was CONFLICTING, now MERGEABLE. Conflict was only in governance/tracking files (PROGRESS.md rotating per-task file — kept this branch's V2-1 content; the V2-6 task's progress is in COMPLETED.yaml, not lost). One mechanical indentation fix to the V2-6 entry's `scope_note` key in ACTIVE-CLAIMS.yaml (came in malformed on main via PR #491: `scope_note` at col 2 with no list-marker broke the YAML sequence; indented to col 4 to nest as a fourth key in the V2-6 list item). No V2-1 code files touched by the merge. Re-ran full gauntlet green: tsc 0 / lint 0 err (3 pre-existing warnings) / guardrail 88 / metadata-index 39 / 1842 pass 0 fail / build exit 0.
 
 ## Remaining
-- [ ] Verify all required CI checks green on PR #490 after the OS.yaml push re-triggers CI (Build + the two fixed gates); merge autonomously once genuinely green (Tier1).
+- [ ] Statutory-rule + tax-slab seed for both India and UAE — **DEFERRED, see STATUS note** (Tier2: per-org master-data tables, no country column; not a V2-1 code task)
+
+## STATUS — DONE CRITERION met
+The V2-1 DONE CRITERION ("UAE + India both pass the same country-config
+test suite") **is met**: both countries resolve through one
+`getComplianceEngine()` path (and one `buildEInvoicePayload()` path for
+e-invoicing), each exposes its own real statute slots (no forced uniform
+shape), and an unregistered country still throws rather than silently
+defaulting to India. 28 V2-1 tests green; the full 1842-test suite green;
+tsc/lint/build/guardrail-presence all green.
+
+(A prior resume checkpoint's STATUS said this was WIP with only the VAT
+engine landed — that was stale. The corporate-tax engine, registry wiring,
+e-invoice format module, and both test suites were already built; this
+resume pass fixed one real bug the suite caught — the UAE `schemeID`
+attribute was a sibling of `CompanyID` instead of on it (UBL wants it as an
+attribute of the identifier) — cleaned a malformed JSDoc line, and ran the
+full CI gauntlet to confirm green.)
+
+## Why the statutory-rule/tax-slab seed is deferred
+`erp_statutory_rules` and `erp_income_tax_slabs` are **per-org master data**
+(`orgId NOT NULL`, no `country` column) that the schema comments explicitly
+state must **NEVER be hardcoded in code** ("rates come from a periodic
+government notification … an org must set these up, admin-editable"). The
+existing `src/db/seed.ts` is a one-org demo-data seed and does not seed
+either table today — by design, not by oversight. Seeding India + UAE
+statutory rules would require either a second demo org to attach UAE rows
+to, or a schema change (add a `country`/global-seed column) — both are
+**Tier2** (schema touched), which the task constraints say "always holds
+for Owner sign-off, no exceptions, regardless of audit verdict." The
+genuinely-multi-country code (engines + registry + e-invoice format) is
+the V2-1 work; the per-org statutory master data is a separate tranche.
+
+## Architecture note (starting point, now resolved)
+The "existing country-config abstraction" V2-1 builds "behind" was thin
+and is now wired: `getComplianceEngine()` (`compliance-engine-registry.ts`)
+binds BOTH India (incomeTax/tds/gst) and UAE (vat/corporateTax) with
+per-country slots; `erp-einvoice-service.ts` routes on
+`organisations.country` through `buildEInvoicePayload()` (India IRP JSON
+vs UAE FTA Peppol UBL); the per-line `GstRt` now carries the resolved
+tax-template rate (V2-21 fix). No India hardcoding remains in the service
+path. Production callers of `getComplianceEngine()` remain zero (the
+registry is the abstraction layer for future country packs, not yet
+called from an API route) — wiring a caller is a separate task, not V2-1's
+"prove the architecture generalizes" scope.
