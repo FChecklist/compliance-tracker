@@ -7,7 +7,7 @@ import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-en
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
 import { assembleTightTaskPrompt, type TightTask } from "@/lib/task-tightening"
 import { checkTierEligibility } from "@/lib/model-tier-eligibility"
-import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router"
+import { resolveModel as resolveMotherRouterModel, resolveTenantAiConfig } from "@/lib/ai-router/mother-router"
 import { validateLevelDispatch, capabilityCategoryForLevel, levelEscalatesOnConfidenceThreshold, COMPLEXITY_TIER_FOR_CATEGORY, SOFTWARE_TEAM_LADDER, type SoftwareTeamLevel, type CapabilityCategory } from "@/lib/ai-router/software-team-ladder"
 import { validateInstructionContract, taskTypeForStepCount, WORKER_ESCALATION_CONFIDENCE_THRESHOLD, type InstructionContract, type ExecutionReport, type ExecutionStepStatus } from "@/lib/ai-router/instruction-contract"
 import { registerInstructionContract, recordExecutionReport, getTaskRecord } from "@/lib/ai-router/task-register-service"
@@ -252,6 +252,20 @@ export async function POST(request: NextRequest) {
       // present when the caller declared a level -- an ordinary dispatch
       // with no level keeps resolving purely by tier, unchanged.
       capabilityCategory: resolvedCapabilityCategory,
+      // Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): pass the dispatching
+      // org's id so resolveModel() resolves that org's tenant_ai_config and
+      // prefers its model (if any) inside computeSoftwareTeamResolution() --
+      // still gated through the SAME checkTierEligibility() call as every
+      // other candidate (an ineligible tenant model silently downgrades,
+      // never a guardrail bypass, AGENTS.md Operating Rule 9). This
+      // resolveMotherRouterModel call is fire-and-forget audit-logging only
+      // (its resolution is deliberately NOT consumed as the dispatch model
+      // here -- see the comment block just above); the tenant config that
+      // actually DRIVES the LLM call is resolved once below and threaded
+      // into runRole(), so the same tenant config feeds both the audit log
+      // and the real call. Omitted/undefined when there's no org context
+      // (a platform-level run) -> resolves exactly as before.
+      orgId: orgId ?? undefined,
     }).catch((err) => console.error("[mother-router] audit logging failed (non-fatal):", err))
 
     // AIROUTER-01 Phase 2 (Part B): register the Instruction Contract
@@ -318,6 +332,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): resolve the
+    // dispatching org's own BYO AI config ONCE, here, so the same value
+    // drives both the fire-and-forget Mother Router audit log above (which
+    // decides whether the tenant model is tier-eligible and prefers it) AND
+    // the real runRole() call below (which actually uses it). When the org
+    // has an active, non-inert tenant_ai_config AND that tenant model is
+    // tier-eligible for THIS dispatch's complexityTier, runRole() calls the
+    // tenant's OWN model + key + baseUrl instead of the platform OpenRouter
+    // key.
+    //
+    // GUARDRAIL-NO-BYPASS (the task's DONE CRITERIA, AGENTS.md Operating
+    // Rule 9): the tenant model is run through the SAME checkTierEligibility()
+    // the platform effectiveModel already passed through above. An
+    // ineligible tenant model is SILENTLY DOWNGRADED -- the tenant override
+    // is dropped here and runRole() falls back to the platform effectiveModel
+    // (which already passed the gate at line ~220), never granted anyway.
+    // This is the real dispatch surface's enforcement; the audit-log
+    // resolveMotherRouterModel() call above independently records the same
+    // downgrade reason. The pre-flight tierCheck at line ~220 ran on the
+    // PLATFORM effectiveModel, so a tenant override that replaces it MUST be
+    // re-gated here -- otherwise a tenant could route an ineligible model
+    // past a gate that only saw the platform model. That re-gate is the
+    // `if (!tenantTierCheck.eligible) tenantAiConfig = null` line below.
+    //
+    // Null (no org context, no active/inert-free config, resolution
+    // failure, OR tenant model ineligible for this tier) -> runRole
+    // behaves exactly as before (platform key). Non-fatal: a resolution
+    // failure falls back to the platform path, same posture as every
+    // other best-effort write here.
+    let tenantAiConfig = orgId ? await resolveTenantAiConfig(orgId).catch((err) => {
+      console.error("[dispatch] tenant AI config resolution failed (non-fatal, falling back to platform key):", err)
+      return null
+    }) : null
+    if (tenantAiConfig) {
+      const tenantTierCheck = checkTierEligibility(tenantAiConfig.model, complexityTier!)
+      if (!tenantTierCheck.eligible) {
+        console.warn(`[dispatch] tenant BYO model "${tenantAiConfig.model}" is not eligible for ${complexityTier} tier -- silently downgrading to platform effectiveModel (no guardrail bypass, AGENTS.md Rule 9): ${tenantTierCheck.reason}`)
+        tenantAiConfig = null
+      }
+    }
+
     const platformGuardrails = await runGuardrailLevel("GUARDRAIL_PLATFORM", task)
     const blocked = platformGuardrails.find((g) => /\bBLOCK\b/i.test(g.verdict) || /\bFAIL\b/i.test(g.verdict))
     if (blocked) {
@@ -334,7 +389,7 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    let execution = await runRole(classification.role, task)
+    let execution = await runRole(classification.role, task, tenantAiConfig ?? undefined)
     let retryCount = 0
     // Audit round 2 (GLM-5.2, m7 finding): tokens_used previously reflected
     // only the FINAL retry attempt's usage -- a step that retried once
