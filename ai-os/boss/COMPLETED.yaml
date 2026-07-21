@@ -2402,6 +2402,94 @@ entries:
         present in the service code) but not manually exercised
         end-to-end. Recommended as a follow-up manual QA pass in the PR
         body.
+  - id: WAVE-182
+    title: "CRM+PROJEXA-merge plan Wave 5: brand-name resolution (PROJEXA/THE FIRM) wired into app chrome + fix live pms display-name bug"
+    doer:
+      agent: "claude-code (Super Boss, interactive session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/512 (base: main)"
+      summary: >
+        Wave 5 of the 10-wave CRM-completion + PROJEXA/THE FIRM brand-merge
+        plan (claim registered 2026-07-21 in this file's ACTIVE-CLAIMS.yaml).
+        Owner directive being closed here: brand VERIDIAN AI OS as PROJEXA
+        for Project Management customers and THE FIRM for CA/CS/Legal/Audit
+        customers, same modules, brand-only differences.
+
+        Found and fixed a real, live bug first: platform.product_branches'
+        'pms' row has shown "VERI PROJECTS AI" (confirmed via direct SQL
+        against the production Supabase project, pcrjmlpuqsbocqfwoxod)
+        since drizzle/0040_wave47_brand_refresh_product_names.sql renamed
+        it away from its original "VERIDIAN AI PMS" -- neither name is the
+        Owner's actual PROJEXA directive. Applied a 1-line UPDATE live
+        (migration wave5_fix_pms_display_name) and shipped the same as
+        drizzle/0252_wave5_fix_pms_display_name.sql for repo history.
+        Verified post-fix: pms now reads "PROJEXA". 'the_firm' already read
+        "THE FIRM AI OS" -- close enough to the Owner's "THE FIRM"
+        directive, left untouched.
+
+        Read org-branding-service.ts, firm-enablement-service.ts, and
+        AppShell.tsx/AppSidebar.tsx/AppTopbar.tsx in full before writing
+        anything. Confirmed: (1) no src/middleware.ts exists at all --
+        zero Host-header/tenant-routing infrastructure; (2)
+        organisations.customDomain has been stored-but-explicitly-unrouted
+        since Wave B, per that migration's own header comment; (3)
+        firm-enablement-service.ts's requireFirmEnabled() gates API/feature
+        access only, never app-shell branding; (4) AppSidebar.tsx and
+        AppTopbar.tsx both hardcoded the literal string "VERIDIAN AI" as
+        their wordmark/productName, with zero org- or branch-awareness at
+        all -- a real, previously undocumented gap distinct from the
+        colors/logo branding Wave B already built.
+
+        Built: org-branding-service.ts's resolveBranding() (already "the
+        single place that reads/writes/validates per-org branding" per its
+        own header) gains a brandName field, resolved from
+        organisations.primaryProductBranchId -> product_branches
+        .displayName, falling back to the new DEFAULT_BRAND_NAME =
+        "VERIDIAN AI OS" constant for every org with no primary branch set
+        -- the status quo for every existing GRC-only customer, zero
+        behavior change for them. Threaded through the one real existing
+        path already carrying orgLogoUrl/orgBrandPrimaryColor: use-me.ts's
+        MeResponse type -> /api/me/route.ts -> AppShell.tsx -> both
+        AppSidebar.tsx (desktop SidebarInner + mobile MobileSheetTrigger,
+        via the existing {...props} spread) and AppTopbar.tsx (its own
+        existing useMe() call). An org's own BYOB custom logo+name
+        (orgLogoUrl && orgName) still wins outright in AppSidebar --
+        deliberately unchanged, a more specific per-org customization than
+        a generic product-branch label; brandName only replaces the old
+        hardcoded fallback underneath it.
+
+        Deliberately NOT built, honestly flagged: (1) Host-header/domain-
+        based brand routing (e.g. visiting projexa-ai.com auto-resolving
+        PROJEXA branding with no per-org config) -- correctly belongs to
+        this same plan's later DNS/Vercel cutover wave, once projexa-ai.com
+        is actually aliased to this deployment; building it now would be
+        speculative infrastructure with no real domain to route yet, and
+        primaryProductBranchId alone is sufficient for every org that has
+        one set today. (2) Self-service UI/API to change
+        primaryProductBranchId after org provisioning (currently
+        provisioning-time-only, confirmed by grep -- a real, separate gap,
+        out of this wave's "brand naming + infra" scope, which is about
+        identity resolution, not self-service switching). (3) the_firm's
+        feature-enablement auto-driving the brand-shell -- kept as two
+        deliberately separate concerns (an org can pilot specific THE FIRM
+        features without a full app-wide rebrand).
+
+        Deployed via the same dry-run-verify-deploy Python patch-script
+        pattern used for every prior wave: wrote 1 patch script covering
+        6 files locally, scp'd + ran against a fresh git-worktree copy
+        (wave5-brand, branched off origin/main -- independent of the CRM
+        waves, not stacked), diffed against pre-patch backups to confirm
+        only the intended edits landed, then bun install + bun run build
+        (clean, exit 0, zero TypeScript/compile errors) before commit/
+        push/PR. The live DB fix itself was applied directly via the
+        Supabase MCP's apply_migration (not through this repo's own
+        drizzle-kit, per this session's already-documented drizzle/meta/
+        _journal.json staleness issue) and verified with a follow-up
+        SELECT before the file was even written to the worktree.
+
+        No live end-to-end browser verification (no preview/dev
+        environment available in this SSH-only session) -- flagged
+        explicitly in the PR body as a recommended follow-up.
   # Renumbered from this agent's own WAVE-181 to WAVE-185: WAVE-181/182 are reserved by not-yet-merged Wave 4/5 docs PRs (#511/#513), and WAVE-183/184 by this same audit's Wave 6 batch 1 / Wave 7 entitlement docs PRs (#515/#517) -- none visible to a fresh origin/main checkout. Caveat for whoever merges these: every WAVE-N docs PR in flight this session picked its number the same way (best-effort against a stale origin/main), so final numbering may still need a pass at actual merge time regardless of these fixes.
   - id: WAVE-185
     title: "Wave 7 RECONCILE (2 of 3): construction KPIs folded into KPI Hub, quotation->PO gap closed in ERP procurement; budgets project-scoping confirmed already fine"
