@@ -2676,6 +2676,54 @@ active:
       are Playwright test files in FChecklist/projexa, not these source
       screens) and no collision with any other active: entry. Will move
       this entry to recently_completed once the PR merges.
+  - session_label: "claude-code (task-20260720-022700-superboss-v2-plan--finish-the-uae-countr) -- SUPERBOSS v2 TASK V2-1: Finish the UAE country pack (Multi-Country pluggability proof)"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md TASK V2-1
+      (closes CSV rows #02/#03 + "Country-Specific Compliance" tranche).
+      OBJECTIVE: prove the multi-country architecture generalizes by
+      finishing UAE as the second country behind the existing
+      country-config abstraction, alongside India, with no India-specific
+      hardcoding.
+
+      Findings at claim time (live code read this session): the
+      "existing country-config abstraction" is THIN -- getComplianceEngine()
+      (src/lib/engines/compliance-engine-registry.ts) has ZERO production
+      callers (referenced only in a schema comment), only the in/ (India)
+      engines are registered, organisations.country exists but is unused by
+      the e-invoice path, and erp-einvoice-service.ts is hardcoded to
+      India's IRP schema (TaxSch:"GST"/GSTIN/HSN/gstin.slice(0,2) state
+      code, GstRt:0 per-line -- the V2-21 gap). No UAE/TRN/AE code and no
+      statutory-rule seed exist in this repo. The plan's "UAE tax-field work
+      already started in Priority 19 Part 2" was done in the PROJEXA repo
+      (Workstream C gated GSTIN/GST/income-tax-slab UI fields on
+      country==='IN'), NOT here -- so the compliance-tracker half is
+      genuinely unbuilt.
+
+      Scope (files this task writes): new src/lib/engines/ae/ engines
+      (vat-engine.ts + corporate-tax-engine.ts -- real UAE FTA statute
+      logic, verified against Federal Decree-Law No. 8 of 2017 (VAT) and
+      No. 47 of 2022 (Corporate Tax)); registration in
+      compliance-engine-registry.ts; a country-config e-invoice FORMAT
+      path in erp-einvoice-service.ts (UAE FTA Peppol/JSON alongside
+      India's IRP JSON, chosen on organisations.country); statutory-rule
+      seed for both countries; a shared country-config test suite
+      proving both resolve through getComplianceEngine() with no India
+      hardcoding. Tier classification: additive engines+seed+tests =
+      Tier1 (no schema/auth/RLS/payment/billing/.env change); IF schema
+      is touched (e.g. adding a UAE value to erp_statutory_rule_type enum
+      or a per-line GstRt column for V2-21), that part is Tier2 and
+      holds for Owner sign-off -- supervisor discipline. NO live
+      government-API calls (GSP/FTA portal) -- sandbox-creds half stays
+      deferred per V2-21, payload-generation only.
+
+      Checked this file for collisions before starting: the only
+      UAE-related active entry is Priority 19 Part 2 Workstream B/C
+      (line ~1773), MERGED PR #353+projexa#23, projexa-repo scope -- no
+      file overlap with this compliance-tracker build. No other active
+      claim touches compliance-engine-registry.ts, src/lib/engines/ae/,
+      erp-einvoice-service.ts, or the statutory-rule enum. Will move to
+      recently_completed once the PR merges.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
