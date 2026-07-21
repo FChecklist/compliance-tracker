@@ -40,41 +40,63 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (background task, 2026-07-21) -- Wave 9: migrate PROJEXA's org/user/credential data into compliance-tracker schema"
+  - session_label: "claude-code (background task, 2026-07-21) -- Wave 10: projexa-ai.com DNS/Vercel cutover + Wave 9 credential reverse-link gap [CLOSED, see WAVE-197 in COMPLETED.yaml]"
     claimed_at: "2026-07-21T (this session)"
     claim: |
-      Wave 9 of the VERIDIAN/PROJEXA brand-layer merge (see the 2026-07-21
-      "CRM completion + VERIDIAN/PROJEXA brand-layer merge" claim elsewhere
-      in this file for the full 10-wave plan; Owner gave explicit sign-off
-      to proceed with Waves 9+10 this session). Scope: migrate PROJEXA's
-      own Supabase project (evpckeuxgvahguwsaeul) organizations/memberships/
-      profiles into this repo's compliance schema (compliance.organisations,
-      compliance.users) on project pcrjmlpuqsbocqfwoxod, data-only (no
-      schema/DDL changes). Confirmed via live query: 9 PROJEXA orgs, 88
-      memberships total, all confirmed synthetic/demo/test data (no real
-      paying customers) -- 3 orgs already linked to existing
-      compliance.organisations rows via PROJEXA's own veridian_credentials
-      bridge table (Platform Test Org Alpha/4qtph, Demo Organization,
-      Meridian Construction Group), 6 need new compliance.organisations
-      rows created (Acme Test Construction, Wave4 QA Test Co, Skyline
-      Builders, Meridian Skyline Group, Platform Test Org Alpha/fm6zh, Al
-      Maha Skyline Contracting & Interiors LLC). CORRECTION to this wave's
-      original brief: the correct platform.product_branches row for
-      PROJEXA-provisioned orgs is branch_key='projexa'
-      (5fceebcd-0a7a-4448-ae2b-a72637124f13), confirmed by reading the live
-      POST /api/v1/platform/provision-org route and cross-checking the 3
-      already-linked orgs (all tagged with that branch id, not 'pms').
-      PROJEXA's own database (evpckeuxgvahguwsaeul) is read-only for this
-      task -- rollback source, never written to. Verified via a Supabase
-      branch off pcrjmlpuqsbocqfwoxod before any real-project write.
-      File scope: scripts/wave9-projexa-data-migration.ts (new, one-off
-      data migration script), ai-os/boss/completed-work/wave9-projexa-data-migration.md
-      (new summary), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry),
-      ai-os/boss/COMPLETED.yaml (new WAVE-N entry once merged). No overlap
-      with any other active entry: checked this file fresh
-      (2026-07-21) for "wave 9"/"projexa data migration" -- only the
-      parent plan's own scope description mentions Wave 9, no other
-      session has an active claim on it.
+      Final step of the VERIDIAN/PROJEXA brand-layer merge (see the
+      2026-07-21 "CRM completion + VERIDIAN/PROJEXA brand-layer merge"
+      claim elsewhere in this file for the full 10-wave plan). Owner
+      authorized Waves 9+10 and separately delegated judgment for the
+      remaining decisions. Removed the stale Wave 9 active-claim entry
+      this replaces -- Wave 9's own file
+      (ai-os/boss/completed-work/wave9-projexa-data-migration.md) was
+      already merged to main with no corresponding COMPLETED.yaml entry
+      or claim closure; that gap is closed here alongside this session's
+      own work. Scope: (1) Wave 9 follow-up gap -- Wave 9 created 6 new
+      compliance.organisations rows for 6 PROJEXA orgs but left PROJEXA's
+      own public.veridian_credentials table (evpckeuxgvahguwsaeul)
+      unwritten, so those 6 orgs had no vk_... key/reverse-link. Minted 6
+      real API keys directly (matching provision-org's exact key shape --
+      vk_ + 32 random chars, SHA-256 hash, issued_for_application_id = the
+      real 'projexa' platform_applications row) into
+      compliance.api_keys, and wrote the corresponding organization_id/
+      veridian_org_id/veridian_api_key rows into PROJEXA's own
+      veridian_credentials -- the one explicit exception to Wave 9's
+      read-only posture, per this wave's own brief. Verified via a real
+      HTTPS call (not just a DB check): one new key used as a Bearer
+      token against GET /api/v1/compliance on the live production
+      deployment returned 200 with a correctly org-scoped body. Left the
+      pre-existing orphaned duplicate org (is94gppgpbuwq8jl3m5baame,
+      flagged by Wave 9, no live PROJEXA org points at it) alone with a
+      documented note, per the brief's own few-minutes time-box. (2) DNS
+      cutover -- confirmed projexa-ai.com is registered directly through
+      Vercel (registrar=Vercel, nameservers=ns1/ns2.vercel-dns.com) with
+      fully Vercel-managed DNS resolving to the same shared edge IPs
+      veridian-aios.com already uses, so there is no external
+      registrar/TTL-wait step the way a third-party-DNS domain would need
+      -- the cutover is a Vercel project-to-domain reassignment.
+      Ran `vercel domains add projexa-ai.com veridian-compliance-ai
+      --force` and the same for www.projexa-ai.com, moving both off the
+      old `projexa` Vercel project onto compliance-tracker's
+      `veridian-compliance-ai` project. Did NOT delete/archive the old
+      `projexa` Vercel project or the FChecklist/projexa GitHub repo --
+      both confirmed still present afterward, the deliberate rollback
+      path. Verified live: vercel domains inspect shows the new
+      ownership; curl https://projexa-ai.com/ returns 200 from
+      compliance-tracker's own Next.js app; the new vk_ key from (1) also
+      works through the new domain. Honestly flagged as NOT verified: the
+      anonymous/logged-out marketing "/" page at projexa-ai.com still
+      shows compliance-tracker's default "THE FIRM" branding, not
+      PROJEXA branding -- brand resolution
+      (org-branding-service.ts:resolveBranding()) is org-scoped
+      post-login, not hostname-scoped for anonymous visitors; that's a
+      separate pre-existing gap, not something this wave's brief asked to
+      build. File scope: ai-os/boss/completed-work/wave10-dns-cutover.md
+      (new -- full runbook + rollback steps), ai-os/boss/ACTIVE-CLAIMS.yaml
+      (this entry, closed same-session), ai-os/boss/COMPLETED.yaml (new
+      WAVE-197 entry). No repo code changes -- all work was direct
+      Supabase SQL (via MCP tools) and Vercel CLI operations, documented
+      here for audit trail.
   - session_label: "claude-code (task-20260720-031002-superboss-v2-plan--persistent-vercel-sta) -- SUPERBOSS v2 TASK V2-7: Persistent Vercel staging env + per-env var scoping"
     claimed_at: "2026-07-20T (this session)"
     claim: |
