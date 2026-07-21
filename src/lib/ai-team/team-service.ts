@@ -12,7 +12,7 @@
 
 import { callLLM, callLLMJson, type LLMResult } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
-import { checkCostPolicy } from "./cost-policy"
+import { checkCostPolicy, checkOpenRouterBalance } from "./cost-policy"
 import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 import { resolveEffectiveModel } from "./roster-overrides"
@@ -52,6 +52,17 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
   // upstream of this function. Falls back to role.model (guaranteed
   // non-null by requireCallableRole above) on any resolution failure.
   const effectiveModel = (await resolveEffectiveModel(roleKey)) ?? role.model!
+
+  // Cumulative balance check (2026-07-20, Owner zero-waste directive): the
+  // per-call ceiling below has no memory of prior calls, so it alone
+  // cannot stop many small calls from summing past the platform's actual
+  // funded budget -- the confirmed real mechanism gap behind this account
+  // drifting from its $10 funding intent (PLATFORM_STRATEGY.md §26) to
+  // $40.07 real usage. See cost-policy.ts's checkOpenRouterBalance() for
+  // the full rationale (live-balance check, fails open on network error,
+  // fails closed on a confirmed low balance).
+  const balance = await checkOpenRouterBalance()
+  if (!balance.allowed) throw new Error(`Cost & Policy Engine blocked call to '${roleKey}': ${balance.reason}`)
 
   // Pre-flight cost check uses a rough usage estimate (input length as a
   // token-count proxy) -- good enough to catch a wildly oversized prompt
