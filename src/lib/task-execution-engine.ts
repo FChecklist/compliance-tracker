@@ -15,6 +15,7 @@ import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance
 import { logActivity } from "@/lib/audit";
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
+import { detectKnowledgeGap } from "@/lib/knowledge-sufficiency-gate";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
@@ -2481,6 +2482,34 @@ export async function executeTask(
         taskId,
         role: "assistant",
         content: summaryWithData,
+      });
+
+      // Audit198 gap closure (ARTICLE-040 "every task shall pass through
+      // verification after execution"): confirmed genuinely missing before
+      // this fix -- this free-text planning path (the customer-task
+      // counterpart to /api/ai/team/dispatch/route.ts, which already runs
+      // an equivalent post-execution check via checkQaPreCompletionGate)
+      // called updateTaskStatusAndReflect(..., "completed") unconditionally,
+      // with no verification pass over what the plan actually produced.
+      // Reuses the same two deterministic, already-proven detectors the
+      // dispatch route relies on for its own requiresAudit signal
+      // (detectLowConfidenceResponse/detectKnowledgeGap) against the SAME
+      // content already recorded above -- not a new mechanism, the existing
+      // one wired into a second real call site. Deliberately non-blocking:
+      // ordinary customer tasks have no "pending_review" status to route
+      // into (tasks.status is "completed"|"failed" only -- adding a third
+      // state is a larger, separate schema/UI change outside this gap's
+      // scope, see this PR's own body), but the verification pass now
+      // genuinely RUNS and is DOCUMENTED every time, not silently skipped.
+      const postExecLowConfidence = detectLowConfidenceResponse(summaryWithData);
+      const postExecKnowledgeGap = detectKnowledgeGap(summaryWithData);
+      const verificationNote = postExecLowConfidence.detected || postExecKnowledgeGap.insufficientKnowledge
+        ? `Post-execution verification flagged this plan for review: ${postExecKnowledgeGap.insufficientKnowledge ? `knowledge gap detected ("${postExecKnowledgeGap.matchedPhrase}")` : `low-confidence signal detected ("${postExecLowConfidence.matchedPhrase}")`}. Consider reviewing before relying on it.`
+        : "Post-execution verification passed: no low-confidence or knowledge-gap signal detected in the generated plan.";
+      await db.insert(taskChatMessages).values({
+        taskId,
+        role: "system",
+        content: verificationNote,
       });
 
       await updateTaskStatusAndReflect(db, orgId, taskId, "completed");

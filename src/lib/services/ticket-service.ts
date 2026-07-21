@@ -16,6 +16,7 @@ import { createGuestAccess, resolveActiveGuestAccess } from "./veri-chat-service
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { checkProblemRecordClosure } from "@/lib/rca-closure-gate"
 
 export type TicketContext = { orgId: string; userId: string }
 
@@ -295,6 +296,18 @@ export async function updateProblemRecord(ctx: TicketContext, problemId: string,
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.problemRecords.findFirst({ where: and(eq(problemRecords.id, problemId), eq(problemRecords.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Problem record not found", 404)
+
+    // Audit198 gap closure (ARTICLE-029 "RCA before closure" / ARTICLE-031
+    // "no known defect closed without documented verification"): a problem
+    // record IS this codebase's documented-root-cause record for a known
+    // defect -- see rca-closure-gate.ts's own header for why this was
+    // confirmed genuinely unguarded before this fix. Judges the value that
+    // WOULD be effective after this patch (an in-flight rootCause counts),
+    // not just what's already stored.
+    const effectiveRootCause = patch.rootCause !== undefined ? patch.rootCause : existing.rootCause
+    const closureCheck = checkProblemRecordClosure(patch, effectiveRootCause)
+    if (!closureCheck.allowed) throw new ServiceError(`${closureCheck.reason} ${closureCheck.guidance}`, 422)
+
     const resolvedAt = patch.status === "resolved" ? new Date() : existing.resolvedAt
     const [updated] = await db.update(problemRecords).set({ ...patch, resolvedAt, updatedAt: new Date() }).where(eq(problemRecords.id, problemId)).returning()
     return updated
