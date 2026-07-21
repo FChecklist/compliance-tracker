@@ -4842,3 +4842,38 @@ recently_completed:
     schema/src to ground the gap count. No collision: the v2 plan is a
     fresh doc; the v1 plan (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
     PR #485) is already merged and is being EXTENDED, not duplicated.
+  - session_label: "claude-code (interactive Superboss session, 2026-07-21) -- CRM completion + VERIDIAN/PROJEXA brand-layer merge"
+    claimed_at: "2026-07-21T (this session)"
+    claim: |
+      Owner directive: complete the CRM module to 100%/zero-gaps (dual
+      traditional + mode-pill/chain-selector/chatbox AI-driven UX per
+      veridian-scope-selector-in-home.html), studying Zoho/Odoo/Infisuite
+      reverse-engineering docs (FChecklist/zoho-reverse-engineering,
+      odoo-reverse-engineering, infisuite-reverse-engineering, this same
+      session) as reference, NOT recreating the existing system --
+      completing crm_leads/crm_opportunities/crm_accounts/crm_contacts
+      schema+service+API+page gaps in this repo. Separately: collapse
+      FChecklist/projexa from its own deployed app into a brand-layer
+      instance of this repo (VERIDIAN AI OS = one integrated system,
+      PROJEXA and THE FIRM are sales/marketing brand names for the same
+      modules, not separate codebases) -- domain-resolved brand config,
+      one Vercel deployment, one schema, projexa's own local Postgres
+      (org/auth/local-chat-UI-state only, confirmed via schema.ts read)
+      migrated in, projexa-ai.com's 3 live customer orgs migrated with
+      care, projexa repo archived once cutover is verified.
+      10-wave plan (Wave 0 this claim; Wave 1 CRM schema/service gaps;
+      Wave 2 CRM API routes; Wave 3 CRM pages; Wave 4 chat/capability-tree
+      wiring; Wave 5 brand infra; Wave 6-7 port PROJEXA's own modules;
+      Wave 8 retire PROJEXA's duplicate VeriComposer port; Wave 9 data
+      migration; Wave 10 DNS/Vercel cutover). Waves 1-4 (CRM completion,
+      compliance-tracker-only, additive schema/API/pages, no live-customer
+      risk) dispatched first via AI-OS worker framework. Waves 5-10
+      (brand/PROJEXA merge, touches the live projexa-ai.com customer base)
+      held for explicit Owner sign-off on the brand-config design before
+      any schema/data migration work starts.
+      File scope Waves 1-4: src/lib/db/schema.ts (additive only),
+      src/lib/services/crm-service.ts, crm-accounts-service.ts, new
+      src/app/api/crm/** routes, new src/app/(app)/crm/leads,
+      /opportunities, /contacts pages, src/lib/services/capability-tree-service.ts,
+      src/lib/task-execution-engine.ts. No PROJEXA repo changes in this
+      first batch.
