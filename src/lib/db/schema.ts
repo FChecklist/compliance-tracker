@@ -1163,6 +1163,32 @@ export const workerAgentDomainIndex = platformSchemaDB.table('worker_agent_domai
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Ops-layer task-tracking bridge (2026-07-20) -- mirrors VERIDIAN-DEV
+// (Hetzner ops server) autonomous coding-task state (CONTROLLER.yaml /
+// superboss-register.sqlite) into this DB so it is queryable from the app
+// side. Not org-scoped by design, same convention as workerAgentDomainGroups
+// above -- this is internal engineering work, not customer data. Written
+// only via POST /api/internal/ops-task-sync (OPS_SYNC_SECRET bearer auth,
+// same shared-secret pattern as CRON_SECRET-gated /api/internal/* routes),
+// called from veridian-task.py on the ops server at its existing checkpoint
+// choke point -- app code should treat this table as read-only.
+export const opsDevTasks = platformSchemaDB.table('ops_dev_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  opsTaskId: text('ops_task_id').notNull().unique(),
+  title: text('title').notNull(),
+  repo: text('repo').notNull(),
+  branch: text('branch'),
+  status: text('status').notNull(),
+  prUrl: text('pr_url'),
+  softwareTaskId: text('software_task_id'),
+  aiTaskId: text('ai_task_id'),
+  executionSeconds: integer('execution_seconds'),
+  restartCount: integer('restart_count'),
+  lastCheckpointNote: text('last_checkpoint_note'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSyncedAt: timestamp('last_synced_at').notNull().defaultNow(),
+})
+
 // Real Agent Hierarchy Registry (AHR) -- see workerAgents.domainGroupId's
 // own comment and drizzle/0173_worker_agent_domain_groups.sql for the full
 // reasoning. Deliberately a small, bounded, hand-curated set (like
