@@ -2125,3 +2125,82 @@ entries:
         row and "explicitly not started" note corrected to reflect this
         closure). NOT merged by this session per standing dispatch
         instructions -- left for the supervising session's audit.
+
+  # Numbered WAVE-184 (not 181): WAVE-181/182/183 are already reserved by
+  # this same plan's own not-yet-merged docs PRs (#511, #513, #515). A
+  # fresh origin/main checkout cannot see unmerged PRs, so the real
+  # highest merged id was re-verified live (git show origin/main:...) as
+  # WAVE-180 before picking this number, to avoid the exact collision
+  # already caught and fixed once earlier in this same plan (see the
+  # WAVE-183 entry's own inline comment).
+  - id: WAVE-184
+    title: "CRM+PROJEXA-merge plan Wave 7: brand-primary orgs inherit their own product branch entitlement (schedule/wiki/meetings/timesheets RECONCILE items closed with zero new pages)"
+    doer:
+      agent: "claude-code (Super Boss, interactive session, SSH to VERIDIAN-DEV)"
+      date: "2026-07-21"
+      pr: "https://github.com/FChecklist/compliance-tracker/pull/516 (base: main)"
+      summary: >
+        Wave 7 of the 10-wave CRM-completion + PROJEXA/THE FIRM brand-merge
+        plan. Closes 3 of the "RECONCILE" items the Wave 6 module-mapping
+        report flagged (schedule vs PMS, wiki/meetings vs PMS, timesheets
+        vs PMS) with a single, minimal, high-leverage service-layer fix
+        instead of porting new pages -- deliberately re-scoped down from
+        "port more UI" once the real root cause was understood.
+
+        Root cause, found by reading the actual code rather than assuming:
+        PROJEXA's own /v1/projexa/schedule|board/** routes deliberately
+        never call requirePmsEnabled() -- the route's own comment states
+        pms_issues is PROJEXA's generic task/schedule substrate, not gated
+        behind the separately-purchased PMS product branch. But this
+        repo's OWN /pms/[projectId]/* UI (board/sprints/roadmap/budgets/
+        issues/time/wiki/meetings -- already fully built, confirmed via
+        the Wave 6 report) DOES gate on requirePmsEnabled(). Net effect: a
+        PROJEXA-branded org could already reach this exact data through
+        PROJEXA's own frontend, but not through this repo's own,
+        already-built equivalent page -- porting yet more pages would not
+        have fixed this; the gate itself was the problem.
+
+        Fix: product-branch-service.ts's isBranchEnabledForOrg() -- the
+        single shared chokepoint behind isPmsEnabledForOrg()/
+        isFirmEnabledForOrg(), every require*Enabled() route gate across
+        the whole app, and /api/me's pmsEnabled/firmEnabled flags (which
+        drive AppSidebar.tsx nav visibility) -- now also returns true when
+        organisations.primaryProductBranchId equals the branch being
+        checked. Same field Wave 5's brandName resolution already reads
+        (PR #512). An org whose entire brand identity IS a product branch
+        is inherently entitled to it -- requiring a separate paid-add-on
+        enablement row on top of that would be charging twice for the same
+        thing. GRC-only orgs that separately enable pms/the_firm as an
+        add-on are completely unaffected: this only ever ADDS an
+        enabled=true outcome on top of the existing row-based check, never
+        removes or weakens one. Generalizes correctly to THE FIRM branch
+        too, not just pms, since both wrap the same shared function.
+
+        Single-file change (product-branch-service.ts), zero schema/
+        migration change, zero new pages -- unlocks the already-existing,
+        already-tested /pms/[projectId]/* UI for PROJEXA-branded orgs
+        immediately once merged.
+
+        Deliberately NOT done, honestly flagged: getBranchEnablement()
+        (the settings-page toggle-state read) still only reflects the
+        row-based enablement, not brand-inherited access -- a PROJEXA-
+        branded org admin could see a "PMS: off" toggle in Settings while
+        the feature actually works via brand inheritance. This is a
+        display-truthfulness nuance, not an access-control gap
+        (isBranchEnabledForOrg() is the real gate everywhere and is
+        correct) -- left for a follow-up settings-UI pass rather than
+        scope-creeping into UI copy changes here.
+
+        Deployed via the same dry-run-verify-deploy Python patch-script
+        pattern used for every prior wave this session: wrote 1 patch
+        script, scp'd + ran against a fresh git-worktree copy
+        (wave7-entitlement, branched off origin/main -- independent, not
+        stacked), diffed against a pre-patch backup to confirm only the
+        intended edit landed, then bun install + bun run build (clean,
+        exit 0, zero TypeScript/compile errors) before commit/push/PR.
+
+        No live end-to-end verification (no preview/dev environment
+        available in this SSH-only session) -- flagged explicitly in the
+        PR body as a recommended follow-up (create a test org with
+        primaryProductBranchId set to the pms branch, confirm
+        /pms/[projectId]/board now loads without a 403).
