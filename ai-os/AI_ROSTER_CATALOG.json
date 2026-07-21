@@ -1,0 +1,1609 @@
+{
+  "generated_by": "extract-ai-roster-catalog.mjs (dynamic import of the real AI_TEAM_ROSTER export, not AI-written)",
+  "source_file": "/opt/veridian/repos/compliance-tracker/src/lib/ai-team/roster.ts",
+  "role_count": 195,
+  "by_team": {
+    "HUMAN": 3,
+    "VERIDIAN_AI_OS": 5,
+    "ENGINEERING": 11,
+    "QUALITY_SAFETY": 2,
+    "LEGAL_COMPLIANCE": 1,
+    "DATA_TEAM": 2,
+    "CUSTOMER_SETUP": 4,
+    "CUSTOMER_SUPPORT": 3,
+    "SALES_MARKETING": 5,
+    "GLOBAL_REVENUE_OPERATIONS": 1,
+    "FINANCE": 5,
+    "HR": 3,
+    "ADMIN": 2,
+    "AUDIT_EXECUTIVE": 1,
+    "GUARDRAIL_PLATFORM": 4,
+    "GUARDRAIL_PRODUCT": 4,
+    "GUARDRAIL_ACCOUNT": 3,
+    "GUARDRAIL_USER": 3,
+    "EXECUTIVE_LADDER": 3,
+    "AUDIT_ENG_ASSURANCE": 25,
+    "AUDIT_BUSINESS_ASSURANCE": 31,
+    "AUDIT_KNOWLEDGE_INTELLIGENCE": 24,
+    "AUDIT_GOVERNANCE_COMPLIANCE": 23,
+    "AUDIT_GLOBAL_REVENUE": 27
+  },
+  "by_model": {
+    "(human, no model)": 3,
+    "z-ai/glm-5.2": 45,
+    "(code_only, no model)": 2,
+    "deepseek/deepseek-v4-pro": 3,
+    "z-ai/glm-5v-turbo": 2,
+    "google/gemini-2.5-pro": 2,
+    "openai/gpt-oss-120b": 2,
+    "z-ai/glm-5-turbo": 136
+  },
+  "code_only_role_count": 2,
+  "human_role_count": 3,
+  "llm_backed_role_count": 190,
+  "guardrail_role_keys": [
+    "chief_governance_officer",
+    "security_threat_analyst",
+    "ai_safety_auditor",
+    "cost_governance_officer",
+    "product_policy_manager",
+    "architecture_compliance_reviewer",
+    "quality_gate_manager_guardrail",
+    "documentation_compliance",
+    "account_compliance_manager",
+    "data_privacy_officer",
+    "ai_budget_controller",
+    "user_permission_manager",
+    "ai_response_validator",
+    "audit_activity_monitor"
+  ],
+  "audit_organization_role_keys": [
+    "engineering_assurance_division_head",
+    "software_quality_auditor",
+    "static_analysis_auditor",
+    "maintainability_auditor",
+    "code_duplication_auditor",
+    "dependency_auditor",
+    "build_auditor",
+    "testing_auditor",
+    "regression_auditor",
+    "deployment_auditor",
+    "security_auditor",
+    "owasp_auditor",
+    "identity_auditor",
+    "encryption_auditor",
+    "secrets_auditor",
+    "architecture_auditor",
+    "design_pattern_auditor",
+    "api_auditor",
+    "database_auditor",
+    "microservice_auditor",
+    "evidence_auditor",
+    "git_auditor",
+    "commit_auditor",
+    "artifact_auditor",
+    "release_auditor",
+    "business_assurance_division_head",
+    "functional_auditor",
+    "business_rule_auditor",
+    "input_auditor",
+    "output_auditor",
+    "validation_auditor",
+    "workflow_auditor",
+    "acceptance_criteria_auditor",
+    "ux_auditor",
+    "journey_auditor",
+    "navigation_auditor",
+    "accessibility_auditor",
+    "response_quality_auditor",
+    "approval_auditor",
+    "process_auditor",
+    "automation_auditor",
+    "exception_auditor",
+    "report_auditor",
+    "dashboard_auditor",
+    "formula_auditor",
+    "bi_auditor",
+    "export_auditor",
+    "analytics_auditor",
+    "kpi_auditor",
+    "sales_workflow_auditor",
+    "crm_auditor",
+    "pricing_auditor",
+    "quote_auditor",
+    "invoice_auditor",
+    "commission_auditor",
+    "subscription_auditor",
+    "knowledge_intelligence_division_head",
+    "knowledge_auditor",
+    "knowledge_librarian",
+    "knowledge_classification_auditor",
+    "knowledge_integrity_auditor",
+    "technical_documentation_auditor",
+    "functional_documentation_auditor",
+    "user_documentation_auditor",
+    "api_documentation_auditor",
+    "sop_auditor",
+    "prompt_auditor",
+    "prompt_evolution_auditor",
+    "memory_auditor",
+    "learning_auditor",
+    "knowledge_improvement_auditor",
+    "decision_auditor",
+    "reasoning_auditor",
+    "confidence_auditor",
+    "hallucination_auditor",
+    "bias_auditor",
+    "improvement_auditor",
+    "optimization_auditor",
+    "loop_engineering_auditor",
+    "lessons_learned_auditor",
+    "governance_compliance_division_head",
+    "governance_auditor",
+    "policy_auditor",
+    "authority_auditor",
+    "delegation_auditor",
+    "compliance_auditor",
+    "guardrail_auditor",
+    "regulatory_auditor",
+    "retention_auditor",
+    "risk_auditor",
+    "operational_risk_auditor",
+    "ai_risk_auditor",
+    "security_risk_auditor",
+    "business_continuity_auditor",
+    "control_auditor",
+    "segregation_of_duties_auditor",
+    "access_auditor",
+    "change_control_auditor",
+    "performance_auditor",
+    "sla_auditor",
+    "efficiency_auditor",
+    "productivity_auditor",
+    "capacity_auditor",
+    "global_revenue_division_head",
+    "sales_process_auditor",
+    "lead_auditor",
+    "opportunity_auditor",
+    "proposal_auditor",
+    "contract_auditor",
+    "gst_auditor",
+    "tax_auditor",
+    "payment_auditor",
+    "refund_auditor",
+    "credit_note_auditor",
+    "renewal_auditor",
+    "upgrade_auditor",
+    "downgrade_auditor",
+    "cancellation_auditor",
+    "revenue_recognition_auditor",
+    "forecast_auditor",
+    "margin_auditor",
+    "profitability_auditor",
+    "cash_flow_auditor",
+    "variance_auditor",
+    "customer_health_auditor",
+    "renewal_risk_auditor",
+    "churn_auditor",
+    "upsell_auditor",
+    "cross_sell_auditor",
+    "customer_lifetime_value_auditor"
+  ],
+  "operational_role_keys": [
+    "ceo_technical_director",
+    "senior_backend_engineer",
+    "governance_backend_engineer",
+    "fullstack_developer",
+    "frontend_engineer",
+    "devops_engineer",
+    "qa_engineer",
+    "research_analyst",
+    "documentation_specialist",
+    "escalation_second_opinion",
+    "tool_integration_engineer",
+    "security_code_reviewer",
+    "quality_gate_manager",
+    "legal_counsel_privacy",
+    "data_architect_scientist",
+    "data_quality_checker",
+    "implementation_pm",
+    "integration_migration",
+    "uat_qa_engineer",
+    "training_documentation",
+    "l2_technical_support",
+    "l1_support_faq_bot",
+    "knowledge_manager",
+    "strategy_proposals",
+    "content_director",
+    "analytics_seo",
+    "creative_social_media",
+    "sdr_email_marketer",
+    "chief_revenue_officer",
+    "cfo_financial_planning",
+    "billing_sub_manager",
+    "internal_auditor",
+    "accounts_payable_receivable",
+    "token_usage_analyst",
+    "chro_performance",
+    "recruitment",
+    "onboarding_payroll",
+    "administration_manager",
+    "procurement_vendor_mgmt"
+  ],
+  "roles": [
+    {
+      "roleKey": "founder_ceo",
+      "team": "HUMAN",
+      "title": "Founder & CEO",
+      "model": null,
+      "promptKey": null,
+      "isHuman": true,
+      "escalationLevel": "L5"
+    },
+    {
+      "roleKey": "executive_advisor",
+      "team": "HUMAN",
+      "title": "Executive Advisor (Interactive — Claude Desktop, not API-dispatched)",
+      "model": null,
+      "promptKey": null,
+      "isHuman": true
+    },
+    {
+      "roleKey": "super_boss",
+      "team": "HUMAN",
+      "title": "Super Boss / Executive Director (Claude Desktop Sonnet 5.0 — Interactive, not API-dispatched, AGENTS.md's named top-of-ladder agent)",
+      "model": null,
+      "promptKey": null,
+      "isHuman": true,
+      "escalationLevel": "L4"
+    },
+    {
+      "roleKey": "ai_router",
+      "team": "VERIDIAN_AI_OS",
+      "title": "AI Router / Task Classifier",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.ai_router"
+    },
+    {
+      "roleKey": "project_manager",
+      "team": "VERIDIAN_AI_OS",
+      "title": "Project Manager",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.project_manager"
+    },
+    {
+      "roleKey": "workflow_orchestrator",
+      "team": "VERIDIAN_AI_OS",
+      "title": "Workflow Orchestrator",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.workflow_orchestrator"
+    },
+    {
+      "roleKey": "github_issue_planner",
+      "team": "VERIDIAN_AI_OS",
+      "title": "GitHub Issue Planner",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.github_issue_planner"
+    },
+    {
+      "roleKey": "cost_policy_engine",
+      "team": "VERIDIAN_AI_OS",
+      "title": "Cost & Policy Engine (under AI Router control)",
+      "model": null,
+      "promptKey": null,
+      "isCodeOnly": true
+    },
+    {
+      "roleKey": "ceo_technical_director",
+      "team": "ENGINEERING",
+      "title": "CEO / Technical Director",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.ceo_technical_director"
+    },
+    {
+      "roleKey": "senior_backend_engineer",
+      "team": "ENGINEERING",
+      "title": "Senior Backend Engineer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.senior_backend_engineer"
+    },
+    {
+      "roleKey": "governance_backend_engineer",
+      "team": "ENGINEERING",
+      "title": "Governance Backend Engineer (DeepSeek V4 Pro)",
+      "model": "deepseek/deepseek-v4-pro",
+      "promptKey": "ai_team.governance_backend_engineer"
+    },
+    {
+      "roleKey": "fullstack_developer",
+      "team": "ENGINEERING",
+      "title": "Full Stack Developer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.fullstack_developer"
+    },
+    {
+      "roleKey": "frontend_engineer",
+      "team": "ENGINEERING",
+      "title": "Frontend Engineer",
+      "model": "z-ai/glm-5v-turbo",
+      "promptKey": "ai_team.frontend_engineer"
+    },
+    {
+      "roleKey": "devops_engineer",
+      "team": "ENGINEERING",
+      "title": "DevOps / Data Engineer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.devops_engineer"
+    },
+    {
+      "roleKey": "qa_engineer",
+      "team": "ENGINEERING",
+      "title": "QA Engineer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.qa_engineer"
+    },
+    {
+      "roleKey": "research_analyst",
+      "team": "ENGINEERING",
+      "title": "Research Analyst",
+      "model": "google/gemini-2.5-pro",
+      "promptKey": "ai_team.research_analyst"
+    },
+    {
+      "roleKey": "documentation_specialist",
+      "team": "ENGINEERING",
+      "title": "Documentation Specialist",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.documentation_specialist"
+    },
+    {
+      "roleKey": "escalation_second_opinion",
+      "team": "ENGINEERING",
+      "title": "Escalation / Second Opinion",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.escalation_second_opinion"
+    },
+    {
+      "roleKey": "tool_integration_engineer",
+      "team": "ENGINEERING",
+      "title": "Tool Integration Engineer (GPT-OSS-120B)",
+      "model": "openai/gpt-oss-120b",
+      "promptKey": "ai_team.tool_integration_engineer"
+    },
+    {
+      "roleKey": "security_code_reviewer",
+      "team": "QUALITY_SAFETY",
+      "title": "Security & Code Reviewer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.security_code_reviewer"
+    },
+    {
+      "roleKey": "quality_gate_manager",
+      "team": "QUALITY_SAFETY",
+      "title": "Quality Gate Manager",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.quality_gate_manager"
+    },
+    {
+      "roleKey": "legal_counsel_privacy",
+      "team": "LEGAL_COMPLIANCE",
+      "title": "Legal Counsel / Privacy",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.legal_counsel_privacy"
+    },
+    {
+      "roleKey": "data_architect_scientist",
+      "team": "DATA_TEAM",
+      "title": "Data Architect / Scientist",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.data_architect_scientist"
+    },
+    {
+      "roleKey": "data_quality_checker",
+      "team": "DATA_TEAM",
+      "title": "Data Quality Checker",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.data_quality_checker"
+    },
+    {
+      "roleKey": "implementation_pm",
+      "team": "CUSTOMER_SETUP",
+      "title": "Implementation PM",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.implementation_pm"
+    },
+    {
+      "roleKey": "integration_migration",
+      "team": "CUSTOMER_SETUP",
+      "title": "Integration / Migration",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.integration_migration"
+    },
+    {
+      "roleKey": "uat_qa_engineer",
+      "team": "CUSTOMER_SETUP",
+      "title": "UAT & QA Engineer",
+      "model": "z-ai/glm-5v-turbo",
+      "promptKey": "ai_team.uat_qa_engineer"
+    },
+    {
+      "roleKey": "training_documentation",
+      "team": "CUSTOMER_SETUP",
+      "title": "Training & Documentation",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.training_documentation"
+    },
+    {
+      "roleKey": "l2_technical_support",
+      "team": "CUSTOMER_SUPPORT",
+      "title": "L2 Technical Support",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.l2_technical_support"
+    },
+    {
+      "roleKey": "l1_support_faq_bot",
+      "team": "CUSTOMER_SUPPORT",
+      "title": "L1 Support / FAQ Bot",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.l1_support_faq_bot"
+    },
+    {
+      "roleKey": "knowledge_manager",
+      "team": "CUSTOMER_SUPPORT",
+      "title": "Knowledge Manager",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.knowledge_manager"
+    },
+    {
+      "roleKey": "strategy_proposals",
+      "team": "SALES_MARKETING",
+      "title": "Strategy & Proposals",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.strategy_proposals"
+    },
+    {
+      "roleKey": "content_director",
+      "team": "SALES_MARKETING",
+      "title": "Content Director",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.content_director"
+    },
+    {
+      "roleKey": "analytics_seo",
+      "team": "SALES_MARKETING",
+      "title": "Analytics & SEO",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.analytics_seo"
+    },
+    {
+      "roleKey": "creative_social_media",
+      "team": "SALES_MARKETING",
+      "title": "Creative / Social Media",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.creative_social_media"
+    },
+    {
+      "roleKey": "sdr_email_marketer",
+      "team": "SALES_MARKETING",
+      "title": "SDR / Email Marketer",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.sdr_email_marketer"
+    },
+    {
+      "roleKey": "chief_revenue_officer",
+      "team": "GLOBAL_REVENUE_OPERATIONS",
+      "title": "Chief Revenue Officer (CRO) -- Sales/CRM/Billing Operations",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.chief_revenue_officer"
+    },
+    {
+      "roleKey": "cfo_financial_planning",
+      "team": "FINANCE",
+      "title": "CFO / Financial Planning",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.cfo_financial_planning"
+    },
+    {
+      "roleKey": "billing_sub_manager",
+      "team": "FINANCE",
+      "title": "Billing & Subscription Manager",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.billing_sub_manager"
+    },
+    {
+      "roleKey": "internal_auditor",
+      "team": "FINANCE",
+      "title": "Internal Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.internal_auditor"
+    },
+    {
+      "roleKey": "accounts_payable_receivable",
+      "team": "FINANCE",
+      "title": "Accounts Payable / Receivable",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.accounts_payable_receivable"
+    },
+    {
+      "roleKey": "token_usage_analyst",
+      "team": "FINANCE",
+      "title": "Token Usage Analyst",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.token_usage_analyst"
+    },
+    {
+      "roleKey": "chro_performance",
+      "team": "HR",
+      "title": "CHRO / Performance",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.chro_performance"
+    },
+    {
+      "roleKey": "recruitment",
+      "team": "HR",
+      "title": "Recruitment",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.recruitment"
+    },
+    {
+      "roleKey": "onboarding_payroll",
+      "team": "HR",
+      "title": "Onboarding / Payroll",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.onboarding_payroll"
+    },
+    {
+      "roleKey": "administration_manager",
+      "team": "ADMIN",
+      "title": "Administration Manager",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.administration_manager"
+    },
+    {
+      "roleKey": "procurement_vendor_mgmt",
+      "team": "ADMIN",
+      "title": "Procurement / Vendor Management",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.procurement_vendor_mgmt"
+    },
+    {
+      "roleKey": "chief_audit_officer",
+      "team": "AUDIT_EXECUTIVE",
+      "title": "Chief Audit Officer (DeepSeek V4 Pro)",
+      "model": "deepseek/deepseek-v4-pro",
+      "promptKey": "ai_team.chief_audit_officer"
+    },
+    {
+      "roleKey": "chief_governance_officer",
+      "team": "GUARDRAIL_PLATFORM",
+      "title": "Chief Governance Officer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.chief_governance_officer"
+    },
+    {
+      "roleKey": "security_threat_analyst",
+      "team": "GUARDRAIL_PLATFORM",
+      "title": "Security & Threat Analyst",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.security_threat_analyst"
+    },
+    {
+      "roleKey": "ai_safety_auditor",
+      "team": "GUARDRAIL_PLATFORM",
+      "title": "AI Safety Auditor",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.ai_safety_auditor"
+    },
+    {
+      "roleKey": "cost_governance_officer",
+      "team": "GUARDRAIL_PLATFORM",
+      "title": "Cost Governance Officer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.cost_governance_officer"
+    },
+    {
+      "roleKey": "product_policy_manager",
+      "team": "GUARDRAIL_PRODUCT",
+      "title": "Product Policy Manager",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.product_policy_manager"
+    },
+    {
+      "roleKey": "architecture_compliance_reviewer",
+      "team": "GUARDRAIL_PRODUCT",
+      "title": "Architecture Compliance Reviewer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.architecture_compliance_reviewer"
+    },
+    {
+      "roleKey": "quality_gate_manager_guardrail",
+      "team": "GUARDRAIL_PRODUCT",
+      "title": "Quality Gate Manager (Guardrail)",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.quality_gate_manager_guardrail"
+    },
+    {
+      "roleKey": "documentation_compliance",
+      "team": "GUARDRAIL_PRODUCT",
+      "title": "Documentation Compliance",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.documentation_compliance"
+    },
+    {
+      "roleKey": "account_compliance_manager",
+      "team": "GUARDRAIL_ACCOUNT",
+      "title": "Account Compliance Manager",
+      "model": "google/gemini-2.5-pro",
+      "promptKey": "ai_team.account_compliance_manager"
+    },
+    {
+      "roleKey": "data_privacy_officer",
+      "team": "GUARDRAIL_ACCOUNT",
+      "title": "Data Privacy Officer",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.data_privacy_officer"
+    },
+    {
+      "roleKey": "ai_budget_controller",
+      "team": "GUARDRAIL_ACCOUNT",
+      "title": "AI Budget Controller",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.ai_budget_controller"
+    },
+    {
+      "roleKey": "user_permission_manager",
+      "team": "GUARDRAIL_USER",
+      "title": "User Permission Manager (VERIDIAN Policy Engine)",
+      "model": null,
+      "promptKey": null,
+      "isCodeOnly": true
+    },
+    {
+      "roleKey": "ai_response_validator",
+      "team": "GUARDRAIL_USER",
+      "title": "AI Response Validator",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.ai_response_validator"
+    },
+    {
+      "roleKey": "audit_activity_monitor",
+      "team": "GUARDRAIL_USER",
+      "title": "Audit & Activity Monitor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.audit_activity_monitor"
+    },
+    {
+      "roleKey": "chief_operating_officer",
+      "team": "EXECUTIVE_LADDER",
+      "title": "Chief Operating Officer (COO)",
+      "model": "deepseek/deepseek-v4-pro",
+      "promptKey": "ai_team.chief_operating_officer",
+      "escalationLevel": "L3"
+    },
+    {
+      "roleKey": "chief_execution_engine",
+      "team": "EXECUTIVE_LADDER",
+      "title": "Chief Execution Engine (CEE)",
+      "model": "openai/gpt-oss-120b",
+      "promptKey": "ai_team.chief_execution_engine",
+      "escalationLevel": "L0"
+    },
+    {
+      "roleKey": "chief_software_engineering_officer",
+      "team": "EXECUTIVE_LADDER",
+      "title": "Chief Software Engineering Officer (CSEO)",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.chief_software_engineering_officer"
+    },
+    {
+      "roleKey": "engineering_assurance_division_head",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Engineering Assurance Division Head",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.engineering_assurance_division_head"
+    },
+    {
+      "roleKey": "software_quality_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Software Quality Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.software_quality_auditor"
+    },
+    {
+      "roleKey": "static_analysis_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Static Analysis Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.static_analysis_auditor"
+    },
+    {
+      "roleKey": "maintainability_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Maintainability Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.maintainability_auditor"
+    },
+    {
+      "roleKey": "code_duplication_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Code Duplication Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.code_duplication_auditor"
+    },
+    {
+      "roleKey": "dependency_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Dependency Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.dependency_auditor"
+    },
+    {
+      "roleKey": "build_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Build Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.build_auditor"
+    },
+    {
+      "roleKey": "testing_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Testing Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.testing_auditor"
+    },
+    {
+      "roleKey": "regression_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Regression Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.regression_auditor"
+    },
+    {
+      "roleKey": "deployment_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Deployment Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.deployment_auditor"
+    },
+    {
+      "roleKey": "security_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Security Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.security_auditor"
+    },
+    {
+      "roleKey": "owasp_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "OWASP Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.owasp_auditor"
+    },
+    {
+      "roleKey": "identity_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Identity Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.identity_auditor"
+    },
+    {
+      "roleKey": "encryption_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Encryption Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.encryption_auditor"
+    },
+    {
+      "roleKey": "secrets_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Secrets Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.secrets_auditor"
+    },
+    {
+      "roleKey": "architecture_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Architecture Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.architecture_auditor"
+    },
+    {
+      "roleKey": "design_pattern_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Design Pattern Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.design_pattern_auditor"
+    },
+    {
+      "roleKey": "api_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "API Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.api_auditor"
+    },
+    {
+      "roleKey": "database_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Database Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.database_auditor"
+    },
+    {
+      "roleKey": "microservice_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Microservice Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.microservice_auditor"
+    },
+    {
+      "roleKey": "evidence_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Evidence Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.evidence_auditor"
+    },
+    {
+      "roleKey": "git_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Git Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.git_auditor"
+    },
+    {
+      "roleKey": "commit_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Commit Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.commit_auditor"
+    },
+    {
+      "roleKey": "artifact_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Artifact Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.artifact_auditor"
+    },
+    {
+      "roleKey": "release_auditor",
+      "team": "AUDIT_ENG_ASSURANCE",
+      "title": "Release Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.release_auditor"
+    },
+    {
+      "roleKey": "business_assurance_division_head",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Business Assurance Division Head",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.business_assurance_division_head"
+    },
+    {
+      "roleKey": "functional_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Functional Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.functional_auditor"
+    },
+    {
+      "roleKey": "business_rule_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Business Rule Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.business_rule_auditor"
+    },
+    {
+      "roleKey": "input_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Input Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.input_auditor"
+    },
+    {
+      "roleKey": "output_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Output Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.output_auditor"
+    },
+    {
+      "roleKey": "validation_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Validation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.validation_auditor"
+    },
+    {
+      "roleKey": "workflow_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Workflow Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.workflow_auditor"
+    },
+    {
+      "roleKey": "acceptance_criteria_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Acceptance Criteria Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.acceptance_criteria_auditor"
+    },
+    {
+      "roleKey": "ux_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "UX Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.ux_auditor"
+    },
+    {
+      "roleKey": "journey_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Journey Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.journey_auditor"
+    },
+    {
+      "roleKey": "navigation_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Navigation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.navigation_auditor"
+    },
+    {
+      "roleKey": "accessibility_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Accessibility Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.accessibility_auditor"
+    },
+    {
+      "roleKey": "response_quality_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Response Quality Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.response_quality_auditor"
+    },
+    {
+      "roleKey": "approval_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Approval Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.approval_auditor"
+    },
+    {
+      "roleKey": "process_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Process Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.process_auditor"
+    },
+    {
+      "roleKey": "automation_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Automation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.automation_auditor"
+    },
+    {
+      "roleKey": "exception_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Exception Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.exception_auditor"
+    },
+    {
+      "roleKey": "report_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Report Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.report_auditor"
+    },
+    {
+      "roleKey": "dashboard_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Dashboard Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.dashboard_auditor"
+    },
+    {
+      "roleKey": "formula_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Formula Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.formula_auditor"
+    },
+    {
+      "roleKey": "bi_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "BI Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.bi_auditor"
+    },
+    {
+      "roleKey": "export_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Export Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.export_auditor"
+    },
+    {
+      "roleKey": "analytics_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Analytics Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.analytics_auditor"
+    },
+    {
+      "roleKey": "kpi_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "KPI Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.kpi_auditor"
+    },
+    {
+      "roleKey": "sales_workflow_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Sales Workflow Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.sales_workflow_auditor"
+    },
+    {
+      "roleKey": "crm_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "CRM Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.crm_auditor"
+    },
+    {
+      "roleKey": "pricing_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Pricing Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.pricing_auditor"
+    },
+    {
+      "roleKey": "quote_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Quote Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.quote_auditor"
+    },
+    {
+      "roleKey": "invoice_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Invoice Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.invoice_auditor"
+    },
+    {
+      "roleKey": "commission_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Commission Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.commission_auditor"
+    },
+    {
+      "roleKey": "subscription_auditor",
+      "team": "AUDIT_BUSINESS_ASSURANCE",
+      "title": "Subscription Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.subscription_auditor"
+    },
+    {
+      "roleKey": "knowledge_intelligence_division_head",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Knowledge & Intelligence Division Head",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.knowledge_intelligence_division_head"
+    },
+    {
+      "roleKey": "knowledge_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Knowledge Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.knowledge_auditor"
+    },
+    {
+      "roleKey": "knowledge_librarian",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Knowledge Librarian",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.knowledge_librarian"
+    },
+    {
+      "roleKey": "knowledge_classification_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Knowledge Classification Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.knowledge_classification_auditor"
+    },
+    {
+      "roleKey": "knowledge_integrity_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Knowledge Integrity Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.knowledge_integrity_auditor"
+    },
+    {
+      "roleKey": "technical_documentation_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Technical Documentation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.technical_documentation_auditor"
+    },
+    {
+      "roleKey": "functional_documentation_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Functional Documentation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.functional_documentation_auditor"
+    },
+    {
+      "roleKey": "user_documentation_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "User Documentation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.user_documentation_auditor"
+    },
+    {
+      "roleKey": "api_documentation_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "API Documentation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.api_documentation_auditor"
+    },
+    {
+      "roleKey": "sop_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "SOP Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.sop_auditor"
+    },
+    {
+      "roleKey": "prompt_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Prompt Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.prompt_auditor"
+    },
+    {
+      "roleKey": "prompt_evolution_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Prompt Evolution Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.prompt_evolution_auditor"
+    },
+    {
+      "roleKey": "memory_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Memory Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.memory_auditor"
+    },
+    {
+      "roleKey": "learning_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Learning Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.learning_auditor"
+    },
+    {
+      "roleKey": "knowledge_improvement_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Knowledge Improvement Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.knowledge_improvement_auditor"
+    },
+    {
+      "roleKey": "decision_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Decision Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.decision_auditor"
+    },
+    {
+      "roleKey": "reasoning_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Reasoning Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.reasoning_auditor"
+    },
+    {
+      "roleKey": "confidence_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Confidence Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.confidence_auditor"
+    },
+    {
+      "roleKey": "hallucination_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Hallucination Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.hallucination_auditor"
+    },
+    {
+      "roleKey": "bias_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Bias Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.bias_auditor"
+    },
+    {
+      "roleKey": "improvement_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Improvement Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.improvement_auditor"
+    },
+    {
+      "roleKey": "optimization_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Optimization Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.optimization_auditor"
+    },
+    {
+      "roleKey": "loop_engineering_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Loop Engineering Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.loop_engineering_auditor"
+    },
+    {
+      "roleKey": "lessons_learned_auditor",
+      "team": "AUDIT_KNOWLEDGE_INTELLIGENCE",
+      "title": "Lessons Learned Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.lessons_learned_auditor"
+    },
+    {
+      "roleKey": "governance_compliance_division_head",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Governance & Compliance Division Head",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.governance_compliance_division_head"
+    },
+    {
+      "roleKey": "governance_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Governance Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.governance_auditor"
+    },
+    {
+      "roleKey": "policy_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Policy Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.policy_auditor"
+    },
+    {
+      "roleKey": "authority_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Authority Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.authority_auditor"
+    },
+    {
+      "roleKey": "delegation_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Delegation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.delegation_auditor"
+    },
+    {
+      "roleKey": "compliance_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Compliance Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.compliance_auditor"
+    },
+    {
+      "roleKey": "guardrail_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Guardrail Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.guardrail_auditor"
+    },
+    {
+      "roleKey": "regulatory_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Regulatory Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.regulatory_auditor"
+    },
+    {
+      "roleKey": "retention_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Retention Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.retention_auditor"
+    },
+    {
+      "roleKey": "risk_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Risk Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.risk_auditor"
+    },
+    {
+      "roleKey": "operational_risk_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Operational Risk Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.operational_risk_auditor"
+    },
+    {
+      "roleKey": "ai_risk_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "AI Risk Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.ai_risk_auditor"
+    },
+    {
+      "roleKey": "security_risk_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Security Risk Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.security_risk_auditor"
+    },
+    {
+      "roleKey": "business_continuity_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Business Continuity Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.business_continuity_auditor"
+    },
+    {
+      "roleKey": "control_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Control Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.control_auditor"
+    },
+    {
+      "roleKey": "segregation_of_duties_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Segregation of Duties Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.segregation_of_duties_auditor"
+    },
+    {
+      "roleKey": "access_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Access Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.access_auditor"
+    },
+    {
+      "roleKey": "change_control_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Change Control Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.change_control_auditor"
+    },
+    {
+      "roleKey": "performance_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Performance Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.performance_auditor"
+    },
+    {
+      "roleKey": "sla_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "SLA Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.sla_auditor"
+    },
+    {
+      "roleKey": "efficiency_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Efficiency Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.efficiency_auditor"
+    },
+    {
+      "roleKey": "productivity_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Productivity Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.productivity_auditor"
+    },
+    {
+      "roleKey": "capacity_auditor",
+      "team": "AUDIT_GOVERNANCE_COMPLIANCE",
+      "title": "Capacity Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.capacity_auditor"
+    },
+    {
+      "roleKey": "global_revenue_division_head",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Global Revenue Division Head",
+      "model": "z-ai/glm-5.2",
+      "promptKey": "ai_team.global_revenue_division_head"
+    },
+    {
+      "roleKey": "sales_process_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Sales Process Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.sales_process_auditor"
+    },
+    {
+      "roleKey": "lead_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Lead Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.lead_auditor"
+    },
+    {
+      "roleKey": "opportunity_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Opportunity Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.opportunity_auditor"
+    },
+    {
+      "roleKey": "proposal_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Proposal Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.proposal_auditor"
+    },
+    {
+      "roleKey": "contract_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Contract Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.contract_auditor"
+    },
+    {
+      "roleKey": "gst_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "GST Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.gst_auditor"
+    },
+    {
+      "roleKey": "tax_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Tax Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.tax_auditor"
+    },
+    {
+      "roleKey": "payment_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Payment Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.payment_auditor"
+    },
+    {
+      "roleKey": "refund_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Refund Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.refund_auditor"
+    },
+    {
+      "roleKey": "credit_note_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Credit Note Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.credit_note_auditor"
+    },
+    {
+      "roleKey": "renewal_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Renewal Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.renewal_auditor"
+    },
+    {
+      "roleKey": "upgrade_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Upgrade Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.upgrade_auditor"
+    },
+    {
+      "roleKey": "downgrade_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Downgrade Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.downgrade_auditor"
+    },
+    {
+      "roleKey": "cancellation_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Cancellation Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.cancellation_auditor"
+    },
+    {
+      "roleKey": "revenue_recognition_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Revenue Recognition Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.revenue_recognition_auditor"
+    },
+    {
+      "roleKey": "forecast_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Forecast Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.forecast_auditor"
+    },
+    {
+      "roleKey": "margin_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Margin Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.margin_auditor"
+    },
+    {
+      "roleKey": "profitability_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Profitability Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.profitability_auditor"
+    },
+    {
+      "roleKey": "cash_flow_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Cash Flow Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.cash_flow_auditor"
+    },
+    {
+      "roleKey": "variance_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Variance Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.variance_auditor"
+    },
+    {
+      "roleKey": "customer_health_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Customer Health Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.customer_health_auditor"
+    },
+    {
+      "roleKey": "renewal_risk_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Renewal Risk Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.renewal_risk_auditor"
+    },
+    {
+      "roleKey": "churn_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Churn Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.churn_auditor"
+    },
+    {
+      "roleKey": "upsell_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Upsell Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.upsell_auditor"
+    },
+    {
+      "roleKey": "cross_sell_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Cross-sell Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.cross_sell_auditor"
+    },
+    {
+      "roleKey": "customer_lifetime_value_auditor",
+      "team": "AUDIT_GLOBAL_REVENUE",
+      "title": "Customer Lifetime Value Auditor",
+      "model": "z-ai/glm-5-turbo",
+      "promptKey": "ai_team.customer_lifetime_value_auditor"
+    }
+  ]
+}
