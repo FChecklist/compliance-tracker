@@ -78,6 +78,7 @@ active:
     tasks touch disjoint scopes (V2-6 docs, V2-1 UAE pack, V2-2 nav, etc.).
   - session_label: "claude-code (task-20260719-070240-projexa-e2e-phase-2-batch-b--resources-d) -- PROJEXA E2E Phase 2 Batch B: Resources, Field & Design module tests"
     claimed_at: "2026-07-19T08:27:00Z (this session)"
+    status: "DONE -- real work shipped in FChecklist/projexa PR #48 (https://github.com/FChecklist/projexa/pull/48), 12 spec files / 31 tests for the 11 Batch B modules + findings doc PHASE2_BATCH_B_FINDINGS.md. TIER1 self-merge once CI green. Note: the wrapping worker crashed in a 3s loop on upstream API 429 session-limit after the real work committed; root-caused, not a worker-script bug. The additive ci.yml e2e CI job was deferred (push token lacks workflow scope) and is a separately-pushable follow-up. UPDATE 2026-07-19T17:15Z: a re-opened PR #49 (same branch, after #48's squash merge drifted PROGRESS.md vs main) was conflict-resolved (merged origin/main, reconciled the single PROGRESS.md conflict keeping the truthful record), re-verified (tsc/lint/build all clean), and merged (commit 9156e2e, 17:15:14Z, branch deleted) -- TIER1, test-files-only."
     claim: |
       Phase 2 (of 5) of the PROJEXA E2E testing program -- read-mostly
       against the already-seeded "Meridian Construction Group (E2E Test
