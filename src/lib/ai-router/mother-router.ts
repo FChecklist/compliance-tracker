@@ -81,7 +81,7 @@ import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-ti
 import { resolveModelConfig, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
 import { decryptApiKey } from "@/lib/ai-config-crypto"
 import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
-import type { LLMProvider } from "@/lib/llm-client"
+import { callLLM, logAiSupervisionEvent, supervisionHash, type LLMProvider, type CallLLMOptions, type LLMFallback, type LLMResult } from "@/lib/llm-client"
 import type { ComplexityTier } from "@/lib/task-tightening"
 import type { CapabilityCategory } from "./software-team-ladder"
 
@@ -610,6 +610,73 @@ export async function resolveModel(context: MotherRouterContext): Promise<Mother
 
   await logRoutingDecision(context.scope, context, resolution)
   return resolution
+}
+
+// ─── AI-model supervision hook (governance items 30/31/32, 2026-07-23) ────
+
+/**
+ * Bounded AI-model supervision hook, closing the gap STANDING_DIRECTIVE.yaml's
+ * assistant_working_protocol labeled CONFIRMED_GAP_NOT_FIXED ("Mother Router
+ * is fully stateless per call today"). Call this instead of llm-client.ts's
+ * callLLM() directly once you already have a `resolution` from resolveModel()
+ * -- it logs a BEFORE row ({model, prompt_hash, ts}) via
+ * logAiSupervisionEvent(), makes the real call, then logs an AFTER row
+ * ({response_summary_hash, success}), also via logAiSupervisionEvent().
+ *
+ * Scope, stated explicitly so this is not overclaimed:
+ *  - This is SUPERVISION-BY-LOGGING only -- a durable, queryable record that
+ *    a call happened and roughly what it was. It never inspects the prompt
+ *    or response content beyond hashing a fingerprint of each, never
+ *    delays, blocks, rewrites, or retries the call based on anything it
+ *    logs, and a logging failure (see logAiSupervisionEvent) never fails
+ *    the real call.
+ *  - Real-time intervention (a supervisor that can actually block or modify
+ *    a call before it reaches a provider) is a separate, larger,
+ *    not-yet-scoped capability -- NOT built here.
+ *  - Opt-in for new/updated call sites only, the same posture resolveModel()
+ *    itself already has -- NOT retrofitted into the ~35 existing files that
+ *    call checkTierEligibility()/resolveModelConfig() directly and bypass
+ *    Mother Router entirely (see this file's own DELIBERATE SCOPE DECISION
+ *    header). Those callers remain unsupervised until they're migrated to
+ *    resolveModel(), which this hook does not change.
+ */
+export async function callLLMWithSupervision(
+  resolution: MotherRouterResolution,
+  apiKey: string,
+  systemPrompt: string,
+  userMessage: string,
+  options?: CallLLMOptions,
+  fallback?: LLMFallback
+): Promise<LLMResult> {
+  const promptHash = supervisionHash(`${systemPrompt}\n${userMessage}`)
+  await logAiSupervisionEvent({
+    phase: "before",
+    model: resolution.model,
+    prompt_hash: promptHash,
+    ts: new Date().toISOString(),
+  })
+
+  try {
+    const result = await callLLM(resolution.provider, resolution.model, apiKey, systemPrompt, userMessage, options, fallback)
+    await logAiSupervisionEvent({
+      phase: "after",
+      model: resolution.model,
+      response_summary_hash: supervisionHash(result.content.slice(0, 2000)),
+      success: true,
+      ts: new Date().toISOString(),
+    })
+    return result
+  } catch (error) {
+    await logAiSupervisionEvent({
+      phase: "after",
+      model: resolution.model,
+      response_summary_hash: null,
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      ts: new Date().toISOString(),
+    })
+    throw error
+  }
 }
 
 // ─── Emergency rollback ─────────────────────────────────────────────────
