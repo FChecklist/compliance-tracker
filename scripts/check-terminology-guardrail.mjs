@@ -26,6 +26,18 @@
 // names, placeholder email domains, bare ISO dates, Indian PAN/GSTIN literal
 // shapes) -- identical regexes to the .py original.
 //
+// PHASE 4 CROSS-LINK (task-20260724-143013-phase4-migrate-existing-
+// hardcoded-exampl, phase_4_existing_hardcoded_example_migration): for the
+// same reason above, --suggest-fix (searching VARIABLE_DICTIONARY_2026-07-
+// 24.yaml for a matching <Entity.Attribute> placeholder per finding) was
+// added to the claude-control .py original, NOT ported here -- it is a
+// dictionary-backed check, the same class this script already declines to
+// port. Run it from a claude-control checkout against this repo's files:
+//   python3 ai-os/TERMINOLOGY_GUARDRAIL_2026-07-24.py --suggest-fix --file <path in this repo>
+// This file's own exemption manifest (ai-os/registry/terminology-guardrail-
+// exemptions.yaml) records each Phase 4 migration/exemption decision that
+// tool's suggestions (plus direct human review) led to.
+//
 // Scope: --diff-only (the CI mode) scans only files changed in this PR vs.
 // its base branch (git diff --name-only against the merge-base), not a
 // full-repo sweep every run -- see this phase's own plan scope item 3.

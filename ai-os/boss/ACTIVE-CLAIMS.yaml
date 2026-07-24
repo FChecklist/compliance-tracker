@@ -2897,6 +2897,41 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260724-143013-phase4-migrate-existing-hardcoded-exampl, claude-control) -- Terminology Standardization phase_4_existing_hardcoded_example_migration"
+    claimed_at: "2026-07-24T (this session, closed same-PR)"
+    claim: |
+      Gave every one of Phase 2's 488 baseline terminology-guardrail
+      findings a real Phase 4 disposition, per
+      claude-control:ai-os/TERMINOLOGY_STANDARDIZATION_PHASE_PLAN_2026-07-24.yaml's
+      phase_4_existing_hardcoded_example_migration scope. Investigated
+      every non-changelog-date finding by direct read (not just the
+      literal-shape regex match) and found: 2 real migratable examples --
+      FIXED IN CODE this phase (src/lib/services/communication-drafting-
+      service.ts's and src/lib/services/crm-accounts-service.ts's JSDoc
+      illustrative examples now cite registered <Clients.Name>/
+      <CrmAccounts.Name> placeholders instead of hand-typed "ABC Corp"/
+      "Acme Corp"); everything else (hardcoded_iso_date changelog/gap-
+      closure/commit-date comments and external API/protocol-version
+      constants across src/lib/services, src/lib top-level, and
+      src/app/api; one PAN-format-shape description string in
+      src/lib/guardrail-registrations.ts; 27 static-UI-mock-data company
+      names in src/lib/orchestra-mock-data.ts, out of this guardrail's
+      actual prompt/template scope; and the whole src/db/seed.ts +
+      *.test.ts fixture directory, per Phase 2's own out-of-scope
+      classification) is a permanent, reasoned exemption -- see each
+      entry's own `reason` field in
+      ai-os/registry/terminology-guardrail-exemptions.yaml, regenerated
+      from a fresh current-state re-scan (not Phase 2's stale counts) via
+      claude-control's new ai-os-scripts/phase4_finalize_terminology_
+      exemptions.py --from-scan mode. migration_completion_pct = 488/488
+      (100%) against Phase 2's frozen baseline. --suggest-fix mode added
+      to claude-control's TERMINOLOGY_GUARDRAIL_2026-07-24.py (not this
+      repo's ported .mjs -- see that script's own Phase 3 "honest
+      limitation" note on why dictionary-backed checks stay out of the
+      CI-wired copy); scripts/check-terminology-guardrail.mjs got a
+      comment-only cross-link to it. PR went through Rule 6's PR/CI gate
+      + an independent audit per Rule 7(c) before merge (see
+      COMPLETED.yaml for the entry/PR link).
   - session_label: "claude-code (background task, 2026-07-21) -- Install/wire snip token-reduction tool across VERIDIAN-DEV"
     claimed_at: "2026-07-21T (this session)"
     claim: |

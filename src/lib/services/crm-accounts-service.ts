@@ -181,7 +181,7 @@ function normalizeAccountName(name: string | null | undefined): string {
 /**
  * Duplicate-account detection: same org + (case/whitespace-insensitive
  * exact name match OR same website domain). Real gap this closes -- before
- * this, nothing stopped two "Acme Corp" rows (or the same company entered
+ * this, nothing stopped two "<CrmAccounts.Name>" rows (or the same company entered
  * twice under slightly different casing) from existing side by side, with
  * no way for a rep creating the second one to even know the first exists.
  * Intentionally a soft block (see confirmDuplicate on CreateAccountInput/

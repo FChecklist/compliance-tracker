@@ -107,7 +107,7 @@ export async function draftCommunication(
     triggerRefType?: CommunicationTriggerRefType
     triggerRefId?: string
     recipientEmails: string[]
-    context: string // freeform description of what to draft (e.g. "weekly status update for the ABC Corp GST filing" or the detected commitment's text)
+    context: string // freeform description of what to draft (e.g. "weekly status update for the <Clients.Name> GST filing" or the detected commitment's text)
   }
 ) {
   const communicationType = input.communicationType?.trim()
