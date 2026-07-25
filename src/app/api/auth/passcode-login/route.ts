@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { verifyPasscodeLogin } from "@/lib/passcode-login-service"
+import { getRequestIp } from "@/lib/utils/request-ip"
+import { getSupabaseAdmin } from "@/lib/supabase/admin-client"
 
 // Priority 14 Wave 2 (GAP-AUTH-REBUILD): public, pre-auth route -- a
 // returning user who already set a passcode in Settings signs in with
@@ -39,9 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email and passcode are required" }, { status: 400 })
   }
 
-  const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? request.headers.get("x-real-ip")
-    ?? "unknown"
+  const ipAddress = getRequestIp(request) ?? "unknown"
 
   const result = await verifyPasscodeLogin(email, passcode, ipAddress)
 
@@ -59,10 +58,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabaseAdmin = getSupabaseAdmin()
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email: result.user.email,
