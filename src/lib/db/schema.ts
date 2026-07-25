@@ -2125,6 +2125,17 @@ export const promptTemplates = complianceSchemaDB.table('prompt_templates', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// VERIDIAN_Architecture_v2.0 phase_1 (2026-07-25): semantic versioning +
+// lifecycle_state, additive alongside the pre-existing `label`/`version`
+// columns above -- NOT a replacement. `label` is what the ~20 live
+// resolvePromptTemplate() call sites actually key off (production/staging/
+// null) and keeps working unchanged; `lifecycleState` is the real
+// Draft/Review/Staging/Production/Deprecated governance state a version
+// moves through (bare state machine here -- the approval-GATE enforcement
+// on top of it is phase_3 scope, not this one's). `major`/`minor`/`patch`
+// give versions a human-meaningful semantic identity on top of the
+// monotonic `version` integer (which remains the tie-breaker/ordering
+// column every existing query already sorts by).
 export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   promptTemplateId: text('prompt_template_id').notNull(),
@@ -2134,6 +2145,18 @@ export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   isActive: boolean('is_active').notNull().default(true),
   createdById: text('created_by_id'), // nullable -- seeded v1 rows have no human author
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  major: integer('major').notNull().default(1),
+  minor: integer('minor').notNull().default(0),
+  patch: integer('patch').notNull().default(0),
+  // 'Draft' | 'Review' | 'Staging' | 'Production' | 'Deprecated' -- enforced
+  // at the DB layer via a CHECK constraint (drizzle/0262) and at the
+  // service layer via transitionPromptLifecycle()'s ALLOWED_TRANSITIONS
+  // map (prompt-os-service.ts). Independent of `label`: a version can be
+  // lifecycleState='Production' and still hold no label (or vice versa)
+  // during a migration window -- this phase does not couple the two.
+  lifecycleState: text('lifecycle_state').notNull().default('Draft'),
+  metadata: jsonb('metadata').notNull().default({}), // PROMPT_METADATA_SCHEMA_2026-07-25.schema.json -- optional, additive structured fields per category; {} means none supplied
+  rolledBackFromVersionId: text('rolled_back_from_version_id'), // set only on a version created by rollbackPromptVersion() -- points at the version it was requested to restore, never mutated onto history
 })
 
 // ─── Wave 94 (Comparison CSV 3 gap analysis: AI011 "Prompt/Model Evaluation
