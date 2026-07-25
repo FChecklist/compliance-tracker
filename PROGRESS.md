@@ -65,7 +65,7 @@ resolvePromptTemplate() call sites), not build a new datastore.
 - [x] compliance-tracker PR opened, CI running
 
 ## Remaining
-- [ ] claude-control side (separate repo): update phase_1's status in
+- [ ] BLOCKED ON BUDGET (session USD budget exhausted this run): claude-control side (separate repo): update phase_1's status in
       ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml to done
       with real evidence, and add the lifecycle_state/version column
       relationship evidence to WIRING_ENGINE_REGISTRY_2026-07-25.json for
@@ -92,3 +92,6 @@ resolvePromptTemplate() call sites), not build a new datastore.
 - drizzle/0262 is NOT applied to the live database by this task, matching
   every other schema-touching entry in ai-os/boss/ACTIVE-CLAIMS.yaml's own
   convention -- left for the supervising session / next deploy.
+
+## Session budget note
+This session's USD budget was exhausted after: compliance-tracker PR #559 opened, independently audited (Rule 7c -- a fresh general-purpose agent instance reviewed the diff, found a real Terminology Guardrail Check regression from 3 new hardcoded_iso_date comment hits, which was fixed in commit 7828f391 by adding exemption entries following the repo's established precedent), and the audit re-posted as AUDIT: PASS. CI was re-triggered by that fix and was still running (audit-check/Terminology Guardrail Check both `pending`) when the budget ran out -- a future session should confirm CI is green on PR #559 before merging, then complete the remaining claude-control-side deliverable (phase_1 status update + WIRING_ENGINE_REGISTRY entity, via an isolated `git worktree` off origin/master, NOT the shared primary claude-control checkout which had unrelated in-progress uncommitted edits from another session when this task started) and move this task's ACTIVE-CLAIMS.yaml entry to recently_completed.
