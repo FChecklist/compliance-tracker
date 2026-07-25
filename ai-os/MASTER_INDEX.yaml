@@ -1940,6 +1940,53 @@ registries:
       never-compress tested against a real deliberately-broken bun test
       and a synthetic go-test failure fixture)
     system_index_id: IDX-20260721-185951-dd1d
+  - id: prompt_registry_version_lifecycle_extension
+    type: schema_extension
+    path: >-
+      src/lib/db/schema.ts (compliance.promptVersions table),
+      drizzle/0262_prompt_registry_version_lifecycle.sql,
+      src/lib/services/prompt-os-service.ts
+      (transitionPromptLifecycle/diffPromptVersions/rollbackPromptVersion),
+      ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json,
+      ai-os/DATABASE_CATALOG.json (compliance.prompt_versions entry,
+      re-extracted via ai-os/scripts/extract-db-schema-catalog.mjs)
+    scope: >-
+      VERIDIAN_Architecture_v2.0 phase_1_prompt_registry_lifecycle_foundation
+      (claude-control's ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+      target_repo: compliance-tracker). NOT A NEW TABLE -- this is an
+      additive extension of the real, live Wave 22 Prompt Operating
+      System (compliance.prompt_templates/prompt_versions, ~20 production
+      resolvePromptTemplate() call sites; already tracked as generic
+      `table` entities in claude-control's own
+      ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json per phase_1's own
+      integration_point field -- this is that same extension's first
+      entry in THIS repo's registries: list, not a second registry for
+      the same table). Adds: MAJOR/MINOR/PATCH semantic versioning (major/minor/patch
+      integer columns, computed by nextSemanticVersion()), a real
+      Draft/Review/Staging/Production/Deprecated lifecycle_state column +
+      bare state-machine enforcement (isLegalLifecycleTransition() --
+      the APPROVAL-GATE enforcement on top of these edges is phase_3
+      scope, not this one's), a line-level diff API (diffPromptVersions())
+      and an append-only rollback API (rollbackPromptVersion(), which
+      creates a new version rather than mutating history, recording
+      provenance via rolled_back_from_version_id), and an optional
+      structured `metadata` jsonb column matching the 18-category minimum-
+      viable schema in PROMPT_METADATA_SCHEMA_2026-07-25.schema.json (the
+      document's own 200+-field section 2.6, built to real load-bearing
+      depth rather than verbatim field count, same precedent as
+      claude-control's AUDITOR_ENGINE_FINDING_RECORD_SCHEMA_2026-07-24).
+      The pre-existing `label`/`version`/`is_active` columns and every
+      existing call site (resolvePromptTemplate, createPromptVersion,
+      listPromptVersions) are untouched.
+    status: live
+    verification_mechanism: >-
+      psql $DATABASE_URL -c "SELECT lifecycle_state FROM
+      compliance.prompt_versions LIMIT 1" once drizzle/0262 is applied
+      (NOT applied live by this registration -- same convention as every
+      other schema-touching entry in ai-os/boss/ACTIVE-CLAIMS.yaml);
+      src/lib/services/prompt-os-service.test.ts (bun:test) covers the
+      pure isLegalLifecycleTransition/nextSemanticVersion/diffContentLines
+      logic without a live DB, same pattern as esignature-service.test.ts.
 
 tree_lineage:
   tree1_audit_tree:

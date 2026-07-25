@@ -40,6 +40,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260725-174858-phase1-prompt-registry-version-lifecycle) -- VERIDIAN_Architecture_v2.0 phase_1: prompt registry semantic versioning + lifecycle_state + diff/rollback"
+    claimed_at: "2026-07-25T (this session)"
+    claim: |
+      phase_1_prompt_registry_lifecycle_foundation of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
+      repo claude-control, target_repo: compliance-tracker per that
+      phase's own target_repo_note). CORRECTED scope (by an earlier
+      re-verification task, 2026-07-25): extend the real, live
+      compliance.prompt_templates/prompt_versions tables (~20 production
+      resolvePromptTemplate() call sites) rather than build a new
+      datastore. This session adds: MAJOR/MINOR/PATCH integer columns +
+      a lifecycle_state enum (Draft/Review/Staging/Production/Deprecated)
+      to prompt_versions, additive alongside the existing label column
+      (does not touch/replace it, so none of the ~20 live call sites
+      change behavior); a diff/rollback API in prompt-os-service.ts next
+      to the existing createPromptVersion/listPromptVersions; and an
+      expanded metadata JSON Schema doc
+      (ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json, 18 categories
+      at minimum-viable field depth, matching AUDITOR_ENGINE's precedent
+      for this kind of schema-expansion task).
+
+      File scope: src/lib/db/schema.ts (promptVersions table -- new
+      columns only, no drops/renames), drizzle/ (new migration),
+      src/lib/services/prompt-os-service.ts (new exports, existing ones
+      untouched), ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json
+      (new), ai-os/MASTER_INDEX.yaml (register the extension). Also
+      touches claude-control (separate repo, via an isolated
+      `git worktree` off origin/master, not the shared primary
+      claude-control checkout on this box which has unrelated
+      in-progress uncommitted edits from another session as of this
+      claim -- left untouched): phase_1's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml, and its
+      WIRING_ENGINE_REGISTRY_2026-07-25.json entity for
+      compliance.prompt_versions.
+
+      Collision check before starting: grepped this file for "prompt" --
+      no other active entry claims prompt_templates/prompt_versions
+      schema or prompt-os-service.ts. `gh pr list --state open` checked
+      for the same paths, none found.
   - session_label: "claude-code (background task, 2026-07-21) -- Wave 10: projexa-ai.com DNS/Vercel cutover + Wave 9 credential reverse-link gap [CLOSED, see WAVE-199 in COMPLETED.yaml]"
     claimed_at: "2026-07-21T (this session)"
     claim: |

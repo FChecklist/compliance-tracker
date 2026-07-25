@@ -1,28 +1,97 @@
-# PROGRESS -- task-20260720-022710-superboss-v2-plan--byob-bring-your-own-a
+# PROGRESS -- task-20260725-174858-phase1-prompt-registry-version-lifecycle
 
-Task: **V2-5 — BYOB bring-your-own-AI-model [D6]** (TASK ID `V2-5-BYOB-AI-MODEL`,
-Tier2 — schema+crypto, holds for Owner sign-off).
+VERIDIAN_Architecture_v2.0 phase_1_prompt_registry_lifecycle_foundation
+(claude-control's ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+target_repo: compliance-tracker per that phase's own target_repo_note).
+CORRECTED scope: extend the real, live compliance.prompt_templates/
+prompt_versions tables (Wave 22 Prompt Operating System, ~20 production
+resolvePromptTemplate() call sites), not build a new datastore.
 
 ## Completed
-- [x] Read governance: ACTIVE-CLAIMS.yaml (registry + collision check), model-tier-eligibility.ts, AGENTS.md Rule 9, mother-router.ts, roster-overrides.ts, ai-config-crypto.ts, dispatch-repo.ts, /api/ai/team/dispatch, team-service.ts runRole, orchestra-model-resolver.ts (existing BYO pattern), CONSTITUTION ai_orchestra_tiers.
-- [x] Collision check: no open PR touches mother-router.ts software_team tenant-model scope. The prior 2026-07-16 BYOB-AI claim (PR #384, now recently_completed) targeted a *different* file scope (orchestra-model-resolver.ts / customer_model_config, the end_user_org scope) — disjoint.
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (committed + pushed on its own).
-- [x] Added `tenant_ai_config` table to schema.ts (org_id + provider[ai_provider enum] + encrypted_api_key + model_name + optional base_url + is_active + last_used_at + timestamps) + relations + `drizzle/0253_tenant_ai_config.sql` migration (RLS posture mirrors client_model_config; partial unique index `tenant_ai_config_one_active_per_org`; grants to app_runtime + service_role).
-- [x] Added `resolveTenantAiConfig(orgId)` resolver in mother-router.ts (raw `db` client, platform-level resolution like resolveModelConfig; decrypts key via ai-config-crypto.ts decryptApiKey; inert-row gate `encryptedApiKey && modelName`; fire-and-forget lastUsedAt touch; never returned to a client).
-- [x] Extended Mother Router: `software_team` context optionally carries `orgId`; `computeSoftwareTeamResolution()` takes optional `tenantOverrideModel`; when present + eligible, preferred over baseline AND policy; when ineligible, silently downgrades (falls through to baseline path) — NEVER bypasses `checkTierEligibility()`.
-- [x] Wired `runRole()` (team-service.ts) to optionally accept a `TenantAiOverride` (provider+model+apiKey+baseUrl) — tenant key/model/baseUrl used for the actual LLM call, provider stays openrouter-compatible; effectiveModel precedence is tenant > DB roster-override > role.model.
-- [x] Wired `dispatch/route.ts`: threads `orgId` into the fire-and-forget Mother Router audit-log resolve, AND resolves `resolveTenantAiConfig(orgId)` once for the real runRole call, with a defensive re-gate `checkTierEligibility(tenantModel, tier)` that nulls the override when ineligible (no guardrail bypass). Non-fatal on resolution failure → platform fallback.
-- [x] llm-client.ts: `CallLLMOptions.baseUrl` + `dispatchLLM` honors it for the four callOpenAICompatible branches (groq/openai/openrouter/cerebras); undefined for every existing caller → zero behavior change.
-- [x] Settings UI: `TenantAiConfigSection.tsx` (mirrors OrchestraModelConfigSection shape — provider select + model input + masked key + optional baseUrl + save/reset; key never displayed, only "key set"/"no key") wired into `settings/page.tsx`.
-- [x] CRUD API `src/app/api/settings/tenant-ai-config/{route,[id]/route}.ts` — admin-only via `requireRole(dbUser,'admin')`; GET never returns key (only `hasKey` bool); POST runs real `testProviderConnection` before persisting, encrypts key, "leave blank to keep existing"; DELETE scoped by both id+orgId (belt-and-suspenders with RLS).
-- [x] Tests: `tenant-ai-config.test.ts` (no-config fallback, inert-row gate x2, active-row decrypt, null baseUrl, encryption round-trip contract) + `mother-router.test.ts` tenant-override block (prefer-when-eligible, **guardrail-no-bypass** — ineligible tenant model downgrades to baseline never bypasses, priority over policy, no-config fallback byte-identical, tenant-equals-baseline no-op).
-- [x] Fixed dispatch route test mocks (`route.test.ts`): added `resolveTenantAiConfig` to the mother-router mock (returns null = no-config) so the V2-5 path is exercised cleanly without a noisy non-fatal stack trace.
-- [x] `tsc --noEmit` clean (0 errors total).
-- [x] eslint clean on all touched files (0 errors).
-- [x] `bun test` green: 1825/1825 pass (incl. 7 dispatch route tests + 32 mother-router/resolver tests).
-- [x] Sync-check scripts all pass: asset-registry-coverage (422 tables, tenant_ai_config exempted), doc-cross-references, doc-quarantine-banner, **guardrail-presence (88 markers — no new call site wired, so no manifest entry needed per Rule 9; the tenant path reuses the existing checkTierEligibility() call in mother-router.ts + adds a defensive re-gate in the already-manifested dispatch/route.ts)**, metadata-index-coverage, migration-collision (renumbered 0251->0253 during review to resolve a collision with drizzle/0251_crm_wave1_activities_campaigns_lost_reasons.sql; 0253 confirmed unique).
-- [x] Registered asset-registry exemption for `tenant_ai_config` (mirrors customer_model_config / client_model_config — config row, not a browsable platform asset).
+- [x] Registered ACTIVE-CLAIMS.yaml claim before starting real work (Rule 11)
+- [x] Drizzle schema: promptVersions gets major/minor/patch integers,
+      lifecycleState (Draft/Review/Staging/Production/Deprecated, default
+      'Draft'), metadata jsonb, rolledBackFromVersionId -- additive
+      alongside the pre-existing label/version/isActive columns
+      (src/lib/db/schema.ts)
+- [x] Migration drizzle/0262_prompt_registry_version_lifecycle.sql --
+      ALTER TABLE ADD COLUMN IF NOT EXISTS + CHECK constraint on
+      lifecycle_state + backfill (label='production'/'staging' ->
+      lifecycle_state) + index. NOT applied live, same convention as every
+      other schema-touching claim in ai-os/boss/ACTIVE-CLAIMS.yaml.
+- [x] ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json -- 18 categories
+      from the document's own section 2.6 table, minimum-viable field
+      depth per category (same precedent as claude-control's
+      AUDITOR_ENGINE_FINDING_RECORD_SCHEMA_2026-07-24.schema.json)
+- [x] src/lib/services/prompt-os-service.ts: transitionPromptLifecycle
+      (bare Draft->Review->Staging->Production->Deprecated state machine,
+      isLegalLifecycleTransition exported for testing -- the
+      APPROVAL-GATE enforcement on top is phase_3 scope, not this one's),
+      diffPromptVersions (line-level LCS diff, no external dep --
+      package.json's "diff" pin lives under `overrides`, not a real
+      installed dependency), rollbackPromptVersion (append-only: creates
+      a new version, never mutates history, rolledBackFromVersionId
+      records provenance, lifecycleState restarts at 'Draft'). Also gave
+      createPromptVersion an optional `bump` param (major/minor/patch,
+      default minor) that computes real major.minor.patch via
+      nextSemanticVersion. All veridian_admin-gated like the pre-existing
+      functions; existing exports/call sites unchanged.
+- [x] src/lib/services/prompt-os-service.test.ts -- bun:test coverage of
+      the pure helpers (isLegalLifecycleTransition, nextSemanticVersion,
+      diffContentLines), same no-live-DB pattern as
+      esignature-service.test.ts. bun isn't installed in this sandbox, so
+      logic was independently verified against a standalone Node script
+      replicating the exact algorithm (all assertions passed) rather than
+      run via `bun test` directly -- CI (.github/workflows/ci.yml) runs
+      the real `bun test`.
+- [x] ai-os/DATABASE_CATALOG.json -- prompt_versions entry surgically
+      re-extracted via ai-os/scripts/extract-db-schema-catalog.mjs
+      (mechanical, ground-truth-from-code), not a full-file regen (avoids
+      pulling in 5 unrelated tables added by other merges since the last
+      full build)
+- [x] ai-os/MASTER_INDEX.yaml -- new registries[] entry
+      prompt_registry_version_lifecycle_extension
+- [x] Registered knowledge via claude-control's superboss-register.py
+      (shared DB at /opt/veridian/ai-os/memory/superboss-register.sqlite
+      -- compliance-tracker's own ai-os/scripts/superboss-register.py
+      copy is a stale 429-line version with no register-knowledge/
+      query-knowledge subcommands, confirmed before using
+      claude-control's current 1821-line copy instead). Verified both
+      success-criteria queries return found=1:
+      `query-knowledge "veridian_v2_prompt_registry" --tag domain:veridian_architecture_v2`
+      and
+      `query-knowledge "phase_1_prompt_registry_lifecycle_foundation" --tag domain:veridian-architecture-v2-0-docx`
+- [x] tsc --noEmit and eslint clean on all changed/new files
+- [x] compliance-tracker PR opened, CI running
 
 ## Remaining
-- [ ] Commit + push all changes; open PR (Tier2 — do NOT self-merge, hold for Owner sign-off + mandatory audit per Rule 7(c)).
-- [ ] Update ACTIVE-CLAIMS.yaml status → recently_completed once PR is open.
+- [ ] BLOCKED ON BUDGET (session USD budget exhausted this run): claude-control side (separate repo): update phase_1's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml to done
+      with real evidence, and add the lifecycle_state/version column
+      relationship evidence to WIRING_ENGINE_REGISTRY_2026-07-25.json for
+      the existing compliance.prompt_versions table entity. Done via an
+      isolated `git worktree` off origin/master -- NOT the shared primary
+      claude-control checkout on this box, which had unrelated
+      in-progress uncommitted edits from another session when this task
+      started (ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml +
+      scripts/auto_phase_continuation.py), left untouched.
+- [ ] Move this task's ACTIVE-CLAIMS.yaml entry to recently_completed once
+      both PRs are up.
+
+## Notes / honest limitations
+- The approval-gate ENFORCEMENT on top of the lifecycle state machine
+  (who may authorize a Staging->Production transition, beyond the
+  veridian_admin floor every write already requires) is phase_3
+  (governance_policy_cost_engines) scope per that gap item's own note --
+  transitionPromptLifecycle() here only enforces which edges are
+  structurally legal.
+- No new API route was added for these service functions (transition/
+  diff/rollback) -- this phase's scope is the data-model + service-layer
+  foundation; wiring an admin UI/route is not named in this phase's own
+  scope and would be new, unscoped surface area.
+- drizzle/0262 is NOT applied to the live database by this task, matching
+  every other schema-touching entry in ai-os/boss/ACTIVE-CLAIMS.yaml's own
+  convention -- left for the supervising session / next deploy.
+
+## Session budget note
+This session's USD budget was exhausted after: compliance-tracker PR #559 opened, independently audited (Rule 7c -- a fresh general-purpose agent instance reviewed the diff, found a real Terminology Guardrail Check regression from 3 new hardcoded_iso_date comment hits, which was fixed in commit 7828f391 by adding exemption entries following the repo's established precedent), and the audit re-posted as AUDIT: PASS. CI was re-triggered by that fix and was still running (audit-check/Terminology Guardrail Check both `pending`) when the budget ran out -- a future session should confirm CI is green on PR #559 before merging, then complete the remaining claude-control-side deliverable (phase_1 status update + WIRING_ENGINE_REGISTRY entity, via an isolated `git worktree` off origin/master, NOT the shared primary claude-control checkout which had unrelated in-progress uncommitted edits from another session when this task started) and move this task's ACTIVE-CLAIMS.yaml entry to recently_completed.
