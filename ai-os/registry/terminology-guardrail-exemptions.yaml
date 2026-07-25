@@ -858,3 +858,11 @@ exemptions:
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
       hardcoded_iso_date: 2
+  - file: src/lib/services/prompt-os-service.ts
+    reason: "phase_1_prompt_registry_lifecycle_foundation (2026-07-25): confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; both hits are the task/phase dated header comments (\"VERIDIAN_Architecture_v2.0 phase_1 (2026-07-25)\") documenting when this extension was made, same class as task-execution-engine.ts's already-exempted changelog/gap-closure-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/lib/services/prompt-os-service.test.ts
+    reason: "phase_1_prompt_registry_lifecycle_foundation (2026-07-25): confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as task-execution-engine.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
