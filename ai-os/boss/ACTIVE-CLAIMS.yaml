@@ -3047,6 +3047,59 @@ active:
       claims (PRs #387/#391 already merged, 3-4 days stale, well past the
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
+
+  - session_label: "claude-code (task-20260726-171946-chat-context---terminology---mode-pill-a) -- V2-13 chat context + terminology + mode-pill analytics"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      V2-13-CHAT-CONTEXT-ANALYTICS (redispatch of a 2026-07-20 spend-gate-
+      blocked task; re-verified GENUINELY_STILL_OPEN by
+      ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-25.md's chat-context-
+      terminology objective and independently reconfirmed live in this
+      session): SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md's C4 row
+      (CSV rows #16/#17/#20 -- Business Terminology / Context-Aware /
+      Mode Pills). Three sub-asks, all confirmed unbuilt before starting:
+      (1) `conversations.contextEntityType/contextEntityId` (set via
+      veri-chat-service.ts's setConversationContext /
+      veri-meeting-service.ts) was plumbed but never READ by
+      chat-service.ts's generateAiReply()/generateVeriGroupReply() --
+      wiring a real fetch+format of the linked policy/pms_issue/project/
+      veri_meeting into the prompt sent to the LLM; (2) glossary-service.ts's
+      businessTerminologyGlossary existed only as a UI hover-tooltip
+      (GlossaryTermTooltip), never referenced by chat-service.ts -- adding
+      an org-glossary block into the same system prompt; (3) no usage
+      analytics existed anywhere comparing mode-pill/Chain-Selector usage
+      vs. free-text/skip (chat-service.ts's own
+      conversations.dynamicChainId/chainSelectorSkipped columns, Wave 148,
+      were written but never aggregated) -- adding a real aggregation
+      function to adoption-metrics-service.ts (the existing, established
+      "real, non-fabricated adoption analytics" module -- no new analytics
+      vendor, per this task's own constraint), surfaced through the
+      existing AdoptionMetricsSection.tsx dashboard.
+
+      File scope (compliance-tracker, this repo): src/lib/services/
+      chat-service.ts (additive: context-entity fetch/format + glossary
+      fetch/format helpers, wired into generateAiReply/
+      generateVeriGroupReply's existing systemPrompt assembly; sendMessage/
+      regenerateAiReply pass through the already-fetched conversation row's
+      contextEntityType/Id, no extra query), src/lib/services/
+      chat-service.test.ts (new pure-function tests, same convention as
+      this file's existing shouldResolveDynamicChain/detectVeriMention
+      tests), src/lib/adoption-metrics-service.ts (additive
+      modePillUsedCount/freeTextSkippedCount/modePillUsageRate fields +
+      one new aggregation query, pure-rate-function extracted and tested
+      the same way chain-usage-ranking.ts splits pure scoring from its one
+      DB aggregation call), a new src/lib/adoption-metrics-service.test.ts,
+      and src/components/AdoptionMetricsSection.tsx (one additive stat
+      tile). No schema/migration change (dynamicChainId/chainSelectorSkipped/
+      contextEntityType/contextEntityId/businessTerminologyGlossary all
+      already exist) -- Tier1, additive-only.
+
+      Collision check before starting: grepped this file for "V2-13",
+      "chat-context", "mode-pill", "contextEntityId", "glossary" -- no
+      other active entry claims these files/this gap. `gh pr list --state
+      open` checked (571/570/566/563/562/558/557/556/555/554/551/539...
+      down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
+      adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
 recently_completed:
   - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
