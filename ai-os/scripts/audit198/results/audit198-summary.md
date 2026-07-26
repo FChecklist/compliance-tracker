@@ -1,15 +1,15 @@
 # Audit198 Results Summary
 
-Generated: 2026-07-21T09:30:15.219Z
+Generated: 2026-07-21T11:59:04.919Z
 Items scored: 198 / 198
 
 ## Status counts
 
-- ENFORCED: 22
+- ENFORCED: 24
 - PARTIALLY_ENFORCED: 152
 - POLICY_ONLY: 0
 - NOT_APPLICABLE_YET: 0
-- NOT_YET_BUILT: 15
+- NOT_YET_BUILT: 13
 - EVIDENCE_UNAVAILABLE: 0
 - NEEDS_HUMAN_JUDGMENT: 9
 
@@ -19,7 +19,7 @@ Items scored: 198 / 198
 - **SOFTWARE_FIRST_AI_SECOND** (Software-First / AI-Second core doctrine, 17 items): ENFORCED=3, PARTIALLY_ENFORCED=14
 - **VISION_STRATEGIC** (Aspirational vision / long-term strategic objectives, 17 items): PARTIALLY_ENFORCED=13, NEEDS_HUMAN_JUDGMENT=4
 - **PERSONALIZATION** (Per-user/per-org personalization, 2 items): PARTIALLY_ENFORCED=2
-- **REUSE_COMPONENTIZATION** (Converting AI solutions into reusable software components, 12 items): PARTIALLY_ENFORCED=10, NOT_YET_BUILT=2
+- **REUSE_COMPONENTIZATION** (Converting AI solutions into reusable software components, 12 items): PARTIALLY_ENFORCED=10, ENFORCED=2
 - **CONFIDENCE_ROUTING** (Confidence-threshold based software-vs-AI routing, 7 items): ENFORCED=1, PARTIALLY_ENFORCED=6
 - **MONITORING_INFRA** (Continuous system/infra monitoring, 9 items): PARTIALLY_ENFORCED=9
 - **ORCHESTRATOR_GOVERNANCE** (Central AI orchestrator, agent roles/authority/routing, 4 items): PARTIALLY_ENFORCED=1, ENFORCED=3

@@ -16,6 +16,8 @@ import { checkCostPolicy } from "./cost-policy"
 import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 import { resolveEffectiveModel } from "./roster-overrides"
+import { classifyExecutionWithReliability } from "@/lib/services/software-coverage-service"
+import { findOrCreateCapability, findApprovedPackage, recordExecutionOutcome } from "@/lib/services/capability-learning-service"
 
 function platformOpenRouterKey(): string {
   const key = process.env.OPENROUTER_API_KEY
@@ -41,6 +43,39 @@ function requireCallableRole(roleKey: string): RoleDefinition {
 /** Runs one AI Dev Team or Guardrail role against a task/input string. Enforces the Cost & Policy Engine before spending anything. */
 export async function runRole(roleKey: string, input: string): Promise<LLMResult & { role: RoleDefinition }> {
   const role = requireCallableRole(roleKey)
+
+  // audit198 (2026-07-21, CONFIDENCE_ROUTING/SOFTWARE_FIRST_AI_SECOND gap
+  // closure): the Priority 5 software-coverage classification
+  // (classifyExecutionWithReliability, software-coverage-service.ts) was
+  // confirmed wired into task-execution-engine.ts and chat-service.ts but
+  // NOT into runRole() / the AI Dev Team dispatch path -- this platform's
+  // own internal tooling was invisible to its own "is AI dependence
+  // decreasing" trend (ai-reduction-service.ts). Every real AI Dev Team
+  // LLM call now runs through the SAME classification+recording pipeline
+  // customer task execution already uses. Deliberately observability-only
+  // here, not gating: requireCallableRole() above has already confirmed
+  // this role is NOT isCodeOnly (isCodeOnly roles -- cost_policy_engine,
+  // user_permission_manager -- ARE this codebase's existing FULL_SOFTWARE
+  // branch for AI Dev Team work and never reach runRole() at all), so
+  // alreadyFullSoftware is always false at this call site; there is no
+  // deterministic executor yet for an approved instruction package
+  // against free-text engineering work (a materially bigger feature, out
+  // of scope this pass), so the classification is recorded for trend
+  // visibility rather than used to skip the LLM call below. Fire-and-
+  // forget + fully swallowed errors, same posture as logTokenUsage()
+  // further down in this same function -- must never block or fail a
+  // real dispatch over a best-effort tracking write.
+  void (async () => {
+    try {
+      const capability = await findOrCreateCapability({ modePill: "ai_team_role", pathKeys: [roleKey], promptText: input, orgId: null })
+      const approvedPackage = await findApprovedPackage(capability.id, "task_execution")
+      const classification = classifyExecutionWithReliability({ alreadyFullSoftware: false, approvedPackage })
+      await recordExecutionOutcome(capability.id, classification.bucket)
+    } catch (err) {
+      console.error(`[ai-team] software-coverage classification failed for role "${roleKey}" (non-blocking):`, err)
+    }
+  })()
+
   const systemPrompt = await resolvePromptTemplate(role.promptKey!)
   const apiKey = platformOpenRouterKey()
 
