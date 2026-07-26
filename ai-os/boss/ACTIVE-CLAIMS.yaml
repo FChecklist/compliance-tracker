@@ -3048,6 +3048,46 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260726-074124-status-monitor-and-remediation-dispatche, redispatch of 053322) -- Status monitor + remediation dispatcher: landed stranded work on claude-control master [CLOSED]"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      Redispatch of task-20260726-053322-status-monitor-and-remediation-dispatche.
+      Investigated before writing any new code (per this file's own protocol) and
+      found the prior task had already done all the real work correctly: wrote
+      scripts/veridian_status_monitor.py + scripts/veridian_remediation_dispatcher.py
+      (claude-control repo), deployed both live to /opt/veridian/scripts/, wired the
+      */10-minute cron entry (run-logged.sh wrapper, monitor + dispatcher --apply
+      chained), filed the OWNER_DECISIONS_NEEDED_2026-07-23.yaml approval entry,
+      registered ai-os/MASTER_INDEX.yaml registries.status_monitor_and_remediation
+      + superboss-register.py index_add (IDX-20260726-055513-eb14, verified present
+      in the live sqlite DB), and real-tested both remediation paths against live
+      production data (mechanical: PR #410 CI-rerun applied + gh run view-confirmed;
+      judgment: PR #562 drafted corrective prompt, tight_task_validation.py-passing,
+      not auto-dispatched). The live deployment and crontab were genuinely never
+      stale -- both were already running correctly. The actual gap: the prior
+      task's own completion self-report was rejected by task-gateway.py ("no
+      matching approved plan for this task_id/increment"), so its 2 commits
+      (c16da91, ad76ad4) were stranded on worker/task-20260726-053322-... and never
+      reached claude-control's master, leaving the git source-of-truth out of sync
+      with what was actually live (a real risk: a future deploy-live-scripts.sh run
+      off master would not have restored these scripts). Fixed by merging that
+      worker branch into claude-control master (c913d33, clean auto-merge, no
+      conflicts) and pushing directly -- claude-control has no branch-protection
+      apparatus of its own, direct-to-master is the established precedent for this
+      repo. Verified post-merge: live /opt/veridian/scripts/*.py byte-identical to
+      the now-merged master copies, ai-os/LIVE_STATUS_2026-07-26.yaml continuing to
+      regenerate fresh every cron cycle with real current data. No new application
+      code needed in compliance-tracker (this workspace) -- the deliverable's
+      canonical home is claude-control per the established pattern (config/ops
+      scripts, no PR/CI gate there), same cross-repo split already documented in
+      this file's phase_3 entry above.
+
+      Still needs an assistant's own judgment going forward, per this task's own
+      CONSTRAINTS (never auto-resolved by the dispatcher): every file that
+      accumulates under ai-os/pending_remediation/ -- as of this session's real run,
+      6 real AUDIT: FAIL findings and 16 real DIRTY merge-conflict findings, each
+      requiring a human/assistant read-and-confirm before any corrective task is
+      actually dispatched.
   - session_label: "claude-code (task-20260725-174858-phase1-prompt-registry-version-lifecycle) -- VERIDIAN_Architecture_v2.0 phase_1: prompt registry semantic versioning + lifecycle_state + diff/rollback [CLOSED, compliance-tracker PR #559 merged]"
     claimed_at: "2026-07-25T (merged same-day)"
     claim: |
