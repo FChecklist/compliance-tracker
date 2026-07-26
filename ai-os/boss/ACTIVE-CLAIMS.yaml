@@ -3100,6 +3100,25 @@ active:
     (https://github.com/FChecklist/compliance-tracker/pull/576). Migration
     NOT applied live (Tier2 hold, per protocol). Awaiting CI + Owner
     sign-off.
+
+    UPDATE 2 (same session, resumed invocation): `main` had moved on (PR
+    #572 merged) since #576 opened, leaving it CONFLICTING on PROGRESS.md
+    -- resolved by keeping this task's entry (confirmed PROGRESS.md is a
+    per-task scratch file each merge overwrites wholesale, not append-only
+    history; merge commit 66adfb37). That fresh CI run then surfaced a
+    real Type Check failure in this PR's own new file
+    (scripts/crm-perf-load-test.ts: untyped `before`/`after` arrays
+    inferred as `never[]`) -- fixed with an explicit type annotation
+    (commit 6e4e51e9). PR #576 is now MERGEABLE with every
+    branch-protection-required check green (Lint, Type Check, Build,
+    Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests).
+    Two checks remain non-green, both correctly out of this session's
+    scope to fix: `Metadata Index Coverage Check` fails identically on
+    main's own last several runs (56 pre-existing ungoverned ai-os/ files,
+    none touched here) and isn't in the required list; `audit-check`
+    needs a separate session's `AUDIT: PASS/FAIL` comment per Rule 7c
+    (no self-certification by the implementing session). Still not
+    self-merged.
 recently_completed:
   - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
