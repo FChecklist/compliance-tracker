@@ -3047,6 +3047,78 @@ active:
       claims (PRs #387/#391 already merged, 3-4 days stale, well past the
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
+
+- session_label: "claude-code (task-20260726-171957-crm-performance-under-load-indexes---loa) -- V2-16 CRM performance-under-load indexes + load-test harness"
+  claimed_at: "2026-07-26T (this session)"
+  claim: >-
+    V2-16-CRM-PERF-INDEXES (redispatch of a task originally blocked
+    2026-07-20 by a spend-governance gate before any work started; a
+    2026-07-26 relevance-triage pass re-confirmed the gap is still real --
+    see ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md). Re-verified
+    live against schema.ts/drizzle/*.sql immediately before starting: no
+    composite index exists on crm_leads(org_id,status,created_at) or
+    crm_opportunities(org_id,stage) in any migration (0031/0219/0257 only
+    ever added single-column indexes on these two tables); no CRM-specific
+    query-performance load-test harness exists (scripts/veridian-full-load-test.ts
+    and scripts/projexa-load-test.ts both exercise the orchestra/task-dispatch
+    layer, not CRM-table query performance). Grepped real service-layer query
+    patterns (crm-service.ts, crm-accounts-service.ts, sales-engine-service.ts,
+    veri-reward-service.ts) rather than guessing which composite indexes
+    matter: listLeadsPaged/listOpportunitiesPaged filter org_id+status/stage
+    ordered by createdAt; getSalesPipelineOverview's overdue-follow-up counts
+    filter org_id+nextActionDate with zero index support today (the real
+    "pipeline/dashboard" gap); listAccountsPaged filters org_id+lifecycleStage;
+    crm-accounts-service.ts repeatedly queries crmContacts by (accountId,orgId)
+    together; markReferralPaidIfApplicable filters sales_referrals by
+    (org_id,status); getReferralHistory-equivalent filters veri_reward_referrals
+    by (org_id,referrerUserId) with no index at all on referrer_user_id today.
+  scope_note: >-
+    File scope: one new drizzle/*.sql migration (composite indexes only,
+    additive, IF NOT EXISTS -- Tier2, NOT applied against any live/shared DB
+    by this session, per this task's own constraint that Tier2 always holds
+    for Owner sign-off; left for the supervising session, same convention as
+    drizzle/0262 and others logged in this file), a new
+    scripts/crm-perf-load-test.ts harness (seeds 50k+ synthetic rows into a
+    throwaway schema on a disposable Postgres the session provisions itself
+    via a local Docker container -- deliberately NOT the shared
+    supabase_db_verdian-ai/supabase_db_projexa containers already running on
+    this host, to avoid any write to shared infra without sign-off -- and
+    records real EXPLAIN ANALYZE before/after timing for the query patterns
+    above), a results doc under docs/testing/, and PROGRESS.md. No other file
+    changes.
+
+    Checked this file + `gh pr list --state open` for collisions before
+    starting: grepped every "crm"/"lead"/"opportunit" mention in this file --
+    all existing claims (Accounts/Contacts RLS wave, CRM Accounts build,
+    Sales/CRM module priority-15/17 waves, brand-merge wave) touch
+    crm-accounts-service.ts/crm-service.ts application logic or brand/UI, none
+    claim schema.ts index changes, a new migration, or a CRM-specific
+    load-test harness. No open PR touches drizzle/*.sql for these tables or
+    scripts/crm-perf-load-test.ts.
+
+    UPDATE (same session): PR #576 opened
+    (https://github.com/FChecklist/compliance-tracker/pull/576). Migration
+    NOT applied live (Tier2 hold, per protocol). Awaiting CI + Owner
+    sign-off.
+
+    UPDATE 2 (same session, resumed invocation): `main` had moved on (PR
+    #572 merged) since #576 opened, leaving it CONFLICTING on PROGRESS.md
+    -- resolved by keeping this task's entry (confirmed PROGRESS.md is a
+    per-task scratch file each merge overwrites wholesale, not append-only
+    history; merge commit 66adfb37). That fresh CI run then surfaced a
+    real Type Check failure in this PR's own new file
+    (scripts/crm-perf-load-test.ts: untyped `before`/`after` arrays
+    inferred as `never[]`) -- fixed with an explicit type annotation
+    (commit 6e4e51e9). PR #576 is now MERGEABLE with every
+    branch-protection-required check green (Lint, Type Check, Build,
+    Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests).
+    Two checks remain non-green, both correctly out of this session's
+    scope to fix: `Metadata Index Coverage Check` fails identically on
+    main's own last several runs (56 pre-existing ungoverned ai-os/ files,
+    none touched here) and isn't in the required list; `audit-check`
+    needs a separate session's `AUDIT: PASS/FAIL` comment per Rule 7c
+    (no self-certification by the implementing session). Still not
+    self-merged.
 recently_completed:
   - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
     claimed_at: "2026-07-26T (this session)"

@@ -1,0 +1,127 @@
+{
+  "runId": "crm-perftest-1785086878738",
+  "rowCounts": {
+    "leads": 50000,
+    "opportunities": 20000,
+    "accounts": 5000,
+    "contacts": 15000,
+    "salesReferrals": 10000,
+    "veriRewardReferrals": 10000
+  },
+  "orgCount": 10,
+  "hotOrgShare": 0.8,
+  "comparison": [
+    {
+      "label": "leads: listLeadsPaged (org+status, order by created_at)",
+      "before": {
+        "executionMs": 2.594,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 1941
+      },
+      "after": {
+        "executionMs": 0.025,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 103.75999999999999
+    },
+    {
+      "label": "opportunities: listOpportunitiesPaged (org+stage, order by created_at)",
+      "before": {
+        "executionMs": 1.932,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 16807
+      },
+      "after": {
+        "executionMs": 0.768,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 2.515625
+    },
+    {
+      "label": "pipeline dashboard: overdue leads count (org+next_action_date)",
+      "before": {
+        "executionMs": 3.582,
+        "plan": "Aggregate",
+        "rowsRemovedByFilter": 43716
+      },
+      "after": {
+        "executionMs": 1.197,
+        "plan": "Aggregate",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 2.9924812030075185
+    },
+    {
+      "label": "pipeline dashboard: overdue opportunities count (org+next_action_date)",
+      "before": {
+        "executionMs": 1.332,
+        "plan": "Aggregate",
+        "rowsRemovedByFilter": 17541
+      },
+      "after": {
+        "executionMs": 0.438,
+        "plan": "Aggregate",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 3.041095890410959
+    },
+    {
+      "label": "accounts: listAccountsPaged (org+lifecycle_stage, order by created_at)",
+      "before": {
+        "executionMs": 0.232,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 206
+      },
+      "after": {
+        "executionMs": 0.022,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 10.545454545454547
+    },
+    {
+      "label": "contacts: listContactsForAccount (org+account_id)",
+      "before": {
+        "executionMs": 0.009,
+        "plan": "Index Scan (idx_crm_contacts_account_id)",
+        "rowsRemovedByFilter": 0
+      },
+      "after": {
+        "executionMs": 0.009,
+        "plan": "Index Scan (idx_crm_contacts_account_id)",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 1
+    },
+    {
+      "label": "sales-engine: markReferralPaidIfApplicable (org+status)",
+      "before": {
+        "executionMs": 0.012,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 1
+      },
+      "after": {
+        "executionMs": 0.011,
+        "plan": "Limit",
+        "rowsRemovedByFilter": 1
+      },
+      "speedup": 1.090909090909091
+    },
+    {
+      "label": "VERI-reward: referral history (org+referrer_user_id, order by created_at)",
+      "before": {
+        "executionMs": 0.771,
+        "plan": "Sort",
+        "rowsRemovedByFilter": 9976
+      },
+      "after": {
+        "executionMs": 0.063,
+        "plan": "Sort",
+        "rowsRemovedByFilter": 0
+      },
+      "speedup": 12.238095238095239
+    }
+  ]
+}
