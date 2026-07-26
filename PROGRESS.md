@@ -3,6 +3,8 @@
 V2-23-REMOVE-DEAD-ANTHROPIC-PATH: remove the dead `ANTHROPIC_API_KEY` / `claude-task`
 agent-dispatch path.
 
+PR: https://github.com/FChecklist/compliance-tracker/pull/578 (WIP -- see blocker below).
+
 ## Completed
 - [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no collision on this file scope; registered
       a claim entry for this task before starting real edits.

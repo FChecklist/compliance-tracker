@@ -43,6 +43,10 @@ active:
   - session_label: "claude-code (task-20260726-171926-remove-anthropic-api-key-dead-code-path) -- V2-23-REMOVE-DEAD-ANTHROPIC-PATH"
     claimed_at: "2026-07-26T (this session)"
     claim: |
+      PR: https://github.com/FChecklist/compliance-tracker/pull/578 (WIP -- blocked on
+      gh workflow OAuth scope, see PROGRESS.md on that branch for the pending local
+      follow-up commit).
+
       V2-23-REMOVE-DEAD-ANTHROPIC-PATH: remove the dead ANTHROPIC_API_KEY /
       claude-task agent-dispatch path (AGENTS.md's "Claude Code (Secondary
       Agent)" -- never had a working job behind it). File scope: removed
