@@ -40,6 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171942-serverless-resource-limit-tradeoff-doc) -- V2-12 serverless resource-limit tradeoff doc + heavy-workload audit"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      V2-12-SERVERLESS-LIMITS (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md
+      C3, CSV row #13). Redispatch of a task originally blocked pre-flight by
+      a spend-governance gate 2026-07-20, independently re-confirmed still
+      open by a 2026-07-26 relevance-triage pass
+      (ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md). Document the
+      explicit Vercel serverless resource-limit tradeoff (function duration/
+      memory/payload caps on the current sin1 Node.js serverless deployment,
+      no `functions`/`maxDuration` override anywhere in vercel.json today so
+      every route runs on the platform default) and audit the heaviest API
+      routes (payroll runs, report generation, bulk ops) against it. New doc
+      under ai-os/, docs-only unless a workload genuinely needs a
+      queue/worker follow-up (that half stays a separate gated task per the
+      original prompt's own constraint).
+
+      File scope: new ai-os/*.md doc (read-only audit of
+      src/app/api/erp/payroll/**, src/app/api/v1/projexa/payroll/**,
+      src/app/api/erp/reports/**, src/app/api/reports/**,
+      src/app/api/v1/projexa/reports/**, src/app/api/construction/reports/**,
+      src/app/api/hr/attendance/bulk/**, src/app/api/v1/projexa/*/bulk-*/**),
+      PROGRESS.md. No application code changes planned unless the audit
+      finds a route that genuinely needs a dedicated-worker follow-up task
+      (which would be filed separately, not built in this task per the
+      original CONSTRAINTS).
+
+      Collision check before starting: grepped this file for "serverless"/
+      "V2-12"/"vercel.json" -- no other active entry claims this doc or
+      these route directories. `gh pr list --state open` checked (2026-07-26),
+      no open PR touches vercel.json or names V2-12/serverless.
+
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
