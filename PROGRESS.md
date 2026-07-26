@@ -84,7 +84,7 @@ claim or open PR.
 
 ## Remaining
 
-- [ ] Open the PR (WIP-labeled if CI hasn't run yet in this environment).
+- [x] PR opened: https://github.com/FChecklist/compliance-tracker/pull/583
 - [ ] Owner/CA: the deferred rate-verification half (see
       `ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md` §6 and the V2-6 decisions doc) needs a
       real external CA/payroll-specialist reviewer -- not actionable by this task.
