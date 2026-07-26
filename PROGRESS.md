@@ -1,56 +1,63 @@
-# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
+# PROGRESS -- task-20260726-172016-mother-router-and-roster-persistent-memo
+
+## Honest note on the redispatch's cited evidence
+
+Before starting, re-verified the KNOWN_CONTEXT evidence files independently rather than
+trusting them: `ai-os/SYSTEM_MEMORY_ARCHITECTURE.yaml` and
+`ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md` (both cited by this redispatch as proof
+the gap is real) **do not exist anywhere in this repo's git history** (`git log --all` on
+either path returns nothing, `find` across the whole ai-os tree finds neither file). This is
+a discrepancy worth flagging, not silently working around.
+
+The underlying gap itself was independently re-verified regardless, directly against live
+code: `grep -n "mother_router_memory\|ai_agent_memory" src/lib/db/schema.ts` returned zero
+matches before this task started. So the real objective (ground-up persistent memory for
+Mother Router + the AI agent roster) was genuinely still open, confirmed by direct evidence,
+independent of whether the cited triage report file actually exists.
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
-      overlaps PR #563's branch/file scope.
-- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
-      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
-      unrelated stale-PR-state correction) touching the same
-      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
-      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
-      already stopped holding.
-- [x] Merged `origin/main` into PR #563's existing branch, in its existing
-      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
-      -- did not create a duplicate worktree, did not touch any other task's
-      checkout.
-- [x] Resolved both real conflicts:
-      - `PROGRESS.md` -- combined every prior task's real narrative on this
-        branch instead of dropping either side.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
-        `recently_completed` entries (same pattern used repeatedly on this
-        file this session), plus added this task's own entry.
-- [x] While validating the merged YAML (`python3 -c "import yaml;
-      yaml.safe_load(...)"`), found the parse still failed on a
-      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
-      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
-      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
-      entry. Fixed via whitespace-only re-indentation (verified via a Python
-      script operating on exact line ranges, no content altered) -- file now
-      parses (75 `active` + 65 `recently_completed` entries).
-- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
-      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
-      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
-      returns 261 rows, matching PR #563's original fix -- no drift.
-- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
-      existing branch. Did not open a new PR, did not merge PR #563.
-- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
-      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
-      Projects-classic deprecation error / silent line-truncation
-      respectively) with the conflict-resolution summary and the live
-      verification result.
-- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
+- [x] Read ai-os/CONSTITUTION.yaml, ai-os/boss/ACTIVE-CLAIMS.yaml, AGENTS.md, CLAUDE.md
+- [x] Re-verified the gap directly against schema.ts/mother-router.ts/roster.ts (see note above)
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml, committed + pushed standalone
+- [x] Branch created: feat/mother-router-roster-persistent-memory
+- [x] Drizzle schema additions (src/lib/db/schema.ts, additive only):
+      - `platform.mother_router_memory` (dispatch_id, ts, input_capability_tag, resolved_role,
+        resolved_model, outcome, cost, cross_ref_work_item_id) -- written at resolution time
+        by mother-router.ts's resolveModel() (every scope), UPDATED once a dispatch's real
+        outcome/cost are known (recordMotherRouterOutcome()). This is genuinely distinct from
+        the pre-existing `platform.ai_routing_audit_log`: that table is a write-once
+        resolution log; this one is a per-dispatch row that starts pending and gets a real
+        outcome later -- the actual "memory" the original prompt asked for.
+      - `platform.ai_agent_memory` (role_id, ts, task_id, outcome, escalation_flag,
+        cross_ref_work_item_id) -- written from the one real roster-driven dispatch decision
+        point, `/api/ai/team/dispatch`'s POST handler (roster.ts itself is static role data
+        with no dispatch call site of its own -- confirmed by grep before wiring anything).
+- [x] Migration: drizzle/0264_mother_router_roster_memory.sql (hand-authored SQL, same
+      convention as every other platform-schema migration in this repo since 0245 --
+      drizzle-kit's schemaFilter only tracks `compliance`, confirmed via drizzle.config.ts).
+      RLS enabled on both new tables with the same app_runtime/service_role policy split
+      verified live (via Supabase MCP `pg_policies`) against the existing sibling table
+      `platform.ai_routing_audit_log`, rather than replicating `platform.task_register`'s
+      known RLS-disabled gap (flagged by the Supabase MCP's own advisory when listing
+      `platform` tables -- pre-existing on task_register, not touched here, out of scope).
+- [x] Wired writes:
+      - src/lib/ai-router/mother-router.ts: `recordMotherRouterMemory()` (insert at
+        resolution time, inside `resolveModel()`, all 4 scopes) + `recordMotherRouterOutcome()`
+        (exported, update once outcome/cost known). `MotherRouterResolution.dispatchId` added
+        as optional (doesn't touch the pure compute*Resolution() functions or their existing
+        unit tests).
+      - src/app/api/ai/team/dispatch/route.ts: generates the dispatch id up front (so the
+        existing fire-and-forget `resolveMotherRouterModel()` call -- deliberately unawaited,
+        pre-existing design decision documented in that route's own comments -- doesn't need
+        to be awaited just to learn its id), writes `ai_agent_memory` and calls
+        `recordMotherRouterOutcome()` once the dispatch's real qaGate/taskRegisterStatus
+        outcome and cost (`estimateCostUsd`) are known, right before the response is built.
 
 ## Remaining
-- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
-      CI checks are pending/required, not because of any conflict.
-
-## Note for future sessions
-`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
-files were observed silently truncating output in this sandbox (per-line
-~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
-use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
-`git cat-file -p <blob-sha>` instead when the content matters. Likely the
-`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
-integration entries) intercepting recognized "verbose" commands, not a
-general/silent corruption of file writes made directly by tools (Write/Edit)
-or by Python's own `open()/write()`.
+- [ ] `bun install` / typecheck verification (bun unavailable in this sandbox, using
+      `npm install --legacy-peer-deps` + `tsc --noEmit` as a substitute -- in progress)
+- [ ] Apply the migration to the live Supabase DB (project pcrjmlpuqsbocqfwoxod / verdian-ai)
+      via the Supabase MCP
+- [ ] Run `bash -c 'grep -n "mother_router_memory\|ai_agent_memory" src/lib/db/schema.ts'`
+      (the task's own verification command) and confirm both tables appear
+- [ ] Commit, push, open PR
