@@ -5617,3 +5617,29 @@ recently_completed:
 # DNS cutover -- no code change, no PR) and WAVE-198 (6 duplicate drizzle
 # migration number prefixes renumbered, PR #545 MERGED). No open work
 # remains under either claim.
+
+# ── claim closed 2026-07-26 (task-20260726-171129) ──────────────────────
+  - session_label: "claude-code (task-20260726-171129-tier2-fix--pr-563-migration-drift-ci-fai) -- Fixed PR #563's two disclosed CI-blocking defects + a related pre-existing OS.yaml index drift [PUSHED, PR OPEN]"
+    claimed_at: "2026-07-26T (this session, closed same session)"
+    claim: |
+      Both defects from task-20260726-071400's own AUDIT: REJECT review.json
+      were already fixed on PR #563's branch by an earlier follow-up commit
+      (9288746, task-081117) -- verified via `git show`, not just the commit
+      message. Metadata Index Coverage Check was still failing anyway: root
+      cause was a separate, pre-existing (confirmed on bare origin/main HEAD,
+      independent of this PR's diff) drift of 56 ai-os/ governance
+      files/scripts never indexed in ai-os/OS.yaml -- the same drift
+      task-081117 had found and explicitly deferred. Read each of the 56
+      files' own header/docstring and added a real, individually-derived
+      one-line `covers` entry for each (two new OS.yaml sections:
+      reference_docs_and_catalogs, operational_scripts), plus
+      terminology-guardrail-exemptions.yaml into health_and_compliance.
+      Verified locally: `node scripts/check-metadata-index-coverage.mjs`
+      passes (101 items). Pushed commit `eafa1b63` directly to PR #563's
+      existing branch. `gh pr checks 563` now shows Metadata Index Coverage
+      Check PASS (was failing before this push). Did NOT touch `audit-check`
+      -- that requires an independent, non-self auditor per AGENTS.md Rule
+      7(c)/Rule 10 (this session implemented the fix, so cannot also
+      self-certify it); left failing, flagged for a separate agent/session
+      to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
+      #563 (out of this task's scope).
