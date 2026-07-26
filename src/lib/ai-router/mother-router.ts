@@ -75,8 +75,9 @@
  * infrequent, human-triggered admin action) but not engineered around
  * here -- see PROGRESS.md.
  */
-import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users, tenantAiConfig } from "@/lib/db"
+import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users, tenantAiConfig, motherRouterMemory } from "@/lib/db"
 import { and, count, eq, sql } from "drizzle-orm"
+import { createId } from "@paralleldrive/cuid2"
 import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-tier-eligibility"
 import { resolveModelConfig, platformApiKeyFor, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
 import { decryptApiKey } from "@/lib/ai-config-crypto"
@@ -147,6 +148,18 @@ export type MotherRouterResolution = {
    * model === "".
    */
   resolvedConfig?: ResolvedModelConfig
+  /**
+   * Ground-up persistent memory (ai-os gap mother-router-roster-memory,
+   * 2026-07-26): the platform.mother_router_memory row this resolution
+   * wrote at resolution time. Set by resolveModel() (the pure
+   * compute*Resolution() functions below don't have DB access and never set
+   * it -- optional so their existing unit tests are unaffected). The
+   * caller passes this back into recordMotherRouterOutcome() once the
+   * dispatch's real outcome/cost are known -- see that function's own
+   * header. Undefined/null when the best-effort memory write itself failed
+   * (never blocks the real resolution).
+   */
+  dispatchId?: string | null
 }
 
 export type MotherRouterContext =
@@ -220,6 +233,76 @@ async function logRoutingDecision(scope: AiRouterScope, context: MotherRouterCon
     })
   } catch (error) {
     console.error("[mother-router] failed to write ai_routing_audit_log row (non-fatal):", error)
+  }
+}
+
+/**
+ * Ground-up persistent memory (ai-os gap mother-router-roster-memory,
+ * 2026-07-26): writes the platform.mother_router_memory row for this
+ * resolution AT RESOLUTION TIME. Genuinely distinct from
+ * logRoutingDecision()/ai_routing_audit_log above -- that is a write-once
+ * audit trail; this row is deliberately left `outcome: 'pending'` here and
+ * is expected to be updated later, once the dispatch this resolution fed
+ * actually runs, via recordMotherRouterOutcome() below. `inputCapabilityTag`
+ * is the closest single tag this resolution has for "what kind of work was
+ * this" -- software_team's capabilityCategory when present, else the scope
+ * itself (every other scope has no finer-grained capability axis).
+ *
+ * Same fire-and-forget, never-throws-back posture as logRoutingDecision():
+ * a memory-write failure must never block or fail a real routing decision.
+ * Returns the new row's dispatch_id (the join key for the later outcome
+ * update), or null if the write itself failed.
+ *
+ * `presetDispatchId`: lets a caller that already generated its own dispatch
+ * id (e.g. /api/ai/team/dispatch's route, which must know the id
+ * synchronously to later call recordMotherRouterOutcome() without awaiting
+ * this fire-and-forget write) supply it instead of one being generated
+ * here.
+ */
+async function recordMotherRouterMemory(context: MotherRouterContext, resolution: MotherRouterResolution, presetDispatchId?: string): Promise<string | null> {
+  const dispatchId = presetDispatchId ?? createId()
+  const inputCapabilityTag = context.scope === "software_team" ? (context.capabilityCategory ?? context.scope) : context.scope
+  const resolvedRole = context.scope === "software_team" || context.scope === "sales_marketing" || context.scope === "customer_success" ? context.roleKey : null
+  try {
+    await db.insert(motherRouterMemory).values({
+      dispatchId,
+      inputCapabilityTag,
+      resolvedRole,
+      resolvedModel: resolution.model,
+      outcome: "pending",
+    })
+    return dispatchId
+  } catch (error) {
+    console.error("[mother-router] failed to write mother_router_memory row (non-fatal):", error)
+    return null
+  }
+}
+
+export type MotherRouterOutcome = "success" | "failure" | "escalated"
+
+/**
+ * Updates a previously-written platform.mother_router_memory row once the
+ * dispatch's real-world outcome/cost are known (a caller holds the
+ * dispatchId returned on MotherRouterResolution from the earlier
+ * resolveModel() call for the same dispatch). `crossRefWorkItemId` links
+ * this memory row to whatever downstream record actually tracks the work
+ * (e.g. activity_log.id, task_register.task_id) so the two can be
+ * cross-referenced without re-deriving one from the other. Best-effort,
+ * same non-fatal posture as every other write in this file -- never throws
+ * back into a caller's own completion/response path.
+ */
+export async function recordMotherRouterOutcome(dispatchId: string, outcome: MotherRouterOutcome, costUsd?: number | null, crossRefWorkItemId?: string | null): Promise<void> {
+  try {
+    await db
+      .update(motherRouterMemory)
+      .set({
+        outcome,
+        cost: costUsd !== undefined && costUsd !== null ? costUsd.toFixed(6) : undefined,
+        crossRefWorkItemId: crossRefWorkItemId ?? undefined,
+      })
+      .where(eq(motherRouterMemory.dispatchId, dispatchId))
+  } catch (error) {
+    console.error(`[mother-router] failed to update mother_router_memory outcome for dispatch_id="${dispatchId}" (non-fatal):`, error)
   }
 }
 
@@ -600,7 +683,7 @@ export async function resolveTenantAiConfig(orgId: string): Promise<ResolvedTena
 
 // ─── Main entry point ──────────────────────────────────────────────────
 
-export async function resolveModel(context: MotherRouterContext): Promise<MotherRouterResolution> {
+export async function resolveModel(context: MotherRouterContext, presetDispatchId?: string): Promise<MotherRouterResolution> {
   let resolution: MotherRouterResolution
 
   if (context.scope === "software_team") {
@@ -652,6 +735,7 @@ export async function resolveModel(context: MotherRouterContext): Promise<Mother
   }
 
   await logRoutingDecision(context.scope, context, resolution)
+  resolution.dispatchId = await recordMotherRouterMemory(context, resolution, presetDispatchId)
   return resolution
 }
 
