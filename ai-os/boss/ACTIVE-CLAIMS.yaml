@@ -103,6 +103,33 @@ active:
       open` checked, none found on src/lib/prompt-security/ or this
       phase's tool-evaluation doc path. `git pull origin main` run fresh
       immediately before this entry -- up to date, no new commits.
+
+      ADDENDUM (task-20260726-063532-fix-pr562-defense-in-depth-integration-g,
+      2026-07-26T, corrective-fix session on this SAME branch/PR #562, not a
+      new claim): PR #562's AUDIT: FAIL (reject, tier2) found the new
+      src/lib/prompt-security/ module was architecturally unsound as a
+      "defense-in-depth" deliverable -- it duplicated the already-production-
+      wired policy-enforcement-engine.ts (enforcePolicy()) and
+      pii-redaction.ts (redactPii()) with zero cross-reference, was never
+      called from anywhere in src/app/ (protecting zero production traffic),
+      and its Layer 3/4 Llama Guard calls silently failed OPEN on any
+      network/API error despite the module's own docstring claiming "no
+      silent guardrail bypass". Fixed: Layer 1 now cross-checks
+      checkPromptInjection() as a floor (can't silently drift from the
+      production gate); Layer 4 now delegates to pii-redaction.ts's
+      redactPii()/new findPii() (closes a real GSTIN/PAN/IFSC/Aadhaar
+      regression, keeps only the genuinely-new SSN/US-phone categories on
+      top); defense-in-depth.ts's Layer 3 input/output guard calls now fail
+      CLOSED with explicit console.error logging on a network/API error
+      instead of defaulting to permissive "safe"; src/app/api/help/ask/
+      route.ts (the one real LLM call site in this repo) now calls
+      runDefenseInDepth() instead of callLLM() directly. Pushed as commit
+      d55f7e5a to the same
+      worker/task-20260726-043023-phase4-defense-in-depth-prompt-security
+      branch. bun test src/lib/prompt-security/: 42 pass / 0 fail; bunx tsc
+      --noEmit: 0 errors repo-wide; full suite: 2071 pass / 0 fail.
+      Re-audit pending as of this addendum -- not self-merged, per this
+      task's own CONSTRAINTS.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
