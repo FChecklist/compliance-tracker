@@ -40,32 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260726-071400-migration-drift-audit-and-reconciliation) -- Migration drift audit + reconciliation: drizzle/__drizzle_migrations tracking gap on compliance-tracker's live Supabase project (pcrjmlpuqsbocqfwoxod)"
-    claimed_at: "2026-07-26T (this session)"
-    claim: |
-      Auditing and reconciling a confirmed migration-tracking gap found while
-      applying migrations 0262/0263 today: drizzle.__drizzle_migrations has 0
-      rows despite the live DB having hundreds of real applied tables, and two
-      further migrations (0017, part of 0018) were found missing out-of-band.
-      Root cause already confirmed via drizzle-kit/drizzle-orm source
-      inspection: drizzle/meta/_journal.json has had exactly ONE entry
-      (migration 0000) since the file was first committed to this repo --
-      every migration file 0001-0263 was hand-authored/applied via a path
-      that never ran `drizzle-kit generate`, so drizzle-orm's
-      readMigrationFiles() (which iterates journal.entries only) has never
-      known those files exist. This is why `bun run db:migrate` today
-      attempted to replay migration 0000's raw CREATE TABLE/TYPE statements
-      against an already-fully-built schema and died partway through.
-
-      File scope: drizzle/*.sql (read-only enumeration, no edits to existing
-      migration files), drizzle/meta/_journal.json (rebuild to list all real
-      migrations), live Supabase project pcrjmlpuqsbocqfwoxod schema
-      (compliance) via Supabase MCP apply_migration/execute_sql -- applying
-      any genuinely-missing migrations' DDL and inserting real rows into
-      drizzle.__drizzle_migrations. New file:
-      ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml (this task's deliverable).
-      Does not touch application code, schema.ts, or any other in-flight
-      claim's files.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
@@ -3074,6 +3048,15 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260726-071400-migration-drift-audit-and-reconciliation) -- Migration drift audit + reconciliation: drizzle/__drizzle_migrations tracking gap [CLOSED, compliance-tracker PR #563 open]"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      Root-caused drizzle/meta/_journal.json frozen at migration 0000 since
+      first commit; found + applied 12 genuinely-missing migrations live
+      (0005/0037/0140/0165/0169/0199/0217/0218/0249/0251/0253/0255); rebuilt
+      the journal with all 261 real migrations and populated
+      drizzle.__drizzle_migrations with 261 correct rows. Full findings:
+      ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml.
   - session_label: "claude-code (task-20260725-174858-phase1-prompt-registry-version-lifecycle) -- VERIDIAN_Architecture_v2.0 phase_1: prompt registry semantic versioning + lifecycle_state + diff/rollback [CLOSED, compliance-tracker PR #559 merged]"
     claimed_at: "2026-07-25T (merged same-day)"
     claim: |
