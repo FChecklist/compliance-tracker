@@ -6,9 +6,20 @@ export const dynamic = "force-dynamic";
 // PO -- Purchase Requisition -> RFQ -> Supplier Quotation comparison.
 // Requisition submit is wired to the shared Approval Workflow Engine as its
 // second real consumer (see erp-procurement-workflow-service.ts).
+//
+// Wave 7 (PROJEXA reconcile, procurement workflow depth): the one real gap
+// versus PROJEXA's own procurement page (which this wave's module-mapping
+// report otherwise found CT already exceeds -- Compare Quotes, weighted
+// scoring, negotiation rounds, and reverse auctions all have no PROJEXA
+// equivalent) was a one-click "quotation -> PO" action. PROJEXA's
+// ProcurementClient.tsx has exactly that and nothing deeper, so this adds
+// the same single action here rather than a fuller PO-authoring flow --
+// it POSTs to the existing /api/erp/buying/purchase-orders route
+// (erp-buying-service.ts's createPurchaseOrder), the same endpoint the
+// Goods Receipt page's own "New Purchase Order" dialog already uses.
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +32,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 type Supplier = { id: string; supplierName: string };
 type Requisition = { id: string; requisitionNumber: number; postingDate: string; purpose: string | null; status: string; items: { description: string; quantity: string; estimatedRate: string | null }[] };
 type Rfq = { id: string; rfqNumber: number; postingDate: string; status: string; items: { description: string; quantity: string }[]; suppliers: { supplierId: string }[] };
-type Quotation = { id: string; quotationNumber: number; postingDate: string; status: string; supplier: { supplierName: string } | null; items: { description: string; quantity: string; rate: string }[]; total?: number };
+type Quotation = { id: string; quotationNumber: number; postingDate: string; status: string; supplierId: string; supplier: { supplierName: string } | null; items: { description: string; quantity: string; rate: string }[]; total?: number };
 type LineItem = { description: string; quantity: string; rate: string };
 
 const REQ_STATUS_COLORS: Record<string, string> = { draft: "bg-ct-cloud text-ct-muted", submitted: "bg-amber-100 text-amber-700", approved: "bg-green-100 text-green-700", rejected: "bg-red-100 text-red-700", converted: "bg-blue-100 text-blue-700" };
@@ -34,6 +45,7 @@ export default function ErpProcurementPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
   const [compareRfqId, setCompareRfqId] = useState<string>("");
   const [compareResults, setCompareResults] = useState<Quotation[]>([]);
 
@@ -152,6 +164,24 @@ export default function ErpProcurementPage() {
     const res = await fetch(`/api/erp/procurement/rfqs/${rfqId}/quotations`);
     const d = await res.json();
     setCompareResults(d.quotations ?? []);
+  };
+
+  // Wave 7 (PROJEXA reconcile): mirrors PROJEXA's ProcurementClient.tsx
+  // convertToPo() exactly -- one-click PO creation from a quotation's own
+  // supplier + line items, via the same /api/erp/buying/purchase-orders
+  // route the Goods Receipt page's manual "New Purchase Order" dialog uses.
+  const convertToPo = async (q: Quotation) => {
+    setConvertingId(q.id);
+    const res = await fetch("/api/erp/buying/purchase-orders", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: q.supplierId, orderDate: new Date().toISOString().slice(0, 10),
+        items: q.items.map((i) => ({ description: i.description, quantity: Number(i.quantity), rate: Number(i.rate) })),
+      }),
+    });
+    setConvertingId(null);
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to convert quotation to a purchase order"); return; }
+    toast.success("Purchase order created as draft — manage it on the Goods Receipt page");
   };
 
   return (
@@ -278,12 +308,17 @@ export default function ErpProcurementPage() {
                 <h3 className="text-sm font-medium text-ct-navy">Quotation Comparison (lowest total first)</h3>
                 {compareResults.length === 0 ? <p className="text-xs text-ct-muted">No quotations received yet for this RFQ.</p> : (
                   <table className="w-full text-xs">
-                    <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-2 font-medium">Rank</th><th className="p-2 font-medium">Supplier</th><th className="p-2 font-medium">Quote #</th><th className="p-2 font-medium">Date</th><th className="p-2 font-medium text-right">Total</th></tr></thead>
+                    <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-2 font-medium">Rank</th><th className="p-2 font-medium">Supplier</th><th className="p-2 font-medium">Quote #</th><th className="p-2 font-medium">Date</th><th className="p-2 font-medium text-right">Total</th><th className="p-2 font-medium"></th></tr></thead>
                     <tbody className="divide-y divide-ct-border">
                       {compareResults.map((c, i) => (
                         <tr key={c.id} className={i === 0 ? "bg-green-50" : ""}>
                           <td className="p-2">{i + 1}</td><td className="p-2">{c.supplier?.supplierName ?? "—"}</td><td className="p-2">{c.quotationNumber}</td><td className="p-2">{c.postingDate}</td>
                           <td className="p-2 text-right font-medium">{(c.total ?? 0).toFixed(2)}</td>
+                          <td className="p-2 text-right">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => convertToPo(c)} disabled={convertingId === c.id}>
+                              {convertingId === c.id ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRight className="size-3.5" />} Convert to PO
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -335,14 +370,19 @@ export default function ErpProcurementPage() {
           <Card className="rounded-xl shadow-card bg-white">
             <CardContent className="p-0">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">#</th><th className="p-3 font-medium">Supplier</th><th className="p-3 font-medium">Date</th><th className="p-3 font-medium">Lines</th><th className="p-3 font-medium">Status</th></tr></thead>
+                <thead><tr className="text-left text-ct-muted border-b border-ct-border"><th className="p-3 font-medium">#</th><th className="p-3 font-medium">Supplier</th><th className="p-3 font-medium">Date</th><th className="p-3 font-medium">Lines</th><th className="p-3 font-medium">Status</th><th className="p-3 font-medium"></th></tr></thead>
                 <tbody className="divide-y divide-ct-border">
-                  {loading ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">Loading…</td></tr>
-                    : quotations.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-ct-muted">No supplier quotations recorded yet.</td></tr>
+                  {loading ? <tr><td colSpan={6} className="p-6 text-center text-ct-muted">Loading…</td></tr>
+                    : quotations.length === 0 ? <tr><td colSpan={6} className="p-6 text-center text-ct-muted">No supplier quotations recorded yet.</td></tr>
                     : quotations.map((q) => (
                       <tr key={q.id} className="hover:bg-ct-row-hover">
                         <td className="p-3">{q.quotationNumber}</td><td className="p-3">{q.supplier?.supplierName ?? "—"}</td><td className="p-3">{q.postingDate}</td><td className="p-3">{q.items.length}</td>
                         <td className="p-3"><Badge className="bg-ct-cloud text-ct-muted">{q.status}</Badge></td>
+                        <td className="p-3">
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => convertToPo(q)} disabled={convertingId === q.id}>
+                            {convertingId === q.id ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowRight className="size-3.5" />} Convert to PO
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                 </tbody>

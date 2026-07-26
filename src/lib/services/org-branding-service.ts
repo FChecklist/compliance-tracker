@@ -9,7 +9,7 @@
 // wrapper -- these are single-row-by-orgId reads/writes against
 // organisations itself, the same precedent org-license-service.ts and
 // cost-guard.ts already established for this exact table).
-import { db, organisations } from "@/lib/db"
+import { db, organisations, productBranches } from "@/lib/db"
 import { eq, and, ne } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
 
@@ -30,6 +30,13 @@ export const DEFAULT_BRAND_PRIMARY_COLOR = "#1C2B3A"
 export const DEFAULT_BRAND_ACCENT_COLOR = "#F5820A"
 export const DEFAULT_LOGO_URL: string | null = null // falls back to /logo-mark.svg client-side
 
+// Wave 5 (CRM+PROJEXA-merge plan, 2026-07-21): the platform-level default
+// when an org has no primaryProductBranchId set (every pre-existing GRC-
+// only org, unaffected by this change) -- distinct from the per-org
+// DEFAULT_BRAND_* colors above, which are about an org's own visual theme,
+// not the product name shown in the app chrome.
+export const DEFAULT_BRAND_NAME = "VERIDIAN AI OS"
+
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
 // Deliberately permissive (not a full RFC 1035 validator) -- this is a
 // requested-domain string, not something this migration wave actually
@@ -46,6 +53,17 @@ export interface OrgBranding {
   accentColor: string
   customDomain: string | null
   emailSenderName: string | null
+  // The product name to show in the app chrome (sidebar/topbar wordmark) --
+  // resolved from organisations.primaryProductBranchId -> product_branches
+  // .displayName ("PROJEXA" / "THE FIRM AI OS" / etc). Deliberately NOT
+  // Host-header/domain-based -- this repo has no tenant-routing middleware
+  // yet (see the migration this wave ships for why: customDomain has been
+  // stored-but-unrouted since Wave B). Domain-based resolution belongs to
+  // the later DNS/Vercel cutover wave, once projexa-ai.com is actually
+  // aliased to this deployment; until then, org.primaryProductBranchId is
+  // the only signal that exists, and is sufficient for every org that has
+  // one set today.
+  brandName: string
   // true once ANY field has been explicitly configured by an admin -- lets
   // the UI/preview distinguish "this IS the default" from "this org chose
   // colors that happen to match the default."
@@ -86,6 +104,14 @@ export async function resolveBranding(orgId: string): Promise<OrgBranding> {
   const accentColor = org?.brandAccentColor || DEFAULT_BRAND_ACCENT_COLOR
   const customDomain = org?.customDomain || null
   const emailSenderName = org?.emailSenderName || null
+  let brandName: string = DEFAULT_BRAND_NAME
+  if (org?.primaryProductBranchId) {
+    const branch = await db.query.productBranches.findFirst({
+      where: eq(productBranches.id, org.primaryProductBranchId),
+      columns: { displayName: true },
+    })
+    if (branch?.displayName) brandName = branch.displayName
+  }
   return {
     logoUrl,
     faviconUrl,
@@ -93,6 +119,7 @@ export async function resolveBranding(orgId: string): Promise<OrgBranding> {
     accentColor,
     customDomain,
     emailSenderName,
+    brandName,
     isCustomized: Boolean(org?.logo || org?.faviconUrl || org?.brandPrimaryColor || org?.brandAccentColor || org?.customDomain || org?.emailSenderName),
   }
 }

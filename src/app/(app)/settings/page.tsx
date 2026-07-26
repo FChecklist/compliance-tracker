@@ -27,6 +27,7 @@ import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
+import TenantAiConfigSection from "@/components/TenantAiConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
 import AiTeamRosterSection from "@/components/AiTeamRosterSection";
 import ApiKeySection from "@/components/ApiKeySection";
@@ -329,6 +330,17 @@ export default function SettingsPage() {
               <Card className="rounded-xl shadow-card bg-white">
                 <CardContent className="pt-6">
                   <OrchestraModelConfigSection />
+                </CardContent>
+              </Card>
+              {/* Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): per-org BYO
+                  AI model for the software_team scope (the AI Dev Team
+                  dispatch path), the software_team-scope analog of the
+                  OrchestraModelConfigSection above (which serves the
+                  end_user_org / Orchestra Layer scope). Tenant-admin only;
+                  the section self-hides for non-admins. */}
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardContent className="pt-6">
+                  <TenantAiConfigSection />
                 </CardContent>
               </Card>
             </div>

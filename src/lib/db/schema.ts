@@ -1111,7 +1111,7 @@ export const workerAgents = platformSchemaDB.table('worker_agents', {
   // column already follows a "Category > Subcategory" convention -- the
   // top-level Category is a real, non-arbitrary department grouping,
   // structurally the same shape as roster.ts's own TeamName enum (a small,
-  // bounded, governable set). See drizzle/0173_worker_agent_domain_groups.sql
+  // bounded, governable set). See drizzle/0256_worker_agent_domain_groups.sql
   // for the full reasoning and the live backfill (0 of 27 rows null as of
   // that migration). Resolved automatically at proposal time by
   // worker-agent-service.ts's resolveDomainGroupKey() -- see its own comment
@@ -1163,8 +1163,34 @@ export const workerAgentDomainIndex = platformSchemaDB.table('worker_agent_domai
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Ops-layer task-tracking bridge (2026-07-20) -- mirrors VERIDIAN-DEV
+// (Hetzner ops server) autonomous coding-task state (CONTROLLER.yaml /
+// superboss-register.sqlite) into this DB so it is queryable from the app
+// side. Not org-scoped by design, same convention as workerAgentDomainGroups
+// above -- this is internal engineering work, not customer data. Written
+// only via POST /api/internal/ops-task-sync (OPS_SYNC_SECRET bearer auth,
+// same shared-secret pattern as CRON_SECRET-gated /api/internal/* routes),
+// called from veridian-task.py on the ops server at its existing checkpoint
+// choke point -- app code should treat this table as read-only.
+export const opsDevTasks = platformSchemaDB.table('ops_dev_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  opsTaskId: text('ops_task_id').notNull().unique(),
+  title: text('title').notNull(),
+  repo: text('repo').notNull(),
+  branch: text('branch'),
+  status: text('status').notNull(),
+  prUrl: text('pr_url'),
+  softwareTaskId: text('software_task_id'),
+  aiTaskId: text('ai_task_id'),
+  executionSeconds: integer('execution_seconds'),
+  restartCount: integer('restart_count'),
+  lastCheckpointNote: text('last_checkpoint_note'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSyncedAt: timestamp('last_synced_at').notNull().defaultNow(),
+})
+
 // Real Agent Hierarchy Registry (AHR) -- see workerAgents.domainGroupId's
-// own comment and drizzle/0173_worker_agent_domain_groups.sql for the full
+// own comment and drizzle/0256_worker_agent_domain_groups.sql for the full
 // reasoning. Deliberately a small, bounded, hand-curated set (like
 // roster.ts's TeamName), not auto-grown by app code at request time --
 // app_runtime only has SELECT on this table at the DB level (RLS), so a
@@ -1888,6 +1914,53 @@ export const customerModelConfig = complianceSchemaDB.table('customer_model_conf
 })
 
 // ─── Client-level (Layer 3) BYO model config (Wave 45) ───────────────────
+// ─── Per-org BYO AI model for the Mother Router's software_team scope ─────
+// (Super Boss v2 plan task V2-5, BYOB bring-your-own-AI-model, 2026-07-20).
+//
+// DISTINCT from customerModelConfig above: that table serves the *end_user_org*
+// Mother Router scope (Orchestra Layers, product-facing AI calls via
+// resolveModelConfig() -> callLLM()). This table serves the *software_team*
+// scope (mother-router.ts's computeSoftwareTeamResolution, /api/ai/team/dispatch,
+// runRole in team-service.ts) -- the AI Dev Team dispatch path that builds
+// VERIDIAN itself. A tenant configures their own model id + (encrypted) API
+// key + optional base URL; the Mother Router PREFERS it for that org's
+// software_team dispatches, but STILL runs the candidate through
+// checkTierEligibility() exactly like every policy override in
+// computeSoftwareTeamResolution() -- an ineligible tenant model silently
+// downgrades to the roster baseline, never bypasses the tier-eligibility
+// guardrail (AGENTS.md Operating Rule 9). See mother-router.ts's
+// computeSoftwareTeamResolutionWithTenant() and team-service.ts's runRole()
+// tenantOverride path for the enforcement.
+//
+// One active row per org (enforced by a partial unique index in the
+// migration, same pattern ai_routing_policies_one_active_per_scope uses) --
+// "the org's model" is a single choice, not a per-layer matrix like
+// customerModelConfig's orchestraLayerId axis, because the software_team
+// scope resolves by role/tier/capability, not by Orchestra Layer.
+//
+// provider is constrained to the ai_provider enum like customerModelConfig
+// for consistency; the software_team dispatch path calls via OpenRouter
+// (roster.ts: "Every model here is called via OpenRouter"), so a tenant's
+// model is an OpenRouter model id (e.g. 'z-ai/glm-5.2') and their key is an
+// OpenRouter key. baseUrl is optional and defaults to OpenRouter's endpoint
+// when null -- kept as a nullable column so a tenant pointing at a
+// self-hosted OpenRouter-compatible gateway can, without a code change.
+export const tenantAiConfig = complianceSchemaDB.table('tenant_ai_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  provider: aiProviderEnum('provider').notNull(),
+  encryptedApiKey: text('encrypted_api_key'),
+  modelName: text('model_name'),
+  // Optional: an OpenAI-compatible chat-completions endpoint. Null = use the
+  // provider's own default endpoint resolved in llm-client.ts's dispatchLLM()
+  // (https://openrouter.ai/api/v1/chat/completions for the openrouter case).
+  baseUrl: text('base_url'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Mirrors customerModelConfig (Layer 2/org) exactly, one level down the
 // tenant hierarchy -- a real, confirmed gap: Layers 1/2/4 (platform/org/
 // user) all already had a model-resolution mechanism; Layer 3 (client, e.g.
@@ -2050,8 +2123,27 @@ export const promptTemplates = complianceSchemaDB.table('prompt_templates', {
   description: text('description'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): Governance Engine
+  // (prompt-lifecycle sense) -- gap analysis item engine-governance,
+  // "ownership tracking, stewardship assignment". Nullable: a template with
+  // no assigned owner is a real, valid (if incomplete) state today; the
+  // governance gate in prompt-governance-service.ts requires this to be set
+  // before any of that template's versions may promote to Production, but
+  // does not retroactively invent an owner for existing rows.
+  ownerId: text('owner_id'),
 })
 
+// VERIDIAN_Architecture_v2.0 phase_1 (2026-07-25): semantic versioning +
+// lifecycle_state, additive alongside the pre-existing `label`/`version`
+// columns above -- NOT a replacement. `label` is what the ~20 live
+// resolvePromptTemplate() call sites actually key off (production/staging/
+// null) and keeps working unchanged; `lifecycleState` is the real
+// Draft/Review/Staging/Production/Deprecated governance state a version
+// moves through (bare state machine here -- the approval-GATE enforcement
+// on top of it is phase_3 scope, not this one's). `major`/`minor`/`patch`
+// give versions a human-meaningful semantic identity on top of the
+// monotonic `version` integer (which remains the tie-breaker/ordering
+// column every existing query already sorts by).
 export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   promptTemplateId: text('prompt_template_id').notNull(),
@@ -2061,6 +2153,34 @@ export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   isActive: boolean('is_active').notNull().default(true),
   createdById: text('created_by_id'), // nullable -- seeded v1 rows have no human author
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  major: integer('major').notNull().default(1),
+  minor: integer('minor').notNull().default(0),
+  patch: integer('patch').notNull().default(0),
+  // 'Draft' | 'Review' | 'Staging' | 'Production' | 'Deprecated' -- enforced
+  // at the DB layer via a CHECK constraint (drizzle/0262) and at the
+  // service layer via transitionPromptLifecycle()'s ALLOWED_TRANSITIONS
+  // map (prompt-os-service.ts). Independent of `label`: a version can be
+  // lifecycleState='Production' and still hold no label (or vice versa)
+  // during a migration window -- this phase does not couple the two.
+  lifecycleState: text('lifecycle_state').notNull().default('Draft'),
+  metadata: jsonb('metadata').notNull().default({}), // PROMPT_METADATA_SCHEMA_2026-07-25.schema.json -- optional, additive structured fields per category; {} means none supplied
+  rolledBackFromVersionId: text('rolled_back_from_version_id'), // set only on a version created by rollbackPromptVersion() -- points at the version it was requested to restore, never mutated onto history
+  // VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): approval-gate +
+  // canary-duration columns the bare state machine above deferred (see this
+  // table's own phase_1 comment) -- enforced by
+  // prompt-governance-service.ts, set by transitionPromptLifecycle().
+  // approvedById/approvedAt record who approved the most recent Review->
+  // Staging or Staging->Production promotion (maker-checker: must differ
+  // from createdById, checked at the service layer, not by a DB
+  // constraint -- self-referential CHECK constraints against another row's
+  // column aren't expressible in Postgres). stagingEnteredAt is set the
+  // moment a version first reaches Staging and is what the canary-duration
+  // business rule (module_rule_configs, moduleKey='prompt_lifecycle',
+  // ruleKey='min_canary_duration_hours') measures elapsed time against
+  // before allowing Staging->Production.
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  stagingEnteredAt: timestamp('staging_entered_at'),
 })
 
 // ─── Wave 94 (Comparison CSV 3 gap analysis: AI011 "Prompt/Model Evaluation
@@ -2505,6 +2625,10 @@ export const customerModelConfigRelations = relations(customerModelConfig, ({ on
 export const clientModelConfigRelations = relations(clientModelConfig, ({ one }) => ({
   client: one(clients, { fields: [clientModelConfig.clientId], references: [clients.id] }),
   layer: one(orchestraLayers, { fields: [clientModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
+}))
+
+export const tenantAiConfigRelations = relations(tenantAiConfig, ({ one }) => ({
+  org: one(organisations, { fields: [tenantAiConfig.orgId], references: [organisations.id] }),
 }))
 
 export const sharedPoolAllocationsRelations = relations(sharedPoolAllocations, ({ one }) => ({
@@ -4667,6 +4791,9 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
   aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
   aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
+  // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_campaigns --
+  // same bare-text/no-FK/nullable convention as companyId/accountId above.
+  campaignId: text('campaign_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4715,6 +4842,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // record), independent of whether it also has a leadId/clientId. Same
   // bare-text/no-FK/nullable convention as accountId on crmLeads above.
   accountId: text('account_id'),
+  // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_lost_reasons,
+  // set only when stage='lost'. Same bare-text/no-FK/nullable convention
+  // as accountId just above -- structured, org-configurable reason
+  // instead of a hardcoded enum, matching the Odoo reference pattern.
+  lostReasonId: text('lost_reason_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4822,6 +4954,63 @@ export const crmContacts = complianceSchemaDB.table('crm_contacts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+// ─── VERIDIAN CRM Wave 1 (2026-07-21) ─────────────────────────────────────
+// Closes 3 gaps confirmed against reference-system docs (Zoho/Odoo/Infisuite
+// reverse-engineering repos, see docs/crm/fields.md in each): a structured
+// Lost Reason (Odoo has a configurable Lost Reasons taxonomy; this schema
+// only had free-text stage='lost'), an Activities table for Tasks/Meetings/
+// Calls tied to any CRM record (Zoho has this; this schema had no
+// activity-tracking concept at all -- crm_stage_history's own polymorphic
+// entityType+entityId pattern, established for lead/opportunity history, is
+// reused here and extended to account/contact), and a Campaigns table (Zoho
+// has this; this schema had zero campaign concept). All additive, zero
+// changes to existing crm_leads/crm_opportunities/crm_accounts/crm_contacts
+// columns.
+
+export const crmLostReasons = complianceSchemaDB.table('crm_lost_reasons', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reasonText: text('reason_text').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const crmActivities = complianceSchemaDB.table('crm_activities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // 'lead' | 'opportunity' | 'account' | 'contact'
+  entityId: text('entity_id').notNull(),
+  activityType: text('activity_type').notNull(), // 'task' | 'meeting' | 'call'
+  subject: text('subject').notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  status: text('status').notNull().default('not_started'), // 'not_started' | 'in_progress' | 'completed'
+  priority: text('priority').notNull().default('normal'), // 'low' | 'normal' | 'high'
+  notes: text('notes'),
+  assignedToId: text('assigned_to_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
+export const crmCampaigns = complianceSchemaDB.table('crm_campaigns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  campaignType: text('campaign_type'),
+  status: text('status').notNull().default('planning'), // 'planning' | 'active' | 'completed' | 'cancelled'
+  startDate: date('start_date', { mode: 'string' }),
+  endDate: date('end_date', { mode: 'string' }),
+  budgetedCost: numeric('budgeted_cost'),
+  actualCost: numeric('actual_cost'),
+  expectedRevenue: numeric('expected_revenue'),
+  description: text('description'),
+  ownerId: text('owner_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
 // minthcm/erpnext(hrms)/orangehrm were evaluated and rejected as software

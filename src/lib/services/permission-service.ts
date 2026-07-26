@@ -40,12 +40,14 @@
 // never a bespoke rank comparison reimplemented here.
 import type { NextResponse } from "next/server"
 import {
+  hasRole,
   requireRole,
   requireRoleOrScope,
   type UserRole,
   type AuthContext,
   type CombinedAuthContext,
 } from "@/lib/supabase/auth-guard"
+import { ServiceError } from "./compliance-service"
 
 /**
  * The single source of truth for "what minimum role does this ERP action
@@ -295,4 +297,68 @@ export function requirePermissionForUser(
   action: ErpAction
 ): NextResponse | null {
   return requireRole(dbUser, roleFor(action))
+}
+
+// ─── VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): Permission Engine
+// (prompt-lifecycle sense, gap analysis item engine-permission) ──────────
+//
+// Before this, every prompt-OS write (createPromptVersion/
+// transitionPromptLifecycle/rollbackPromptVersion in prompt-os-service.ts,
+// createEvalCase/runEval in prompt-eval-service.ts) repeated the exact same
+// inline `if (!hasRole(ctx.dbUser, "veridian_admin")) throw ...` five times,
+// with no way to name or reason about "access vs. edit vs. approve vs.
+// deploy" as distinct permissions the way ERP_ACTION_ROLES above already
+// does for ERP actions -- exactly the gap the review-framework header on
+// this file describes for ERP, now real for prompts too.
+//
+// Deliberately does NOT lower any bar below what's live today: every action
+// below still resolves to "veridian_admin" (prompt content remains a
+// platform-governed asset, same authority bar as publishing a worker agent
+// -- see prompt-os-service.ts's own header), because loosening an already-
+// enforced gate without the Owner's explicit sign-off is exactly what
+// AGENTS.md Rule 9 forbids. What's new is that each action now has its own
+// name (so a future role split doesn't require re-plumbing every call
+// site) AND that the higher-risk transitions (approve/deploy) get real,
+// additional, non-role gates layered on top by
+// prompt-governance-service.ts's transitionGate() -- maker-checker,
+// eval-threshold, canary-duration, ABAC, PII scan, ownership. Role alone
+// answers "can this actor possibly do this"; the governance gate answers
+// "is this specific transition allowed right now."
+export const PROMPT_ACTION_ROLES = {
+  "prompt.version.create": "veridian_admin", // author a new Draft version -- unchanged bar (was inline hasRole check)
+  "prompt.version.transition_review": "veridian_admin", // Draft -> Review
+  "prompt.version.approve_staging": "veridian_admin", // Review -> Staging (first approval gate)
+  "prompt.version.promote_production": "veridian_admin", // Staging -> Production (deploy gate)
+  "prompt.version.deprecate": "veridian_admin", // Production -> Deprecated
+  "prompt.version.rollback": "veridian_admin", // append a new Draft version restoring an old one's content
+  "prompt.template.assign_owner": "veridian_admin", // Governance Engine: assign/change a template's steward
+  "prompt.eval.create_case": "veridian_admin", // author an eval case
+  "prompt.eval.run": "veridian_admin", // execute an eval case against a version
+} as const satisfies Record<string, UserRole>
+
+export type PromptAction = keyof typeof PROMPT_ACTION_ROLES
+
+function roleForPrompt(action: PromptAction): UserRole {
+  const role = PROMPT_ACTION_ROLES[action]
+  if (!role) {
+    throw new Error(`permission-service: unknown prompt action "${action}" -- add it to PROMPT_ACTION_ROLES before gating a route/service call with it`)
+  }
+  return role
+}
+
+/**
+ * The prompt-OS service-layer gate. Unlike requirePermission()/
+ * requirePermissionForUser() above (which return a NextResponse for a route
+ * handler to `return`), prompt-os-service.ts/prompt-eval-service.ts are
+ * service-layer functions that throw ServiceError (compliance-service.ts's
+ * convention, re-exported from every *-service.ts file in this directory)
+ * rather than building a NextResponse themselves -- this matches that real
+ * calling convention instead of forcing prompt-os-service.ts to unwrap a
+ * NextResponse it has no use for.
+ */
+export function requirePromptPermissionForUser(dbUser: AuthContext["dbUser"], action: PromptAction): void {
+  const minimumRole = roleForPrompt(action)
+  if (!hasRole(dbUser, minimumRole)) {
+    throw new ServiceError(`This action (${action}) requires ${minimumRole} role or higher`, 403)
+  }
 }

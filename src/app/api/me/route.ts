@@ -49,6 +49,7 @@ export async function GET() {
     orgPlan: org?.plan ?? "free",
     trialEndsAt: org?.trialEndsAt ? org.trialEndsAt.toISOString() : null,
     orgLogoUrl: branding?.logoUrl ?? null,
+    brandName: branding?.brandName ?? "VERIDIAN AI OS",
     orgBrandPrimaryColor: branding?.primaryColor ?? null,
     orgBrandAccentColor: branding?.accentColor ?? null,
   })

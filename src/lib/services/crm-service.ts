@@ -5,7 +5,7 @@
 // needed for a compliance-service-provider's business). Gated identically
 // to the existing Clients page (accountType !== 'company') at the UI
 // layer, matching that page's own precedent.
-import { crmLeads, crmOpportunities, crmStageHistory, clients, erpCustomers, tasks } from "@/lib/db"
+import { crmLeads, crmOpportunities, crmStageHistory, crmLostReasons, clients, erpCustomers, tasks } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, ilike, inArray, sql, lte, isNotNull } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
@@ -196,7 +196,7 @@ export async function createOpportunity(
 export async function updateOpportunity(
   ctx: CrmContext,
   opportunityId: string,
-  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null }>,
+  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null; lostReasonId: string | null }>,
   stageChangeNote?: string
 ) {
   await requireSalesEnabled(ctx.orgId)
@@ -472,4 +472,106 @@ export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportu
   if (!opp) throw new ServiceError("Opportunity not found", 404)
   if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
   return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction, fromTaskId)
+}
+
+
+// ─── VERIDIAN CRM Wave 1 (2026-07-21) ─────────────────────────────────────
+// CRUD audit finding (Owner-directed completion pass): listLeads/
+// listLeadsPaged/createLead/updateLead existed but no single-lead fetch and
+// no delete path -- same gap on the opportunity side (listOpportunities/
+// listOpportunitiesPaged/createOpportunity/updateOpportunity existed, no
+// getOpportunity/deleteOpportunity). Accounts and contacts (crm-accounts-
+// service.ts) already had full CRUD including delete -- checked, not a gap
+// there. Delete here follows crm-accounts-service.ts's own deleteAccount()
+// precedent for the hard-delete-with-referential-blocker shape (this
+// schema has no isActive/archivedAt column on crm_leads/crm_opportunities
+// to soft-delete against -- confirmed by reading the table definitions
+// fresh before writing this, not assumed) -- but deliberately does NOT
+// call logActivity() the way crm-accounts-service.ts's deletes do: this
+// file's own CrmContext type (unlike crm-accounts-service.ts's
+// CrmAccountContext) carries no dbUser, and none of this file's existing
+// create/update functions log activity either -- adding it only to these
+// two new functions would be an inconsistent, half-applied convention
+// borrowed from a different file, not a real fix.
+
+export async function getLead(ctx: { orgId: string }, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
+  )
+}
+
+export async function deleteLead(ctx: CrmContext, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Lead not found", 404)
+
+    const linkedOpportunities = await db.query.crmOpportunities.findMany({
+      where: and(eq(crmOpportunities.leadId, leadId), eq(crmOpportunities.orgId, ctx.orgId)), columns: { id: true },
+    })
+    if (linkedOpportunities.length) {
+      throw new ServiceError(
+        `Cannot delete this lead -- it still has ${linkedOpportunities.length} linked opportunity/opportunities. Reassign or remove them first.`,
+        409
+      )
+    }
+
+    await db.delete(crmLeads).where(eq(crmLeads.id, leadId))
+    return { id: leadId }
+  })
+}
+
+export async function getOpportunity(ctx: { orgId: string }, opportunityId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+  )
+}
+
+export async function deleteOpportunity(ctx: CrmContext, opportunityId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Opportunity not found", 404)
+    await db.delete(crmOpportunities).where(eq(crmOpportunities.id, opportunityId))
+    return { id: opportunityId }
+  })
+}
+
+// Structured Lost Reason (Odoo reference: a configurable Lost Reasons
+// taxonomy, not free text -- see odoo-reverse-engineering/docs/crm/fields.md
+// "Marking a deal 'Lost' is backed by a structured Lost Reasons config
+// list... not a free-text field"). Org-configurable, not a hardcoded enum,
+// same rationale as this schema's other org-scoped lookup data.
+export async function createLostReason(ctx: CrmContext, reasonText: string) {
+  await requireSalesEnabled(ctx.orgId)
+  const trimmed = reasonText?.trim()
+  if (!trimmed) throw new ServiceError("reasonText is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [reason] = await db.insert(crmLostReasons).values({ orgId: ctx.orgId, reasonText: trimmed }).returning()
+    return reason
+  })
+}
+
+export async function listLostReasons(ctx: { orgId: string }, opts: { includeInactive?: boolean } = {}) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmLostReasons.findMany({
+      where: opts.includeInactive
+        ? eq(crmLostReasons.orgId, ctx.orgId)
+        : and(eq(crmLostReasons.orgId, ctx.orgId), eq(crmLostReasons.isActive, true)),
+      orderBy: (t, { asc }) => asc(t.reasonText),
+    })
+  )
+}
+
+export async function deactivateLostReason(ctx: { orgId: string }, lostReasonId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.crmLostReasons.findFirst({ where: and(eq(crmLostReasons.id, lostReasonId), eq(crmLostReasons.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Lost reason not found", 404)
+    const [updated] = await db.update(crmLostReasons).set({ isActive: false }).where(eq(crmLostReasons.id, lostReasonId)).returning()
+    return updated
+  })
 }

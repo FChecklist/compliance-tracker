@@ -929,7 +929,7 @@ const MODULE_SCOPE_TOP_LEVEL_KEYS: Record<string, string[]> = {
   checklists: ["compliance_item", "calculators", "learned_capabilities"],
   "gst-reconciliation": ["gst_reconciliation", "calculators", "learned_capabilities"],
   "tds-returns": ["calculators", "learned_capabilities"],
-  crm: ["customer", "vendor", "learned_capabilities"],
+  crm: ["customer", "vendor", "crm_quick_create", "learned_capabilities"],
   erp: ["customer", "vendor", "product", "learned_capabilities"],
   reports: ["reports", "reports_analysis_catalog", "learned_capabilities"],
 }
@@ -1077,6 +1077,64 @@ async function buildLearnedCapabilityNodes(db: TenantDb, orgId: string): Promise
   return [{ key: "learned_capabilities", label: "Learned Capabilities", leaf: false, children: groupNodes }]
 }
 
+// VERIDIAN CRM Wave 4 (2026-07-21), Owner directive: "user just puts name
+// etc in the chatbox and our system creates the lead". Static leaf set
+// (not DB-driven like buildCalculatorNodes()' generic "Calculators"
+// bucket -- that bucket is unfiltered/all-categories, wrong UX for a
+// focused quick-create action, and adding it to the crm scope would flood
+// the CRM page's chat with 200+ unrelated calculators). Each leaf carries
+// its own engineKey + inputFields, same shape every WIRED_ENGINE_INPUT_
+// FIELDS leaf uses -- dispatchEngine() (task-execution-engine.ts) handles
+// these 4 new engineKeys directly, calling crm-service.ts/crm-activities-
+// service.ts/crm-campaigns-service.ts's real create functions. Zero LLM
+// calls for the create itself -- FULL_SOFTWARE dispatch, same as every
+// calculator leaf, per the Owner's own "less coding, more software"
+// directive.
+function buildCrmQuickCreateNodes(): CapabilityNode[] {
+  const leaves: CapabilityNode[] = [
+    {
+      key: "crm_create_lead_engine", label: "Create a Lead", leaf: true, engineKey: "crm_create_lead_engine",
+      inputFields: [
+        { key: "name", label: "Lead name", type: "text" },
+        { key: "contactEmail", label: "Contact email", type: "text", optional: true },
+        { key: "contactPhone", label: "Contact phone", type: "text", optional: true },
+        { key: "source", label: "Source", type: "text", optional: true },
+      ],
+    },
+    {
+      key: "crm_create_opportunity_engine", label: "Create an Opportunity", leaf: true, engineKey: "crm_create_opportunity_engine",
+      inputFields: [
+        { key: "name", label: "Opportunity name", type: "text" },
+        { key: "leadId", label: "Lead ID this opportunity is linked to", type: "text" },
+        { key: "estimatedValue", label: "Estimated value (optional)", type: "number", optional: true },
+      ],
+    },
+    {
+      key: "crm_create_activity_engine", label: "Create an Activity", leaf: true, engineKey: "crm_create_activity_engine",
+      inputFields: [
+        { key: "entityType", label: "Record type", type: "select", options: [
+          { value: "lead", label: "Lead" }, { value: "opportunity", label: "Opportunity" },
+          { value: "account", label: "Account" }, { value: "contact", label: "Contact" },
+        ] },
+        { key: "entityId", label: "Record ID", type: "text" },
+        { key: "activityType", label: "Activity type", type: "select", options: [
+          { value: "task", label: "Task" }, { value: "meeting", label: "Meeting" }, { value: "call", label: "Call" },
+        ] },
+        { key: "subject", label: "Subject", type: "text" },
+        { key: "dueDate", label: "Due date (optional)", type: "text", optional: true },
+      ],
+    },
+    {
+      key: "crm_create_campaign_engine", label: "Create a Campaign", leaf: true, engineKey: "crm_create_campaign_engine",
+      inputFields: [
+        { key: "name", label: "Campaign name", type: "text" },
+        { key: "campaignType", label: "Campaign type", type: "text", optional: true },
+      ],
+    },
+  ]
+  return [{ key: "crm_quick_create", label: "Create", leaf: false, children: leaves }]
+}
+
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
   const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
@@ -1089,7 +1147,8 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const reportNodes = await buildReportLinkNodes(db, ctx.orgId)
     const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId })
     const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes]
+    const crmQuickCreateNodes = buildCrmQuickCreateNodes()
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
