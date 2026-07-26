@@ -282,7 +282,7 @@ async function main() {
     const queries = buildQueries(hotOrgId, sampleAccountId, sampleUserId);
 
     log("--- BEFORE (single-column indexes only) ---");
-    const before = [];
+    const before: ({ label: string; query: string } & PlanResult)[] = [];
     for (const q of queries) {
       const result = await measure(sql, q.label, q.query);
       before.push(result);
@@ -296,7 +296,7 @@ async function main() {
     log("Composite indexes applied, stats re-analyzed.");
 
     log("--- AFTER (composite indexes from the migration under test) ---");
-    const after = [];
+    const after: ({ label: string; query: string } & PlanResult)[] = [];
     for (const q of queries) {
       const result = await measure(sql, q.label, q.query);
       after.push(result);
