@@ -40,45 +40,68 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260725-174858-phase1-prompt-registry-version-lifecycle) -- VERIDIAN_Architecture_v2.0 phase_1: prompt registry semantic versioning + lifecycle_state + diff/rollback"
+  - session_label: "claude-code (task-20260725-231836-phase2-prompt-compiler-pipeline-core-non) -- VERIDIAN_Architecture_v2.0 phase_2: compiler pipeline core (Layer 2-5, non-browser) + Intelligence/Matching engines"
     claimed_at: "2026-07-25T (this session)"
     claim: |
-      phase_1_prompt_registry_lifecycle_foundation of
+      phase_2_compiler_pipeline_intelligence_engines of
       ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
       repo claude-control, target_repo: compliance-tracker per that
-      phase's own target_repo_note). CORRECTED scope (by an earlier
-      re-verification task, 2026-07-25): extend the real, live
-      compliance.prompt_templates/prompt_versions tables (~20 production
-      resolvePromptTemplate() call sites) rather than build a new
-      datastore. This session adds: MAJOR/MINOR/PATCH integer columns +
-      a lifecycle_state enum (Draft/Review/Staging/Production/Deprecated)
-      to prompt_versions, additive alongside the existing label column
-      (does not touch/replace it, so none of the ~20 live call sites
-      change behavior); a diff/rollback API in prompt-os-service.ts next
-      to the existing createPromptVersion/listPromptVersions; and an
-      expanded metadata JSON Schema doc
-      (ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json, 18 categories
-      at minimum-viable field depth, matching AUDITOR_ENGINE's precedent
-      for this kind of schema-expansion task).
+      phase's own target_repo_note). Extends
+      scripts/prompt_gateway/engine/{classifier,prompt_engine,context_engine}.py's
+      real but narrow Python algorithms into compliance-tracker's own
+      TypeScript application code as a new src/lib/prompt-compiler/
+      module: multi-level intent classification, entity/variable
+      extraction, deepened context assembly (session history + business +
+      user context), Stage 4 Machine Prompt Builder (noise removal via
+      the existing normalizeForLlm() + compression + hash/fingerprint +
+      semantic-cache lookup), multi-signal confidence scoring, and a
+      Layer 5 verification stage (business/workflow/capability/permission
+      checks + cost estimation + model selection) -- Pipeline Layers 2-5
+      (pipeline-lightweight-analysis through pipeline-verification) per
+      the phase's own scope. Also builds the Intelligence & Matching
+      engines with no prior art (ranking/recommendation/optimizer/
+      expansion/portability/A-B-testing/testing-benchmark deepening),
+      reusing embeddings.ts + capability-registry-service.ts's existing
+      entity-agnostic similarity infrastructure for engine-prompt-
+      similarity (adds a `prompt_version` capability entity type
+      alongside the existing worker_agent/automation_rule/module/
+      prompt_pattern/dynamic_chain set, mirroring that file's own Wave 173
+      precedent) rather than building a parallel embedding store, and
+      prompt-eval-service.ts's existing createEvalCase/runEval for the
+      testing/benchmark deepening (shadow-comparison across two prompt
+      versions, no new eval schema). Per the Owner's 2026-07-25 verbatim
+      UX directive reconciliation in this phase's own amended scope: the
+      compiler pipeline here is a pure, deterministic, no-LLM-call
+      pipeline (matches prompt_gateway's own "by software, not by AI"
+      design) -- it is the machine-language-output CONTRACT phase_5's
+      two end-user input surfaces will compile into later, not a second
+      mandatory AI pass; Gateway G05 is touched only by verification's
+      existing-cost-estimation/model-selection helpers, never invoked
+      directly by this phase's own code.
 
-      File scope: src/lib/db/schema.ts (promptVersions table -- new
-      columns only, no drops/renames), drizzle/ (new migration),
-      src/lib/services/prompt-os-service.ts (new exports, existing ones
-      untouched), ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json
-      (new), ai-os/MASTER_INDEX.yaml (register the extension). Also
-      touches claude-control (separate repo, via an isolated
-      `git worktree` off origin/master, not the shared primary
-      claude-control checkout on this box which has unrelated
-      in-progress uncommitted edits from another session as of this
-      claim -- left untouched): phase_1's status in
-      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml, and its
-      WIRING_ENGINE_REGISTRY_2026-07-25.json entity for
-      compliance.prompt_versions.
+      File scope (compliance-tracker, this repo): new
+      src/lib/prompt-compiler/ directory (module + colocated *.test.ts
+      files, no new DB tables/migrations), a small additive extension to
+      src/lib/services/capability-registry-service.ts (new
+      `prompt_version` entity type + indexPromptVersion/
+      findSimilarPromptVersions, same shape as its own existing
+      prompt_pattern/dynamic_chain siblings), a new
+      scripts/prompt-compiler-smoke-test.ts (this phase's own
+      SUCCESS_CRITERIA command). Does not touch prompt-os-service.ts,
+      schema.ts, or any phase_1 file. Also touches claude-control
+      (separate repo, coordinate-not-run-inside per this plan's own
+      meta.cross_repo_dispatch_note): phase_2's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml.
 
-      Collision check before starting: grepped this file for "prompt" --
-      no other active entry claims prompt_templates/prompt_versions
-      schema or prompt-os-service.ts. `gh pr list --state open` checked
-      for the same paths, none found.
+      Collision check before starting: grepped this file for "prompt"/
+      "phase_2" -- no other active entry claims
+      src/lib/prompt-compiler/, capability-registry-service.ts, or
+      scripts/prompt_gateway/. `gh pr list --state open` checked, none
+      found on these paths. OWNER DECISION CHECK (per this phase's own
+      scope note): ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml id
+      veridian-architecture-v2-target-repo-anchor is status: approved
+      (2026-07-25T17:52:44Z) -- confirmed before writing any application
+      code below, per that scope note's own instruction.
   - session_label: "claude-code (background task, 2026-07-21) -- Wave 10: projexa-ai.com DNS/Vercel cutover + Wave 9 credential reverse-link gap [CLOSED, see WAVE-199 in COMPLETED.yaml]"
     claimed_at: "2026-07-21T (this session)"
     claim: |
@@ -2936,6 +2959,18 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260725-174858-phase1-prompt-registry-version-lifecycle) -- VERIDIAN_Architecture_v2.0 phase_1: prompt registry semantic versioning + lifecycle_state + diff/rollback [CLOSED, compliance-tracker PR #559 merged]"
+    claimed_at: "2026-07-25T (merged same-day)"
+    claim: |
+      phase_1_prompt_registry_lifecycle_foundation of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml. Added
+      MAJOR/MINOR/PATCH + lifecycle_state to compliance.prompt_versions,
+      a diff/rollback API in prompt-os-service.ts, and the expanded
+      PROMPT_METADATA_SCHEMA_2026-07-25.schema.json doc. Merged as
+      compliance-tracker PR #559 (double-audited PASS). Phase plan status
+      updated to `done` by that task. Superseded by
+      phase_2_compiler_pipeline_intelligence_engines, claimed separately
+      below under `active:`.
   - session_label: "claude-code (task-20260724-143013-phase4-migrate-existing-hardcoded-exampl, claude-control) -- Terminology Standardization phase_4_existing_hardcoded_example_migration"
     claimed_at: "2026-07-24T (this session, closed same-PR)"
     claim: |
